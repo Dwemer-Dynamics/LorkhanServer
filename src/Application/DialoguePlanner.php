@@ -1,0 +1,79 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ALMSIVIserver\Application;
+
+use DomainException;
+
+final class DialoguePlanner
+{
+    private const MAX_UTTERANCES = 4;
+    private const MAX_TOTAL_BYTES = 32_768;
+
+    /** @param array<string,mixed> $turn @param array<string,mixed> $providerResult @return list<array<string,mixed>> */
+    public function plan(array $turn, array $providerResult): array
+    {
+        $payload = $turn['payload'] ?? [];
+        if (!is_array($payload) || array_is_list($payload)) throw new DomainException('provider_invalid_output');
+        $player = $payload['speaker'] ?? null;
+        $target = $payload['target'] ?? null;
+        $audience = $payload['audience'] ?? [];
+        if (!is_array($player) || !is_array($target) || !is_array($audience)) throw new DomainException('provider_invalid_output');
+
+        $eligible = [];
+        foreach (array_merge([$target], $audience) as $identity) {
+            if (!is_array($identity) || array_is_list($identity)) throw new DomainException('provider_invalid_output');
+            $eligible[$this->identityKey($identity)] ??= $identity;
+        }
+        if ($eligible === []) throw new DomainException('provider_invalid_output');
+
+        $raw = $providerResult['utterances'] ?? null;
+        if ($raw === null && isset($providerResult['text']) && is_string($providerResult['text'])) {
+            $raw = [['text' => $providerResult['text']]];
+        }
+        if (!is_array($raw) || !array_is_list($raw) || $raw === [] || count($raw) > self::MAX_UTTERANCES) {
+            throw new DomainException('provider_invalid_output');
+        }
+
+        $orderedSpeakers = array_values($eligible);
+        $utterances = [];
+        $totalBytes = 0;
+        foreach ($raw as $index => $candidate) {
+            if (!is_array($candidate) || array_is_list($candidate)) throw new DomainException('provider_invalid_output');
+            $speaker = $candidate['speaker'] ?? $orderedSpeakers[$index % count($orderedSpeakers)];
+            $addressee = $candidate['addressee'] ?? $player;
+            if (!is_array($speaker) || !is_array($addressee) || !isset($eligible[$this->identityKey($speaker)])) {
+                throw new DomainException('provider_speaker_not_allowed');
+            }
+            $allowedAddressees = $eligible + [$this->identityKey($player) => $player];
+            if (!isset($allowedAddressees[$this->identityKey($addressee)])) {
+                throw new DomainException('provider_addressee_not_allowed');
+            }
+            $text = $candidate['text'] ?? null;
+            if (!is_string($text) || $text === '' || !mb_check_encoding($text, 'UTF-8')
+                || mb_strlen($text, 'UTF-8') > 4096 || strlen($text) > 16_384) {
+                throw new DomainException('provider_invalid_output');
+            }
+            $totalBytes += strlen($text);
+            if ($totalBytes > self::MAX_TOTAL_BYTES) throw new DomainException('provider_invalid_output');
+            $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
+                'audience' => array_values($eligible), 'text' => $text, 'index' => $index + 1, 'count' => count($raw)];
+        }
+        return $utterances;
+    }
+
+    /** @param array<string,mixed> $identity */
+    public function identityKey(array $identity): string
+    {
+        $record = strtolower((string) ($identity['record_id'] ?? ''));
+        $content = strtolower((string) ($identity['content_file'] ?? ''));
+        $refnum = $identity['refnum'] ?? [];
+        $cell = $identity['cell'] ?? [];
+        if ($record === '' || $content === '' || !is_array($refnum) || !is_array($cell)) {
+            throw new DomainException('provider_invalid_identity');
+        }
+        return hash('sha256', json_encode([$identity['kind'] ?? null, $record, $content,
+            $refnum['index'] ?? null, $refnum['content_file'] ?? null, $cell], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+}

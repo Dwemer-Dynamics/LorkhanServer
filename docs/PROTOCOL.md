@@ -6,7 +6,7 @@ are duplicated for independent release but their manifest hashes must be identic
 ## Transport and authentication
 
 - Base URL: `http://127.0.0.1:8089/ALMSIVIserver/api/v1`.
-- Native client uses `Authorization: Bearer <pairing token>`; token is never a query/cookie field.
+- Native client uses `hmac-sha256-v1` request MAC headers binding installation, timestamp, unique nonce, body digest, canonical method/target/content type; the 256-bit pairing key is not transmitted routinely and bearer authentication is rejected.
 - JSON content type is strict UTF-8. STT accepts only allowlisted bounded audio types.
 - Responses use ordered bounded long polling at `/events`, not an unbounded server socket.
 - Media uses authenticated `/media/{opaque_id}` and a stored descriptor/hash, never a supplied path.
@@ -47,10 +47,10 @@ stale references fail explicitly.
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
 | `GET /media/{id}` | Stream owned, unexpired allowlisted audio with fixed headers/hash/length. |
 
-Event types: `turn.accepted`, `turn.status`, `dialogue.delta`, `dialogue.complete`, `speech.ready`,
-`action.intent`, `turn.complete`, `turn.failed`, `turn.cancelled`, `session.config_changed`, and
-`server.notice`. Each has a monotonically increasing session sequence and unique message ID. Cursor
-gaps use bounded replay or `cursor_expired`; the client never guesses.
+Contracted event types are `turn.accepted`, `dialogue.complete`, `speech.ready`, `action.intent`,
+`turn.complete`, `turn.failed`, `turn.cancelled`, `stt.transcript`, and `stt.failed`. Future variants such as deltas/status/notices require
+an atomic shared-schema revision before use. Each event has a monotonically increasing session sequence
+and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
 
 ## Actions
 

@@ -6,8 +6,7 @@ completes, then migrated explicitly from Fallout to TES3/OpenMW semantics.
 
 ## Status
 
-Planning and Azure handoff are complete; implementation has not started. Default Windows/WSL URL:
-`http://127.0.0.1:8089/ALMSIVIserver`. Apache and PostgreSQL are not exposed externally by default.
+Planning and Azure handoff are complete. An independently authored PostgreSQL/PHP foundation is present while final predecessor import remains gated. In addition to the strict protocol/media/worker slice, it now includes revisioned profiles/playthroughs/prompts/provider/action policy, deterministic memory and knowledge retrieval with provenance, relationships, narrative/export, autonomy schedules, operational diagnostics, pairing lifecycle, and a separate CSRF-protected server-rendered management surface. Exact remaining behavior and external evidence boundaries are recorded in `docs/evidence/completion-ledger.md`. Default Windows/WSL URL: `http://127.0.0.1:8089/ALMSIVIserver`. Apache and PostgreSQL are not exposed externally by default.
 
 ## Responsibilities
 

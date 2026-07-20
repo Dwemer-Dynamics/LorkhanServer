@@ -1,0 +1,308 @@
+<?php
+
+declare(strict_types=1);
+
+use ALMSIVIserver\Application\ActionPolicyValidator;
+use ALMSIVIserver\Application\DeterministicClock;
+use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
+use ALMSIVIserver\Application\JobHandler;
+use ALMSIVIserver\Application\JobHandlerRegistry;
+use ALMSIVIserver\Application\ProductService;
+use ALMSIVIserver\Application\Worker;
+use ALMSIVIserver\Http\ManagementRouter;
+use ALMSIVIserver\Http\Request;
+use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
+use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\JobRepository;
+use ALMSIVIserver\Infrastructure\ManagementRepository;
+use ALMSIVIserver\Infrastructure\MigrationRunner;
+use ALMSIVIserver\Infrastructure\ProductRepository;
+use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
+use ALMSIVIserver\Infrastructure\Uuid;
+
+require dirname(__DIR__) . '/src/Autoload.php';
+
+$dsn = getenv('ALMSIVI_TEST_DSN') ?: '';
+if ($dsn === '') {
+    fwrite(STDERR, "ALMSIVI_TEST_DSN is required\n");
+    exit(2);
+}
+$db = Connection::open([
+    'database_dsn' => $dsn,
+    'database_user' => getenv('ALMSIVI_TEST_DB_USER') ?: '',
+    'database_password' => getenv('ALMSIVI_TEST_DB_PASSWORD') ?: '',
+]);
+$check = static function (bool $condition, string $message): void {
+    if (!$condition) {
+        throw new RuntimeException($message);
+    }
+};
+$runner = new MigrationRunner($db, dirname(__DIR__) . '/database/migrations');
+$expectedVersions = array_map(
+    static fn(string $path): int => (int) substr(basename($path), 0, 3),
+    glob(dirname(__DIR__) . '/database/migrations/*.up.sql') ?: [],
+);
+sort($expectedVersions, SORT_NUMERIC);
+$latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
+$check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$check($runner->up() === [], 'up was not idempotent');
+$status = $runner->status();
+$check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
+$check($runner->down(1) === [$latestVersion], 'down did not revert latest migration');
+$check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
+$check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
+$check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
+
+// Upgrade a populated 004 database: preserve the legacy session while materializing scoped owners.
+$upgradeVersions = array_values(array_filter($expectedVersions, static fn(int $version): bool => $version > 4));
+$downVersions = array_reverse($upgradeVersions);
+$check($runner->down(count($downVersions)) === $downVersions, 'could not prepare populated 004 upgrade fixture');
+$legacyInstallation=Uuid::v4();$legacyProfile=Uuid::v4();$legacyPlaythrough=Uuid::v4();$legacySession=Uuid::v4();
+$db->prepare('INSERT INTO installations (installation_id,token_fingerprint) VALUES (:id,:token)')->execute(['id'=>$legacyInstallation,'token'=>hash('sha256','legacy')]);
+$db->prepare("INSERT INTO sessions (session_id,installation_id,profile_id,playthrough_id,generation,content_fingerprint,openmw_version,openmw_commit,lua_api_revision,client_version,platform,created_at) VALUES (:session,:installation,:profile,:playthrough,1,:fingerprint,'0.51.0',:commit,129,'legacy-test','linux','2025-01-01T00:00:00Z')")->execute(['session'=>$legacySession,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough,'fingerprint'=>'sha256:'.str_repeat('a',64),'commit'=>str_repeat('b',40)]);
+$check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply product migrations');
+$check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
+$check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
+$check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
+$check($runner->down(count($downVersions)) === $downVersions, 'product migration down failed after upgrade');
+$check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}'")->fetchColumn()===1, '005 down deleted backfilled profile');
+$check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}'")->fetchColumn()===1, '005 down deleted backfilled playthrough');
+$check($runner->up() === $upgradeVersions, 'product migrations could not reapply after preservation down');
+
+// Populate migration-008-only structures, then prove the documented lossy-compatible down policy:
+// all data is archived while 007 can expose only one media per turn, processing STT is returned to
+// accepted, legacy delivery rows survive NOT VALID FKs, and 008 reapply restores every row.
+$migrationTurn=Uuid::v4();$migrationRequest=Uuid::v4();$migrationMessage=Uuid::v4();
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','multi','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$migrationTurn,'request'=>$migrationRequest,'message'=>$migrationMessage,'session'=>$legacySession]);
+$dialogueIds=[];$mediaIds=[];
+for($i=1;$i<=3;++$i){$dialogueIds[$i]=Uuid::v4();$mediaIds[$i]=Uuid::v4();
+    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,'idx'=>$i,'text'=>'utterance '.$i]);
+    $db->prepare("INSERT INTO media_objects(media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES(:media,:installation,:session,:turn,1,:sha,44,'wav','audio/wav',1,'2026-01-01T00:05:00Z',:dialogue)")
+        ->execute(['media'=>$mediaIds[$i],'installation'=>$legacyInstallation,'session'=>$legacySession,'turn'=>$migrationTurn,'sha'=>hash('sha256','media-'.$i),'dialogue'=>$dialogueIds[$i]]);}
+$deliverySource=Uuid::v4();$deliveryMessage=Uuid::v4();
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:01Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    ->execute(['source'=>$deliverySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
+$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok','2026-01-01T00:00:01Z')")
+    ->execute(['dialogue'=>$dialogueIds[1],'source'=>$deliverySource,'message'=>$deliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
+$sttMessage=Uuid::v4();$sttRequest=Uuid::v4();$sttTurn=Uuid::v4();$sttMedia=Uuid::v4();
+$db->prepare("INSERT INTO stt_requests(message_id,request_id,turn_id,session_id,generation,codec,language,audio_bytes,sha256,state,created_at,storage_media_id,semantic_hash,accepted_cursor) VALUES(:message,:request,:turn,:session,1,'wav','en',44,:sha,'processing','2026-01-01T00:00:00Z',:media,:semantic,0)")
+    ->execute(['message'=>$sttMessage,'request'=>$sttRequest,'turn'=>$sttTurn,'session'=>$legacySession,'sha'=>hash('sha256','stt-audio'),'media'=>$sttMedia,'semantic'=>hash('sha256','stt-semantic')]);
+$acceptedSttMessage=Uuid::v4();$acceptedSttRequest=Uuid::v4();$acceptedSttTurn=Uuid::v4();$acceptedSttMedia=Uuid::v4();
+$db->prepare("INSERT INTO stt_requests(message_id,request_id,turn_id,session_id,generation,codec,language,audio_bytes,sha256,state,created_at,storage_media_id,semantic_hash,accepted_cursor) VALUES(:message,:request,:turn,:session,1,'wav','en',44,:sha,'accepted','2026-01-01T00:00:00Z',:media,:semantic,0)")
+    ->execute(['message'=>$acceptedSttMessage,'request'=>$acceptedSttRequest,'turn'=>$acceptedSttTurn,'session'=>$legacySession,'sha'=>hash('sha256','accepted-stt-audio'),'media'=>$acceptedSttMedia,'semantic'=>hash('sha256','accepted-stt-semantic')]);
+$legacyDialogue=Uuid::v4();$legacySource=Uuid::v4();$legacyDeliveryMessage=Uuid::v4();
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2025-01-01T00:00:01Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    ->execute(['source'=>$legacySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
+$db->exec('ALTER TABLE dialogue_delivery_results DISABLE TRIGGER ALL');
+$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','legacy','2025-01-01T00:00:01Z')")
+    ->execute(['dialogue'=>$legacyDialogue,'source'=>$legacySource,'message'=>$legacyDeliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
+$db->exec('ALTER TABLE dialogue_delivery_results ENABLE TRIGGER ALL');
+$check($runner->down(2)===[$latestVersion,8],'populated 008 down failed');
+$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===1,'008 down did not expose one 007 media row');
+$check((int)$db->query("SELECT count(*) FROM migration_008_media_archive WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 down lost multi-utterance media archive');
+$check($db->query("SELECT state FROM stt_requests WHERE message_id='{$sttMessage}'")->fetchColumn()==='accepted','processing STT was not safely downgraded');
+$check($db->query("SELECT state FROM stt_requests WHERE message_id='{$acceptedSttMessage}'")->fetchColumn()==='accepted','accepted STT changed during downgrade');
+$check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dialogue_message_id='{$legacyDialogue}'")->fetchColumn()===1,'legacy delivery row was lost on down');
+try{$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','invalid','2026-01-01T00:00:01Z')")
+    ->execute(['dialogue'=>Uuid::v4(),'source'=>Uuid::v4(),'message'=>Uuid::v4(),'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);throw new RuntimeException('new orphan dialogue delivery accepted');}
+catch(PDOException $error){$check($error->getCode()==='23503','unexpected legacy delivery FK error');}
+$check($runner->up()===[8,$latestVersion],'populated 008 reapply failed');
+$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 reapply did not restore multi-utterance media');
+$check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}' AND dialogue_message_id IS NOT NULL")->fetchColumn()===3,'008 reapply lost media dialogue links');
+$restoredStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$sttMessage}'")->fetch();
+$check($restoredStt['state']==='accepted'&&$restoredStt['storage_media_id']===$sttMedia&&rtrim($restoredStt['semantic_hash'])===hash('sha256','stt-semantic'),'008 reapply did not restore processing STT metadata');
+$restoredAcceptedStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$acceptedSttMessage}'")->fetch();
+$check($restoredAcceptedStt['state']==='accepted'&&$restoredAcceptedStt['storage_media_id']===$acceptedSttMedia&&rtrim($restoredAcceptedStt['semantic_hash'])===hash('sha256','accepted-stt-semantic'),'008 reapply did not restore accepted STT metadata');
+$check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dialogue_message_id='{$legacyDialogue}'")->fetchColumn()===1,'legacy delivery row was lost on reapply');
+
+$driftDirectory = sys_get_temp_dir() . '/almsivi-migrations-' . bin2hex(random_bytes(8));
+mkdir($driftDirectory, 0700, true);
+foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') ?: [] as $migrationFile) {
+    copy($migrationFile, $driftDirectory . '/' . basename($migrationFile));
+}
+$driftRunner = new MigrationRunner($db, $driftDirectory);
+$check(count($driftRunner->status()) === count($expectedVersions), 'copied source migration status failed');
+$driftTarget = glob($driftDirectory . '/*.up.sql')[0] ?? throw new RuntimeException('copied source migration missing');
+file_put_contents($driftTarget, "\n-- unauthorized drift\n", FILE_APPEND);
+try {
+    $driftRunner->status();
+    throw new RuntimeException('migration drift was accepted');
+} catch (RuntimeException $error) {
+    $check(str_contains($error->getMessage(), 'drift detected'), 'unexpected migration drift error');
+}
+foreach (glob($driftDirectory . '/*.sql') ?: [] as $migrationFile) {
+    unlink($migrationFile);
+}
+rmdir($driftDirectory);
+
+// Product foundations: revisions, deterministic retrieval, scope isolation, provenance,
+// relationship audit, narrative export/restore, autonomy clock, browser CSRF, and token rotation.
+$installation = '20000000-0000-4000-8000-000000000001';
+$tokenHash = hash('sha256', 'initial');
+$db->prepare('INSERT INTO installations (installation_id,token_fingerprint) VALUES (:id,:token)')->execute(['id'=>$installation,'token'=>$tokenHash]);
+$products = new ProductRepository($db);
+$clock = new DeterministicClock(new DateTimeImmutable('2026-01-01T00:00:00Z'));
+$service = new ProductService($products, $clock);
+$profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['record_id'=>'player'],
+    'content'=>['role'=>'player'],'change_reason'=>'created']);
+$check($profile['current_revision'] === 1, 'profile creation failed');
+$profileRevised = $service->revise('profile', $profile['profile_id'], ['role'=>'hero'], 'refined');
+$check($profileRevised['current_revision'] === 2 && $profileRevised['content']['role'] === 'hero', 'profile revision failed');
+$profileRolled = $service->rollback('profile', $profile['profile_id'], 1, 'restore base');
+$check($profileRolled['current_revision'] === 3 && $profileRolled['content']['role'] === 'player', 'profile rollback failed');
+$playthrough = $service->createRevisioned('playthrough', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
+    'name'=>'Vvardenfell','content'=>['chapter'=>1],'change_reason'=>'created']);
+$providerConfig = $service->createRevisioned('provider', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
+    'name'=>'Local mock','content'=>['driver'=>'mock','model'=>'deterministic-mock-v1'],'change_reason'=>'created']);
+$check($providerConfig['content']['driver'] === 'mock', 'mock provider config failed');
+try {$service->createRevisioned('provider', ['installation_id'=>$installation,'name'=>'unsafe','content'=>['driver'=>'remote','api_key'=>'secret']]); throw new RuntimeException('provider secret accepted');}
+catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','only_mock_provider_supported'], true), 'unexpected provider boundary error');}
+$scope=['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
+$memory=$service->createMemory($scope+['tier'=>'recent','content'=>'Nalcarya sells alchemy supplies in Balmora.',
+    'provenance'=>['source'=>'authored-test']]);
+$search=$service->searchMemory($scope,'alchemy Balmora');
+$check($search['results'][0]['id'] === $memory['memory_id'] && $search['results'][0]['score'] > 0, 'deterministic memory retrieval failed');
+$products->updateMemory($memory['memory_id'],'Nalcarya sells potions.', ['nalcarya','potions'], [0,0,0,0,0,0,0,0], $clock->iso());
+$check($products->rebuildMemories($scope,$clock->iso()) === 1, 'memory rebuild failed');
+$knowledge=$service->ingestKnowledge($scope+['title'=>'Balmora services','content'=>'Nalcarya operates an alchemy shop.',
+    'provenance'=>['source'=>'authored-test']]);
+$knowledgeSearch=$service->searchKnowledge($scope,'alchemy shop');
+$check($knowledgeSearch['results'][0]['id'] === $knowledge['document_id'], 'knowledge retrieval failed');
+$relationship=$service->setRelationship($scope+['actor_identity'=>['record_id'=>'nalcarya'],'disposition'=>20,'affinity'=>5,
+    'source_mode'=>'manual','reason'=>'test']);
+$check($relationship['disposition'] === 20 && count($products->relationships($scope)) === 1, 'relationship audit foundation failed');
+$service->createNarrative($scope+['kind'=>'diary','title'=>'Arrival','content'=>'I reached Balmora.',
+    'provenance'=>['source'=>'authored-test']]);
+$export=$service->exportPlaythrough($scope);
+$check($export['schema'] === 'almsivi.playthrough-export.v1' && count($export['data']['narratives']) === 1, 'playthrough export failed');
+$management=new ManagementRepository($db);
+$browser=$management->createSession(60);
+$check($management->validate($browser['session']) && $management->validate($browser['session'],$browser['csrf']) && !$management->validate($browser['session'],'wrong'), 'browser session or CSRF failed');
+$newHash=hash('sha256','rotated');
+$rotation=$management->rotatePairingToken($installation,$newHash,60);
+$check(is_string($rotation['mac_key']??null)&&$rotation['overlap_seconds']===60, 'pairing token rotation failed');
+$management->revokePairingToken($rotation['pairing_token_id']);
+$check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
+$check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
+$managementRouter=new ManagementRouter($management,$products,$service,hash('sha256','manage-secret'));
+$login=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/login'));
+$check($login->status===200 && str_contains($login->body,'<label for="setup_secret">'), 'accessible login page missing label');
+$denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
+$check($denied->status===401, 'management API accepted missing browser session');
+$signed=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/login',['Content-Type'=>'application/x-www-form-urlencoded'],[], 'setup_secret=manage-secret'));
+$setCookies=$signed->headers['Set-Cookie']??[];$setCookies=is_array($setCookies)?$setCookies:[$setCookies];$csrf=$signed->headers['X-CSRF-Token']??'';
+$cookie=implode('; ',array_map(static fn(string $value):string=>explode(';',$value,2)[0],$setCookies));$cookieHeaders=implode(' ',$setCookies);
+$check($signed->status===303 && str_contains($cookieHeaders,'HttpOnly') && str_contains($cookieHeaders,'SameSite=Strict') && $csrf!=='', 'management login cookie failed');
+$diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
+$check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
+$csrfDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$check($csrfDenied->status===401, 'management write accepted missing CSRF');
+$csrfAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$check($csrfAccepted->status===200, 'management write rejected valid CSRF');
+
+$jobs = new JobRepository($db);
+$jobId = Uuid::v4();
+$first = $jobs->enqueue($jobId, 'test.succeed', 1, 'source:1', ['source_id' => 'one'], 3);
+$duplicate = $jobs->enqueue(Uuid::v4(), 'test.succeed', 1, 'source:1', ['source_id' => 'one'], 3);
+$check($duplicate['job_id'] === $jobId && $first['state'] === 'queued', 'enqueue idempotency failed');
+try {
+    $jobs->enqueue(Uuid::v4(), 'test.succeed', 1, 'source:1', ['source_id' => 'changed'], 3);
+    throw new RuntimeException('conflicting enqueue was accepted');
+} catch (RuntimeException $error) {
+    $check($error->getMessage() === 'job_idempotency_conflict', 'unexpected enqueue conflict error');
+}
+
+$claimed = $jobs->claim('worker-a', 1, 5, ['test.succeed']);
+$check(count($claimed) === 1 && $claimed[0]['attempt_count'] === 1, 'claim failed');
+$check(!$jobs->heartbeat($jobId, Uuid::v4(), 5), 'wrong lease token heartbeat succeeded');
+$check($jobs->heartbeat($jobId, $claimed[0]['lease_token'], 5), 'heartbeat failed');
+$check($jobs->succeed($jobId, $claimed[0]['lease_token']), 'completion failed');
+$check($jobs->claim('worker-b', 1, 5, ['test.succeed']) === [], 'completed job was reclaimed');
+
+$retryId = Uuid::v4();
+$jobs->enqueue($retryId, 'test.retry', 1, 'source:2', ['source_id' => 'two'], 2);
+$claim = $jobs->claim('worker-a', 1, 5, ['test.retry'])[0];
+$check($jobs->fail($retryId, $claim['lease_token'], 'transient', 'safe detail', 0) === 'retry', 'retry was not scheduled');
+$claim = $jobs->claim('worker-b', 1, 5, ['test.retry'])[0];
+$check($claim['attempt_count'] === 2, 'attempt count did not advance');
+$check($jobs->fail($retryId, $claim['lease_token'], 'terminal', 'safe detail', 0) === 'dead', 'max attempts did not dead-letter');
+$replayed = $jobs->replayDeadLetter($retryId, Uuid::v4(), 'source:2:replay:1');
+$check($replayed['state'] === 'queued' && $replayed['job_id'] !== $retryId, 'dead-letter replay failed');
+
+$reclaimId = Uuid::v4();
+$jobs->enqueue($reclaimId, 'test.reclaim', 1, 'source:3', ['source_id' => 'three'], 2);
+$old = $jobs->claim('worker-a', 1, 5, ['test.reclaim'])[0];
+$db->prepare("UPDATE durable_jobs SET lease_expires_at = clock_timestamp() - interval '1 second' WHERE job_id = :id")
+    ->execute(['id' => $reclaimId]);
+$new = $jobs->claim('worker-b', 1, 5, ['test.reclaim'])[0];
+$check($new['attempt_count'] === 2 && $new['lease_token'] !== $old['lease_token'], 'expired lease was not reclaimed');
+try {
+    $jobs->succeed($reclaimId, $old['lease_token']);
+    throw new RuntimeException('stale lease completed reclaimed job');
+} catch (RuntimeException $error) {
+    $check($error->getMessage() === 'lease_lost', 'unexpected stale lease error');
+}
+$jobs->succeed($reclaimId, $new['lease_token']);
+
+$provider = new ProviderAttemptRepository($db);
+$providerId = Uuid::v4();
+$provider->start($providerId, 'llm', 'mock', 'complete', 1, null, null, null, 'mock-v1', 'config-1', 12, ['redacted' => true]);
+$check($provider->finish($providerId, 'succeeded', 24), 'provider attempt did not finish');
+$check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'), 'provider attempt completed twice');
+
+$firstPartyMediaRoot=sys_get_temp_dir().'/almsivi-first-party-'.bin2hex(random_bytes(6));
+$firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
+$derivedMemoryId='30000000-0000-4000-8000-000000000001';$derivedPayload=$scope+['memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.'];
+$derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
+$check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
+$badFirstParty=Uuid::v4();$jobs->enqueue($badFirstParty,'memory.derive',1,'memory.derive:retry',['memory_id'=>'bad'],2);
+$retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10,['memory.derive']);$retryStats=$retryWorker->run();
+$retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();
+$check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$retryState['attempt_count']===1, 'first-party handler failure did not schedule retry');
+
+$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow'],enabled_actions=ARRAY['inspect.report','ai.follow'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
+$catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
+$proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
+$check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
+$inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($inspect,$loaded)['name']==='inspect.report','empty-object inspect action validation failed');
+try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
+
+$traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-0000-4000-8000-000000000002';
+foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}
+$traceInput=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,'session_id'=>$legacySession,'turn_id'=>$traceTurn,'request_id'=>'40000000-0000-4000-8000-000000000011'];
+$traceMeta=['prompt_configuration_id'=>$legacyProfile,'prompt_revision'=>1,'algorithm'=>'deterministic-prompt-v1','input_sha256'=>hash('sha256','secret prompt body'),'input_bytes'=>18,'truncated'=>false,'sources'=>[['ordinal'=>0,'source_kind'=>'profile','source_id'=>$legacyProfile,'included'=>true,'reason'=>'included','source_sha256'=>hash('sha256','profile body'),'included_bytes'=>12]]];
+$traceId=$products->recordPromptTrace($traceInput,$traceMeta,$clock->iso());
+$storedTrace=$db->query("SELECT input_sha256,input_bytes FROM prompt_traces WHERE prompt_trace_id='{$traceId}'")->fetch();
+$check($storedTrace['input_sha256']===hash('sha256','secret prompt body') && (int)$storedTrace['input_bytes']===18, 'prompt trace metadata was not persisted');
+$check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_name='prompt_traces' AND column_name IN ('prompt','content','payload')")->fetchColumn()===0, 'prompt trace schema can persist raw prompts');
+
+$db->exec("UPDATE action_catalog SET continuation_capable=true WHERE action_name='ai.follow'");
+$actionId='50000000-0000-4000-8000-000000000001';$sourceId='50000000-0000-4000-8000-000000000002';
+$db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal','2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
+$db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','almsivi.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
+$db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
+$db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);
+$check($catalog->claimContinuation($actionId,$continuationTurn), 'terminal continuation was not claimed');
+$check(!$catalog->claimContinuation($actionId,$continuationTurn), 'continuation was claimed more than once');
+
+$workerJob = Uuid::v4();
+$jobs->enqueue($workerJob, 'test.worker', 1, 'source:4', ['source_id' => 'four'], 1);
+$handler = new class implements JobHandler {
+    public int $calls = 0;
+    public function supports(string $jobType, int $schemaVersion): bool { return $jobType === 'test.worker' && $schemaVersion === 1; }
+    public function handle(array $payload, string $idempotencyKey, callable $heartbeat): void
+    {
+        ++$this->calls;
+        if ($payload['source_id'] !== 'four' || $idempotencyKey !== 'source:4' || !$heartbeat()) {
+            throw new RuntimeException('handler contract failed');
+        }
+    }
+};
+$worker = new Worker($jobs, new JobHandlerRegistry([$handler]), 'bounded-worker', 5, 1, 1, 1, 10, ['test.worker']);
+$stats = $worker->run();
+$check($stats === ['claimed' => 1, 'succeeded' => 1, 'retried' => 0, 'dead' => 0] && $handler->calls === 1, 'bounded worker failed');
+
+fwrite(STDOUT, "migration and durable job tests passed\n");

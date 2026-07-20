@@ -1,0 +1,64 @@
+#!/usr/bin/env php
+<?php
+
+declare(strict_types=1);
+
+use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
+use ALMSIVIserver\Application\MockProvider;
+use ALMSIVIserver\Application\MockSpeechProvider;
+use ALMSIVIserver\Application\MockSpeechToTextProvider;
+use ALMSIVIserver\Application\Provider;
+use ALMSIVIserver\Application\Worker;
+use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\JobRepository;
+use ALMSIVIserver\Infrastructure\MediaStore;
+
+require dirname(__DIR__) . '/src/Autoload.php';
+
+try {
+    $configFile = getenv('ALMSIVI_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    if (!is_file($configFile)) {
+        throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+    }
+    $config = require $configFile;
+    if (!is_array($config)) {
+        throw new RuntimeException('Server configuration is invalid.');
+    }
+    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+    $worker = $config['worker'] ?? [];
+    if (!is_array($worker)) {
+        throw new RuntimeException('Worker configuration is invalid.');
+    }
+    $workerId = (string) ($worker['id'] ?? (gethostname() ?: 'localhost') . ':' . getmypid());
+    $types = $worker['types'] ?? null;
+    if ($types !== null && !is_array($types)) {
+        throw new RuntimeException('Worker job types must be a list.');
+    }
+    $database = Connection::open($config);
+    $media = new MediaStore((string) ($config['media_storage_path'] ?? dirname(__DIR__) . '/storage/media'),
+        (int) ($config['media_max_bytes'] ?? 33_554_432), (int) ($config['media_quota_bytes'] ?? 268_435_456));
+    if (($config['provider']['driver'] ?? 'mock') !== 'mock') throw new RuntimeException('Only the mock provider is available in this foundation.');
+    $provider = new MockProvider((string) ($config['provider']['mock_prefix'] ?? ''));
+    if (isset($config['provider_factory'])) {
+        if (($config['environment'] ?? 'production') !== 'test' || !is_callable($config['provider_factory'])) throw new RuntimeException('Provider factory is test-only.');
+        $provider = ($config['provider_factory'])();
+        if (!$provider instanceof Provider) throw new RuntimeException('Provider factory did not return a Provider.');
+    }
+    $runner = new Worker(
+        new JobRepository($database),
+        FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: new MockSpeechProvider(),
+            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:new MockSpeechToTextProvider()),
+        $workerId,
+        (int) ($worker['lease_seconds'] ?? 30),
+        (int) ($worker['batch_size'] ?? 1),
+        (int) ($worker['max_jobs'] ?? 100),
+        (int) ($worker['idle_exit_seconds'] ?? 30),
+        (int) ($worker['max_runtime_seconds'] ?? 300),
+        $types,
+    );
+    $stats = $runner->run();
+    fwrite(STDOUT, json_encode(['worker_id' => $workerId] + $stats, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n");
+} catch (Throwable $error) {
+    fwrite(STDERR, json_encode(['code' => 'worker_failed', 'message' => $error->getMessage()], JSON_UNESCAPED_SLASHES) . "\n");
+    exit(1);
+}

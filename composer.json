@@ -1,0 +1,33 @@
+{
+  "name": "rangroo/almsiviserver",
+  "description": "Local-first TES3/OpenMW backend for ALMSIVI",
+  "type": "project",
+  "license": "proprietary",
+  "require": {
+    "php": ">=8.2",
+    "ext-json": "*",
+    "ext-mbstring": "*",
+    "ext-pdo": "*",
+    "ext-pdo_pgsql": "*"
+  },
+  "autoload": {
+    "psr-4": {
+      "ALMSIVIserver\\": "src/"
+    }
+  },
+  "config": {
+    "allow-plugins": {},
+    "sort-packages": true
+  },
+  "scripts": {
+    "lint": "find src public config tests scripts workers -type f -name '*.php' -exec php -l {} \\;",
+    "test": [
+      "@php tests/run.php"
+    ],
+    "test-integration": "scripts/test/integration.sh",
+    "test-migrations-jobs": "scripts/test/migrations-jobs.sh",
+    "test-cross-repo": "scripts/test/cross-repo-integration.sh",
+    "test-beast-http": "scripts/test/beast-http-integration.sh",
+    "test-management-http": "scripts/test/management-http-integration.sh"
+  }
+}
