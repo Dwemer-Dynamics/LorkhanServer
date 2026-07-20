@@ -1,0 +1,63 @@
+<?php
+
+declare(strict_types=1);
+
+namespace ALMSIVIserver\Application;
+
+use ALMSIVIserver\Infrastructure\FirstPartyJobRepository;
+use ALMSIVIserver\Infrastructure\MediaStore;
+use PDO;
+
+/** Fixed first-party handler composition; does not load executable configuration. */
+final class FirstPartyJobHandlerFactory
+{
+    /** @return list<JobHandler> */
+    public static function handlers(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
+        ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
+        ?SpeechToTextProvider $sttProvider = null): array
+    {
+        $clock ??= new DeterministicClock();
+        $repository = new FirstPartyJobRepository($db);
+        $handlers = [];
+        if ($provider !== null) {
+            $handlers[] = new TurnProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db,256,
+                new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider, $speechProvider,
+                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs);
+        }
+        if($sttProvider!==null)$handlers[]=new SttProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$sttProvider,$mediaStore,
+            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db));
+        return array_merge($handlers, [
+            new MemoryDeriveJobHandler($repository, $clock),
+            new MemoryRebuildJobHandler($repository, $clock),
+            new NarrativeJobHandler($repository, $clock),
+            new MediaCleanupJobHandler($repository, $clock, $mediaStore),
+            new RetentionJobHandler($repository, $clock),
+            new ProviderReconciliationJobHandler($repository, $clock),
+            new DialogueExpiryJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db)),
+        ]);
+    }
+
+    public static function registry(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
+        ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
+        ?SpeechToTextProvider $sttProvider = null): JobHandlerRegistry
+    {
+        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$sttProvider));
+    }
+
+    /** @return list<string> */
+    public static function jobTypes(): array
+    {
+        return [
+            TurnProcessJobHandler::TYPE,
+            SttProcessJobHandler::TYPE,
+            MemoryDeriveJobHandler::TYPE,
+            MemoryRebuildJobHandler::TYPE,
+            NarrativeJobHandler::SUMMARY_TYPE,
+            NarrativeJobHandler::DIARY_TYPE,
+            MediaCleanupJobHandler::TYPE,
+            RetentionJobHandler::TYPE,
+            ProviderReconciliationJobHandler::TYPE,
+            DialogueExpiryJobHandler::TYPE,
+        ];
+    }
+}

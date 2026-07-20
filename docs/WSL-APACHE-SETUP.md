@@ -105,31 +105,10 @@ returns stored values. Default raw STT audio retention is off.
 
 ## Worker supervision
 
-Ship a hardened systemd unit based on:
-
-```ini
-[Unit]
-Description=ALMSIVIserver background worker
-After=network.target postgresql.service
-
-[Service]
-Type=simple
-User=almsiviserver
-Group=almsiviserver
-WorkingDirectory=/var/www/ALMSIVIserver/current
-EnvironmentFile=/etc/almsiviserver/worker.env
-ExecStart=/usr/bin/php bin/worker.php
-Restart=on-failure
-RestartSec=3
-NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/var/lib/almsiviserver /var/log/almsiviserver
-
-[Install]
-WantedBy=multi-user.target
-```
+The independently authored durable worker uses `workers/worker.php` with source-controlled handlers,
+leases, heartbeats, bounded retries and dead letters. Install the tracked hardened oneshot service and
+timer from `deploy/systemd/` only after configuring `/etc/almsiviserver/worker.env`; the service is not a
+placeholder and deliberately exits after bounded work/runtime so systemd can supervise restart.
 
 Adapt narrowly for actual connector/media needs. Worker heartbeat/lease state distinguishes a healthy
 web process from unavailable derived processing. Game requests never fork unbounded daemons.

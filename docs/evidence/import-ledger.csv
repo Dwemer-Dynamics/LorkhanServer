@@ -1,0 +1,152 @@
+target_path,source_url,source_sha,source_path,license,disposition,transformation,reviewer
+composer.json,,,,repository proprietary,original,Independent package/runtime requirements and scripts,Claude
+config/server.example.php,,,,repository proprietary,original,Safe non-secret PostgreSQL/mock-provider configuration example,Claude
+database/migrations/001_independent_vertical_slice.up.sql,,,,repository proprietary,original,PostgreSQL 16 vertical-slice schema,Claude
+database/migrations/001_independent_vertical_slice.down.sql,,,,repository proprietary,original,Reversible teardown for independent schema,Claude
+deploy/apache/almsiviserver.conf,,,,repository proprietary,original,Loopback-only Apache template,Claude
+public/index.php,,,,repository proprietary,original,PHP front controller,Claude
+src/Application/Provider.php,,,,repository proprietary,original,Provider boundary,Claude
+src/Application/MockProvider.php,,,,repository proprietary,original,Deterministic mock dialogue/action behavior,Claude
+src/Http/ApiException.php,,,,repository proprietary,original,Typed HTTP failures,Claude
+src/Http/Router.php,,,,repository proprietary,original,Authenticated v1 route handling,Claude
+src/Infrastructure/Connection.php,,,,repository proprietary,original,PostgreSQL-only PDO connection,Claude
+src/Infrastructure/Repository.php,,,,repository proprietary,original,Transactional sessions/events/turns/actions repositories,Claude
+src/Infrastructure/Uuid.php,,,,repository proprietary,original,Random RFC 4122 version 4 identifiers,Claude
+scripts/protocol/verify-local.php,,,,repository proprietary,original,Protocol manifest/checksum/inventory validation,Claude
+scripts/test/integration.sh,,,,repository proprietary,original,Disposable PostgreSQL integration harness,Claude
+tests/integration.php,,,,repository proprietary,original,Deterministic router/repository/mock-provider vertical-slice test,Claude
+database/migrations/002_media_and_event_retention.up.sql,,,,repository proprietary,original,Private media metadata and serving constraints,Claude
+database/migrations/002_media_and_event_retention.down.sql,,,,repository proprietary,original,Reversible media metadata teardown,Claude
+database/migrations/003_durable_jobs.up.sql,,,,repository proprietary,original,"Durable jobs, attempts, dead letters and provider-attempt persistence",Claude
+database/migrations/003_durable_jobs.down.sql,,,,repository proprietary,original,Reversible durable processing teardown,Claude
+src/Application/SpeechProvider.php,,,,repository proprietary,original,Bounded TTS provider contract,Claude
+src/Application/MockSpeechProvider.php,,,,repository proprietary,original,Deterministic legal tiny WAV mock,Claude
+src/Application/JobHandler.php,,,,repository proprietary,original,Idempotent bounded job handler contract,Claude
+src/Application/JobHandlerRegistry.php,,,,repository proprietary,original,Typed worker handler selection,Claude
+src/Application/Worker.php,,,,repository proprietary,original,Bounded leased worker process,Claude
+src/Infrastructure/MediaStore.php,,,,repository proprietary,original,"Private opaque media bytes, quota and integrity checks",Claude
+src/Infrastructure/MigrationRunner.php,,,,repository proprietary,original,Ordered checksummed migration runner,Claude
+src/Infrastructure/JobRepository.php,,,,repository proprietary,original,"Leases, heartbeat, retry, dead-letter and replay repository",Claude
+src/Infrastructure/ProviderAttemptRepository.php,,,,repository proprietary,original,Redacted provider attempt lifecycle persistence,Claude
+scripts/migrate.php,,,,repository proprietary,original,Safe migration CLI,Claude
+scripts/test/migrations-jobs.sh,,,,repository proprietary,original,Disposable PostgreSQL migration and worker harness,Claude
+workers/worker.php,,,,repository proprietary,original,Real bounded durable worker CLI,Claude
+deploy/systemd/almsiviserver-worker.service,,,,repository proprietary,original,Hardened worker oneshot service,Claude
+deploy/systemd/almsiviserver-worker.timer,,,,repository proprietary,original,Bounded worker restart timer,Claude
+tests/migrations_jobs.php,,,,repository proprietary,original,Migration and durable processing PostgreSQL proof,Claude
+config/server.test.php,,,,repository proprietary,original,Dedicated disposable HTTP provider-test configuration,Claude
+tests/Support/ControllableProvider.php,,,,repository proprietary,original,"Deterministic provider failure, delay and interruption seam",Claude
+scripts/test/beast-http-integration.sh,,,,repository proprietary,original,Real Beast-to-multi-worker-PHP disposable PostgreSQL HTTP harness,Claude
+database/migrations/004_product_foundations.up.sql,,,,repository proprietary,original,Server-owned profiles/configuration/memory/relationships/knowledge/narrative/autonomy/actions/operations schema,Claude
+database/migrations/004_product_foundations.down.sql,,,,repository proprietary,original,Reversible product-foundation teardown,Claude
+src/Application/DeterministicClock.php,,,,repository proprietary,original,Injectable deterministic UTC clock,Claude
+src/Application/DeterministicRetrieval.php,,,,repository proprietary,original,Deterministic lexical and fake-vector retrieval,Claude
+src/Application/ProductService.php,,,,repository proprietary,original,Bounded product lifecycle and security validation service,Claude
+src/Infrastructure/ProductRepository.php,,,,repository proprietary,original,Revisioned/scoped product persistence and retrieval traces,Claude
+src/Infrastructure/ManagementRepository.php,,,,repository proprietary,original,"Browser sessions, CSRF, pairing lifecycle and audit persistence",Claude
+src/Http/ManagementRouter.php,,,,repository proprietary,original,Separate authenticated server-rendered management UI/API,Claude
+src/Security/BrowserSession.php,,,,repository proprietary,original,Separate browser cookie and CSRF token primitives,Claude
+src/Security/OutboundUrlPolicy.php,,,,repository proprietary,original,HTTPS allowlist and public-address SSRF boundary,Claude
+database/migrations/005_server_product_runtime.up.sql,,,,repository proprietary,original,"Safe legacy session ownership backfill, bounded prompt traces, derived-job keys and action continuation schema",Claude
+database/migrations/005_server_product_runtime.down.sql,,,,repository proprietary,original,Reversible runtime-foundation teardown preserving backfilled product data,Claude
+src/Application/PromptAssembler.php,,,,repository proprietary,original,Deterministic bounded scoped prompt assembly with metadata-only source traces,Claude
+src/Application/ActionPolicyValidator.php,,,,repository proprietary,original,"Catalog, capability, tier, policy and bounded JSON-schema action validation",Claude
+src/Infrastructure/ActionCatalogRepository.php,,,,repository proprietary,original,Database action catalog and terminal-result-aware one-shot continuation claims,Claude
+src/Application/FirstPartyJobHandlerFactory.php,,,,repository proprietary,original,Source-controlled default registry for first-party handlers,Claude
+src/Application/FirstPartyJobHandlers.php,,,,repository proprietary,original,"Bounded deterministic memory, narrative, cleanup, retention and provider reconciliation handlers",Claude
+src/Infrastructure/FirstPartyJobRepository.php,,,,repository proprietary,original,Idempotent bounded persistence operations for first-party jobs,Claude
+database/migrations/006_stt_delivery_protocol.up.sql,,,,repository proprietary,original,Strict mock-only STT/delivery foundation,Claude
+database/migrations/006_stt_delivery_protocol.down.sql,,,,repository proprietary,original,Strict mock-only STT/delivery foundation,Claude
+src/Application/SpeechToTextProvider.php,,,,repository proprietary,original,Strict mock-only STT/delivery foundation,Claude
+src/Application/MockSpeechToTextProvider.php,,,,repository proprietary,original,Strict mock-only STT/delivery foundation,Claude
+.gitignore,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+AGENTS.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+CLAUDEX-TASK.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+README.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+database/migrations/007_async_dialogue_pipeline.down.sql,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+database/migrations/007_async_dialogue_pipeline.up.sql,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/ARCHITECTURE.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/FEATURE-PARITY-MATRIX.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/IMPLEMENTATION-PLAN.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/MIGRATION-SOURCE-AUDIT.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/PROTOCOL.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/REFERENCE-SERVER-DATAFLOW.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/WSL-APACHE-SETUP.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/evidence/completion-ledger.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/evidence/import-ledger.csv,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/evidence/local-run-2026-07-19.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+docs/evidence/source-pins.md,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/MANIFEST.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/SHA256SUMS,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/hostile/oversized-media.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/hostile/path-media-id.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/hostile/wrong-generation-type.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/hostile/zero-byte-media.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/hostile/zero-byte-stt.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/follow-distance.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/follow-name.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/inspect-report-extra-parameter.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/invalid-calendar-time.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/non-utc-time.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/runtime-pin.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/stt-request-path-not-base64.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/invalid/unknown-field.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/action-intent-inspect-report.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/action-intent.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/action-result-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/action-result.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/dialogue-delivery-result-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/dialogue-delivery-result.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/error.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/events.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/health.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/interrupt.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/interruption-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/session-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/session-ended.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/session-init.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/stt-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/stt-request.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/turn-accepted.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/fixtures/v1/valid/turn.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/action-intent.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/action-result-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/action-result.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/common.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/dialogue-delivery-result-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/dialogue-delivery-result.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/error.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/events.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/health.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/interrupt.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/interruption-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/media-descriptor.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/session-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/session-ended.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/session-init.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/stt-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/stt-request.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/turn-accepted.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+protocol/schemas/v1/turn.schema.json,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+scripts/test/cross-repo-integration.sh,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+scripts/test/management-http-integration.sh,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+scripts/test/management_http.py,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+scripts/test/validate-responses.py,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+scripts/verify-protocol-parity.sh,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/CallbackCancellationToken.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/CancellationToken.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/DialoguePlanner.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/MemoryDeriveJobHandler.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/NeverCancelledToken.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/OperationCancelled.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Application/TurnProcessJobHandler.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Autoload.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Config/Settings.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Http/Request.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Http/Response.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Protocol/ValidationException.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Protocol/Validator.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Security/PairingToken.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+src/Security/Redactor.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+tests/Support/StateStore.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+tests/run.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
