@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en" data-bs-theme="dark">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#111111">
+    <title><?php echo almsivi_ui_h($pageTitle); ?></title>
+    <link rel="icon" type="image/x-icon" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/favicon.ico">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.min.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/style_new.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-theme.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/navbar.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/main.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/hub-navigation.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-pages.css">
+    <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.bundle.min.js" defer></script>
+    <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/almsivi-ui.js" defer></script>
+</head>
+<?php
+$bodyClasses = [];
+if (isset($bodyClass) && trim((string) $bodyClass) !== '') {
+    $bodyClasses = preg_split('/\s+/', trim((string) $bodyClass)) ?: [];
+}
+if ($embedded) $bodyClasses[] = 'embedded-page';
+$bodyClasses = array_values(array_unique(array_filter($bodyClasses)));
+?>
+<body<?php echo $bodyClasses !== [] ? ' class="' . almsivi_ui_h(implode(' ', $bodyClasses)) . '"' : ''; ?>>

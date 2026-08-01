@@ -99,7 +99,8 @@ $db->exec('ALTER TABLE dialogue_delivery_results DISABLE TRIGGER ALL');
 $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','legacy','2025-01-01T00:00:01Z')")
     ->execute(['dialogue'=>$legacyDialogue,'source'=>$legacySource,'message'=>$legacyDeliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
 $db->exec('ALTER TABLE dialogue_delivery_results ENABLE TRIGGER ALL');
-$check($runner->down(2)===[$latestVersion,8],'populated 008 down failed');
+$downThroughEight=range($latestVersion,8);
+$check($runner->down(count($downThroughEight))===$downThroughEight,'populated 008 down failed');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===1,'008 down did not expose one 007 media row');
 $check((int)$db->query("SELECT count(*) FROM migration_008_media_archive WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 down lost multi-utterance media archive');
 $check($db->query("SELECT state FROM stt_requests WHERE message_id='{$sttMessage}'")->fetchColumn()==='accepted','processing STT was not safely downgraded');
@@ -108,7 +109,7 @@ $check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dia
 try{$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','invalid','2026-01-01T00:00:01Z')")
     ->execute(['dialogue'=>Uuid::v4(),'source'=>Uuid::v4(),'message'=>Uuid::v4(),'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);throw new RuntimeException('new orphan dialogue delivery accepted');}
 catch(PDOException $error){$check($error->getCode()==='23503','unexpected legacy delivery FK error');}
-$check($runner->up()===[8,$latestVersion],'populated 008 reapply failed');
+$check($runner->up()===range(8,$latestVersion),'populated 008 reapply failed');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 reapply did not restore multi-utterance media');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}' AND dialogue_message_id IS NOT NULL")->fetchColumn()===3,'008 reapply lost media dialogue links');
 $restoredStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$sttMessage}'")->fetch();
@@ -186,15 +187,14 @@ $check(is_string($rotation['mac_key']??null)&&$rotation['overlap_seconds']===60,
 $management->revokePairingToken($rotation['pairing_token_id']);
 $check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
 $check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
-$managementRouter=new ManagementRouter($management,$products,$service,hash('sha256','manage-secret'));
-$login=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/login'));
-$check($login->status===200 && str_contains($login->body,'<label for="setup_secret">'), 'accessible login page missing label');
+$managementRouter=new ManagementRouter($management,$products,$service);
 $denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
-$signed=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/login',['Content-Type'=>'application/x-www-form-urlencoded'],[], 'setup_secret=manage-secret'));
-$setCookies=$signed->headers['Set-Cookie']??[];$setCookies=is_array($setCookies)?$setCookies:[$setCookies];$csrf=$signed->headers['X-CSRF-Token']??'';
-$cookie=implode('; ',array_map(static fn(string $value):string=>explode(';',$value,2)[0],$setCookies));$cookieHeaders=implode(' ',$setCookies);
-$check($signed->status===303 && str_contains($cookieHeaders,'HttpOnly') && str_contains($cookieHeaders,'SameSite=Strict') && $csrf!=='', 'management login cookie failed');
+$signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
+$check($signed->status===303 && ($signed->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
+$csrf=$browser['csrf'];$cookie='almsivi_management='.$browser['session'].'; almsivi_csrf='.$csrf;
+$home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
+$check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
 $csrfDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
@@ -262,12 +262,16 @@ $retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10
 $retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();
 $check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$retryState['attempt_count']===1, 'first-party handler failure did not schedule retry');
 
-$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow'],enabled_actions=ARRAY['inspect.report','ai.follow'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
+$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','ai.follow','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
 $catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
 $proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
 $check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
 $inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($inspect,$loaded)['name']==='inspect.report','empty-object inspect action validation failed');
+$animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['group'=>'idle2']];
+$check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
+$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s']];
+$check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
 try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
 
 $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-0000-4000-8000-000000000002';

@@ -9,21 +9,21 @@ final class BrowserSession
     public static function token(): string { return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='); }
     public static function hash(string $value): string { return hash('sha256', $value); }
 
-    public static function cookie(string $token, int $maxAge,string $path='/ALMSIVIserver/manage'): string
+    public static function cookie(string $token, int $maxAge,string $path='/ALMSIVIserver'): string
     {
         return 'almsivi_management=' . rawurlencode($token) . '; Path='.$path.'; Max-Age=' . $maxAge
             . '; HttpOnly; SameSite=Strict';
     }
 
-    public static function csrfCookie(string $token, int $maxAge,string $path='/ALMSIVIserver/manage'): string
+    public static function csrfCookie(string $token, int $maxAge,string $path='/ALMSIVIserver'): string
     {
         return 'almsivi_csrf=' . rawurlencode($token) . '; Path='.$path.'; Max-Age=' . $maxAge . '; SameSite=Strict';
     }
 
     public static function clearCookies(): string
     {
-        return 'almsivi_management=; Path=/ALMSIVIserver/manage; Max-Age=0; HttpOnly; SameSite=Strict, '
-            . 'almsivi_csrf=; Path=/ALMSIVIserver/manage; Max-Age=0; SameSite=Strict';
+        return 'almsivi_management=; Path=/ALMSIVIserver; Max-Age=0; HttpOnly; SameSite=Strict, '
+            . 'almsivi_csrf=; Path=/ALMSIVIserver; Max-Age=0; SameSite=Strict';
     }
 
     public static function parse(?string $cookie): ?string

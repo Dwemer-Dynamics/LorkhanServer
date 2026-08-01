@@ -12,7 +12,10 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 initdb -D "$TMP/data" -A trust --no-locale -E UTF8 >/dev/null
-pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -p $PORT" -l "$TMP/postgres.log" start >/dev/null
+if ! pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PORT" -l "$TMP/postgres.log" start >/dev/null; then
+    cat "$TMP/postgres.log" >&2
+    exit 1
+fi
 createdb -h 127.0.0.1 -p "$PORT" almsivi_test
 createdb -h 127.0.0.1 -p "$PORT" almsivi_migrations_test
 ALMSIVI_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=almsivi_test" \

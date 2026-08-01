@@ -1,0 +1,93 @@
+<?php
+
+declare(strict_types=1);
+
+use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\ManagementRepository;
+use ALMSIVIserver\Infrastructure\ManagementUiRepository;
+use ALMSIVIserver\Security\BrowserSession;
+
+$applicationRoot = dirname(__DIR__, 2);
+require_once $applicationRoot . '/src/Autoload.php';
+
+$pageTitle = isset($pageTitle) ? (string) $pageTitle : 'ALMSIVI';
+$topNavSection = isset($topNavSection) ? (string) $topNavSection : '';
+$embedded = isset($_GET['embed']) && $_GET['embed'] === '1';
+
+try {
+    $configFile = getenv('ALMSIVI_CONFIG') ?: $applicationRoot . '/config/server.php';
+    if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
+    $config = require $configFile;
+    if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');
+    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+
+    $database = Connection::open($config);
+    $managementRepository = new ManagementRepository($database);
+    $uiRepository = new ManagementUiRepository($database);
+    $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'), '/');
+    $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/ALMSIVIserver';
+    $sessionTtl = (int) ($config['browser_session_ttl_seconds'] ?? 3600);
+
+    $cookieHeader = $_SERVER['HTTP_COOKIE'] ?? null;
+    $browserSession = BrowserSession::parse(is_string($cookieHeader) ? $cookieHeader : null);
+    $csrf = BrowserSession::parseCsrf(is_string($cookieHeader) ? $cookieHeader : null);
+    if ($browserSession === null || $csrf === null || !$managementRepository->validate($browserSession, $csrf)) {
+        $created = $managementRepository->createSession($sessionTtl);
+        $browserSession = $created['session'];
+        $csrf = $created['csrf'];
+        header('Set-Cookie: ' . BrowserSession::cookie($browserSession, $sessionTtl, $webRoot), false);
+        header('Set-Cookie: ' . BrowserSession::csrfCookie($csrf, $sessionTtl, $webRoot), false);
+    }
+
+    // Retire the previous narrow-path cookies so /manage writes receive one unambiguous token pair.
+    header('Set-Cookie: almsivi_management=; Path=' . $managementBasePath . '; Max-Age=0; HttpOnly; SameSite=Strict', false);
+    header('Set-Cookie: almsivi_csrf=; Path=' . $managementBasePath . '; Max-Age=0; SameSite=Strict', false);
+
+    header('Content-Type: text/html; charset=utf-8');
+    header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: no-referrer');
+} catch (Throwable) {
+    http_response_code(503);
+    header('Content-Type: text/html; charset=utf-8');
+    header("Content-Security-Policy: default-src 'none'; style-src 'self'; base-uri 'none'; frame-ancestors 'self'");
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ALMSIVI unavailable</title></head>';
+    echo '<body><main><h1>ALMSIVIserver is unavailable</h1><p>Check the local server configuration and database service.</p></main></body></html>';
+    exit;
+}
+
+/** Escape text for safe use in server-rendered management HTML. */
+function almsivi_ui_h(mixed $value): string
+{
+    return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+}
+
+/** Render structured values compactly without exposing HTML from stored records. */
+function almsivi_ui_value(mixed $value): string
+{
+    if (is_array($value)) {
+        return almsivi_ui_h(json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+    }
+    if (is_bool($value)) return $value ? 'Yes' : 'No';
+    if ($value === null || $value === '') return '—';
+    return almsivi_ui_h($value);
+}
+
+/** Render a bounded repository result using the common sibling-server table structure. */
+function almsivi_ui_table(array $rows, string $emptyMessage = 'No records are available yet.'): void
+{
+    if ($rows === []) {
+        echo '<p class="empty-state">' . almsivi_ui_h($emptyMessage) . '</p>';
+        return;
+    }
+    $columns = array_keys($rows[0]);
+    echo '<div class="table-responsive"><table class="table table-dark table-hover align-middle"><thead><tr>';
+    foreach ($columns as $column) echo '<th scope="col">' . almsivi_ui_h(ucwords(str_replace('_', ' ', $column))) . '</th>';
+    echo '</tr></thead><tbody>';
+    foreach ($rows as $row) {
+        echo '<tr>';
+        foreach ($columns as $column) echo '<td>' . almsivi_ui_value($row[$column] ?? null) . '</td>';
+        echo '</tr>';
+    }
+    echo '</tbody></table></div>';
+}

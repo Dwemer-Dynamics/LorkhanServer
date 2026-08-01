@@ -25,7 +25,8 @@ flowchart LR
 ## Target source layout
 
 ```text
-public/                    # front controller and built static UI only
+public/                    # game/API front controller and browser-served files
+public/ui/                 # physical PHP management pages, shared templates and vendored assets
 src/Http/                  # routing/controllers/middleware
 src/Application/           # turns, sessions, actions, profiles, memories
 src/Domain/                # typed IDs/entities/policy
@@ -34,7 +35,6 @@ config/                    # tracked non-secret defaults/schema
 database/migrations/       # ordered source-controlled migrations
 database/seeds/            # test/development authored data only
 workers/                   # supervised CLI entrypoints
-ui/                        # management frontend
 schemas/ fixtures/         # shared protocol contract
 tests/                     # unit/integration/e2e/security/migration
 scripts/                   # setup/test/audit/backup/restore
@@ -44,6 +44,12 @@ docs/evidence/
 
 Use the final Synthserver's proven framework and conventions instead of forcing this illustrative
 layout if its equivalent is stronger. Preserve separation and ownership, not folder spelling.
+
+The browser surface deliberately follows the maintained Dwemer server page composition. Each
+top-level PHP page loads `public/ui/ui_bootstrap.php`, includes the common head and navbar, renders
+its own page family, and includes the common footer. Embedded pages use the same bootstrap and CSRF
+session but omit the navbar when requested with `embed=1`. Apache aliases `/ALMSIVIserver` to the
+public directory so source, configuration, storage, and secrets stay outside the served tree.
 
 ## Request lifecycle
 

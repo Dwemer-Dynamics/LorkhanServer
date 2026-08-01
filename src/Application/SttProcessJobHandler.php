@@ -28,7 +28,8 @@ final class SttProcessJobHandler implements JobHandler
         $attempt=Uuid::v4();
         try{
             $bytes=$this->media->read($request['storage_media_id'],(int)$request['audio_bytes'],(string)$request['sha256']);
-            $this->attempts->start($attempt,'stt','mock','transcribe',$job['attempt'],$request['request_id'],$request['turn_id'],$job['job_id'],inputBytes:strlen($bytes));
+            $providerName=$this->provider instanceof OpenAiCompatibleSpeechToTextProvider?'openai-compatible':'mock';
+            $this->attempts->start($attempt,'stt',$providerName,'transcribe',$job['attempt'],$request['request_id'],$request['turn_id'],$job['job_id'],inputBytes:strlen($bytes));
             $result=$this->provider->transcribe($bytes,$request['codec'],$request['language'],new CallbackCancellationToken(fn():bool=>!$heartbeat()));
             $this->repository->completeStt($messageId,$result,$fence);
             $this->media->delete($request['storage_media_id']);

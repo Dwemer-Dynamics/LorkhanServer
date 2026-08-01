@@ -49,6 +49,12 @@ Use a dedicated `almsiviserver` worker/service identity and deliberate Apache re
 Only media/runtime/log paths are writable. Config/secrets must reject group/world write and never be
 under the document root. Git checkout is not a writable production release.
 
+For local Dwemer development, `scripts/deploy-local-wsl.sh` intentionally mirrors the active source
+to `/var/www/html/ALMSIVIserver`, matching the HerikaServer/DialecticServer workstation layout. It
+keeps the same `/etc`, `/var/lib`, and `/var/log` persistence boundaries and leaves the immutable
+release tree intact. The sibling `ALMSIVI/scripts/deploy/full-local.ps1` is the normal two-stage local
+entrypoint. `scripts/deploy-wsl.sh` remains the immutable release/rollback workflow described here.
+
 ## PostgreSQL
 
 Create database `almsivi`, an owner/migration role and a lower-privilege runtime role with locally
@@ -72,13 +78,14 @@ Listen 127.0.0.1:8089
 
 <VirtualHost 127.0.0.1:8089>
     ServerName almsiviserver.local
-    DocumentRoot /var/www/ALMSIVIserver/current/public
+    DocumentRoot /var/www/html
+    Alias /ALMSIVIserver /var/www/ALMSIVIserver/current/public
 
     <Directory /var/www/ALMSIVIserver/current/public>
         Options -Indexes -ExecCGI
         AllowOverride None
         Require local
-        DirectoryIndex index.php
+        DirectoryIndex ui/home.php index.php
     </Directory>
 
     LimitRequestBody 33554432

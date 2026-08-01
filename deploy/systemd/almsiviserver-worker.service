@@ -7,7 +7,7 @@ ConditionPathExists=/var/www/ALMSIVIserver/current/workers/worker.php
 [Service]
 Type=oneshot
 User=almsivi
-Group=almsivi
+Group=www-data
 WorkingDirectory=/var/www/ALMSIVIserver/current
 EnvironmentFile=/etc/almsiviserver/worker.env
 ExecStart=/usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php

@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+set -u
+
+child_pid=
+stop_worker() {
+    if [[ ${child_pid:-} =~ ^[0-9]+$ ]] && kill -0 "${child_pid}" 2>/dev/null; then
+        kill "${child_pid}" 2>/dev/null || true
+        wait "${child_pid}" 2>/dev/null || true
+    fi
+    exit 0
+}
+trap stop_worker TERM INT
+
+while true; do
+    ALMSIVI_CONFIG=/etc/almsiviserver/server.php \
+        /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
+    child_pid=$!
+    wait "${child_pid}" || true
+    child_pid=
+    /usr/bin/sleep 5 &
+    child_pid=$!
+    wait "${child_pid}" || true
+    child_pid=
+done

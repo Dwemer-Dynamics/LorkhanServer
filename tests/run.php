@@ -8,7 +8,11 @@ require __DIR__ . '/Support/StateStore.php';
 use ALMSIVIserver\Config\Settings;
 use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
+use ALMSIVIserver\Application\OpenAiCompatibleProvider;
+use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
+use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Http\Response;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Tests\Support\StateStore;
@@ -46,6 +50,23 @@ $settings = Settings::fromArray(['pairing_token_hash' => $hash, 'storage_path' =
 $check($settings->maxJsonBytes === 2_097_152, 'safe size default');
 $frontController = (string) file_get_contents(dirname(__DIR__) . '/public/index.php');
 $check(str_contains($frontController, "Provider factory is test-only."), 'custom provider factory is test-only');
+$check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key') instanceof OpenAiCompatibleProvider, 'OpenAI-compatible provider accepts a vetted HTTPS endpoint');
+try {
+    new OpenAiCompatibleProvider('http://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key');
+    $check(false, 'OpenAI-compatible provider rejects plaintext HTTP');
+} catch (InvalidArgumentException) {
+    $check(true, 'OpenAI-compatible provider rejects plaintext HTTP');
+}
+$check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
+    'OpenAI-compatible provider permits endpoints that do not require a key');
+$check(new OpenAiCompatibleSpeechProvider('https://api.openai.com/v1/audio/speech', ['api.openai.com'], 'tts-test', 'alloy') instanceof OpenAiCompatibleSpeechProvider,
+    'OpenAI-compatible TTS accepts a vetted HTTPS endpoint');
+$check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
+    'OpenAI-compatible STT accepts a vetted HTTPS endpoint');
+$check(ProviderFactory::dialogue([]) instanceof \ALMSIVIserver\Application\MockProvider
+    && ProviderFactory::speech([]) instanceof MockSpeechProvider
+    && ProviderFactory::speechToText([]) instanceof \ALMSIVIserver\Application\MockSpeechToTextProvider,
+    'shared provider factory gives HTTP and worker the same safe defaults');
 $response = Response::error(401, 'unauthorized', 'correlation');
 $decodedError = json_decode($response->body, true, 16, JSON_THROW_ON_ERROR);
 $check($decodedError['message'] === 'Request rejected', 'generic client error');
@@ -110,6 +131,7 @@ $mediaRoot = sys_get_temp_dir() . '/almsivi-media-unit-' . bin2hex(random_bytes(
 $media = new MediaStore($mediaRoot, 1024, 2048);
 $speech = (new MockSpeechProvider())->synthesize('deterministic', new NeverCancelledToken());
 $check(strlen($speech['bytes']) === 204 && substr($speech['bytes'], 0, 4) === 'RIFF', 'mock TTS emits legal tiny WAV');
+$check(OpenAiCompatibleSpeechProvider::wavDurationMs($speech['bytes']) === 20, 'live TTS validates WAV framing and duration');
 $mediaId = '00000000-0000-4000-8000-000000000099';
 $mediaHash = $media->put($mediaId, $speech['bytes'], $speech['codec'], $speech['mime_type']);
 $check(hash_equals($mediaHash, hash('sha256', $media->read($mediaId, 204, $mediaHash))), 'private media verifies bytes and hash');

@@ -7,6 +7,7 @@ use ALMSIVIserver\Application\MockProvider;
 use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\MockSpeechToTextProvider;
 use ALMSIVIserver\Application\Provider;
+use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
@@ -15,6 +16,7 @@ use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
+use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\Repository;
 use ALMSIVIserver\Protocol\Validator;
 use ALMSIVIserver\Security\PairingToken;
@@ -33,9 +35,10 @@ $mediaStore = new MediaStore($mediaPath, 33_554_432, 67_108_864);
 $token = PairingToken::generate();
 $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installationId='00000000-0000-4000-8000-000000000001';
 $attempts = new ProviderAttemptRepository($db);
+$products = new ProductRepository($db);
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
-    sttProvider: new MockSpeechToTextProvider());
+    products:$products,promptAssembler:new PromptAssembler(),sttProvider: new MockSpeechToTextProvider());
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
@@ -46,7 +49,7 @@ $call = function (Router $target, string $method, string $path, array $headers =
     $response = $target->dispatch($request);
     $decoded = json_decode($response->body, true, 64, JSON_THROW_ON_ERROR);
     $capture = getenv('ALMSIVI_RESPONSE_CAPTURE') ?: '';
-    if ($capture !== '') file_put_contents($capture, json_encode($decoded, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . "\n", FILE_APPEND | LOCK_EX);
+    if ($capture !== '') file_put_contents($capture, $response->body . "\n", FILE_APPEND | LOCK_EX);
     return [$response->status, $decoded];
 };
 $assert = function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
@@ -85,7 +88,9 @@ $assert($status === 422, 'missing session idempotency key accepted');
 $assert($status === 422, 'incoherent session idempotency key accepted');
 [$status, $accepted] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $accepted['generation'] === 7
-    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'action.inspect.report', 'action.ai.follow'], 'session create failed');
+    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'action.inspect.report', 'action.ai.follow',
+        'action.ai.stop', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
+        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'], 'session create failed');
 $sessionId = $accepted['session_id'];
 [$status, $duplicateSession] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $duplicateSession == $accepted, 'session duplicate failed');
@@ -289,6 +294,27 @@ $inspectResult['action_id']=$inspectIntents[0]['payload']['action_id'];$inspectR
 [$status,$inspectResultAccepted]=$call($router,'POST',$base.'/action-results',$headers($inspectResult['message_id']),[],$inspectResult);
 $assert($status===200&&!$inspectResultAccepted['duplicate'],'inspect.report terminal result failed');
 
+// Exercise bounded movement and a tier-2 action proposal through catalog-backed validation.
+$wanderTurn=$turn;$wanderTurn['message_id']=$newUuid(180);$wanderTurn['request_id']=$newUuid(181);$wanderTurn['turn_id']=$newUuid(182);
+$wanderTurn['payload']['input']['text']='Wander around for a while.';$wanderTurn['payload']['recent_action_results']=[];
+[$status]=$call($router,'POST',$base.'/turns',$headers($wanderTurn['message_id']),[],$wanderTurn);
+$assert($status===202,'wander turn acceptance failed');$runTurnWorker(new MockProvider());
+[$status,$wanderEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$inspectEvents['next_after']]);
+$wanderIntents=array_values(array_filter($wanderEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&count($wanderIntents)===1&&$wanderIntents[0]['payload']['name']==='ai.wander'
+    &&$wanderIntents[0]['payload']['parameters']===['distance'=>512,'duration_seconds'=>60],'ai.wander was not emitted E2E');
+
+$combatTurn=$turn;$combatTurn['message_id']=$newUuid(183);$combatTurn['request_id']=$newUuid(184);$combatTurn['turn_id']=$newUuid(185);
+$combatTurn['payload']['input']['text']='Attack that target.';$combatTurn['payload']['recent_action_results']=[];
+[$status]=$call($router,'POST',$base.'/turns',$headers($combatTurn['message_id']),[],$combatTurn);
+$assert($status===202,'combat turn acceptance failed');$runTurnWorker(new MockProvider());
+[$status,$combatEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$wanderEvents['next_after']]);
+$combatIntents=array_values(array_filter($combatEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&count($combatIntents)===1&&$combatIntents[0]['payload']['name']==='combat.start'
+    &&$combatIntents[0]['payload']['tier']===2,'combat.start tier-2 proposal was not emitted E2E');
+
 // STT is deliberately accepted and completed before a turn row with its turn_id exists.
 $sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \ALMSIVIserver\Application\NeverCancelledToken())['bytes'];
 $sttMessage=$newUuid(90);$sttRequest=$newUuid(91);$sttTurn=$newUuid(92);$sttCreated=gmdate('Y-m-d\TH:i:s\Z');
@@ -302,10 +328,22 @@ $assert($status===202&&!$sttAccepted['duplicate']&&(int)$db->query('SELECT count
     'direct pre-turn STT acceptance failed');
 $sttStats=$runWorker(['stt.process']);
 [$status,$sttEvents]=$call($router,'GET',$base.'/events',[],[
-    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$inspectEvents['next_after']]);
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$combatEvents['next_after']]);
 $assert($sttStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$status===200&&count($sttEvents['events'])===1
     &&$sttEvents['events'][0]['type']==='stt.transcript'&&$sttEvents['events'][0]['turn_id']===$sttTurn,
     'direct pre-turn STT did not complete through the worker');
+
+$autonomy=$products->scheduleAutonomy(['installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
+    'playthrough_id'=>$session['playthrough_id'],'kind'=>'rechat','enabled'=>true,'interval_seconds'=>30,
+    'cooldown_seconds'=>30,'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')],gmdate('Y-m-d\TH:i:s\Z'));
+[$status,$autonomyEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$sttEvents['next_after']]);
+$assert($status===200&&count($autonomyEvents['autonomy'])===1
+    &&$autonomyEvents['autonomy'][0]['schedule_id']===$autonomy['schedule_id']
+    &&$autonomyEvents['autonomy'][0]['kind']==='rechat','due autonomy was not delivered to the active session');
+[$status,$autonomyReplay]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$autonomyEvents['next_after']]);
+$assert($status===200&&$autonomyReplay['autonomy']===[],'autonomy directive replayed inside its cooldown');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

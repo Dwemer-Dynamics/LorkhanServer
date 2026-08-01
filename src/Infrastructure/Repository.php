@@ -9,8 +9,11 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'action.inspect.report', 'action.ai.follow'];
-    private const ENABLED_ACTIONS = ['inspect.report','ai.follow'];
+    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'action.inspect.report', 'action.ai.follow',
+        'action.ai.stop', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
+        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'];
+    private const ENABLED_ACTIONS = ['inspect.report','ai.follow','ai.stop','ai.wander','combat.start','combat.stop',
+        'animation.play','item.equip','item.unequip','item.use'];
     public function __construct(
         private readonly PDO $db,
         private readonly int $eventReplayLimit = 256,
@@ -343,9 +346,13 @@ final class Repository
         $stmt->execute();
         $events = [];
         foreach ($stmt->fetchAll() as $row) {
+            $payload = $this->json($row['payload']);
+            if ($row['event_type'] === 'action.intent' && ($payload['parameters'] ?? null) === []) {
+                $payload['parameters'] = (object) [];
+            }
             $events[] = ['message_id' => $row['message_id'], 'request_id' => $row['request_id'], 'turn_id' => $row['turn_id'],
                 'session_id' => $row['session_id'], 'generation' => (int) $row['generation'], 'sequence' => (int) $row['sequence'],
-                'created_at' => $this->utc($row['created_at']), 'type' => $row['event_type'], 'payload' => $this->json($row['payload'])];
+                'created_at' => $this->utc($row['created_at']), 'type' => $row['event_type'], 'payload' => $payload];
         }
         return $events;
     }
@@ -572,8 +579,11 @@ final class Repository
             'target' => $this->encode($action['target']), 'parameters' => $this->encode($action['parameters']), 'expires' => $expires]);
         $this->db->prepare("INSERT INTO action_delivery (action_id, emitted_at, continuation_state) VALUES (:id, clock_timestamp(), 'none')")
             ->execute(['id' => $actionId]);
+        // PHP represents both an empty JSON object and an empty list as [], so restore the
+        // protocol-owned object shape at the wire boundary after catalog validation.
+        $wireParameters = $action['parameters'] === [] ? (object) [] : $action['parameters'];
         $payload = ['schema' => 'almsivi.action-intent.v1', 'action_id' => $actionId, 'turn_id' => $m['turn_id'], 'name' => $action['name'],
-            'tier' => $action['tier'], 'actor' => $action['actor'], 'target' => $action['target'], 'parameters' => $action['parameters'], 'expires_at' => $expires];
+            'tier' => $action['tier'], 'actor' => $action['actor'], 'target' => $action['target'], 'parameters' => $wireParameters, 'expires_at' => $expires];
         return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload);
     }
 

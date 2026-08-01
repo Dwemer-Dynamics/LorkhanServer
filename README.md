@@ -1,12 +1,17 @@
 # ALMSIVIserver
 
 ALMSIVIserver is the local Apache/PHP/PostgreSQL backend and browser management application for
-`RANGROO/ALMSIVI`. It is seeded from the final tested Synthserver only after the Fallout 4 project
-completes, then migrated explicitly from Fallout to TES3/OpenMW semantics.
+`RANGROO/ALMSIVI`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
 
 ## Status
 
-Planning and Azure handoff are complete. An independently authored PostgreSQL/PHP foundation is present while final predecessor import remains gated. In addition to the strict protocol/media/worker slice, it now includes revisioned profiles/playthroughs/prompts/provider/action policy, deterministic memory and knowledge retrieval with provenance, relationships, narrative/export, autonomy schedules, operational diagnostics, pairing lifecycle, and a separate CSRF-protected server-rendered management surface. Exact remaining behavior and external evidence boundaries are recorded in `docs/evidence/completion-ledger.md`. Default Windows/WSL URL: `http://127.0.0.1:8089/ALMSIVIserver`. Apache and PostgreSQL are not exposed externally by default.
+The complete local mock-provider vertical slice is implemented and deployed: authenticated sessions,
+turns and ordered events, dialogue/TTS media, action/result delivery, profiles and prompts, memory,
+relationships, knowledge, narrative/autonomy, durable jobs, diagnostics/backups, and the
+CSRF-protected CHIM-styled management surface. A vetted HTTPS OpenAI-compatible provider is available
+through server-side environment configuration; mock mode remains the safe local default. Default
+Windows/WSL URL: `http://127.0.0.1:8089/ALMSIVIserver/ui/home.php`. Apache and PostgreSQL are access-controlled for
+the local machine and are not exposed as a public service.
 
 ## Responsibilities
 
@@ -16,8 +21,23 @@ Planning and Azure handoff are complete. An independently authored PostgreSQL/PH
 - TTS/STT/LLM connectors, bounded media, derived-state workers, backups and diagnostics;
 - browser setup and management UI.
 
+The management interface follows the shared HerikaServer/DialecticServer PHP page format: physical
+`public/ui/*.php` pages include one common head, Bootstrap navbar, and footer; Configuration and
+Control Panel use grouped lazy-loaded iframe tabs. Legacy `/manage/*` page URLs redirect to the
+canonical PHP pages while `/manage/forms/*` and `/manage/api/v1/*` remain the CSRF-protected backend.
+
 It does not own OpenMW game objects, execute engine actions, store Bethesda game data, or put provider
 credentials in the client.
+
+## Local deployment
+
+The normal developer deploy mirrors the active source to `/var/www/html/ALMSIVIserver`, keeps
+database credentials and pairing secrets under `/etc/almsiviserver`, and preserves media/log state
+under `/var/lib/almsiviserver` and `/var/log/almsiviserver`. Run the sibling client's
+`scripts/deploy/full-local.ps1` for the Herika-style two-stage server plus game-client deployment.
+
+`scripts/deploy-wsl.sh` remains the immutable release/rollback installer described in
+`docs/WSL-APACHE-SETUP.md`; `scripts/deploy-local-wsl.sh` is the stable-path local development sync.
 
 ## Start here
 

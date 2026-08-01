@@ -149,14 +149,27 @@ final class Router
         }
         $this->assertPrincipal($this->repository->sessionInstallation($session));
         $deadline = microtime(true) + ($wait / 1000);
+        $autonomy=[];
         do {
             $events = $this->repository->events($session, $generation, $after, $this->eventLimit);
-            if ($events !== [] || microtime(true) >= $deadline) break;
+            if($this->products!==null){
+                $sessionRow=$this->repository->session($session,$generation);
+                $now=gmdate('Y-m-d\TH:i:s\Z');
+                foreach($this->products->dueAutonomy(['installation_id'=>$sessionRow['installation_id'],
+                    'profile_id'=>$sessionRow['profile_id'],'playthrough_id'=>$sessionRow['playthrough_id']],$now) as $due){
+                    if((string)$due['current_session_id']!==$session)continue;
+                    $autonomy[]=['schema'=>'almsivi.autonomy-directive.v1','schedule_id'=>(string)$due['schedule_id'],
+                        'kind'=>(string)$due['kind'],'issued_at'=>$now];
+                    $this->products->markAutonomyTriggered((string)$due['schedule_id'],$now);
+                    if(count($autonomy)>=3)break;
+                }
+            }
+            if ($events !== [] || $autonomy !== [] || microtime(true) >= $deadline) break;
             usleep((int) min(100_000, max(1_000, ($deadline - microtime(true)) * 1_000_000)));
         } while (true);
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
         return Response::json(200, ['schema' => 'almsivi.events.v1', 'session_id' => $session,
-            'generation' => $generation, 'next_after' => $next, 'events' => $events]);
+            'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>$autonomy]);
     }
 
     private function media(string $mediaId): Response

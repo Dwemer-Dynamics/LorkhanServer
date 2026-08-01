@@ -4,10 +4,10 @@
 declare(strict_types=1);
 
 use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
-use ALMSIVIserver\Application\MockProvider;
-use ALMSIVIserver\Application\MockSpeechProvider;
-use ALMSIVIserver\Application\MockSpeechToTextProvider;
 use ALMSIVIserver\Application\Provider;
+use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\SpeechProvider;
+use ALMSIVIserver\Application\SpeechToTextProvider;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\JobRepository;
@@ -37,17 +37,28 @@ try {
     $database = Connection::open($config);
     $media = new MediaStore((string) ($config['media_storage_path'] ?? dirname(__DIR__) . '/storage/media'),
         (int) ($config['media_max_bytes'] ?? 33_554_432), (int) ($config['media_quota_bytes'] ?? 268_435_456));
-    if (($config['provider']['driver'] ?? 'mock') !== 'mock') throw new RuntimeException('Only the mock provider is available in this foundation.');
-    $provider = new MockProvider((string) ($config['provider']['mock_prefix'] ?? ''));
+    $provider = ProviderFactory::dialogue($config);
     if (isset($config['provider_factory'])) {
         if (($config['environment'] ?? 'production') !== 'test' || !is_callable($config['provider_factory'])) throw new RuntimeException('Provider factory is test-only.');
         $provider = ($config['provider_factory'])();
         if (!$provider instanceof Provider) throw new RuntimeException('Provider factory did not return a Provider.');
     }
+    $speechProvider = ProviderFactory::speech($config);
+    if (isset($config['speech_provider_factory'])) {
+        if (($config['environment'] ?? 'production') !== 'test' || !is_callable($config['speech_provider_factory'])) throw new RuntimeException('Speech provider factory is test-only.');
+        $speechProvider = ($config['speech_provider_factory'])();
+        if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
+    }
+    $sttProvider = ProviderFactory::speechToText($config);
+    if (isset($config['stt_provider_factory'])) {
+        if (($config['environment'] ?? 'production') !== 'test' || !is_callable($config['stt_provider_factory'])) throw new RuntimeException('STT provider factory is test-only.');
+        $sttProvider = ($config['stt_provider_factory'])();
+        if (!$sttProvider instanceof SpeechToTextProvider) throw new RuntimeException('STT provider factory did not return a SpeechToTextProvider.');
+    }
     $runner = new Worker(
         new JobRepository($database),
-        FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: new MockSpeechProvider(),
-            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:new MockSpeechToTextProvider()),
+        FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: $speechProvider,
+            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:$sttProvider),
         $workerId,
         (int) ($worker['lease_seconds'] ?? 30),
         (int) ($worker['batch_size'] ?? 1),

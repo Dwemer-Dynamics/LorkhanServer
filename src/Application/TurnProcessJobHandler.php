@@ -58,9 +58,10 @@ final class TurnProcessJobHandler implements JobHandler
         $attemptId = Uuid::v4();
         $stagedMedia=[];
         try {
-            $this->attempts?->start($attemptId, 'llm', 'mock', 'complete_turn', $job['attempt'],
+            $providerName = $this->provider instanceof OpenAiCompatibleProvider ? 'openai-compatible' : 'mock';
+            $this->attempts?->start($attemptId, 'llm', $providerName, 'complete_turn', $job['attempt'],
                 $message['request_id'], $turnId, $job['job_id'], inputBytes: strlen($message['payload']['input']['text']),
-                metadata: ['mode' => 'deterministic_mock', 'job' => true]);
+                metadata: ['mode' => $providerName, 'job' => true]);
             $result = $this->provider->complete($message, $token);
             $utterances = (new DialoguePlanner())->plan($message, $result);
             $speech = [];
@@ -70,8 +71,10 @@ final class TurnProcessJobHandler implements JobHandler
                     $token->throwIfCancellationRequested();
                     $speechAttempt = Uuid::v4();
                     $ttsAttempt=(($job['attempt']-1)*4)+$index+1;
-                    $this->attempts?->start($speechAttempt,'tts','mock','synthesize',$ttsAttempt,$message['request_id'],$turnId,$job['job_id'],
-                        inputBytes:strlen($utterance['text']),metadata:['mode'=>'deterministic_mock','job'=>true,'utterance_index'=>$index+1]);
+                    $speechProviderName = $this->speechProvider instanceof OpenAiCompatibleSpeechProvider
+                        ? 'openai-compatible' : 'mock';
+                    $this->attempts?->start($speechAttempt,'tts',$speechProviderName,'synthesize',$ttsAttempt,$message['request_id'],$turnId,$job['job_id'],
+                        inputBytes:strlen($utterance['text']),metadata:['mode'=>$speechProviderName,'job'=>true,'utterance_index'=>$index+1]);
                     $generated = $this->speechProvider->synthesize($utterance['text'], $token);
                     $this->attempts?->finish($speechAttempt,'succeeded',strlen($generated['bytes']));
                     $mediaId = Uuid::v4();
