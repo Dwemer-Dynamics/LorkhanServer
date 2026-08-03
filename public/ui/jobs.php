@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'jobs'; $pageTitle = 'Workers & Jobs'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Workers & Jobs';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('jobs');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Workers & Jobs</h1><p>Durable server jobs, bounded retries, and dead-letter state.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> jobs</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No durable jobs have been recorded.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

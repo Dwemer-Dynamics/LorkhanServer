@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'oghma_audit'; $pageTitle = 'Oghma Audit'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Oghma Audit';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('oghma_audit');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Oghma Audit</h1><p>Bounded Morrowind knowledge retrieval traces and deterministic result counts.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> traces</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No knowledge retrievals have been recorded.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

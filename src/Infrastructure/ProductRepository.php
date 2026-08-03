@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ALMSIVIserver\Infrastructure;
 
+use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use PDO;
 use RuntimeException;
@@ -19,9 +20,20 @@ final class ProductRepository
         return $this->transaction(function () use ($kind, $input, $now): array {
             $id = Uuid::v4();
             $reason = (string) ($input['change_reason'] ?? 'created');
-            if ($kind === 'profile') {
-                $this->db->prepare('INSERT INTO profiles (profile_id, installation_id, name, actor_identity, created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:now)')
-                    ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'now'=>$now]);
+            if ($kind === 'core_profile') {
+                $defaultNpc = ($input['default_npc'] ?? false) === true;
+                if ($defaultNpc) {
+                    $this->db->prepare('UPDATE core_profiles SET default_npc=false WHERE installation_id=:installation AND default_npc=true')
+                        ->execute(['installation'=>$input['installation_id']]);
+                }
+                $this->db->prepare('INSERT INTO core_profiles (core_profile_id,installation_id,label,default_npc,slot,created_at) VALUES (:id,:installation,:label,:default_npc,:slot,:now)')
+                    ->execute(['id'=>$id,'installation'=>$input['installation_id'],'label'=>$input['name'],
+                        'default_npc'=>$defaultNpc?'true':'false','slot'=>$input['slot']??null,'now'=>$now]);
+                $this->revision('core_profile_revisions', 'core_profile_id', $id, 1, $input['content'], $reason, $now);
+            } elseif ($kind === 'profile') {
+                $coreProfileId = $input['core_profile_id'] ?? $this->defaultCoreProfileForInstallation((string)$input['installation_id'], $now, true)['core_profile_id'];
+                $this->db->prepare('INSERT INTO profiles (profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:core_profile,:now)')
+                    ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'core_profile'=>$coreProfileId,'now'=>$now]);
                 $this->revision('profile_revisions', 'profile_id', $id, 1, $input['content'], $reason, $now);
             } elseif ($kind === 'playthrough') {
                 $this->db->prepare('INSERT INTO playthroughs (playthrough_id, installation_id, profile_id, name, content_fingerprint, created_at) VALUES (:id,:installation,:profile,:name,:fingerprint,:now)')
@@ -42,7 +54,7 @@ final class ProductRepository
 
     public function resourceKind(string $id):string
     {
-        foreach([['profiles','profile_id','profile'],['playthroughs','playthrough_id','playthrough']] as[$table,$key,$kind]){$s=$this->db->prepare("SELECT 1 FROM {$table} WHERE {$key}=:id");$s->execute(['id'=>$id]);if($s->fetchColumn())return$kind;}
+        foreach([['profiles','profile_id','profile'],['core_profiles','core_profile_id','core_profile'],['playthroughs','playthrough_id','playthrough']] as[$table,$key,$kind]){$s=$this->db->prepare("SELECT 1 FROM {$table} WHERE {$key}=:id");$s->execute(['id'=>$id]);if($s->fetchColumn())return$kind;}
         $s=$this->db->prepare('SELECT kind FROM configuration_sets WHERE configuration_id=:id');$s->execute(['id'=>$id]);$kind=$s->fetchColumn();if($kind===false)throw new RuntimeException('not_found');return$kind==='action_policy'?'action_policy':(string)$kind;
     }
     public function revisionContent(string $kind,string $id,int $revision):array{[, $key,$table]=$this->revisionMeta($kind);$s=$this->db->prepare("SELECT content FROM {$table} WHERE {$key}=:id AND revision=:revision");$s->execute(['id'=>$id,'revision'=>$revision]);$v=$s->fetchColumn();if($v===false)throw new RuntimeException('revision_not_found');return$this->json($v);}
@@ -52,6 +64,56 @@ final class ProductRepository
     {
         $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='global_settings' AND c.deleted_at IS NULL LIMIT 1");
         $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();if(!$row)return null;$row['content']=$this->json($row['content']);return$row;
+    }
+
+    /** Return or create the single installation default used when an NPC has no explicit Core Profile. */
+    public function defaultCoreProfileForInstallation(string $installationId, ?string $now = null, bool $create = false): ?array
+    {
+        $find = function () use ($installationId): ?array {
+            $statement=$this->db->prepare('SELECT c.*,r.content,r.change_reason,r.created_at AS revision_created_at FROM core_profiles c JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.default_npc=true AND c.deleted_at IS NULL LIMIT 1');
+            $statement->execute(['installation'=>$installationId]);$row=$statement->fetch();
+            if(!$row)return null;$row['content']=$this->json($row['content']);$row['revision']=(int)$row['current_revision'];return$row;
+        };
+        $existing=$find();
+        if($existing!==null||!$create)return$existing;
+        if($now===null)throw new RuntimeException('core_profile_create_time_required');
+        return$this->transaction(function()use($installationId,$now,$find):array{
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>'core-profile:'.$installationId]);
+            $existing=$find();if($existing!==null)return$existing;
+            $first=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY created_at,core_profile_id LIMIT 1');
+            $first->execute(['installation'=>$installationId]);$firstId=$first->fetchColumn();
+            if($firstId!==false){$this->db->prepare('UPDATE core_profiles SET default_npc=true WHERE core_profile_id=:id')->execute(['id'=>$firstId]);return$find()??throw new RuntimeException('core_profile_default_failed');}
+            $id=$this->deterministicUuid('almsivi:core-profile:default:v1:'.$installationId);
+            $content=['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
+            $this->db->prepare('INSERT INTO core_profiles(core_profile_id,installation_id,label,default_npc,slot,created_at) VALUES(:id,:installation,\'Default\',true,1,:now)')
+                ->execute(['id'=>$id,'installation'=>$installationId,'now'=>$now]);
+            $this->revision('core_profile_revisions','core_profile_id',$id,1,$content,'default core profile created',$now);
+            return$find()??throw new RuntimeException('core_profile_default_failed');
+        });
+    }
+
+    /** Update Core Profile identity fields separately from its immutable content revisions. */
+    public function updateCoreProfileMetadata(string $coreProfileId,string $label,bool $defaultNpc,?int $slot,string $now):array
+    {
+        return$this->transaction(function()use($coreProfileId,$label,$defaultNpc,$slot,$now):array{
+            $statement=$this->db->prepare('SELECT installation_id FROM core_profiles WHERE core_profile_id=:id AND deleted_at IS NULL FOR UPDATE');
+            $statement->execute(['id'=>$coreProfileId]);$installation=$statement->fetchColumn();if($installation===false)throw new RuntimeException('not_found');
+            if($defaultNpc)$this->db->prepare('UPDATE core_profiles SET default_npc=false WHERE installation_id=:installation AND core_profile_id<>:id AND default_npc=true')
+                ->execute(['installation'=>$installation,'id'=>$coreProfileId]);
+            $this->db->prepare('UPDATE core_profiles SET label=:label,default_npc=:default_npc,slot=:slot WHERE core_profile_id=:id')
+                ->execute(['label'=>$label,'default_npc'=>$defaultNpc?'true':'false','slot'=>$slot,'id'=>$coreProfileId]);
+            if(!$defaultNpc&&$this->defaultCoreProfileForInstallation((string)$installation)===null){
+                throw new \InvalidArgumentException('default_core_profile_required');
+            }
+            return$this->getRevisioned('core_profile',$coreProfileId);
+        });
+    }
+
+    /** Assign one same-installation Core Profile to an NPC/persona profile. */
+    public function assignCoreProfile(string $profileId,string $coreProfileId):void
+    {
+        $statement=$this->db->prepare('UPDATE profiles p SET core_profile_id=:core FROM core_profiles c WHERE p.profile_id=:profile AND p.installation_id=c.installation_id AND c.core_profile_id=:core AND p.deleted_at IS NULL AND c.deleted_at IS NULL');
+        $statement->execute(['profile'=>$profileId,'core'=>$coreProfileId]);if($statement->rowCount()!==1)throw new \InvalidArgumentException('core_profile_scope_mismatch');
     }
 
     /** Materialize the installation-scoped player profile before the first game turn needs it. */
@@ -136,7 +198,8 @@ final class ProductRepository
     public function getRevisioned(string $kind, string $id): array
     {
         [$table,$key,$revisions] = $this->revisionMeta($kind);
-        $stmt = $this->db->prepare("SELECT b.*, r.content, r.change_reason, r.created_at AS revision_created_at FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.{$key}=:id AND b.deleted_at IS NULL");
+        $nameAlias=$kind==='core_profile'?', b.label AS name':'';
+        $stmt = $this->db->prepare("SELECT b.*{$nameAlias}, r.content, r.change_reason, r.created_at AS revision_created_at FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.{$key}=:id AND b.deleted_at IS NULL");
         $stmt->execute(['id'=>$id]);
         $row = $stmt->fetch();
         if (!$row) throw new RuntimeException('not_found');
@@ -148,7 +211,8 @@ final class ProductRepository
     {
         [$table,$key,$revisions] = $this->revisionMeta($kind);
         $kindFilter=$table==='configuration_sets'?' AND b.kind=:kind':'';
-        $stmt=$this->db->prepare("SELECT b.{$key} AS id,b.name,b.current_revision,b.created_at,r.content FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.installation_id=:installation{$kindFilter} AND b.deleted_at IS NULL ORDER BY b.name LIMIT 100");
+        $nameField=$kind==='core_profile'?'label':'name';
+        $stmt=$this->db->prepare("SELECT b.{$key} AS id,b.{$nameField} AS name,b.current_revision,b.created_at,r.content FROM {$table} b JOIN {$revisions} r ON r.{$key}=b.{$key} AND r.revision=b.current_revision WHERE b.installation_id=:installation{$kindFilter} AND b.deleted_at IS NULL ORDER BY b.{$nameField} LIMIT 100");
         $parameters=['installation'=>$installationId];if($kindFilter!=='')$parameters['kind']=$kind;
         $stmt->execute($parameters);
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
@@ -323,21 +387,32 @@ final class ProductRepository
         $this->transaction(function()use($kind,$id,$now):void{
             [$table,$key]=$this->revisionMeta($kind);
             if($kind==='profile')$this->db->prepare('DELETE FROM actor_profile_bindings WHERE profile_id=:id')->execute(['id'=>$id]);
+            if($kind==='core_profile'){
+                $usage=$this->db->prepare('SELECT c.default_npc,(SELECT count(*) FROM profiles p WHERE p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL) AS profiles FROM core_profiles c WHERE c.core_profile_id=:id AND c.deleted_at IS NULL FOR UPDATE');
+                $usage->execute(['id'=>$id]);$row=$usage->fetch();if(!$row)throw new RuntimeException('not_found');
+                if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0)throw new \InvalidArgumentException('core_profile_in_use');
+            }
             if($kind==='provider'){
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id) LIMIT 1");
+                $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
             }
             if($kind==='prompt'){
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND r.content->'routing'->>'prompt_configuration_id'=:id LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('prompt_in_use');
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND r.content->'routing'->>'prompt_configuration_id'=:id LIMIT 1");
+                $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('prompt_in_use');
             }
             if(in_array($kind,['tts_provider','stt_provider'],true)){
                 $selection=$this->db->prepare('SELECT 1 FROM installation_provider_selections WHERE configuration_id=:id LIMIT 1');
                 $selection->execute(['id'=>$id]);if($selection->fetchColumn())throw new \InvalidArgumentException('connector_in_use');
                 if($kind==='tts_provider'){$profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND r.content->'routing'->>'tts_configuration_id'=:id LIMIT 1");
-                    $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('connector_in_use');}
+                    $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('connector_in_use');
+                    $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND r.content->'routing'->>'tts_configuration_id'=:id LIMIT 1");
+                    $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('connector_in_use');}
             }
             $statement=$this->db->prepare("UPDATE {$table} SET deleted_at=:now WHERE {$key}=:id AND deleted_at IS NULL");
             $statement->execute(['now'=>$now,'id'=>$id]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');
@@ -386,15 +461,44 @@ final class ProductRepository
         if(!$row)return null;$row['revision']=(int)$row['revision'];$row['content']=$this->json($row['content']);return$row;
     }
 
-    /** Return only the current profile routing document for one stable actor identity. */
-    private function routingForActor(string $installationId,string $playthroughId,array $identity):array
+    /** Resolve the revisioned Global -> Core Profile -> NPC layers for one stable actor identity. */
+    public function effectiveSettingsForActor(string $installationId,string $playthroughId,array $identity):array
     {
         $profileId=($identity['kind']??null)==='narrator'
             ?($this->narratorProfileForInstallation($installationId)['profile_id']??null)
             :$this->selectedActorProfileId($installationId,$playthroughId,$identity);
-        if(!is_string($profileId)||$profileId==='')return[];
-        $profile=$this->getRevisioned('profile',$profileId);$content=$profile['content']??[];
-        return is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
+        return$this->effectiveSettingsForProfile($installationId,is_string($profileId)?$profileId:null);
+    }
+
+    /** Resolve a profile's assigned Core Profile while retaining source revisions for prompt traces. */
+    private function effectiveSettingsForProfile(string $installationId,?string $profileId):array
+    {
+        $global=$this->globalSettingsForInstallation($installationId);
+        $profile=null;
+        if($profileId!==null&&$profileId!==''){
+            $statement=$this->db->prepare('SELECT p.profile_id,p.core_profile_id,p.current_revision AS revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
+            $statement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$statement->fetch();
+            if($profile){$profile['revision']=(int)$profile['revision'];$profile['content']=$this->json($profile['content']);}
+        }
+        $core=null;$coreId=is_array($profile)?($profile['core_profile_id']??null):null;
+        if(is_string($coreId)&&$coreId!==''){
+            $statement=$this->db->prepare('SELECT c.core_profile_id,c.installation_id,c.label,c.default_npc,c.slot,c.current_revision AS revision,r.content FROM core_profiles c JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision WHERE c.core_profile_id=:core AND c.installation_id=:installation AND c.deleted_at IS NULL');
+            $statement->execute(['core'=>$coreId,'installation'=>$installationId]);$core=$statement->fetch();
+            if($core){$core['revision']=(int)$core['revision'];$core['content']=$this->json($core['content']);}
+        }
+        if(!$core)$core=$this->defaultCoreProfileForInstallation($installationId);
+        $resolved=(new EffectiveSettingsResolver())->resolve(
+            is_array($global['content']??null)?$global['content']:[],
+            is_array($core['content']??null)?$core['content']:[],
+            is_array($profile['content']??null)?$profile['content']:[],
+        );
+        return$resolved+['global_settings'=>$global,'core_profile'=>$core,'npc_profile'=>$profile];
+    }
+
+    /** Return only the effective routing document for one stable actor identity. */
+    private function routingForActor(string $installationId,string $playthroughId,array $identity):array
+    {
+        return$this->effectiveSettingsForActor($installationId,$playthroughId,$identity)['routing'];
     }
 
     /** Read a boolean profile-routing flag without treating arbitrary non-empty strings as enabled. */
@@ -700,12 +804,25 @@ final class ProductRepository
         $active=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation AND revoked_at IS NULL');
         $active->execute(['installation'=>$installationId]);if(!$active->fetchColumn())throw new RuntimeException('not_found');
 
-        $profiles=$this->db->prepare('SELECT p.profile_id,p.name,p.actor_identity,r.content FROM profiles p '
+        // Ensure newly registered installations have the neutral inheritance layer before export.
+        $this->defaultCoreProfileForInstallation($installationId, gmdate('Y-m-d\TH:i:s\Z'), true);
+
+        $cores=$this->db->prepare('SELECT c.core_profile_id,c.label,c.default_npc,c.slot,r.content FROM core_profiles c '
+            .'JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
+            .'WHERE c.installation_id=:installation AND c.deleted_at IS NULL ORDER BY c.default_npc DESC,c.slot NULLS LAST,c.label,c.core_profile_id LIMIT 100');
+        $cores->execute(['installation'=>$installationId]);$coreRows=[];
+        foreach($cores->fetchAll() as$row)$coreRows[]=[
+            'core_profile_id'=>(string)$row['core_profile_id'],'label'=>(string)$row['label'],
+            'default_npc'=>in_array($row['default_npc'],[true,1,'1','t','true'],true),'slot'=>$row['slot']===null?null:(int)$row['slot'],
+            'content'=>$this->withoutSecrets($this->json($row['content']))];
+
+        $profiles=$this->db->prepare('SELECT p.profile_id,p.core_profile_id,p.name,p.actor_identity,r.content FROM profiles p '
             .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
             .'WHERE p.installation_id=:installation AND p.deleted_at IS NULL ORDER BY p.name,p.profile_id LIMIT 2000');
         $profiles->execute(['installation'=>$installationId]);$profileRows=[];
         foreach($profiles->fetchAll() as$row){$content=$this->json($row['content']);unset($content['portrait']);$profileRows[]=[
-            'profile_id'=>(string)$row['profile_id'],'name'=>(string)$row['name'],'actor_identity'=>$this->json($row['actor_identity']),
+            'profile_id'=>(string)$row['profile_id'],'core_profile_id'=>$row['core_profile_id']===null?null:(string)$row['core_profile_id'],
+            'name'=>(string)$row['name'],'actor_identity'=>$this->json($row['actor_identity']),
             'content'=>$this->withoutSecrets($content)];}
 
         $configurations=$this->db->prepare('SELECT c.configuration_id,c.profile_id,c.kind,c.name,r.content FROM configuration_sets c '
@@ -719,16 +836,16 @@ final class ProductRepository
         $selections=$this->db->prepare('SELECT provider_kind,configuration_id FROM installation_provider_selections '
             .'WHERE installation_id=:installation ORDER BY provider_kind');
         $selections->execute(['installation'=>$installationId]);
-        return['profiles'=>$profileRows,'configurations'=>$configurationRows,'connector_selections'=>$selections->fetchAll(),
+        return['core_profiles'=>$coreRows,'profiles'=>$profileRows,'configurations'=>$configurationRows,'connector_selections'=>$selections->fetchAll(),
             'preferences'=>['auto_lock_on_edit'=>$this->profileAutoLockEnabled($installationId)]];
     }
 
     /** Record the immutable file identity used by authenticated backup downloads and restores. */
-    public function recordConfigurationBackup(string $backupId,string $sha256,int $bytes,string $installationId,string $now):void
+    public function recordConfigurationBackup(string $backupId,string $sha256,int $bytes,string $installationId,string $now,int $formatVersion=2):void
     {
         $this->db->prepare('INSERT INTO backup_records(backup_id,format_version,content_sha256,byte_count,scope,state,created_at) '
-            ."VALUES(:id,1,:sha,:bytes,CAST(:scope AS jsonb),'created',:now)")
-            ->execute(['id'=>$backupId,'sha'=>$sha256,'bytes'=>$bytes,
+            ."VALUES(:id,:format,:sha,:bytes,CAST(:scope AS jsonb),'created',:now)")
+            ->execute(['id'=>$backupId,'format'=>$formatVersion,'sha'=>$sha256,'bytes'=>$bytes,
                 'scope'=>$this->encode(['kind'=>'configuration','installation_id'=>$installationId]),'now'=>$now]);
     }
 
@@ -746,18 +863,37 @@ final class ProductRepository
             $installation=(string)$document['installation_id'];$active=$this->db->prepare(
                 'SELECT 1 FROM installations WHERE installation_id=:installation AND revoked_at IS NULL FOR UPDATE');
             $active->execute(['installation'=>$installation]);if(!$active->fetchColumn())throw new RuntimeException('not_found');
-            $counts=['profiles'=>0,'configurations'=>0,'connector_selections'=>0];
+            $counts=['core_profiles'=>0,'profiles'=>0,'configurations'=>0,'connector_selections'=>0];
+
+            $coreRows=$document['data']['core_profiles']??[];
+            if($coreRows!==[]){
+                $this->db->prepare('UPDATE core_profiles SET default_npc=false,slot=NULL WHERE installation_id=:installation')
+                    ->execute(['installation'=>$installation]);
+                foreach($coreRows as$row){$id=(string)$row['core_profile_id'];
+                    $find=$this->db->prepare('SELECT installation_id,current_revision FROM core_profiles WHERE core_profile_id=:id FOR UPDATE');
+                    $find->execute(['id'=>$id]);$existing=$find->fetch();
+                    if($existing&&$existing['installation_id']!==$installation)throw new RuntimeException('backup_scope_conflict');
+                    if($existing){$next=(int)$existing['current_revision']+1;
+                        $this->db->prepare('UPDATE core_profiles SET label=:label,default_npc=:default,slot=:slot,current_revision=:revision,deleted_at=NULL WHERE core_profile_id=:id')
+                            ->execute(['label'=>$row['label'],'default'=>$row['default_npc']?'true':'false','slot'=>$row['slot'],'revision'=>$next,'id'=>$id]);
+                    }else{$next=1;$this->db->prepare('INSERT INTO core_profiles(core_profile_id,installation_id,label,default_npc,slot,current_revision,created_at) '
+                        .'VALUES(:id,:installation,:label,:default,:slot,1,:now)')->execute(['id'=>$id,'installation'=>$installation,
+                            'label'=>$row['label'],'default'=>$row['default_npc']?'true':'false','slot'=>$row['slot'],'now'=>$now]);}
+                    $this->revision('core_profile_revisions','core_profile_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['core_profiles']++;}
+            }
+            $legacyDefault=$coreRows===[]?$this->defaultCoreProfileForInstallation($installation):null;
 
             foreach($document['data']['profiles'] as$row){$id=(string)$row['profile_id'];
+                $coreProfileId=$row['core_profile_id']??($legacyDefault['core_profile_id']??null);
                 $find=$this->db->prepare('SELECT installation_id,current_revision FROM profiles WHERE profile_id=:id FOR UPDATE');
                 $find->execute(['id'=>$id]);$existing=$find->fetch();
                 if($existing&&$existing['installation_id']!==$installation)throw new RuntimeException('backup_scope_conflict');
                 if($existing){$next=(int)$existing['current_revision']+1;
-                    $this->db->prepare('UPDATE profiles SET name=:name,actor_identity=CAST(:identity AS jsonb),current_revision=:revision,deleted_at=NULL WHERE profile_id=:id')
-                        ->execute(['name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'revision'=>$next,'id'=>$id]);
-                }else{$next=1;$this->db->prepare('INSERT INTO profiles(profile_id,installation_id,name,actor_identity,current_revision,created_at) '
-                    .'VALUES(:id,:installation,:name,CAST(:identity AS jsonb),1,:now)')->execute(['id'=>$id,'installation'=>$installation,
-                        'name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'now'=>$now]);}
+                    $this->db->prepare('UPDATE profiles SET core_profile_id=:core,name=:name,actor_identity=CAST(:identity AS jsonb),current_revision=:revision,deleted_at=NULL WHERE profile_id=:id')
+                        ->execute(['core'=>$coreProfileId,'name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'revision'=>$next,'id'=>$id]);
+                }else{$next=1;$this->db->prepare('INSERT INTO profiles(profile_id,installation_id,core_profile_id,name,actor_identity,current_revision,created_at) '
+                    .'VALUES(:id,:installation,:core,:name,CAST(:identity AS jsonb),1,:now)')->execute(['id'=>$id,'installation'=>$installation,
+                        'core'=>$coreProfileId,'name'=>$row['name'],'identity'=>$this->encode($row['actor_identity']),'now'=>$now]);}
                 $this->revision('profile_revisions','profile_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['profiles']++;}
 
             foreach($document['data']['configurations'] as$row){$id=(string)$row['configuration_id'];
@@ -864,7 +1000,8 @@ final class ProductRepository
         $selectedProfileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
         $activeProfileId=$selectedProfileId??$turn['profile_id'];
         $profile = $this->getRevisioned('profile', $activeProfileId);
-        $profileContent=is_array($profile['content']??null)?$profile['content']:[];$routing=is_array($profileContent['routing']??null)?$profileContent['routing']:[];
+        $effective=$this->effectiveSettingsForProfile((string)$turn['installation_id'],$activeProfileId);
+        $routing=$effective['routing'];
         $selectedPrompt=(string)($routing['prompt_configuration_id']??'');$prompt=false;
         if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$selectedPrompt)===1){
             $promptStmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:prompt AND c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL");
@@ -878,6 +1015,11 @@ final class ProductRepository
             $prompt['revision']=(int)$prompt['revision'];$prompt['content']=$this->json($prompt['content']);
         }
         $profile['revision']=(int)$profile['current_revision'];
+        $coreProfile=$effective['core_profile'];
+        if(is_array($coreProfile)){
+            $coreContent=is_array($coreProfile['content']??null)?$coreProfile['content']:[];
+            $coreProfile['content']=['prompt'=>(string)($coreContent['prompt']??'')];
+        }
         $memories=$this->memoryCandidates($scope,$now);usort($memories,fn($a,$b)=>strcmp((string)$a['id'],(string)$b['id']));
         $knowledge=$this->knowledgeCandidates($scope);usort($knowledge,fn($a,$b)=>strcmp((string)$a['id'],(string)$b['id']));
         $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
@@ -885,7 +1027,8 @@ final class ProductRepository
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
         $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());
-        return ['profile'=>$profile,'selected_profile_id'=>$activeProfileId,
+        return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
+            'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
@@ -965,11 +1108,13 @@ final class ProductRepository
             $selectedRevision=isset($trace['profile_revision'])?(int)$trace['profile_revision']:null;
             $promptConfiguration=$trace['prompt_configuration_id']===$selectedProfile
                 ?null:$trace['prompt_configuration_id'];
-            $this->db->prepare('INSERT INTO prompt_traces (prompt_trace_id,installation_id,profile_id,playthrough_id,session_id,turn_id,request_id,prompt_configuration_id,prompt_revision,selected_profile_id,selected_profile_revision,algorithm,input_sha256,input_bytes,truncated,created_at) VALUES (:id,:installation,:profile,:playthrough,:session,:turn,:request,:config,:revision,:selected_profile,:selected_revision,:algorithm,:sha,:bytes,:truncated,:now) ON CONFLICT (turn_id) DO NOTHING')->execute([
+            $this->db->prepare('INSERT INTO prompt_traces (prompt_trace_id,installation_id,profile_id,playthrough_id,session_id,turn_id,request_id,prompt_configuration_id,prompt_revision,selected_profile_id,selected_profile_revision,core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources,algorithm,input_sha256,input_bytes,truncated,created_at) VALUES (:id,:installation,:profile,:playthrough,:session,:turn,:request,:config,:revision,:selected_profile,:selected_revision,:core_profile,:core_revision,:settings_sha,CAST(:settings_sources AS jsonb),:algorithm,:sha,:bytes,:truncated,:now) ON CONFLICT (turn_id) DO NOTHING')->execute([
                 'id'=>$id,'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],
                 'playthrough'=>$turn['playthrough_id'],'session'=>$turn['session_id'],'turn'=>$turn['turn_id'],
                 'request'=>$turn['request_id'],'config'=>$promptConfiguration,'revision'=>$trace['prompt_revision'],
-                'selected_profile'=>$selectedProfile,'selected_revision'=>$selectedRevision,'algorithm'=>$trace['algorithm'],
+                'selected_profile'=>$selectedProfile,'selected_revision'=>$selectedRevision,'core_profile'=>$trace['core_profile_id']??null,
+                'core_revision'=>$trace['core_profile_revision']??null,'settings_sha'=>$trace['effective_settings_sha256']??null,
+                'settings_sources'=>$this->encode($trace['settings_sources']??[]),'algorithm'=>$trace['algorithm'],
                 'sha'=>$trace['input_sha256'],'bytes'=>$trace['input_bytes'],'truncated'=>$trace['truncated']?'true':'false','now'=>$now,
             ]);
             $find=$this->db->prepare('SELECT prompt_trace_id FROM prompt_traces WHERE turn_id=:turn');
@@ -987,7 +1132,7 @@ final class ProductRepository
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}

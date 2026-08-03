@@ -20,6 +20,7 @@ final class PromptAssembler
     /** @var array<string,array{limit:int,bytes:int}> */
     private const SECTIONS = [
         'profile' => ['limit' => 1, 'bytes' => 12_288],
+        'core_profile' => ['limit' => 1, 'bytes' => 65_536],
         'prompt' => ['limit' => 1, 'bytes' => 24_576],
         'memory' => ['limit' => 10, 'bytes' => 16_384],
         'relationship' => ['limit' => 10, 'bytes' => 8_192],
@@ -61,12 +62,15 @@ final class PromptAssembler
         $this->assertTurnScope($turn);
 
         $profile = $this->selectedRevision($selection, 'profile');
+        $coreProfile = $this->optionalSelectedRevision($selection, 'core_profile');
         $prompt = $this->selectedRevision($selection, 'prompt');
         $this->assertSourceScope($profile, $turn, 'profile');
+        if($coreProfile!==null)$this->assertSourceScope($coreProfile,$turn,'core_profile');
         $this->assertSourceScope($prompt, $turn, 'prompt');
 
         $rows = [
             'profile' => [$profile],
+            'core_profile' => $coreProfile===null?[]:[$coreProfile],
             'prompt' => [$prompt],
             'memory' => $this->selectedList($selection, 'memory'),
             'relationship' => $this->selectedList($selection, 'relationship'),
@@ -155,6 +159,10 @@ final class PromptAssembler
             'redaction' => 'metadata-only-v1',
             'profile_id' => $this->sourceId('profile', $profile),
             'profile_revision' => $this->requiredRevision($profile),
+            'core_profile_id' => $coreProfile===null?null:$this->sourceId('core_profile',$coreProfile),
+            'core_profile_revision' => $coreProfile===null?null:$this->requiredRevision($coreProfile),
+            'effective_settings_sha256' => $selection['effective_settings']['sha256']??null,
+            'settings_sources' => $selection['effective_settings']['sources']??[],
             'prompt_configuration_id' => $this->sourceId('prompt', $prompt),
             'prompt_revision' => $this->requiredRevision($prompt),
             'sources' => $sources,
@@ -179,6 +187,13 @@ final class PromptAssembler
         $this->sourceId($kind, $value);
         $this->requiredRevision($value);
         return $value;
+    }
+
+    /** @param array<string,mixed> $selection @return array<string,mixed>|null */
+    private function optionalSelectedRevision(array $selection,string $kind):?array
+    {
+        if(!array_key_exists($kind,$selection)||$selection[$kind]===null)return null;
+        return$this->selectedRevision($selection,$kind);
     }
 
     /** @param array<string,mixed> $selection @return list<array<string,mixed>> */
@@ -246,6 +261,7 @@ final class PromptAssembler
     {
         $keys = match ($kind) {
             'profile' => ['profile_id', 'id'],
+            'core_profile' => ['core_profile_id', 'id'],
             'prompt' => ['configuration_id', 'id'],
             'memory' => ['memory_id', 'id'],
             'relationship' => ['relationship_id', 'id'],

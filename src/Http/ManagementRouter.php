@@ -94,12 +94,12 @@ final class ManagementRouter
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
-        if(preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)$#D',$path,$m)){
+        if(preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)$#D',$path,$m)){
             $kind=$this->singular($m[1]);if($r->method==='GET')return Response::json(200,['items'=>$this->repository->listRevisioned($kind,$this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(201,$this->service->createRevisioned($kind,$this->json($r)));
         }
-        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
-        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
         if($path==='/api/v1/connector-selections'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->connectorSelections($this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(200,$this->service->selectConnector($this->json($r)));
@@ -156,6 +156,11 @@ final class ManagementRouter
             'profile-toggle-lock'=>$this->toggleNpcProfileManagement($v,'locked'),
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
+            'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-revise'=>$this->service->revise('core_profile',$this->need($v,'core_profile_id'),$this->coreProfileContent($v),$this->need($v,'change_reason')),
+            'core-profile-default'=>$this->makeDefaultCoreProfile($v),
+            'core-profile-rollback'=>$this->service->rollback('core_profile',$this->need($v,'core_profile_id'),(int)($v['revision']??0),'management rollback'),
+            'core-profile-delete'=>$this->service->deleteRevisioned('core_profile',$this->need($v,'core_profile_id')),
             'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->profileContent($v)]),
             'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->profileContent($v),$this->need($v,'change_reason')),
@@ -219,7 +224,7 @@ final class ManagementRouter
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'profile-import','profile-clone'=>'profiles','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -313,7 +318,7 @@ final class ManagementRouter
     private function jsonField(array $v,string $k):array{try{$d=json_decode((string)($v[$k]??'{}'),true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_'.$k);}if(!is_array($d)||($d!==[]&&array_is_list($d)))throw new InvalidArgumentException('invalid_'.$k);return$d;}
     private function need(array $v,string $k):string{$s=trim((string)($v[$k]??''));if($s==='')throw new InvalidArgumentException('invalid_'.$k);return$s;}
     private function path(string $p):string{if(!str_starts_with($p,$this->basePath))throw new RuntimeException('not_found');$v=substr($p,strlen($this->basePath));return$v===''?'/':$v;}
-    private function singular(string $v):string{return match($v){'profiles'=>'profile','playthroughs'=>'playthrough','prompts'=>'prompt','providers'=>'provider','tts-providers'=>'tts_provider','stt-providers'=>'stt_provider','action-policies'=>'action_policy'};}
+    private function singular(string $v):string{return match($v){'profiles'=>'profile','core-profiles'=>'core_profile','playthroughs'=>'playthrough','prompts'=>'prompt','providers'=>'provider','tts-providers'=>'tts_provider','stt-providers'=>'stt_provider','action-policies'=>'action_policy'};}
 
     /** Convert the labelled connector form into the strict revisioned connector document. */
     private function connectorFormContent(array $values,string $kind):array
@@ -417,7 +422,7 @@ final class ManagementRouter
         if(strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_name');
         $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
         return$this->service->createRevisioned('profile',['installation_id'=>(string)$row['installation_id'],
-            'name'=>$name,'actor_identity'=>$identity,'content'=>$content]);
+            'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
     }
 
     /** Download one portable model slot without installation ownership, revision history, endpoints, or credentials. */
@@ -564,7 +569,7 @@ final class ManagementRouter
         if(!hash_equals('Backup',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $backupId=Uuid::v4();$now=gmdate('Y-m-d\TH:i:s\Z');$document=[
-            'schema'=>'almsivi.configuration-backup.v1','format_version'=>1,'backup_id'=>$backupId,'created_at'=>$now,
+            'schema'=>'almsivi.configuration-backup.v2','format_version'=>2,'backup_id'=>$backupId,'created_at'=>$now,
             'installation_id'=>$installation,'data'=>$this->repository->configurationBackupState($installation)];
         $json=json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n";
         if(strlen($json)>$this->maxJsonBytes)throw new InvalidArgumentException('backup_too_large');
@@ -613,17 +618,31 @@ final class ManagementRouter
     private function validateConfigurationBackup(mixed $document,string $backupId,string $installation):void
     {
         if(!$this->objectArray($document))throw new RuntimeException('backup_integrity_failed');$top=array_keys($document);sort($top);
+        $format=$document['format_version']??null;$expectedSchema=$format===1?'almsivi.configuration-backup.v1':'almsivi.configuration-backup.v2';
         if($top!==['backup_id','created_at','data','format_version','installation_id','schema']
-            ||$document['schema']!=='almsivi.configuration-backup.v1'||$document['format_version']!==1
+            ||!in_array($format,[1,2],true)||$document['schema']!==$expectedSchema
             ||$document['backup_id']!==$backupId||$document['installation_id']!==$installation||!is_string($document['created_at']))
             throw new RuntimeException('backup_integrity_failed');
         $data=$document['data']??null;if(!$this->objectArray($data)){throw new RuntimeException('backup_integrity_failed');}
-        $dataKeys=array_keys($data);sort($dataKeys);if($dataKeys!==['configurations','connector_selections','preferences','profiles'])throw new RuntimeException('backup_integrity_failed');
+        $dataKeys=array_keys($data);sort($dataKeys);$expectedDataKeys=$format===1
+            ?['configurations','connector_selections','preferences','profiles']
+            :['configurations','connector_selections','core_profiles','preferences','profiles'];
+        if($dataKeys!==$expectedDataKeys)throw new RuntimeException('backup_integrity_failed');
         foreach(['profiles','configurations','connector_selections']as$key)if(!is_array($data[$key])||!array_is_list($data[$key])||count($data[$key])>2000)throw new RuntimeException('backup_integrity_failed');
         if(!$this->objectArray($data['preferences'])||array_keys($data['preferences'])!==['auto_lock_on_edit']||!is_bool($data['preferences']['auto_lock_on_edit']))throw new RuntimeException('backup_integrity_failed');
 
+        $coreIds=[];if($format===2){if(!is_array($data['core_profiles'])||!array_is_list($data['core_profiles'])||count($data['core_profiles'])>100)throw new RuntimeException('backup_integrity_failed');
+            $defaultCount=0;$slots=[];foreach($data['core_profiles']as$row){if(!$this->objectArray($row))throw new RuntimeException('backup_integrity_failed');$keys=array_keys($row);sort($keys);
+                if($keys!==['content','core_profile_id','default_npc','label','slot']||!is_string($row['core_profile_id'])||!is_string($row['label'])||trim($row['label'])===''||strlen($row['label'])>128
+                    ||!is_bool($row['default_npc'])||($row['slot']!==null&&(!is_int($row['slot'])||$row['slot']<1||$row['slot']>4))||!$this->objectArray($row['content']))throw new RuntimeException('backup_integrity_failed');
+                $this->uuid($row['core_profile_id'],'core_profile_id');if(isset($coreIds[$row['core_profile_id']]))throw new RuntimeException('backup_integrity_failed');$coreIds[$row['core_profile_id']]=true;
+                if($row['default_npc'])$defaultCount++;if($row['slot']!==null){if(isset($slots[$row['slot']]))throw new RuntimeException('backup_integrity_failed');$slots[$row['slot']]=true;}}
+            if($defaultCount!==1)throw new RuntimeException('backup_integrity_failed');}
+
         $profileIds=[];foreach($data['profiles']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
-            if($keys!==['actor_identity','content','name','profile_id']||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
+            $expectedProfileKeys=$format===1?['actor_identity','content','name','profile_id']:['actor_identity','content','core_profile_id','name','profile_id'];
+            if($keys!==$expectedProfileKeys||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
+                ||($format===2&&($row['core_profile_id']!==null&&(!is_string($row['core_profile_id'])||!isset($coreIds[$row['core_profile_id']]))))
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
@@ -733,6 +752,64 @@ final class ManagementRouter
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
     }
 
+    /** Create one typed Core Profile between installation defaults and NPC overrides. */
+    private function createCoreProfile(array $values,array $scope):array
+    {
+        $slotRaw=trim((string)($values['slot']??''));$slot=$slotRaw===''?null:filter_var($slotRaw,FILTER_VALIDATE_INT);
+        if($slot===false||($slot!==null&&($slot<1||$slot>4)))throw new InvalidArgumentException('invalid_core_profile_slot');
+        return$this->service->createRevisioned('core_profile',[
+            'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$this->need($values,'label'),'default_npc'=>isset($values['default_npc']),'slot'=>$slot,
+            'content'=>$this->coreProfileContent($values),
+        ]);
+    }
+
+    /** Promote an existing Core Profile without duplicating or mutating its content revision. */
+    private function makeDefaultCoreProfile(array $values):array
+    {
+        $id=$this->need($values,'core_profile_id');$profile=$this->repository->getRevisioned('core_profile',$id);
+        return$this->repository->updateCoreProfileMetadata($id,(string)$profile['label'],true,
+            $profile['slot']===null?null:(int)$profile['slot'],gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    /** Convert Herika-style labelled controls into the bounded Core Profile revision document. */
+    private function coreProfileContent(array $values):array
+    {
+        $routing=[];
+        foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','tts_configuration_id']as$field){
+            $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
+        }
+        foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
+            $value=(string)($values[$field]??'inherit');
+            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$field);
+            $routing[$field]=$value==='1';
+        }
+
+        $overrides=[];
+        $booleanFields=[
+            'behavior'=>['auto_greeting','rechat','boredom','combat_barks'],
+            'narrator'=>['enabled','context_visibility','welcome_events','random_events','quest_events','book_events'],
+            'presentation'=>['show_status_hud'],
+            'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+        ];
+        foreach($booleanFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$value=(string)($values[$key]??'inherit');
+            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$key);
+            $overrides[$section][$field]=$value==='1';}
+        $integerFields=[
+            'behavior'=>['rechat_delay_seconds','rechat_max_depth','boredom_delay_seconds','combat_bark_period_seconds'],
+            'memory'=>['recent_turn_limit','knowledge_limit'],
+            'presentation'=>['transcript_rows','tts_volume_boost'],
+        ];
+        foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
+            if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
+            $overrides[$section][$field]=(int)$value;}
+        foreach(['name','inline_mode']as$field){$key='setting_narrator_'.$field;$value=trim((string)($values[$key]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+
+        return['schema'=>'almsivi.core-profile.v1','prompt'=>(string)($values['prompt']??''),
+            'routing'=>$routing,'settings_overrides'=>$overrides];
+    }
+
     /** Convert labelled management controls into the strict client-settings protocol document. */
     private function globalSettingsContent(array $values):array
     {
@@ -771,17 +848,38 @@ final class ManagementRouter
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
             foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
                 if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
-                if($id==='')unset($routing[$field]);else{$this->uuid($id,$field);$routing[$field]=$id;}
+                if($id==='')unset($routing[$field]);elseif($id==='__disabled__')$routing[$field]='';else{$this->uuid($id,$field);$routing[$field]=$id;}
             }
             if(isset($values['llm_routing_fields'])){
-                $routing['llm_randomizer_enabled']=isset($values['llm_randomizer_enabled']);
-                $routing['llm_fallback_enabled']=isset($values['llm_fallback_enabled']);
+                foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){$value=(string)($values[$field]??'inherit');
+                    if($value==='inherit')unset($routing[$field]);elseif(in_array($value,['0','1'],true))$routing[$field]=$value==='1';
+                    else throw new InvalidArgumentException('invalid_'.$field);}
             }
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
+        }
+        if(array_filter(array_keys($values),static fn(string$key):bool=>str_starts_with($key,'setting_'))!==[]){
+            $overrides=$this->profileSettingsOverrides($values);if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
         }
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
         return$content;
+    }
+
+    /** Parse optional per-NPC setting values; absent keys continue to inherit from the Core Profile. */
+    private function profileSettingsOverrides(array $values):array
+    {
+        $overrides=[];$booleanFields=['behavior'=>['auto_greeting','rechat','boredom','combat_barks'],
+            'narrator'=>['enabled','context_visibility','welcome_events','random_events','quest_events','book_events'],
+            'presentation'=>['show_status_hud'],'safety'=>['actions_enabled','allow_hostile','allow_creatures']];
+        foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
+            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
+            $overrides[$section][$field]=$value==='1';}
+        $integerFields=['behavior'=>['rechat_delay_seconds','rechat_max_depth','boredom_delay_seconds','combat_bark_period_seconds'],
+            'memory'=>['recent_turn_limit','knowledge_limit'],'presentation'=>['transcript_rows','tts_volume_boost']];
+        foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
+            $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
+        foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+        return$overrides;
     }
 
     /** Apply the installation auto-lock preference when an NPC is created through management. */
@@ -789,7 +887,9 @@ final class ManagementRouter
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$content=$this->profileContent($values);
         if($this->repository->profileAutoLockEnabled($installation)){$management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
-        return$this->service->createRevisioned('profile',['installation_id'=>$installation,'name'=>$this->need($values,'name'),'actor_identity'=>$this->profileIdentity($values),'content'=>$content]);
+        $input=['installation_id'=>$installation,'name'=>$this->need($values,'name'),'actor_identity'=>$this->profileIdentity($values),'content'=>$content];
+        if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){$this->uuid((string)$values['core_profile_id'],'core_profile_id');$input['core_profile_id']=(string)$values['core_profile_id'];}
+        return$this->service->createRevisioned('profile',$input);
     }
 
     /** Save a manual NPC revision and auto-lock it when that installation preference is enabled. */
@@ -800,7 +900,12 @@ final class ManagementRouter
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new InvalidArgumentException('profile_not_editable');
         $content=$this->profileContent($values);if($this->repository->profileAutoLockEnabled((string)$profile['installation_id'])){
             $management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
-        return$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'));
+        $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'));
+        if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){
+            $this->uuid((string)$values['core_profile_id'],'core_profile_id');$this->repository->assignCoreProfile($profileId,(string)$values['core_profile_id']);
+            $revised=$this->repository->getRevisioned('profile',$profileId);
+        }
+        return$revised;
     }
 
     /** Toggle one card-level management flag without applying the installation edit auto-lock rule. */

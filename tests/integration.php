@@ -222,6 +222,27 @@ $clearModel=$selectModel;$clearModel['message_id']=$newUuid(706);$clearModel['re
 $profileContext=$products->providerContext($turnLike);
 $assert($status===200&&($profileContext['configuration_id']??null)===$profileModelSlot['configuration_id'],
     'NPC profile did not supply its primary LLM model slot');
+$coreModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Core-profile mock',
+    'content'=>['driver'=>'mock','model'=>'deterministic-core-v1','mock_prefix'=>'[core] ']],$now);
+$coreProfile=$products->defaultCoreProfileForInstallation($installationId);
+$coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],[
+    'schema'=>'almsivi.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
+    'routing'=>['llm_configuration_id'=>$coreModelSlot['configuration_id']],
+    'settings_overrides'=>['behavior'=>['rechat'=>true],'memory'=>['knowledge_limit'=>0]],
+],'integration layered settings',$now);
+$inheritedContent=$actorProfile['content'];$inheritedContent['routing']=[];
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$inheritedContent,'inherit Core Profile routing',$now);
+$inheritedContext=$products->providerContext($turnLike);
+$effectiveSettings=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$controlsQuery['target']);
+$assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configuration_id']
+    &&$effectiveSettings['settings']['behavior']['rechat']===true
+    &&$effectiveSettings['settings']['memory']['knowledge_limit']===0
+    &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='core_profile',
+    'Core Profile routing and typed setting overrides did not reach runtime resolution');
+$maskedContent=$actorProfile['content'];$maskedContent['routing']=['llm_configuration_id'=>''];
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$maskedContent,'explicit NPC route disable',$now);
+$assert($products->providerContext($turnLike)===null,
+    'explicit empty NPC routing did not mask the inherited Core Profile connector');
 $randomizedContent=$actorProfile['content'];$randomizedContent['routing']=[
     'llm_configuration_id'=>$profileModelSlot['configuration_id'],
     'llm_fast_configuration_id'=>$fastModelSlot['configuration_id'],
@@ -286,12 +307,21 @@ $assert($status === 202 && $turnAccepted['event_cursor'] === 1, 'turn acceptance
 $snapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $snapshotStatement->execute(['turn'=>$turn['turn_id']]);
 $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
+$traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
+$traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'[PROFILE]')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'[CORE_PROFILE]')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'CORE PROFILE INSTRUCTION SENTINEL')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
     &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
+    &&($layerTrace['core_profile_id']??null)===$coreProfile['core_profile_id']
+    &&(int)($layerTrace['core_profile_revision']??0)===(int)$coreProfile['current_revision']
+    &&preg_match('/^[0-9a-f]{64}$/D',(string)($layerTrace['effective_settings_sha256']??''))===1
+    &&($traceSources['settings.behavior.rechat']??null)==='core_profile'
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
-    'accepted turn did not freeze the assembled prompt for the worker');
+    'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
 $successfulWorkerStats=$runTurnWorker(new MockProvider());
 $assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0], 'successful turn job was not acknowledged');
 [$status, $turnDuplicate] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
@@ -408,7 +438,8 @@ $fallbackTarget=$controlsQuery['target'];$fallbackTarget['record_id']='fallback_
 $fallbackTarget['refnum']['index']=733;
 $fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback-only actor',
     'actor_identity'=>['record_id'=>'fallback_actor'],'content'=>['routing'=>[
-        'llm_fallback_configuration_id'=>$fallbackModelSlot['configuration_id'],'llm_fallback_enabled'=>true]]],$now);
+        'llm_configuration_id'=>'','llm_fallback_configuration_id'=>$fallbackModelSlot['configuration_id'],
+        'llm_fallback_enabled'=>true]]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $fallbackTarget,$fallbackProfile['profile_id'],$now);
 $products->selectSessionProvider(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],null);

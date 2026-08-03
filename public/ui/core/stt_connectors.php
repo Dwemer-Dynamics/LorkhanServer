@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = dirname(__DIR__); $view = 'stt'; $pageTitle = 'STT Connectors'; $topNavSection = 'configuration';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Speech to Text';$topNavSection='configuration';$BODY_CLASS='hub-page';require dirname(__DIR__).'/ui_bootstrap.php';include dirname(__DIR__).'/tmpl/head.html';if(!$embedded)include dirname(__DIR__).'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Speech to Text</h1><p>STT is intentionally outside the current ALMSIVI conversation milestone. Typed in-game dialogue remains the supported input path.</p></div><span class="almsivi-badge">Not included</span></header><section class="almsivi-card almsivi-empty">No STT setup or controls are exposed in this build.</section></main><?php include dirname(__DIR__).'/tmpl/footer.html'; ?>

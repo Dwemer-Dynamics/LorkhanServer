@@ -20,6 +20,7 @@ use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\InlineNarrationRouter;
 use ALMSIVIserver\Application\DialoguePlanner;
+use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Application\ZonosGradioSpeechProvider;
 use ALMSIVIserver\Application\XvaSynthSpeechProvider;
@@ -247,6 +248,26 @@ $stateFile = $temporary . '/development-state.json';
 $check((fileperms($stateFile) & 0777) === 0600, 'state file is private');
 unlink($stateFile);
 rmdir($temporary);
+
+$globalSettings=EffectiveSettingsResolver::defaults();
+$globalSettings['behavior']['rechat']=true;
+$globalSettings['memory']['knowledge_limit']=5;
+$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['knowledge_limit'=>0]],
+    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111']];
+$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>false]],'routing'=>['llm_configuration_id'=>'']];
+$effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
+$check($effective['settings']['behavior']['rechat']===false
+    && $effective['settings']['memory']['knowledge_limit']===0
+    && $effective['routing']['llm_configuration_id']==='',
+    'Global to Core Profile to NPC resolution preserves explicit false, zero, and empty overrides');
+$check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
+    && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
+    && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,
+    'effective settings retain per-field provenance and a canonical hash');
+try{
+    EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
+    $check(false,'unknown layered setting rejected');
+}catch(InvalidArgumentException){$check(true,'unknown layered setting rejected');}
 
 $mediaRoot = sys_get_temp_dir() . '/almsivi-media-unit-' . bin2hex(random_bytes(8));
 $media = new MediaStore($mediaRoot, 1024, 2048);

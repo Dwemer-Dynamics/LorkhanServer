@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'response_queue'; $pageTitle = 'Response Queue'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Response Queue';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('response_queue');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Response Queue</h1><p>Inspect dialogue delivery states from pending through played, failed, interrupted, or expired.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> responses</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No dialogue has been queued.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

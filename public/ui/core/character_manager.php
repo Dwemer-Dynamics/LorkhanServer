@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = dirname(__DIR__); $view = 'characters'; $pageTitle = 'ALMSIVI Characters'; $topNavSection = 'configuration';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);
+require __DIR__.'/npc_master.php';

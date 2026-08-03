@@ -5,6 +5,7 @@ declare(strict_types=1);
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\ManagementUiRepository;
+use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Security\BrowserSession;
 
 $applicationRoot = dirname(__DIR__, 2);
@@ -25,6 +26,7 @@ try {
     $database = Connection::open($config);
     $managementRepository = new ManagementRepository($database);
     $uiRepository = new ManagementUiRepository($database);
+    $productRepository = new ProductRepository($database);
     $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'), '/');
     $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/ALMSIVIserver';
     $sessionTtl = (int) ($config['browser_session_ttl_seconds'] ?? 3600);

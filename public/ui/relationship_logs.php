@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'relationship_logs'; $pageTitle = 'Relationship Audit'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Relationship Audit';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('relationship_logs');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Relationship Audit</h1><p>Current NPC disposition and affinity records, including their source and last update.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> relationships</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No relationship records exist yet.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

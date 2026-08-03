@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $pageTitle = 'ALMSIVI Control Panel';
 $topNavSection = 'control';
-$bodyClass = 'hub-page';
+$BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 $tabs = [
     'diagnostics' => ['label' => 'Diagnostics', 'pages' => [
@@ -33,7 +33,7 @@ $activeTab = in_array($requestedTab, $allTabIds, true) ? $requestedTab : 'health
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
-<main class="d-flex flex-column">
+<main class="almsivi-config-hub" data-config-hub data-active-tab="<?php echo almsivi_ui_h($activeTab); ?>">
     <div class="config-navigation" aria-label="Control Panel sections">
         <div class="tab-groups">
             <?php foreach ($tabs as $group): ?>
@@ -42,7 +42,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <div class="tab-group-label"><?php echo almsivi_ui_h($group['label']); ?></div>
                     <div class="tab-buttons" role="tablist" aria-label="<?php echo almsivi_ui_h($group['label']); ?> pages">
                         <?php foreach ($group['pages'] as $tabId => [$icon, $label]): ?>
-                            <button class="tab-button<?php echo $activeTab === $tabId ? ' active' : ''; ?>" type="button" data-tab="<?php echo almsivi_ui_h($tabId); ?>" aria-selected="<?php echo $activeTab === $tabId ? 'true' : 'false'; ?>">
+                            <button class="tab-button" type="button" data-tab="<?php echo almsivi_ui_h($tabId); ?>" data-category="control" aria-selected="<?php echo $activeTab === $tabId ? 'true' : 'false'; ?>">
                                 <span class="tab-icon" aria-hidden="true"><?php echo almsivi_ui_h($icon); ?></span><span><?php echo almsivi_ui_h($label); ?></span>
                             </button>
                         <?php endforeach; ?>
@@ -51,10 +51,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <?php endforeach; ?>
         </div>
     </div>
-    <div class="content-area flex-grow-1 d-flex overflow-hidden">
+    <div class="almsivi-hub-content">
         <?php foreach ($tabs as $group): foreach ($group['pages'] as $tabId => [, $label, $src]): ?>
-            <section id="<?php echo almsivi_ui_h($tabId); ?>" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
-                <div class="embed-wrap"><iframe class="embed" title="<?php echo almsivi_ui_h($label); ?>" loading="<?php echo $activeTab === $tabId ? 'eager' : 'lazy'; ?>" src="<?php echo $activeTab === $tabId ? almsivi_ui_h($src) : 'about:blank'; ?>"<?php echo $activeTab === $tabId ? '' : ' data-src="' . almsivi_ui_h($src) . '"'; ?>></iframe></div>
+            <section id="<?php echo almsivi_ui_h($tabId); ?>" class="almsivi-hub-panel" data-tab-panel>
+                <iframe title="<?php echo almsivi_ui_h($label); ?>" loading="<?php echo $activeTab === $tabId ? 'eager' : 'lazy'; ?>" src="<?php echo $activeTab === $tabId ? almsivi_ui_h($src) : 'about:blank'; ?>" data-src="<?php echo almsivi_ui_h($src); ?>"></iframe>
             </section>
         <?php endforeach; endforeach; ?>
     </div>

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 $pageTitle = 'ALMSIVI Roleplay';
 $topNavSection = 'roleplay';
-$bodyClass = 'hub-page';
+$BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 $roleplay = $uiRepository->roleplay();
 $allowedTabs = ['eventlog-tab', 'responses-tab', 'memories-tab', 'relationships-tab', 'narratives-tab', 'knowledge-tab', 'journal-tab', 'books-tab'];

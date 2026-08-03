@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'provider_usage'; $pageTitle = 'Provider Usage'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Provider Usage';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('provider_usage');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Provider Usage</h1><p>Measured attempts, bytes, failures, and latency. ALMSIVI does not fabricate currency costs without recorded usage and pricing.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> provider groups</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No provider usage has been recorded.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

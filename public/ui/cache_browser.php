@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'media_cache'; $pageTitle = 'Cache Browser'; $topNavSection = 'control';
-require $uiRootDir . '/tmpl/resource_page.php';
+declare(strict_types=1);$pageTitle='Speech Cache';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('media_cache');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Cache Browser</h1><p>Bounded speech metadata without exposing private audio files, media bytes, or server storage paths.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> media objects</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No speech media has been cached.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

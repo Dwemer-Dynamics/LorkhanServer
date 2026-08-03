@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -23,6 +23,13 @@ final class ProductService
         if ($kind === 'profile' && isset($input['actor_identity'])
             && (!is_array($input['actor_identity']) || array_is_list($input['actor_identity']))) {
             throw new InvalidArgumentException('invalid_actor_identity');
+        }
+        if ($kind === 'profile' && isset($input['core_profile_id'])) $this->uuid((string)$input['core_profile_id']);
+        if ($kind === 'core_profile') {
+            if (isset($input['default_npc']) && !is_bool($input['default_npc'])) throw new InvalidArgumentException('invalid_default_npc');
+            if (isset($input['slot']) && (!is_int($input['slot']) || $input['slot'] < 1 || $input['slot'] > 4)) {
+                throw new InvalidArgumentException('invalid_core_profile_slot');
+            }
         }
         $this->assertNoSecrets($input['content']);
         $input['content']=$this->validateConfiguration($kind,$input['content']);
@@ -33,7 +40,7 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
@@ -64,7 +71,7 @@ final class ProductService
     public function deleteRevisioned(string $kind,string $id):void
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
@@ -231,13 +238,14 @@ final class ProductService
     {
         if (in_array($kind, ['tts_provider', 'stt_provider'], true)) return ConnectorCatalog::validate($kind, $content);
         if ($kind === 'profile') return $this->validateProfile($content);
+        if ($kind === 'core_profile') return EffectiveSettingsResolver::validateCoreProfile($content);
         if($kind==='prompt'){
             $encoded=json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
             if(strlen($encoded)>65_536)throw new InvalidArgumentException('invalid_prompt_content');
             return$content;
         }
         if($kind==='action_policy')return$this->validateActionPolicy($content);
-        if($kind==='global_settings')return$this->validateGlobalSettings($content);
+        if($kind==='global_settings')return EffectiveSettingsResolver::validateGlobalSettings($content);
         if($kind!=='provider')return$content;
         $driver=$content['driver']??null;
         if(!in_array($driver,['configured','mock'],true))throw new InvalidArgumentException('invalid_provider_driver');
@@ -302,6 +310,12 @@ final class ProductService
                 ||!is_string($portrait['sha256']??null)||preg_match('/^[0-9a-f]{64}$/D',$portrait['sha256'])!==1
                 ||!is_string($portrait['updated_at']??null)||strlen($portrait['updated_at'])>64)
                 throw new InvalidArgumentException('invalid_profile_portrait');
+        }
+        if (array_key_exists('routing', $content)) {
+            $content['routing'] = EffectiveSettingsResolver::validateRouting($content['routing']);
+        }
+        if (array_key_exists('settings_overrides', $content)) {
+            $content['settings_overrides'] = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
         }
         if(!array_key_exists('voice',$content))return$content;
         $voice=$content['voice'];if(!is_array($voice)||array_is_list($voice)||array_diff(array_keys($voice),['id','language'])!==[])
