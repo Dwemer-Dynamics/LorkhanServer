@@ -1,0 +1,56 @@
+# HerikaServer UI provenance
+
+This document records the presentation-only HerikaServer baseline imported for the ALMSIVIserver
+management UI rebuild. Herika runtime bootstrap, database access, Skyrim behavior, and provider logic
+are not sources for the ALMSIVI implementation.
+
+## Pinned source
+
+- Repository: `https://github.com/abeiro/HerikaServer.git`
+- Ref inspected: `origin/unstable`
+- Commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`
+- Import mode: byte-identical presentation baseline before ALMSIVI rewiring
+
+## Imported files
+
+| HerikaServer source | ALMSIVIserver destination |
+| --- | --- |
+| `ui/global_settings.php` | `public/ui/global_settings.php` |
+| `ui/core/config_hub.php` | `public/ui/core/config_hub.php` |
+| `ui/core/core_profiles.php` | `public/ui/core/core_profiles.php` |
+| `ui/core/npc_master.php` | `public/ui/core/npc_master.php` |
+| `ui/core/tmpl/data_tables.php` | `public/ui/core/tmpl/data_tables.php` |
+| `ui/core/tmpl/header.php` | `public/ui/core/tmpl/header.php` |
+| `ui/core/tmpl/metadata_json_editor.php` | `public/ui/core/tmpl/metadata_json_editor.php` |
+| `ui/core/tmpl/override_editor.php` | `public/ui/core/tmpl/override_editor.php` |
+| `ui/core/tmpl/ui_utils.php` | `public/ui/core/tmpl/ui_utils.php` |
+| `ui/tmpl/head.html` | `public/ui/tmpl/head.html` |
+| `ui/tmpl/footer.html` | `public/ui/tmpl/footer.html` |
+| `ui/tmpl/navbar.php` | `public/ui/tmpl/navbar.php` |
+| `ui/css/chim-theme.css` | `public/ui/css/chim-theme.css` |
+| `ui/css/clickme.gif` | `public/ui/css/clickme.gif` |
+| `ui/css/collapse.gif` | `public/ui/css/collapse.gif` |
+| `ui/css/expand.gif` | `public/ui/css/expand.gif` |
+| `ui/css/hub-navigation.css` | `public/ui/css/hub-navigation.css` |
+| `ui/css/main.css` | `public/ui/css/main.css` |
+| `ui/css/management.css` | `public/ui/css/management.css` |
+| `ui/css/navbar.css` | `public/ui/css/navbar.css` |
+| `ui/css/style.css` | `public/ui/css/style.css` |
+| `ui/css/style_new.css` | `public/ui/css/style_new.css` |
+| `ui/css/font/MagicCardsNormal.ttf` | `public/ui/css/font/MagicCardsNormal.ttf` |
+| `ui/lib/ui/bootstrap/bootstrap.bundle.min.js` | `public/ui/lib/ui/bootstrap/bootstrap.bundle.min.js` |
+| `ui/lib/ui/bootstrap/bootstrap.bundle.min.js.map` | `public/ui/lib/ui/bootstrap/bootstrap.bundle.min.js.map` |
+| `ui/lib/ui/bootstrap/bootstrap.min.css` | `public/ui/lib/ui/bootstrap/bootstrap.min.css` |
+| `ui/lib/ui/bootstrap/bootstrap.min.css.map` | `public/ui/lib/ui/bootstrap/bootstrap.min.css.map` |
+| `ui/images/DwemerDynamics.png` | `public/ui/images/DwemerDynamics.png` |
+| `ui/images/favicon.ico` | `public/ui/images/favicon.ico` |
+| `ui/images/navbarback.png` | `public/ui/images/navbarback.png` |
+| `ui/images/serverlogo.png` | `public/ui/images/serverlogo.png` |
+| `ui/images/serverlogodev.png` | `public/ui/images/serverlogodev.png` |
+
+## Rewiring boundary
+
+The imported PHP pages are an HTML, CSS, JavaScript, and interaction reference. Before deployment,
+their bootstrap and mutations must use ALMSIVI browser sessions, CSRF validation, typed services,
+PostgreSQL migrations, OpenMW identities, and the revisioned Global Settings -> Core Profile -> NPC
+resolver. Skyrim-only operations and ITT, STT, and Background Life controls are excluded.

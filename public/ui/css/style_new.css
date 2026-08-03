@@ -135,7 +135,7 @@ form.confwizard > fieldset > fieldset {
     border: 1px outset black;
     margin:5px;
 	padding:5px;
-
+	
 }
 
 
@@ -179,14 +179,14 @@ div.softdiv {
 }
 
 form.confwizard fieldset > legend + legend  {
-	color:rgb(255, 182, 65);
+	color:rgb(242, 124, 17);
 	cursor:pointer;
 	font-size: 18px;
 	background: none;
 }
 
 form.confwizard fieldset > fieldset + legend  {
-	color:rgb(255, 182, 65);
+	color:rgb(242, 124, 17);
 	cursor:pointer;
 	font-size: 18px;
 	background: none;
