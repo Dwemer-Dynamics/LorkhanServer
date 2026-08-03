@@ -4,6 +4,7 @@ $roleplayGroups = [
     'Activity & Logs' => ['eventlog-tab' => '📝 Events', 'responses-tab' => '💬 AI Responses'],
     'Memories & Records' => ['memories-tab' => '🧠 Memories', 'relationships-tab' => '🔗 Relationships', 'narratives-tab' => '📔 Narratives'],
     'World' => ['knowledge-tab' => '📜 Knowledge Records'],
+    'Morrowind' => ['journal-tab' => 'Morrowind Journal', 'books-tab' => 'Read Books'],
 ];
 ?>
 <div class="events-memories-navigation config-navigation" aria-label="Roleplay sections">

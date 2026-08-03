@@ -8,7 +8,7 @@ PHP_PID=
 cleanup(){ [ -z "$PHP_PID" ] || kill "$PHP_PID" >/dev/null 2>&1 || true; pg_ctl -D "$TMP/data" -m immediate stop >/dev/null 2>&1 || true; rm -rf "$TMP"; }
 trap cleanup EXIT HUP INT TERM
 initdb -D "$TMP/data" -A trust --no-locale -E UTF8 >/dev/null
-pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
+pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
 createdb -h 127.0.0.1 -p "$PG_PORT" almsivi_management_http
 mkdir "$TMP/control" "$TMP/state"
 DSN="pgsql:host=127.0.0.1;port=$PG_PORT;dbname=almsivi_management_http"

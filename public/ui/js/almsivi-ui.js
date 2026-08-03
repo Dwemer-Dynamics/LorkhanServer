@@ -29,3 +29,43 @@
         button.addEventListener('click', () => activateTab(button));
     });
 })();
+
+(() => {
+    document.querySelectorAll('[data-connector-options]').forEach((editor) => {
+        const driver = document.getElementById(editor.dataset.driverControl || '');
+        if (!(driver instanceof HTMLSelectElement)) return;
+        const form = editor.closest('form');
+        let defaults = {};
+        try { defaults = JSON.parse(editor.dataset.connectorDefaults || '{}'); } catch (_) { defaults = {}; }
+        let previousDriver = driver.value;
+
+        const update = () => {
+            if (form && driver.value !== previousDriver && defaults[driver.value]) {
+                const previous = defaults[previousDriver] || {};
+                const selected = defaults[driver.value];
+                ['endpoint', 'model', 'voice', 'language'].forEach((name) => {
+                    const control = form.elements.namedItem(name);
+                    if (!control || !('value' in control)) return;
+                    if (control.value === '' || control.value === String(previous[name] || '')) {
+                        control.value = String(selected[name] || '');
+                    }
+                });
+            }
+            let hasFields = false;
+            editor.querySelectorAll('[data-connector-driver]').forEach((set) => {
+                const active = set.dataset.connectorDriver === driver.value;
+                set.hidden = !active;
+                set.querySelectorAll('input, select, textarea').forEach((control) => {
+                    control.disabled = !active;
+                    if (active) hasFields = true;
+                });
+            });
+            const empty = editor.querySelector('[data-connector-options-empty]');
+            if (empty) empty.hidden = hasFields;
+            previousDriver = driver.value;
+        };
+
+        driver.addEventListener('change', update);
+        update();
+    });
+})();

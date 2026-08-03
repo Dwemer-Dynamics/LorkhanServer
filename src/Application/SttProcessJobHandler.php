@@ -6,6 +6,7 @@ namespace ALMSIVIserver\Application;
 
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
+use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\Repository;
 use ALMSIVIserver\Infrastructure\Uuid;
 use Throwable;
@@ -14,7 +15,8 @@ final class SttProcessJobHandler implements JobHandler
 {
     public const TYPE='stt.process';
     public function __construct(private readonly Repository $repository,private readonly SpeechToTextProvider $provider,
-        private readonly MediaStore $media,private readonly ProviderAttemptRepository $attempts){}
+        private readonly MediaStore $media,private readonly ProviderAttemptRepository $attempts,
+        private readonly ?ProductRepository $products=null,private readonly array $providerConfig=[] ){}
     public function supports(string $jobType,int $schemaVersion):bool{return $jobType===self::TYPE&&$schemaVersion===1;}
     public function handle(array $payload,string $idempotencyKey,callable $heartbeat):void
     {
@@ -28,9 +30,11 @@ final class SttProcessJobHandler implements JobHandler
         $attempt=Uuid::v4();
         try{
             $bytes=$this->media->read($request['storage_media_id'],(int)$request['audio_bytes'],(string)$request['sha256']);
-            $providerName=$this->provider instanceof OpenAiCompatibleSpeechToTextProvider?'openai-compatible':'mock';
+            $provider=$this->provider;$preset=$this->products?->connectorForSession((string)$request['session_id'],'stt_provider');
+            if($preset!==null)$provider=ProviderFactory::speechToTextForPreset($this->providerConfig,$preset);
+            $providerName=$provider instanceof OpenAiCompatibleSpeechToTextProvider?'openai-compatible':'mock';
             $this->attempts->start($attempt,'stt',$providerName,'transcribe',$job['attempt'],$request['request_id'],$request['turn_id'],$job['job_id'],inputBytes:strlen($bytes));
-            $result=$this->provider->transcribe($bytes,$request['codec'],$request['language'],new CallbackCancellationToken(fn():bool=>!$heartbeat()));
+            $result=$provider->transcribe($bytes,$request['codec'],$request['language'],new CallbackCancellationToken(fn():bool=>!$heartbeat()));
             $this->repository->completeStt($messageId,$result,$fence);
             $this->media->delete($request['storage_media_id']);
             $this->attempts->finish($attempt,'succeeded',strlen($result['text']));

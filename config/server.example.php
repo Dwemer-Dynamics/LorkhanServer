@@ -51,6 +51,11 @@ return [
     ],
     // Must resolve outside public/. Production default: /var/lib/almsiviserver/media.
     'media_storage_path' => '/var/lib/almsiviserver/media',
+    'voice_storage_path' => '/var/lib/almsiviserver/voices',
+    'portrait_storage_path' => '/var/lib/almsiviserver/profile-portraits',
+    'backup_storage_path' => '/var/lib/almsiviserver/backups',
+    // Browser-managed provider credentials remain outside the web root and are never returned by the UI.
+    'credential_storage_path' => '/var/lib/almsiviserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,
     'worker' => [

@@ -14,18 +14,20 @@ final class FirstPartyJobHandlerFactory
     /** @return list<JobHandler> */
     public static function handlers(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        ?SpeechToTextProvider $sttProvider = null): array
+        ?SpeechToTextProvider $sttProvider = null, array $providerConfig = []): array
     {
         $clock ??= new DeterministicClock();
         $repository = new FirstPartyJobRepository($db);
-        $handlers = [];
+        $products = new \ALMSIVIserver\Infrastructure\ProductRepository($db);
+        $handlers = [new ProfileGenerateJobHandler($products,ProviderFactory::profileGeneration($providerConfig),
+            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),(int)($providerConfig['provider']['timeout_ms']??30_000))];
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db,256,
                 new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider, $speechProvider,
-                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs);
+                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,$products);
         }
         if($sttProvider!==null)$handlers[]=new SttProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$sttProvider,$mediaStore,
-            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db));
+            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
             new MemoryDeriveJobHandler($repository, $clock),
             new MemoryRebuildJobHandler($repository, $clock),
@@ -39,9 +41,9 @@ final class FirstPartyJobHandlerFactory
 
     public static function registry(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        ?SpeechToTextProvider $sttProvider = null): JobHandlerRegistry
+        ?SpeechToTextProvider $sttProvider = null, array $providerConfig = []): JobHandlerRegistry
     {
-        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$sttProvider));
+        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$sttProvider,$providerConfig));
     }
 
     /** @return list<string> */
@@ -58,6 +60,7 @@ final class FirstPartyJobHandlerFactory
             RetentionJobHandler::TYPE,
             ProviderReconciliationJobHandler::TYPE,
             DialogueExpiryJobHandler::TYPE,
+            ProfileGenerateJobHandler::TYPE,
         ];
     }
 }

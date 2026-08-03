@@ -41,6 +41,8 @@ stale references fail explicitly.
 | `POST /sessions` | Authenticate, validate runtime/content, bind profile/playthrough, negotiate caps. |
 | `DELETE /sessions/{id}` | End/cancel current session generation idempotently. |
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
+| `POST /controls/query` | Return safe revisioned model slots, NPC profiles, and the installation narrator ID for the active session. |
+| `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Validate metadata/audio and produce transcript/failure event. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
@@ -58,6 +60,27 @@ An intent contains schema/action/turn IDs, name, integer tier, resolved actor/op
 strict parameters and expiry. Server emits only catalog actions enabled by installation/profile,
 advertised by the current client and allowed by turn limits. It never emits code, file path, URL or
 free-form engine command.
+
+An authenticated `POST /turns` may include a typed `payload.action_request` from the in-game action
+menu. The server derives its actor from the turn target and normally derives its target from the player
+speaker. Only `ai.face`, `combat.start`, and `combat.stop` may supply a different explicit target, and that identity
+must be present in the bounded nearby-actor context and differ from the acting NPC. The server applies
+the same catalog, negotiated capability, profile policy, tier, and parameter checks, and bypasses the
+language-model provider. Success emits `turn.accepted`, `action.intent`, and `turn.complete`.
+
+The direct `ai.travel` and `ai.escort` actions accept only bounded destination coordinates plus a
+canonical cell key captured by the player's in-game camera ray. The acting client rechecks that cell
+before starting the native OpenMW package; arbitrary free-form movement commands are not accepted.
+
+Controls are authenticated and generation-scoped. They expose no credentials or endpoints. A
+`configured` provider slot freezes only a selected model plus configuration revision; the worker keeps
+its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile
+bindings use stable OpenMW identity within one installation/playthrough; special player/narrator profiles are
+excluded from the binding list. Narrator generation accepts only the installation narrator ID returned by the
+same authenticated control query. The selected actor profile may
+change profile/prompt sources, but session-profile memory and relationship scope is retained. Turn
+acceptance freezes the assembled prompt and provider slot snapshot so later admin edits cannot alter an
+already accepted job.
 
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
@@ -80,6 +103,36 @@ Speech descriptor contains opaque ID, SHA-256, actual bytes, codec, duration and
 any client path/name, checks authenticated ownership/session, and serves from private storage. Default
 max is 32 MiB. Raw STT audio retention defaults off; generated media has quota/expiry. Metadata and
 source response remain auditable after bytes expire according to retention policy.
+
+## Local management operations
+
+The CHIM-style Control Panel uses ALMSIVI-native data rather than the Herika/Dialectic database
+manager. Server Logs reads only fixed ALMSIVI worker and Apache files, caps each tail at 256 KiB and
+200 lines, and redacts common credential forms before rendering. Database Manager exposes applied
+schema migrations, bounded retention, and server-generated installation configuration backups without
+accepting filesystem paths. Backup downloads and restores require browser authentication, verify stored
+byte count and SHA-256, and restore only to the originating installation as new auditable revisions.
+Configuration backups include profiles, prompts, model slots, TTS/STT presets, action policies,
+connector selections, and profile safety preferences; they exclude secrets, portraits, voices, and
+runtime playthrough state.
+
+LLM model slots and TTS/STT preset pages support portable single-preset JSON export, import, and
+same-installation cloning. Portable documents contain only the preset kind where needed, name, and
+validated public configuration; installation ownership, revision history, runtime endpoints, and
+credentials are excluded. Active speech connectors, profile-assigned TTS connectors, and model slots
+selected by an active session or assigned to a profile cannot be deleted until their use is removed.
+Prompt Manager uses the same ownership-free JSON boundary for individual prompt export, import, and
+same-installation cloning; imports still pass normal prompt validation and become independent revisions.
+Action Editor exposes labelled policy enable, maximum-tier, and per-action permission controls over the
+immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
+capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.
+Player Management can queue a durable analysis of at most the latest 200 real player turns. The job
+updates only the player profile's `speech_style` when its base revision is still current; it does not
+enable player TTS or synthesize unsupported OpenMW player-respeech behavior.
+Playthrough export/restore remains scoped and transactional; management pages do not expose private
+media bytes, credential files, provider keys, database passwords, or arbitrary log paths.
+Playthrough Manager derives bounded session, turn, response, memory, relationship, narrative, and
+knowledge counts from the selected playthrough and reports its latest session without mutating state.
 
 ## Versioning and fixtures
 

@@ -18,8 +18,9 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
         private readonly string $model,
         private readonly string $apiKey = '',
         private readonly int $timeoutMs = 30_000,
+        private readonly bool $allowLoopbackHttp = false,
     ) {
-        OutboundUrlPolicy::validate($endpoint, $allowedHosts);
+        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
         if ($model === '' || strlen($model) > 200 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_stt_configuration');
         }
@@ -40,7 +41,7 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
                 'file' => new CURLFile($path, 'audio/wav', 'recording.wav')];
             $normalizedLanguage = strtolower(substr(trim($language), 0, 2));
             if (preg_match('/^[a-z]{2}$/D', $normalizedLanguage) === 1) $fields['language'] = $normalizedLanguage;
-            $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts));
+            $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts, $this->allowLoopbackHttp));
             if ($handle === false) throw new RuntimeException('provider_unavailable');
             $headers = ['Accept: application/json'];
             if ($this->apiKey !== '') $headers[] = 'Authorization: Bearer ' . $this->apiKey;

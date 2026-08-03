@@ -26,7 +26,7 @@ case "${1:-}" in
         fi
         rm -f "$pidfile"
         start-stop-daemon --start --quiet --background --make-pidfile \
-            --pidfile "$pidfile" --chuid almsivi:www-data \
+            --pidfile "$pidfile" --chuid almsivi:almsivi \
             --chdir /var/www/ALMSIVIserver/current --startas "$daemon" \
             --output "$logfile"
         ;;

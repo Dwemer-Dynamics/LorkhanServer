@@ -5,9 +5,14 @@ declare(strict_types=1);
 namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\DeterministicRetrieval;
+use ALMSIVIserver\Application\ConnectorCatalog;
+use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\ProductService;
+use ALMSIVIserver\Application\Provider;
+use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\ProductRepository;
+use ALMSIVIserver\Infrastructure\Uuid;
 use ALMSIVIserver\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
@@ -15,7 +20,7 @@ use Throwable;
 
 final class ManagementRouter
 {
-    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','providers','ai-voice','prompts-actions','world','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','backup-health','diagnostics'];
+    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','server-plugins','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -23,24 +28,41 @@ final class ManagementRouter
         'control-panel'=>'/ui/control_panel.php',
         'characters'=>'/ui/core/character_manager.php',
         'profiles'=>'/ui/core/core_profiles.php',
-        'providers'=>'/ui/core/config_hub.php?tab=llm-page',
-        'ai-voice'=>'/ui/core/config_hub.php?tab=tts-page',
-        'prompts-actions'=>'/ui/core/config_hub.php?tab=prompts-page',
+        'player'=>'/ui/core/player_management.php',
+        'narrator'=>'/ui/core/config_hub.php?tab=narration-page',
+        'npc-biographies'=>'/ui/core/npc_biographies.php',
+        'providers'=>'/ui/core/llm_connectors.php',
+        'ai-voice'=>'/ui/core/tts_connectors.php',
+        'tts-connectors'=>'/ui/core/tts_connectors.php?embed=1',
+        'tts-studio'=>'/ui/core/voice_library.php',
+        'stt-connectors'=>'/ui/core/stt_connectors.php?embed=1',
+        'prompts-actions'=>'/ui/prompts_manager.php',
+        'action-editor'=>'/ui/function_editor.php',
         'world'=>'/ui/core/config_hub.php?tab=globals-page',
+        'descriptions'=>'/ui/description_manager.php',
+        'server-plugins'=>'/ui/server_plugins.php',
         'traces'=>'/ui/request_logs.php',
         'memory'=>'/ui/events-memories.php?tab=memories-tab',
         'relationships'=>'/ui/events-memories.php?tab=relationships-tab',
         'knowledge'=>'/ui/core/config_hub.php?tab=knowledge-page',
         'playthroughs'=>'/ui/control_panel.php?tab=playthrough-page',
-        'narrative-autonomy'=>'/ui/core/config_hub.php?tab=autonomy-page',
+        'playthrough-form'=>'/ui/playthrough_manager.php',
+        'narrative-autonomy'=>'/ui/narrative_manager.php',
         'jobs'=>'/ui/control_panel.php?tab=jobs-page',
-        'backup-health'=>'/ui/control_panel.php?tab=backup-page',
+        'response-queue'=>'/ui/control_panel.php?tab=queue-page',
+        'oghma-audit'=>'/ui/control_panel.php?tab=oghma-audit-page',
+        'provider-usage'=>'/ui/control_panel.php?tab=usage-page',
+        'cache'=>'/ui/control_panel.php?tab=cache-page',
+        'backup-health'=>'/ui/control_panel.php?tab=database-page',
+        'database-manager'=>'/ui/database_manager.php',
+        'server-logs'=>'/ui/control_panel.php?tab=server-logs-page',
         'diagnostics'=>'/ui/control_panel.php?tab=health-page',
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
         private readonly ProductService $service,private readonly string $basePath='/ALMSIVIserver/manage',
-        private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600){}
+        private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
+        private readonly array $providerConfig=[]){ }
 
     public function dispatch(Request $r):Response
     {
@@ -50,6 +72,12 @@ final class ManagementRouter
             if($r->method==='GET'&&in_array(ltrim($path,'/'),self::PAGES,true))return$this->redirect($this->uiPath(ltrim($path,'/')));
             $session=$this->authenticatedSession($r);
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
+            if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportConnector($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
             if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
@@ -66,11 +94,16 @@ final class ManagementRouter
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
-        if(preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|action-policies)$#D',$path,$m)){
+        if(preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)$#D',$path,$m)){
             $kind=$this->singular($m[1]);if($r->method==='GET')return Response::json(200,['items'=>$this->repository->listRevisioned($kind,$this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(201,$this->service->createRevisioned($kind,$this->json($r)));
         }
-        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
+        if($path==='/api/v1/connector-selections'){
+            if($r->method==='GET')return Response::json(200,['items'=>$this->repository->connectorSelections($this->queryUuid($r,'installation_id'))]);
+            if($r->method==='POST')return Response::json(200,$this->service->selectConnector($this->json($r)));
+        }
         if($r->method==='POST'&&$path==='/api/v1/memory')return Response::json(201,$this->service->createMemory($this->json($r)));
         if($r->method==='GET'&&$path==='/api/v1/memory/search')return Response::json(200,$this->service->searchMemory($this->scopeQuery($r),(string)($r->query['q']??''),(int)($r->query['limit']??10)));
         if($r->method==='PATCH'&&preg_match('#^/api/v1/memory/([0-9a-f-]{36})$#D',$path,$m)){$b=$this->json($r);$c=(string)($b['content']??'');if($c===''||strlen($c)>16384)throw new InvalidArgumentException('invalid_content');return Response::json(200,$this->repository->updateMemory($m[1],$c,DeterministicRetrieval::terms($c),DeterministicRetrieval::fakeVector($c),gmdate('Y-m-d\TH:i:s\Z')));}
@@ -94,20 +127,94 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);$content=$this->jsonField($v,'content_json');
+        if($domain==='connector-test'){
+            $detail=$this->testConnector($v);
+            $target=(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors');
+            $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
+            return$this->redirect($this->uiPath($target).$joiner.http_build_query(['status'=>'tested','detail'=>$detail]));
+        }
+        if($domain==='provider-test'){
+            $detail=$this->testProvider($v);
+            return$this->redirect($this->uiPath('providers').'?'.http_build_query(['status'=>'tested','detail'=>$detail]));
+        }
+        if($domain==='provider-runtime-test'){
+            $detail=$this->diagnoseProvider(ProviderFactory::dialogue($this->providerConfig));
+            return$this->redirect($this->uiPath('providers').'?'.http_build_query(['status'=>'tested','detail'=>$detail]));
+        }
+        if($domain==='player-profile-create'&&$this->repository->playerProfileForInstallation($scope['installation_id'])!==null){
+            throw new InvalidArgumentException('player_profile_already_exists');
+        }
+        if($domain==='narrator-profile-create'&&$this->repository->narratorProfileForInstallation($scope['installation_id'])!==null){
+            throw new InvalidArgumentException('narrator_profile_already_exists');
+        }
         match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
-            'providers'=>$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content+['driver'=>'mock']]),
+            'profile-create'=>$this->createNpcProfile($v,$scope),
+            'profile-revise'=>$this->reviseNpcProfile($v),
+            'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
+            'profile-clone'=>$this->cloneProfile($v),
+            'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
+                'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->profileContent($v)]),
+            'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->profileContent($v),$this->need($v,'change_reason')),
+            'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id')),
+            'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
+                'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]),
+            'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
+            'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
+            'profile-biography-revise'=>$this->reviseNpcProfile($v),
+            'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
+            'profile-delete'=>$this->service->deleteRevisioned('profile',$this->need($v,'profile_id')),
+            'profile-generate'=>$this->repository->enqueueProfileGeneration($this->need($v,'profile_id')),
+            'profile-bulk-generate'=>$this->bulkGenerateProfiles($v,$scope),
+            'profile-bulk-unlock'=>$this->bulkUnlockProfiles($v,$scope),
+            'profile-bulk-delete'=>$this->bulkDeleteProfiles($v,$scope),
+            'profile-bulk-switch'=>$this->bulkSwitchProfiles($v,$scope),
+            'profile-auto-lock'=>$this->repository->setProfileAutoLock($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),isset($v['enabled']),gmdate('Y-m-d\TH:i:s\Z')),
+            'providers'=>$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->providerFormContent($v)]),
+            'provider-revise'=>$this->service->revise('provider',$this->need($v,'configuration_id'),$this->providerFormContent($v),$this->need($v,'change_reason')),
+            'provider-rollback'=>$this->service->rollback('provider',$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
+            'provider-delete'=>$this->service->deleteRevisioned('provider',$this->need($v,'configuration_id')),
+            'provider-clone'=>$this->cloneProvider($v),
+            'provider-import'=>$this->importProvider($v,$scope),
+            'tts-providers'=>$this->service->createRevisioned('tts_provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->connectorFormContent($v,'tts_provider')]),
+            'stt-providers'=>$this->service->createRevisioned('stt_provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->connectorFormContent($v,'stt_provider')]),
+            'connector-revise'=>$this->service->revise($this->need($v,'kind'),$this->need($v,'configuration_id'),$this->connectorFormContent($v,$this->need($v,'kind')),$this->need($v,'change_reason')),
+            'connector-rollback'=>$this->service->rollback($this->need($v,'kind'),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
+            'connector-delete'=>$this->service->deleteRevisioned($this->need($v,'kind'),$this->need($v,'configuration_id')),
+            'connector-selection'=>$this->service->selectConnector(['installation_id'=>$scope['installation_id'],'kind'=>$this->need($v,'kind'),'configuration_id'=>$this->need($v,'configuration_id')]),
+            'connector-default-voice'=>$this->reviseConnectorDefaultVoice($v),
+            'connector-clone'=>$this->cloneConnector($v),
+            'connector-import'=>$this->importConnector($v,$scope),
+            'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
+            'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id')),
             'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
+            'prompt-clone'=>$this->clonePrompt($v),
+            'prompt-import'=>$this->importPrompt($v,$scope),
             'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
+            'action-policy-controls-create'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->actionPolicyFormContent($v)]),
+            'action-policy-controls-revise'=>$this->service->revise('action_policy',$this->need($v,'configuration_id'),$this->actionPolicyFormContent($v),$this->need($v,'change_reason')),
+            'configuration-revise'=>$this->service->revise($this->configurationKind($v),$this->need($v,'configuration_id'),$content,$this->need($v,'change_reason')),
+            'configuration-rollback'=>$this->service->rollback($this->configurationKind($v),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
+            'configuration-delete'=>$this->service->deleteRevisioned($this->configurationKind($v),$this->need($v,'configuration_id')),
             'playthroughs'=>$this->service->createRevisioned('playthrough',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
+            'playthrough-import'=>$this->restorePlaythroughState($v,$scope),
             'memory'=>$this->service->createMemory($scope+['tier'=>$v['tier']??'recent','content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
+            'memory-revise'=>$this->reviseMemory($v),
+            'memory-delete'=>$this->repository->deleteMemory($this->need($v,'memory_id'),gmdate('Y-m-d\TH:i:s\Z')),
+            'memory-rebuild'=>$this->repository->rebuildMemories($scope,gmdate('Y-m-d\TH:i:s\Z')),
             'relationships'=>$this->service->setRelationship($scope+['actor_identity'=>$content,'disposition'=>(int)($v['disposition']??0),'affinity'=>(int)($v['affinity']??0),'source_mode'=>'manual','reason'=>$v['reason']??'management']),
+            'relationship-delete'=>$this->repository->deleteRelationship($this->need($v,'relationship_id'),gmdate('Y-m-d\TH:i:s\Z')),
             'knowledge'=>$this->service->ingestKnowledge($scope+['title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
+            'knowledge-delete'=>$this->deleteKnowledgeDocument($v),
             'narratives'=>$this->service->createNarrative($scope+['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
+            'narrative-revise'=>$this->service->updateNarrative($this->need($v,'narrative_id'),['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
+            'narrative-delete'=>$this->deleteNarrativeDocument($v),
             'autonomy'=>$this->service->scheduleAutonomy($scope+['kind'=>$v['kind']??'rechat','enabled'=>isset($v['enabled']),'interval_seconds'=>(int)($v['interval_seconds']??30),'cooldown_seconds'=>(int)($v['cooldown_seconds']??30)]+(isset($v['enabled'])?['current_session_id'=>$this->need($v,'current_session_id'),'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')]:[])),
+            'configuration-backup'=>$this->createConfigurationBackup($v,$scope),
+            'configuration-restore'=>$this->restoreConfigurationBackup($v,$scope),
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
-        $target=match($domain){'prompts','action-policies'=>'prompts-actions','narratives','autonomy'=>'narrative-autonomy','retention'=>'backup-health',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'profile-import','profile-clone'=>'profiles','profile-create','profile-revise','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -198,10 +305,539 @@ final class ManagementRouter
     private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$this->uuid((string)$v[$k],$k);$out[$k]=(string)$v[$k];}return$out;}
     private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}
     private function uuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
-    private function jsonField(array $v,string $k):array{try{$d=json_decode((string)($v[$k]??'{}'),true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_'.$k);}if(!is_array($d)||array_is_list($d))throw new InvalidArgumentException('invalid_'.$k);return$d;}
+    private function jsonField(array $v,string $k):array{try{$d=json_decode((string)($v[$k]??'{}'),true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_'.$k);}if(!is_array($d)||($d!==[]&&array_is_list($d)))throw new InvalidArgumentException('invalid_'.$k);return$d;}
     private function need(array $v,string $k):string{$s=trim((string)($v[$k]??''));if($s==='')throw new InvalidArgumentException('invalid_'.$k);return$s;}
     private function path(string $p):string{if(!str_starts_with($p,$this->basePath))throw new RuntimeException('not_found');$v=substr($p,strlen($this->basePath));return$v===''?'/':$v;}
-    private function singular(string $v):string{return match($v){'profiles'=>'profile','playthroughs'=>'playthrough','prompts'=>'prompt','providers'=>'provider','action-policies'=>'action_policy'};}
+    private function singular(string $v):string{return match($v){'profiles'=>'profile','playthroughs'=>'playthrough','prompts'=>'prompt','providers'=>'provider','tts-providers'=>'tts_provider','stt-providers'=>'stt_provider','action-policies'=>'action_policy'};}
+
+    /** Convert the labelled connector form into the strict revisioned connector document. */
+    private function connectorFormContent(array $values,string $kind):array
+    {
+        if(!in_array($kind,['tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
+        $driver=$this->need($values,'driver');$options=$this->jsonField($values,'options_json');
+        foreach(['fallback_male','fallback_female']as$field){
+            if(!array_key_exists($field,$values))continue;$value=trim((string)$values[$field]);
+            if($value==='')unset($options[$field]);else{
+                if(strlen($value)>512||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_connector_'.$field);
+                $options[$field]=$value;
+            }
+        }
+        if(isset($values['option_fields_present'])){
+            foreach(ConnectorCatalog::all($kind)as$definition)foreach(ConnectorCatalog::optionFields($kind,(string)$definition['driver'])as$field)unset($options[(string)$field['name']]);
+        }
+        if(isset($values['option_fields_present']))foreach(ConnectorCatalog::optionFields($kind,$driver)as$field){
+            $name=(string)$field['name'];$key='option__'.$name;$type=(string)$field['type'];
+            if($type==='boolean'){$options[$name]=isset($values[$key]);continue;}
+            if(!array_key_exists($key,$values))continue;$raw=trim((string)$values[$key]);if($raw===''){unset($options[$name]);continue;}
+            if($type==='select'){if(!in_array($raw,$field['values'],true))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;continue;}
+            if($type==='integer'||$type==='number'){$valid=filter_var($raw,$type==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
+                if($valid===false||$valid<$field['minimum']||$valid>$field['maximum'])throw new InvalidArgumentException('invalid_connector_option_'.$name);
+                $options[$name]=$type==='integer'?(int)$valid:(float)$valid;continue;}
+            if(strlen($raw)>512||!mb_check_encoding($raw,'UTF-8'))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;
+        }
+        return ['driver'=>$driver,'endpoint'=>$this->need($values,'endpoint'),
+            'model'=>trim((string)($values['model']??'')),'voice'=>trim((string)($values['voice']??'')),
+            'language'=>trim((string)($values['language']??'en')),'timeout_ms'=>(int)($values['timeout_ms']??30000),
+            'options'=>$options];
+    }
+
+    /** Convert the labelled LLM model-slot form into the strict server-owned provider document. */
+    private function providerFormContent(array $values):array
+    {
+        $driver=$this->need($values,'driver');$model=$this->need($values,'model');
+        if($driver==='configured')return['driver'=>'configured','model'=>$model];
+        if($driver==='mock')return['driver'=>'mock','model'=>$model,'mock_prefix'=>trim((string)($values['mock_prefix']??''))];
+        throw new InvalidArgumentException('invalid_provider_driver');
+    }
+
+    /** Restrict generic revision controls to the two JSON-backed management editors. */
+    private function configurationKind(array $values):string
+    {
+        $kind=$this->need($values,'kind');
+        if(!in_array($kind,['prompt','action_policy'],true))throw new InvalidArgumentException('invalid_configuration_kind');
+        return$kind;
+    }
+
+    /** Convert labelled action toggles into a complete policy over the immutable OpenMW action catalog. */
+    private function actionPolicyFormContent(array $values):array
+    {
+        $tier=(string)($values['max_tier']??'');if(preg_match('/^[0-3]$/D',$tier)!==1)throw new InvalidArgumentException('invalid_max_tier');
+        $selected=$values['allowed_actions']??[];if(!is_array($selected)||!array_is_list($selected)||count($selected)>128)throw new InvalidArgumentException('invalid_allowed_actions');
+        $known=$this->repository->actionCatalogNames();$enabled=[];
+        foreach($selected as$name){if(!is_string($name)||!in_array($name,$known,true)||isset($enabled[$name]))throw new InvalidArgumentException('invalid_allowed_actions');$enabled[$name]=true;}
+        $actions=[];foreach($known as$name)$actions[$name]=isset($enabled[$name]);
+        return['enabled'=>isset($values['enabled']),'max_tier'=>(int)$tier,'actions'=>$actions];
+    }
+
+    /** Validate the document identifier before applying the repository's soft delete. */
+    private function deleteKnowledgeDocument(array $values):void
+    {
+        $id=$this->need($values,'document_id');$this->uuid($id,'document_id');
+        $this->repository->deleteKnowledge($id,gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    /** Validate the narrative identifier before applying its soft delete. */
+    private function deleteNarrativeDocument(array $values):void
+    {
+        $id=$this->need($values,'narrative_id');$this->uuid($id,'narrative_id');
+        $this->repository->deleteNarrative($id,gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    /** Download one portable NPC profile without installation IDs, revisions, bindings, or connector secrets. */
+    private function exportProfile(string $profileId):Response
+    {
+        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $identity=$row['actor_identity']??[];
+        if(is_string($identity)){
+            try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
+        }
+        if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('not_found');
+        $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
+        $document=['schema'=>'almsivi.profile-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'name'=>(string)$row['name'],
+            'actor_identity'=>$identity===[]?(object)[]:$identity,'content'=>$content===[]?(object)[]:$content];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-profile';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Clone an NPC profile in place without copying actor bindings or profile-owned portrait files. */
+    private function cloneProfile(array $values):array
+    {
+        $profileId=$this->need($values,'profile_id');$this->uuid($profileId,'profile_id');
+        $row=$this->repository->getRevisioned('profile',$profileId);$identity=$row['actor_identity']??[];
+        if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))
+            throw new InvalidArgumentException('profile_not_cloneable');
+        $name=$this->need($values,'name');
+        if(strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_name');
+        $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
+        return$this->service->createRevisioned('profile',['installation_id'=>(string)$row['installation_id'],
+            'name'=>$name,'actor_identity'=>$identity,'content'=>$content]);
+    }
+
+    /** Download one portable model slot without installation ownership, revision history, endpoints, or credentials. */
+    private function exportProvider(string $configurationId):Response
+    {
+        $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('provider',$configurationId);
+        $content=is_array($row['content']??null)?$row['content']:[];
+        if($this->containsSecretKey($content))throw new RuntimeException('provider_export_rejected');
+        $document=['schema'=>'almsivi.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-model-slot';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Clone one installation-owned model slot without copying any server runtime secret. */
+    private function cloneProvider(array $values):array
+    {
+        $id=$this->need($values,'configuration_id');$this->uuid($id,'configuration_id');$row=$this->repository->getRevisioned('provider',$id);
+        return$this->service->createRevisioned('provider',['installation_id'=>(string)$row['installation_id'],
+            'profile_id'=>$row['profile_id']??null,'name'=>$this->boundedConnectorName($values,'name'),'content'=>$row['content']??[]]);
+    }
+
+    /** Import one strict portable model-slot document into the explicitly selected installation. */
+    private function importProvider(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'provider_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.provider-export.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
+        $content=$document['content'];$driver=$content['driver']??null;$contentKeys=array_keys($content);sort($contentKeys);
+        $minimal=['driver','model'];$withPrefix=['driver','mock_prefix','model'];sort($minimal);sort($withPrefix);
+        if(!in_array($driver,['configured','mock'],true)||($driver==='configured'?$contentKeys!==$minimal:!in_array($contentKeys,[$minimal,$withPrefix],true)))throw new InvalidArgumentException('invalid_provider_export');
+        $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_provider_export');
+        return$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$name,'content'=>$this->providerFormContent($content)]);
+    }
+
+    /** Download one portable prompt without installation ownership, revision history, or secret-like fields. */
+    private function exportPrompt(string $configurationId):Response
+    {
+        $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('prompt',$configurationId);
+        $content=is_array($row['content']??null)?$row['content']:[];
+        if($this->containsSecretKey($content))throw new RuntimeException('prompt_export_rejected');
+        $document=['schema'=>'almsivi.prompt-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-prompt';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Clone one prompt into its existing installation while preserving revision independence. */
+    private function clonePrompt(array $values):array
+    {
+        $id=$this->need($values,'configuration_id');$this->uuid($id,'configuration_id');$row=$this->repository->getRevisioned('prompt',$id);
+        return$this->service->createRevisioned('prompt',['installation_id'=>(string)$row['installation_id'],
+            'profile_id'=>$row['profile_id']??null,'name'=>$this->boundedConnectorName($values,'name'),'content'=>$row['content']??[]]);
+    }
+
+    /** Import one strict portable prompt into the explicitly selected installation. */
+    private function importPrompt(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'prompt_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.prompt-export.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_prompt_export');
+        $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_prompt_export');
+        return$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$name,'content'=>$document['content']]);
+    }
+
+    /** Download one portable speech connector without ownership, revisions, or credentials. */
+    private function exportConnector(string $configurationId):Response
+    {
+        $this->uuid($configurationId,'configuration_id');$kind=$this->repository->resourceKind($configurationId);
+        if(!in_array($kind,['tts_provider','stt_provider'],true))throw new RuntimeException('not_found');
+        $row=$this->repository->getRevisioned($kind,$configurationId);$content=is_array($row['content']??null)?$row['content']:[];
+        if($this->containsSecretKey($content))throw new RuntimeException('connector_export_rejected');
+        $document=['schema'=>'almsivi.connector-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'kind'=>$kind,
+            'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-connector';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Change only a TTS preset's default voice from the provider voice browser. */
+    private function reviseConnectorDefaultVoice(array $values):array
+    {
+        $id=$this->need($values,'configuration_id');$this->uuid($id,'configuration_id');
+        $row=$this->repository->getRevisioned('tts_provider',$id);
+        $content=is_array($row['content']??null)?$row['content']:[];
+        if($content===[])throw new InvalidArgumentException('invalid_connector_content');
+        $content['voice']=$this->need($values,'voice_id');
+        $language=trim((string)($values['language']??''));
+        if($language!=='')$content['language']=$language;
+        return$this->service->revise('tts_provider',$id,$content,'TTS Studio default voice');
+    }
+
+    /** Clone a speech connector into the same installation with an explicit new name. */
+    private function cloneConnector(array $values):array
+    {
+        $id=$this->need($values,'configuration_id');$this->uuid($id,'configuration_id');$kind=$this->speechConnectorKind($values);
+        $row=$this->repository->getRevisioned($kind,$id);$name=$this->boundedConnectorName($values,'name');
+        return$this->service->createRevisioned($kind,['installation_id'=>(string)$row['installation_id'],
+            'profile_id'=>$row['profile_id']??null,'name'=>$name,'content'=>$row['content']??[]]);
+    }
+
+    /** Import a portable speech connector into the explicitly selected installation. */
+    private function importConnector(array $values,array $scope):array
+    {
+        $kind=$this->speechConnectorKind($values);$document=$this->jsonField($values,'connector_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['content','exported_at','kind','name','schema']||($document['schema']??null)!=='almsivi.connector-export.v1'
+            ||($document['kind']??null)!==$kind||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_connector_export');
+        $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_connector_export');
+        return$this->service->createRevisioned($kind,['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$name,'content'=>$document['content']]);
+    }
+
+    private function speechConnectorKind(array $values):string
+    {
+        $kind=$this->need($values,'kind');if(!in_array($kind,['tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');return$kind;
+    }
+
+    private function boundedConnectorName(array $values,string $field):string
+    {
+        $name=$this->need($values,$field);if(strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_'.$field);return$name;
+    }
+
+    /** Download scoped memories, relationships, and narratives for one local playthrough. */
+    private function exportPlaythroughState(string $playthroughId):Response
+    {
+        $this->uuid($playthroughId,'playthrough_id');$row=$this->repository->getRevisioned('playthrough',$playthroughId);
+        $document=$this->service->exportPlaythrough(['installation_id'=>(string)$row['installation_id'],
+            'profile_id'=>(string)$row['profile_id'],'playthrough_id'=>$playthroughId]);
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-playthrough';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'-backup.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Create one immutable, secret-free installation configuration backup. */
+    private function createConfigurationBackup(array $values,array $scope):array
+    {
+        if(!hash_equals('Backup',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $backupId=Uuid::v4();$now=gmdate('Y-m-d\TH:i:s\Z');$document=[
+            'schema'=>'almsivi.configuration-backup.v1','format_version'=>1,'backup_id'=>$backupId,'created_at'=>$now,
+            'installation_id'=>$installation,'data'=>$this->repository->configurationBackupState($installation)];
+        $json=json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n";
+        if(strlen($json)>$this->maxJsonBytes)throw new InvalidArgumentException('backup_too_large');
+        $root=$this->backupRoot();$path=$root.DIRECTORY_SEPARATOR.$backupId.'.json';$temporary=$path.'.tmp-'.bin2hex(random_bytes(8));
+        if(is_file($path)||file_put_contents($temporary,$json,LOCK_EX)!==strlen($json)){@unlink($temporary);throw new RuntimeException('backup_write_failed');}
+        chmod($temporary,0640);if(!rename($temporary,$path)){@unlink($temporary);throw new RuntimeException('backup_write_failed');}
+        try{$this->repository->recordConfigurationBackup($backupId,hash('sha256',$json),strlen($json),$installation,$now);}
+        catch(Throwable $error){@unlink($path);throw$error;}
+        return['backup_id'=>$backupId,'byte_count'=>strlen($json),'content_sha256'=>hash('sha256',$json)];
+    }
+
+    /** Download only a stored backup whose fixed file still matches its database identity. */
+    private function downloadConfigurationBackup(string $backupId):Response
+    {
+        $this->uuid($backupId,'backup_id');[$document,$json]=$this->readConfigurationBackup($backupId);
+        return new Response(200,$json,['Content-Type'=>'application/json; charset=utf-8',
+            'Content-Disposition'=>'attachment; filename="almsivi-configuration-'.$document['installation_id'].'-'.$backupId.'.json"',
+            'X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Restore a selected server-owned backup only into its original installation. */
+    private function restoreConfigurationBackup(array $values,array $scope):array
+    {
+        if(!hash_equals('Restore',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        $backupId=$this->need($values,'backup_id');$this->uuid($backupId,'backup_id');
+        [$document]=$this->readConfigurationBackup($backupId);
+        if(($scope['installation_id']??null)!==$document['installation_id'])throw new InvalidArgumentException('backup_scope_mismatch');
+        $result=$this->repository->restoreConfigurationBackup($document,gmdate('Y-m-d\TH:i:s\Z'));
+        $this->repository->markConfigurationBackupRestored($backupId,gmdate('Y-m-d\TH:i:s\Z'));return$result;
+    }
+
+    /** Read and fully validate one fixed-path configuration backup before download or restore. */
+    private function readConfigurationBackup(string $backupId):array
+    {
+        $record=$this->repository->configurationBackupRecord($backupId);$scope=$record['scope']??[];
+        if(($scope['kind']??null)!=='configuration'||!is_string($scope['installation_id']??null))throw new RuntimeException('not_found');
+        $path=$this->backupRoot().DIRECTORY_SEPARATOR.$backupId.'.json';$bytes=(int)$record['byte_count'];
+        if($bytes<1||$bytes>$this->maxJsonBytes||!is_file($path)||filesize($path)!==$bytes)throw new RuntimeException('backup_integrity_failed');
+        $json=file_get_contents($path);if(!is_string($json)||strlen($json)!==$bytes||!hash_equals((string)$record['content_sha256'],hash('sha256',$json)))
+            throw new RuntimeException('backup_integrity_failed');
+        try{$document=json_decode($json,true,64,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('backup_integrity_failed');}
+        $this->validateConfigurationBackup($document,$backupId,(string)$scope['installation_id']);return[$document,$json];
+    }
+
+    /** Enforce the bounded first-party backup schema and reject secret-bearing documents. */
+    private function validateConfigurationBackup(mixed $document,string $backupId,string $installation):void
+    {
+        if(!$this->objectArray($document))throw new RuntimeException('backup_integrity_failed');$top=array_keys($document);sort($top);
+        if($top!==['backup_id','created_at','data','format_version','installation_id','schema']
+            ||$document['schema']!=='almsivi.configuration-backup.v1'||$document['format_version']!==1
+            ||$document['backup_id']!==$backupId||$document['installation_id']!==$installation||!is_string($document['created_at']))
+            throw new RuntimeException('backup_integrity_failed');
+        $data=$document['data']??null;if(!$this->objectArray($data)){throw new RuntimeException('backup_integrity_failed');}
+        $dataKeys=array_keys($data);sort($dataKeys);if($dataKeys!==['configurations','connector_selections','preferences','profiles'])throw new RuntimeException('backup_integrity_failed');
+        foreach(['profiles','configurations','connector_selections']as$key)if(!is_array($data[$key])||!array_is_list($data[$key])||count($data[$key])>2000)throw new RuntimeException('backup_integrity_failed');
+        if(!$this->objectArray($data['preferences'])||array_keys($data['preferences'])!==['auto_lock_on_edit']||!is_bool($data['preferences']['auto_lock_on_edit']))throw new RuntimeException('backup_integrity_failed');
+
+        $profileIds=[];foreach($data['profiles']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
+            if($keys!==['actor_identity','content','name','profile_id']||!is_string($row['profile_id'])||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>256
+                ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
+            $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
+
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy'];
+        foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
+            if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
+                ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
+                ||($row['profile_id']!==null&&(!is_string($row['profile_id'])||!isset($profileIds[$row['profile_id']]))))throw new RuntimeException('backup_integrity_failed');
+            $this->uuid($row['configuration_id'],'configuration_id');if(isset($configurationIds[$row['configuration_id']]))throw new RuntimeException('backup_integrity_failed');
+            $configurationIds[$row['configuration_id']]=true;$configurationKinds[$row['configuration_id']]=$row['kind'];}
+        $selectionKinds=[];foreach($data['connector_selections']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
+            $kind=$row['provider_kind']??null;$id=$row['configuration_id']??null;if($keys!==['configuration_id','provider_kind']||!in_array($kind,['tts_provider','stt_provider'],true)
+                ||!is_string($id)||($configurationKinds[$id]??null)!==$kind||isset($selectionKinds[$kind]))throw new RuntimeException('backup_integrity_failed');$selectionKinds[$kind]=true;}
+        if($this->containsSecretKey($document))throw new RuntimeException('backup_integrity_failed');
+    }
+
+    private function backupRoot():string
+    {
+        $root=rtrim((string)($this->providerConfig['backup_storage_path']??'/var/lib/almsiviserver/backups'),DIRECTORY_SEPARATOR);
+        if($root===''||(!is_dir($root)&&!mkdir($root,0750,true)&&!is_dir($root)))throw new RuntimeException('backup_storage_unavailable');return$root;
+    }
+    private function objectArray(mixed $value):bool{return is_array($value)&&($value===[]||!array_is_list($value));}
+    private function containsSecretKey(mixed $value):bool{if(!is_array($value))return false;foreach($value as$key=>$item){if(is_string($key)&&preg_match('/(?:api[_-]?key|secret|password|authorization|access[_-]?token|refresh[_-]?token)/i',$key)===1)return true;if($this->containsSecretKey($item))return true;}return false;}
+
+    /** Validate a backup and remap it only to the explicitly selected local playthrough scope. */
+    private function restorePlaythroughState(array $values,array $scope):array
+    {
+        foreach(['installation_id','profile_id','playthrough_id']as$field)if(!isset($scope[$field]))throw new InvalidArgumentException('invalid_'.$field);
+        $playthrough=$this->repository->getRevisioned('playthrough',$scope['playthrough_id']);
+        if((string)$playthrough['installation_id']!==$scope['installation_id']||(string)$playthrough['profile_id']!==$scope['profile_id'])
+            throw new InvalidArgumentException('playthrough_scope_mismatch');
+        $document=$this->jsonField($values,'playthrough_json');$document['scope']=$scope;
+        return$this->service->restorePlaythrough($document);
+    }
+
+    /** Validate a portable profile document before assigning it a new local ID and installation scope. */
+    private function profileImportDocument(array $values):array
+    {
+        $document=$this->jsonField($values,'profile_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['actor_identity','content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.profile-export.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64||!is_string($document['name']??null))throw new InvalidArgumentException('invalid_profile_export');
+        $identity=$document['actor_identity']??null;$content=$document['content']??null;
+        if(!is_array($identity)||array_is_list($identity)||!is_array($content)||array_is_list($content))throw new InvalidArgumentException('invalid_profile_export');
+        if(array_diff(array_keys($identity),['kind','display_name','record_id','content_file','refnum'])!==[])throw new InvalidArgumentException('invalid_profile_export');
+        $kind=$identity['kind']??'actor';if(!in_array($kind,['actor','npc'],true))throw new InvalidArgumentException('invalid_profile_export');
+        foreach(['display_name','record_id','content_file']as$field)if(isset($identity[$field])&&(!is_string($identity[$field])||strlen($identity[$field])>256||!mb_check_encoding($identity[$field],'UTF-8')))throw new InvalidArgumentException('invalid_profile_export');
+        if(isset($identity['refnum'])){$refnum=$identity['refnum'];$validString=is_string($refnum)&&strlen($refnum)<=128;
+            $refnumKeys=is_array($refnum)?array_keys($refnum):[];sort($refnumKeys);
+            $validObject=is_array($refnum)&&!array_is_list($refnum)&&$refnumKeys===['content_file','index']&&is_int($refnum['index'])&&is_int($refnum['content_file'])&&$refnum['index']>=0&&$refnum['content_file']>=0;
+            if(!$validString&&!$validObject)throw new InvalidArgumentException('invalid_profile_export');}
+        $name=trim($document['name']);if($name===''||strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_profile_export');
+        $identity['kind']='actor';$identity['display_name']??=$name;
+        return['name'=>$name,'actor_identity'=>$identity,'content'=>$content];
+    }
+
+    /** Build the stable OpenMW identity used when a profile is selected for an in-game actor. */
+    private function profileIdentity(array $values):array
+    {
+        $identity=['kind'=>'actor','display_name'=>$this->need($values,'name')];
+        foreach(['record_id','content_file']as$field){$value=trim((string)($values[$field]??''));if($value!=='')$identity[$field]=$value;}
+        if(isset($values['refnum_index'],$values['refnum_content_file'])&&preg_match('/^[0-9]+$/D',(string)$values['refnum_index'])===1&&preg_match('/^[0-9]+$/D',(string)$values['refnum_content_file'])===1){
+            $identity['refnum']=['index'=>(int)$values['refnum_index'],'content_file'=>(int)$values['refnum_content_file']];
+        }else{$refnum=trim((string)($values['refnum']??''));if($refnum!=='')$identity['refnum']=$refnum;}
+        return$identity;
+    }
+
+    /** Build the installation-scoped identity used for the human player's roleplay profile. */
+    private function playerIdentity(array $values):array
+    {
+        return['kind'=>'player','display_name'=>$this->need($values,'name')];
+    }
+
+    /** Build the stable non-world identity used for player-local narrator delivery. */
+    private function narratorIdentity(array $values):array
+    {
+        return['kind'=>'narrator','record_id'=>'almsivi:narrator','refnum'=>['index'=>0,'content_file'=>0],
+            'content_file'=>'ALMSIVI','cell'=>['kind'=>'interior','name'=>'ALMSIVI Narrator'],
+            'display_name'=>$this->need($values,'name')];
+    }
+
+    /** Convert the focused narration form into an opt-in roleplay and routing document. */
+    private function narratorContent(array $values):array
+    {
+        $content=$this->profileContent($values);$mode=(string)($values['inline_narration_mode']??'Disabled');
+        if(!in_array($mode,['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException('invalid_inline_narration_mode');
+        $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
+        return$content;
+    }
+
+    /** Convert labelled NPC editor fields into the bounded roleplay document consumed by prompts and TTS. */
+    private function profileContent(array $values):array
+    {
+        $content=isset($values['base_content_json'])?$this->jsonField($values,'base_content_json'):[];
+        foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','emote_moods','gender','race','notes']as$field){
+            if(!array_key_exists($field,$values))continue;
+            $value=trim((string)($values[$field]??''));if($value!=='')$content[$field]=$value;else unset($content[$field]);
+        }
+        if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
+            if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
+        $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
+            'llm_experimental_configuration_id','llm_fallback_configuration_id'];
+        if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
+            ||array_key_exists('prompt_configuration_id',$values)||isset($values['llm_routing_fields'])){
+            $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
+            foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
+                if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
+                if($id==='')unset($routing[$field]);else{$this->uuid($id,$field);$routing[$field]=$id;}
+            }
+            if(isset($values['llm_routing_fields'])){
+                $routing['llm_randomizer_enabled']=isset($values['llm_randomizer_enabled']);
+                $routing['llm_fallback_enabled']=isset($values['llm_fallback_enabled']);
+            }
+            if($routing===[])unset($content['routing']);else$content['routing']=$routing;
+        }
+        if(array_key_exists('management_fields',$values))$content['management']=[
+            'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
+        return$content;
+    }
+
+    /** Apply the installation auto-lock preference when an NPC is created through management. */
+    private function createNpcProfile(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$content=$this->profileContent($values);
+        if($this->repository->profileAutoLockEnabled($installation)){$management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
+        return$this->service->createRevisioned('profile',['installation_id'=>$installation,'name'=>$this->need($values,'name'),'actor_identity'=>$this->profileIdentity($values),'content'=>$content]);
+    }
+
+    /** Save a manual NPC revision and auto-lock it when that installation preference is enabled. */
+    private function reviseNpcProfile(array $values):array
+    {
+        $profileId=$this->need($values,'profile_id');$profile=$this->repository->getRevisioned('profile',$profileId);$identity=$profile['actor_identity']??[];
+        if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new InvalidArgumentException('profile_not_editable');
+        $content=$this->profileContent($values);if($this->repository->profileAutoLockEnabled((string)$profile['installation_id'])){
+            $management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
+        return$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'));
+    }
+
+    /** Apply typed-confirmation bulk NPC operations within one installation only. */
+    private function bulkGenerateProfiles(array $values,array $scope):array
+    {
+        if(!hash_equals('Generate',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        return$this->repository->bulkEnqueueNpcProfileGeneration($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'));
+    }
+
+    private function bulkUnlockProfiles(array $values,array $scope):int
+    {
+        if(!hash_equals('Unlock',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        return$this->repository->bulkUnlockNpcProfiles($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    private function bulkDeleteProfiles(array $values,array $scope):int
+    {
+        if(!hash_equals('Delete',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        return$this->repository->bulkDeleteUnlockedNpcProfiles($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    private function bulkSwitchProfiles(array $values,array $scope):array
+    {
+        if(!hash_equals('Switch',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        $source=$this->need($values,'source_profile_id');$target=$this->need($values,'target_profile_id');
+        $this->uuid($source,'source_profile_id');$this->uuid($target,'target_profile_id');
+        return$this->repository->bulkSwitchNpcProfileBindings($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            $source,$target,isset($values['include_locked']),gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    /** Exercise a saved connector without storing the fixed test phrase or generated media. */
+    private function testConnector(array $values):string
+    {
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $kind=$this->need($values,'kind');if(!in_array($kind,['tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
+        $preset=$this->repository->getRevisioned($kind,$configuration);$token=new NeverCancelledToken();$started=microtime(true);
+        if($kind==='tts_provider'){
+            $voice=trim((string)($values['voice_id']??''));$context=$voice===''?[]:['voice'=>$voice];
+            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)->synthesize('Greetings, traveler. This is ALMSIVI.',$token,$context);
+            return strtoupper((string)$audio['codec']).' '.(int)$audio['duration_ms'].' ms in '.(int)round((microtime(true)-$started)*1000).' ms';
+        }
+        $speechPreset=$this->repository->connectorForInstallation($installation,'tts_provider');
+        if($speechPreset===null)throw new InvalidArgumentException('active_tts_connector_required');
+        $audio=ProviderFactory::speechForPreset($this->providerConfig,$speechPreset)->synthesize('Greetings, traveler. This is ALMSIVI.',$token);
+        $result=ProviderFactory::speechToTextForPreset($this->providerConfig,$preset)->transcribe($audio['bytes'],$audio['codec'],'en',$token);
+        return trim((string)$result['text']).' ('.(int)round((microtime(true)-$started)*1000).' ms)';
+    }
+
+    /** Exercise one saved LLM model slot without persisting the fixed diagnostic turn or its response. */
+    private function testProvider(array $values):string
+    {
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $preset=$this->repository->getRevisioned('provider',$configuration);
+        if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        $slot=['configuration_id'=>$configuration,'revision'=>(int)($preset['current_revision']??0),'content'=>$preset['content']??[]];
+        return$this->diagnoseProvider(ProviderFactory::dialogueForSlot($this->providerConfig,$slot));
+    }
+
+    /** Validate one dialogue provider against the common utterance contract without saving its output. */
+    private function diagnoseProvider(Provider $provider):string
+    {
+        $identity=['kind'=>'npc','display_name'=>'ALMSIVI Test NPC','record_id'=>'almsivi_test_npc','content_file'=>'ALMSIVI'];
+        $player=['kind'=>'player','display_name'=>'Player','record_id'=>'player'];$started=microtime(true);
+        $result=$provider->complete(['payload'=>[
+            'input'=>['mode'=>'text','text'=>'Reply with one brief in-character greeting.'],'speaker'=>$player,'target'=>$identity,'audience'=>[$identity],
+        ]],new NeverCancelledToken());
+        $utterances=$result['utterances']??null;
+        if(!is_array($utterances)||$utterances===[]||count($utterances)>4||!is_string($utterances[0]['text']??null)||trim($utterances[0]['text'])==='')
+            throw new RuntimeException('provider_invalid_output');
+        return count($utterances).' valid utterance'.(count($utterances)===1?'':'s').' in '.(int)round((microtime(true)-$started)*1000).' ms';
+    }
+
+    /** Rebuild one edited memory's deterministic retrieval fields before saving it. */
+    private function reviseMemory(array $values):array
+    {
+        $id=$this->need($values,'memory_id');$this->uuid($id,'memory_id');$content=$this->need($values,'content');
+        if(strlen($content)>16384)throw new InvalidArgumentException('invalid_content');
+        return$this->repository->updateMemory($id,$content,DeterministicRetrieval::terms($content),
+            DeterministicRetrieval::fakeVector($content),gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
     private function actionCatalog():string
     {
         $rows='';foreach($this->actions() as$action){$rows.='<tr><td><code>'.$this->e($action['name']).'</code></td><td>'.$action['tier'].'</td><td>'.$this->e($action['capability']).'</td><td>'.$this->e((string)($action['description']??'Catalog-backed typed action.')).'</td></tr>';}

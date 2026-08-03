@@ -24,7 +24,7 @@ cleanup() {
 trap cleanup EXIT HUP INT TERM
 
 initdb -D "$TMP/data" -A trust --no-locale -E UTF8 >/dev/null
-pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
+pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
 createdb -h 127.0.0.1 -p "$PG_PORT" almsivi_beast_http
 mkdir "$TMP/control" "$TMP/server-state"
 
@@ -57,13 +57,22 @@ start_http() {
 }
 
 start_http
-cmake -S "$CLIENT_ROOT" -B "$BUILD_DIR" -DALMSIVI_WITH_BOOST_BEAST=ON >/dev/null
-cmake --build "$BUILD_DIR" --target almsivi_beast_transport_tests --parallel >/dev/null
+CLIENT_BIN=${ALMSIVI_BEAST_CLIENT:-}
+CONTROL_DIR_ARG="$TMP/control"
+if [ -z "$CLIENT_BIN" ]; then
+    cmake -S "$CLIENT_ROOT" -B "$BUILD_DIR" -DALMSIVI_WITH_BOOST_BEAST=ON >/dev/null
+    cmake --build "$BUILD_DIR" --target almsivi_beast_transport_tests --parallel >/dev/null
+    CLIENT_BIN="$BUILD_DIR/components/almsivi/almsivi_beast_transport_tests"
+elif [ ! -f "$CLIENT_BIN" ]; then
+    printf 'prebuilt Beast client does not exist: %s\n' "$CLIENT_BIN" >&2
+    exit 1
+elif [ "${CLIENT_BIN##*.}" = exe ]; then
+    CONTROL_DIR_ARG=$(wslpath -w "$TMP/control")
+fi
 ALMSIVI_CONFIG="$CONFIG" ALMSIVI_TEST_DSN="$DSN" ALMSIVI_TEST_PROVIDER_CONTROL="$TMP/control" \
  ALMSIVI_TEST_SERVER_STATE="$TMP/server-state" php "$ROOT/workers/worker.php" >>"$TMP/worker.log" 2>&1 &
 WORKER_PID=$!
-"$BUILD_DIR/components/almsivi/almsivi_beast_transport_tests" \
-    --live-url "http://127.0.0.1:$HTTP_PORT/ALMSIVIserver/api/v1" --control-dir "$TMP/control" &
+"$CLIENT_BIN" --live-url "http://127.0.0.1:$HTTP_PORT/ALMSIVIserver/api/v1" --control-dir "$CONTROL_DIR_ARG" &
 CLIENT_PID=$!
 attempts=0
 until [ -f "$TMP/control/server-restart.ready" ]; do

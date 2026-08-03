@@ -146,8 +146,17 @@ $db->prepare('INSERT INTO installations (installation_id,token_fingerprint) VALU
 $products = new ProductRepository($db);
 $clock = new DeterministicClock(new DateTimeImmutable('2026-01-01T00:00:00Z'));
 $service = new ProductService($products, $clock);
+$check($products->profileAutoLockEnabled($installation),'profile auto-lock did not default on');
+$products->setProfileAutoLock($installation,false,$clock->iso());$check(!$products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist off');
+$products->setProfileAutoLock($installation,true,$clock->iso());$check($products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist on');
 $profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['record_id'=>'player'],
     'content'=>['role'=>'player'],'change_reason'=>'created']);
+$description=$service->saveItemDescription(['installation_id'=>$installation,'content_file'=>'Morrowind.esm','record_id'=>'iron_dagger','display_name'=>'Iron Dagger','description'=>'A serviceable iron blade.']);
+$descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>['inventory'=>['items'=>[['record_id'=>'iron_dagger','count'=>1]]]]]];
+$descriptionContext=$products->itemDescriptionsForTurn($descriptionTurn);
+$check(count($descriptionContext)===1&&$descriptionContext[0]['description']==='A serviceable iron blade.','turn context resolves an unambiguous managed record description');
+$service->deleteItemDescription($description['description_id']);
+$check($products->itemDescriptionsForTurn($descriptionTurn)===[],'deleted record descriptions are excluded from prompts');
 $check($profile['current_revision'] === 1, 'profile creation failed');
 $profileRevised = $service->revise('profile', $profile['profile_id'], ['role'=>'hero'], 'refined');
 $check($profileRevised['current_revision'] === 2 && $profileRevised['content']['role'] === 'hero', 'profile revision failed');
@@ -158,9 +167,53 @@ $playthrough = $service->createRevisioned('playthrough', ['installation_id'=>$in
 $providerConfig = $service->createRevisioned('provider', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
     'name'=>'Local mock','content'=>['driver'=>'mock','model'=>'deterministic-mock-v1'],'change_reason'=>'created']);
 $check($providerConfig['content']['driver'] === 'mock', 'mock provider config failed');
+$actionPolicy=$service->createRevisioned('action_policy',['installation_id'=>$installation,'name'=>'Safe actions',
+    'content'=>['enabled'=>true,'max_tier'=>1,'denied_actions'=>['item.give']]]);
+$check($actionPolicy['content']['max_tier']===1,'bounded action policy config failed');
+try{$service->revise('action_policy',$actionPolicy['configuration_id'],['enabled'=>'yes'],'unsafe edit');throw new RuntimeException('invalid action policy accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_action_policy','unexpected action policy boundary error');}
+$ttsConfig=$service->createRevisioned('tts_provider',['installation_id'=>$installation,'name'=>'Local OmniVoice',
+    'content'=>['driver'=>'omnivoice','endpoint'=>'http://127.0.0.1:8021','model'=>'k2-fsa/OmniVoice',
+        'voice'=>'test-voice','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$sttConfig=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet',
+    'content'=>['driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022/v1/audio/transcriptions',
+        'model'=>'parakeet-tdt-0.6b-v3','voice'=>'','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$service->selectConnector(['installation_id'=>$installation,'kind'=>'tts_provider','configuration_id'=>$ttsConfig['configuration_id']]);
+$service->selectConnector(['installation_id'=>$installation,'kind'=>'stt_provider','configuration_id'=>$sttConfig['configuration_id']]);
+$check(count($products->listRevisioned('provider',$installation))===1
+    &&$products->connectorForInstallation($installation,'tts_provider')['configuration_id']===$ttsConfig['configuration_id']
+    &&count($products->connectorSelections($installation))===2,'speech connector presets are isolated and selectable');
+try{$service->deleteRevisioned('stt_provider',$sttConfig['configuration_id']);throw new RuntimeException('active connector deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='connector_in_use','unexpected active connector deletion error');}
+$unusedStt=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Unused Parakeet',
+    'content'=>['driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022/v1/audio/transcriptions',
+        'model'=>'parakeet-tdt-0.6b-v3','voice'=>'','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$service->deleteRevisioned('stt_provider',$unusedStt['configuration_id']);
+$check($products->connectorForInstallation($installation,'stt_provider')['configuration_id']===$sttConfig['configuration_id']
+    &&count($products->listRevisioned('stt_provider',$installation))===1,'unused connector deletion changed the active selection');
+$guardedProvider=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Profile-bound model slot',
+    'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']]);
+$guardedProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Profile-bound NPC',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'bound_npc','content_file'=>'Morrowind.esm'],
+    'content'=>['routing'=>['llm_configuration_id'=>$guardedProvider['configuration_id']]]]);
+try{$service->deleteRevisioned('provider',$guardedProvider['configuration_id']);throw new RuntimeException('profile-bound model slot deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected model-slot deletion error');}
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>[]],'remove model-slot assignment');
+$service->deleteRevisioned('provider',$guardedProvider['configuration_id']);
+$guardedPrompt=$service->createRevisioned('prompt',['installation_id'=>$installation,'name'=>'Profile-bound prompt','content'=>['instruction'=>'Use the explicitly selected prompt.']]);
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>['prompt_configuration_id'=>$guardedPrompt['configuration_id']]],'assign prompt');
+try{$service->deleteRevisioned('prompt',$guardedPrompt['configuration_id']);throw new RuntimeException('profile-bound prompt deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='prompt_in_use','unexpected prompt deletion error');}
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>[]],'remove prompt assignment');
+$service->deleteRevisioned('prompt',$guardedPrompt['configuration_id']);$service->deleteRevisioned('profile',$guardedProfile['profile_id']);
 try {$service->createRevisioned('provider', ['installation_id'=>$installation,'name'=>'unsafe','content'=>['driver'=>'remote','api_key'=>'secret']]); throw new RuntimeException('provider secret accepted');}
-catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','only_mock_provider_supported'], true), 'unexpected provider boundary error');}
+catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','invalid_provider_driver'], true), 'unexpected provider boundary error');}
 $scope=['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
+$selectedPrompt=$service->createRevisioned('prompt',['installation_id'=>$installation,'name'=>'Explicit selected prompt','content'=>['instruction'=>'This exact prompt must win.']]);
+$service->revise('profile',$profile['profile_id'],['role'=>'player','routing'=>['prompt_configuration_id'=>$selectedPrompt['configuration_id']]],'select explicit prompt');
+$promptContext=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>['target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]],$clock->iso());
+$check($promptContext['prompt']['configuration_id']===$selectedPrompt['configuration_id']&&$promptContext['prompt']['content']['instruction']==='This exact prompt must win.','profile-selected prompt was not used');
+$service->revise('profile',$profile['profile_id'],['role'=>'player'],'remove explicit prompt');$service->deleteRevisioned('prompt',$selectedPrompt['configuration_id']);
 $memory=$service->createMemory($scope+['tier'=>'recent','content'=>'Nalcarya sells alchemy supplies in Balmora.',
     'provenance'=>['source'=>'authored-test']]);
 $search=$service->searchMemory($scope,'alchemy Balmora');
@@ -254,6 +307,66 @@ $check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'
 
 $firstPartyMediaRoot=sys_get_temp_dir().'/almsivi-first-party-'.bin2hex(random_bytes(6));
 $firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
+$profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
+    ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore],3);
+$profileStats=(new Worker($jobs,$firstPartyRegistry,'profile-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$profileAfter=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$scope['profile_id']}'")->fetch();
+$check($profileStats['succeeded']===1&&(int)$profileAfter['current_revision']===$profileBefore+1&&str_contains((string)$profileAfter['content'],'Deterministic mock generation'), 'profile generation did not create a revision');
+$generatedContent=json_decode((string)$profileAfter['content'],true,64,JSON_THROW_ON_ERROR);
+$lockedProfile=$service->revise('profile',$scope['profile_id'],$generatedContent+['management'=>['locked'=>true,'favorite'=>true]],'lock generated profile');
+try{$products->enqueueProfileGeneration($scope['profile_id']);throw new RuntimeException('locked profile queued automatic generation');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_locked','unexpected locked profile queue error');}
+$lockedJob=Uuid::v4();$jobs->enqueue($lockedJob,'profile.generate',1,'profile.generate:locked-test',
+    ['profile_id'=>$scope['profile_id'],'base_revision'=>$lockedProfile['current_revision']],3);
+$lockedStats=(new Worker($jobs,$firstPartyRegistry,'profile-locked-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$lockedRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$check($lockedStats['succeeded']===1&&$lockedRevision===$lockedProfile['current_revision'],'locked profile generation changed the current revision');
+$playerProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Nerevarine',
+    'actor_identity'=>['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm','display_name'=>'Test Nerevarine'],
+    'content'=>['biography'=>'Arrived by prison ship.','speech_style'=>'Not analyzed.']]);
+$playerTurn=Uuid::v4();$playerRequest=Uuid::v4();$playerMessage=Uuid::v4();
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','Can you tell me where the nearest guild is?',CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:01Z')")
+    ->execute(['turn'=>$playerTurn,'request'=>$playerRequest,'message'=>$playerMessage,'session'=>$legacySession,'speaker'=>json_encode(['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm'],JSON_THROW_ON_ERROR)]);
+$queuedPlayerStyle=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id']);
+$playerStyleStats=(new Worker($jobs,$firstPartyRegistry,'player-speech-style-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$playerStyleRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$playerProfile['profile_id']}'")->fetch();
+$playerStyleContent=json_decode((string)$playerStyleRow['content'],true,64,JSON_THROW_ON_ERROR);
+$check(($queuedPlayerStyle['mode']??null)==='player_speech_style'&&$playerStyleStats['succeeded']===1
+    &&(int)$playerStyleRow['current_revision']===2&&str_contains((string)$playerStyleContent['speech_style'],'1 recent player input')
+    &&$playerStyleContent['biography']==='Arrived by prison ship.','player speech-style generation did not preserve non-style fields');
+$narratorProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Narrator',
+    'actor_identity'=>['kind'=>'narrator','record_id'=>'almsivi:narrator','content_file'=>'ALMSIVI','display_name'=>'Test Narrator'],
+    'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','biography'=>'Existing narrator background.',
+        'routing'=>['tts_configuration_id'=>Uuid::v4()],'voice'=>['id'=>'narrator-test','language'=>'en']]]);
+$queuedNarrator=$products->enqueueNarratorProfileGeneration($narratorProfile['profile_id']);
+$narratorStats=(new Worker($jobs,$firstPartyRegistry,'narrator-profile-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$narratorRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$narratorProfile['profile_id']}'")->fetch();
+$narratorContent=json_decode((string)$narratorRow['content'],true,64,JSON_THROW_ON_ERROR);
+$check(($queuedNarrator['mode']??null)==='narrator_profile'&&$narratorStats['succeeded']===1
+    &&(int)$narratorRow['current_revision']===2&&str_contains((string)$narratorContent['notes'],'mock narrator generation')
+    &&$narratorContent['enabled']===true&&$narratorContent['inline_narration_mode']==='Narrator'
+    &&($narratorContent['routing']['tts_configuration_id']??null)===($narratorProfile['content']['routing']['tts_configuration_id']??null)
+    &&($narratorContent['voice']['id']??null)==='narrator-test','narrator profile generation did not preserve routing fields');
+$switchTarget=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Alternate NPC profile',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'alternate','content_file'=>'Morrowind.esm'],
+    'content'=>['biography'=>'Alternate profile','management'=>['locked'=>false,'favorite'=>false]]]);
+$switchActor=['kind'=>'npc','record_id'=>'nalcarya','content_file'=>'Morrowind.esm'];
+$products->bindActorProfile($scope,$switchActor,$scope['profile_id'],$clock->iso());
+$skippedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],false,$clock->iso());
+$check($skippedSwitch===['updated'=>0,'skipped_locked'=>1],'bulk profile switch did not respect the source lock');
+$appliedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],true,$clock->iso());
+$boundProfile=$db->query("SELECT profile_id FROM actor_profile_bindings WHERE installation_id='{$installation}' AND playthrough_id='{$playthrough['playthrough_id']}'")->fetchColumn();
+$check($appliedSwitch===['updated'=>1,'skipped_locked'=>0]&&$boundProfile===$switchTarget['profile_id'],'bulk profile switch did not move the actor binding');
+$batchGeneration=$products->bulkEnqueueNpcProfileGeneration($installation);
+$batchStats=(new Worker($jobs,$firstPartyRegistry,'profile-bulk-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$batchRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn();
+$check($batchGeneration===['queued'=>1,'eligible'=>1,'truncated'=>0]&&$batchStats['succeeded']===1&&$batchRevision===2,
+    'bounded bulk profile generation did not queue only the unlocked NPC profile');
+$check($products->bulkDeleteUnlockedNpcProfiles($installation,$clock->iso())===1
+    &&(int)$db->query("SELECT count(*) FROM actor_profile_bindings WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn()===0,
+    'bulk delete did not remove only the unlocked NPC profile and its binding');
+$check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk unlock did not revise the locked NPC profile');
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';$derivedPayload=$scope+['memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.'];
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
@@ -262,7 +375,7 @@ $retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10
 $retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();
 $check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$retryState['attempt_count']===1, 'first-party handler failure did not schedule retry');
 
-$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','ai.follow','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
+$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow','action.ai.travel','action.ai.escort','action.ai.face','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','ai.follow','ai.travel','ai.escort','ai.face','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
 $catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
 $proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
 $check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
@@ -272,7 +385,15 @@ $animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'ta
 $check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
 $itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s']];
 $check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
+$destination=['destination_x'=>100.5,'destination_y'=>-200,'destination_z'=>8,'destination_cell'=>'exterior:0:0'];
+$travel=['name'=>'ai.travel','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>$destination];
+$check($policy->validate($travel,$loaded)['parameters']===$destination,'travel destination validation failed');
+$escort=array_replace($travel,['name'=>'ai.escort']);
+$check($policy->validate($escort,$loaded)['name']==='ai.escort','escort destination validation failed');
+$face=['name'=>'ai.face','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($face,$loaded)['name']==='ai.face','face action validation failed');
 try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
+try{$policy->validate(array_replace($travel,['parameters'=>$destination+['teleport'=>true]]),$loaded);throw new RuntimeException('unknown travel parameter accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected travel parameter error');}
 
 $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-0000-4000-8000-000000000002';
 foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}

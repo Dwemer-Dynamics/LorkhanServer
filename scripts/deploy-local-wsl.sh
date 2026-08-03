@@ -7,7 +7,7 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 source_root=${1:-}
-target_root=/var/www/html/ALMSIVIserve
+target_root=/var/www/html/ALMSIVIserver
 if [[ -z ${source_root} || ${source_root} != /* || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-local-wsl.sh <absolute-ALMSIVIserver-source-path>" >&2
     exit 2
@@ -41,8 +41,17 @@ else
     usermod --append --groups www-data almsivi
 fi
 install -d -m 0755 /var/www/html
-install -d -o almsivi -g www-data -m 0770 /var/lib/almsiviserver/media
-install -d -o almsivi -g www-data -m 0750 /var/log/almsiviserve
+install -d -o almsivi -g www-data -m 2750 /var/lib/almsiviserver/media
+find /var/lib/almsiviserver/media -xdev -type f -name '*.media' -exec chown almsivi:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/voices
+find /var/lib/almsiviserver/voices -xdev -type f -name '*.wav' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/profile-portraits
+find /var/lib/almsiviserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/backups
+find /var/lib/almsiviserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/credentials
+find /var/lib/almsiviserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o almsivi -g www-data -m 0750 /var/log/almsiviserver
 
 stage_root=$(mktemp -d /var/www/html/.ALMSIVIserver-stage.XXXXXX)
 cleanup_stage() {
@@ -116,8 +125,8 @@ else
     chmod 0755 /usr/local/libexec/almsiviserver-worker-loop
     sed 's#/var/www/ALMSIVIserver/current#/var/www/html/ALMSIVIserver#g' \
         "${target_root}/deploy/sysv/almsiviserver-worker" \
-        > /etc/init.d/almsiviserver-worke
-    chmod 0755 /etc/init.d/almsiviserver-worke
+        > /etc/init.d/almsiviserver-worker
+    chmod 0755 /etc/init.d/almsiviserver-worker
     update-rc.d almsiviserver-worker defaults >/dev/null
     service almsiviserver-worker restart
     service almsiviserver-worker status >/dev/null

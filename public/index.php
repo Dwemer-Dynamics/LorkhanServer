@@ -62,6 +62,7 @@ try {
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');
+    $config['credential_storage_path'] ??= '/var/lib/almsiviserver/credentials/provider-keys.json';
     $tokenHash = getenv('ALMSIVI_PAIRING_TOKEN_HASH') ?: (string) ($config['pairing_token_hash'] ?? '');
     if (preg_match('/^[0-9a-f]{64}$/D', $tokenHash) !== 1) throw new RuntimeException('Pairing token hash is not configured.');
     $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
@@ -115,16 +116,18 @@ try {
         $management = new ManagementRouter(new ManagementRepository($database), $products,
             new ProductService($products, new DeterministicClock()),
             (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'),
-            (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600));
+            (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600), $config);
         $management->dispatch($request)->emit();
     } else {
         $response=$router->dispatch($request);$response->emit();
-        if($request->method==='POST'&&str_ends_with($request->path,'/turns')){
-            if(function_exists('fastcgi_finish_request'))fastcgi_finish_request();
+        if($request->method==='POST'&&str_ends_with($request->path,'/turns')&&function_exists('fastcgi_finish_request')){
+            fastcgi_finish_request();
+            // FastCGI can finish the response before this bounded fallback. Under mod_php the
+            // persistent worker owns provider work so the accepted-turn response stays immediate.
             (new Worker(new JobRepository($database),FirstPartyJobHandlerFactory::registry($database,
                 new MediaStore((string)($config['media_storage_path']??dirname(__DIR__).'/storage/media'),
                     (int)($config['media_max_bytes']??33_554_432),(int)($config['media_quota_bytes']??268_435_456)),
-                provider:$provider,speechProvider:$speechProvider,providerTimeoutMs:(int)($providerConfig['timeout_ms']??1000),sttProvider:$sttProvider),
+                provider:$provider,speechProvider:$speechProvider,providerTimeoutMs:(int)($providerConfig['timeout_ms']??1000),sttProvider:$sttProvider,providerConfig:$config),
                 'http-fallback:'.getmypid(),5,1,1,0,10,['turn.process'],static fn(int $microseconds):mixed=>null))->run();
         }
     }

@@ -5,7 +5,7 @@ namespace ALMSIVIserver\Application;
 
 final class MockSpeechProvider implements SpeechProvider
 {
-    public function synthesize(string $text, CancellationToken $cancellation): array
+    public function synthesize(string $text, CancellationToken $cancellation, array $context = []): array
     {
         $cancellation->throwIfCancellationRequested();
         // A deterministic, legal PCM WAV containing 20 ms of silence at 8 kHz, mono, 8-bit.

@@ -38,6 +38,8 @@ final class Validator
             'almsivi.action-result.v1' => $this->actionResult($message),
             'almsivi.stt.request.v1' => $this->stt($message),
             'almsivi.dialogue-delivery-result.v1' => $this->delivery($message),
+            'almsivi.controls.query.v1' => $this->controlsQuery($message),
+            'almsivi.controls.select.v1' => $this->controlsSelect($message),
             default => throw new ValidationException('invalid_schema'),
         };
     }
@@ -58,7 +60,9 @@ final class Validator
         if (!is_array($payload) || array_is_list($payload)) {
             throw new ValidationException('invalid_schema');
         }
-        $this->keys($payload, ['input','speaker','target','audience','context','recent_action_results','ui_source']);
+        $payloadKeys = ['input','speaker','target','audience','context','recent_action_results','ui_source'];
+        if (array_key_exists('action_request', $payload)) $payloadKeys[] = 'action_request';
+        $this->keys($payload, $payloadKeys);
         if (!is_array($payload['audience']) || !array_is_list($payload['audience']) || count($payload['audience']) > 12
             || !is_array($payload['recent_action_results']) || !array_is_list($payload['recent_action_results'])
             || count($payload['recent_action_results']) > 16
@@ -73,6 +77,20 @@ final class Validator
         foreach ($payload['recent_action_results'] as $result) $this->embeddedActionResult($result);
         foreach ([$payload['speaker'], $payload['target'], ...$payload['audience']] as $identity) {
             $this->identity($identity);
+        }
+        if (array_key_exists('action_request', $payload)) {
+            $action = $payload['action_request'];
+            if (!is_array($action) || array_is_list($action)) throw new ValidationException('invalid_schema');
+            $actionKeys = ['name','tier','parameters'];
+            if (array_key_exists('target', $action)) $actionKeys[] = 'target';
+            $this->keys($action, $actionKeys);
+            if (!is_string($action['name']) || preg_match('/^[a-z][a-z0-9_.]{0,63}$/D', $action['name']) !== 1
+                || !is_int($action['tier']) || $action['tier'] < 0 || $action['tier'] > 3
+                || !is_array($action['parameters']) || ($action['parameters'] !== [] && array_is_list($action['parameters']))
+                || count($action['parameters']) > 16
+                || strlen(json_encode($action['parameters'], JSON_THROW_ON_ERROR)) > 16_384)
+                throw new ValidationException('invalid_schema');
+            if (array_key_exists('target', $action)) $this->identity($action['target']);
         }
         $input = $payload['input'];
         if (!is_array($input) || array_is_list($input)) {
@@ -130,6 +148,27 @@ final class Validator
         $this->keys($message,['schema','message_id','request_id','dialogue_message_id','turn_id','session_id','generation','speaker','status','reason_code','completed_at']);
         if($message['schema']!=='almsivi.dialogue-delivery-result.v1'||!in_array($message['status'],['expired','failed','interrupted','played'],true)||!is_string($message['reason_code'])||preg_match('/^[a-z][a-z0-9_]{0,127}$/D',$message['reason_code'])!==1||!is_int($message['generation'])||$message['generation']<0)throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','dialogue_message_id','turn_id','session_id']as$field)$this->uuid($message[$field]);$this->identity($message['speaker']);$this->timestamp($message['completed_at']);
+    }
+
+    private function controlsQuery(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','target']);
+        if(($message['schema']??null)!=='almsivi.controls.query.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
+        $this->identity($message['target']??null);
+    }
+
+    private function controlsSelect(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','target']);
+        if(($message['schema']??null)!=='almsivi.controls.select.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
+            ||!in_array($message['kind']??null,['actor_profile','model_slot','profile_generate','narrator_profile_generate'],true)
+            ||(in_array($message['kind']??null,['profile_generate','narrator_profile_generate'],true)&&($message['selection_id']??null)===null))throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
+        if(($message['selection_id']??null)!==null)$this->uuid($message['selection_id']);
+        $this->identity($message['target']??null);$this->timestamp($message['created_at']??null);
     }
 
     private function embeddedActionResult(mixed $result): void

@@ -65,6 +65,8 @@ final class Router
             if ($request->method === 'POST' && $path === '/sessions') return $this->createSession($request);
             if ($request->method === 'DELETE' && preg_match('#^/sessions/([0-9a-f-]{36})$#D', $path, $m)) return $this->endSession($request, $m[1]);
             if ($request->method === 'POST' && $path === '/turns') return $this->createTurn($request);
+            if ($request->method === 'POST' && $path === '/controls/query') return $this->controlsQuery($request);
+            if ($request->method === 'POST' && $path === '/controls/select') return $this->controlsSelect($request);
             if ($request->method === 'GET' && $path === '/events') return $this->events($request);
             if ($request->method === 'GET' && preg_match('#^/media/([0-9a-f-]{36})$#D', $path, $m)) return $this->media($m[1]);
             if ($request->method === 'POST' && $path === '/interruptions') return $this->interrupt($request);
@@ -122,16 +124,25 @@ final class Router
             $cached = $this->repository->idempotent($m['installation_id'], $m['message_id'], '/turns', $hash);
             if ($cached !== null) return Response::json($cached['status'], $cached['body']);
 
-            $providerInput = $m;
+            $directAction = $m['payload']['action_request'] ?? null;
+            $providerInput = $directAction === null ? $m : null;
             $assembled = null;
-            if ($this->products !== null && $this->promptAssembler !== null) {
+            if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
                 $selection = $this->products->promptContext($m, gmdate('Y-m-d\TH:i:s\Z'));
-                $assembled = $this->promptAssembler->assemble($m, $selection);
+                $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
+                if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
+                if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
+                if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
+                $assembled = $this->promptAssembler->assemble($providerInput, $selection);
                 $providerInput['_prompt'] = $assembled['provider_input'];
+                $providerConfiguration=$this->products->providerContext($m);
+                if($providerConfiguration!==null)$providerInput['_provider_configuration']=$providerConfiguration;
+                $fallbackConfiguration=$this->products->fallbackProviderContext($m,$providerConfiguration['configuration_id']??null);
+                if($fallbackConfiguration!==null)$providerInput['_fallback_provider_configuration']=$fallbackConfiguration;
             }
             $body = ['schema' => 'almsivi.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
                 'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
-            $accepted = $this->repository->acceptTurn($m, $providerInput, $assembled['trace'] ?? null, $hash, $body);
+            $accepted = $this->repository->acceptTurn($m, $providerInput, $assembled['trace'] ?? null, $hash, $body, $directAction);
             $body['event_cursor']=$accepted['sequence'];
             return Response::json(202, $body);
         });
@@ -170,6 +181,47 @@ final class Router
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
         return Response::json(200, ['schema' => 'almsivi.events.v1', 'session_id' => $session,
             'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>$autonomy]);
+    }
+
+    private function controlsQuery(Request $request): Response
+    {
+        if($this->products===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
+        $m=$this->json($request,'almsivi.controls.query.v1');
+        $session=$this->repository->session($m['session_id'],$m['generation']);
+        $this->assertPrincipal((string)$session['installation_id']);
+        return Response::json(200,$this->controlsBody($m,$session));
+    }
+
+    private function controlsSelect(Request $request): Response
+    {
+        if($this->products===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
+        $m=$this->json($request,'almsivi.controls.select.v1');
+        $session=$this->repository->session($m['session_id'],$m['generation']);
+        $this->assertPrincipal((string)$session['installation_id']);
+        $this->requireIdempotency($request,$m['message_id']);
+        return $this->repository->serializedIdempotency((string)$session['installation_id'],$m['message_id'],'/controls/select',function()use($m,$session):Response{
+            $hash=$this->semanticHash($m);$cached=$this->repository->idempotent((string)$session['installation_id'],$m['message_id'],'/controls/select',$hash);
+            if($cached!==null)return Response::json($cached['status'],$cached['body']);
+            if($m['kind']==='model_slot')$this->products->selectSessionProvider($session,$m['selection_id']);
+            elseif($m['kind']==='actor_profile')$this->products->bindActorProfile($session,$m['target'],$m['selection_id'],$m['created_at']);
+            elseif($m['kind']==='profile_generate')$this->products->enqueueBoundProfileGeneration($session,$m['target'],(string)$m['selection_id']);
+            else{$narrator=$this->products->narratorProfileForInstallation((string)$session['installation_id']);
+                if($narrator===null||!is_string($m['selection_id'])||!hash_equals((string)$narrator['profile_id'],$m['selection_id']))
+                    throw new ApiException(422,'profile_not_narrator','The selected narrator profile is unavailable.');
+                $this->products->enqueueNarratorProfileGeneration($m['selection_id']);}
+            $updated=$this->repository->session($m['session_id'],$m['generation']);
+            $body=$this->controlsBody($m,$updated);
+            $this->repository->remember((string)$session['installation_id'],$m['message_id'],'/controls/select',$hash,200,$body);
+            return Response::json(200,$body);
+        });
+    }
+
+    private function controlsBody(array $request,array $session):array
+    {
+        $controls=$this->products?->sessionControls($session,$request['target']);
+        if($controls===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
+        return ['schema'=>'almsivi.controls.v1','message_id'=>$request['message_id'],'request_id'=>$request['request_id'],
+            'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
     }
 
     private function media(string $mediaId): Response
@@ -341,7 +393,11 @@ final class Router
     private function publicCode(string $code):string
     {
         $aliases=['dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
-        $allowed=['action_disabled','action_result_expired','action_result_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key','invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action','provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
+        $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch',
+            'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
+            'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
+            'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',
+            'stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
         return in_array($code,$allowed,true)?$code:'internal_error';
     }
 

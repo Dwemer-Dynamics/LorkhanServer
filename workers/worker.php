@@ -24,6 +24,7 @@ try {
     if (!is_array($config)) {
         throw new RuntimeException('Server configuration is invalid.');
     }
+    $config['credential_storage_path'] ??= '/var/lib/almsiviserver/credentials/provider-keys.json';
     $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
     $worker = $config['worker'] ?? [];
     if (!is_array($worker)) {
@@ -58,7 +59,7 @@ try {
     $runner = new Worker(
         new JobRepository($database),
         FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: $speechProvider,
-            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:$sttProvider),
+            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:$sttProvider,providerConfig:$config),
         $workerId,
         (int) ($worker['lease_seconds'] ?? 30),
         (int) ($worker['batch_size'] ?? 1),

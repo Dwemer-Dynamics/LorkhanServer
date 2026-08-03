@@ -8,20 +8,26 @@ $bodyClass = 'hub-page';
 require dirname(__DIR__) . '/ui_bootstrap.php';
 $tabs = [
     'characters' => ['label' => 'Characters', 'pages' => [
-        'characters-page' => ['🌟', 'ALMSIVI Characters', $webRoot . '/ui/core/character_manager.php?embed=1'],
-        'profiles-page' => ['🗃️', 'Profiles', $webRoot . '/ui/core/core_profiles.php?embed=1'],
+        'characters-page' => ['&#9733;', 'ALMSIVI Characters', $webRoot . '/ui/core/character_manager.php?embed=1'],
+        'profiles-page' => ['&#128451;', 'Profiles', $webRoot . '/ui/core/core_profiles.php?embed=1'],
+        'player-page' => ['&#9823;', 'Player', $webRoot . '/ui/core/player_management.php?embed=1'],
+        'narration-page' => ['&#128214;', 'Narration', $webRoot . '/ui/narrator_management.php?embed=1'],
+        'npcbio-page' => ['&#128682;', 'NPC Biographies', $webRoot . '/ui/core/npc_biographies.php?embed=1'],
     ]],
     'ai-voice' => ['label' => 'AI & Voice', 'pages' => [
-        'llm-page' => ['🧠', 'LLM', $webRoot . '/ui/core/llm_connectors.php?embed=1'],
-        'tts-page' => ['🔊', 'TTS', $webRoot . '/ui/core/tts_connectors.php?embed=1'],
-        'stt-page' => ['🎤', 'STT', $webRoot . '/ui/core/stt_connectors.php?embed=1'],
+        'llm-page' => ['&#129504;', 'LLM', $webRoot . '/ui/core/llm_connectors.php?embed=1'],
+        'tts-page' => ['&#128266;', 'TTS', $webRoot . '/ui/core/tts_connectors.php?embed=1'],
+        'voice-page' => ['&#128226;', 'TTS Studio', $webRoot . '/ui/core/voice_library.php?embed=1'],
+        'stt-page' => ['&#127908;', 'STT', $webRoot . '/ui/core/stt_connectors.php?embed=1'],
+        'keys-page' => ['&#128273;', 'API Keys', $webRoot . '/ui/core/api_keys.php?embed=1'],
     ]],
     'world-behavior' => ['label' => 'World & Behavior', 'pages' => [
-        'globals-page' => ['🌐', 'Global Settings', $webRoot . '/ui/core/global_settings.php?embed=1'],
-        'knowledge-page' => ['📜', 'World Knowledge', $webRoot . '/ui/worldknowledge_upload.php?embed=1'],
-        'actions-page' => ['⚔️', 'Action Editor', $webRoot . '/ui/function_editor.php?embed=1'],
-        'prompts-page' => ['💬', 'Prompts Manager', $webRoot . '/ui/prompts_manager.php?embed=1'],
-        'autonomy-page' => ['📔', 'Narrator & Autonomy', $webRoot . '/ui/narrator_management.php?embed=1'],
+        'globals-page' => ['&#127760;', 'Global Settings', $webRoot . '/ui/core/global_settings.php?embed=1'],
+        'knowledge-page' => ['&#128220;', 'Oghma Infinium', $webRoot . '/ui/worldknowledge_upload.php?embed=1'],
+        'descriptions-page' => ['&#128214;', 'Descriptions', $webRoot . '/ui/description_manager.php?embed=1'],
+        'actions-page' => ['&#9876;', 'Action Editor', $webRoot . '/ui/function_editor.php?embed=1'],
+        'prompts-page' => ['&#128172;', 'Prompts Manager', $webRoot . '/ui/prompts_manager.php?embed=1'],
+        'serverplugins-page' => ['&#129513;', 'Server Plugins', $webRoot . '/ui/server_plugins.php?embed=1'],
     ]],
 ];
 $allTabIds = [];
@@ -42,7 +48,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <div class="tab-buttons" role="tablist" aria-label="<?php echo almsivi_ui_h($group['label']); ?> pages">
                             <?php foreach ($group['pages'] as $tabId => [$icon, $label]): ?>
                                 <button class="tab-button<?php echo $activeTab === $tabId ? ' active' : ''; ?>" type="button" data-tab="<?php echo almsivi_ui_h($tabId); ?>" aria-selected="<?php echo $activeTab === $tabId ? 'true' : 'false'; ?>">
-                                    <span class="tab-icon" aria-hidden="true"><?php echo almsivi_ui_h($icon); ?></span><span><?php echo almsivi_ui_h($label); ?></span>
+                                    <span class="tab-icon" aria-hidden="true"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span>
                                 </button>
                             <?php endforeach; ?>
                         </div>

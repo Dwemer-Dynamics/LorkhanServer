@@ -8,17 +8,22 @@ $bodyClass = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 $tabs = [
     'diagnostics' => ['label' => 'Diagnostics', 'pages' => [
+        'server-logs-page' => ['📄', 'Server Logs', $webRoot . '/ui/server_logs.php?embed=1'],
+        'oghma-audit-page' => ['📖', 'Oghma Audit', $webRoot . '/ui/oghma_audit.php?embed=1'],
         'health-page' => ['🌲', 'Server Health', $webRoot . '/ui/diagnostics.php?embed=1'],
         'requests-page' => ['🔍', 'Request & Prompt Traces', $webRoot . '/ui/request_logs.php?embed=1'],
         'relationships-page' => ['🔗', 'Relationship Audit', $webRoot . '/ui/relationship_logs.php?embed=1'],
     ]],
     'monitoring' => ['label' => 'Monitoring', 'pages' => [
+        'usage-page' => ['📊', 'Provider Usage', $webRoot . '/ui/provider_usage.php?embed=1'],
+        'queue-page' => ['📩', 'Response Queue', $webRoot . '/ui/response_queue.php?embed=1'],
         'providers-page' => ['📊', 'Provider Attempts', $webRoot . '/ui/provider_attempts.php?embed=1'],
         'jobs-page' => ['💬', 'Workers & Jobs', $webRoot . '/ui/jobs.php?embed=1'],
     ]],
     'data-tools' => ['label' => 'Data & Tools', 'pages' => [
+        'cache-page' => ['🗃️', 'Cache Browser', $webRoot . '/ui/cache_browser.php?embed=1'],
         'playthrough-page' => ['🎮', 'Playthrough Manager', $webRoot . '/ui/playthrough_manager.php?embed=1'],
-        'backup-page' => ['🗄️', 'Backup & Health', $webRoot . '/ui/backup_health.php?embed=1'],
+        'database-page' => ['🗄️', 'Database Manager', $webRoot . '/ui/database_manager.php?embed=1'],
     ]],
 ];
 $allTabIds = [];

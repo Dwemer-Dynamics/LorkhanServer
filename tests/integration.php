@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 
+use ALMSIVIserver\Application\ActionPolicyValidator;
 use ALMSIVIserver\Application\CancellationToken;
 use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
 use ALMSIVIserver\Application\MockProvider;
@@ -12,6 +13,7 @@ use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
 use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
@@ -28,7 +30,7 @@ $dsn = getenv('ALMSIVI_TEST_DSN') ?: '';
 if ($dsn === '') { fwrite(STDERR, "ALMSIVI_TEST_DSN is required\n"); exit(2); }
 $db = Connection::open(['database_dsn' => $dsn, 'database_user' => getenv('ALMSIVI_TEST_DB_USER') ?: '',
     'database_password' => getenv('ALMSIVI_TEST_DB_PASSWORD') ?: '']);
-$repo = new Repository($db);
+$repo = new Repository($db, 256, new ActionCatalogRepository($db), new ActionPolicyValidator());
 (new MigrationRunner($db, dirname(__DIR__) . '/database/migrations'))->up();
 $mediaPath = sys_get_temp_dir() . '/almsivi-media-' . bin2hex(random_bytes(8));
 $mediaStore = new MediaStore($mediaPath, 33_554_432, 67_108_864);
@@ -88,8 +90,8 @@ $assert($status === 422, 'missing session idempotency key accepted');
 $assert($status === 422, 'incoherent session idempotency key accepted');
 [$status, $accepted] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $accepted['generation'] === 7
-    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
+    && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
+        'action.ai.stop', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
         'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'], 'session create failed');
 $sessionId = $accepted['session_id'];
 [$status, $duplicateSession] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
@@ -101,8 +103,119 @@ $staleSession = $session; $staleSession['message_id'] = $newUuid(5); $staleSessi
 [$status, $body] = $call($router, 'POST', $base . '/sessions', $headers($staleSession['message_id']), [], $staleSession);
 $assert($status === 409 && $body['code'] === 'stale_generation', 'non-monotonic generation accepted');
 
+$now=gmdate('Y-m-d\TH:i:s\Z');
+$modelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'In-game mock',
+    'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1','mock_prefix'=>'[slot] ']],$now);
+$profileModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Profile-routed mock',
+    'content'=>['driver'=>'mock','model'=>'deterministic-profile-v1','mock_prefix'=>'[profile] ']],$now);
+$fastModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Profile fast mock',
+    'content'=>['driver'=>'mock','model'=>'deterministic-fast-v1','mock_prefix'=>'[fast] ']],$now);
+$fallbackModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Profile fallback mock',
+    'content'=>['driver'=>'mock','model'=>'deterministic-fallback-v1','mock_prefix'=>'[fallback] ']],$now);
+$actorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fargoth scholar',
+    'actor_identity'=>['record_id'=>'fargoth'],'content'=>['persona'=>'A cautious Dwemer scholar.',
+        'routing'=>['llm_configuration_id'=>$profileModelSlot['configuration_id']]]],$now);
+$profileTtsPreset=$products->createRevisioned('tts_provider',['installation_id'=>$installationId,'name'=>'Profile-routed speech',
+    'content'=>['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8086','model'=>'tts-1','voice'=>'default',
+        'language'=>'en','timeout_ms'=>30000,'options'=>['fallback_female'=>'fallback_female_voice']]],$now);
+$speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Jiub speech route',
+    'actor_identity'=>['record_id'=>'jiub'],'content'=>['gender'=>'Female','race'=>'Dunmer',
+        'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']]]],$now);
+$narratorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'The Test Narrator',
+    'actor_identity'=>['kind'=>'narrator','record_id'=>'almsivi:narrator','content_file'=>'ALMSIVI'],
+    'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','speech_style'=>'Measured narration.']],$now);
+$controlsQuery=$fixture('controls-query');
+$controlsQuery['message_id']=$newUuid(6);$controlsQuery['request_id']=$newUuid(7);
+$controlsQuery['session_id']=$sessionId;$controlsQuery['generation']=7;
+[$status,$controls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$controlsQuery);
+$assert($status===200&&$controls['schema']==='almsivi.controls.v1'
+    &&in_array($modelSlot['configuration_id'],array_column($controls['model_slots'],'configuration_id'),true)
+    &&in_array($actorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
+    &&!in_array($narratorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
+    &&$controls['narrator_profile_id']===$narratorProfile['profile_id']
+    &&$controls['selected_model_slot_id']===null&&$controls['selected_profile_id']===null,
+    'in-game controls query did not return safe model/profile choices');
+
+$selectModel=$fixture('controls-select');
+$selectModel['message_id']=$newUuid(8);$selectModel['request_id']=$newUuid(9);
+$selectModel['session_id']=$sessionId;$selectModel['generation']=7;$selectModel['created_at']=$now;
+$selectModel['target']=$controlsQuery['target'];$selectModel['kind']='model_slot';
+$selectModel['selection_id']=$modelSlot['configuration_id'];
+[$status,$modelSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectModel['message_id']),[],$selectModel);
+$assert($status===200&&$modelSelected['selected_model_slot_id']===$modelSlot['configuration_id'],
+    'in-game model slot selection failed');
+[$status,$modelReplay]=$call($router,'POST',$base.'/controls/select',$headers($selectModel['message_id']),[],$selectModel);
+$assert($status===200&&$modelReplay==$modelSelected,'in-game model slot selection was not idempotent');
+
+$selectProfile=$selectModel;$selectProfile['message_id']=$newUuid(10);$selectProfile['request_id']=$newUuid(11);
+$selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProfile['profile_id'];
+[$status,$profileSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectProfile['message_id']),[],$selectProfile);
+$assert($status===200&&$profileSelected['selected_profile_id']===$actorProfile['profile_id'],
+    'in-game actor profile selection failed');
+$turnLike=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,
+    'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$controlsQuery['target']]];
+$explicitContext=$products->providerContext($turnLike);
+$assert(($explicitContext['configuration_id']??null)===$modelSlot['configuration_id'],
+    'explicit in-game model slot did not override profile routing');
+$clearModel=$selectModel;$clearModel['message_id']=$newUuid(706);$clearModel['request_id']=$newUuid(707);$clearModel['selection_id']=null;
+[$status]=$call($router,'POST',$base.'/controls/select',$headers($clearModel['message_id']),[],$clearModel);
+$profileContext=$products->providerContext($turnLike);
+$assert($status===200&&($profileContext['configuration_id']??null)===$profileModelSlot['configuration_id'],
+    'NPC profile did not supply its primary LLM model slot');
+$randomizedContent=$actorProfile['content'];$randomizedContent['routing']=[
+    'llm_configuration_id'=>$profileModelSlot['configuration_id'],
+    'llm_fast_configuration_id'=>$fastModelSlot['configuration_id'],
+    'llm_randomizer_enabled'=>true,
+];
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$randomizedContent,'integration LLM routing',$now);
+$randomizedSelections=[];
+for($i=720;$i<752;$i++){$candidate=$turnLike;$candidate['turn_id']=$newUuid($i);
+    $context=$products->providerContext($candidate);$randomizedSelections[$context['configuration_id']??'']=true;}
+$assert(isset($randomizedSelections[$profileModelSlot['configuration_id']],$randomizedSelections[$fastModelSlot['configuration_id']])
+    &&count($randomizedSelections)===2,'profile LLM randomizer did not use every configured general-purpose slot');
+$restoreModel=$selectModel;$restoreModel['message_id']=$newUuid(708);$restoreModel['request_id']=$newUuid(709);
+[$status]=$call($router,'POST',$base.'/controls/select',$headers($restoreModel['message_id']),[],$restoreModel);
+$speechTarget=$controlsQuery['target'];$speechTarget['record_id']='jiub';$speechTarget['display_name']='Jiub';$speechTarget['refnum']['index']=99;
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],$speechTarget,$speechProfile['profile_id'],$now);
+$profileSpeech=$products->connectorForActor($installationId,$session['playthrough_id'],$speechTarget,'tts_provider');
+$assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id'],
+    'NPC profile did not supply its TTS connector');
+$profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
+$assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
+    'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
+
+$generateProfile=$selectProfile;$generateProfile['message_id']=$newUuid(12);$generateProfile['request_id']=$newUuid(13);
+$generateProfile['kind']='profile_generate';
+[$status,$generationQueued]=$call($router,'POST',$base.'/controls/select',$headers($generateProfile['message_id']),[],$generateProfile);
+$queuedProfileJob=$db->prepare("SELECT state,payload FROM durable_jobs WHERE job_type='profile.generate' AND payload->>'profile_id'=:profile");
+$queuedProfileJob->execute(['profile'=>$actorProfile['profile_id']]);$queuedProfileJobRow=$queuedProfileJob->fetch();
+$assert($status===200&&$generationQueued['selected_profile_id']===$actorProfile['profile_id']
+    &&$queuedProfileJobRow&&$queuedProfileJobRow['state']==='queued',
+    'in-game bound profile generation did not queue a durable job');
+
+$unboundGenerate=$generateProfile;$unboundGenerate['message_id']=$newUuid(14);$unboundGenerate['request_id']=$newUuid(15);
+$unboundGenerate['target']['record_id']='not_bound';
+[$status]=$call($router,'POST',$base.'/controls/select',$headers($unboundGenerate['message_id']),[],$unboundGenerate);
+$assert($status===404,'in-game profile generation accepted a profile not bound to the target');
+
+$generateNarrator=$selectProfile;$generateNarrator['message_id']=$newUuid(710);$generateNarrator['request_id']=$newUuid(711);
+$generateNarrator['kind']='narrator_profile_generate';$generateNarrator['selection_id']=$narratorProfile['profile_id'];
+[$status,$narratorQueued]=$call($router,'POST',$base.'/controls/select',$headers($generateNarrator['message_id']),[],$generateNarrator);
+$queuedNarratorJob=$db->prepare("SELECT state,payload FROM durable_jobs WHERE job_type='profile.generate' AND payload->>'profile_id'=:profile");
+$queuedNarratorJob->execute(['profile'=>$narratorProfile['profile_id']]);$queuedNarratorJobRow=$queuedNarratorJob->fetch();
+$queuedNarratorPayload=$queuedNarratorJobRow?json_decode((string)$queuedNarratorJobRow['payload'],true,32,JSON_THROW_ON_ERROR):[];
+$assert($status===200&&$narratorQueued['narrator_profile_id']===$narratorProfile['profile_id']
+    &&$queuedNarratorJobRow&&$queuedNarratorJobRow['state']==='queued'&&($queuedNarratorPayload['mode']??null)==='narrator_profile',
+    'in-game narrator profile generation did not queue a durable narrator job: '.json_encode([
+        'status'=>$status,'body'=>$narratorQueued,'job'=>$queuedNarratorJobRow,'payload'=>$queuedNarratorPayload],JSON_UNESCAPED_SLASHES));
+$wrongNarrator=$generateNarrator;$wrongNarrator['message_id']=$newUuid(712);$wrongNarrator['request_id']=$newUuid(713);
+$wrongNarrator['selection_id']=$actorProfile['profile_id'];
+[$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
+$assert($status===422,'in-game narrator generation accepted a non-narrator profile');
+
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
+$turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
 // Turn-advertised capabilities cannot add a capability that was not negotiated; stored session policy is authoritative.
 $turn['runtime']['capabilities'] = ['dialogue.text'];
@@ -110,6 +223,15 @@ $turn['runtime']['capabilities'] = ['dialogue.text'];
 $assert($status === 422, 'missing turn idempotency accepted');
 [$status, $turnAccepted] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
 $assert($status === 202 && $turnAccepted['event_cursor'] === 1, 'turn acceptance failed');
+$snapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$snapshotStatement->execute(['turn'=>$turn['turn_id']]);
+$snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'[PROFILE]')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
+    &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
+    &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
+    'accepted turn did not freeze the assembled prompt for the worker');
 $successfulWorkerStats=$runTurnWorker(new MockProvider());
 $assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0], 'successful turn job was not acknowledged');
 [$status, $turnDuplicate] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
@@ -220,8 +342,43 @@ $failedAttempt = $db->query("SELECT state, error_code, error_detail FROM provide
 $assert($failedAttempt === ['state' => 'failed', 'error_code' => 'provider_unavailable', 'error_detail' => null],
     'provider failure attempt was not redacted/reconciled');
 
+// A profile fallback is frozen with the accepted turn and is attempted once after the default provider fails.
+$fallbackTarget=$controlsQuery['target'];$fallbackTarget['record_id']='fallback_actor';$fallbackTarget['display_name']='Fallback Actor';
+$fallbackTarget['refnum']['index']=733;
+$fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback-only actor',
+    'actor_identity'=>['record_id'=>'fallback_actor'],'content'=>['routing'=>[
+        'llm_fallback_configuration_id'=>$fallbackModelSlot['configuration_id'],'llm_fallback_enabled'=>true]]],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $fallbackTarget,$fallbackProfile['profile_id'],$now);
+$products->selectSessionProvider(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],null);
+$fallbackRouter=new Router($repo,new Validator(),$failingProvider,$tokenHash,rateLimitRequests:1000,
+    providerAttempts:$attempts,products:$products,promptAssembler:new PromptAssembler());
+$fallbackTurn=$turn;$fallbackTurn['message_id']=$newUuid(740);$fallbackTurn['request_id']=$newUuid(741);
+$fallbackTurn['turn_id']=$newUuid(742);$fallbackTurn['payload']['target']=$fallbackTarget;
+$fallbackTurn['payload']['input']['text']='[fallback] Continue after the primary provider fails.';
+[$status]=$call($fallbackRouter,'POST',$base.'/turns',$headers($fallbackTurn['message_id']),[],$fallbackTurn);
+$fallbackSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$fallbackSnapshotStatement->execute(['turn'=>$fallbackTurn['turn_id']]);
+$fallbackSnapshot=json_decode((string)$fallbackSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($status===202&&!isset($fallbackSnapshot['message']['_provider_configuration'])
+    &&($fallbackSnapshot['message']['_fallback_provider_configuration']['configuration_id']??null)===$fallbackModelSlot['configuration_id'],
+    'accepted turn did not freeze the profile fallback connector');
+$fallbackWorkerStats=$runTurnWorker($failingProvider);
+$assert($fallbackWorkerStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
+    'explicit profile fallback did not complete the durable turn');
+[$status,$fallbackEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$failedEvents['next_after']]);
+$fallbackTypes=array_column($fallbackEvents['events'],'type');
+$assert($status===200&&in_array('dialogue.complete',$fallbackTypes,true)&&in_array('turn.complete',$fallbackTypes,true)
+    &&!in_array('turn.failed',$fallbackTypes,true),'fallback turn did not complete normally');
+$fallbackAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FROM provider_attempts WHERE provider_kind='llm' AND turn_id="
+    .$db->quote($fallbackTurn['turn_id'])." ORDER BY started_at,provider_attempt_id")->fetchAll();
+$assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'succeeded','fallback'=>'true']],
+    'profile fallback attempts were not recorded as one primary failure and one fallback success');
+$products->selectSessionProvider(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],$modelSlot['configuration_id']);
+
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
-$groupAfter=(int)$failedEvents['next_after'];
+$groupAfter=(int)$fallbackEvents['next_after'];
 foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+$groupCount*3);$bounded['request_id']=$newUuid(51+$groupCount*3);
     $bounded['turn_id']=$newUuid(52+$groupCount*3);$bounded['payload']['input']['text']='[group] Bounded report.';$bounded['payload']['audience']=[];
     for($i=1;$i<$groupCount;++$i){$actor=$bounded['payload']['target'];$actor['record_id']='bounded_'.$groupCount.'_'.$i;
@@ -333,6 +490,12 @@ $assert($sttStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$statu
     &&$sttEvents['events'][0]['type']==='stt.transcript'&&$sttEvents['events'][0]['turn_id']===$sttTurn,
     'direct pre-turn STT did not complete through the worker');
 
+$mismatchedAutonomy=false;
+try{$products->scheduleAutonomy(['installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
+    'playthrough_id'=>$newUuid(799),'kind'=>'rechat','enabled'=>true,'interval_seconds'=>30,'cooldown_seconds'=>30,
+    'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')],gmdate('Y-m-d\TH:i:s\Z'));}
+catch(InvalidArgumentException $error){$mismatchedAutonomy=$error->getMessage()==='active_session_scope_mismatch';}
+$assert($mismatchedAutonomy,'autonomy accepted an active session from a different playthrough scope');
 $autonomy=$products->scheduleAutonomy(['installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
     'playthrough_id'=>$session['playthrough_id'],'kind'=>'rechat','enabled'=>true,'interval_seconds'=>30,
     'cooldown_seconds'=>30,'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')],gmdate('Y-m-d\TH:i:s\Z'));
@@ -344,6 +507,110 @@ $assert($status===200&&count($autonomyEvents['autonomy'])===1
 [$status,$autonomyReplay]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$autonomyEvents['next_after']]);
 $assert($status===200&&$autonomyReplay['autonomy']===[],'autonomy directive replayed inside its cooldown');
+
+// Player menu actions bypass the provider but retain the same authenticated turn and action policy boundary.
+$menuTurn=$turn;$menuTurn['message_id']=$newUuid(280);$menuTurn['request_id']=$newUuid(281);$menuTurn['turn_id']=$newUuid(282);
+$menuTurn['payload']['input']['text']='Wait here';$menuTurn['payload']['recent_action_results']=[];
+$menuTurn['payload']['action_request']=['name'=>'ai.wander','tier'=>1,'parameters'=>['distance'=>0,'duration_seconds'=>3600]];
+[$status,$menuAccepted]=$call($router,'POST',$base.'/turns',$headers($menuTurn['message_id']),[],$menuTurn);
+$assert($status===202,'typed player action turn acceptance failed: '.$status.' '.json_encode($menuAccepted));
+[$status,$menuEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$autonomyEvents['next_after']]);
+$menuTypes=array_column($menuEvents['events'],'type');
+$menuIntents=array_values(array_filter($menuEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$menuJobs=$db->prepare("SELECT count(*) FROM durable_jobs WHERE job_type='turn.process' AND payload->>'turn_id'=:turn");
+$menuJobs->execute(['turn'=>$menuTurn['turn_id']]);
+$assert($status===200&&$menuTypes===['turn.accepted','action.intent','turn.complete']
+    &&count($menuIntents)===1&&$menuIntents[0]['payload']['name']==='ai.wander'
+    &&$menuIntents[0]['payload']['parameters']===['distance'=>0,'duration_seconds'=>3600]
+    &&$menuAccepted['event_cursor']===$menuEvents['next_after']&&(int)$menuJobs->fetchColumn()===0,
+    'typed player action did not follow the direct policy-validated path');
+
+// A second combat target must be a different actor present in the bounded nearby snapshot.
+$secondaryTarget=$menuTurn['payload']['target'];$secondaryTarget['record_id']='mudcrab';
+$secondaryTarget['display_name']='Mudcrab';$secondaryTarget['kind']='creature';$secondaryTarget['refnum']['index']=113;
+$invalidTargetTurn=$turn;$invalidTargetTurn['message_id']=$newUuid(283);$invalidTargetTurn['request_id']=$newUuid(284);
+$invalidTargetTurn['turn_id']=$newUuid(285);$invalidTargetTurn['payload']['input']['text']='Attack the selected target';
+$invalidTargetTurn['payload']['action_request']=['name'=>'combat.start','tier'=>2,'parameters'=>[],'target'=>$secondaryTarget];
+[$status,$invalidTargetError]=$call($router,'POST',$base.'/turns',$headers($invalidTargetTurn['message_id']),[],$invalidTargetTurn);
+$assert($status===409&&$invalidTargetError['code']==='action_target_invalid',
+    'secondary action target outside nearby context was accepted');
+
+$targetedTurn=$invalidTargetTurn;$targetedTurn['message_id']=$newUuid(286);$targetedTurn['request_id']=$newUuid(287);
+$targetedTurn['turn_id']=$newUuid(288);$targetedTurn['payload']['context']['nearbyActors']=[
+    'items'=>[$secondaryTarget],'total'=>1,'truncated'=>false];
+[$status,$targetedAccepted]=$call($router,'POST',$base.'/turns',$headers($targetedTurn['message_id']),[],$targetedTurn);
+$assert($status===202,'secondary-target combat action was rejected');
+[$status,$targetedEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$menuEvents['next_after']]);
+$targetedIntents=array_values(array_filter($targetedEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&array_column($targetedEvents['events'],'type')===['turn.accepted','action.intent','turn.complete']
+    &&count($targetedIntents)===1&&$targetedIntents[0]['payload']['actor']==$targetedTurn['payload']['target']
+    &&$targetedIntents[0]['payload']['target']==$secondaryTarget
+    &&$targetedAccepted['event_cursor']===$targetedEvents['next_after'],
+    'secondary-target combat action did not preserve actor and target identities');
+
+// Aimed movement coordinates follow the direct action path and reject fields outside the catalog schema.
+$destination=['destination_x'=>1024.5,'destination_y'=>-256,'destination_z'=>32,
+    'destination_cell'=>'exterior:0:0'];
+$travelTurn=$turn;$travelTurn['message_id']=$newUuid(289);$travelTurn['request_id']=$newUuid(290);$travelTurn['turn_id']=$newUuid(291);
+$travelTurn['payload']['input']['text']='Go to selected destination';$travelTurn['payload']['recent_action_results']=[];
+$travelTurn['payload']['action_request']=['name'=>'ai.travel','tier'=>1,'parameters'=>$destination];
+[$status,$travelAccepted]=$call($router,'POST',$base.'/turns',$headers($travelTurn['message_id']),[],$travelTurn);
+$assert($status===202,'same-cell travel action was rejected');
+[$status,$travelEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$targetedEvents['next_after']]);
+$travelIntents=array_values(array_filter($travelEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&array_column($travelEvents['events'],'type')===['turn.accepted','action.intent','turn.complete']
+    &&count($travelIntents)===1&&$travelIntents[0]['payload']['name']==='ai.travel'
+    &&$travelIntents[0]['payload']['parameters']===$destination
+    &&$travelAccepted['event_cursor']===$travelEvents['next_after'],'travel destination was not preserved end to end');
+
+$escortTurn=$turn;$escortTurn['message_id']=$newUuid(292);$escortTurn['request_id']=$newUuid(293);$escortTurn['turn_id']=$newUuid(294);
+$escortTurn['payload']['input']['text']='Escort me to selected destination';$escortTurn['payload']['recent_action_results']=[];
+$escortTurn['payload']['action_request']=['name'=>'ai.escort','tier'=>1,'parameters'=>$destination];
+[$status,$escortAccepted]=$call($router,'POST',$base.'/turns',$headers($escortTurn['message_id']),[],$escortTurn);
+$assert($status===202,'same-cell escort action was rejected');
+[$status,$escortEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$travelEvents['next_after']]);
+$escortIntents=array_values(array_filter($escortEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&count($escortIntents)===1&&$escortIntents[0]['payload']['name']==='ai.escort'
+    &&$escortIntents[0]['payload']['target']==$escortTurn['payload']['speaker']
+    &&$escortAccepted['event_cursor']===$escortEvents['next_after'],'escort action did not retain the player target: '.json_encode([
+        'status'=>$status,'intent_count'=>count($escortIntents),'intent'=>$escortIntents[0]['payload']??null,
+        'speaker'=>$escortTurn['payload']['speaker'],'accepted_cursor'=>$escortAccepted['event_cursor']??null,
+        'next_after'=>$escortEvents['next_after']??null]));
+
+$faceTurn=$turn;$faceTurn['message_id']=$newUuid(298);$faceTurn['request_id']=$newUuid(299);$faceTurn['turn_id']=$newUuid(300);
+$faceTurn['payload']['input']['text']='Face me';$faceTurn['payload']['recent_action_results']=[];
+$faceTurn['payload']['action_request']=['name'=>'ai.face','tier'=>1,'parameters'=>[]];
+[$status,$faceAccepted]=$call($router,'POST',$base.'/turns',$headers($faceTurn['message_id']),[],$faceTurn);
+$assert($status===202,'face-player action was rejected');
+[$status,$faceEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$escortEvents['next_after']]);
+$faceIntents=array_values(array_filter($faceEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&count($faceIntents)===1&&$faceIntents[0]['payload']['name']==='ai.face'
+    &&$faceIntents[0]['payload']['target']==$faceTurn['payload']['speaker']
+    &&$faceAccepted['event_cursor']===$faceEvents['next_after'],'face-player action did not retain the player target');
+
+$faceTargetTurn=$faceTurn;$faceTargetTurn['message_id']=$newUuid(301);$faceTargetTurn['request_id']=$newUuid(302);
+$faceTargetTurn['turn_id']=$newUuid(303);$faceTargetTurn['payload']['input']['text']='Face selected target';
+$faceTargetTurn['payload']['context']['nearbyActors']=['items'=>[$secondaryTarget],'total'=>1,'truncated'=>false];
+$faceTargetTurn['payload']['action_request']['target']=$secondaryTarget;
+[$status,$faceTargetAccepted]=$call($router,'POST',$base.'/turns',$headers($faceTargetTurn['message_id']),[],$faceTargetTurn);
+$assert($status===202,'secondary-target face action was rejected');
+[$status,$faceTargetEvents]=$call($router,'GET',$base.'/events',[],[
+    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$faceEvents['next_after']]);
+$faceTargetIntents=array_values(array_filter($faceTargetEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
+$assert($status===200&&count($faceTargetIntents)===1&&$faceTargetIntents[0]['payload']['target']==$secondaryTarget
+    &&$faceTargetAccepted['event_cursor']===$faceTargetEvents['next_after'],'secondary face target was not preserved');
+
+$invalidTravel=$turn;$invalidTravel['message_id']=$newUuid(295);$invalidTravel['request_id']=$newUuid(296);$invalidTravel['turn_id']=$newUuid(297);
+$invalidTravel['payload']['input']['text']='Unsafe travel';$invalidTravel['payload']['action_request']=[
+    'name'=>'ai.travel','tier'=>1,'parameters'=>$destination+['teleport'=>true]];
+[$status,$invalidTravelError]=$call($router,'POST',$base.'/turns',$headers($invalidTravel['message_id']),[],$invalidTravel);
+$assert($status===409&&$invalidTravelError['code']==='action_parameters_invalid',
+    'unknown travel coordinate field passed catalog validation: '.$status.' '.json_encode($invalidTravelError));
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

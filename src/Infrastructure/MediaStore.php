@@ -37,7 +37,8 @@ final class MediaStore
             if (!flock($handle, LOCK_EX) || fwrite($handle, $bytes) !== $size || !fflush($handle)) {
                 throw new RuntimeException('media_write_failed');
             }
-            @chmod($temporary, 0600);
+        // The worker writes media and the Apache service reads it through their private shared group.
+        @chmod($temporary, 0640);
         } finally {
             fclose($handle);
         }
@@ -81,7 +82,7 @@ final class MediaStore
     private function ensureRoot(): void
     {
         if (!is_dir($this->root) && !mkdir($this->root, 0700, true) && !is_dir($this->root)) throw new RuntimeException('media_storage_unavailable');
-        @chmod($this->root, 0700);
+        @chmod($this->root, 02750);
         $real = realpath($this->root);
         $public = realpath(dirname(__DIR__, 2) . '/public');
         if ($real === false || is_link($this->root) || ($public !== false && ($real === $public || str_starts_with($real, $public . DIRECTORY_SEPARATOR)))) {

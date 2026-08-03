@@ -6,13 +6,22 @@ require dirname(__DIR__) . '/src/Autoload.php';
 require __DIR__ . '/Support/StateStore.php';
 
 use ALMSIVIserver\Config\Settings;
+use ALMSIVIserver\Application\ConnectorCatalog;
+use ALMSIVIserver\Application\CredentialStore;
+use ALMSIVIserver\Application\CloudSpeechConnectorProvider;
+use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
 use ALMSIVIserver\Application\MockSpeechProvider;
+use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\OpenAiCompatibleProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\InlineNarrationRouter;
+use ALMSIVIserver\Application\DialoguePlanner;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\ZonosGradioSpeechProvider;
+use ALMSIVIserver\Application\XvaSynthSpeechProvider;
 use ALMSIVIserver\Http\Response;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Tests\Support\StateStore;
@@ -59,6 +68,15 @@ try {
 }
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
+$actionProvider = new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key');
+$normalizeAction = new ReflectionMethod($actionProvider, 'normalizeAction');
+$normalizedAction = $normalizeAction->invoke($actionProvider,
+    ['utterances' => [['text' => 'Hello']], 'action' => ['function' => 'animation.play', 'parameters' => ['group' => 'idle2']]],
+    ['payload' => ['target' => ['record_id' => 'fargoth'], 'speaker' => ['record_id' => 'player']]]);
+$check(($normalizedAction['action']['name'] ?? null) === 'animation.play'
+    && ($normalizedAction['action']['tier'] ?? null) === 1
+    && ($normalizedAction['action']['actor']['record_id'] ?? null) === 'fargoth',
+    'OpenAI-compatible provider normalizes compact actions with trusted identities and canonical tiers');
 $check(new OpenAiCompatibleSpeechProvider('https://api.openai.com/v1/audio/speech', ['api.openai.com'], 'tts-test', 'alloy') instanceof OpenAiCompatibleSpeechProvider,
     'OpenAI-compatible TTS accepts a vetted HTTPS endpoint');
 $check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
@@ -77,11 +95,24 @@ foreach ([
     'session-init.json' => 'almsivi.session.init.v1',
     'turn.json' => 'almsivi.turn.v1',
     'interrupt.json' => 'almsivi.interrupt.v1',
+    'controls-query.json' => 'almsivi.controls.query.v1',
+    'controls-select.json' => 'almsivi.controls.select.v1',
 ] as $fixture => $schema) {
     $document = json_decode((string) file_get_contents($fixtureRoot . '/' . $fixture), true, 64, JSON_THROW_ON_ERROR);
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+$directActionTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$secondaryTarget=$directActionTurn['payload']['target'];$secondaryTarget['record_id']='mudcrab';
+$secondaryTarget['display_name']='Mudcrab';$secondaryTarget['kind']='creature';$secondaryTarget['refnum']['index']=113;
+$directActionTurn['payload']['action_request']=['name'=>'combat.start','tier'=>2,'parameters'=>[],'target'=>$secondaryTarget];
+$validator->validate($directActionTurn,'almsivi.turn.v1');
+$check(true,'typed player action request validates inside turn envelope');
+try{
+    $invalidDirectAction=$directActionTurn;$invalidDirectAction['payload']['action_request']['name']='../execute';
+    $validator->validate($invalidDirectAction,'almsivi.turn.v1');
+    $check(false,'unsafe player action name rejected');
+}catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','unsafe player action name rejected');}
 $legacyAction = json_decode((string) file_get_contents($fixtureRoot . '/action-result.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
 $action = $legacyAction + [
     'message_id' => '00000000-0000-4000-8000-000000000021',
@@ -96,10 +127,94 @@ $check($validator->decode('{}', 8) === [], 'empty JSON object decodes');
 
 $promptTurn=['schema'=>'almsivi.turn.v1','request_id'=>'r','turn_id'=>'t','installation_id'=>'i','profile_id'=>'p','playthrough_id'=>'w','session_id'=>'s','generation'=>1,'content_fingerprint'=>'sha256:'.str_repeat('a',64),'payload'=>['input'=>['kind'=>'text','language'=>'en','text'=>'Hello'],'speaker'=>['record_id'=>'player'],'target'=>['record_id'=>'npc'],'audience'=>[],'context'=>[],'ui_source'=>'chat']];
 $promptSelection=['profile'=>['profile_id'=>'p','revision'=>1,'content'=>['role'=>'hero']],'prompt'=>['configuration_id'=>'c','revision'=>2,'content'=>['instruction'=>'Stay in character']],'memory'=>[['memory_id'=>'m','content'=>'A memory']],'relationship'=>[],'knowledge'=>[],'narrative'=>[],'recent_action_results'=>[['action_id'=>'a','status'=>'succeeded','reason_code'=>'ok','observed'=>[],'completed_at'=>'2026-01-01T00:00:00Z']]];
+$promptTurn['_player_profile']=['profile_id'=>'player-profile','name'=>'Nerevarine','revision'=>3,
+    'actor_identity'=>['kind'=>'player','display_name'=>'Nerevarine'],
+    'content'=>['biography'=>'Freed from the Imperial prison.','personality'=>'Curious','ignored'=>'not prompt-safe']];
+$promptTurn['_item_descriptions']=[['description_id'=>'private','record_id'=>'iron_dagger','content_file'=>'Morrowind.esm','name'=>'Iron Dagger','description'=>'A short iron blade.','ignored'=>'not prompt-safe either']];
 $assembler=new PromptAssembler(4096,1024);$assembled=$assembler->assemble($promptTurn,$promptSelection);$repeat=$assembler->assemble($promptTurn,$promptSelection);
 $check($assembled===$repeat && str_starts_with($assembled['provider_input']['_assembled_prompt'],'[PROFILE]'), 'prompt assembly is deterministic and ordered');
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'player_profile')
+    &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
+    &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
+    'server-owned player profile is included in turn context with an explicit field allowlist');
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'record_descriptions')
+    &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
+    &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
+    'server-owned record descriptions are included with an explicit field allowlist');
 $check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0]) && $assembled['trace']['sources'][0]['redacted_preview']==='', 'prompt trace is bounded and metadata-only');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
+
+$identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
+    'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',
+    'cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>$name];
+$narrator=$identity('narrator','almsivi:narrator',0,'The Narrator');$narrator['content_file']='ALMSIVI';
+$narrationTurn=['payload'=>['speaker'=>$identity('player','player',2,'Nerevarine'),
+    'target'=>$identity('npc','fargoth',1,'Fargoth'),'audience'=>[]],
+    '_narrator_profile'=>['actor_identity'=>$narrator,'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator']]];
+$routed=(new InlineNarrationRouter())->route($narrationTurn,['utterances'=>[['text'=>'*The swamp falls quiet.* Welcome, outlander.']],'action'=>null]);
+$planned=(new DialoguePlanner())->plan($narrationTurn,$routed);
+$check(count($planned)===2&&$planned[0]['speaker']['kind']==='narrator'&&$planned[0]['text']==='The swamp falls quiet.'
+    &&$planned[1]['speaker']['record_id']==='fargoth'&&$planned[1]['text']==='Welcome, outlander.',
+    'enabled inline narration routes a leading block through the narrator before NPC speech');
+$narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Text Only';
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['utterances'=>[['text'=>'*A distant silt strider calls.* Hello.']],'action'=>null]));
+$check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===true,
+    'text-only narration remains visible without synthesizing narrator audio');
+
+$ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
+$check(count($ttsCatalog)===22 && count($sttCatalog)===7, 'CHIM-lineage TTS and STT connector catalogs are complete');
+$check(array_column(ConnectorCatalog::optionFields('tts_provider','xtts-fastapi'),'name')===
+    ['speed','temperature','top_p','top_k','repetition_penalty']
+    &&array_column(ConnectorCatalog::optionFields('stt_provider','azure'),'name')===['profanity']
+    &&array_column(ConnectorCatalog::optionFields('stt_provider','gemini'),'name')===['include_tone'],
+    'connector catalog exposes labelled fields for every runtime-supported advanced option');
+$check(ConnectorCatalog::defaults('tts_provider','pockettts')['endpoint']==='http://127.0.0.1:8086'
+    &&ConnectorCatalog::defaults('tts_provider','openai')['model']==='tts-1'
+    &&ConnectorCatalog::defaults('stt_provider','parakeet')['endpoint']==='http://127.0.0.1:8022'
+    &&ConnectorCatalog::defaults('stt_provider','gemini')['model']==='gemini-2.5-flash',
+    'connector catalog exposes driver-specific create defaults for local and cloud providers');
+$credentialRoot=sys_get_temp_dir().'/almsivi-credentials-'.bin2hex(random_bytes(4));mkdir($credentialRoot,0700);
+$credentialPath=$credentialRoot.'/provider-keys.json';$credentialStore=new CredentialStore($credentialPath);
+$credentialStore->set('ALMSIVI_TTS_GCP_API_KEY','managed-secret');
+$check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='managed-secret'
+    &&count(array_filter($credentialStore->statuses(),static fn(array$row):bool=>$row['variable']==='ALMSIVI_TTS_GCP_API_KEY'&&$row['source']==='managed store'))===1,
+    'credential store resolves managed keys while exposing status metadata only');
+putenv('ALMSIVI_TTS_GCP_API_KEY=environment-secret');
+$check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='environment-secret','process environment overrides browser-managed credentials');
+putenv('ALMSIVI_TTS_GCP_API_KEY');$credentialStore->delete('ALMSIVI_TTS_GCP_API_KEY');
+$check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')===''&&(fileperms($credentialPath)&0777)===0640,'credential deletion is persistent and store permissions are restrictive');
+unlink($credentialPath);rmdir($credentialRoot);
+$preset=ConnectorCatalog::validate('tts_provider',['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8020','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]);
+$check($preset['driver']==='pockettts' && $preset['timeout_ms']===30000, 'speech connector preset validation is strict and normalized');
+$localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
+    'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
+foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
+    $check(ProviderFactory::speechForPreset([], $localPreset($driver)) instanceof LocalSpeechConnectorProvider,
+        $driver . ' selected connector builds a bounded local WAV adapter');
+}
+$cloudPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
+    'endpoint'=>'https://example.com','model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
+foreach(['11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inworld'] as $driver){
+    $check(ProviderFactory::speechForPreset([], $cloudPreset($driver)) instanceof CloudSpeechConnectorProvider,
+        $driver . ' selected connector builds a credential-isolated cloud WAV adapter');
+}
+$cloudSttPreset=static fn(string $driver):array=>['kind'=>'stt_provider','content'=>['driver'=>$driver,
+    'endpoint'=>'https://example.com','model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
+foreach(['azure','deepgram','gemini','inworld'] as $driver){
+    $check(ProviderFactory::speechToTextForPreset([], $cloudSttPreset($driver)) instanceof CloudSpeechToTextConnectorProvider,
+        $driver . ' selected STT connector builds a credential-isolated cloud adapter');
+}
+$voiceRoot=sys_get_temp_dir().'/almsivi-zonos-'.bin2hex(random_bytes(4));mkdir($voiceRoot);
+$zonosPreset=['kind'=>'tts_provider','content'=>['driver'=>'zonos_gradio','endpoint'=>'http://127.0.0.1:8999',
+    'model'=>'Zyphra/Zonos-v0.1-hybrid','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
+$check(ProviderFactory::speechForPreset(['voice_storage_path'=>$voiceRoot],$zonosPreset) instanceof ZonosGradioSpeechProvider,
+    'Zonos selected connector builds its bounded Gradio job adapter');
+rmdir($voiceRoot);
+$xvaPreset=['kind'=>'tts_provider','content'=>['driver'=>'xvasynth','endpoint'=>'http://127.0.0.1:8999',
+    'model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
+$check(ProviderFactory::speechForPreset([],$xvaPreset) instanceof XvaSynthSpeechProvider,
+    'xVASynth selected connector builds its bounded WSL shared-file adapter');
 
 try {
     $turn = json_decode((string) file_get_contents($fixtureRoot . '/turn.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];

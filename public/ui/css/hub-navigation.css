@@ -165,10 +165,19 @@ body.hub-page .config-navigation {
 
 @media (max-width: 620px) {
     .tab-buttons {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+        grid-template-columns: minmax(0, 1fr);
     }
 
     .tab-button {
         font-size: 0.88em;
+    }
+
+    body.hub-page,
+    body.hub-page > main,
+    body.hub-page .top-area,
+    body.hub-page .content-area {
+        min-width: 0;
+        max-width: 100vw;
+        overflow-x: hidden;
     }
 }

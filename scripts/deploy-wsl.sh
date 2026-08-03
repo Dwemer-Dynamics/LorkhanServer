@@ -23,15 +23,24 @@ if ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8089$'; then
     fi
 fi
 
-install -d -m 0755 /var/www/ALMSIVIserver/releases /etc/almsiviserve
+install -d -m 0755 /var/www/ALMSIVIserver/releases /etc/almsiviserver
 getent group almsivi >/dev/null || groupadd --system almsivi
 if ! id -u almsivi >/dev/null 2>&1; then
     useradd --system --gid almsivi --groups www-data --home-dir /nonexistent --shell /usr/sbin/nologin almsivi
 else
     usermod --append --groups www-data almsivi
 fi
-install -d -o almsivi -g www-data -m 0770 /var/lib/almsiviserver/media
-install -d -o almsivi -g www-data -m 0750 /var/log/almsiviserve
+install -d -o almsivi -g www-data -m 2750 /var/lib/almsiviserver/media
+find /var/lib/almsiviserver/media -xdev -type f -name '*.media' -exec chown almsivi:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/voices
+find /var/lib/almsiviserver/voices -xdev -type f -name '*.wav' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/profile-portraits
+find /var/lib/almsiviserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/backups
+find /var/lib/almsiviserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/credentials
+find /var/lib/almsiviserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o almsivi -g www-data -m 0750 /var/log/almsiviserver
 
 release_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "${source_root}" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
 release_dir="/var/www/ALMSIVIserver/releases/${release_id}"
@@ -119,6 +128,10 @@ return [
         'timeout_ms' => 30000,
     ],
     'media_storage_path' => '/var/lib/almsiviserver/media',
+    'voice_storage_path' => '/var/lib/almsiviserver/voices',
+    'portrait_storage_path' => '/var/lib/almsiviserver/profile-portraits',
+    'backup_storage_path' => '/var/lib/almsiviserver/backups',
+    'credential_storage_path' => '/var/lib/almsiviserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,
     'worker' => [
@@ -190,7 +203,7 @@ else
     install -m 0755 "${release_dir}/deploy/sysv/almsiviserver-worker-loop" \
         /usr/local/libexec/almsiviserver-worker-loop
     install -m 0755 "${release_dir}/deploy/sysv/almsiviserver-worker" \
-        /etc/init.d/almsiviserver-worke
+        /etc/init.d/almsiviserver-worker
     update-rc.d almsiviserver-worker defaults >/dev/null
     service almsiviserver-worker restart
     service almsiviserver-worker status >/dev/null

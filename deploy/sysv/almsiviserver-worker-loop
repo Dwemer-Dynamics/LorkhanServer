@@ -1,6 +1,15 @@
 #!/usr/bin/env bash
 set -u
 
+if [[ -r /etc/almsiviserver/worker.env ]]; then
+    set -a
+    # The root-owned environment file contains the runtime database and provider variables.
+    source /etc/almsiviserver/worker.env
+    set +a
+fi
+: "${ALMSIVI_CONFIG:=/etc/almsiviserver/server.php}"
+export ALMSIVI_CONFIG
+
 child_pid=
 stop_worker() {
     if [[ ${child_pid:-} =~ ^[0-9]+$ ]] && kill -0 "${child_pid}" 2>/dev/null; then
@@ -12,8 +21,7 @@ stop_worker() {
 trap stop_worker TERM INT
 
 while true; do
-    ALMSIVI_CONFIG=/etc/almsiviserver/server.php \
-        /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
+    /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
     child_pid=$!
     wait "${child_pid}" || true
     child_pid=

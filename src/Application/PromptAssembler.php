@@ -62,8 +62,8 @@ final class PromptAssembler
 
         $profile = $this->selectedRevision($selection, 'profile');
         $prompt = $this->selectedRevision($selection, 'prompt');
-        $this->assertSourceScope($profile, $turn);
-        $this->assertSourceScope($prompt, $turn);
+        $this->assertSourceScope($profile, $turn, 'profile');
+        $this->assertSourceScope($prompt, $turn, 'prompt');
 
         $rows = [
             'profile' => [$profile],
@@ -101,7 +101,7 @@ final class PromptAssembler
                 if (!is_array($item) || array_is_list($item)) {
                     throw new InvalidArgumentException('invalid_prompt_source');
                 }
-                $this->assertSourceScope($item, $turn);
+                $this->assertSourceScope($item, $turn, $kind);
                 $id = $this->sourceId($kind, $item);
                 $content = $this->canonical($this->sourceContent($kind, $item));
                 $sourceBytes = strlen($content);
@@ -228,11 +228,14 @@ final class PromptAssembler
     }
 
     /** @param array<string,mixed> $source @param array<string,mixed> $turn */
-    private function assertSourceScope(array $source, array $turn): void
+    private function assertSourceScope(array $source, array $turn, string $kind): void
     {
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) {
-            if (array_key_exists($field, $source) && $source[$field] !== null
-                && (!is_string($source[$field]) || !hash_equals((string) $turn[$field], $source[$field]))) {
+            if (!array_key_exists($field, $source) || $source[$field] === null) continue;
+            $expected=$turn[$field];
+            if($field==='profile_id'&&in_array($kind,['profile','prompt'],true)
+                &&is_string($turn['_selected_profile_id']??null))$expected=$turn['_selected_profile_id'];
+            if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {
                 throw new InvalidArgumentException('prompt_source_scope_mismatch');
             }
         }
@@ -276,7 +279,32 @@ final class PromptAssembler
     /** @param array<string,mixed> $turn @return array<string,mixed> */
     private function turnContent(array $turn): array
     {
-        return $this->allow($turn['payload'], ['input', 'speaker', 'target', 'audience', 'context', 'ui_source']);
+        $content=$this->allow($turn['payload'], ['input', 'speaker', 'target', 'audience', 'context', 'ui_source']);
+        $player=$turn['_player_profile']??null;
+        if(is_array($player)&&!array_is_list($player)){
+            $identity=is_array($player['actor_identity']??null)&&!array_is_list($player['actor_identity'])
+                ?$this->allow($player['actor_identity'],['kind','display_name']):[];
+            $profileContent=is_array($player['content']??null)&&!array_is_list($player['content'])
+                ?$this->allow($player['content'],['appearance','biography','personality','speech_style','goals','notes']):[];
+            $summary=[];
+            foreach(['profile_id','name','revision']as$field)if(isset($player[$field])&&(is_string($player[$field])||is_int($player[$field])))$summary[$field]=$player[$field];
+            if($identity!==[])$summary['identity']=$identity;
+            if($profileContent!==[])$summary['content']=$profileContent;
+            if($summary!==[])$content['player_profile']=$summary;
+        }
+        $narrator=$turn['_narrator_profile']??null;
+        if(is_array($narrator)&&!array_is_list($narrator)){
+            $narratorContent=is_array($narrator['content']??null)&&!array_is_list($narrator['content'])
+                ?$this->allow($narrator['content'],['enabled','inline_narration_mode','biography','personality','speech_style','goals','notes']):[];
+            $identity=is_array($narrator['actor_identity']??null)&&!array_is_list($narrator['actor_identity'])
+                ?$this->allow($narrator['actor_identity'],['kind','display_name']):[];
+            $content['narrator_profile']=['identity'=>$identity,'content'=>$narratorContent];
+        }
+        $descriptions=$turn['_item_descriptions']??null;
+        if(is_array($descriptions)&&array_is_list($descriptions)){$safe=[];foreach(array_slice($descriptions,0,64)as$item){if(!is_array($item)||array_is_list($item))continue;
+            $row=$this->allow($item,['record_id','content_file','name','description']);if(isset($row['record_id'],$row['description']))$safe[]=$row;}
+            if($safe!==[])$content['record_descriptions']=$safe;}
+        return$content;
     }
 
     /** @param array<string,mixed> $turn @return array<string,mixed> */

@@ -19,6 +19,7 @@ try {
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');
+    $config['credential_storage_path'] ??= '/var/lib/almsiviserver/credentials/provider-keys.json';
     $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
 
     $database = Connection::open($config);

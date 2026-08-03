@@ -26,6 +26,9 @@ final class DialoguePlanner
             if (!is_array($identity) || array_is_list($identity)) throw new DomainException('provider_invalid_output');
             $eligible[$this->identityKey($identity)] ??= $identity;
         }
+        $narratorEnabled=($turn['_narrator_profile']['content']['enabled']??false)===true;
+        $narrator=$turn['_narrator_profile']['actor_identity']??null;
+        if($narratorEnabled&&is_array($narrator)&&!array_is_list($narrator))$eligible[$this->identityKey($narrator)]=$narrator;
         if ($eligible === []) throw new DomainException('provider_invalid_output');
 
         $raw = $providerResult['utterances'] ?? null;
@@ -58,7 +61,9 @@ final class DialoguePlanner
             $totalBytes += strlen($text);
             if ($totalBytes > self::MAX_TOTAL_BYTES) throw new DomainException('provider_invalid_output');
             $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
-                'audience' => array_values($eligible), 'text' => $text, 'index' => $index + 1, 'count' => count($raw)];
+                'audience' => array_values($eligible), 'text' => $text,
+                'speech_enabled'=>($candidate['speech_enabled']??true)!==false,
+                'index' => $index + 1, 'count' => count($raw)];
         }
         return $utterances;
     }

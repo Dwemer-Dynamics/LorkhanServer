@@ -9,10 +9,10 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
+    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
+        'action.ai.stop', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
         'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'];
-    private const ENABLED_ACTIONS = ['inspect.report','ai.follow','ai.stop','ai.wander','combat.start','combat.stop',
+    private const ENABLED_ACTIONS = ['inspect.report','ai.follow','ai.stop','ai.travel','ai.escort','ai.face','ai.wander','combat.start','combat.stop',
         'animation.play','item.equip','item.unequip','item.use'];
     public function __construct(
         private readonly PDO $db,
@@ -188,15 +188,34 @@ final class Repository
 
     /** @param array<string,mixed>|null $providerInput @param array<string,mixed>|null $promptTrace */
     public function acceptTurn(array $m, ?array $providerInput = null, ?array $promptTrace = null,
-        ?string $idempotencyHash = null, ?array $idempotencyResponse = null): array
+        ?string $idempotencyHash = null, ?array $idempotencyResponse = null, ?array $directAction = null): array
     {
-        return $this->transaction(function () use ($m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse): array {
+        return $this->transaction(function () use (
+            $m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse, $directAction
+        ): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             foreach (['installation_id' => 'installation_id', 'profile_id' => 'profile_id', 'playthrough_id' => 'playthrough_id',
                 'content_fingerprint' => 'content_fingerprint'] as $request => $stored) {
                 if ((string) $m[$request] !== (string) $session[$stored]) throw new \UnexpectedValueException('stale_generation');
             }
             $p = $m['payload'];
+            $validatedDirectAction = null;
+            if ($directAction !== null) {
+                if ($this->actionCatalog === null || $this->actionPolicy === null) throw new \DomainException('action_disabled');
+                $actionTarget = $p['speaker'];
+                if (array_key_exists('target', $directAction)) {
+                    if (!in_array($directAction['name'], ['ai.face','combat.start','combat.stop'], true)
+                        || !$this->contextContainsIdentity($p['context'], $directAction['target'])
+                        || $this->sameIdentity($p['target'], $directAction['target'])) {
+                        throw new \DomainException('action_target_invalid');
+                    }
+                    $actionTarget = $directAction['target'];
+                }
+                $proposal = ['name' => $directAction['name'], 'tier' => $directAction['tier'],
+                    'parameters' => $directAction['parameters'], 'actor' => $p['target'], 'target' => $actionTarget];
+                $validatedDirectAction = $this->actionPolicy->validate($proposal,
+                    $this->actionCatalog->loadForSession($m['session_id'], $m['generation']));
+            }
             $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, input_kind, '
                 . 'input_language, input_text, speaker, target, audience, context, state, accepted_at) VALUES '
                 . '(:turn, :request, :message, :session, :generation, :kind, :language, :text, CAST(:speaker AS jsonb), '
@@ -211,7 +230,9 @@ final class Repository
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
                 $jobPayload = ['turn_id' => $m['turn_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
-                $manifest=['message'=>$m,'capabilities'=>$session['capabilities'],'trace'=>$promptTrace];
+                // Freeze the exact provider input accepted for this turn. The raw client message
+                // remains in source_events, while workers consume only this assembled snapshot.
+                $manifest=['message'=>$providerInput,'capabilities'=>$session['capabilities'],'trace'=>$promptTrace];
                 $this->db->prepare('INSERT INTO turn_provider_snapshots (turn_id,source_manifest,input_sha256,created_at) '
                     . 'VALUES (:turn,CAST(:manifest AS jsonb),:sha,clock_timestamp())')
                     ->execute(['turn'=>$m['turn_id'],'manifest'=>$this->encode($manifest),
@@ -221,6 +242,16 @@ final class Repository
                     . "VALUES (:id,'turn.process',1,:key,CAST(:payload AS jsonb),3,100) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                     ->execute(['id' => Uuid::v4(), 'key' => 'turn:' . $m['turn_id'], 'payload' => $this->encode($jobPayload)]);
             }
+            if ($validatedDirectAction !== null) {
+                $this->action($m, $m['request_id'], $validatedDirectAction);
+                $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'],
+                    'turn.complete', ['status' => 'complete']);
+                $updated = $this->db->prepare(
+                    "UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:id AND state='accepted'"
+                );
+                $updated->execute(['id' => $m['turn_id']]);
+                if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
+            }
             $event['capabilities'] = $session['capabilities'];
             if ($idempotencyHash !== null && $idempotencyResponse !== null) {
                 $idempotencyResponse['event_cursor'] = $event['sequence'];
@@ -228,6 +259,27 @@ final class Repository
             }
             return $event;
         });
+    }
+
+    /** Verify a player-selected action target against the bounded nearby-actor snapshot. */
+    private function contextContainsIdentity(array $context, array $target): bool
+    {
+        $items = $context['nearbyActors']['items'] ?? null;
+        if (!is_array($items) || !array_is_list($items)) return false;
+        foreach ($items as $candidate) {
+            if (is_array($candidate) && !array_is_list($candidate) && $this->sameIdentity($candidate, $target)) return true;
+        }
+        return false;
+    }
+
+    /** Compare only immutable OpenMW identity fields; display names are snapshots, not authority. */
+    private function sameIdentity(array $left, array $right): bool
+    {
+        return ($left['kind'] ?? null) === ($right['kind'] ?? null)
+            && ($left['record_id'] ?? null) === ($right['record_id'] ?? null)
+            && ($left['refnum'] ?? null) == ($right['refnum'] ?? null)
+            && ($left['content_file'] ?? null) === ($right['content_file'] ?? null)
+            && ($left['cell'] ?? null) == ($right['cell'] ?? null);
     }
 
     /** @return array<string,mixed> */
@@ -666,7 +718,7 @@ final class Repository
 
     private function recordPromptTrace(array $turn,array $trace):void
     {
-        $id=Uuid::v4();$this->db->prepare('INSERT INTO prompt_traces (prompt_trace_id,installation_id,profile_id,playthrough_id,session_id,turn_id,request_id,prompt_configuration_id,prompt_revision,algorithm,input_sha256,input_bytes,truncated,created_at) VALUES (:id,:installation,:profile,:playthrough,:session,:turn,:request,:config,:revision,:algorithm,:sha,:bytes,:truncated,clock_timestamp())')->execute(['id'=>$id,'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],'session'=>$turn['session_id'],'turn'=>$turn['turn_id'],'request'=>$turn['request_id'],'config'=>$trace['prompt_configuration_id']===$turn['profile_id']?null:$trace['prompt_configuration_id'],'revision'=>$trace['prompt_revision'],'algorithm'=>$trace['algorithm'],'sha'=>$trace['input_sha256'],'bytes'=>$trace['input_bytes'],'truncated'=>$trace['truncated']?'true':'false']);
+        $id=Uuid::v4();$this->db->prepare('INSERT INTO prompt_traces (prompt_trace_id,installation_id,profile_id,playthrough_id,session_id,turn_id,request_id,prompt_configuration_id,prompt_revision,selected_profile_id,selected_profile_revision,algorithm,input_sha256,input_bytes,truncated,created_at) VALUES (:id,:installation,:profile,:playthrough,:session,:turn,:request,:config,:revision,:selected_profile,:selected_revision,:algorithm,:sha,:bytes,:truncated,clock_timestamp())')->execute(['id'=>$id,'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],'session'=>$turn['session_id'],'turn'=>$turn['turn_id'],'request'=>$turn['request_id'],'config'=>$trace['prompt_configuration_id']===$trace['profile_id']?null:$trace['prompt_configuration_id'],'revision'=>$trace['prompt_revision'],'selected_profile'=>$trace['profile_id'],'selected_revision'=>$trace['profile_revision'],'algorithm'=>$trace['algorithm'],'sha'=>$trace['input_sha256'],'bytes'=>$trace['input_bytes'],'truncated'=>$trace['truncated']?'true':'false']);
         foreach($trace['sources'] as $source)$this->db->prepare('INSERT INTO prompt_trace_sources (prompt_trace_id,ordinal,source_kind,source_id,included,reason,source_sha256,included_bytes,redacted_preview) VALUES (:trace,:ordinal,:kind,:source,:included,:reason,:sha,:bytes,\'\')')->execute(['trace'=>$id,'ordinal'=>$source['ordinal'],'kind'=>$source['source_kind'],'source'=>$source['source_id'],'included'=>$source['included']?'true':'false','reason'=>$source['reason'],'sha'=>$source['source_sha256'],'bytes'=>$source['included_bytes']]);
     }
 

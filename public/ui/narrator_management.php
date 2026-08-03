@@ -1,3 +1,3 @@
 <?php
-$uiRootDir = __DIR__; $view = 'autonomy'; $pageTitle = 'Narrator & Autonomy'; $topNavSection = 'configuration';
+$uiRootDir = __DIR__; $view = 'narrator'; $pageTitle = 'Narration'; $topNavSection = 'configuration';
 require $uiRootDir . '/tmpl/resource_page.php';

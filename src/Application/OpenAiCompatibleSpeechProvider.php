@@ -18,22 +18,25 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         private readonly string $voice,
         private readonly string $apiKey = '',
         private readonly int $timeoutMs = 30_000,
+        private readonly bool $allowLoopbackHttp = false,
     ) {
-        OutboundUrlPolicy::validate($endpoint, $allowedHosts);
+        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
         if ($model === '' || strlen($model) > 200 || $voice === '' || strlen($voice) > 200
             || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_speech_configuration');
         }
     }
 
-    public function synthesize(string $text, CancellationToken $cancellation): array
+    public function synthesize(string $text, CancellationToken $cancellation, array $context = []): array
     {
         $cancellation->throwIfCancellationRequested();
         $text = trim($text);
         if ($text === '' || mb_strlen($text) > 4096) throw new RuntimeException('provider_invalid_input');
-        $body = json_encode(['model' => $this->model, 'voice' => $this->voice, 'input' => $text,
+        $voice = trim((string) ($context['voice'] ?? $this->voice));
+        if ($voice === '' || strlen($voice) > 512) throw new RuntimeException('provider_invalid_input');
+        $body = json_encode(['model' => $this->model, 'voice' => $voice, 'input' => $text,
             'response_format' => 'wav'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts));
+        $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts, $this->allowLoopbackHttp));
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         $headers = ['Content-Type: application/json', 'Accept: audio/wav'];
         if ($this->apiKey !== '') $headers[] = 'Authorization: Bearer ' . $this->apiKey;
