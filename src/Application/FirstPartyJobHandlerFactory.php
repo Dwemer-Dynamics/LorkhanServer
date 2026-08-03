@@ -23,9 +23,12 @@ final class FirstPartyJobHandlerFactory
             new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),(int)($providerConfig['provider']['timeout_ms']??30_000))];
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db,256,
-                new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider, $speechProvider,
-                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,$products);
+                new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider,
+                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig);
         }
+        $handlers[] = new SpeechSynthesizeJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$speechProvider,
+            $mediaStore,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig,
+            (int)($providerConfig['provider']['timeout_ms']??120_000));
         if($sttProvider!==null)$handlers[]=new SttProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$sttProvider,$mediaStore,
             new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
@@ -51,6 +54,7 @@ final class FirstPartyJobHandlerFactory
     {
         return [
             TurnProcessJobHandler::TYPE,
+            SpeechSynthesizeJobHandler::TYPE,
             SttProcessJobHandler::TYPE,
             MemoryDeriveJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,

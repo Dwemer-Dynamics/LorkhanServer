@@ -6,12 +6,12 @@ use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Security\OutboundUrlPolicy;
 
-$uiRootDir=dirname(__DIR__);$pageTitle='ALMSIVI TTS Studio';$topNavSection='configuration';
+$uiRootDir=dirname(__DIR__);$pageTitle='ALMSIVI TTS Studio';$topNavSection='configuration';$bodyClass='configuration-resource view-voice-library';
 require $uiRootDir.'/ui_bootstrap.php';
 
 $voiceRoot=(string)($config['voice_storage_path']??(is_dir('/var/lib/almsiviserver')?'/var/lib/almsiviserver/voices':($applicationRoot.'/storage/voices')));
 if(!is_dir($voiceRoot)&&!mkdir($voiceRoot,0750,true)&&!is_dir($voiceRoot))throw new RuntimeException('Voice storage is unavailable.');
-$products=new ProductRepository($database);$installations=$uiRepository->rows('global_settings');
+$products=new ProductRepository($database);$installations=$uiRepository->rows('installations');
 $installationId=(string)($installations[0]['installation_id']??'');
 $activeTts=$installationId===''?null:$products->connectorForInstallation($installationId,'tts_provider');
 $ttsPresets=array_values(array_filter($uiRepository->rows('tts'),static fn(array$row):bool=>$installationId!==''&&($row['installation_id']??'')===$installationId));
@@ -220,8 +220,7 @@ usort($samples,static fn(array$a,array$b):int=>strcasecmp($a['name'],$b['name'])
 include $uiRootDir.'/tmpl/head.html';if(!$embedded)include $uiRootDir.'/tmpl/navbar.php';
 ?>
 <main class="management-page">
-    <h1>ALMSIVI TTS Studio</h1>
-    <p>Manage persistent WAV voice references, sync compatible local services, and test every configured TTS connector. Voice files never enter profile JSON or browser cookies.</p>
+    <header class="configuration-page-header"><h1>ALMSIVI TTS Studio</h1><p>Manage persistent WAV voice references, sync compatible local services, and test every configured TTS connector. Voice files never enter profile JSON or browser cookies.</p></header>
     <?php if($notice!==''):?><p class="page-status" role="status"><?php echo almsivi_ui_h($notice);?></p><?php endif;?>
     <?php if($error!==''):?><p class="page-error" role="alert"><?php echo almsivi_ui_h($error);?></p><?php endif;?>
     <section class="widget widget-wide"><div class="widget-header"><h3>Active TTS</h3></div><div class="widget-content">

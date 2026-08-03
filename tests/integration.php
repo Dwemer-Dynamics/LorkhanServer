@@ -4,11 +4,14 @@ declare(strict_types=1);
 use ALMSIVIserver\Application\ActionPolicyValidator;
 use ALMSIVIserver\Application\CancellationToken;
 use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
+use ALMSIVIserver\Application\DeterministicClock;
 use ALMSIVIserver\Application\MockProvider;
 use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\MockSpeechToTextProvider;
+use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
@@ -38,9 +41,11 @@ $token = PairingToken::generate();
 $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installationId='00000000-0000-4000-8000-000000000001';
 $attempts = new ProviderAttemptRepository($db);
 $products = new ProductRepository($db);
+$morrowindVoices=MorrowindVoiceCatalog::bundled();
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
-    products:$products,promptAssembler:new PromptAssembler(),sttProvider: new MockSpeechToTextProvider());
+    products:$products,promptAssembler:new PromptAssembler(),sttProvider: new MockSpeechToTextProvider(),
+    morrowindVoices:$morrowindVoices);
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
@@ -63,7 +68,11 @@ $runWorker = function (array $types, ?Provider $provider = null) use ($db,$media
         sttProvider:new MockSpeechToTextProvider()), 'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
-$runTurnWorker = fn(Provider $provider): array => $runWorker(['turn.process'], $provider);
+$runTurnWorker = function(Provider $provider) use($runWorker):array {
+    $turnStats=$runWorker(['turn.process'],$provider);
+    $runWorker(['speech.synthesize'],$provider);
+    return $turnStats;
+};
 
 [$status, $health] = $call($router, 'GET', $base . '/health');
 $assert($status === 200 && $health['schema'] === 'almsivi.health.v1', 'health failed');
@@ -92,8 +101,14 @@ $assert($status === 422, 'incoherent session idempotency key accepted');
 $assert($status === 201 && $accepted['generation'] === 7
     && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
-        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'], 'session create failed');
+        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use']
+    &&$accepted['config_revision']==='global-settings-default-v1'
+    &&($accepted['client_settings']['schema']??null)==='almsivi.client-settings.v1'
+    &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
 $sessionId = $accepted['session_id'];
+$playerProfile=$products->playerProfileForInstallation($installationId);
+$assert(($playerProfile['actor_identity']['kind']??null)==='player'&&($playerProfile['revision']??null)===1,
+    'session start did not materialize the installation player profile');
 [$status, $duplicateSession] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $duplicateSession == $accepted, 'session duplicate failed');
 $conflict = $session; $conflict['profile_id'] = $newUuid(4);
@@ -118,6 +133,51 @@ $actorProfile=$products->createRevisioned('profile',['installation_id'=>$install
 $profileTtsPreset=$products->createRevisioned('tts_provider',['installation_id'=>$installationId,'name'=>'Profile-routed speech',
     'content'=>['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8086','model'=>'tts-1','voice'=>'default',
         'language'=>'en','timeout_ms'=>30000,'options'=>['fallback_female'=>'fallback_female_voice']]],$now);
+$products->replaceConnectorVoiceCatalog($profileTtsPreset['configuration_id'],[[
+    'id'=>'mw_wood_elf_male','display'=>'Morrowind Wood Elf Male','language'=>'en','status'=>'runtime_ready','custom'=>true],
+    ['id'=>'fargoth','display'=>'Fargoth (Morrowind Wood Elf Male)','language'=>'en','status'=>'runtime_ready','custom'=>true]],$now);
+$products->selectConnector($installationId,'tts_provider',$profileTtsPreset['configuration_id'],$now);
+$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Bosmer male biography template',
+    'actor_identity'=>['kind'=>'template'],'content'=>['race'=>'Wood Elf','gender'=>'Male',
+        'biography'=>'A Bosmer raised beneath the great graht-oaks.','personality'=>'Observant and quick-witted.']],$now);
+$automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];
+$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]];
+$automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
+$assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
+$assert(($morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],
+    ['targetState'=>['identity'=>['race'=>'','gender'=>'']]])['id']??null)==='mw_wood_elf_male',
+    'known legacy NPC fallback was hidden by empty profile metadata');
+$exactFargothVoice=$products->preferExactProviderActorVoice($installationId,['kind'=>'npc','record_id'=>'fargoth'],
+    $morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],['targetState'=>['identity'=>['race'=>'','gender'=>'']]]));
+$assert(($exactFargothVoice['id']??null)==='fargoth'&&($exactFargothVoice['source']??null)==='actor_provider_catalog'
+    &&($exactFargothVoice['race']??null)==='wood elf'&&($exactFargothVoice['gender']??null)==='Male',
+    'active provider exact actor voice did not override the race and gender fallback');
+$automaticProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$automaticTarget]],$automaticVoice,$now);
+$automaticProfile=$products->getRevisioned('profile',$automaticProfileId);
+$assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
+    &&($automaticProfile['content']['voice']['source']??null)==='morrowind_race_gender_catalog'
+    &&($automaticProfile['content']['biography']??null)==='A Bosmer raised beneath the great graht-oaks.'
+    &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.',
+    'first-seen NPC profile did not retain its catalog voice and matching biography template');
+$legacyContent=$automaticProfile['content'];$legacyContent['voice']=['id'=>'automatic_bosmer','language'=>'en'];
+$legacyContent['management']['locked']=true;$products->revise('profile',$automaticProfileId,$legacyContent,'legacy automatic voice fixture',$now);
+$backfilled=$products->backfillMorrowindCatalogVoices($morrowindVoices,$now);
+$automaticProfile=$products->getRevisioned('profile',$automaticProfileId);
+$fargothProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$assert($backfilled['updated']>=1&&($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
+    &&($automaticProfile['content']['management']['locked']??false)===true,
+    'legacy actor-name voice was not repaired without preserving its profile lock');
+$assert(($fargothProfile['content']['voice']['id']??null)==='fargoth'
+    &&($fargothProfile['content']['voice']['source']??null)==='morrowind_actor_provider_catalog',
+    'voice backfill did not upgrade the current Fargoth profile to its exact provider sample');
+$automaticSpeech=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$profileTtsPreset);
+$assert($automaticSpeech===['voice'=>'mw_wood_elf_male','language'=>'en'],
+    'catalog voice was not selected when the routed connector contained it');
+$db->prepare("DELETE FROM installation_provider_selections WHERE installation_id=:installation AND provider_kind='tts_provider'")
+    ->execute(['installation'=>$installationId]);
 $speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Jiub speech route',
     'actor_identity'=>['record_id'=>'jiub'],'content'=>['gender'=>'Female','race'=>'Dunmer',
         'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']]]],$now);
@@ -241,7 +301,7 @@ $assert($status === 202 && $turnDuplicate == $turnAccepted, 'turn duplicate fail
 $assert($status === 422, 'oversized event wait accepted');
 [$status, $events] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => '0', 'wait_ms' => '15000']);
-$assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted', 'dialogue.complete', 'speech.ready', 'action.intent', 'turn.complete'], 'event order failed');
+$assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted', 'dialogue.complete', 'action.intent', 'turn.complete', 'speech.ready'], 'event order failed');
 $pollStarted = microtime(true);
 [$status, $emptyPoll] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => (string) $events['next_after'], 'wait_ms' => '50']);
@@ -259,8 +319,9 @@ foreach ($events['events'] as $event) {
     if ($event['type'] === 'speech.ready') $speech = $event['payload'];
 }
 $assert(is_array($action), 'stored negotiated capability not used');
-$assert(is_array($speech) && $speech['bytes'] === 204 && $speech['codec'] === 'wav', 'mock speech descriptor missing');
 $dialogueEvents=array_values(array_filter($events['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));$dialogueEvent=$dialogueEvents[0];
+$assert(is_array($speech) && $speech['bytes'] === 204 && $speech['codec'] === 'wav'
+    && $speech['dialogue_message_id'] === $dialogueEvents[0]['message_id'], 'mock speech descriptor missing');
 $delivery=$fixture('dialogue-delivery-result');$delivery['message_id']=$newUuid(23);$delivery['request_id']=$turn['request_id'];
 $delivery['dialogue_message_id']=$dialogueEvent['message_id'];$delivery['turn_id']=$turn['turn_id'];$delivery['session_id']=$sessionId;
 $delivery['speaker']=$dialogueEvent['payload']['speaker'];$delivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
@@ -389,7 +450,8 @@ foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+
         'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$groupAfter]);
     $boundedDialogues=array_values(array_filter($boundedEvents['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));
     $boundedSpeech=array_values(array_filter($boundedEvents['events'],static fn(array $e):bool=>$e['type']==='speech.ready'));
-    $assert($status===200&&count($boundedDialogues)===$groupCount&&count($boundedSpeech)===$groupCount,'2-3 utterance group coverage failed');
+    $assert($status===200&&count($boundedDialogues)===$groupCount&&count($boundedSpeech)===$groupCount,
+        '2-3 utterance group coverage failed: expected='.$groupCount.' dialogues='.count($boundedDialogues).' speech='.count($boundedSpeech));
     foreach($boundedEvents['events'] as $event)$assert($event['request_id']===$bounded['request_id'],'bounded group event correlation failed');
     $boundedMapping=$db->prepare('SELECT count(*) FROM media_objects m JOIN dialogue_utterances u ON u.dialogue_message_id=m.dialogue_message_id WHERE u.turn_id=:turn');
     $boundedMapping->execute(['turn'=>$bounded['turn_id']]);$assert((int)$boundedMapping->fetchColumn()===$groupCount,'bounded group media mapping failed');
@@ -408,12 +470,14 @@ $assert($groupWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'gro
 [$status,$groupEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$groupAfter]);
 $groupTypes=array_column($groupEvents['events'],'type');
-$assert($status===200&&$groupTypes===['turn.accepted','dialogue.complete','speech.ready','dialogue.complete','speech.ready',
-    'dialogue.complete','speech.ready','dialogue.complete','speech.ready','turn.complete'],'four-utterance group event order failed');
+$assert($status===200&&$groupTypes===['turn.accepted','dialogue.complete','dialogue.complete','dialogue.complete',
+    'dialogue.complete','turn.complete','speech.ready','speech.ready','speech.ready','speech.ready'],'four-utterance group event order failed');
 $groupDialogues=array_values(array_filter($groupEvents['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));
 $groupSpeech=array_values(array_filter($groupEvents['events'],static fn(array $e):bool=>$e['type']==='speech.ready'));
 $assert(count($groupDialogues)===4&&count($groupSpeech)===4&&count(array_unique(array_column(array_column($groupSpeech,'payload'),'media_id')))===4,
     'group turn did not produce one distinct speech object per utterance');
+$assert(array_column(array_column($groupSpeech,'payload'),'dialogue_message_id')===array_column($groupDialogues,'message_id'),
+    'delayed group speech did not preserve dialogue order');
 foreach($groupEvents['events'] as $event)$assert($event['request_id']===$groupTurn['request_id'],'group event lost originating request correlation');
 $mapping=$db->prepare('SELECT count(*) AS media_count,count(DISTINCT m.dialogue_message_id) AS dialogue_count FROM media_objects m '
     .'JOIN dialogue_utterances u ON u.dialogue_message_id=m.dialogue_message_id WHERE u.turn_id=:turn');
@@ -625,6 +689,24 @@ $assert($status === 200 && $endedAgain == $ended, 'session delete replay incoher
 $assert($status === 200 && $resultAfterEnd['duplicate'], 'terminal result replay expired with session');
 [$status, $body] = $call($router, 'GET', $base . '/media/' . $speech['media_id'], []);
 $assert($status === 404 && $body['code'] === 'media_unavailable', 'ended-session media remained available');
+$settingsDocument=['schema'=>'almsivi.client-settings.v1','behavior'=>[
+    'auto_greeting'=>true,'rechat'=>true,'rechat_delay_seconds'=>60,'rechat_max_depth'=>8,
+    'boredom'=>true,'boredom_delay_seconds'=>240,'combat_barks'=>true,'combat_bark_period_seconds'=>30],
+    'memory'=>['recent_turn_limit'=>24,'knowledge_limit'=>6],
+    'narrator'=>['enabled'=>true,'name'=>'The Temple Chronicler','context_visibility'=>true,'inline_mode'=>'Narrator',
+        'welcome_events'=>true,'random_events'=>false,'quest_events'=>true,'book_events'=>true],
+    'presentation'=>['show_status_hud'=>true,'transcript_rows'=>10,'tts_volume_boost'=>4],
+    'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>true]];
+$settingsService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
+$settingsService->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Global Settings','content'=>$settingsDocument]);
+$configuredSession=$session;$configuredSession['message_id']=$newUuid(304);$configuredSession['generation']=8;
+[$status,$configuredAccepted]=$call($router,'POST',$base.'/sessions',$headers($configuredSession['message_id']),[],$configuredSession);
+$assert($status===201&&$configuredAccepted['config_revision']==='global-settings-r1'
+    &&$configuredAccepted['client_settings']==$settingsDocument,
+    'revisioned installation settings were not returned by the next OpenMW session handshake');
+$configuredDeleteKey=$newUuid(305);
+[$status,$configuredEnded]=$call($router,'DELETE',$base.'/sessions/'.$configuredAccepted['session_id'],['Idempotency-Key'=>$configuredDeleteKey]);
+$assert($status===200&&$configuredEnded['ended']===true,'configured integration session did not end cleanly');
 if (is_dir($mediaPath)) {
     foreach (glob($mediaPath . '/*') ?: [] as $file) unlink($file);
     rmdir($mediaPath);

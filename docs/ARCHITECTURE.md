@@ -61,9 +61,10 @@ public directory so source, configuration, storage, and secrets stay outside the
    transaction.
 5. Prompt service loads bounded profile/memory/relationship/world/current context with source IDs,
    records a redacted prompt trace/revision and calls the configured provider.
-6. Final text, action intent and media metadata persist before ordered response events become visible.
-7. Client reports delivery/action terminal result as new immutable source events.
-8. Derived jobs are enqueued after commit and process idempotently.
+6. Bounded display-only text deltas may become visible while the provider streams; only validated final text becomes a durable utterance.
+7. Final text and action intent persist, then ordered dialogue/terminal events become visible and per-utterance TTS jobs are queued.
+8. TTS persists private media and emits a dialogue-correlated speech event independently; client delivery/action results remain immutable source events.
+9. Other derived jobs are enqueued after commit and process idempotently.
 
 ## Persistence domains
 

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ALMSIVIserver\Infrastructure;
 
+use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -28,7 +29,7 @@ final class ProductRepository
                 $this->revision('playthrough_revisions', 'playthrough_id', $id, 1, $input['content'], $reason, $now);
             } else {
                 $configKind = match ($kind) {
-                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy' => $kind,
+                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings' => $kind,
                     default => throw new RuntimeException('invalid_resource_kind'),
                 };
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
@@ -45,6 +46,23 @@ final class ProductRepository
         $s=$this->db->prepare('SELECT kind FROM configuration_sets WHERE configuration_id=:id');$s->execute(['id'=>$id]);$kind=$s->fetchColumn();if($kind===false)throw new RuntimeException('not_found');return$kind==='action_policy'?'action_policy':(string)$kind;
     }
     public function revisionContent(string $kind,string $id,int $revision):array{[, $key,$table]=$this->revisionMeta($kind);$s=$this->db->prepare("SELECT content FROM {$table} WHERE {$key}=:id AND revision=:revision");$s->execute(['id'=>$id,'revision'=>$revision]);$v=$s->fetchColumn();if($v===false)throw new RuntimeException('revision_not_found');return$this->json($v);}
+
+    /** Return the single live revisioned settings document for one installation. */
+    public function globalSettingsForInstallation(string $installationId):?array
+    {
+        $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='global_settings' AND c.deleted_at IS NULL LIMIT 1");
+        $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();if(!$row)return null;$row['content']=$this->json($row['content']);return$row;
+    }
+
+    /** Materialize the installation-scoped player profile before the first game turn needs it. */
+    public function ensurePlayerProfile(string $installationId,string $now):array
+    {
+        return$this->transaction(function()use($installationId,$now):array{$existing=$this->playerProfileForInstallation($installationId);if($existing!==null)return$existing;
+            $id=Uuid::v4();$this->db->prepare('INSERT INTO profiles (profile_id,installation_id,name,actor_identity,created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:now)')->execute([
+                'id'=>$id,'installation'=>$installationId,'name'=>'Player','identity'=>$this->encode(['kind'=>'player','display_name'=>'Player']),'now'=>$now]);
+            $this->revision('profile_revisions','profile_id',$id,1,['biography'=>'','appearance'=>'','personality'=>'','speech_style'=>'','goals'=>'','notes'=>''],'created automatically on session start',$now);
+            return$this->getRevisioned('profile',$id);});
+    }
 
     /** Return every live profile/connector reference grouped by normalized local TTS voice ID. */
     public function voiceReferenceIndex():array
@@ -159,7 +177,7 @@ final class ProductRepository
         $select=$this->db->prepare("SELECT p.profile_id,count(*) OVER() AS eligible FROM profiles p "
             ."JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
             ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
-            ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator') "
+            ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
             ."AND COALESCE(r.content->'management'->>'locked','false')<>'true' "
             ."ORDER BY p.created_at,p.profile_id LIMIT 100");
         $select->execute(['installation'=>$installationId]);$rows=$select->fetchAll();$queued=0;
@@ -231,7 +249,7 @@ final class ProductRepository
             $select=$this->db->prepare("SELECT p.profile_id,p.current_revision,r.content FROM profiles p "
                 ."JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
                 ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
-                ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator') "
+                ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."AND r.content->'management'->>'locked'='true' FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId]);$rows=$select->fetchAll();
             foreach($rows as$row){$content=$this->json($row['content']);
@@ -265,7 +283,7 @@ final class ProductRepository
             $select=$this->db->prepare("SELECT p.profile_id FROM profiles p JOIN profile_revisions r "
                 ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
                 ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL "
-                ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator') "
+                ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
                 ."AND COALESCE(r.content->'management'->>'locked','false')<>'true' FOR UPDATE OF p");
             $select->execute(['installation'=>$installationId]);$ids=array_column($select->fetchAll(),'profile_id');
             $deleteBindings=$this->db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation AND profile_id=:id');
@@ -418,6 +436,10 @@ final class ProductRepository
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
         $result=[];$id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
+        if($id!==''&&str_starts_with((string)($voice['source']??''),'morrowind_')){
+            $configurationId=trim((string)($connector['configuration_id']??''));
+            if($configurationId===''||!$this->connectorHasVoice($configurationId,$id))$id='';
+        }
         if($id===''){$gender=strtolower(trim((string)($content['gender']??'')));$connectorContent=$connector['content']??null;
             $options=is_array($connectorContent)&&is_array($connectorContent['options']??null)&&!array_is_list($connectorContent['options'])?$connectorContent['options']:[];
             $fallbackField=match($gender){'male'=>'fallback_male','female'=>'fallback_female',default=>null};
@@ -425,6 +447,121 @@ final class ProductRepository
         }
         if($id!==''&&strlen($id)<=512)$result['voice']=$id;if($language!==''&&strlen($language)<=35)$result['language']=$language;
         return$result;
+    }
+
+    /** Create and bind an NPC profile from trusted current-session metadata before its first prompt is assembled. */
+    public function ensureMorrowindActorProfile(array $turn,array $resolvedVoice,string $now):string
+    {
+        $target=$turn['payload']['target']??null;
+        if(!is_array($target)||array_is_list($target))throw new RuntimeException('invalid_actor_identity');
+        return$this->transaction(function()use($turn,$target,$resolvedVoice,$now):string{
+            $scope=$this->db->prepare("SELECT 1 FROM sessions WHERE session_id=:session AND generation=:generation AND state='active' "
+                ."AND installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough FOR UPDATE");
+            $scope->execute(['session'=>$turn['session_id'],'generation'=>$turn['generation'],'installation'=>$turn['installation_id'],
+                'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id']]);
+            if(!$scope->fetchColumn())throw new \OutOfBoundsException('unknown_session');
+            $key=$this->actorKey($target);
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>$key]);
+            $profileId=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target);
+            if($profileId===null){
+                $existing=$this->db->prepare("SELECT profile_id FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL "
+                    ."AND lower(actor_identity->>'record_id')=lower(:record) AND lower(COALESCE(actor_identity->>'content_file',''))=lower(:content) "
+                    ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY created_at,profile_id LIMIT 2");
+                $existing->execute(['installation'=>$turn['installation_id'],'record'=>$target['record_id']??'',
+                    'content'=>$target['content_file']??'']);$matches=$existing->fetchAll();
+                if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
+                else{$template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$resolvedVoice);
+                    $seed=is_array($template['content']??null)?$template['content']:[];unset($seed['management'],$seed['portrait']);
+                    $seed['gender']=$resolvedVoice['gender'];$seed['race']=$resolvedVoice['race'];$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
+                    $seed['management']=['locked'=>false,'favorite'=>false];
+                    $created=$this->createRevisioned('profile',['installation_id'=>$turn['installation_id'],
+                    'name'=>(string)($target['display_name']??$target['record_id']??'Morrowind NPC'),'actor_identity'=>$target,
+                    'content'=>$seed,
+                    'change_reason'=>'automatic Morrowind actor discovery'],$now);$profileId=(string)$created['profile_id'];}
+                $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],
+                    $target,$profileId,$now);
+            }
+            $this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
+            return$profileId;
+        });
+    }
+
+    /** Prefer an exact actor voice exposed by the installation's active TTS provider over a generic catalog fallback. */
+    public function preferExactProviderActorVoice(string $installationId,array $identity,array $fallback):array
+    {
+        $recordId=trim((string)($identity['record_id']??''));
+        $actorKey=preg_replace('/[^a-z0-9]+/','',strtolower($recordId));
+        if($actorKey==='')return$fallback;
+        $statement=$this->db->prepare("SELECT v.voice_id,v.display_name,v.language FROM installation_provider_selections s "
+            ."JOIN configuration_sets c ON c.configuration_id=s.configuration_id AND c.installation_id=s.installation_id "
+            ."AND c.kind='tts_provider' AND c.deleted_at IS NULL JOIN speech_connector_voices v ON v.configuration_id=c.configuration_id "
+            ."WHERE s.installation_id=:installation AND s.provider_kind='tts_provider' ORDER BY v.voice_id LIMIT 1024");
+        $statement->execute(['installation'=>$installationId]);
+        foreach($statement->fetchAll(PDO::FETCH_ASSOC)as$voice){
+            $voiceKey=preg_replace('/[^a-z0-9]+/','',strtolower(trim((string)$voice['voice_id'])));
+            if($voiceKey!==$actorKey)continue;
+            return array_replace($fallback,['id'=>(string)$voice['voice_id'],'key'=>'actor:'.$recordId,
+                'display_name'=>(string)$voice['display_name'],'language'=>(string)$voice['language'],
+                'source'=>'actor_provider_catalog','confidence'=>'exact']);
+        }
+        return$fallback;
+    }
+
+    /** Choose the most specific reusable biography template for a newly observed NPC. */
+    private function matchingBiographyTemplate(string $installation,array $identity,array $voice):?array
+    {
+        $stmt=$this->db->prepare("SELECT r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND (COALESCE(p.actor_identity->>'record_id','')='' OR lower(p.actor_identity->>'record_id')=lower(:record)) AND (COALESCE(p.actor_identity->>'content_file','')='' OR lower(p.actor_identity->>'content_file')=lower(:content_file)) AND (COALESCE(r.content->>'race','')='' OR lower(r.content->>'race')=lower(:race)) AND (COALESCE(r.content->>'gender','')='' OR lower(r.content->>'gender')=lower(:gender)) ORDER BY (COALESCE(p.actor_identity->>'record_id','')<>'') DESC,(COALESCE(p.actor_identity->>'content_file','')<>'') DESC,(COALESCE(r.content->>'race','')<>'') DESC,(COALESCE(r.content->>'gender','')<>'') DESC,p.created_at,p.profile_id LIMIT 1");
+        $stmt->execute(['installation'=>$installation,'record'=>(string)($identity['record_id']??''),'content_file'=>(string)($identity['content_file']??''),'race'=>(string)($voice['race']??''),'gender'=>(string)($voice['gender']??'')]);
+        $value=$stmt->fetchColumn();return$value===false?null:['content'=>$this->json($value)];
+    }
+
+    /** Repair legacy automatic actor-name voices while preserving unrelated manual and locked choices. */
+    public function backfillMorrowindCatalogVoices(MorrowindVoiceCatalog $catalog,string $now):array
+    {
+        $rows=$this->db->query("SELECT p.profile_id,p.installation_id,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r "
+            ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL "
+            ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY p.profile_id")->fetchAll();
+        $updated=0;$resolved=0;
+        foreach($rows as$row){$identity=$this->json($row['actor_identity']);$content=$this->json($row['content']);
+            $resolveIdentity=$identity;if(trim((string)($resolveIdentity['kind']??''))==='')$resolveIdentity['kind']='actor';
+            $voice=$catalog->resolve($resolveIdentity,['targetState'=>['identity'=>['race'=>$content['race']??'',
+                'gender'=>$content['gender']??'']]]);if($voice===null)continue;
+            $voice=$this->preferExactProviderActorVoice((string)$row['installation_id'],$identity,$voice);$resolved++;
+            if($this->applyMorrowindCatalogVoice((string)$row['profile_id'],$identity,$voice,$now,true))$updated++;}
+        return['resolved'=>$resolved,'updated'=>$updated];
+    }
+
+    private function applyMorrowindCatalogVoice(string $profileId,array $identity,array $voice,string $now,bool $allowLegacyLocked):bool
+    {
+        $select=$this->db->prepare('SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r '
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+        $select->execute(['profile'=>$profileId]);$row=$select->fetch();if(!$row)return false;$content=$this->json($row['content']);
+        $current=$content['voice']??[];if(is_string($current))$current=['id'=>$current];if(!is_array($current))$current=[];
+        $currentId=trim((string)($current['id']??$current['voice_id']??''));$recordId=trim((string)($identity['record_id']??''));
+        $catalogManaged=str_starts_with((string)($current['source']??''),'morrowind_');
+        $legacyAutomatic=$allowLegacyLocked&&$currentId!==''&&$recordId!==''&&strcasecmp($currentId,$recordId)===0;
+        $locked=(bool)($content['management']['locked']??false);
+        if($currentId!==''&&!$catalogManaged&&!$legacyAutomatic)return false;
+        if($locked&&!$catalogManaged&&!$legacyAutomatic)return false;
+        $nextVoice=$this->catalogVoiceDocument($voice);
+        $changed=$current!=$nextVoice||trim((string)($content['gender']??''))===''||trim((string)($content['race']??''))==='';
+        if(!$changed)return false;$content['gender']=$voice['gender'];$content['race']=$voice['race'];$content['voice']=$nextVoice;
+        $revision=(int)$row['current_revision']+1;$this->revision('profile_revisions','profile_id',$profileId,$revision,$content,
+            'automatic Morrowind voice catalog',$now);
+        $this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:profile')->execute(['revision'=>$revision,'profile'=>$profileId]);
+        return true;
+    }
+
+    private function catalogVoiceDocument(array $voice):array
+    {
+        return['id'=>$voice['id'],'language'=>$voice['language'],'source'=>'morrowind_'.$voice['source'],
+            'catalog_key'=>$voice['key'],'confidence'=>$voice['confidence']];
+    }
+
+    private function connectorHasVoice(string $configurationId,string $voiceId):bool
+    {
+        $statement=$this->db->prepare('SELECT 1 FROM speech_connector_voices WHERE configuration_id=:configuration AND voice_id=:voice');
+        $statement->execute(['configuration'=>$configurationId,'voice'=>$voiceId]);return(bool)$statement->fetchColumn();
     }
 
     public function createMemory(array $input,array $terms,array $vector,string $now): array
@@ -543,7 +680,7 @@ final class ProductRepository
             'model'=>(string)($content['model']??'deterministic-mock-v1')];}
         $profiles=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles "
             ."WHERE installation_id=:installation AND deleted_at IS NULL "
-            ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator') ORDER BY name,profile_id LIMIT 100");
+            ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY name,profile_id LIMIT 100");
         $profiles->execute(['installation'=>$session['installation_id']]);
         $profileRows=array_map(static fn(array$row):array=>['profile_id'=>(string)$row['profile_id'],
             'name'=>(string)$row['name'],'revision'=>(int)$row['current_revision']],$profiles->fetchAll());
@@ -850,7 +987,7 @@ final class ProductRepository
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}

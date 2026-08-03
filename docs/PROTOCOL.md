@@ -49,9 +49,9 @@ stale references fail explicitly.
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
 | `GET /media/{id}` | Stream owned, unexpired allowlisted audio with fixed headers/hash/length. |
 
-Contracted event types are `turn.accepted`, `dialogue.complete`, `speech.ready`, `action.intent`,
-`turn.complete`, `turn.failed`, `turn.cancelled`, `stt.transcript`, and `stt.failed`. Future variants such as deltas/status/notices require
-an atomic shared-schema revision before use. Each event has a monotonically increasing session sequence
+Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `action.intent`,
+`turn.complete`, `turn.failed`, `turn.cancelled`, `stt.transcript`, and `stt.failed`. Future variants such as status/notices require
+an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
 
 ## Actions

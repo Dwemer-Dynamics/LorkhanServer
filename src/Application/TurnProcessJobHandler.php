@@ -6,7 +6,6 @@ namespace ALMSIVIserver\Application;
 
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\Repository;
 use ALMSIVIserver\Infrastructure\Uuid;
 use DomainException;
@@ -19,12 +18,10 @@ final class TurnProcessJobHandler implements JobHandler
     public function __construct(
         private readonly Repository $repository,
         private readonly Provider $provider,
-        private readonly ?SpeechProvider $speechProvider,
         private readonly ?MediaStore $mediaStore,
         private readonly ?ProviderAttemptRepository $attempts,
         private readonly int $timeoutMs = 1000,
         private readonly array $providerConfig = [],
-        private readonly ?ProductRepository $products = null,
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -58,50 +55,21 @@ final class TurnProcessJobHandler implements JobHandler
             $now=hrtime(true);if($cancelled||$now>=$deadline)return true;if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;
             return $cancelled=!$heartbeat()||$this->repository->isTurnCancellationRequested($sessionId,$turnId,$generation);
         });
-        $stagedMedia=[];
         try {
-            $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token));
-            $utterances = (new DialoguePlanner())->plan($message, $result);
-            $speech = [];
-            if ($this->mediaStore !== null && in_array('speech.say', $message['_negotiated_capabilities'], true)) {
-                foreach ($utterances as $index => $utterance) {
-                    $token->throwIfCancellationRequested();
-                    if(($utterance['speech_enabled']??true)===false){$speech[$index]=null;continue;}
-                    $speechPreset=$this->products?->connectorForActor((string)$message['installation_id'],
-                        (string)$message['playthrough_id'],(array)$utterance['speaker'],'tts_provider');
-                    $speechPreset??=$this->products?->connectorForInstallation((string)$message['installation_id'],'tts_provider');
-                    $speechProvider=$speechPreset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$speechPreset);
-                    if($speechProvider===null){$speech[$index]=null;continue;}
-                    $speechAttempt = Uuid::v4();
-                    $ttsAttempt=(($job['attempt']-1)*4)+$index+1;
-                    $speechProviderName = match(true){$speechProvider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
-                        $speechProvider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
-                    $speechContext=$this->products?->speechContext((string)$message['installation_id'],(string)$message['playthrough_id'],(array)$utterance['speaker'],$speechPreset)??[];
-                    $this->attempts?->start($speechAttempt,'tts',$speechProviderName,'synthesize',$ttsAttempt,$message['request_id'],$turnId,$job['job_id'],
-                        inputBytes:strlen($utterance['text']),metadata:['mode'=>$speechProviderName,'job'=>true,'utterance_index'=>$index+1,
-                            'configuration_id'=>$speechPreset['configuration_id']??null,'configuration_revision'=>$speechPreset['revision']??null,
-                            'profile_voice'=>isset($speechContext['voice'])]);
-                    $generated = $speechProvider->synthesize($utterance['text'], $token,$speechContext);
-                    $this->attempts?->finish($speechAttempt,'succeeded',strlen($generated['bytes']));
-                    $mediaId = Uuid::v4();
-                    $sha = $this->mediaStore->put($mediaId, $generated['bytes'], $generated['codec'], $generated['mime_type']);
-                    $stagedMedia[]=$mediaId;
-                    $speech[$index] = ['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),'codec'=>$generated['codec'],
-                        'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
-                        'expires_at'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')];
-                }
-            }
+            $progress = function (string $delta) use ($message, $fence): void {
+                if ($delta !== '') $this->repository->appendDialogueDelta($message, $delta, $fence);
+            };
+            $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             $token->throwIfCancellationRequested();
-            $this->repository->completeTurn($message, $result, $speech, $fence);
-            $stagedMedia=[];
+            $queueSpeech = $this->mediaStore !== null
+                && in_array('speech.say', $message['_negotiated_capabilities'], true);
+            $this->repository->completeTurn($message, $result, null, $fence, $queueSpeech);
         } catch (OperationCancelled) {
-            foreach($stagedMedia as $mediaId)$this->mediaStore?->delete($mediaId);
             if (!$this->repository->isTurnCancellationRequested($sessionId, $turnId, $generation)) {
                 $this->repository->failTurn($message, 'provider_timeout', $fence);
             }
             return;
         } catch (Throwable $error) {
-            foreach($stagedMedia as $mediaId)$this->mediaStore?->delete($mediaId);
             // Persisting the terminal failure is the successful handling of this turn job. Retrying
             // the provider after exposing turn.failed would contradict the terminal protocol state.
             $this->repository->failTurn($message, 'provider_unavailable', $fence);
@@ -110,7 +78,7 @@ final class TurnProcessJobHandler implements JobHandler
     }
 
     /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot. */
-    private function completeWithFallback(array $message,array $job,CancellationToken $token):array
+    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta):array
     {
         $primary=$message['_provider_configuration']??null;$fallback=$message['_fallback_provider_configuration']??null;
         $routes=[['snapshot'=>is_array($primary)?$primary:null,'fallback'=>false]];
@@ -126,7 +94,9 @@ final class TurnProcessJobHandler implements JobHandler
                     'configuration_id'=>$snapshot['configuration_id']??null,'configuration_revision'=>$snapshot['revision']??null,
                     'model'=>$snapshot['content']['model']??null]);
             try{
-                $result=$provider->complete($message,$token);
+                $result=$provider instanceof StreamingProvider
+                    ?$provider->completeStreaming($message,$token,$onDialogueDelta)
+                    :$provider->complete($message,$token);
                 $bytes=strlen(json_encode($result,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)?:'');
                 $this->attempts?->finish($attemptId,'succeeded',$bytes);return$result;
             }catch(OperationCancelled$error){

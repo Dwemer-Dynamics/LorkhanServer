@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy'];
+        $allowed = ['profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -33,7 +33,7 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
@@ -64,7 +64,7 @@ final class ProductService
     public function deleteRevisioned(string $kind,string $id):void
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy'],true)
+        if(!in_array($kind,['profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
@@ -237,6 +237,7 @@ final class ProductService
             return$content;
         }
         if($kind==='action_policy')return$this->validateActionPolicy($content);
+        if($kind==='global_settings')return$this->validateGlobalSettings($content);
         if($kind!=='provider')return$content;
         $driver=$content['driver']??null;
         if(!in_array($driver,['configured','mock'],true))throw new InvalidArgumentException('invalid_provider_driver');
@@ -251,6 +252,31 @@ final class ProductService
         if(array_diff($keys,$allowed)!==[]||!is_string($content['mock_prefix']??'')||strlen((string)($content['mock_prefix']??''))>256)
             throw new InvalidArgumentException('invalid_provider_content');
         return['driver'=>'mock','model'=>$model,'mock_prefix'=>(string)($content['mock_prefix']??'')];
+    }
+
+    /** Keep server-to-client settings bounded, typed, and free of executable or transport values. */
+    private function validateGlobalSettings(array $content):array
+    {
+        $expected=['behavior','memory','narrator','presentation','safety','schema'];$keys=array_keys($content);sort($keys);
+        if($keys!==$expected||($content['schema']??null)!=='almsivi.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
+        $sections=['behavior'=>[
+            'auto_greeting'=>'bool','rechat'=>'bool','rechat_delay_seconds'=>[30,3600],'rechat_max_depth'=>[1,20],
+            'boredom'=>'bool','boredom_delay_seconds'=>[30,86400],'combat_barks'=>'bool','combat_bark_period_seconds'=>[5,300],
+        ],'memory'=>['recent_turn_limit'=>[1,100],'knowledge_limit'=>[0,20]],
+        'narrator'=>[
+            'enabled'=>'bool','name'=>'string','context_visibility'=>'bool','inline_mode'=>['Disabled','Narrator','NPC','Text Only'],
+            'welcome_events'=>'bool','random_events'=>'bool','quest_events'=>'bool','book_events'=>'bool',
+        ],'presentation'=>['show_status_hud'=>'bool','transcript_rows'=>[2,20],'tts_volume_boost'=>[1,4]],
+        'safety'=>['actions_enabled'=>'bool','allow_hostile'=>'bool','allow_creatures'=>'bool']];
+        $result=['schema'=>'almsivi.client-settings.v1'];
+        foreach($sections as$section=>$fields){$value=$content[$section]??null;if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_global_settings');
+            $sectionKeys=array_keys($value);sort($sectionKeys);$expectedKeys=array_keys($fields);sort($expectedKeys);if($sectionKeys!==$expectedKeys)throw new InvalidArgumentException('invalid_global_settings');$result[$section]=[];
+            foreach($fields as$field=>$rule){$item=$value[$field];if($rule==='bool'){if(!is_bool($item))throw new InvalidArgumentException('invalid_global_settings');}
+                elseif($rule==='string'){if(!is_string($item)||trim($item)===''||strlen($item)>128||!mb_check_encoding($item,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings');$item=trim($item);}
+                elseif(isset($rule[0])&&is_int($rule[0])){if(!is_int($item)||$item<$rule[0]||$item>$rule[1])throw new InvalidArgumentException('invalid_global_settings');}
+                elseif(!is_string($item)||!in_array($item,$rule,true))throw new InvalidArgumentException('invalid_global_settings');
+                $result[$section][$field]=$item;}}
+        return$result;
     }
 
     /** Validate the editable CHIM-lineage NPC fields while preserving a compact OpenMW profile document. */

@@ -324,9 +324,23 @@ final class Repository
         return $message;
     }
 
-    public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null): array
+    public function appendDialogueDelta(array $m, string $text, array $fence): array
     {
-        return $this->transaction(function () use ($m, $providerResult, $speech, $fence): array {
+        if ($text === '' || strlen($text) > 4096 || !mb_check_encoding($text, 'UTF-8')) {
+            throw new \DomainException('provider_invalid_output');
+        }
+        return $this->transaction(function () use ($m, $text, $fence): array {
+            $this->session($m['session_id'], $m['generation'], true);
+            $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
+            return $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'],
+                'dialogue.delta', ['text' => $text]);
+        });
+    }
+
+    public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null,
+        bool $queueSpeech = false): array
+    {
+        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $this->validateProviderResult($providerResult, $session, $m);
@@ -348,6 +362,12 @@ final class Repository
                         'text' => $utterance['text'], 'emitted' => $dialogue['created_at']]);
                 $expiryJob=Uuid::v4();$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority) VALUES(:job,'dialogue.expire',1,:key,CAST(:payload AS jsonb),1,CAST(:deadline AS timestamptz),50)")->execute(['job'=>$expiryJob,'key'=>'dialogue:'.$dialogue['message_id'],'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']]),'deadline'=>(new \DateTimeImmutable($dialogue['created_at']))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')]);$this->db->prepare('UPDATE dialogue_utterances SET expiry_job_id=:job WHERE dialogue_message_id=:id')->execute(['job'=>$expiryJob,'id'=>$dialogue['message_id']]);
                 $dialogues[] = $dialogue;
+                if ($queueSpeech && ($utterance['speech_enabled'] ?? true) !== false) {
+                    $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+                        . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
+                        ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$dialogue['message_id'],
+                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']])]);
+                }
                 $currentSpeech = $speech[$index] ?? ($index === 0 && isset($speech['media_id']) ? $speech : null);
                 if ($currentSpeech !== null) {
                     $this->db->prepare('INSERT INTO media_objects (media_id, installation_id, session_id, turn_id, generation, sha256, byte_count, '
@@ -366,6 +386,47 @@ final class Repository
             $updated->execute(['id' => $m['turn_id']]);
             if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
             return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents, 'action' => $action];
+        });
+    }
+
+    /** @return array<string,mixed>|null */
+    public function claimDialogueForSpeech(string $dialogueId, array $fence): ?array
+    {
+        return $this->transaction(function () use ($dialogueId, $fence): ?array {
+            $lease=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_id=:job AND state='leased' AND lease_token=:token "
+                . 'AND attempt_count=:attempt AND lease_expires_at>clock_timestamp() FOR UPDATE');
+            $lease->execute(['job'=>$fence['job_id'],'token'=>$fence['lease_token'],'attempt'=>$fence['attempt']]);
+            if(!$lease->fetchColumn()) throw new \RuntimeException('lease_lost');
+            $statement=$this->db->prepare('SELECT u.*,s.installation_id,s.playthrough_id,s.state AS session_state '
+                . 'FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id '
+                . 'WHERE u.dialogue_message_id=:id FOR UPDATE OF u');
+            $statement->execute(['id'=>$dialogueId]);$row=$statement->fetch();
+            if(!$row) throw new \OutOfBoundsException('dialogue_not_found');
+            $existing=$this->db->prepare('SELECT 1 FROM media_objects WHERE dialogue_message_id=:id');
+            $existing->execute(['id'=>$dialogueId]);
+            if($existing->fetchColumn()||$row['session_state']!=='active') return null;
+            foreach(['speaker','addressee','audience'] as$field)$row[$field]=$this->json($row[$field]);
+            $row['generation']=(int)$row['generation'];
+            return $row;
+        });
+    }
+
+    public function completeDialogueSpeech(array $dialogue, array $speech, array $fence): array
+    {
+        return $this->transaction(function () use ($dialogue, $speech, $fence): array {
+            $current=$this->claimDialogueForSpeech((string)$dialogue['dialogue_message_id'],$fence);
+            if($current===null) return [];
+            $this->db->prepare('INSERT INTO media_objects (media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,'
+                . 'codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES '
+                . '(:id,:installation,:session,:turn,:generation,:sha,:bytes,:codec,:mime,:duration,:expires,:dialogue)')
+                ->execute(['id'=>$speech['media_id'],'installation'=>$current['installation_id'],'session'=>$current['session_id'],
+                    'turn'=>$current['turn_id'],'generation'=>$current['generation'],'sha'=>$speech['sha256'],'bytes'=>$speech['bytes'],
+                    'codec'=>$speech['codec'],'mime'=>$speech['mime_type'],'duration'=>$speech['duration_ms'],
+                    'expires'=>$speech['expires_at'],'dialogue'=>$current['dialogue_message_id']]);
+            $descriptor=$speech;unset($descriptor['mime_type']);
+            $descriptor['dialogue_message_id']=$current['dialogue_message_id'];
+            return $this->event($current['session_id'],$current['generation'],$current['request_id'],$current['turn_id'],
+                'speech.ready',$descriptor);
         });
     }
 

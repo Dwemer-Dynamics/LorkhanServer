@@ -10,7 +10,7 @@ $roleplay = $uiRepository->roleplay();
 $allowedTabs = ['eventlog-tab', 'responses-tab', 'memories-tab', 'relationships-tab', 'narratives-tab', 'knowledge-tab', 'journal-tab', 'books-tab'];
 $requestedTab = isset($_GET['tab']) ? (string) $_GET['tab'] : 'eventlog-tab';
 $activeTab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'eventlog-tab';
-$installationOptions=[];foreach($uiRepository->rows('global_settings')as$row){$id=(string)($row['installation_id']??'');if($id!=='')$installationOptions[$id]=(string)($row['display_name']??$id);}
+$installationOptions=[];foreach($uiRepository->rows('installations')as$row){$id=(string)($row['installation_id']??'');if($id!=='')$installationOptions[$id]=(string)($row['display_name']??$id);}
 $profileOptions=[];foreach(array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'))as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
 $playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$row){$id=(string)($row['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($row['playthrough']??$id);}
 

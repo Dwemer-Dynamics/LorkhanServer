@@ -2,23 +2,24 @@
 
 declare(strict_types=1);
 
-$pageTitle='Descriptions';$topNavSection='configuration';$bodyClass='management-page';
+$pageTitle='Descriptions';$topNavSection='configuration';$bodyClass='configuration-resource view-descriptions';
 require __DIR__.'/ui_bootstrap.php';
 $rows=$uiRepository->rows('descriptions');$installations=[];
-foreach($uiRepository->rows('global_settings')as$installation){$id=(string)($installation['installation_id']??'');if($id!=='')$installations[$id]=(string)($installation['display_name']??$id);}
+foreach($uiRepository->rows('installations')as$installation){$id=(string)($installation['installation_id']??'');if($id!=='')$installations[$id]=(string)($installation['display_name']??$id);}
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
 ?>
 <main class="management-page">
-    <h1>Descriptions</h1>
-    <p>Describe Morrowind records by content file and record ID. ALMSIVI adds a description only when that record is present in the current bounded inventory or nearby-object context.</p>
+    <header class="configuration-page-header"><h1>Description Manager</h1><p>Describe Morrowind records by content file and record ID. ALMSIVI adds a description only when that record is present in the current bounded inventory or nearby-object context.</p></header>
     <?php if(($_GET['status']??'')==='saved'):?><p class="page-status" role="status">Changes saved.</p><?php endif;?>
+    <div class="descriptions-top-grid"><section class="descriptions-panel">
     <form class="management-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/description-save');?>"><fieldset><legend>Add or update description</legend>
         <label for="description-installation">Installation</label><select id="description-installation" name="installation_id"><?php foreach($installations as$id=>$label):?><option value="<?php echo almsivi_ui_h($id);?>"><?php echo almsivi_ui_h($label);?></option><?php endforeach;?></select>
         <label for="description-content-file">Content file</label><input id="description-content-file" name="content_file" value="Morrowind.esm" maxlength="256" required>
         <label for="description-record-id">Record ID</label><input id="description-record-id" name="record_id" maxlength="256" required>
         <label for="description-name">Display name</label><input id="description-name" name="display_name" maxlength="256" required>
         <label for="description-text">Description</label><textarea id="description-text" name="description" maxlength="8192" required></textarea>
-    </fieldset><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Save description</button></form>
+    </fieldset><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Save description</button></form></section>
+    <section class="descriptions-panel"><h2>Database Management</h2><p>Descriptions are keyed by content file and Morrowind record ID, so only records present in current bounded game context are injected.</p><p>Existing records can be reviewed, edited, or deleted individually below. ALMSIVI does not expose a factory-reset control from this page.</p><div class="description-safety-note"><strong><?php echo count($rows);?></strong><span>custom descriptions</span></div></section></div>
     <section class="widget widget-wide"><div class="widget-header"><h3>Description Database</h3></div><div class="widget-content">
         <?php if($rows===[]):?><p class="empty-state">No custom descriptions are configured.</p><?php else:?><div class="profile-grid"><?php foreach($rows as$row):?>
             <article class="profile-card"><header><div><span class="connector-kind"><?php echo almsivi_ui_h($row['content_file']);?></span><h3><?php echo almsivi_ui_h($row['display_name']);?></h3></div><span class="status-badge"><?php echo almsivi_ui_h($row['record_id']);?></span></header><p><?php echo nl2br(almsivi_ui_h($row['description']));?></p>

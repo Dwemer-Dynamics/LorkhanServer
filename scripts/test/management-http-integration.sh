@@ -22,4 +22,7 @@ PHP_CLI_SERVER_WORKERS=2 ALMSIVI_CONFIG="$CONFIG" ALMSIVI_TEST_DSN="$DSN" ALMSIV
  php -S "127.0.0.1:$HTTP_PORT" -t "$ROOT/public" "$ROOT/public/index.php" >"$TMP/php.log" 2>&1 &
 PHP_PID=$!
 i=0; until curl -fsS "http://127.0.0.1:$HTTP_PORT/ALMSIVIserver/api/v1/health" >/dev/null 2>&1; do i=$((i+1)); if [ "$i" -ge 100 ]; then python3 -c 'import sys;print(open(sys.argv[1]).read())' "$TMP/php.log" >&2; exit 1; fi; sleep .05; done
-python3 "$ROOT/scripts/test/management_http.py" "http://127.0.0.1:$HTTP_PORT"
+if ! python3 "$ROOT/scripts/test/management_http.py" "http://127.0.0.1:$HTTP_PORT"; then
+  cat "$TMP/php.log" >&2
+  exit 1
+fi

@@ -3,6 +3,7 @@ declare(strict_types=1);
 
 namespace ALMSIVIserver\Http;
 
+use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\SpeechProvider;
@@ -42,6 +43,7 @@ final class Router
         private readonly ?ProductRepository $products = null,
         private readonly ?PromptAssembler $promptAssembler = null,
         private readonly ?SpeechToTextProvider $sttProvider = null,
+        private readonly ?MorrowindVoiceCatalog $morrowindVoices = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -98,11 +100,30 @@ final class Router
             return $this->idempotent($m['installation_id'], $m['message_id'], '/sessions', $m, function () use ($m): array {
                 $sessionId = Uuid::v4();
                 $session = $this->repository->createSession($m,$sessionId,$this->pairingTokenHash,$this->bootstrapMacKey());
+                // The installation is materialized by createSession, so the player profile can now satisfy its foreign key.
+                $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at']);
+                $settings=$this->clientSettings((string)$m['installation_id']);
                 return [201, ['schema' => 'almsivi.session.accepted.v1', 'message_id' => $m['message_id'],
                     'session_id' => $sessionId, 'generation' => $session['generation'],
-                    'capabilities' => $session['capabilities'], 'config_revision' => 'independent-foundation-v1', 'event_cursor' => 0]];
+                    'capabilities' => $session['capabilities'], 'config_revision' => $settings['revision'],
+                    'client_settings'=>$settings['content'],'event_cursor' => 0]];
             });
         });
+    }
+
+    /** Return the current typed settings revision or conservative first-run defaults. */
+    private function clientSettings(string $installationId):array
+    {
+        $saved=$this->products?->globalSettingsForInstallation($installationId);
+        if($saved!==null)return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$saved['content']];
+        return['revision'=>'global-settings-default-v1','content'=>['schema'=>'almsivi.client-settings.v1',
+            'behavior'=>['auto_greeting'=>false,'rechat'=>false,'rechat_delay_seconds'=>45,'rechat_max_depth'=>10,
+                'boredom'=>false,'boredom_delay_seconds'=>180,'combat_barks'=>false,'combat_bark_period_seconds'=>20],
+            'memory'=>['recent_turn_limit'=>20,'knowledge_limit'=>5],
+            'narrator'=>['enabled'=>false,'name'=>'The Narrator','context_visibility'=>true,'inline_mode'=>'Disabled',
+                'welcome_events'=>false,'random_events'=>false,'quest_events'=>false,'book_events'=>false],
+            'presentation'=>['show_status_hud'=>true,'transcript_rows'=>8,'tts_volume_boost'=>3],
+            'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>false]]];
     }
 
     private function endSession(Request $request, string $sessionId): Response
@@ -128,6 +149,11 @@ final class Router
             $providerInput = $directAction === null ? $m : null;
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
+                $resolvedVoice=$this->morrowindVoices?->resolve((array)$m['payload']['target'],(array)$m['payload']['context']);
+                if($resolvedVoice!==null){$resolvedVoice=$this->products->preferExactProviderActorVoice(
+                        (string)$m['installation_id'],(array)$m['payload']['target'],$resolvedVoice);
+                    $this->repository->session((string)$m['session_id'],(int)$m['generation']);
+                    $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
                 $selection = $this->products->promptContext($m, gmdate('Y-m-d\TH:i:s\Z'));
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
@@ -207,7 +233,7 @@ final class Router
             elseif($m['kind']==='profile_generate')$this->products->enqueueBoundProfileGeneration($session,$m['target'],(string)$m['selection_id']);
             else{$narrator=$this->products->narratorProfileForInstallation((string)$session['installation_id']);
                 if($narrator===null||!is_string($m['selection_id'])||!hash_equals((string)$narrator['profile_id'],$m['selection_id']))
-                    throw new ApiException(422,'profile_not_narrator','The selected narrator profile is unavailable.');
+                    throw new ApiException(422,'invalid_schema','The selected narrator profile is unavailable.');
                 $this->products->enqueueNarratorProfileGeneration($m['selection_id']);}
             $updated=$this->repository->session($m['session_id'],$m['generation']);
             $body=$this->controlsBody($m,$updated);
@@ -293,7 +319,7 @@ final class Router
 
     private function stt(Request $request):Response
     {
-        if($this->sttProvider===null||$this->mediaStore===null)throw new ApiException(503,'provider_unavailable','STT unavailable.',true,1000);if(strtolower(trim((string)$request->header('Content-Type')))!=='application/octet-stream')throw new ApiException(415,'invalid_schema','Binary audio required.');$h=fn(string $n):string=>(string)($request->header('X-ALMSIVI-'.$n)??'');$m=['schema'=>$h('Schema'),'message_id'=>$h('Message-Id'),'request_id'=>$h('Request-Id'),'turn_id'=>$h('Turn-Id'),'session_id'=>$h('Session-Id'),'generation'=>filter_var($h('Generation'),FILTER_VALIDATE_INT),'created_at'=>$h('Created-At'),'codec'=>$h('Codec'),'language'=>$h('Language'),'audio_bytes'=>filter_var($h('Audio-Bytes'),FILTER_VALIDATE_INT),'sha256'=>$h('Sha256')];$this->validator->validate($m,'almsivi.stt.request.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);if(strlen($request->body)!==$m['audio_bytes']||!hash_equals($m['sha256'],hash('sha256',$request->body)))throw new ValidationException('invalid_schema');$semantic=$this->semanticHash($m);$mediaId=Uuid::v4();try{$this->mediaStore->put($mediaId,$request->body,'wav','audio/wav');}catch(\Throwable){throw new ApiException(422,'invalid_audio','Audio is not a valid WAV payload.');}try{$result=$this->repository->acceptStt($m,$mediaId,$semantic);if($result['duplicate'])$this->mediaStore->delete($mediaId);}catch(Throwable $e){$this->mediaStore->delete($mediaId);throw$e;}return Response::json(202,['schema'=>'almsivi.stt.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'event_cursor'=>$result['cursor'],'duplicate'=>$result['duplicate']]);
+        if($this->sttProvider===null||$this->mediaStore===null)throw new ApiException(503,'provider_unavailable','STT unavailable.',true,1000);if(strtolower(trim((string)$request->header('Content-Type')))!=='application/octet-stream')throw new ApiException(415,'invalid_schema','Binary audio required.');$h=fn(string $n):string=>(string)($request->header('X-ALMSIVI-'.$n)??'');$m=['schema'=>$h('Schema'),'message_id'=>$h('Message-Id'),'request_id'=>$h('Request-Id'),'turn_id'=>$h('Turn-Id'),'session_id'=>$h('Session-Id'),'generation'=>filter_var($h('Generation'),FILTER_VALIDATE_INT),'created_at'=>$h('Created-At'),'codec'=>$h('Codec'),'language'=>$h('Language'),'audio_bytes'=>filter_var($h('Audio-Bytes'),FILTER_VALIDATE_INT),'sha256'=>$h('Sha256')];$this->validator->validate($m,'almsivi.stt.request.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);if(strlen($request->body)!==$m['audio_bytes']||!hash_equals($m['sha256'],hash('sha256',$request->body)))throw new ValidationException('invalid_schema');$semantic=$this->semanticHash($m);$mediaId=Uuid::v4();try{$this->mediaStore->put($mediaId,$request->body,'wav','audio/wav');}catch(\Throwable){throw new ApiException(422,'invalid_schema','Audio is not a valid WAV payload.');}try{$result=$this->repository->acceptStt($m,$mediaId,$semantic);if($result['duplicate'])$this->mediaStore->delete($mediaId);}catch(Throwable $e){$this->mediaStore->delete($mediaId);throw$e;}return Response::json(202,['schema'=>'almsivi.stt.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'event_cursor'=>$result['cursor'],'duplicate'=>$result['duplicate']]);
     }
 
     private function deliveryResult(Request $request):Response
@@ -318,7 +344,7 @@ final class Router
     private function assertPrincipal(string $installation):void
     {
         if($this->authenticatedInstallation!==null&&!hash_equals($this->authenticatedInstallation,$installation))
-            throw new ApiException(403,'installation_forbidden','Installation does not match authenticated token.');
+            throw new ApiException(403,'forbidden','Installation does not match authenticated token.');
     }
 
     private function json(Request $request, string $schema): array

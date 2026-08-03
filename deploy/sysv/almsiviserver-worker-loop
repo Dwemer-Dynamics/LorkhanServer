@@ -23,10 +23,14 @@ trap stop_worker TERM INT
 while true; do
     /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
     child_pid=$!
-    wait "${child_pid}" || true
+    status=0
+    wait "${child_pid}" || status=$?
     child_pid=
-    /usr/bin/sleep 5 &
-    child_pid=$!
-    wait "${child_pid}" || true
-    child_pid=
+    # Normal bounded exits restart immediately so newly queued dialogue is not held for five seconds.
+    if (( status != 0 )); then
+        /usr/bin/sleep 1 &
+        child_pid=$!
+        wait "${child_pid}" || true
+        child_pid=
+    fi
 done

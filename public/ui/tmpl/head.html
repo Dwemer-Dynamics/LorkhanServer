@@ -1,20 +1,21 @@
 <!DOCTYPE html>
 <html lang="en" data-bs-theme="dark">
 <head>
+    <?php $uiAssetVersion = (string) max(array_map('filemtime', glob(dirname(__DIR__) . '/css/*.css') ?: [__FILE__])); ?>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <meta name="theme-color" content="#111111">
     <title><?php echo almsivi_ui_h($pageTitle); ?></title>
     <link rel="icon" type="image/x-icon" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/favicon.ico">
     <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.min.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/style_new.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-theme.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/navbar.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/main.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/hub-navigation.css">
-    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-pages.css">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/style_new.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-theme.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/navbar.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/main.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
+    <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/almsivi-pages.css?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>">
     <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.bundle.min.js" defer></script>
-    <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/almsivi-ui.js" defer></script>
+    <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/almsivi-ui.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script>
 </head>
 <?php
 $bodyClasses = [];

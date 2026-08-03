@@ -117,8 +117,8 @@ speaker must resolve, and tool/action JSON must match a known enabled schema.
 ## Dialogue, speech and delivery
 
 Text deltas are optional UI progress and not memory sources. Final validated utterance is persisted,
-then an ordered `dialogue.complete` event is visible. TTS generates/stores private bytes and metadata;
-speech event contains opaque ID/hash/size/codec/expiry. Client verifies, plays or reports delivery
+then an ordered `dialogue.complete` event is visible and a durable per-utterance TTS job is queued. TTS generates/stores private bytes and metadata independently;
+the speech event contains the originating dialogue message ID plus opaque media ID/hash/size/codec/expiry. Client verifies, queues, plays or reports delivery
 failure. Media expiry does not erase source utterance/provenance.
 
 Groups have explicit audience and one speaker/addressee per utterance. The server may select a

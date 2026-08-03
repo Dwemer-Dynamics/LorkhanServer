@@ -4,6 +4,7 @@ declare(strict_types=1);
 use ALMSIVIserver\Application\ActionPolicyValidator;
 use ALMSIVIserver\Application\DeterministicClock;
 use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
+use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
@@ -110,6 +111,7 @@ try {
         $products,
         new PromptAssembler((int) ($config['max_context_bytes'] ?? 131_072)),
         $sttProvider,
+        MorrowindVoiceCatalog::bundled(),
     );
     $request = Request::fromGlobals();
     if (str_starts_with($request->path, (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'))) {

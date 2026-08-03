@@ -13,8 +13,9 @@ $scheduleRows = $view === 'global_settings' ? $uiRepository->rows('autonomy') : 
 $backupRows = $view === 'database_manager' ? $uiRepository->rows('backup_health') : [];
 $observedNpcs = $view === 'characters' ? $uiRepository->rows('observed_npcs') : [];
 $profilePreferenceRows = $view === 'characters' ? $uiRepository->rows('profile_preferences') : [];
+$installationRows=$uiRepository->rows('installations');
 $installationOptions = [];
-foreach ($uiRepository->rows('global_settings') as $installation) {
+foreach ($installationRows as $installation) {
     $id = (string) ($installation['installation_id'] ?? '');
     if ($id !== '') $installationOptions[$id] = (string) ($installation['display_name'] ?? $id);
 }
@@ -22,7 +23,8 @@ $configurationBackupOptions=[];
 foreach($backupRows as$backup){$scope=is_array($backup['scope']??null)?$backup['scope']:[];
     if(($scope['kind']??null)!=='configuration')continue;$id=(string)($backup['backup_id']??'');
     if($id!=='')$configurationBackupOptions[$id]=(string)($installationOptions[$scope['installation_id']??'']??($scope['installation_id']??'Installation')).' - '.(string)($backup['created_at']??$id);}
-$profileOptions=[];foreach(array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'))as$profile){$id=(string)($profile['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($profile['name']??$id);}
+$profileRowsForOptions=array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'));
+$profileOptions=[];$actionProfileOptions=[];foreach($profileRowsForOptions as$profile){$id=(string)($profile['profile_id']??'');if($id==='')continue;$label=(string)($profile['name']??$id);$profileOptions[$id]=$label;$identity=is_array($profile['actor_identity']??null)?$profile['actor_identity']:[];if(($identity['kind']??'')!=='template')$actionProfileOptions[$id]=$label;}
 $playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$playthrough){$id=(string)($playthrough['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($playthrough['playthrough']??$id);}
 $sessionOptions=[];foreach($uiRepository->rows('active_sessions')as$session){$id=(string)($session['session_id']??'');if($id!=='')$sessionOptions[$id]=(string)($session['label']??$id);}
 $routingViews=['characters','profiles','narrator'];
@@ -98,6 +100,9 @@ $forms = match ($view) {
             ['installation_id','Installation','select','',$installationOptions],['name','Roleplay name','text','The Narrator'],
             ['enabled','Enable narrator routing','checkbox','1'],
             ['inline_narration_mode','Inline narration mode','select','Disabled',['Disabled'=>'Disabled','Narrator'=>'Narrator voice','NPC'=>'NPC voice','Text Only'=>'Text only']],
+            ['context_visibility','Include narrator context in prompts','checkbox','1'],
+            ['welcome_events','Welcome narration','checkbox','1'],['random_events','Random narration','checkbox','1'],
+            ['quest_events','Quest narration','checkbox','1'],['book_events','Book narration','checkbox','1'],
             ['biography','Background','textarea','',[],false],['personality','Personality','textarea','',[],false],
             ['speech_style','Speech style','textarea','',[],false],['goals','Goals','textarea','',[],false],
             ['tts_configuration_id','Narrator TTS connector','select','',$ttsRoutingOptions],
@@ -155,6 +160,18 @@ $forms = match ($view) {
         ],
     ]],
     'profiles' => [
+        [
+            'route'=>'profile-template-create','legend'=>'Create biography template',
+            'fields'=>[
+                ['installation_id','Installation','select','',$installationOptions],['name','Template name'],
+                ['record_id','Match Morrowind record ID','text','',[],false],['content_file','Match content file','text','',[],false],
+                ['gender','Match gender','select','',[''=>'Any','Male'=>'Male','Female'=>'Female','Other'=>'Other'],false],
+                ['race','Match race','text','',[],false],['biography','Biography seed','textarea','',[],false],
+                ['personality','Personality seed','textarea','',[],false],['speech_style','Speech style seed','textarea','',[],false],
+                ['occupation','Occupation seed','text','',[],false],['goals','Goals seed','textarea','',[],false],
+                ['relationships','Relationships seed','textarea','',[],false],['notes','Template notes','textarea','',[],false],
+            ],
+        ],
         [
             'route' => 'profile-create', 'legend' => 'Create profile', 'hidden'=>['management_fields'=>'1','llm_routing_fields'=>'1'],
             'fields' => [
@@ -302,9 +319,10 @@ function almsivi_ui_management_form(array $form, string $managementBasePath, str
         $value = $field[3] ?? '';
         $required = $field[5] ?? true;
         $id = 'field-' . $formId . '-' . $name;
+        echo '<div class="management-field management-field-' . almsivi_ui_h($type) . '">';
         if ($type === 'checkbox') {
             $checked=($field[6]??false)===true?' checked':'';
-            echo '<label><input name="' . almsivi_ui_h($name) . '" type="checkbox" value="' . almsivi_ui_h($value) . '"'.$checked.'> ' . almsivi_ui_h($label) . '</label>';
+            echo '<label><input name="' . almsivi_ui_h($name) . '" type="checkbox" value="' . almsivi_ui_h($value) . '"'.$checked.'> ' . almsivi_ui_h($label) . '</label></div>';
             continue;
         }
         if($type==='connector-options'){
@@ -326,7 +344,7 @@ function almsivi_ui_management_form(array $form, string $managementBasePath, str
                 echo'</div>';
             }
             $selectedFields=is_array($catalog[(string)$value]??null)?$catalog[(string)$value]:[];
-            echo'<p class="management-note" data-connector-options-empty'.($selectedFields===[]?'':' hidden').'>This connector has no additional labelled options.</p></div>';continue;
+            echo'<p class="management-note" data-connector-options-empty'.($selectedFields===[]?'':' hidden').'>This connector has no additional labelled options.</p></div></div>';continue;
         }
         echo '<label for="' . almsivi_ui_h($id) . '">' . almsivi_ui_h($label) . '</label>';
         if ($type === 'textarea') {
@@ -354,6 +372,7 @@ function almsivi_ui_management_form(array $form, string $managementBasePath, str
         } else {
             echo '<input id="' . almsivi_ui_h($id) . '" name="' . almsivi_ui_h($name) . '" type="' . almsivi_ui_h($type) . '" value="' . almsivi_ui_h($value) . '"' . ($required ? ' required' : '') . '>';
         }
+        echo '</div>';
     }
     foreach (($form['hidden'] ?? []) as $name => $value) echo '<input type="hidden" name="' . almsivi_ui_h($name) . '" value="' . almsivi_ui_h($value) . '">';
     echo '</fieldset><input type="hidden" name="_csrf" value="' . almsivi_ui_h($csrf) . '"><button class="btn-base btn-primary" type="submit">' . almsivi_ui_h($form['legend']) . '</button></form>';
@@ -392,12 +411,16 @@ function almsivi_ui_filter_profiles(array $rows):array
     $query=mb_strtolower(mb_substr(trim((string)($_GET['q']??'')),0,100));
     $initial=strtoupper((string)($_GET['initial']??''));if(preg_match('/^[A-Z]$/D',$initial)!==1)$initial='';
     $state=(string)($_GET['state']??'all');if(!in_array($state,['all','favorites','locked','unlocked','generated'],true))$state='all';
+    $promptProfile=(string)($_GET['profile']??'');
     $installation=(string)($_GET['installation_id']??'');
-    $filtered=array_values(array_filter($rows,static function(array$row)use($query,$initial,$state,$installation):bool{
+    $filtered=array_values(array_filter($rows,static function(array$row)use($query,$initial,$state,$promptProfile,$installation):bool{
         $content=is_array($row['content']??null)?$row['content']:[];$identity=is_array($row['actor_identity']??null)?$row['actor_identity']:[];
         $management=is_array($content['management']??null)?$content['management']:[];
+        $routing=is_array($content['routing']??null)?$content['routing']:[];
         $name=(string)($row['name']??'');
         if($installation!==''&&!hash_equals($installation,(string)($row['installation_id']??'')))return false;
+        if($promptProfile==='default'&&(string)($routing['prompt_configuration_id']??'')!=='')return false;
+        if($promptProfile!==''&&$promptProfile!=='default'&&!hash_equals($promptProfile,(string)($routing['prompt_configuration_id']??'')))return false;
         if($initial!==''&&strtoupper(mb_substr($name,0,1))!==$initial)return false;
         if($state==='favorites'&&($management['favorite']??false)!==true)return false;
         if($state==='locked'&&($management['locked']??false)!==true)return false;
@@ -424,13 +447,16 @@ function almsivi_ui_filter_profiles(array $rows):array
 function almsivi_ui_profile_filters(array $rows):void
 {
     $installations=[];foreach($rows as$row){$id=(string)($row['installation_id']??'');if($id!=='')$installations[$id]=$id;}
-    echo'<form class="profile-management-filters" method="get"><label for="profile-filter-q">Search NPCs<input id="profile-filter-q" type="search" name="q" maxlength="100" value="'.almsivi_ui_h($_GET['q']??'').'" placeholder="Name, record, voice, biography"></label>';
-    echo'<label for="profile-filter-initial">Starts with<select id="profile-filter-initial" name="initial"><option value="">All letters</option>';foreach(range('A','Z')as$letter)echo'<option value="'.$letter.'"'.(($_GET['initial']??'')===$letter?' selected':'').'>'.$letter.'</option>';echo'</select></label>';
+    $selectedInitial=(string)($_GET['initial']??'');
+    echo'<form class="profile-management-filters" method="get"><div class="npc-toolbar-tools"><label for="profile-filter-q">Search NPCs<input id="profile-filter-q" type="search" name="q" maxlength="100" value="'.almsivi_ui_h($_GET['q']??'').'" placeholder="Search..."></label>';
     $states=['all'=>'All NPCs','favorites'=>'Favorites','locked'=>'Locked','unlocked'=>'Unlocked','generated'=>'AI generated'];
     echo'<label for="profile-filter-state">Status<select id="profile-filter-state" name="state">';foreach($states as$value=>$label)echo'<option value="'.$value.'"'.(($_GET['state']??'all')===$value?' selected':'').'>'.$label.'</option>';echo'</select></label>';
     if(count($installations)>1){echo'<label for="profile-filter-installation">Installation<select id="profile-filter-installation" name="installation_id"><option value="">All installations</option>';foreach($installations as$id)echo'<option value="'.almsivi_ui_h($id).'"'.(($_GET['installation_id']??'')===$id?' selected':'').'>'.almsivi_ui_h($id).'</option>';echo'</select></label>';}
     if(($_GET['embed']??'')==='1')echo'<input type="hidden" name="embed" value="1">';
-    echo'<button class="btn-base btn-primary" type="submit">Filter NPCs</button><a class="btn-base" href="?'.(($_GET['embed']??'')==='1'?'embed=1':'').'">Clear</a></form>';
+    echo'<button class="btn-base btn-primary" type="submit">Filter NPCs</button><a class="btn-base" href="?'.(($_GET['embed']??'')==='1'?'embed=1':'').'">Clear</a></div>';
+    echo'<div class="npc-letter-filter" aria-label="Filter NPCs by first letter"><button class="npc-letter-btn'.($selectedInitial===''?' active':'').'" type="submit" name="initial" value="">All</button>';
+    foreach(range('A','Z')as$letter)echo'<button class="npc-letter-btn'.($selectedInitial===$letter?' active':'').'" type="submit" name="initial" value="'.$letter.'">'.$letter.'</button>';
+    echo'</div></form>';
 }
 
 /** Render installation-scoped bulk tools with explicit typed confirmations. */
@@ -469,11 +495,11 @@ function almsivi_ui_profile_preferences(array $rows,string $managementBasePath,s
 }
 
 /** Render versioned NPC profiles using the same compact editor fields consumed by the prompt and TTS runtime. */
-function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,string $managementBasePath,string $csrf):void
+function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,string $managementBasePath,string $csrf,bool $showFilters=true,bool $showSummary=true,bool $compact=false):void
 {
     if ($rows === []) { echo '<p class="empty-state">No NPC profiles are configured yet.</p>'; return; }
-    $allCount=count($rows);almsivi_ui_profile_filters($rows);$rows=almsivi_ui_filter_profiles($rows);
-    echo'<p class="management-note">Showing '.count($rows).' of '.$allCount.' NPC profiles. Favorites are shown first.</p>';
+    $allCount=count($rows);if($showFilters)almsivi_ui_profile_filters($rows);$rows=almsivi_ui_filter_profiles($rows);
+    if($showSummary)echo'<p class="management-note">Showing '.count($rows).' of '.$allCount.' NPC profiles. Favorites are shown first.</p>';
     if($rows===[]){echo'<p class="empty-state">No NPC profiles match these filters.</p>';return;}
     echo '<div class="profile-grid">';
     foreach ($rows as $row) {
@@ -484,6 +510,7 @@ function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         if (!is_array($voice)) $voice = [];
         $profileId = (string) ($row['profile_id'] ?? '');
         $installationId=(string)($row['installation_id']??'');
+        $isTemplate=($identity['kind']??'actor')==='template';
         $management=is_array($content['management']??null)?$content['management']:[];
         $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];
@@ -500,10 +527,12 @@ function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         if($promptId!==''&&!isset($promptOptions[$promptId]))$promptOptions[$promptId]='Unavailable prompt';
         foreach([$llmId,$fastLlmId,$powerfulLlmId,$experimentalLlmId,$fallbackLlmId]as$routeId)if($routeId!==''&&!isset($llmOptions[$routeId]))$llmOptions[$routeId]='Unavailable model slot';
         if($ttsId!==''&&!isset($ttsOptions[$ttsId]))$ttsOptions[$ttsId]='Unavailable TTS connector';
-        echo '<article class="profile-card"><header><div><span class="connector-kind">OpenMW NPC</span><h3>' . almsivi_ui_h($row['name'] ?? '') . '</h3></div>';
+        echo '<article class="profile-card'.($compact?' profile-card-compact':'').'"><header><div><span class="connector-kind">'.($isTemplate?'Biography template':'OpenMW NPC').'</span><h3>' . almsivi_ui_h($row['name'] ?? '') . '</h3></div>';
         echo '<div class="profile-statuses">'.($favorite?'<span class="status-badge connector-active">Favorite</span>':'').($locked?'<span class="status-badge profile-locked">Locked</span>':'').'<span class="status-badge">Revision ' . almsivi_ui_h($row['current_revision'] ?? '') . '</span></div></header>';
         if($portrait!==[])echo'<div class="profile-portrait"><img src="'.almsivi_ui_h($portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1)).'" alt="Portrait of '.almsivi_ui_h($row['name']??'NPC').'" width="160" height="160"></div>';
-        echo '<dl><dt>Record</dt><dd><code>' . almsivi_ui_h($identity['record_id'] ?? 'Unbound template') . '</code></dd>';
+        elseif($compact)echo'<div class="profile-portrait profile-portrait-fallback" aria-hidden="true">'.almsivi_ui_h(mb_strtoupper(mb_substr((string)($row['name']??'N'),0,1))).'</div>';
+        if($compact)echo'<dl class="profile-card-glance"><dt>Race</dt><dd>'.almsivi_ui_h(trim((string)($content['gender']??'').' '.(string)($content['race']??''))?:'Unspecified').'</dd><dt>Voice</dt><dd>'.almsivi_ui_h($voice['id']??'Connector default').'</dd><dt>Bindings</dt><dd>'.almsivi_ui_h($row['binding_count']??0).'</dd></dl><details class="profile-routing-summary"><summary>Profile summary</summary>';
+        echo '<dl><dt>'.($isTemplate?'Record match':'Record').'</dt><dd><code>' . almsivi_ui_h($identity['record_id'] ?? ($isTemplate?'Any record':'Unbound profile')) . '</code></dd>';
         echo '<dt>Content file</dt><dd>' . almsivi_ui_h($identity['content_file'] ?? '') . '</dd>';
         echo '<dt>Gender / race</dt><dd>' . almsivi_ui_h(trim((string)($content['gender']??'').' '.(string)($content['race']??''))?:'Unspecified') . '</dd>';
         echo '<dt>Dialogue prompt</dt><dd>' . almsivi_ui_h($promptOptions[$promptId]??$promptOptions['']) . '</dd>';
@@ -513,6 +542,7 @@ function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '<dt>TTS connector</dt><dd>' . almsivi_ui_h($ttsOptions[$ttsId]??$ttsOptions['']) . '</dd>';
         echo '<dt>Voice</dt><dd>' . almsivi_ui_h($voice['id'] ?? 'Connector default') . '</dd>';
         echo '<dt>In-game bindings</dt><dd>' . almsivi_ui_h($row['binding_count'] ?? 0) . '</dd></dl>';
+        if($compact)echo'</details>';
         echo '<details><summary>Edit roleplay and voice</summary>';
         almsivi_ui_management_form([
             'route'=>'profile-revise','id'=>'profile-' . $profileId,'legend'=>'Save NPC profile revision',
@@ -569,6 +599,133 @@ function almsivi_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
     echo '</div>';
 }
 
+/** Render profiles with the same left-list and right-editor hierarchy used by CHIM. */
+function almsivi_ui_profiles_page(array $rows,array $forms,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,string $description,string $managementBasePath,string $csrf):void
+{
+    $selectedId=(string)($_GET['selected']??'');$selected=null;
+    foreach($rows as$row)if(hash_equals((string)($row['profile_id']??''),$selectedId)){$selected=$row;break;}
+    echo'<header class="configuration-page-header"><h1>ALMSIVI Profiles</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<div class="configuration-split-shell"><aside class="configuration-sidebar"><div class="configuration-sidebar-actions">';
+    foreach($forms as$index=>$form){echo'<details class="configuration-action-panel"><summary class="btn-base '.($index===0?'btn-success':'btn-primary').'">'.almsivi_ui_h($form['legend']??'Manage').'</summary>';almsivi_ui_management_form($form,$managementBasePath,$csrf);echo'</details>';}
+    echo'</div><div class="configuration-record-list">';
+    foreach($rows as$row){$id=(string)($row['profile_id']??'');$content=is_array($row['content']??null)?$row['content']:[];$management=is_array($content['management']??null)?$content['management']:[];
+        $query=http_build_query(['embed'=>($_GET['embed']??'')==='1'?'1':null,'selected'=>$id]);
+        echo'<a class="configuration-record'.($selected!==null&&hash_equals($selectedId,$id)?' active':'').'" href="?'.almsivi_ui_h($query).'"><span><strong>'.almsivi_ui_h($row['name']??'Profile').'</strong><small>'.almsivi_ui_h(($row['binding_count']??0).' NPC binding'.((int)($row['binding_count']??0)===1?'':'s')).'</small></span><span class="status-badge">'.(($management['locked']??false)===true?'Locked':'Rev '.(int)($row['current_revision']??1)).'</span></a>';}
+    echo'</div></aside><section class="configuration-detail">';
+    if($selected===null)echo'<div class="configuration-empty"><h2>No profile selected</h2><p>Select a profile from the list on the left to view and edit its settings.</p></div>';
+    else almsivi_ui_profile_cards([$selected],$voiceOptions,$promptRows,$llmRows,$ttsRows,$managementBasePath,$csrf,false,false);
+    echo'</section></div>';
+}
+
+/** Render the player editor as the same centered header and two-column settings surface used by CHIM. */
+function almsivi_ui_player_page(array $rows,array $forms,string $description,string $managementBasePath,string $csrf):void
+{
+    echo'<header class="configuration-page-header"><h1>&#128100; Player Management</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<section class="player-settings-shell">';
+    if($rows===[]){foreach($forms as$form)almsivi_ui_management_form($form,$managementBasePath,$csrf);}
+    else almsivi_ui_player_cards($rows,$managementBasePath,$csrf);
+    echo'</section>';
+}
+
+/** Render narrator controls in the same centered, two-column settings format as CHIM. */
+function almsivi_ui_narrator_page(array $rows,array $forms,array $voiceOptions,array $ttsRows,string $description,string $managementBasePath,string $csrf):void
+{
+    echo'<header class="configuration-page-header"><h1>&#128483; Narrator Management</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<section class="narrator-settings-shell">';
+    if($rows===[]){foreach($forms as$form)almsivi_ui_management_form($form,$managementBasePath,$csrf);}
+    else almsivi_ui_narrator_cards($rows,$voiceOptions,$ttsRows,$managementBasePath,$csrf);
+    echo'</section>';
+}
+
+/** Render ALMSIVI profiles with the card hierarchy and modal editing flow used by CHIM's NPC page. */
+function almsivi_ui_chim_profile_cards(array $rows,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,string $managementBasePath,string $csrf):void
+{
+    if($rows===[]){echo'<p class="npc-empty-state">No NPC profiles match these filters.</p>';return;}
+    $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/ALMSIVIserver/ui/core/profile_portrait.php';
+    echo'<div class="npc-grid">';
+    foreach($rows as$row){
+        $content=is_array($row['content']??null)?$row['content']:[];$identity=is_array($row['actor_identity']??null)?$row['actor_identity']:[];
+        $management=is_array($content['management']??null)?$content['management']:[];$routing=is_array($content['routing']??null)?$content['routing']:[];
+        $voice=$content['voice']??[];if(is_string($voice))$voice=['id'=>$voice];if(!is_array($voice))$voice=[];
+        $portrait=is_array($content['portrait']??null)?$content['portrait']:[];$profileId=(string)($row['profile_id']??'');
+        $modalKey='npc-'.substr(hash('sha256',$profileId),0,12);$name=(string)($row['name']??'OpenMW NPC');
+        $gender=(string)($content['gender']??'');$genderKey=mb_strtolower($gender);$genderIcon=$genderKey==='female'?'&#9792;':($genderKey==='male'?'&#9794;':'&#9893;');
+        $genderClass=$genderKey==='female'?'gender-female':($genderKey==='male'?'gender-male':'gender-nb');
+        $tags=$content['tags']??'';if(is_array($tags))$tags=implode(', ',array_map('strval',$tags));$tags=trim((string)$tags);
+        $promptLabel='Default Profile';$promptId=(string)($routing['prompt_configuration_id']??'');
+        foreach($promptRows as$promptRow)if(hash_equals((string)($promptRow['configuration_id']??''),$promptId)){$promptLabel=(string)($promptRow['name']??$promptLabel);break;}
+        $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
+        $recordId=(string)($identity['record_id']??'Unbound');$contentFile=(string)($identity['content_file']??'Morrowind.esm');
+        echo'<article class="npc-card" tabindex="0" role="button" aria-label="Edit '.almsivi_ui_h($name).'" data-npc-modal-target="'.$modalKey.'-edit">';
+        echo'<div class="npc-title"><div class="npc-title-left"><span class="npc-name">'.almsivi_ui_h($name).' ('.(int)($row['current_revision']??1).')</span><span class="npc-gender-icon '.$genderClass.'" title="'.almsivi_ui_h($gender?:'Unspecified').'">'.$genderIcon.'</span><span class="npc-tags-label">Tags:</span><span class="npc-tags-top" title="'.almsivi_ui_h($tags?:'none').'">'.almsivi_ui_h($tags?:'none').'</span></div>';
+        echo'<div class="npc-title-actions">';
+        echo'<form class="npc-icon-form" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/profile-toggle-favorite').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.almsivi_ui_h($profileId).'"><button class="btn-toggle'.($favorite?' active':'').'" type="submit" title="Toggle favorite" aria-label="Toggle favorite">'.($favorite?'&#9733;':'&#9734;').'</button></form>';
+        echo'<button class="btn-toggle" type="button" data-npc-modal-target="'.$modalKey.'-edit" title="Set picture" aria-label="Set picture">&#128444;&#65039;</button>';
+        echo'<form class="npc-icon-form" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/profile-toggle-lock').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.almsivi_ui_h($profileId).'"><button class="btn-toggle'.($locked?' active':'').'" type="submit" title="Toggle lock" aria-label="Toggle lock">'.($locked?'&#128274;':'&#128275;').'</button></form>';
+        echo'<button class="btn-trash'.($locked?' disabled':'').'" type="button"'.($locked?' disabled title="Locked - cannot delete"':' data-npc-modal-target="'.$modalKey.'-delete" title="Delete"').' aria-label="Delete profile">&#10060;</button></div></div>';
+        echo'<div class="npc-divider"></div><div class="npc-row"><div class="npc-fields">';
+        echo'<div class="npc-line"><span class="npc-muted">Gender:</span> '.almsivi_ui_h($gender?:'Unspecified').'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Race:</span> '.almsivi_ui_h($content['race']??'Unspecified').'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Voice:</span> '.almsivi_ui_h($voice['id']??'Connector default').'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">RefID:</span> '.almsivi_ui_h($recordId).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Content:</span> '.almsivi_ui_h($contentFile).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Bindings:</span> '.(int)($row['binding_count']??0).'</div>';
+        echo'<div class="npc-line"><span class="npc-muted">Profile:</span> '.almsivi_ui_h($promptLabel).'</div></div><div class="npc-right">';
+        if($portrait!==[])echo'<img class="npc-race-art" src="'.almsivi_ui_h($portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1)).'" alt="Portrait of '.almsivi_ui_h($name).'">';
+        else echo'<div class="npc-race-art npc-race-art-placeholder" aria-label="Portrait placeholder"><strong>'.almsivi_ui_h(mb_strtoupper(mb_substr($name,0,1))).'</strong><span>'.almsivi_ui_h($content['race']??'Morrowind NPC').'</span></div>';
+        echo'</div></div></article>';
+
+        echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header><h2 id="'.$modalKey.'-edit-title">Edit '.almsivi_ui_h($name).'</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';
+        almsivi_ui_profile_cards([$row],$voiceOptions,$promptRows,$llmRows,$ttsRows,$managementBasePath,$csrf,false,false);
+        echo'</div></section></div>';
+        echo'<div class="npc-modal-overlay" id="'.$modalKey.'-delete" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-delete-title"><header><h2 id="'.$modalKey.'-delete-title">Delete '.almsivi_ui_h($name).'</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>This permanently removes the current ALMSIVI profile and its OpenMW actor bindings.</p><form method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/profile-delete').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.almsivi_ui_h($profileId).'"><button class="btn-base btn-danger" type="submit">Delete profile</button></form></div></section></div>';
+    }
+    echo'</div>';
+}
+
+/** Render the CHIM NPC-page composition while retaining ALMSIVI's typed, revisioned operations. */
+function almsivi_ui_character_manager(array $rows,array $observedNpcs,array $profilePreferenceRows,array $installationOptions,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,array $forms,string $managementBasePath,string $csrf):void
+{
+    $filtered=almsivi_ui_filter_profiles($rows);$totalRows=count($filtered);$perPage=12;$totalPages=max(1,(int)ceil($totalRows/$perPage));
+    $page=max(1,min($totalPages,(int)($_GET['page']??1)));$pageRows=array_slice($filtered,($page-1)*$perPage,$perPage);
+    $pageWindow=min(10,$totalPages);$pageStart=max(1,min($page-4,$totalPages-$pageWindow+1));$pageEnd=min($totalPages,$pageStart+$pageWindow-1);
+    $query=(string)($_GET['q']??'');$profileFilter=(string)($_GET['profile']??'');$state=(string)($_GET['state']??'all');$initial=(string)($_GET['initial']??'');
+    $promptOptions=['default'=>'Default Profile'];foreach($promptRows as$promptRow){$id=(string)($promptRow['configuration_id']??'');if($id!=='')$promptOptions[$id]=(string)($promptRow['name']??$id);}
+    $profileOptions=[];foreach($rows as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
+    $hidden=function(array$omit=[])use($query,$profileFilter,$state,$initial):void{foreach(['embed'=>($_GET['embed']??'')==='1'?'1':'','q'=>$query,'profile'=>$profileFilter,'state'=>$state,'initial'=>$initial]as$name=>$value)if($value!==''&&!in_array($name,$omit,true))echo'<input type="hidden" name="'.almsivi_ui_h($name).'" value="'.almsivi_ui_h($value).'">';};
+    echo'<section class="npc-manager-shell"><div class="pagination npc-toolbar"><div class="npc-toolbar-main"><div class="npc-toolbar-actions">';
+    foreach([['npc-create-modal','+ Create NPC',''],['npc-import-modal','&#128229; Import NPC','Import an ALMSIVI profile from JSON'],['npc-relationships-modal','&#128279; Build Relationships','Open relationship tools'],['npc-switch-modal','&#128256; Mass Switch Profile','Switch OpenMW bindings'],['npc-unlock-modal','&#128275; Unlock All Profiles','Unlock NPC profiles'],['npc-delete-all-modal','&#10060; Delete All Profiles','Delete all unlocked NPC profiles']]as$index=>$button)
+        echo'<button type="button" class="npc-toolbar-btn npc-toolbar-btn-uniform '.($index===5?'npc-toolbar-btn-danger':'npc-toolbar-btn-action').'" data-npc-modal-target="'.$button[0].'"'.($button[2]!==''?' title="'.almsivi_ui_h($button[2]).'"':'').'>'.$button[1].'</button>';
+    echo'</div><form class="npc-toolbar-tools" method="get" data-npc-filter-form>';$hidden(['q','profile']);
+    echo'<label class="visually-hidden" for="npc_search">Search NPCs</label><input id="npc_search" type="search" name="q" maxlength="100" placeholder="Search..." aria-label="Search NPCs" value="'.almsivi_ui_h($query).'">';
+    echo'<label class="visually-hidden" for="npc_profile_filter">Filter by profile</label><select id="npc_profile_filter" name="profile" aria-label="Filter by profile"><option value="">All Profiles</option>';foreach($promptOptions as$id=>$label)echo'<option value="'.almsivi_ui_h($id).'"'.($profileFilter===$id?' selected':'').'>'.almsivi_ui_h($label).'</option>';echo'</select></form></div>';
+    echo'<div class="npc-toolbar-subrow"><form class="npc-toolbar-pager" method="get">';$hidden();
+    echo'<button type="submit" class="npc-letter-btn npc-page-link" name="page" value="1"'.($page<=1?' disabled aria-disabled="true"':'').'>First</button><button type="submit" class="npc-letter-btn npc-page-link" name="page" value="'.max(1,$page-1).'"'.($page<=1?' disabled aria-disabled="true"':'').'>Prev</button>';
+    for($p=$pageStart;$p<=$pageEnd;$p++)echo'<button type="submit" class="npc-letter-btn npc-page-link'.($p===$page?' active':'').'" name="page" value="'.$p.'"'.($p===$page?' disabled aria-current="page"':'').'>'.$p.'</button>';
+    echo'<button type="submit" class="npc-letter-btn npc-page-link" name="page" value="'.min($totalPages,$page+1).'"'.($page>=$totalPages?' disabled aria-disabled="true"':'').'>Next</button><button type="submit" class="npc-letter-btn npc-page-link" name="page" value="'.$totalPages.'"'.($page>=$totalPages?' disabled aria-disabled="true"':'').'>Last</button><div class="npc-page-indicator" title="Current page">'.$page.'/'.$totalPages.'</div></form></div>';
+    echo'<div class="npc-toolbar-letter-row"><form class="npc-letter-filter" method="get" aria-label="Filter NPCs by first letter">';$hidden(['initial']);
+    echo'<button class="npc-letter-btn'.($initial===''?' active':'').'" type="submit" name="initial" value="">All</button>';foreach(range('A','Z')as$letter)echo'<button class="npc-letter-btn'.($initial===$letter?' active':'').'" type="submit" name="initial" value="'.$letter.'">'.$letter.'</button>';echo'</form>';
+    $preference=$profilePreferenceRows[0]??null;if(is_array($preference)){echo'<form class="npc-auto-lock-profile" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/profile-auto-lock').'" data-auto-lock-form><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><input type="hidden" name="installation_id" value="'.almsivi_ui_h($preference['installation_id']??'').'"><label title="When enabled, saving an NPC profile automatically locks it against automatic replacement."><input type="checkbox" name="enabled" value="1"'.(in_array($preference['auto_lock_on_edit']??true,[true,1,'1','t','true'],true)?' checked':'').'> Auto Lock Profiles on Edit</label></form>';}
+    else echo'<label class="npc-auto-lock-profile unavailable" title="Available after the first installation is paired"><input type="checkbox" disabled> Auto Lock Profiles on Edit</label>';
+    echo'<div class="npc-toolbar-summary"><div class="npc-filter-dropdown"><button type="button" class="npc-toolbar-btn npc-toolbar-btn-uniform npc-toolbar-btn-action npc-toolbar-filter-btn" data-filter-menu-toggle aria-expanded="false">&#9662; Filters</button><form class="npc-filter-menu" method="get" data-filter-menu hidden>';$hidden(['state']);
+    foreach(['all'=>'All NPCs','favorites'=>'&#11088; Favorites','locked'=>'&#128274; Locked','unlocked'=>'&#128275; Unlocked','generated'=>'&#10024; AI generated']as$value=>$label){$filterId='npc-filter-'.$value;echo'<label for="'.$filterId.'"><input id="'.$filterId.'" type="radio" name="state" value="'.$value.'"'.($state===$value?' checked':'').'> '.$label.'</label>';}
+    echo'<label class="visually-hidden" for="npc-state-filter-compat">NPC status</label><select class="visually-hidden" id="npc-state-filter-compat" name="state">';foreach(['all'=>'All NPCs','favorites'=>'Favorites','locked'=>'Locked','unlocked'=>'Unlocked','generated'=>'AI generated']as$value=>$label)echo'<option value="'.$value.'"'.($state===$value?' selected':'').'>'.$label.'</option>';echo'</select></form></div><div class="npc-total-pill" title="Total NPC profiles"><span class="npc-total-pill-icon">&#128101;</span><strong class="npc-total-pill-value">'.$totalRows.'</strong></div></div></div></div>';
+    echo'<aside class="npc-history-pullback"><strong>History Pullback:</strong> ALMSIVI preserves every NPC revision. OpenMW save-time profile pullback is not available yet, so loading an older save does not silently replace server profiles.<br><span>Lock a profile (&#128274;) to protect it from automatic AI generation.</span> Use the revision controls in the edit modal to inspect and restore an earlier version.</aside>';
+    echo'<div class="npc-profile-results">';almsivi_ui_chim_profile_cards($pageRows,$voiceOptions,$promptRows,$llmRows,$ttsRows,$managementBasePath,$csrf);echo'</div>';
+
+    $createForm=$forms[0]??null;
+    echo'<div class="npc-modal-overlay" id="npc-create-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-create-title"><header><h2 id="npc-create-title">Create NPC</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><h3>Observed OpenMW NPCs <span class="npc-toolbar-count">'.count($observedNpcs).'</span></h3>';almsivi_ui_observed_npcs($observedNpcs,$managementBasePath,$csrf);if(is_array($createForm)){echo'<hr><h3>Create manually</h3>';almsivi_ui_management_form($createForm,$managementBasePath,$csrf);}echo'</div></section></div>';
+    echo'<div class="npc-modal-overlay" id="npc-import-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-import-title"><header><h2 id="npc-import-title">Import NPC</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';almsivi_ui_management_form(['route'=>'profile-import','id'=>'npc-profile-import','legend'=>'Import ALMSIVI profile','fields'=>[['installation_id','Installation','select','',$installationOptions],['profile_json','Portable ALMSIVI profile JSON','jsonfile']]],$managementBasePath,$csrf);echo'</div></section></div>';
+    $relationshipUrl=preg_replace('#/manage$#','/ui/relationship_logs.php',$managementBasePath)?:'/ALMSIVIserver/ui/relationship_logs.php';
+    echo'<div class="npc-modal-overlay" id="npc-relationships-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-relationships-title"><header><h2 id="npc-relationships-title">&#128279; Build Relationships</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>CHIM can rebuild Skyrim relationship data in bulk. The equivalent automatic OpenMW relationship builder is not available yet.</p><p>Existing ALMSIVI relationship records remain available in the relationship log.</p><a class="btn-base btn-primary" href="'.almsivi_ui_h($relationshipUrl).'" target="_blank" rel="noopener">Open Relationship Logs</a><hr><h3>Generate NPC Profiles</h3><p>Generate AI profile revisions for unlocked NPCs already observed by ALMSIVI.</p>';
+    almsivi_ui_management_form(['route'=>'profile-bulk-generate','id'=>'npc-bulk-generate','legend'=>'Generate unlocked NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['confirm','Type Generate to confirm']]],$managementBasePath,$csrf);
+    echo'</div></section></div>';
+    echo'<div class="npc-modal-overlay" id="npc-switch-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-switch-title"><header><h2 id="npc-switch-title">&#128256; Mass Switch Profile</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';if(count($profileOptions)>=2){$ids=array_keys($profileOptions);almsivi_ui_management_form(['route'=>'profile-bulk-switch','id'=>'npc-bulk-switch','legend'=>'Switch bound NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['source_profile_id','From profile','select',$ids[0],$profileOptions],['target_profile_id','To profile','select',$ids[1],$profileOptions],['include_locked','Include a locked source profile','checkbox','1',[],false],['confirm','Type Switch to confirm']]],$managementBasePath,$csrf);}else echo'<p>At least two NPC profiles are required before OpenMW bindings can be switched.</p>';echo'</div></section></div>';
+    echo'<div class="npc-modal-overlay" id="npc-unlock-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-unlock-title"><header><h2 id="npc-unlock-title">&#128275; Unlock All NPC Profiles</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Creates an unlocked revision for every locked NPC profile. Player and narrator profiles are excluded.</p>';almsivi_ui_management_form(['route'=>'profile-bulk-unlock','id'=>'npc-bulk-unlock','legend'=>'Unlock all NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['confirm','Type Unlock to confirm']]],$managementBasePath,$csrf);echo'</div></section></div>';
+    echo'<div class="npc-modal-overlay" id="npc-delete-all-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-delete-all-title"><header><h2 id="npc-delete-all-title">&#10060; Delete All Profiles</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Soft-deletes every unlocked NPC profile and clears its OpenMW actor bindings. Locked, player, and narrator profiles are preserved.</p>';almsivi_ui_management_form(['route'=>'profile-bulk-delete','id'=>'npc-bulk-delete','legend'=>'Delete all unlocked NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['confirm','Type Delete to confirm']]],$managementBasePath,$csrf);echo'</div></section></div>';
+    echo'</section>';
+}
+
 /** Render the one player profile editor whose current revision is added to every dialogue prompt. */
 function almsivi_ui_player_cards(array $rows, string $managementBasePath, string $csrf): void
 {
@@ -581,6 +738,14 @@ function almsivi_ui_player_cards(array $rows, string $managementBasePath, string
         echo'<span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??'').'</span></header>';
         echo'<p>This profile is server-owned and included automatically when ALMSIVI assembles an NPC conversation prompt.</p>';
         $inputCount=(int)($row['input_count']??0);echo'<dl><dt>Recent player inputs available</dt><dd>'.almsivi_ui_h(min(200,$inputCount)).'</dd></dl>';
+        $latest=is_array($row['latest_context']??null)?$row['latest_context']:[];
+        if($latest!==[]){$playerState=is_array($latest['playerState']??null)?$latest['playerState']:[];
+            echo'<section class="player-runtime-context"><header><h4>Latest OpenMW context</h4><span class="status-badge">'.almsivi_ui_h($latest['accepted_at']??'Synced').'</span></header><div class="player-context-grid">';
+            foreach(['Level'=>$playerState['level']??'Unknown','Health'=>$playerState['health']??'Unknown','Magicka'=>$playerState['magicka']??'Unknown','Fatigue'=>$playerState['fatigue']??'Unknown']as$label=>$value)
+                echo'<article><span>'.almsivi_ui_h($label).'</span><strong>'.almsivi_ui_h(is_array($value)?json_encode($value,JSON_UNESCAPED_SLASHES):$value).'</strong></article>';
+            foreach(['Inventory'=>'inventory','Equipment'=>'equipment','Skills'=>'skills','Factions'=>'factions','Journal'=>'journal']as$label=>$key){$section=is_array($latest[$key]??null)?$latest[$key]:[];$items=is_array($section['items']??null)?$section['items']:[];echo'<article><span>'.almsivi_ui_h($label).'</span><strong>'.count($items).'</strong></article>';}
+            echo'</div></section>';
+        }else echo'<p class="management-note">Live stats, inventory, equipment, skills, factions, and journal will appear after the next accepted in-game turn.</p>';
         if($inputCount>0)echo'<form class="connector-test" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/player-speech-style-generate').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.almsivi_ui_h($profileId).'"><button class="btn-base" type="submit">Generate speech style from recent inputs</button></form>';
         else echo'<p class="management-note">Speech-style generation becomes available after ALMSIVI records at least one real player turn.</p>';
         almsivi_ui_management_form([
@@ -622,6 +787,11 @@ function almsivi_ui_narrator_cards(array $rows,array $voiceOptions,array $ttsRow
             'hidden'=>['profile_id'=>$id,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)],
             'fields'=>[['enabled','Enable narrator routing','checkbox','1',[],false,$enabled],
                 ['inline_narration_mode','Inline narration mode','select',$mode,['Disabled'=>'Disabled','Narrator'=>'Narrator voice','NPC'=>'NPC voice','Text Only'=>'Text only']],
+                ['context_visibility','Include narrator context in prompts','checkbox','1',[],false,($content['context_visibility']??true)===true],
+                ['welcome_events','Welcome narration','checkbox','1',[],false,($content['welcome_events']??false)===true],
+                ['random_events','Random narration','checkbox','1',[],false,($content['random_events']??false)===true],
+                ['quest_events','Quest narration','checkbox','1',[],false,($content['quest_events']??false)===true],
+                ['book_events','Book narration','checkbox','1',[],false,($content['book_events']??false)===true],
                 ['biography','Background','textarea',(string)($content['biography']??''),[],false],
                 ['personality','Personality','textarea',(string)($content['personality']??''),[],false],
                   ['speech_style','Speech style','textarea',(string)($content['speech_style']??''),[],false],
@@ -748,15 +918,15 @@ function almsivi_ui_connector_cards(array $rows, array $voiceOptions, string $vi
 }
 
 /** Render dialogue model slots without exposing the global endpoint credential or accepting secrets. */
-function almsivi_ui_provider_cards(array $rows, array $runtime, string $managementBasePath, string $csrf): void
+function almsivi_ui_provider_cards(array $rows, array $runtime, string $managementBasePath, string $csrf,bool $showRuntime=true): void
 {
     $runtimeDriver=(string)($runtime['driver']??'mock');$runtimeModel=(string)($runtime['model']??'');
     $endpoint=(string)($runtime['endpoint']??'');
-    echo '<article class="connector-card active"><header><div><span class="connector-kind">Server runtime</span><h3>Dialogue provider</h3></div><span class="status-badge connector-active">Configured</span></header><dl>';
-    echo '<dt>Driver</dt><dd>'.almsivi_ui_h($runtimeDriver).'</dd><dt>Default model</dt><dd>'.almsivi_ui_h($runtimeModel===''?'Not set':$runtimeModel).'</dd>';
-    echo '<dt>Endpoint</dt><dd><code>'.almsivi_ui_h($endpoint===''?'Local configuration':$endpoint).'</code></dd><dt>Credential</dt><dd><code>ALMSIVI_LLM_API_KEY</code> via API Keys or environment</dd></dl>';
-    echo '<p>Configured slots inherit this vetted endpoint and credential while selecting only their own model. Test slots never call the network.</p><div class="connector-actions"><form class="connector-test" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/provider-runtime-test').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base" type="submit">Test server runtime</button></form></div></article>';
-    if($rows===[]){echo '<p class="empty-state">No in-game model slots are configured yet. The server default remains available.</p>';return;}
+    if($showRuntime){echo '<article class="connector-card active"><header><div><span class="connector-kind">Server runtime</span><h3>Dialogue provider</h3></div><span class="status-badge connector-active">Configured</span></header><dl>';
+        echo '<dt>Driver</dt><dd>'.almsivi_ui_h($runtimeDriver).'</dd><dt>Default model</dt><dd>'.almsivi_ui_h($runtimeModel===''?'Not set':$runtimeModel).'</dd>';
+        echo '<dt>Endpoint</dt><dd><code>'.almsivi_ui_h($endpoint===''?'Local configuration':$endpoint).'</code></dd><dt>Credential</dt><dd><code>ALMSIVI_LLM_API_KEY</code> via API Keys or environment</dd></dl>';
+        echo '<p>Configured slots inherit this vetted endpoint and credential while selecting only their own model. Test slots never call the network.</p><div class="connector-actions"><form class="connector-test" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/provider-runtime-test').'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base" type="submit">Test server runtime</button></form></div></article>';}
+    if($rows===[]){if($showRuntime)echo '<p class="empty-state">No in-game model slots are configured yet. The server default remains available.</p>';return;}
     echo '<div class="connector-grid">';foreach($rows as$row){$content=is_array($row['content']??null)?$row['content']:[];$id=(string)($row['configuration_id']??'');$driver=(string)($content['driver']??'configured');
         $activeSessionUsage=(int)($row['active_session_usage']??0);$profileUsage=(int)($row['profile_usage']??0);$inUse=$activeSessionUsage>0||$profileUsage>0;
         echo '<article class="connector-card"><header><div><span class="connector-kind">LLM model slot</span><h3>'.almsivi_ui_h($row['name']??'').'</h3></div><span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??'').'</span></header><dl>';
@@ -769,6 +939,107 @@ function almsivi_ui_provider_cards(array $rows, array $runtime, string $manageme
         echo '</details>';almsivi_ui_revision_actions('provider',$id,is_array($row['revisions']??null)?$row['revisions']:[],(int)($row['current_revision']??1),$managementBasePath,$csrf,'provider',!$inUse,
             $activeSessionUsage>0?'This model slot cannot be deleted while selected by an active session.':($profileUsage>0?'This model slot cannot be deleted while assigned to a profile.':''));echo '</article>';
     }echo '</div>';
+}
+
+/** Render LLM, TTS, and STT records with CHIM's shared connector master/detail layout. */
+function almsivi_ui_connector_page(string $view,array $rows,array $forms,array $runtime,array $voiceOptions,string $pageTitle,string $description,string $managementBasePath,string $csrf):void
+{
+    $selectedId=(string)($_GET['selected']??'');$selected=null;
+    foreach($rows as$row)if(hash_equals((string)($row['configuration_id']??''),$selectedId)){$selected=$row;break;}
+    echo'<header class="configuration-page-header"><h1>'.almsivi_ui_h($pageTitle).'</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<div class="configuration-split-shell"><aside class="configuration-sidebar"><div class="configuration-sidebar-actions">';
+    foreach($forms as$index=>$form){echo'<details class="configuration-action-panel"><summary class="btn-base '.($index===0?'btn-success':'btn-primary').'">'.($index===0?'New':'Import').'</summary>';almsivi_ui_management_form($form,$managementBasePath,$csrf);echo'</details>';}
+    echo'</div><div class="configuration-record-list">';
+    if($view==='llm'){echo'<a class="configuration-record'.($selectedId==='runtime'?' active':'').'" href="?'.almsivi_ui_h(http_build_query(['embed'=>($_GET['embed']??'')==='1'?'1':null,'selected'=>'runtime'])).'"><span><strong>Server runtime</strong><small>'.almsivi_ui_h($runtime['model']??'Default dialogue provider').'</small></span><span class="status-badge connector-active">Live</span></a>';}
+    foreach($rows as$row){$id=(string)($row['configuration_id']??'');$content=is_array($row['content']??null)?$row['content']:[];$driver=(string)($content['driver']??strtoupper($view));
+        $summary=$view==='llm'?(string)($content['model']??$driver):(string)($content['endpoint']??$driver);
+        echo'<a class="configuration-record'.($selected!==null&&hash_equals($selectedId,$id)?' active':'').'" href="?'.almsivi_ui_h(http_build_query(['embed'=>($_GET['embed']??'')==='1'?'1':null,'selected'=>$id])).'"><span><strong>'.almsivi_ui_h($row['name']??strtoupper($view).' connector').'</strong><small>'.almsivi_ui_h($summary).'</small></span><span class="status-badge">'.almsivi_ui_h($driver).'</span></a>';}
+    echo'</div></aside><section class="configuration-detail">';
+    if($view==='llm'&&$selectedId==='runtime')almsivi_ui_provider_cards([],$runtime,$managementBasePath,$csrf,true);
+    elseif($selected!==null&&$view==='llm')almsivi_ui_provider_cards([$selected],$runtime,$managementBasePath,$csrf,false);
+    elseif($selected!==null)almsivi_ui_connector_cards([$selected],$voiceOptions,$view,$managementBasePath,$csrf);
+    else echo'<div class="configuration-empty"><h2>No connector selected</h2><p>Select a connector from the list on the left to view and edit its settings.</p></div>';
+    echo'</section></div>';
+}
+
+/** Render one strict revisioned settings form without exposing server endpoints or credentials. */
+function almsivi_ui_global_settings_form(?array $row,array $installationOptions,string $managementBasePath,string $csrf):void
+{
+    $content=is_array($row['content']??null)?$row['content']:[];$behavior=is_array($content['behavior']??null)?$content['behavior']:[];
+    $memory=is_array($content['memory']??null)?$content['memory']:[];$narrator=is_array($content['narrator']??null)?$content['narrator']:[];
+    $presentation=is_array($content['presentation']??null)?$content['presentation']:[];$safety=is_array($content['safety']??null)?$content['safety']:[];
+    $installation=(string)($row['installation_id']??'');$id=(string)($row['configuration_id']??($installation!==''?$installation:'new'));
+    almsivi_ui_management_form(['route'=>'global-settings-save','id'=>'global-settings-'.$id,'legend'=>$row===null?'Create installation settings':'Save installation settings revision',
+        'fields'=>[
+            ['installation_id','Installation','select',$installation,$installationOptions],
+            ['auto_greeting','Automatic greeting','checkbox','1',[],false,($behavior['auto_greeting']??false)===true],
+            ['rechat','Rechat','checkbox','1',[],false,($behavior['rechat']??false)===true],
+            ['rechat_delay_seconds','Rechat delay (seconds)','number',(string)($behavior['rechat_delay_seconds']??45)],
+            ['rechat_max_depth','Maximum rechat replies','number',(string)($behavior['rechat_max_depth']??10)],
+            ['boredom','Bored events','checkbox','1',[],false,($behavior['boredom']??false)===true],
+            ['boredom_delay_seconds','Boredom delay (seconds)','number',(string)($behavior['boredom_delay_seconds']??180)],
+            ['combat_barks','Combat barks','checkbox','1',[],false,($behavior['combat_barks']??false)===true],
+            ['combat_bark_period_seconds','Combat bark period (seconds)','number',(string)($behavior['combat_bark_period_seconds']??20)],
+            ['recent_turn_limit','Recent turn context limit','number',(string)($memory['recent_turn_limit']??20)],
+            ['knowledge_limit','Oghma result limit','number',(string)($memory['knowledge_limit']??5)],
+            ['narrator_enabled','Enable narrator','checkbox','1',[],false,($narrator['enabled']??false)===true],
+            ['narrator_name','Narrator roleplay name','text',(string)($narrator['name']??'The Narrator')],
+            ['narrator_context_visibility','Include narrator context','checkbox','1',[],false,($narrator['context_visibility']??true)===true],
+            ['narrator_inline_mode','Inline narration mode','select',(string)($narrator['inline_mode']??'Disabled'),['Disabled'=>'Disabled','Narrator'=>'Narrator voice','NPC'=>'NPC voice','Text Only'=>'Text only']],
+            ['narrator_welcome_events','Welcome narration','checkbox','1',[],false,($narrator['welcome_events']??false)===true],
+            ['narrator_random_events','Random narration','checkbox','1',[],false,($narrator['random_events']??false)===true],
+            ['narrator_quest_events','Quest narration','checkbox','1',[],false,($narrator['quest_events']??false)===true],
+            ['narrator_book_events','Book narration','checkbox','1',[],false,($narrator['book_events']??false)===true],
+            ['show_status_hud','Show status HUD','checkbox','1',[],false,($presentation['show_status_hud']??true)===true],
+            ['transcript_rows','Transcript rows','number',(string)($presentation['transcript_rows']??8)],
+            ['tts_volume_boost','ALMSIVI TTS volume boost','number',(string)($presentation['tts_volume_boost']??3)],
+            ['actions_enabled','Allow typed AI actions','checkbox','1',[],false,($safety['actions_enabled']??true)===true],
+            ['allow_hostile','Allow hostile NPC activation','checkbox','1',[],false,($safety['allow_hostile']??false)===true],
+            ['allow_creatures','Allow creature activation','checkbox','1',[],false,($safety['allow_creatures']??false)===true],
+            ['change_reason','Change reason','text','management global settings'],
+        ]],$managementBasePath,$csrf);
+}
+
+/** Render revisioned settings plus separately confirmed runtime schedules in the CHIM hierarchy. */
+function almsivi_ui_global_settings_page(array $rows,array $installationRows,array $installationOptions,array $scheduleRows,array $forms,array $sessionOptions,string $managementBasePath,string $csrf):void
+{
+    echo'<div class="global-settings-shell"><header class="global-settings-title"><h1>Global Settings</h1><div class="global-settings-actions">';
+    foreach($forms as$form){echo'<details class="configuration-action-panel"><summary class="btn-base btn-success">New Schedule</summary>';almsivi_ui_management_form($form,$managementBasePath,$csrf);echo'</details>';}
+    echo'</div></header><nav class="global-settings-tabs" aria-label="Global setting groups"><span class="active">&#9881; Effective Settings</span><span>&#128172; Conversation Timing</span><span>&#127760; Installations</span></nav>';
+    echo'<section class="global-settings-panel"><h2>Server-owned effective settings</h2><p>These revisioned values sync at session start. Local OpenMW safety settings can further restrict actions, hostile actors, and creatures; the server cannot loosen them.</p>';
+    $configured=[];foreach($rows as$row){$configured[(string)($row['installation_id']??'')]=true;echo'<details class="global-settings-document" open><summary>'.almsivi_ui_h($row['display_name']??'Installation').' <span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??1).'</span></summary>';almsivi_ui_global_settings_form($row,$installationOptions,$managementBasePath,$csrf);echo'</details>';}
+    foreach($installationOptions as$id=>$label)if(!isset($configured[$id])){echo'<details class="global-settings-document" open><summary>Create settings for '.almsivi_ui_h($label).'</summary>';almsivi_ui_global_settings_form(['installation_id'=>$id],$installationOptions,$managementBasePath,$csrf);echo'</details>';}
+    if($installationOptions===[])echo'<p class="empty-state">No OpenMW installation has paired with ALMSIVIserver yet.</p>';echo'</section>';
+    echo'<section class="global-settings-panel"><h2>Rechat, Boredom &amp; Greetings</h2><p>Schedules remain bounded to the selected installation, profile, playthrough, and confirmed active session.</p>';
+    almsivi_ui_schedule_cards($scheduleRows,$sessionOptions,$managementBasePath,$csrf);echo'</section>';
+    echo'<section class="global-settings-panel"><h2>Registered Installations</h2>';almsivi_ui_table($installationRows);echo'</section></div>';
+}
+
+/** Render versioned prompts with CHIM's guidance, import/create tools, and searchable records. */
+function almsivi_ui_prompts_page(array $rows,array $forms,string $description,string $managementBasePath,string $csrf):void
+{
+    $query=mb_strtolower(mb_substr(trim((string)($_GET['q']??'')),0,100));
+    $filtered=$query===''?$rows:array_values(array_filter($rows,static function(array$row)use($query):bool{$content=is_array($row['content']??null)?$row['content']:[];return str_contains(mb_strtolower((string)($row['name']??'').' '.json_encode($content)), $query);}));
+    echo'<header class="configuration-page-header"><h1>Prompts Manager</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<section class="prompts-guidance"><p><strong>Note:</strong> Prompt changes affect every conversation assigned to that configuration. Revisions and rollback remain available.</p><p><strong>ALMSIVI prompt:</strong> A versioned, installation-scoped instruction document. Profile routing determines which prompt is used.</p></section>';
+    echo'<section class="widget widget-wide prompts-builtin"><div class="widget-header"><h3>Built-in Default</h3><span class="status-badge connector-active">Always available</span></div><div class="widget-content"><article class="connector-card"><header><div><span class="connector-kind">Read-only fallback</span><h3>ALMSIVI Core Conversation</h3></div></header><p>Used only when the active character has no explicit prompt and no applicable saved installation prompt exists.</p><pre class="configuration-preview">'.almsivi_ui_h(json_encode(['instruction'=>'Respond in character using only scoped context.'],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)).'</pre></article></div></section>';
+    echo'<section class="prompts-tools">';foreach($forms as$index=>$form){echo'<details class="configuration-action-panel"><summary class="btn-base '.($index===0?'btn-success':'btn-primary').'">'.($index===0?'Create Prompt':'Import Prompt').'</summary><p>'.($index===0?'Create a new versioned dialogue prompt.':'Import a portable ALMSIVI prompt JSON document.').'</p>';almsivi_ui_management_form($form,$managementBasePath,$csrf);echo'</details>';};echo'</section>';
+    echo'<section class="prompts-search"><h2>Search Prompts</h2><form method="get"><label for="prompt-search">Filter by prompt name or document text</label><div><input id="prompt-search" type="search" name="q" value="'.almsivi_ui_h($_GET['q']??'').'" placeholder="Search prompts...">'.((($_GET['embed']??'')==='1')?'<input type="hidden" name="embed" value="1">':'').'<button class="btn-base" type="submit">Search</button></div></form></section>';
+    echo'<section class="widget widget-wide prompts-records"><div class="widget-header"><h3>Prompt Records</h3><span class="status-badge">'.count($filtered).' shown</span></div><div class="widget-content">';almsivi_ui_configuration_cards($filtered,'prompt',$managementBasePath,$csrf);echo'</div></section>';
+}
+
+/** Render immutable OpenMW actions and reducible policies in CHIM's Action Editor format. */
+function almsivi_ui_actions_page(array $rows,array $policyRows,array $installationOptions,array $profileOptions,string $description,string $managementBasePath,string $csrf):void
+{
+    $enabledRows=array_values(array_filter($rows,static fn(array$row):bool=>in_array($row['enabled']??false,[true,1,'1','t','true'],true)));
+    $query=mb_strtolower(mb_substr(trim((string)($_GET['q']??'')),0,100));
+    $filtered=$query===''?$rows:array_values(array_filter($rows,static fn(array$row):bool=>str_contains(mb_strtolower(implode(' ',[(string)($row['action_name']??''),(string)($row['client_capability']??''),(string)($row['description']??'')])), $query)));
+    echo'<header class="configuration-page-header"><h1>Action Editor</h1><p>'.almsivi_ui_h($description).'</p></header>';
+    echo'<div class="action-overview-grid"><section><h2>Action Summary</h2><div class="action-stat-grid"><article><span>Total Actions</span><strong>'.count($rows).'</strong></article><article><span>Enabled</span><strong class="success">'.count($enabledRows).'</strong></article><article><span>Policies</span><strong>'.count($policyRows).'</strong></article></div></section><section><h2>How It Works</h2><p>ALMSIVI exposes only the immutable action catalog negotiated with OpenMW. Policies can reduce allowed actions and maximum tier; they cannot add new capabilities or bypass confirmation.</p></section></div>';
+    echo'<form class="action-filter-bar" method="get"><label for="action-filter-q">Search actions</label><input id="action-filter-q" type="search" name="q" value="'.almsivi_ui_h($_GET['q']??'').'" placeholder="Search actions..."><span>'.count($filtered).' of '.count($rows).' shown</span>'.((($_GET['embed']??'')==='1')?'<input type="hidden" name="embed" value="1">':'').'<button class="btn-base" type="submit">Search</button><a class="btn-base" href="?'.(($_GET['embed']??'')==='1'?'embed=1':'').'">Reset Filters</a></form>';
+    echo'<section class="widget widget-wide action-catalog-table"><div class="widget-content">';almsivi_ui_table($filtered);echo'</div></section>';
+    echo'<details class="management-create-panel"'.($policyRows===[]?' open':'').'><summary>Create action policy with controls</summary>';almsivi_ui_action_policy_form(null,$rows,$installationOptions,$profileOptions,$managementBasePath,$csrf);echo'</details>';
+    echo'<section class="widget widget-wide"><div class="widget-header"><h3>Action Policies</h3></div><div class="widget-content">';almsivi_ui_action_policy_cards($policyRows,$rows,$installationOptions,$profileOptions,$managementBasePath,$csrf);echo'</div></section>';
 }
 
 /** Render JSON-backed prompt and action-policy revisions with bounded edit, rollback, and delete controls. */
@@ -788,14 +1059,14 @@ function almsivi_ui_configuration_cards(array $rows,string $kind,string $managem
 }
 
 /** Render a labelled policy editor over immutable server-owned action definitions. */
-function almsivi_ui_action_policy_form(?array $row,array $actions,array $installationOptions,string $managementBasePath,string $csrf):void
+function almsivi_ui_action_policy_form(?array $row,array $actions,array $installationOptions,array $profileOptions,string $managementBasePath,string $csrf):void
 {
     $create=$row===null;$content=$create?[]:(is_array($row['content']??null)?$row['content']:[]);$token=$create?'create':(string)($row['configuration_id']??'policy');
     $explicit=is_array($content['actions']??null)&&!array_is_list($content['actions'])?$content['actions']:null;
     $allow=is_array($content['allowed_actions']??null)&&array_is_list($content['allowed_actions'])?$content['allowed_actions']:null;
     $deny=is_array($content['denied_actions']??null)&&array_is_list($content['denied_actions'])?$content['denied_actions']:[];
     echo '<form class="management-form action-policy-form" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/'.($create?'action-policy-controls-create':'action-policy-controls-revise')).'"><fieldset><legend>'.($create?'Create action policy with controls':'Edit action permissions').'</legend>';
-    if($create){echo '<label for="action-policy-installation-'.$token.'">Installation</label><select id="action-policy-installation-'.$token.'" name="installation_id" required>';foreach($installationOptions as$id=>$label)echo '<option value="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</option>';echo '</select><label for="action-policy-name-'.$token.'">Policy name</label><input id="action-policy-name-'.$token.'" name="name" required>';}
+    if($create){echo '<label for="action-policy-installation-'.$token.'">Installation</label><select id="action-policy-installation-'.$token.'" name="installation_id" required>';foreach($installationOptions as$id=>$label)echo '<option value="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</option>';echo '</select><label for="action-policy-profile-'.$token.'">Profile scope</label><select id="action-policy-profile-'.$token.'" name="profile_id"><option value="">Installation-wide</option>';foreach($profileOptions as$id=>$label)echo '<option value="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</option>';echo '</select><small>Profile policies take precedence over installation-wide policies.</small><label for="action-policy-name-'.$token.'">Policy name</label><input id="action-policy-name-'.$token.'" name="name" required>';}
     else echo '<input type="hidden" name="configuration_id" value="'.almsivi_ui_h($row['configuration_id']??'').'">';
     echo '<label class="action-policy-master" for="action-policy-enabled-'.$token.'"><input id="action-policy-enabled-'.$token.'" type="checkbox" name="enabled" value="1"'.(($content['enabled']??true)?' checked':'').'> Enable actions for this policy</label>';
     echo '<label for="action-policy-tier-'.$token.'">Maximum action tier</label><select id="action-policy-tier-'.$token.'" name="max_tier">';$maxTier=(int)($content['max_tier']??3);foreach([0=>'Tier 0 - inspect only',1=>'Tier 1 - movement and social',2=>'Tier 2 - confirmed inventory or combat',3=>'Tier 3 - reserved high risk']as$value=>$label)echo '<option value="'.$value.'"'.($maxTier===$value?' selected':'').'>'.almsivi_ui_h($label).'</option>';echo '</select>';
@@ -809,12 +1080,12 @@ function almsivi_ui_action_policy_form(?array $row,array $actions,array $install
 }
 
 /** Render action-policy revisions with labelled controls plus an advanced JSON editor. */
-function almsivi_ui_action_policy_cards(array $rows,array $actions,array $installationOptions,string $managementBasePath,string $csrf):void
+function almsivi_ui_action_policy_cards(array $rows,array $actions,array $installationOptions,array $profileOptions,string $managementBasePath,string $csrf):void
 {
     if($rows===[]){echo '<p class="empty-state">No action policies are configured. The immutable server catalog and negotiated client capabilities remain the safety boundary.</p>';return;}
     echo '<div class="connector-grid">';foreach($rows as$row){$id=(string)($row['configuration_id']??'');$content=is_array($row['content']??null)?$row['content']:[];
-        echo '<article class="connector-card"><header><div><span class="connector-kind">Action policy</span><h3>'.almsivi_ui_h($row['name']??'').'</h3></div><span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??'').'</span></header><dl><dt>Enabled</dt><dd>'.(($content['enabled']??true)?'Yes':'No').'</dd><dt>Maximum tier</dt><dd>'.almsivi_ui_h($content['max_tier']??3).'</dd></dl><details open><summary>Action permissions</summary>';
-        almsivi_ui_action_policy_form($row,$actions,$installationOptions,$managementBasePath,$csrf);echo '</details><details><summary>Advanced policy JSON</summary>';
+        echo '<article class="connector-card"><header><div><span class="connector-kind">Action policy</span><h3>'.almsivi_ui_h($row['name']??'').'</h3></div><span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??'').'</span></header><dl><dt>Scope</dt><dd>'.almsivi_ui_h($row['profile_name']??'Installation-wide').'</dd><dt>Enabled</dt><dd>'.(($content['enabled']??true)?'Yes':'No').'</dd><dt>Maximum tier</dt><dd>'.almsivi_ui_h($content['max_tier']??3).'</dd></dl><details open><summary>Action permissions</summary>';
+        almsivi_ui_action_policy_form($row,$actions,$installationOptions,$profileOptions,$managementBasePath,$csrf);echo '</details><details><summary>Advanced policy JSON</summary>';
         almsivi_ui_management_form(['route'=>'configuration-revise','id'=>'action-policy-json-'.$id,'legend'=>'Save advanced policy revision','hidden'=>['configuration_id'=>$id,'kind'=>'action_policy'],
             'fields'=>[['content_json','Policy document (JSON)','textarea',json_encode($content===[]?(object)[]:$content,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)],['change_reason','Change reason','text','advanced action policy edit']]],$managementBasePath,$csrf);
         echo '</details>';almsivi_ui_revision_actions('configuration',$id,is_array($row['revisions']??null)?$row['revisions']:[],(int)($row['current_revision']??1),$managementBasePath,$csrf,'action_policy');echo '</article>';}
@@ -881,18 +1152,39 @@ function almsivi_ui_observed_npcs(array $rows,string $managementBasePath,string 
     echo '</div>';
 }
 
+$bodyClass='configuration-resource view-'.preg_replace('/[^a-z0-9_-]+/','-',strtolower($view));
 include $uiRootDir . '/tmpl/head.html';
 if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 ?>
 <main class="management-page">
-    <h1><?php echo almsivi_ui_h($pageTitle); ?></h1>
-    <p><?php echo almsivi_ui_h($descriptions[$view] ?? 'ALMSIVIserver management page.'); ?></p>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'saved'): ?><p class="page-status" role="status">Changes saved.</p><?php endif; ?>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'tested'): ?><p class="page-status" role="status">Connector test passed<?php echo isset($_GET['detail']) ? ': ' . almsivi_ui_h($_GET['detail']) : '.'; ?></p><?php endif; ?>
     <?php if (isset($_GET['error'])): ?><p class="page-error" role="alert"><?php echo almsivi_ui_h($_GET['error']); ?></p><?php endif; ?>
     <?php if ($view === 'characters'): ?>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Observed OpenMW NPCs</h3></div><div class="widget-content"><?php almsivi_ui_observed_npcs($observedNpcs,$managementBasePath,$csrf); ?></div></section>
-    <section class="widget widget-wide"><div class="widget-header"><h3>NPC Profile Safety &amp; Bulk Tools</h3></div><div class="widget-content"><?php almsivi_ui_profile_preferences($profilePreferenceRows,$managementBasePath,$csrf); almsivi_ui_bulk_profile_tools($rows,$installationOptions,$managementBasePath,$csrf); ?></div></section>
+    <?php almsivi_ui_character_manager($rows,$observedNpcs,$profilePreferenceRows,$installationOptions,$voiceOptions,$promptRoutingRows,$llmRoutingRows,$ttsRoutingRows,$forms,$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'profiles'): ?>
+    <?php almsivi_ui_profiles_page($rows,$forms,$voiceOptions,$promptRoutingRows,$llmRoutingRows,$ttsRoutingRows,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'player'): ?>
+    <?php almsivi_ui_player_page($rows,$forms,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'narrator'): ?>
+    <?php almsivi_ui_narrator_page($rows,$forms,$voiceOptions,$ttsRoutingRows,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php elseif (in_array($view, ['llm','tts','stt'], true)): ?>
+    <?php almsivi_ui_connector_page($view,$rows,$forms,is_array($config['provider']??null)?$config['provider']:[],$voiceOptions,$pageTitle,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'global_settings'): ?>
+    <?php almsivi_ui_global_settings_page($rows,$installationRows,$installationOptions,$scheduleRows,$forms,$sessionOptions,$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'prompts'): ?>
+    <?php almsivi_ui_prompts_page($rows,$forms,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php elseif ($view === 'actions'): ?>
+    <?php almsivi_ui_actions_page($rows,$policyRows,$installationOptions,$actionProfileOptions,$descriptions[$view],$managementBasePath,$csrf); ?>
+    <?php else: ?>
+    <header class="configuration-page-header"><h1><?php echo almsivi_ui_h($pageTitle); ?></h1><p><?php echo almsivi_ui_h($descriptions[$view] ?? 'ALMSIVIserver management page.'); ?></p></header>
+    <?php if ($view === 'worldknowledge'): ?>
+    <section class="knowledge-search-logic"><h2>&#128269; Article Search Logic</h2><div class="knowledge-steps">
+        <article><span>1</span><div><h3>Scoped Retrieval</h3><p>Only knowledge for the current installation, profile, and playthrough can be selected.</p></div></article>
+        <article><span>2</span><div><h3>Keyword Matching</h3><p>Dialogue terms are matched against bounded Morrowind world-knowledge records.</p></div></article>
+        <article><span>3</span><div><h3>Deterministic Ranking</h3><p>Stable scoring keeps the most relevant records predictable and auditable.</p></div></article>
+        <article><span>4</span><div><h3>Safe Fallback</h3><p>If nothing relevant is found, no unscoped knowledge is injected into the prompt.</p></div></article>
+    </div></section>
     <?php endif; ?>
     <section class="widget widget-wide">
         <div class="widget-header"><h3>Current Records</h3></div>
@@ -916,7 +1208,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     <section class="widget widget-wide"><div class="widget-header"><h3>Installation Configuration Backups</h3></div><div class="widget-content"><p>Includes profiles, prompts, model slots, TTS/STT presets, action policies, connector selections, and profile safety preferences. API keys, portrait files, voice files, memories, relationships, narratives, and runtime database records are excluded.</p><?php almsivi_ui_configuration_backup_cards($backupRows,$installationOptions,$managementBasePath); ?></div></section>
     <?php endif; ?>
     <?php if ($view === 'actions'): ?>
-    <details class="management-create-panel"<?php echo $policyRows === [] ? ' open' : ''; ?>><summary>Create action policy with controls</summary><?php almsivi_ui_action_policy_form(null,$rows,$installationOptions,$managementBasePath,$csrf); ?></details>
+    <details class="management-create-panel"<?php echo $policyRows === [] ? ' open' : ''; ?>><summary>Create action policy with controls</summary><?php almsivi_ui_action_policy_form(null,$rows,$installationOptions,$actionProfileOptions,$managementBasePath,$csrf); ?></details>
     <?php endif; ?>
     <?php foreach ($forms as $form): ?>
         <details class="management-create-panel"<?php echo $rows === [] ? ' open' : ''; ?>>
@@ -925,24 +1217,12 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         </details>
     <?php endforeach; ?>
     <?php if ($view === 'actions'): ?>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Action Policies</h3></div><div class="widget-content"><p>Policies can only reduce the immutable server catalog and the capabilities negotiated with OpenMW. Profile-specific policies take precedence over installation policies; equal scopes use policy name order.</p><?php almsivi_ui_action_policy_cards($policyRows,$rows,$installationOptions,$managementBasePath,$csrf); ?></div></section>
+    <section class="widget widget-wide"><div class="widget-header"><h3>Action Policies</h3></div><div class="widget-content"><p>Policies can only reduce the immutable server catalog and the capabilities negotiated with OpenMW. Profile-specific policies take precedence over installation policies; equal scopes use policy name order.</p><?php almsivi_ui_action_policy_cards($policyRows,$rows,$installationOptions,$actionProfileOptions,$managementBasePath,$csrf); ?></div></section>
     <?php endif; ?>
     <?php if ($view === 'autonomy'): ?>
     <section class="widget widget-wide"><div class="widget-header"><h3>Narrator and Diary Records</h3></div><div class="widget-content"><?php almsivi_ui_narrative_cards($narrativeRows,$managementBasePath,$csrf); ?></div></section>
     <?php endif; ?>
+    <?php endif; ?>
 </main>
-<script>
-document.querySelectorAll('[data-json-import-target]').forEach(function (picker) {
-    picker.addEventListener('change', function () {
-        var file = picker.files && picker.files[0];
-        var target = document.getElementById(picker.getAttribute('data-json-import-target'));
-        if (!file || !target) return;
-        if (file.size > 1048576) { picker.value = ''; window.alert('JSON imports are limited to 1 MiB.'); return; }
-        var reader = new FileReader();
-        reader.onload = function () { target.value = typeof reader.result === 'string' ? reader.result : ''; };
-        reader.onerror = function () { picker.value = ''; window.alert('The JSON file could not be read.'); };
-        reader.readAsText(file, 'UTF-8');
-    });
-});
-</script>
+<script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script>
 <?php include $uiRootDir . '/tmpl/footer.html'; ?>

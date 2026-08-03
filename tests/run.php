@@ -14,6 +14,7 @@ use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\OpenAiCompatibleProvider;
+use ALMSIVIserver\Application\StreamingDialogueText;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
@@ -68,6 +69,11 @@ try {
 }
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
+$streamText=new StreamingDialogueText();$streamChunks=[];
+foreach(['{"utterances":[{"text":"Hello ','there. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
+    foreach($streamText->push($chunk,$index===2) as $delta)$streamChunks[]=$delta;
+$check(implode('',$streamChunks)==='Hello there. Welcome to Balmora!',
+    'streaming dialogue exposes only decoded utterance text in bounded deltas');
 $actionProvider = new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key');
 $normalizeAction = new ReflectionMethod($actionProvider, 'normalizeAction');
 $normalizedAction = $normalizeAction->invoke($actionProvider,

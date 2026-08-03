@@ -150,7 +150,10 @@ final class ManagementRouter
         match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
+            'profile-template-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'actor_identity'=>$this->templateIdentity($v),'content'=>$this->profileContent($v)]),
             'profile-revise'=>$this->reviseNpcProfile($v),
+            'profile-toggle-favorite'=>$this->toggleNpcProfileManagement($v,'favorite'),
+            'profile-toggle-lock'=>$this->toggleNpcProfileManagement($v,'locked'),
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
@@ -161,6 +164,7 @@ final class ManagementRouter
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]),
             'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
+            'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
             'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
             'profile-delete'=>$this->service->deleteRevisioned('profile',$this->need($v,'profile_id')),
@@ -190,8 +194,8 @@ final class ManagementRouter
             'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'prompt-clone'=>$this->clonePrompt($v),
             'prompt-import'=>$this->importPrompt($v,$scope),
-            'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
-            'action-policy-controls-create'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->actionPolicyFormContent($v)]),
+            'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$content]),
+            'action-policy-controls-create'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$this->actionPolicyFormContent($v)]),
             'action-policy-controls-revise'=>$this->service->revise('action_policy',$this->need($v,'configuration_id'),$this->actionPolicyFormContent($v),$this->need($v,'change_reason')),
             'configuration-revise'=>$this->service->revise($this->configurationKind($v),$this->need($v,'configuration_id'),$content,$this->need($v,'change_reason')),
             'configuration-rollback'=>$this->service->rollback($this->configurationKind($v),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
@@ -214,7 +218,8 @@ final class ManagementRouter
             'configuration-restore'=>$this->restoreConfigurationBackup($v,$scope),
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'profile-import','profile-clone'=>'profiles','profile-create','profile-revise','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'profile-import','profile-clone'=>'profiles','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -302,7 +307,7 @@ final class ManagementRouter
     private function json(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');try{$v=json_decode($r->body,true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_json');}if(!is_array($v)||array_is_list($v))throw new InvalidArgumentException('invalid_json');return$v;}
     private function form(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');parse_str($r->body,$v);return is_array($v)?$v:[];}
     private function scopeQuery(Request $r):array{return['installation_id'=>$this->queryUuid($r,'installation_id'),'profile_id'=>$this->queryUuid($r,'profile_id'),'playthrough_id'=>$this->queryUuid($r,'playthrough_id')];}
-    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$this->uuid((string)$v[$k],$k);$out[$k]=(string)$v[$k];}return$out;}
+    private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$this->uuid($value,$k);$out[$k]=$value;}return$out;}
     private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}
     private function uuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
     private function jsonField(array $v,string $k):array{try{$d=json_decode((string)($v[$k]??'{}'),true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_'.$k);}if(!is_array($d)||($d!==[]&&array_is_list($d)))throw new InvalidArgumentException('invalid_'.$k);return$d;}
@@ -622,7 +627,7 @@ final class ManagementRouter
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
-        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy'];
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
                 ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
@@ -685,6 +690,14 @@ final class ManagementRouter
         return$identity;
     }
 
+    /** Describe a reusable pre-activation template without impersonating a live TES3 actor. */
+    private function templateIdentity(array $values):array
+    {
+        $identity=['kind'=>'template','display_name'=>$this->need($values,'name')];
+        foreach(['record_id','content_file']as$field){$value=trim((string)($values[$field]??''));if($value!=='')$identity[$field]=$value;}
+        return$identity;
+    }
+
     /** Build the installation-scoped identity used for the human player's roleplay profile. */
     private function playerIdentity(array $values):array
     {
@@ -705,7 +718,40 @@ final class ManagementRouter
         $content=$this->profileContent($values);$mode=(string)($values['inline_narration_mode']??'Disabled');
         if(!in_array($mode,['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException('invalid_inline_narration_mode');
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
+        $content['context_visibility']=isset($values['context_visibility']);
+        $content['welcome_events']=isset($values['welcome_events']);$content['random_events']=isset($values['random_events']);
+        $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
         return$content;
+    }
+
+    /** Create or revise the one typed global-settings document owned by an installation. */
+    private function saveGlobalSettings(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
+        return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
+    }
+
+    /** Convert labelled management controls into the strict client-settings protocol document. */
+    private function globalSettingsContent(array $values):array
+    {
+        $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
+        $mode=(string)($values['narrator_inline_mode']??'Disabled');
+        return['schema'=>'almsivi.client-settings.v1','behavior'=>[
+            'auto_greeting'=>isset($values['auto_greeting']),'rechat'=>isset($values['rechat']),
+            'rechat_delay_seconds'=>$integer($values,'rechat_delay_seconds',45),'rechat_max_depth'=>$integer($values,'rechat_max_depth',10),
+            'boredom'=>isset($values['boredom']),'boredom_delay_seconds'=>$integer($values,'boredom_delay_seconds',180),
+            'combat_barks'=>isset($values['combat_barks']),'combat_bark_period_seconds'=>$integer($values,'combat_bark_period_seconds',20),
+        ],'memory'=>['recent_turn_limit'=>$integer($values,'recent_turn_limit',20),'knowledge_limit'=>$integer($values,'knowledge_limit',5)],
+        'narrator'=>['enabled'=>isset($values['narrator_enabled']),'name'=>trim((string)($values['narrator_name']??'The Narrator')),
+            'context_visibility'=>isset($values['narrator_context_visibility']),'inline_mode'=>$mode,
+            'welcome_events'=>isset($values['narrator_welcome_events']),'random_events'=>isset($values['narrator_random_events']),
+            'quest_events'=>isset($values['narrator_quest_events']),'book_events'=>isset($values['narrator_book_events'])],
+        'presentation'=>['show_status_hud'=>isset($values['show_status_hud']),'transcript_rows'=>$integer($values,'transcript_rows',8),
+            'tts_volume_boost'=>$integer($values,'tts_volume_boost',3)],
+        'safety'=>['actions_enabled'=>isset($values['actions_enabled']),'allow_hostile'=>isset($values['allow_hostile']),
+            'allow_creatures'=>isset($values['allow_creatures'])]];
     }
 
     /** Convert labelled NPC editor fields into the bounded roleplay document consumed by prompts and TTS. */
@@ -755,6 +801,21 @@ final class ManagementRouter
         $content=$this->profileContent($values);if($this->repository->profileAutoLockEnabled((string)$profile['installation_id'])){
             $management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
         return$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'));
+    }
+
+    /** Toggle one card-level management flag without applying the installation edit auto-lock rule. */
+    private function toggleNpcProfileManagement(array $values,string $field):array
+    {
+        if(!in_array($field,['favorite','locked'],true))throw new InvalidArgumentException('invalid_management_field');
+        $profileId=$this->need($values,'profile_id');$profile=$this->repository->getRevisioned('profile',$profileId);
+        $identity=$profile['actor_identity']??[];if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
+        if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new InvalidArgumentException('profile_not_editable');
+        $content=$profile['content']??[];if(is_string($content))$content=json_decode($content,true,32,JSON_THROW_ON_ERROR);
+        if(!is_array($content)||array_is_list($content))$content=[];
+        $management=is_array($content['management']??null)&&!array_is_list($content['management'])?$content['management']:[];
+        $other=$field==='favorite'?'locked':'favorite';$management[$field]=($management[$field]??false)!==true;$management[$other]=($management[$other]??false)===true;
+        $content['management']=$management;
+        return$this->service->revise('profile',$profileId,$content,'management '.$field.' toggle');
     }
 
     /** Apply typed-confirmation bulk NPC operations within one installation only. */

@@ -7,18 +7,30 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 source_root=${1:-}
+http_port=${ALMSIVI_HTTP_PORT:-8089}
 if [[ -z ${source_root} || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-wsl.sh <absolute-ALMSIVIserver-source-path>" >&2
     exit 2
 fi
 
-for command in apache2ctl openssl php psql rsync runuser sha256sum; do
+for command in apache2ctl openssl php psql rsync runuser sha256sum ss; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
 
-if ss -ltn | awk '{print $4}' | grep -Eq '(^|:)8089$'; then
-    if [[ ! -e /etc/apache2/sites-enabled/almsiviserver.conf ]]; then
-        echo "Port 8089 is already owned by another service." >&2
+if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
+    echo "ALMSIVI_HTTP_PORT must be an integer from 1024 through 65535." >&2
+    exit 2
+fi
+case " ${http_port} " in
+    ' 8020 '|' 8021 '|' 8022 '|' 8023 '|' 8024 '|' 8082 '|' 8085 '|' 8086 '|' 12346 ')
+        echo "Port ${http_port} is reserved by another Dwemer service. ALMSIVI uses dedicated port 8089 by default." >&2
+        exit 2
+        ;;
+esac
+if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${http_port}$"; then
+    if [[ ! -e /etc/apache2/sites-enabled/almsiviserver.conf ]] \
+        || ! grep -Eq "<VirtualHost[[:space:]]+\*:${http_port}>" /etc/apache2/sites-enabled/almsiviserver.conf; then
+        echo "Port ${http_port} is already owned by another service." >&2
         exit 1
     fi
 fi
@@ -170,11 +182,12 @@ if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Could not determine the Windows-to-WSL gateway address." >&2
     exit 1
 fi
-sed "s/@WSL_GATEWAY@/${gateway}/g" "${release_dir}/deploy/apache/almsiviserver.conf" \
+sed -e "s/@WSL_GATEWAY@/${gateway}/g" -e "s/@ALMSIVI_HTTP_PORT@/${http_port}/g" \
+    "${release_dir}/deploy/apache/almsiviserver.conf" \
     > /etc/apache2/sites-available/almsiviserver.conf
 chmod 0644 /etc/apache2/sites-available/almsiviserver.conf
-sed -i '/^Listen[[:space:]]\+127\.0\.0\.1:8089$/d;/^Listen[[:space:]]\+0\.0\.0\.0:8089$/d' /etc/apache2/ports.conf
-printf '\nListen 0.0.0.0:8089\n' >> /etc/apache2/ports.conf
+sed -i -E "/^Listen[[:space:]]+(127\\.0\\.0\\.1|0\\.0\\.0\\.0):${http_port}$/d" /etc/apache2/ports.conf
+printf '\nListen 0.0.0.0:%s\n' "${http_port}" >> /etc/apache2/ports.conf
 a2enmod rewrite >/dev/null
 a2ensite almsiviserver.conf >/dev/null
 apache2ctl configtest
@@ -209,13 +222,13 @@ else
     service almsiviserver-worker status >/dev/null
 fi
 
-health=$(curl --fail --silent --show-error http://127.0.0.1:8089/ALMSIVIserver/api/v1/health)
+health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health")
 if [[ ${health} != '{"schema":"almsivi.health.v1"}' ]]; then
     echo "Unexpected health response." >&2
     exit 1
 fi
 
 echo "Deployed ${release_dir}"
-echo "Health: http://127.0.0.1:8089/ALMSIVIserver/api/v1/health"
-echo "Management: http://127.0.0.1:8089/ALMSIVIserver/manage"
+echo "Health: http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health"
+echo "Management: http://127.0.0.1:${http_port}/ALMSIVIserver/manage"
 echo "Local secrets remain in /etc/almsiviserver and were not printed."

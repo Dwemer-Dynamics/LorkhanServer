@@ -8,14 +8,33 @@ fi
 
 source_root=${1:-}
 target_root=/var/www/html/ALMSIVIserver
+http_port=${ALMSIVI_HTTP_PORT:-8089}
 if [[ -z ${source_root} || ${source_root} != /* || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-local-wsl.sh <absolute-ALMSIVIserver-source-path>" >&2
     exit 2
 fi
 
-for command in apache2ctl curl php psql rsync runuser sed; do
+for command in apache2ctl curl php psql rsync runuser sed ss; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
+
+if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
+    echo "ALMSIVI_HTTP_PORT must be an integer from 1024 through 65535." >&2
+    exit 2
+fi
+case " ${http_port} " in
+    ' 8020 '|' 8021 '|' 8022 '|' 8023 '|' 8024 '|' 8082 '|' 8085 '|' 8086 '|' 12346 ')
+        echo "Port ${http_port} is reserved by another Dwemer service. ALMSIVI uses dedicated port 8089 by default." >&2
+        exit 2
+        ;;
+esac
+if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${http_port}$"; then
+    if [[ ! -e /etc/apache2/sites-enabled/almsiviserver.conf ]] \
+        || ! grep -Eq "<VirtualHost[[:space:]]+\*:${http_port}>" /etc/apache2/sites-enabled/almsiviserver.conf; then
+        echo "Port ${http_port} is already owned by another service." >&2
+        exit 1
+    fi
+fi
 
 # Bootstrap the persistent database, identities, and secrets once through the production-safe
 # installer. Later local deploys only mirror code into the stable Herika/Dialectic-style path.
@@ -31,7 +50,7 @@ if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname=
     needs_bootstrap=true
 fi
 if [[ ${needs_bootstrap} == true ]]; then
-    bash "${source_root}/scripts/deploy-wsl.sh" "${source_root}"
+    ALMSIVI_HTTP_PORT=${http_port} bash "${source_root}/scripts/deploy-wsl.sh" "${source_root}"
 fi
 
 getent group almsivi >/dev/null || groupadd --system almsivi
@@ -90,12 +109,13 @@ if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
 fi
 sed \
     -e "s/@WSL_GATEWAY@/${gateway}/g" \
+    -e "s/@ALMSIVI_HTTP_PORT@/${http_port}/g" \
     -e 's#/var/www/ALMSIVIserver/current#/var/www/html/ALMSIVIserver#g' \
     "${target_root}/deploy/apache/almsiviserver.conf" \
     > /etc/apache2/sites-available/almsiviserver.conf
 chmod 0644 /etc/apache2/sites-available/almsiviserver.conf
-sed -i '/^Listen[[:space:]]\+127\.0\.0\.1:8089$/d;/^Listen[[:space:]]\+0\.0\.0\.0:8089$/d' /etc/apache2/ports.conf
-printf '\nListen 0.0.0.0:8089\n' >> /etc/apache2/ports.conf
+sed -i -E "/^Listen[[:space:]]+(127\\.0\\.0\\.1|0\\.0\\.0\\.0):${http_port}$/d" /etc/apache2/ports.conf
+printf '\nListen 0.0.0.0:%s\n' "${http_port}" >> /etc/apache2/ports.conf
 a2enmod rewrite >/dev/null
 a2ensite almsiviserver.conf >/dev/null
 apache2ctl configtest
@@ -132,13 +152,13 @@ else
     service almsiviserver-worker status >/dev/null
 fi
 
-health=$(curl --fail --silent --show-error http://127.0.0.1:8089/ALMSIVIserver/api/v1/health)
+health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health")
 if [[ ${health} != '{"schema":"almsivi.health.v1"}' ]]; then
     echo "Unexpected health response." >&2
     exit 1
 fi
 
 echo "Deployed ${target_root}"
-echo "Health: http://127.0.0.1:8089/ALMSIVIserver/api/v1/health"
-echo "Management: http://127.0.0.1:8089/ALMSIVIserver/manage"
+echo "Health: http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health"
+echo "Management: http://127.0.0.1:${http_port}/ALMSIVIserver/manage"
 echo "Persistent database, media, logs, and secrets were preserved."

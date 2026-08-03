@@ -15,6 +15,7 @@ SCHEMA_FOR = {
     "almsivi.health.v1": "health.schema.json",
     "almsivi.error.v1": "error.schema.json",
     "almsivi.session.accepted.v1": "session-accepted.schema.json",
+    "almsivi.controls.v1": "controls.schema.json",
     "almsivi.turn.accepted.v1": "turn-accepted.schema.json",
     "almsivi.events.v1": "events.schema.json",
     "almsivi.interruption.accepted.v1": "interruption-accepted.schema.json",

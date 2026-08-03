@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use ALMSIVIserver\Application\CredentialStore;
 
-$pageTitle='API Keys';$topNavSection='configuration';$bodyClass='management-page';
+$pageTitle='API Keys';$topNavSection='configuration';$bodyClass='configuration-resource view-api-keys';
 require dirname(__DIR__).'/ui_bootstrap.php';
 $store=new CredentialStore((string)$config['credential_storage_path']);
 $notice='';$error='';
@@ -21,8 +21,7 @@ $statuses=$store->statuses();
 include dirname(__DIR__).'/tmpl/head.html';if(!$embedded)include dirname(__DIR__).'/tmpl/navbar.php';
 ?>
 <main class="management-page">
-    <h1>API Keys</h1>
-    <p>Store provider credentials outside the web root. Values are write-only: this page reports status and source, never the credential itself.</p>
+    <header class="configuration-page-header"><h1>API Keys</h1><p>Store provider credentials outside the web root. Values are write-only: this page reports status and source, never the credential itself.</p></header>
     <?php if($notice!==''):?><p class="page-status" role="status"><?php echo almsivi_ui_h($notice);?></p><?php endif;?>
     <?php if($error!==''):?><p class="page-error" role="alert"><?php echo almsivi_ui_h($error);?></p><?php endif;?>
     <section class="widget widget-wide"><div class="widget-header"><h3>Provider Credentials</h3></div><div class="widget-content"><div class="connector-grid">
