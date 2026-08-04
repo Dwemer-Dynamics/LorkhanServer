@@ -96,7 +96,7 @@ for path,marker in [
 journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
-relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Relationships</h2>' in text and 'Add relationship' in text
+relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal:</strong>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h2>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Manage narratives' in text
 narratives_page,text=parse(request('/ALMSIVIserver/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>Narratives</h1>' in text and 'Create narrative' in text
 cache,text=parse(request('/ALMSIVIserver/ui/cache_browser.php')); assert cache.current==1 and '<h1>Cache Browser</h1>' in text and 'private audio files' in text
@@ -181,7 +181,7 @@ if auto_lock['fields'].get('enabled')!='1':
     characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
 assert auto_lock['fields'].get('enabled')=='1','auto-lock preference did not default on'
 disabled=dict(auto_lock['fields'],_csrf=csrf); disabled.pop('enabled',None)
-r=request(auto_lock['action'],'POST',disabled); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl())
+r=request(auto_lock['action'],'POST',disabled); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 form=next(f for f in profile.forms if f['action'].endswith('/forms/profile-create'))
 invalid=dict(form['fields'],_csrf=csrf,installation_id='invalid',name='Test',voice_language='en')
 r=request(form['action'],'POST',invalid); _,text=parse(r); assert r.status==422 and 'role="alert"' in text
@@ -189,7 +189,7 @@ profile_name='HTTP managed profile '+uuid.uuid4().hex
 valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary')
 valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
-r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
+r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
 profile_match=re.search(re.escape(profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert profile_match,profile_name
 profile_id=profile_match.group(1)
 r=request('/ALMSIVIserver/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
@@ -198,7 +198,7 @@ managed_for_clone,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'
 clone_form=next(f for f in managed_for_clone.forms if f['action'].endswith('/forms/profile-clone') and f['fields'].get('profile_id')==profile_id)
 clone_name=profile_name+' clone'
 r=request(clone_form['action'],'POST',dict(clone_form['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
-assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved') and clone_name in body,(r.status,r.geturl(),body)
+assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and clone_name in body,(r.status,r.geturl(),body)
 clone_id=selected_record_id(body,clone_name); clone_export=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+clone_id+'.json').read().decode())
 assert clone_export['name']==clone_name and clone_export['content']['biography']==valid['biography'] and clone_export['content']['core']==valid['core'] and clone_export['content']['skills']==valid['skills'] and clone_export['content']['gender']=='Female' and clone_export['content']['race']=='Dunmer' and 'portrait' not in clone_export['content'],clone_export
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':clone_id}); assert r.status==200
@@ -249,7 +249,7 @@ updated_tts=json.loads(request('/ALMSIVIserver/manage/exports/connectors/'+tts_i
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':tts_id,'kind':'tts_provider'}); body=r.read().decode(); assert r.status==422 and 'connector_in_use' in body,(r.status,r.geturl(),body)
 managed_profile,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 generate=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-generate') and f['fields'].get('profile_id')==profile_id)
-r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl())
+    r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 managed_profile,body=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 revise=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 auto_lock=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-auto-lock'))
@@ -264,7 +264,7 @@ assert filtered.status==200 and profile_name in filtered_body and 'name="state" 
 r=request('/ALMSIVIserver/manage/forms/profile-generate','POST',{'_csrf':csrf,'profile_id':profile_id}); body=r.read().decode(); assert r.status==422 and 'profile_locked' in body,(r.status,r.geturl(),body)
 portrait_png=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360f8cff00000040101000db24bc40000000049454e44ae426082')
 r=multipart_request('/ALMSIVIserver/ui/core/profile_portrait.php',{'_csrf':csrf,'profile_id':profile_id,'action':'upload'},'portrait','portrait.png','image/png',portrait_png)
-body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved') and 'Delete portrait' in body,(r.status,r.geturl(),body)
+body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and 'Delete portrait' in body,(r.status,r.geturl(),body)
 portrait_response=request('/ALMSIVIserver/ui/core/profile_portrait.php?profile_id='+profile_id); portrait_body=portrait_response.read()
 assert portrait_response.status==200 and portrait_response.headers.get_content_type()=='image/png' and portrait_body==portrait_png,(portrait_response.status,portrait_response.headers.get_content_type(),portrait_response.headers.get('X-ALMSIVI-Portrait-Status'),len(portrait_body),portrait_body[:24].hex())
 export_response=request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json'); exported=json.loads(export_response.read().decode())
@@ -275,7 +275,7 @@ imported_name=profile_name+' imported'; exported['name']=imported_name
 profiles,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 import_form=next(f for f in profiles.forms if f['action'].endswith('/forms/profile-import'))
 values=dict(import_form['fields'],_csrf=csrf,profile_json=json.dumps(exported))
-r=request(import_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved') and imported_name in body,(r.status,r.geturl())
+r=request(import_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved') and imported_name in body,(r.status,r.geturl())
 imported_id=selected_record_id(body,imported_name)
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':imported_id}); assert r.status==200
 characters,body=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
@@ -387,7 +387,7 @@ r=request(restore_configuration['action'],'POST',values); body=r.read().decode()
 values['confirm']='Restore'; r=request(restore_configuration['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'restored ·' in body,(r.status,r.geturl(),body)
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from the dedicated biography page.' in body and 'Changed after the configuration backup.' not in body
-r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl())
+r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/ALMSIVIserver/ui/description_manager.php'))
 description_form=next(f for f in descriptions.forms if f['action'].endswith('/forms/description-save'))
 record_id='http_record_'+uuid.uuid4().hex
@@ -517,7 +517,7 @@ if create_player is not None:
     player_page,_=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     generate_style=next((f for f in player_page.forms if f['action'].endswith('/forms/player-speech-style-generate')),None)
     if generate_style is not None:
-        r=request(generate_style['action'],'POST',dict(generate_style['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/player_management.php?status=saved'),(r.status,r.geturl())
+        r=request(generate_style['action'],'POST',dict(generate_style['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/player_management.php?status=saved'),(r.status,r.geturl(),body)
     player_id=match.group(1)
     edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))

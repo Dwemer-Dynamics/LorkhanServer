@@ -13,7 +13,7 @@ $roleplayGroups = [
         ['key' => 'soulgaze', 'label' => 'Soulgaze Gallery', 'icon' => '&#x1F5BC;&#xFE0F;', 'feature' => 'roleplay.soulgaze'],
     ]],
     ['label' => 'World & Quests', 'aria' => 'World and quest pages', 'tabs' => [
-        ['key' => 'journal', 'label' => 'Journal', 'icon' => '&#x1F4D6;', 'feature' => 'roleplay.adventure'],
+        ['key' => 'journal', 'label' => 'Journal', 'icon' => '&#x1F4D6;', 'feature' => 'roleplay.journal'],
         ['key' => 'questgen', 'label' => 'AI Quest Manager', 'icon' => '&#x1F9ED;', 'feature' => 'roleplay.quest-manager'],
         ['key' => 'backgroundlife', 'label' => 'Background Life', 'icon' => '&#x1F5FA;&#xFE0F;', 'feature' => 'roleplay.background-life'],
     ]],

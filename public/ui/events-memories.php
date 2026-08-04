@@ -7,8 +7,10 @@ $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 $roleplay = $uiRepository->roleplay();
-$allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'soulgaze', 'quests', 'questgen', 'backgroundlife', 'relationships', 'journal'];
-$tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory','relationships-tab'=>'relationships','narratives-tab'=>'adventure','journal-tab'=>'journal','books-tab'=>'books'];
+$allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'soulgaze', 'questgen', 'backgroundlife', 'journal'];
+$tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
+    'relationships-tab'=>'journal','relationships'=>'journal','quests'=>'journal','narratives-tab'=>'adventure',
+    'journal-tab'=>'journal','books-tab'=>'books'];
 $requestedTab = isset($_GET['tab']) ? (string) $_GET['tab'] : 'eventlog';
 $requestedTab = $tabAliases[$requestedTab] ?? $requestedTab;
 $activeTab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'eventlog';
@@ -71,7 +73,6 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             'memory' => ['Memories', $roleplay['memories'], 'No memories are available yet.'],
             'diaries' => ['ALMSIVI Diaries', $roleplay['narratives'], 'No diary narratives are available yet.'],
             'books' => ['Books', $roleplay['books'], 'No books have been observed during an ALMSIVI session yet.'],
-            'relationships' => ['Relationships', $roleplay['relationships'], 'No relationships are available yet.'],
             'journal' => ['Morrowind Journal', $roleplay['journal'], 'No Morrowind journal entries have been received from OpenMW yet.'],
         ];
         foreach ($panels as $tabId => [$heading, $rows, $emptyMessage]):
@@ -82,20 +83,18 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 'memory' => 'Recent, middle-term, and long-term memories used by the scoped retrieval pipeline.',
                 'diaries' => 'Versioned ALMSIVI diary narratives written for the active playthrough.',
                 'books' => 'Books observed through typed OpenMW context and retained for roleplay reference.',
-                'relationships' => 'Audited relationship state between the active profile and known Morrowind actors.',
                 'journal' => 'Morrowind journal entries received from the OpenMW client.',
             ];
         ?>
             <section id="<?php echo almsivi_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
                 <div class="tab-panel-inner roleplay-panel" data-roleplay-panel><h2 class="visually-hidden"><?php echo almsivi_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo almsivi_ui_h($heading); ?>:</strong> <?php echo almsivi_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo almsivi_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-list-controls"><div class="pagination-shape"><button type="button" class="active">1</button><button type="button" disabled>Next</button></div><label>Filter:<input type="search" placeholder="Search <?php echo almsivi_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><div class="roleplay-data" data-roleplay-data><?php
                     if($tabId==='memory')almsivi_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf);
-                    elseif($tabId==='relationships')almsivi_roleplay_relationship_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf);
                     elseif(in_array($tabId,['adventure','diaries'],true)){echo'<p><a class="btn-base btn-primary" href="'.almsivi_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';almsivi_ui_table($rows,$emptyMessage);}
                     else almsivi_ui_table($rows,$emptyMessage);
                 ?></div></div>
             </section>
         <?php endforeach; ?>
-        <?php foreach (['soulgaze'=>'roleplay.soulgaze','quests'=>'roleplay.quests','questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=almsivi_ui_feature($featureId); ?>
+        <?php foreach (['soulgaze'=>'roleplay.soulgaze','questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=almsivi_ui_feature($featureId); ?>
         <section id="<?php echo almsivi_ui_h($tabId); ?>-tab" class="tab-content active"><div class="tab-panel-inner feature-placeholder-panel"><div class="feature-placeholder-heading"><h2><?php echo almsivi_ui_h($feature['title']); ?></h2><?php echo almsivi_ui_feature_badge($featureId); ?></div><p><?php echo almsivi_ui_h($feature['description']); ?></p><div class="feature-placeholder-controls"><?php foreach($feature['controls']as$control)echo almsivi_ui_placeholder_control((string)$control,$featureId); ?></div></div></section>
         <?php endforeach; ?>
     </div>

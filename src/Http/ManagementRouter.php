@@ -26,7 +26,7 @@ final class ManagementRouter
         'roleplay'=>'/ui/events-memories.php',
         'configuration'=>'/ui/core/config_hub.php',
         'control-panel'=>'/ui/control_panel.php',
-        'characters'=>'/ui/core/character_manager.php',
+        'characters'=>'/ui/core/npc_master.php',
         'profiles'=>'/ui/core/core_profiles.php',
         'player'=>'/ui/core/player_management.php',
         'narrator'=>'/ui/core/config_hub.php?tab=narration-page',
@@ -42,8 +42,8 @@ final class ManagementRouter
         'descriptions'=>'/ui/description_manager.php',
         'server-plugins'=>'/ui/server_plugins.php',
         'traces'=>'/ui/request_logs.php',
-        'memory'=>'/ui/events-memories.php?tab=memories-tab',
-        'relationships'=>'/ui/events-memories.php?tab=relationships-tab',
+        'memory'=>'/ui/events-memories.php?tab=memory',
+        'relationships'=>'/ui/control_panel.php?tab=rellogs',
         'knowledge'=>'/ui/core/config_hub.php?tab=knowledge-page',
         'playthroughs'=>'/ui/control_panel.php?tab=playthrough-page',
         'playthrough-form'=>'/ui/playthrough_manager.php',
@@ -56,7 +56,7 @@ final class ManagementRouter
         'backup-health'=>'/ui/control_panel.php?tab=database-page',
         'database-manager'=>'/ui/database_manager.php',
         'server-logs'=>'/ui/control_panel.php?tab=server-logs-page',
-        'diagnostics'=>'/ui/control_panel.php?tab=health-page',
+        'diagnostics'=>'/ui/control_panel.php?tab=srvlogs',
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
