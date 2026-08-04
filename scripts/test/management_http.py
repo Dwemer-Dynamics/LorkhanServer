@@ -134,7 +134,7 @@ assert 'MockProviderVoice' not in request('/ALMSIVIserver/ui/core/npc_master.php
 keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'ALMSIVI_LLM_API_KEY' in text and 'type="password"' in text
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
-globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text
+globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" disabled aria-disabled="true"' in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php')); assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 plugins,text=parse(request('/ALMSIVIserver/ui/server_plugins.php')); assert plugins.current==1 and '<h1>Server Plugins</h1>' in text and 'Automatic Game Plugin Sync' in text and 'first-party module inventory' in text
@@ -322,9 +322,9 @@ assert r.status==200 and revised_title in body and revised_text in body,(r.statu
 r=request('/ALMSIVIserver/manage/forms/narrative-delete','POST',{'_csrf':csrf,'narrative_id':narrative_id}); body=r.read().decode(); assert r.status==200 and revised_title not in body,(r.status,r.geturl())
 globals_page,_=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
-values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],rechat='1',boredom='1',rechat_delay_seconds='600',rechat_max_depth='4',boredom_delay_seconds='900',combat_bark_period_seconds='30',recent_turn_limit='20',knowledge_limit='6',narrator_name='The Narrator',narrator_inline_mode='Disabled',transcript_rows='8',tts_volume_boost='2',change_reason='HTTP layered global settings')
+values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],recent_turn_limit='20',knowledge_limit='6',narrator_name='The Narrator',narrator_inline_mode='Disabled',change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
-globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert 'name="boredom" value="1" checked' in body and 'name="rechat_delay_seconds" value="600"' in body and 'name="boredom_delay_seconds" value="900"' in body
+globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" disabled aria-disabled="true"' in body and 'name="show_status_hud" value="1" disabled aria-disabled="true"' in body
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex

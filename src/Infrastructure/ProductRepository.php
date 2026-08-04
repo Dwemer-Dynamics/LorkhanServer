@@ -498,7 +498,7 @@ final class ProductRepository
     }
 
     /** Resolve a profile's assigned Core Profile while retaining source revisions for prompt traces. */
-    private function effectiveSettingsForProfile(string $installationId,?string $profileId):array
+    public function effectiveSettingsForProfile(string $installationId,?string $profileId):array
     {
         $global=$this->globalSettingsForInstallation($installationId);
         $profile=null;

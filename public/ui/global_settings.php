@@ -21,23 +21,23 @@ $settings = is_array($stored['content'] ?? null) ? $stored['content'] : Effectiv
 $sections = [
     'prompt-rechat' => [
         'Prompt & Rechat' => [
-            ['auto_greeting', 'Automatic Greeting', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allows a bounded greeting when the player starts an eligible conversation.'],
-            ['rechat', 'Rechat', '&#x1F501;', 'boolean', $settings['behavior']['rechat'], 'Lets the server continue a conversation through bounded NPC rechat turns.'],
-            ['rechat_delay_seconds', 'Rechat Delay', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['rechat_delay_seconds'], 'Seconds before an eligible rechat turn.', ['min' => 30, 'max' => 3600]],
-            ['rechat_max_depth', 'Maximum Rechat Depth', '&#x1F4AC;', 'integer', $settings['behavior']['rechat_max_depth'], 'Maximum number of server-side rechat turns.', ['min' => 1, 'max' => 20]],
-            ['boredom', 'Boredom Events', '&#x1F4AD;', 'boolean', $settings['behavior']['boredom'], 'Allows bounded idle conversation events when the player remains nearby.'],
-            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Seconds between eligible boredom events.', ['min' => 30, 'max' => 86400]],
-            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allows short negotiated combat dialogue events.'],
-            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x1F6E1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between combat barks.', ['min' => 5, 'max' => 300]],
+            ['auto_greeting', 'Automatic Greeting', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['rechat', 'Rechat', '&#x1F501;', 'boolean', $settings['behavior']['rechat'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['rechat_delay_seconds', 'Rechat Delay', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['rechat_delay_seconds'], 'Automatic rechat scheduling is excluded from this build.', ['min' => 30, 'max' => 3600, 'feature' => 'autonomy']],
+            ['rechat_max_depth', 'Maximum Rechat Depth', '&#x1F4AC;', 'integer', $settings['behavior']['rechat_max_depth'], 'Automatic rechat scheduling is excluded from this build.', ['min' => 1, 'max' => 20, 'feature' => 'autonomy']],
+            ['boredom', 'Boredom Events', '&#x1F4AD;', 'boolean', $settings['behavior']['boredom'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Automatic boredom scheduling is excluded from this build.', ['min' => 30, 'max' => 86400, 'feature' => 'autonomy']],
+            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x1F6E1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Automatic combat-bark scheduling is excluded from this build.', ['min' => 5, 'max' => 300, 'feature' => 'autonomy']],
         ],
     ],
     'ai-memory' => [
         'Memory & Others' => [
             ['recent_turn_limit', 'Recent Turns', '&#x1F9E0;', 'integer', $settings['memory']['recent_turn_limit'], 'Recent dialogue turns included in bounded context.', ['min' => 1, 'max' => 100]],
             ['knowledge_limit', 'Knowledge Results', '&#x1F4DA;', 'integer', $settings['memory']['knowledge_limit'], 'Maximum scoped Oghma results included in one request.', ['min' => 0, 'max' => 20]],
-            ['show_status_hud', 'Show Status HUD', '&#x1F5A5;&#xFE0F;', 'boolean', $settings['presentation']['show_status_hud'], 'Shows ALMSIVI conversation state in the OpenMW HUD.'],
-            ['transcript_rows', 'Transcript Rows', '&#x1F4DC;', 'integer', $settings['presentation']['transcript_rows'], 'Number of dialogue rows retained in the in-game transcript.', ['min' => 2, 'max' => 20]],
-            ['tts_volume_boost', 'ALMSIVI TTS Volume Boost', '&#x1F50A;', 'integer', $settings['presentation']['tts_volume_boost'], 'Installation-wide speech gain applied by the OpenMW client.', ['min' => 1, 'max' => 4]],
+            ['show_status_hud', 'Show Status HUD', '&#x1F5A5;&#xFE0F;', 'boolean', $settings['presentation']['show_status_hud'], 'Managed locally by the OpenMW client.', ['feature' => 'presentation.local']],
+            ['transcript_rows', 'Transcript Rows', '&#x1F4DC;', 'integer', $settings['presentation']['transcript_rows'], 'Managed locally by the OpenMW client.', ['min' => 2, 'max' => 20, 'feature' => 'presentation.local']],
+            ['tts_volume_boost', 'ALMSIVI TTS Volume Boost', '&#x1F50A;', 'integer', $settings['presentation']['tts_volume_boost'], 'Managed locally by the OpenMW client.', ['min' => 1, 'max' => 4, 'feature' => 'presentation.local']],
         ],
     ],
     'context-knowledge' => [
@@ -46,10 +46,10 @@ $sections = [
             ['narrator_name', 'Narrator Name', '&#x1F3F7;&#xFE0F;', 'text', $settings['narrator']['name'], 'Display name used for narration, prompts, subtitles, and TTS.'],
             ['narrator_inline_mode', 'Inline Mode', '&#x1F4DD;', 'select', $settings['narrator']['inline_mode'], 'Controls how inline narration is delivered.', ['values' => ['Disabled', 'Narrator', 'NPC', 'Text Only']]],
             ['narrator_context_visibility', 'Include Narrator Context', '&#x1F441;&#xFE0F;', 'boolean', $settings['narrator']['context_visibility'], 'Includes narrator context in eligible roleplay requests.'],
-            ['narrator_welcome_events', 'Welcome Events', '&#x1F44B;', 'boolean', $settings['narrator']['welcome_events'], 'Allows narration for welcome events.'],
-            ['narrator_random_events', 'Random Events', '&#x1F3B2;', 'boolean', $settings['narrator']['random_events'], 'Allows narration for negotiated random events.'],
-            ['narrator_quest_events', 'Quest Events', '&#x1F5FA;&#xFE0F;', 'boolean', $settings['narrator']['quest_events'], 'Allows narration when supported quest events arrive from OpenMW.'],
-            ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Allows narration for observed book events.'],
+            ['narrator_welcome_events', 'Welcome Events', '&#x1F44B;', 'boolean', $settings['narrator']['welcome_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['narrator_random_events', 'Random Events', '&#x1F3B2;', 'boolean', $settings['narrator']['random_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['narrator_quest_events', 'Quest Events', '&#x1F5FA;&#xFE0F;', 'boolean', $settings['narrator']['quest_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
+            ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
         ],
     ],
     'global-connectors' => [
@@ -118,13 +118,14 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <?php endforeach; ?>
                     <div class="provider-subsection-title">ALMSIVI Conversation Timing</div>
                     <?php endif; ?>
-                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; ?>
-                    <div class="provider-card">
-                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
+                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $placeholderFeature = (string) ($options['feature'] ?? ''); $disabled = $placeholderFeature !== ''; ?>
+                    <div class="provider-card"<?php if ($disabled): ?> title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>"<?php endif; ?>>
+                        <?php if ($disabled && ($type !== 'boolean' || $value)): ?><input type="hidden" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo $type === 'boolean' ? '1' : almsivi_ui_h($value); ?>"><?php endif; ?>
+                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($disabled) echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
                         <div class="provider-body">
-                            <?php if ($type === 'integer'): ?><input type="number" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($value); ?>" min="<?php echo almsivi_ui_h($options['min']); ?>" max="<?php echo almsivi_ui_h($options['max']); ?>" step="1" aria-label="<?php echo almsivi_ui_h($label); ?>">
-                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>" aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
-                            <?php elseif ($type === 'text'): ?><input type="text" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($value); ?>" maxlength="128" aria-label="<?php echo almsivi_ui_h($label); ?>">
+                            <?php if ($type === 'integer'): ?><input type="number" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" min="<?php echo almsivi_ui_h($options['min']); ?>" max="<?php echo almsivi_ui_h($options['max']); ?>" step="1" aria-label="<?php echo almsivi_ui_h($label); ?>">
+                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
+                            <?php elseif ($type === 'text'): ?><input type="text" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" maxlength="128" aria-label="<?php echo almsivi_ui_h($label); ?>">
                             <?php endif; ?>
                         </div>
                         <div class="provider-help"><?php echo almsivi_ui_h($help); ?></div>

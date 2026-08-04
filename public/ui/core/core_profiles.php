@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use ALMSIVIserver\Application\EffectiveSettingsResolver;
+
 $pageTitle = 'Core Profiles';
 $topNavSection = 'configuration';
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
@@ -32,6 +34,13 @@ $selectedId = trim((string) ($_GET['edit'] ?? ''));
 $selected = null;
 foreach ($profiles as $profile) {
     if ($selectedId !== '' && hash_equals((string) $profile['core_profile_id'], $selectedId)) $selected = $profile;
+}
+$effectiveCoreSettings = [];
+if ($selected !== null && $installationId !== '') {
+    $globalSettings = $productRepository->globalSettingsForInstallation($installationId);
+    $globalContent = is_array($globalSettings['content'] ?? null) ? $globalSettings['content'] : [];
+    $coreContent = is_array($selected['content'] ?? null) ? $selected['content'] : [];
+    $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $coreContent, []);
 }
 $showCreate = isset($_GET['create']) || $profiles === [];
 
@@ -150,6 +159,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
                         <input type="hidden" name="core_profile_id" value="<?php echo almsivi_ui_h($selected['core_profile_id']); ?>">
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo almsivi_ui_h($selected['label']); ?></div></div><button type="submit" class="btn-save">Save All</button></div>
+                        <?php almsivi_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                         <div class="connector-card profile-revision-card"><div class="connector-title">Revision Note</div><label>Change reason<input name="change_reason" required maxlength="512" value="Management Core Profile update"></label></div>
                     </form>

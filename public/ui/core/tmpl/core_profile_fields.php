@@ -69,6 +69,27 @@ $selectSetting = static function (string $name, string $label, string $descripti
     </div>
     <?php
 };
+
+$disabledSelectSetting = static function (string $name, string $label, string $description, mixed $value, string $featureId): void {
+    $display = $value === true ? 'On' : ($value === false ? 'Off' : 'Inherit');
+    $stored = $value === true ? '1' : ($value === false ? '0' : 'inherit');
+    ?>
+    <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
+        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
+        <div class="setting-control"><input type="hidden" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($stored); ?>"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($display); ?></option></select></div>
+    </div>
+    <?php
+};
+
+$disabledNumberField = static function (string $section, string $field, string $label, string $description, string $featureId) use ($overrides): void {
+    $value = $overrides[$section][$field] ?? '';
+    ?>
+    <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
+        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
+        <div class="setting-control"><input type="hidden" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>" value="<?php echo almsivi_ui_h($value); ?>"><input type="text" value="<?php echo almsivi_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
+    </div>
+    <?php
+};
 ?>
 
 <div class="connector-card profile-core-card">
@@ -168,31 +189,31 @@ $selectSetting = static function (string $name, string $label, string $descripti
         <div class="provider-card">
             <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F4AC;</div><div>Conversation</div></div></div>
             <div class="provider-body">
-                <?php $selectSetting('setting_behavior_auto_greeting', 'Automatic Greeting', 'Allow a greeting when an eligible NPC is first engaged.', $overrides['behavior']['auto_greeting'] ?? null); ?>
-                <?php $selectSetting('setting_behavior_rechat', 'Rechat', 'Allow bounded follow-up conversation turns.', $overrides['behavior']['rechat'] ?? null); ?>
-                <?php $selectSetting('setting_behavior_boredom', 'Bored Event', 'Allow bounded ambient conversation events.', $overrides['behavior']['boredom'] ?? null); ?>
-                <?php $selectSetting('setting_behavior_combat_barks', 'Combat Barks', 'Allow periodic dialogue during combat.', $overrides['behavior']['combat_barks'] ?? null); ?>
+                <?php $disabledSelectSetting('setting_behavior_auto_greeting', 'Automatic Greeting', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['auto_greeting'] ?? null, 'autonomy'); ?>
+                <?php $disabledSelectSetting('setting_behavior_rechat', 'Rechat', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['rechat'] ?? null, 'autonomy'); ?>
+                <?php $disabledSelectSetting('setting_behavior_boredom', 'Bored Event', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['boredom'] ?? null, 'autonomy'); ?>
+                <?php $disabledSelectSetting('setting_behavior_combat_barks', 'Combat Barks', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['combat_barks'] ?? null, 'autonomy'); ?>
             </div>
         </div>
     </div>
     <div class="profile-settings-columns">
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat &amp; Bored Event</h3><div class="provider-card">
-            <?php $numberField('behavior', 'rechat_delay_seconds', 'Rechat Delay', 'Seconds before a follow-up turn is eligible.', 30, 3600); ?>
-            <?php $numberField('behavior', 'rechat_max_depth', 'Rechat Depth', 'Maximum bounded follow-up depth.', 1, 20); ?>
-            <?php $numberField('behavior', 'boredom_delay_seconds', 'Bored Event Delay', 'Seconds between ambient event opportunities.', 30, 86400); ?>
-            <?php $numberField('behavior', 'combat_bark_period_seconds', 'Combat Bark Period', 'Minimum seconds between combat barks.', 5, 300); ?>
+            <?php $disabledNumberField('behavior', 'rechat_delay_seconds', 'Rechat Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+            <?php $disabledNumberField('behavior', 'rechat_max_depth', 'Rechat Depth', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+            <?php $disabledNumberField('behavior', 'boredom_delay_seconds', 'Bored Event Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+            <?php $disabledNumberField('behavior', 'combat_bark_period_seconds', 'Combat Bark Period', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
         </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Context &amp; Presentation</h3><div class="provider-card">
             <?php $numberField('memory', 'recent_turn_limit', 'Recent Turns', 'Maximum recent conversation turns in context.', 1, 100); ?>
             <?php $numberField('memory', 'knowledge_limit', 'Knowledge Results', 'Maximum scoped knowledge documents returned.', 0, 20); ?>
-            <?php $selectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Show bounded dialogue status in the OpenMW HUD.', $overrides['presentation']['show_status_hud'] ?? null); ?>
-            <?php $numberField('presentation', 'transcript_rows', 'Transcript Rows', 'Visible transcript rows in the dialogue HUD.', 2, 20); ?>
-            <?php $numberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'ALMSIVI-specific in-game speech gain.', 1, 4); ?>
+            <?php $disabledSelectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Controlled by local OpenMW settings.', $overrides['presentation']['show_status_hud'] ?? null, 'presentation.local'); ?>
+            <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
+            <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
         </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Narrator</h3><div class="provider-card">
             <?php $selectSetting('setting_narrator_enabled', 'Enable Narrator', 'Allow inherited narrator events for this profile.', $overrides['narrator']['enabled'] ?? null); ?>
             <?php $selectSetting('setting_narrator_context_visibility', 'Narrator Context', 'Include narrator-visible context for this profile.', $overrides['narrator']['context_visibility'] ?? null); ?>
-            <?php foreach (['welcome_events' => 'Welcome Events', 'random_events' => 'Random Events', 'quest_events' => 'Quest Events', 'book_events' => 'Book Events'] as $field => $label) $selectSetting('setting_narrator_' . $field, $label, 'Override the inherited narrator event policy.', $overrides['narrator'][$field] ?? null); ?>
+            <?php foreach (['welcome_events' => 'Welcome Events', 'random_events' => 'Random Events', 'quest_events' => 'Quest Events', 'book_events' => 'Book Events'] as $field => $label) $disabledSelectSetting('setting_narrator_' . $field, $label, 'Automatic narrator triggers are excluded from this milestone.', $overrides['narrator'][$field] ?? null, 'autonomy'); ?>
             <div class="setting-row"><div><div class="setting-key">Narrator Name</div><div class="setting-desc">Optional profile-specific narrator display name.</div></div><div class="setting-control"><input name="setting_narrator_name" maxlength="128" value="<?php echo almsivi_ui_h($overrides['narrator']['name'] ?? ''); ?>" placeholder="Inherit"></div></div>
             <div class="setting-row"><div><div class="setting-key">Inline Mode</div><div class="setting-desc">How narrator text is routed to dialogue output.</div></div><div class="setting-control"><select name="setting_narrator_inline_mode"><option value="">Inherit</option><?php foreach (['Disabled', 'Narrator', 'NPC', 'Text Only'] as $mode): ?><option<?php echo ($overrides['narrator']['inline_mode'] ?? null) === $mode ? ' selected' : ''; ?>><?php echo almsivi_ui_h($mode); ?></option><?php endforeach; ?></select></div></div>
         </div></section>

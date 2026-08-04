@@ -80,6 +80,30 @@ function almsivi_ui_value(mixed $value): string
     return almsivi_ui_h($value);
 }
 
+/** Show the resolved Global -> Core Profile -> NPC value and source for each applicable setting. */
+function almsivi_ui_effective_settings_summary(array $effective, string $title = 'Effective settings and inheritance', bool $open = false): void
+{
+    $sources = is_array($effective['sources'] ?? null) ? $effective['sources'] : [];
+    if ($sources === []) return;
+    $sourceLabels = ['default' => 'Built-in default', 'global' => 'Global', 'core_profile' => 'Core Profile', 'npc' => 'NPC override'];
+    echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . almsivi_ui_h($title) . '</summary>';
+    echo '<p>Resolution order: NPC override &gt; assigned Core Profile &gt; Global &gt; built-in default.</p><div class="effective-settings-grid">';
+    foreach ($sources as $path => $source) {
+        if (!is_string($path) || (!str_starts_with($path, 'settings.memory.') && !str_starts_with($path, 'settings.narrator.')
+            && !str_starts_with($path, 'settings.safety.') && !str_starts_with($path, 'routing.'))) continue;
+        $value = $effective;
+        foreach (explode('.', $path) as $segment) {
+            if (!is_array($value) || !array_key_exists($segment, $value)) { $value = null; break; }
+            $value = $value[$segment];
+        }
+        if (is_array($value)) continue;
+        $label = ucwords(str_replace('_', ' ', str_replace(['settings.', '.'], ['', ' / '], $path)));
+        echo '<article><span>' . almsivi_ui_h($label) . '</span><strong>' . almsivi_ui_value($value) . '</strong>';
+        echo '<small data-effective-source="' . almsivi_ui_h($source) . '">' . almsivi_ui_h($sourceLabels[$source] ?? (string) $source) . '</small></article>';
+    }
+    echo '</div></details>';
+}
+
 /** Render a bounded repository result using the common sibling-server table structure. */
 function almsivi_ui_table(array $rows, string $emptyMessage = 'No records are available yet.'): void
 {
