@@ -8,4 +8,10 @@
 .herika-hub-page .embed{width:100%;height:100%;border:0;background:transparent}
 .herika-hub-page .tab-button>span:last-child{display:inline-flex;align-items:center}
 @media(max-height:800px){.herika-hub-page .embed-wrap{min-height:420px}}
-@media(max-width:780px){.herika-hub-page{padding:72px 6px 6px}.herika-hub-page .config-navigation{overflow-x:auto}.herika-hub-page .tab-groups{min-width:max-content}}
+@media(max-width:780px){
+    .herika-hub-page{height:auto;min-height:100vh;padding:72px 6px 6px;overflow:visible}
+    .herika-hub-page .config-navigation{overflow:visible}
+    .herika-hub-page .tab-groups{min-width:0}
+    .herika-hub-page .content-area{flex:0 0 520px;min-height:520px;overflow:visible!important}
+    .herika-hub-page .embed-wrap{min-height:520px}
+}
