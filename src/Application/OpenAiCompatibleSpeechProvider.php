@@ -10,6 +10,8 @@ use RuntimeException;
 /** OpenAI-compatible audio-speech adapter restricted to PCM WAV output. */
 final class OpenAiCompatibleSpeechProvider implements SpeechProvider
 {
+    private readonly ?string $voiceReferenceRoot;
+
     /** @param list<string> $allowedHosts */
     public function __construct(
         private readonly string $endpoint,
@@ -19,11 +21,23 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         private readonly string $apiKey = '',
         private readonly int $timeoutMs = 30_000,
         private readonly bool $allowLoopbackHttp = false,
+        ?string $voiceReferenceRoot = null,
+        private readonly ?string $language = null,
     ) {
         OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
         if ($model === '' || strlen($model) > 200 || $voice === '' || strlen($voice) > 200
-            || $timeoutMs < 1000 || $timeoutMs > 120_000) {
+            || $timeoutMs < 1000 || $timeoutMs > 120_000
+            || ($language !== null && ($language === '' || strlen($language) > 35))) {
             throw new \InvalidArgumentException('invalid_openai_compatible_speech_configuration');
+        }
+        if ($voiceReferenceRoot === null) {
+            $this->voiceReferenceRoot = null;
+        } else {
+            $root = realpath($voiceReferenceRoot);
+            if (!is_string($root) || !is_dir($root)) {
+                throw new \InvalidArgumentException('invalid_voice_reference_root');
+            }
+            $this->voiceReferenceRoot = rtrim($root, DIRECTORY_SEPARATOR);
         }
     }
 
@@ -34,8 +48,12 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         if ($text === '' || mb_strlen($text) > 4096) throw new RuntimeException('provider_invalid_input');
         $voice = trim((string) ($context['voice'] ?? $this->voice));
         if ($voice === '' || strlen($voice) > 512) throw new RuntimeException('provider_invalid_input');
-        $body = json_encode(['model' => $this->model, 'voice' => $voice, 'input' => $text,
-            'response_format' => 'wav'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        $payload = ['model' => $this->model, 'input' => $text, 'response_format' => 'wav'];
+        $voiceReference = $this->voiceReference($voice);
+        if ($voiceReference === null) $payload['voice'] = $voice;
+        else $payload['voice_ref'] = $voiceReference;
+        if ($this->language !== null) $payload['language'] = $this->language;
+        $body = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts, $this->allowLoopbackHttp));
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         $headers = ['Content-Type: application/json', 'Accept: audio/wav'];
@@ -68,6 +86,17 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         }
         $duration = self::wavDurationMs($bytes);
         return ['bytes' => $bytes, 'codec' => 'wav', 'mime_type' => 'audio/wav', 'duration_ms' => $duration];
+    }
+
+    /** Resolve a connector-owned voice ID to a readable sample without accepting arbitrary paths. */
+    private function voiceReference(string $voice): ?string
+    {
+        if ($this->voiceReferenceRoot === null || preg_match('/^[a-zA-Z0-9_.-]{1,200}$/D', $voice) !== 1) return null;
+        $name = str_ends_with(strtolower($voice), '.wav') ? substr($voice, 0, -4) : $voice;
+        $candidate = realpath($this->voiceReferenceRoot . DIRECTORY_SEPARATOR . $name . '.wav');
+        $prefix = $this->voiceReferenceRoot . DIRECTORY_SEPARATOR;
+        return is_string($candidate) && str_starts_with($candidate, $prefix) && is_file($candidate) && is_readable($candidate)
+            ? $candidate : null;
     }
 
     /** Validate a RIFF/WAVE response and calculate duration without trusting provider metadata. */

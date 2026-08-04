@@ -44,8 +44,11 @@ function almsivi_sync_imported_voice(array $connector,array $voice,string $wav):
     $content=is_array($connector['content']??null)?$connector['content']:[];$driver=(string)($content['driver']??'');
     if(!in_array($driver,['omnivoice','chatterbox','xtts-fastapi','xtts','pockettts'],true))throw new RuntimeException('voice_sync_unsupported');
     $endpoint=rtrim((string)($content['endpoint']??''),'/');$parts=parse_url($endpoint);$host=strtolower((string)($parts['host']??''));
-    if(!in_array($host,['127.0.0.1','::1'],true)||($driver==='pockettts'&&(str_contains($endpoint,':8086')||str_ends_with($endpoint,'/v1/audio/speech'))))
-        throw new RuntimeException('voice_sync_unsupported');
+    if(!in_array($host,['127.0.0.1','::1'],true))throw new RuntimeException('voice_sync_unsupported');
+    if($driver==='pockettts'&&(str_contains($endpoint,':8086')||str_ends_with($endpoint,'/v1/audio/speech'))){
+        if(!is_readable($wav))throw new RuntimeException('voice_sync_failed');
+        return;
+    }
     $handle=curl_init($endpoint.'/upload_sample');if($handle===false)throw new RuntimeException('voice_sync_failed');
     $fields=['wavFile'=>new CURLFile($wav,'audio/wav',basename($wav)),'force'=>'true','language'=>'en',
         'speaker_name'=>$voice['voice_id'],'display_name'=>$voice['display_name'],'reference_text'=>$voice['reference_text']];
