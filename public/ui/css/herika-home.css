@@ -10,6 +10,10 @@
     font: .9em Arial, sans-serif;
 }
 
+.home-version-stack { display: flex; flex-direction: column; gap: 2px; }
+.home-social-links { display: flex; align-items: center; gap: 12px; }
+.home-social-links img { display: block; width: 20px; height: 20px; }
+
 .dashboard-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
@@ -92,5 +96,5 @@
     .widget-wide { grid-column: auto; }
     .dashboard-buttons { gap: 8px; }
     .dashboard-btn { padding: 6px 12px; font-size: .8em; }
-    .home-version-info { align-items: flex-start; flex-direction: column; }
+    .home-version-info { align-items: flex-start; }
 }

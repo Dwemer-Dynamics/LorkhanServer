@@ -83,6 +83,8 @@ r=request('/ALMSIVIserver/manage/quickstart'); assert r.status==200 and r.geturl
 p,text=parse(r); assert len(p.nav)>=4 and p.current==1 and 'Queued Jobs' in text
 assert 'class="chim-navbar-wrapper"' in text and '/ALMSIVIserver/ui/lib/ui/bootstrap/bootstrap.min.css' in text
 assert '<details' not in text and 'Recent Dialogue' in text and 'Getting Started' not in text
+assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>ALMSIVI Stats</h3>', text)
+assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='almsivi_csrf')
 for path,marker in [
@@ -142,15 +144,17 @@ llm,text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php')); assert llm
 llm_runtime,runtime_text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'ALMSIVI_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
 for import_path in ['/ALMSIVIserver/ui/core/npc_master.php','/ALMSIVIserver/ui/core/llm_connectors.php?import=1','/ALMSIVIserver/ui/core/tts_connectors.php?import=1','/ALMSIVIserver/ui/prompts_manager.php']:
     _,import_text=parse(request(import_path)); assert 'type="file" accept="application/json,.json" data-json-import-target=' in import_text and 'Choose a JSON file or paste its contents here.' in import_text,import_path
-hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','ittcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'Narration' in hub_text and 'Excluded' in hub_text and 'autonomy-page' not in hub_text
+hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','ittcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'Narration' in hub_text and 'Excluded' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
 pages_css=request('/ALMSIVIserver/ui/css/almsivi-pages.css').read().decode()
 navbar_css=request('/ALMSIVIserver/ui/css/navbar.css').read().decode()
+navbar_layout_css=request('/ALMSIVIserver/ui/css/herika-navbar-layout.css').read().decode()
 home_css=request('/ALMSIVIserver/ui/css/herika-home.css').read().decode()
 resource_css=request('/ALMSIVIserver/ui/css/herika-resource.css').read().decode()
 assert '.dashboard-container {' in home_css and 'grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));' in home_css
 assert '.llm-layout {' in resource_css and '.page-header {' in resource_css and '.conn-list {' in resource_css
 assert '.npc-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:14px; }' in pages_css
 assert '.chim-navbar-wrapper {' in navbar_css and 'max-width: 1200px;' in navbar_css
+assert '.navbar-content-wrapper {' in navbar_layout_css and 'justify-content: center;' in navbar_layout_css and 'max-width: 1000px;' in navbar_layout_css
 for path in [
     '/ALMSIVIserver/manage/quickstart', '/ALMSIVIserver/manage/roleplay',
     '/ALMSIVIserver/manage/configuration', '/ALMSIVIserver/manage/control-panel',
