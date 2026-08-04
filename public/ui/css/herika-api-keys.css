@@ -1,0 +1,88 @@
+/* API Keys presentation copied from the pinned HerikaServer api_badge.php baseline. */
+body.api-keys-page-shell { color: #f8f9fa; font: 15px/1.5 "Futura CondensedLight", Arial, sans-serif; }
+body.api-keys-page-shell.embedded-page { padding-top: 0; }
+
+body.api-keys-page-shell > main.api-keys-page {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 40px 10%;
+    font-family: "Futura CondensedLight", Arial, sans-serif;
+}
+
+.api-keys-page .page-header {
+    margin: 0 0 30px;
+    padding: 20px;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15), inset 0 1px rgba(255, 255, 255, .03);
+    text-align: center;
+}
+
+.api-keys-page .page-header h1.api-title { margin: 0 0 8px; color: #f5f1e8; font: 400 2.2em/1.2 MagicCards, serif; letter-spacing: .7px; word-spacing: 8px; text-shadow: 2px 2px 4px rgba(0, 0, 0, .5); }
+.api-keys-page .page-subtitle { margin: 0; color: #bbb; font-size: 1.1em; }
+.api-keys-page .keys-notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(65, 170, 100, .4); border-radius: 8px; background: rgba(42, 42, 42, .95); color: #a9e5bd; }
+.api-keys-page .keys-notice.error { border-color: rgba(220, 80, 90, .5); color: #ffb0b7; }
+.api-keys-page .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+
+.api-keys-page .content-section {
+    padding: 25px;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
+    box-shadow: 0 2px 8px rgba(0, 0, 0, .15), inset 0 1px rgba(255, 255, 255, .03);
+    transition: border-color .3s ease, box-shadow .3s ease;
+}
+
+.api-keys-page .content-section:hover { border-color: #4a4a4a; box-shadow: 0 4px 12px rgba(0, 0, 0, .2), inset 0 1px rgba(255, 255, 255, .05); }
+.api-keys-page .content-section h2,
+.api-keys-page .content-section h3 { margin-bottom: 15px; color: #f5f1e8; font: 400 1.4em/1.2 MagicCards, serif; word-spacing: 6px; text-shadow: 1px 1px 2px rgba(0, 0, 0, .5); }
+.api-keys-page .section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px; }
+.api-keys-page .section-header h2 { margin: 0; }
+.api-keys-page .full-width-section { grid-column: 1 / -1; }
+.api-keys-page .provider-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+
+.api-keys-page .provider-card {
+    padding: 14px;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: linear-gradient(135deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .1);
+    transition: all .2s ease;
+}
+
+.api-keys-page .provider-card:hover { border-color: #4a4a4a; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); transform: translateY(-1px); }
+.api-keys-page .provider-card.has-key { border-color: #2d6a4f; box-shadow: 0 0 0 1px rgba(45, 106, 79, .35) inset, 0 1px 4px rgba(0, 0, 0, .1); }
+.api-keys-page .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
+.api-keys-page .provider-title { display: flex; align-items: center; gap: 10px; color: #e0e0e0; }
+.api-keys-page .provider-icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; background: linear-gradient(135deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, .9)); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); font-size: 16px; }
+.api-keys-page .provider-links { display: flex; align-items: center; gap: 10px; }
+.api-keys-page .provider-links a { color: rgb(242, 124, 17); font-size: 12px; text-decoration: underline; }
+.api-keys-page .provider-body { display: flex; align-items: center; gap: 8px; }
+
+.api-keys-page .provider-card input[type="password"],
+.api-keys-page .provider-card input[type="text"] { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .8); color: #e9efff; transition: all .2s ease; }
+.api-keys-page .provider-card input:focus { border-color: rgba(242, 124, 17, .5); outline: none; background: rgba(34, 34, 34, .9); box-shadow: 0 0 0 3px rgba(242, 124, 17, .1); }
+.api-keys-page .provider-card input:disabled { filter: none !important; opacity: .72 !important; }
+.api-keys-page .provider-subtext { margin-top: 8px; color: #bdbdbd; font-size: 12px; }
+.api-keys-page .provider-subtext .desc { margin: 0 0 2px; color: #cfcfcf; font-size: 12px !important; line-height: 18px !important; }
+.api-keys-page #custom-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
+.api-keys-page .status-control { position: relative; display: inline-flex; flex: 0 0 auto; }
+.api-keys-page .status-control > .feature-state-badge { position: absolute; top: -8px; right: -7px; z-index: 1; white-space: nowrap; transform: scale(.72); transform-origin: top right; }
+.api-keys-page .add-custom-control { margin-top: 0; }
+.api-keys-page .status-control button:disabled { filter: none !important; opacity: .72 !important; }
+.api-keys-page .btn-save { border-color: #27853d !important; background: #2f7f57 !important; color: #fff !important; }
+
+@media (max-width: 900px) {
+    body.api-keys-page-shell > main.api-keys-page { padding-right: 5%; padding-left: 5%; }
+    .api-keys-page .content-grid,
+    .api-keys-page .provider-grid,
+    .api-keys-page #custom-keys { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 560px) {
+    .api-keys-page .section-header { align-items: flex-start; gap: 12px; }
+    .api-keys-page .provider-body { flex-wrap: wrap; }
+    .api-keys-page .provider-body input { flex-basis: 100%; }
+}

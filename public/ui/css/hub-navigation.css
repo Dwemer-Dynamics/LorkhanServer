@@ -108,10 +108,27 @@ body.hub-page .config-navigation {
     transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
-.tab-button span:last-child {
+.tab-button .tab-label {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+}
+
+.tab-button > .tab-label-stack {
+    min-width: 0;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 1px;
+    line-height: 1;
+}
+
+.tab-label-stack .feature-state-compact {
+    min-height: 12px;
+    padding: 1px 4px;
+    font-size: 7px;
+    line-height: 1;
 }
 
 .tab-icon {

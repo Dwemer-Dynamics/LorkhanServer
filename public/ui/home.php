@@ -6,16 +6,23 @@ $pageTitle = 'ALMSIVI Home';
 $topNavSection = 'home';
 require __DIR__ . '/ui_bootstrap.php';
 $dashboard = $uiRepository->dashboard();
+$includeManagementStyles = false;
+$additionalStylesheets = ['herika-home.css?v=' . (string) filemtime(__DIR__ . '/css/herika-home.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
-<main class="container dashboard-shell">
-    <div class="home-version-info">
-        <span>Server: ALMSIVIserver</span>
-        <span>Database: PostgreSQL <?php echo almsivi_ui_h($dashboard['database_version']); ?></span>
-        <span>Client: OpenMW 0.51 / Lua API 129</span>
+<div class="container home-version-info">
+    <span>Server: ALMSIVIserver</span>
+    <span>Database: PostgreSQL <?php echo almsivi_ui_h($dashboard['database_version']); ?></span>
+    <span>Client: OpenMW 0.51 / Lua API 129</span>
+</div>
+<main class="container">
+    <h1>Dwemer Dashboard</h1>
+
+    <div class="dashboard-buttons">
+        <a class="dashboard-btn" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/core/config_hub.php"><span class="btn-icon" aria-hidden="true">⚙️</span> Configuration</a>
+        <a class="dashboard-btn" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/events-memories.php"><span class="btn-icon" aria-hidden="true">📖</span> Roleplay</a>
     </div>
-    <div class="home-heading"><h1>Dashboard</h1></div>
 
     <section class="dashboard-container" aria-label="ALMSIVI dashboard">
         <article class="widget">
@@ -31,7 +38,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 
         <article class="widget">
             <div class="widget-header"><h3>Recent Dialogue</h3></div>
-            <div class="widget-content"><?php almsivi_ui_table($dashboard['dialogue'], 'No dialogue has been recorded yet.'); ?></div>
+            <div class="widget-content widget-table"><?php almsivi_ui_table($dashboard['dialogue'], 'No dialogue has been recorded yet.'); ?></div>
         </article>
 
         <article class="widget widget-wide">

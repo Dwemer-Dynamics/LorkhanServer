@@ -1,0 +1,409 @@
+/* Pinned HerikaServer c6ba592 NPC manager geometry with ALMSIVI typed-form adapters. */
+body.view-characters {
+    background: #171717;
+    color: #e9efff;
+    font-family: "Futura CondensedLight", Arial, sans-serif;
+}
+
+body.configuration-resource.view-characters main.management-page {
+    padding: 40px 0;
+    background: transparent;
+    font-family: inherit;
+}
+
+body.view-characters .npc-history-pullback,
+body.view-characters button,
+body.view-characters input,
+body.view-characters select,
+body.view-characters textarea {
+    font-family: inherit;
+}
+
+body.view-characters .npc-history-pullback {
+    font-size: 12.5px;
+    line-height: 1.5;
+}
+
+body.view-characters .npc-modal-overlay {
+    align-items: center;
+    padding: 20px 0;
+    overflow-y: auto;
+    background: rgba(0, 0, 0, .75);
+}
+
+body.view-characters .npc-modal,
+body.view-characters .npc-editor-modal {
+    width: 95%;
+    max-width: 1200px;
+    max-height: 85vh;
+    border: 1px solid #3a3a3a;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(42, 42, 42, .98), rgba(34, 34, 34, .98));
+    box-shadow: 0 8px 32px rgba(0, 0, 0, .4);
+}
+
+body.view-characters .npc-confirm-modal {
+    max-width: 620px;
+}
+
+body.view-characters .npc-modal > header {
+    padding: 16px 18px;
+    border-bottom: 1px solid rgba(242, 124, 17, .2);
+    border-radius: 12px 12px 0 0;
+    background: rgba(42, 42, 42, .95);
+}
+
+body.view-characters .npc-modal > header h2 {
+    color: rgb(242, 124, 17);
+    font: 700 1.4em/1.2 MagicCards, serif;
+    word-spacing: 6px;
+    text-shadow: 1px 1px 2px rgba(0, 0, 0, .5);
+}
+
+body.view-characters .npc-modal-body {
+    max-height: calc(85vh - 126px);
+    padding: 10px;
+    background: rgba(34, 34, 34, .95);
+}
+
+.npc-editor-meta {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 9px;
+    margin: 0 6px 10px;
+}
+
+.npc-editor-meta label {
+    margin: 0;
+    color: rgb(242, 124, 17);
+    font-weight: 700;
+}
+
+.npc-editor-meta > input {
+    width: min(260px, 50vw);
+    height: 34px;
+    margin: 0;
+}
+
+.npc-editor-favorite input {
+    position: absolute;
+    opacity: 0;
+    pointer-events: none;
+}
+
+.npc-editor-favorite span {
+    display: inline-grid;
+    width: 34px;
+    height: 34px;
+    place-items: center;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #303030;
+    color: #ffd700;
+    cursor: pointer;
+    font-size: 20px;
+}
+
+.npc-profile-llms {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 18px;
+    align-items: center;
+    margin-bottom: 10px;
+    padding: 10px;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: rgba(30, 30, 30, .92);
+}
+
+.npc-profile-llms strong {
+    color: rgb(242, 124, 17);
+    white-space: nowrap;
+}
+
+.npc-profile-llms > span {
+    overflow: hidden;
+    color: #ddd;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.npc-editor-tabs {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 14px;
+    padding: 8px;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: rgba(30, 30, 30, .92);
+}
+
+.npc-editor-tab {
+    position: relative;
+    min-height: 40px;
+    margin: 0 !important;
+    padding: 8px 12px !important;
+    border: 1px solid #444 !important;
+    border-radius: 7px !important;
+    background: #303030 !important;
+    color: #ddd !important;
+    cursor: pointer;
+    font-weight: 700 !important;
+    transition: border-color .15s ease, background .15s ease, color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+
+.npc-editor-tab:hover {
+    border-color: rgba(242, 124, 17, .55) !important;
+    background: #383838 !important;
+}
+
+.npc-editor-tab.is-active {
+    border-color: rgb(242, 124, 17) !important;
+    background: rgba(92, 53, 25, .95) !important;
+    color: #fff !important;
+    box-shadow: inset 0 0 0 1px rgba(242, 124, 17, .28), 0 0 12px rgba(242, 124, 17, .24) !important;
+    transform: translateY(-1px);
+}
+
+.npc-editor-tab:focus-visible {
+    outline: 2px solid rgb(242, 124, 17);
+    outline-offset: 2px;
+}
+
+.npc-editor-panels {
+    display: block;
+}
+
+.npc-editor-panel[hidden] {
+    display: none !important;
+}
+
+.npc-editor-panel.form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px 16px;
+    padding: 0;
+}
+
+.npc-editor-panel .form-item {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.npc-editor-panel .form-item.span-2,
+.npc-editor-panel .span-2 {
+    grid-column: 1 / -1;
+}
+
+.npc-editor-panel .form-item > label {
+    display: block;
+    color: rgb(242, 124, 17);
+    font-size: 15px;
+    font-weight: 700;
+}
+
+.npc-editor-panel input:not([type="checkbox"]),
+.npc-editor-panel select,
+.npc-editor-panel textarea {
+    box-sizing: border-box;
+    width: 100%;
+    min-height: 36px;
+    margin: 0;
+    padding: 7px 10px;
+    border: 1px solid #494949;
+    border-radius: 5px;
+    background: #262626;
+    color: #eee;
+}
+
+.npc-editor-panel textarea {
+    min-height: 94px;
+    resize: vertical;
+}
+
+.npc-editor-panel input:focus,
+.npc-editor-panel select:focus,
+.npc-editor-panel textarea:focus {
+    border-color: rgba(242, 124, 17, .7);
+    outline: 0;
+    box-shadow: 0 0 0 2px rgba(242, 124, 17, .12);
+}
+
+.npc-editor-check {
+    align-content: start;
+}
+
+.npc-editor-panel .npc-editor-check > label {
+    display: flex !important;
+    flex-direction: row-reverse !important;
+    align-items: center;
+    justify-content: flex-end !important;
+    gap: 8px;
+    min-height: 36px;
+}
+
+.npc-editor-panel .form-item > label .feature-state-badge {
+    display: inline-flex;
+    width: auto;
+}
+
+.npc-editor-check .hint {
+    color: #aaa;
+    font-size: 12px;
+}
+
+.npc-editor-disabled input:disabled {
+    opacity: .58;
+    cursor: not-allowed;
+}
+
+.npc-editor-placeholder,
+.npc-bgl-dashboard > section {
+    padding: 14px;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, .8);
+}
+
+.npc-editor-placeholder h3,
+.npc-bgl-dashboard h3 {
+    margin: 0 0 6px;
+    color: rgb(242, 124, 17);
+}
+
+.npc-editor-placeholder p,
+.npc-bgl-dashboard p {
+    margin: 0 0 10px;
+    color: #aaa;
+}
+
+.npc-bgl-dashboard {
+    display: grid;
+    gap: 10px;
+}
+
+.npc-bgl-dashboard > section > header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.npc-bgl-summary,
+.npc-bgl-control-grid,
+.npc-bgl-request-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 9px;
+}
+
+.npc-bgl-summary article,
+.npc-bgl-dashboard button {
+    min-height: 48px;
+    padding: 9px 10px;
+    border: 1px solid #444;
+    border-radius: 6px;
+    background: #272727;
+    color: #ddd;
+}
+
+.npc-bgl-summary article {
+    display: grid;
+    gap: 5px;
+}
+
+.npc-bgl-summary span {
+    color: #888;
+    font-size: 12px;
+}
+
+.npc-bgl-dashboard button:disabled {
+    opacity: .58;
+    cursor: not-allowed;
+}
+
+.npc-editor-secondary {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-start;
+    margin-top: 16px;
+    padding-top: 14px;
+    border-top: 1px solid #3a3a3a;
+}
+
+.npc-editor-secondary > details,
+.npc-editor-secondary > .revision-actions {
+    flex: 1 1 320px;
+}
+
+.npc-editor-secondary .revision-actions {
+    display: flex;
+    gap: 10px;
+    align-items: flex-end;
+}
+
+.npc-observed-picker {
+    margin-top: 16px;
+    padding: 12px;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, .8);
+}
+
+.npc-observed-picker > summary {
+    color: rgb(242, 124, 17);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.npc-observed-picker .connector-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    margin-top: 12px;
+}
+
+.npc-filter-menu label:has(input:disabled) {
+    opacity: .65;
+}
+
+@media (max-width: 850px) {
+    .npc-editor-panel.form-grid,
+    .npc-bgl-summary,
+    .npc-bgl-control-grid,
+    .npc-bgl-request-grid {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .npc-editor-panel .form-item.span-2,
+    .npc-editor-panel .span-2 {
+        grid-column: auto;
+    }
+
+    .npc-profile-llms {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 6px;
+    }
+}
+
+@media (max-width: 700px) {
+    body.view-characters .management-page {
+        padding: 40px 0;
+    }
+
+    .npc-editor-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .npc-editor-meta {
+        justify-content: stretch;
+    }
+
+    .npc-editor-meta > input {
+        width: 100%;
+        min-width: 0;
+    }
+}

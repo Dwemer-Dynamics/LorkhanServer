@@ -1,67 +1,141 @@
 <?php
+
 declare(strict_types=1);
 
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 
-$pageTitle='Global Settings';$topNavSection='configuration';$BODY_CLASS='hub-page';
-require __DIR__.'/ui_bootstrap.php';
-$installations=$uiRepository->rows('installations');
-$requested=trim((string)($_GET['installation_id']??''));$installationId='';
-foreach($installations as$row)if($requested!==''&&hash_equals((string)$row['installation_id'],$requested))$installationId=$requested;
-if($installationId===''&&isset($installations[0]))$installationId=(string)$installations[0]['installation_id'];
-$stored=$installationId===''?null:$productRepository->globalSettingsForInstallation($installationId);
-$settings=is_array($stored['content']??null)?$stored['content']:EffectiveSettingsResolver::defaults();
-$embedded=isset($_GET['embed'])&&$_GET['embed']==='1';
-$check=static fn(bool$value):string=>$value?' checked':'';
-include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
+$embedded = (string) ($_GET['embed'] ?? '') === '1';
+$pageTitle = 'Global Settings';
+$topNavSection = 'configuration';
+$BODY_CLASS = 'hub-page global-settings-page-shell' . ($embedded ? ' embedded-page' : '');
+require __DIR__ . '/ui_bootstrap.php';
+
+$installations = $uiRepository->rows('installations');
+$requested = trim((string) ($_GET['installation_id'] ?? ''));
+$installationId = '';
+foreach ($installations as $row) if ($requested !== '' && hash_equals((string) $row['installation_id'], $requested)) $installationId = $requested;
+if ($installationId === '' && isset($installations[0])) $installationId = (string) $installations[0]['installation_id'];
+$stored = $installationId === '' ? null : $productRepository->globalSettingsForInstallation($installationId);
+$settings = is_array($stored['content'] ?? null) ? $stored['content'] : EffectiveSettingsResolver::defaults();
+
+$sections = [
+    'prompt-rechat' => [
+        'Prompt & Rechat' => [
+            ['auto_greeting', 'Automatic Greeting', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allows a bounded greeting when the player starts an eligible conversation.'],
+            ['rechat', 'Rechat', '&#x1F501;', 'boolean', $settings['behavior']['rechat'], 'Lets the server continue a conversation through bounded NPC rechat turns.'],
+            ['rechat_delay_seconds', 'Rechat Delay', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['rechat_delay_seconds'], 'Seconds before an eligible rechat turn.', ['min' => 30, 'max' => 3600]],
+            ['rechat_max_depth', 'Maximum Rechat Depth', '&#x1F4AC;', 'integer', $settings['behavior']['rechat_max_depth'], 'Maximum number of server-side rechat turns.', ['min' => 1, 'max' => 20]],
+            ['boredom', 'Boredom Events', '&#x1F4AD;', 'boolean', $settings['behavior']['boredom'], 'Allows bounded idle conversation events when the player remains nearby.'],
+            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Seconds between eligible boredom events.', ['min' => 30, 'max' => 86400]],
+            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allows short negotiated combat dialogue events.'],
+            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x1F6E1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between combat barks.', ['min' => 5, 'max' => 300]],
+        ],
+    ],
+    'ai-memory' => [
+        'Memory & Others' => [
+            ['recent_turn_limit', 'Recent Turns', '&#x1F9E0;', 'integer', $settings['memory']['recent_turn_limit'], 'Recent dialogue turns included in bounded context.', ['min' => 1, 'max' => 100]],
+            ['knowledge_limit', 'Knowledge Results', '&#x1F4DA;', 'integer', $settings['memory']['knowledge_limit'], 'Maximum scoped Oghma results included in one request.', ['min' => 0, 'max' => 20]],
+            ['show_status_hud', 'Show Status HUD', '&#x1F5A5;&#xFE0F;', 'boolean', $settings['presentation']['show_status_hud'], 'Shows ALMSIVI conversation state in the OpenMW HUD.'],
+            ['transcript_rows', 'Transcript Rows', '&#x1F4DC;', 'integer', $settings['presentation']['transcript_rows'], 'Number of dialogue rows retained in the in-game transcript.', ['min' => 2, 'max' => 20]],
+            ['tts_volume_boost', 'ALMSIVI TTS Volume Boost', '&#x1F50A;', 'integer', $settings['presentation']['tts_volume_boost'], 'Installation-wide speech gain applied by the OpenMW client.', ['min' => 1, 'max' => 4]],
+        ],
+    ],
+    'context-knowledge' => [
+        'Context & Knowledge' => [
+            ['narrator_enabled', 'Enable Narrator', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['narrator']['enabled'], 'Allows the typed narrator profile to participate in eligible events.'],
+            ['narrator_name', 'Narrator Name', '&#x1F3F7;&#xFE0F;', 'text', $settings['narrator']['name'], 'Display name used for narration, prompts, subtitles, and TTS.'],
+            ['narrator_inline_mode', 'Inline Mode', '&#x1F4DD;', 'select', $settings['narrator']['inline_mode'], 'Controls how inline narration is delivered.', ['values' => ['Disabled', 'Narrator', 'NPC', 'Text Only']]],
+            ['narrator_context_visibility', 'Include Narrator Context', '&#x1F441;&#xFE0F;', 'boolean', $settings['narrator']['context_visibility'], 'Includes narrator context in eligible roleplay requests.'],
+            ['narrator_welcome_events', 'Welcome Events', '&#x1F44B;', 'boolean', $settings['narrator']['welcome_events'], 'Allows narration for welcome events.'],
+            ['narrator_random_events', 'Random Events', '&#x1F3B2;', 'boolean', $settings['narrator']['random_events'], 'Allows narration for negotiated random events.'],
+            ['narrator_quest_events', 'Quest Events', '&#x1F5FA;&#xFE0F;', 'boolean', $settings['narrator']['quest_events'], 'Allows narration when supported quest events arrive from OpenMW.'],
+            ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Allows narration for observed book events.'],
+        ],
+    ],
+    'global-connectors' => [
+        'Safety & OpenMW Actions' => [
+            ['actions_enabled', 'Enable Negotiated Actions', '&#x2694;&#xFE0F;', 'boolean', $settings['safety']['actions_enabled'], 'Allows only actions advertised by the connected OpenMW client.'],
+            ['allow_hostile', 'Allow Hostile NPC Targets', '&#x1F6E1;&#xFE0F;', 'boolean', $settings['safety']['allow_hostile'], 'Allows hostile actors to be selected when the client also permits them.'],
+            ['allow_creatures', 'Allow Creature Targets', '&#x1F43E;', 'boolean', $settings['safety']['allow_creatures'], 'Allows creatures to be selected when the client also permits them.'],
+        ],
+    ],
+];
+
+$additionalStylesheets = ['herika-global-settings.css?v=' . (string) filemtime(__DIR__ . '/css/herika-global-settings.css')];
+include __DIR__ . '/tmpl/head.html';
+if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
-<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>">
-    <header class="almsivi-page-header">
-        <div><h1>Global Settings</h1><p>Installation defaults inherited by every Core Profile and NPC unless a lower layer explicitly overrides them.</p></div>
-        <div class="almsivi-badges"><span class="almsivi-badge default">Global layer</span><span class="almsivi-badge">Revision <?php echo almsivi_ui_h($stored['current_revision']??'default'); ?></span></div>
+<main class="global-settings-page">
+    <header class="page-header">
+        <div class="page-header-row">
+            <h1 class="gs-title">Global Settings</h1>
+            <div class="page-header-actions">
+                <span class="status-control"><button type="button" class="btn-action-blue" disabled aria-disabled="true">Test Global Connectors</button><?php echo almsivi_ui_feature_badge('config.globals.connector-test', true); ?></span>
+                <button type="submit" class="btn-save-green" name="save_all" value="1" form="gs_form">Save All</button>
+            </div>
+        </div>
     </header>
-    <?php if(isset($_GET['status'])): ?><div class="almsivi-status">Global settings saved as a new revision.</div><?php endif; ?>
-    <?php if($installations===[]): ?><section class="almsivi-card almsivi-empty">Connect OpenMW once before configuring installation settings.</section><?php else: ?>
-    <div class="almsivi-toolbar"><label>Installation<select data-installation-select><?php foreach($installations as$row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id']===$installationId?' selected':''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div>
-    <div class="almsivi-inheritance"><span class="active">1. Global defaults</span><span>2. Core Profile overrides</span><span>3. NPC overrides</span></div>
-    <form class="almsivi-editor" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/global-settings-save">
+
+    <?php if (isset($_GET['status'])): ?><div class="result-ok">Global settings saved to the database.</div><?php endif; ?>
+    <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
+
+    <nav class="settings-tabs" role="tablist" aria-label="Global settings categories">
+        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'global-connectors' => '&#x1F50C; Global Connectors'] as $tabId => $tabLabel): ?>
+        <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" data-settings-tab="<?php echo almsivi_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
+        <?php endforeach; ?>
+    </nav>
+
+    <?php if ($installations === []): ?><section class="content-section">Connect OpenMW once before configuring installation settings.</section><?php else: ?>
+    <form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/global-settings-save" id="gs_form">
         <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
-        <div class="p-3">
-            <div class="almsivi-form-grid">
-                <fieldset class="almsivi-group"><legend>Conversation behavior</legend>
-                    <label><span><input type="checkbox" name="auto_greeting" value="1"<?php echo $check($settings['behavior']['auto_greeting']); ?>> Automatic greeting</span></label>
-                    <label><span><input type="checkbox" name="rechat" value="1"<?php echo $check($settings['behavior']['rechat']); ?>> Rechat</span></label>
-                    <label>Rechat delay (seconds)<input type="number" min="30" max="3600" name="rechat_delay_seconds" value="<?php echo almsivi_ui_h($settings['behavior']['rechat_delay_seconds']); ?>"></label>
-                    <label>Maximum rechat depth<input type="number" min="1" max="20" name="rechat_max_depth" value="<?php echo almsivi_ui_h($settings['behavior']['rechat_max_depth']); ?>"></label>
-                    <label><span><input type="checkbox" name="boredom" value="1"<?php echo $check($settings['behavior']['boredom']); ?>> Boredom events</span></label>
-                    <label>Boredom delay (seconds)<input type="number" min="30" max="86400" name="boredom_delay_seconds" value="<?php echo almsivi_ui_h($settings['behavior']['boredom_delay_seconds']); ?>"></label>
-                    <label><span><input type="checkbox" name="combat_barks" value="1"<?php echo $check($settings['behavior']['combat_barks']); ?>> Combat barks</span></label>
-                    <label>Combat bark period<input type="number" min="5" max="300" name="combat_bark_period_seconds" value="<?php echo almsivi_ui_h($settings['behavior']['combat_bark_period_seconds']); ?>"></label>
-                </fieldset>
-                <fieldset class="almsivi-group"><legend>Memory</legend>
-                    <label>Recent turns<input type="number" min="1" max="100" name="recent_turn_limit" value="<?php echo almsivi_ui_h($settings['memory']['recent_turn_limit']); ?>"></label>
-                    <label>Knowledge results<input type="number" min="0" max="20" name="knowledge_limit" value="<?php echo almsivi_ui_h($settings['memory']['knowledge_limit']); ?>"></label>
-                </fieldset>
-                <fieldset class="almsivi-group"><legend>Narration</legend>
-                    <label><span><input type="checkbox" name="narrator_enabled" value="1"<?php echo $check($settings['narrator']['enabled']); ?>> Enable narrator</span></label>
-                    <label>Narrator name<input name="narrator_name" maxlength="128" value="<?php echo almsivi_ui_h($settings['narrator']['name']); ?>"></label>
-                    <label>Inline mode<select name="narrator_inline_mode"><?php foreach(['Disabled','Narrator','NPC','Text Only']as$mode): ?><option<?php echo $settings['narrator']['inline_mode']===$mode?' selected':''; ?>><?php echo almsivi_ui_h($mode); ?></option><?php endforeach; ?></select></label>
-                    <?php foreach(['context_visibility'=>'Include narrator context','welcome_events'=>'Welcome events','random_events'=>'Random events','quest_events'=>'Quest events','book_events'=>'Book events']as$field=>$label): ?><label><span><input type="checkbox" name="narrator_<?php echo almsivi_ui_h($field); ?>" value="1"<?php echo $check($settings['narrator'][$field]); ?>> <?php echo almsivi_ui_h($label); ?></span></label><?php endforeach; ?>
-                </fieldset>
-                <fieldset class="almsivi-group"><legend>Presentation</legend>
-                    <label><span><input type="checkbox" name="show_status_hud" value="1"<?php echo $check($settings['presentation']['show_status_hud']); ?>> Show status HUD</span></label>
-                    <label>Transcript rows<input type="number" min="2" max="20" name="transcript_rows" value="<?php echo almsivi_ui_h($settings['presentation']['transcript_rows']); ?>"></label>
-                    <label>ALMSIVI TTS volume boost<input type="number" min="1" max="4" name="tts_volume_boost" value="<?php echo almsivi_ui_h($settings['presentation']['tts_volume_boost']); ?>"></label>
-                </fieldset>
-                <fieldset class="almsivi-group wide"><legend>Safety and OpenMW actions</legend>
-                    <div class="almsivi-form-grid"><?php foreach(['actions_enabled'=>'Enable negotiated actions','allow_hostile'=>'Allow hostile NPC targets','allow_creatures'=>'Allow creature targets']as$field=>$label): ?><label><span><input type="checkbox" name="<?php echo almsivi_ui_h($field); ?>" value="1"<?php echo $check($settings['safety'][$field]); ?>> <?php echo almsivi_ui_h($label); ?></span></label><?php endforeach; ?></div>
-                </fieldset>
-                <label class="wide">Revision note<input name="change_reason" maxlength="512" value="Management global settings"></label>
-            </div>
-            <div class="almsivi-actions"><button type="submit">Save Global Settings</button></div>
+        <input type="hidden" name="change_reason" value="Management global settings">
+        <div class="content-grid">
+            <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
+            <section class="content-section<?php echo $tabId === 'global-connectors' ? ' connector-section' : ''; ?>" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
+                <h2><?php echo almsivi_ui_h($sectionTitle); ?></h2>
+                <?php if ($tabId === 'global-connectors'): ?>
+                <div class="provider-grid connector-placeholder-grid">
+                    <?php foreach ([['Global LLM Connector', '&#x1F9E0;', 'Inherited through Core Profile routing'], ['Global TTS Connector', '&#x1F50A;', 'Inherited through Core Profile routing']] as [$label, $icon, $help]): ?>
+                    <div class="provider-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.globals.connectors')['description']); ?>"><div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge('config.globals.connectors', true); ?></div></div><div class="provider-body"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($help); ?></option></select></div><div class="provider-help">Connector routing is selected by the Global default Core Profile and then inherited by NPCs.</div></div>
+                    <?php endforeach; ?>
+                </div>
+                <h2 class="subsection-heading">Safety &amp; OpenMW Actions</h2>
+                <?php endif; ?>
+                <div class="provider-grid">
+                    <?php if ($tabId === 'prompt-rechat'): ?>
+                    <?php foreach ([
+                        ['Prompt Head', '&#x1F51D;', 'textarea', 'System Prompt. Defines the rules of the roleplay.', 'config.globals.prompt-head', []],
+                        ['Emote Moods', '&#x1F3AD;', 'textarea', 'Default list of moods passed to the LLM. Core Profiles and NPCs can provide explicit profile text.', 'config.globals.emote-moods', []],
+                        ['Rechat Mode', '&#x1F501;', 'select', 'Controls which participant is preferred for the next rechat turn.', 'config.globals.rechat-mode', ['Tight', 'Conversational', 'Group', 'Random (Recommended)']],
+                        ['Strict Rechat Targeting', '&#x1F3AF;', 'boolean', 'Requires each rechat responder to address the previous speaker directly.', 'config.globals.strict-rechat', []],
+                    ] as [$label, $icon, $placeholderType, $help, $placeholderFeature, $placeholderOptions]): ?>
+                    <div class="provider-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>">
+                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($placeholderType === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" disabled aria-disabled="true" aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
+                        <div class="provider-body"><?php if ($placeholderType === 'textarea'): ?><textarea rows="4" disabled aria-disabled="true"></textarea><?php elseif ($placeholderType === 'select'): ?><select disabled aria-disabled="true"><?php foreach ($placeholderOptions as $option): ?><option<?php echo str_starts_with($option, 'Random') ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select><?php endif; ?></div>
+                        <div class="provider-help"><?php echo almsivi_ui_h($help); ?></div>
+                    </div>
+                    <?php endforeach; ?>
+                    <div class="provider-subsection-title">ALMSIVI Conversation Timing</div>
+                    <?php endif; ?>
+                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; ?>
+                    <div class="provider-card">
+                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
+                        <div class="provider-body">
+                            <?php if ($type === 'integer'): ?><input type="number" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($value); ?>" min="<?php echo almsivi_ui_h($options['min']); ?>" max="<?php echo almsivi_ui_h($options['max']); ?>" step="1" aria-label="<?php echo almsivi_ui_h($label); ?>">
+                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>" aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
+                            <?php elseif ($type === 'text'): ?><input type="text" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($value); ?>" maxlength="128" aria-label="<?php echo almsivi_ui_h($label); ?>">
+                            <?php endif; ?>
+                        </div>
+                        <div class="provider-help"><?php echo almsivi_ui_h($help); ?></div>
+                    </div>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+            <?php endforeach; endforeach; ?>
         </div>
     </form>
     <?php endif; ?>
 </main>
-<?php include __DIR__.'/tmpl/footer.html'; ?>
+<script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/global-settings.js?v=<?php echo almsivi_ui_h((string) filemtime(__DIR__ . '/js/global-settings.js')); ?>"></script>
+<?php include __DIR__ . '/tmpl/footer.html'; ?>

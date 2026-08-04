@@ -109,6 +109,33 @@ final class ProductRepository
         });
     }
 
+    /** Save Core Profile identity metadata and its next immutable content revision in one transaction. */
+    public function reviseCoreProfile(string $coreProfileId,string $label,bool $defaultNpc,?int $slot,array $content,string $reason,string $now):array
+    {
+        return$this->transaction(function()use($coreProfileId,$label,$defaultNpc,$slot,$content,$reason,$now):array{
+            $statement=$this->db->prepare('SELECT installation_id,current_revision,default_npc FROM core_profiles WHERE core_profile_id=:id AND deleted_at IS NULL FOR UPDATE');
+            $statement->execute(['id'=>$coreProfileId]);$profile=$statement->fetch();if(!$profile)throw new RuntimeException('not_found');
+            $installation=(string)$profile['installation_id'];
+            if($slot!==null){
+                $occupied=$this->db->prepare('SELECT 1 FROM core_profiles WHERE installation_id=:installation AND slot=:slot AND core_profile_id<>:id AND deleted_at IS NULL LIMIT 1');
+                $occupied->execute(['installation'=>$installation,'slot'=>$slot,'id'=>$coreProfileId]);
+                if($occupied->fetchColumn()!==false)throw new \InvalidArgumentException('core_profile_slot_in_use');
+            }
+            if($defaultNpc){
+                $this->db->prepare('UPDATE core_profiles SET default_npc=false WHERE installation_id=:installation AND core_profile_id<>:id AND default_npc=true')
+                    ->execute(['installation'=>$installation,'id'=>$coreProfileId]);
+            }elseif(filter_var($profile['default_npc']??false,FILTER_VALIDATE_BOOL)){
+                throw new \InvalidArgumentException('default_core_profile_required');
+            }
+            $this->db->prepare('UPDATE core_profiles SET label=:label,default_npc=:default_npc,slot=:slot WHERE core_profile_id=:id')
+                ->execute(['label'=>$label,'default_npc'=>$defaultNpc?'true':'false','slot'=>$slot,'id'=>$coreProfileId]);
+            $next=(int)$profile['current_revision']+1;
+            $this->revision('core_profile_revisions','core_profile_id',$coreProfileId,$next,$content,$reason,$now);
+            $this->db->prepare('UPDATE core_profiles SET current_revision=:revision WHERE core_profile_id=:id')->execute(['revision'=>$next,'id'=>$coreProfileId]);
+            return$this->getRevisioned('core_profile',$coreProfileId);
+        });
+    }
+
     /** Assign one same-installation Core Profile to an NPC/persona profile. */
     public function assignCoreProfile(string $profileId,string $coreProfileId):void
     {

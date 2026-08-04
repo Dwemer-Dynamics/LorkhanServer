@@ -39,7 +39,8 @@
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-npc-modal-target]');
-        if (trigger) {
+        const interactive = event.target.closest('button, a, input, select, textarea, label');
+        if (trigger && (!interactive || trigger === interactive)) {
             if (trigger.disabled) return;
             event.preventDefault();
             event.stopPropagation();
@@ -53,6 +54,41 @@
             return;
         }
         if (event.target.matches('[data-npc-modal]')) closeModal(event.target);
+        const history = event.target.closest('[data-npc-history]');
+        if (history) {
+            const modal = history.closest('[data-npc-modal]');
+            const revisions = modal && modal.querySelector('.revision-actions');
+            if (revisions) revisions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
+
+    document.querySelectorAll('[data-npc-editor-tabs]').forEach((tablist) => {
+        const modal = tablist.closest('[data-npc-modal]');
+        const buttons = [...tablist.querySelectorAll('[data-npc-editor-tab]')];
+        const panels = [...(modal ? modal.querySelectorAll('[data-npc-editor-panel]') : [])];
+        const activate = (name, focus = false) => {
+            buttons.forEach((button) => {
+                const active = button.getAttribute('data-npc-editor-tab') === name;
+                button.classList.toggle('is-active', active);
+                button.setAttribute('aria-selected', active ? 'true' : 'false');
+                button.tabIndex = active ? 0 : -1;
+                if (active && focus) button.focus();
+            });
+            panels.forEach((panel) => { panel.hidden = panel.getAttribute('data-npc-editor-panel') !== name; });
+            try { window.localStorage.setItem('almsivi-npc-editor-tab', name); } catch (_error) {}
+        };
+        buttons.forEach((button) => button.addEventListener('click', () => activate(button.getAttribute('data-npc-editor-tab') || 'general')));
+        tablist.addEventListener('keydown', (event) => {
+            if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+            event.preventDefault();
+            const current = Math.max(0, buttons.findIndex((button) => button.classList.contains('is-active')));
+            const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowRight' ? 1 : -1) + buttons.length) % buttons.length;
+            activate(buttons[next].getAttribute('data-npc-editor-tab') || 'general', true);
+        });
+        let initial = 'general';
+        try { initial = window.localStorage.getItem('almsivi-npc-editor-tab') || initial; } catch (_error) {}
+        if (!buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
+        activate(initial);
     });
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Escape' && activeModal) closeModal(activeModal);
@@ -66,7 +102,7 @@
     const filterForm = document.querySelector('[data-npc-filter-form]');
     if (filterForm) {
         let timer = null;
-        const search = filterForm.querySelector('input[type="search"]');
+        const search = filterForm.querySelector('input[name="q"]');
         const profile = filterForm.querySelector('select[name="profile"]');
         if (search) search.addEventListener('input', () => {
             window.clearTimeout(timer);
@@ -74,6 +110,22 @@
         });
         if (profile) profile.addEventListener('change', () => filterForm.submit());
     }
+
+    const updateNpcQuery = (name, value, resetPage = true) => {
+        const url = new URL(window.location.href);
+        if (value === '') url.searchParams.delete(name);
+        else url.searchParams.set(name, value);
+        if (resetPage) url.searchParams.delete('page');
+        window.location.assign(url.toString());
+    };
+    document.querySelectorAll('.npc-page-link[data-page]').forEach((control) => {
+        control.addEventListener('click', () => {
+            if (!control.disabled) updateNpcQuery('page', control.getAttribute('data-page') || '1', false);
+        });
+    });
+    document.querySelectorAll('.npc-letter-btn[data-letter]').forEach((control) => {
+        control.addEventListener('click', () => updateNpcQuery('initial', control.getAttribute('data-letter') || ''));
+    });
 
     const filterButton = document.querySelector('[data-filter-menu-toggle]');
     const filterMenu = document.querySelector('[data-filter-menu]');
@@ -83,7 +135,7 @@
             filterMenu.hidden = !opening;
             filterButton.setAttribute('aria-expanded', opening ? 'true' : 'false');
         });
-        filterMenu.querySelectorAll('input[name="state"]').forEach((control) => {
+        filterMenu.querySelectorAll('input[type="checkbox"]:not(:disabled)').forEach((control) => {
             control.addEventListener('change', () => filterMenu.submit());
         });
     }

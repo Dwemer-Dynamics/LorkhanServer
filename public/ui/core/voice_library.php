@@ -6,8 +6,12 @@ use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Security\OutboundUrlPolicy;
 
-$uiRootDir=dirname(__DIR__);$pageTitle='ALMSIVI TTS Studio';$topNavSection='configuration';$bodyClass='configuration-resource view-voice-library';
+$uiRootDir=dirname(__DIR__);$pageTitle='Voice Management';$topNavSection='configuration';
+$embedded=($_GET['embed']??'')==='1';
+$BODY_CLASS='hub-page tts-studio-page-shell'.($embedded?' embedded-page':'');
 require $uiRootDir.'/ui_bootstrap.php';
+
+$requestedStudioTab=(string)($_GET['tab']??$_POST['studio_tab']??'');
 
 $voiceRoot=(string)($config['voice_storage_path']??(is_dir('/var/lib/almsiviserver')?'/var/lib/almsiviserver/voices':($applicationRoot.'/storage/voices')));
 if(!is_dir($voiceRoot)&&!mkdir($voiceRoot,0750,true)&&!is_dir($voiceRoot))throw new RuntimeException('Voice storage is unavailable.');
@@ -16,10 +20,15 @@ $installationId=(string)($installations[0]['installation_id']??'');
 $activeTts=$installationId===''?null:$products->connectorForInstallation($installationId,'tts_provider');
 $ttsPresets=array_values(array_filter($uiRepository->rows('tts'),static fn(array$row):bool=>$installationId!==''&&($row['installation_id']??'')===$installationId));
 $ttsPresetsById=[];foreach($ttsPresets as$preset){$id=(string)($preset['configuration_id']??'');if($id!=='')$ttsPresetsById[$id]=$preset;}
+$requestedConfigurationId=(string)($_GET['configuration_id']??$_POST['configuration_id']??'');$requestedPreset=$ttsPresetsById[$requestedConfigurationId]??null;
+$defaultPreset=is_array($requestedPreset)?$requestedPreset:(is_array($activeTts)?$activeTts:[]);$defaultDriver=(string)($defaultPreset['content']['driver']??'');
+$defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoice','chatterbox'=>'chatterbox','cartesia'=>'cartesia','inworld'=>'inworld','xtts-fastapi','xtts'=>'xtts',default=>'xtts'};
+$studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
+$activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
 $sampleUploadDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
 $voiceDiscoveryDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
-$notice='';$error='';$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
+$notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
 
 /** Validate a user-facing voice name and map it to one bounded local WAV filename. */
 function almsivi_voice_filename(string $name):string
@@ -197,7 +206,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
         }elseif($action==='delete'){
             $filename=almsivi_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
-            if(almsivi_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex)!==[])throw new InvalidArgumentException('voice_sample_in_use');
+            $errorReferences=almsivi_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
+            if($errorReferences!==[])throw new InvalidArgumentException('voice_sample_in_use');
             if(!is_file($path)||!unlink($path))throw new RuntimeException('voice_delete_failed');$notice='Local voice sample deleted.';
         }else throw new InvalidArgumentException('invalid_voice_action');
     }catch(Throwable $exception){$error=in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','unauthorized'],true)?$exception->getMessage():'voice_action_failed';}
@@ -217,57 +227,6 @@ if($discoveredPreset===null){
 $samples=[];foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){$samples[]=['name'=>pathinfo($path,PATHINFO_FILENAME),'bytes'=>(int)filesize($path),'updated_at'=>gmdate('Y-m-d H:i:s',filemtime($path)?:time()).' UTC'];}
 usort($samples,static fn(array$a,array$b):int=>strcasecmp($a['name'],$b['name']));
 
-include $uiRootDir.'/tmpl/head.html';if(!$embedded)include $uiRootDir.'/tmpl/navbar.php';
-?>
-<main class="management-page">
-    <header class="configuration-page-header"><h1>ALMSIVI TTS Studio</h1><p>Manage persistent WAV voice references, sync compatible local services, and test every configured TTS connector. Voice files never enter profile JSON or browser cookies.</p></header>
-    <?php if($notice!==''):?><p class="page-status" role="status"><?php echo almsivi_ui_h($notice);?></p><?php endif;?>
-    <?php if($error!==''):?><p class="page-error" role="alert"><?php echo almsivi_ui_h($error);?></p><?php endif;?>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Active TTS</h3></div><div class="widget-content">
-        <?php if($activeTts===null):?><p class="empty-state">Select a TTS connector before normal dialogue playback.</p>
-        <?php else:$activeContent=$activeTts['content']??[];$activeDefinition=ConnectorCatalog::definition('tts_provider',(string)($activeContent['driver']??''));?>
-            <dl><dt>Connector</dt><dd><?php echo almsivi_ui_h($activeDefinition['label']);?></dd><dt>Endpoint</dt><dd><code><?php echo almsivi_ui_h($activeContent['endpoint']??'');?></code></dd><dt>Default voice</dt><dd><?php echo almsivi_ui_h($activeContent['voice']??'');?></dd></dl>
-        <?php endif;?>
-    </div></section>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Configured TTS Connectors</h3></div><div class="widget-content">
-        <?php if($ttsPresets===[]):?><p class="empty-state">No TTS connector presets are configured.</p><?php else:?><div class="voice-grid">
-        <?php foreach($ttsPresets as$preset):$content=is_array($preset['content']??null)?$preset['content']:[];$definition=ConnectorCatalog::definition('tts_provider',(string)($content['driver']??''));?>
-            <article class="voice-card"><h3><?php echo almsivi_ui_h($preset['name']??$definition['label']);?></h3><p><?php echo almsivi_ui_h($definition['label']);?><?php echo !empty($preset['active'])?' · Active installation connector':'';?></p><p><code><?php echo almsivi_ui_h($content['endpoint']??'');?></code></p></article>
-        <?php endforeach;?></div><?php endif;?>
-    </div></section>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Provider Voice Browser</h3></div><div class="widget-content">
-        <p>Explicitly query an OmniVoice, Chatterbox, or XTTS speaker library. Opening TTS Studio never contacts a provider automatically.</p>
-        <?php $discoverablePresets=array_values(array_filter($ttsPresets,static fn(array$p):bool=>in_array((string)($p['content']['driver']??''),$voiceDiscoveryDrivers,true)&&almsivi_voice_can_sync($p)));?>
-        <?php if($discoverablePresets===[]):?><p class="empty-state">Configure a compatible local TTS connector to browse its voices.</p><?php else:?>
-        <form class="management-form" method="post"><fieldset><legend>Browse provider voices</legend>
-            <label for="voice-discovery-connector">TTS connector</label><select id="voice-discovery-connector" name="configuration_id"><?php foreach($discoverablePresets as$preset):?><option value="<?php echo almsivi_ui_h($preset['configuration_id']??'');?>"<?php echo $selectedDiscoveryId===($preset['configuration_id']??'')?' selected':'';?>><?php echo almsivi_ui_h($preset['name']??'TTS connector');?></option><?php endforeach;?></select>
-            <label for="voice-discovery-language">Language</label><input id="voice-discovery-language" name="language" value="<?php echo almsivi_ui_h($discoverLanguage);?>" maxlength="12">
-        </fieldset><input type="hidden" name="action" value="discover"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Discover voices</button></form>
-        <?php endif;?>
-        <?php if($catalogLoaded&&is_array($discoveredPreset)):?>
-            <?php if($discoveredVoices===[]):?><p class="empty-state">The provider returned no voices for this language.</p><?php else:?><div class="voice-grid">
-            <?php foreach($discoveredVoices as$item):$voiceControlId=substr(hash('sha256',(string)$item['id']),0,12);?>
-                <article class="voice-card"><h3><?php echo almsivi_ui_h($item['display']);?></h3><p><code><?php echo almsivi_ui_h($item['id']);?></code></p><p><?php echo almsivi_ui_h($item['language']);?> · <?php echo almsivi_ui_h($item['status']);?><?php echo !empty($item['custom'])?' · Custom voice':'';?></p><div class="connector-actions">
-                    <form method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/connector-test');?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId);?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo almsivi_ui_h($discoveredPreset['configuration_id']??'');?>"><input type="hidden" name="voice_id" value="<?php echo almsivi_ui_h($item['id']);?>"><button class="btn-base" type="submit">Test voice</button></form>
-                    <form method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/connector-default-voice');?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><input type="hidden" name="configuration_id" value="<?php echo almsivi_ui_h($discoveredPreset['configuration_id']??'');?>"><input type="hidden" name="voice_id" value="<?php echo almsivi_ui_h($item['id']);?>"><input type="hidden" name="language" value="<?php echo almsivi_ui_h($item['language']);?>"><button class="btn-base btn-primary" type="submit">Set connector default</button></form>
-                </div></article>
-            <?php endforeach;?></div><?php endif;?>
-        <?php endif;?>
-    </div></section>
-    <form class="management-form" method="post" enctype="multipart/form-data">
-        <fieldset><legend>Add WAV voice samples</legend>
-            <label for="voice-name">Voice name for a single WAV</label><input id="voice-name" name="voice_name" maxlength="80">
-            <label for="voice-sample">PCM WAV (16 MiB) or flat ZIP batch (64 WAVs, 128 MiB extracted)</label><input id="voice-sample" name="voice_sample" type="file" accept="audio/wav,.wav,application/zip,.zip" required>
-        </fieldset><input type="hidden" name="action" value="upload"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Import voice sample</button>
-    </form>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Voice Library</h3></div><div class="widget-content">
-        <?php if($samples===[]):?><p class="empty-state">No voice samples have been uploaded.</p><?php else:?><div class="voice-grid">
-        <?php foreach($samples as$sample):$sampleControlId=substr(hash('sha256',$sample['name']),0,12);$sampleReferences=almsivi_voice_references($sample['name'],$voiceReferenceIndex);?><article class="voice-card"><h3><?php echo almsivi_ui_h($sample['name']);?></h3><p><?php echo almsivi_ui_h(number_format($sample['bytes']/1024,1));?> KiB · <?php echo almsivi_ui_h($sample['updated_at']);?></p><?php if($sampleReferences!==[]):?><p><strong>In use by:</strong> <?php echo almsivi_ui_h(implode(', ',$sampleReferences));?></p><?php endif;?><div class="connector-actions">
-            <?php if($ttsPresets!==[]):?>
-            <?php $syncable=array_values(array_filter($ttsPresets,static fn(array$p):bool=>in_array((string)($p['content']['driver']??''),$sampleUploadDrivers,true)&&almsivi_voice_can_sync($p)));if($syncable!==[]):?><form method="post"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="voice_name" value="<?php echo almsivi_ui_h($sample['name']);?>"><label for="sync-<?php echo $sampleControlId;?>">Sync sample to</label><select id="sync-<?php echo $sampleControlId;?>" name="configuration_id"><?php foreach($syncable as$preset):?><option value="<?php echo almsivi_ui_h($preset['configuration_id']??'');?>"><?php echo almsivi_ui_h($preset['name']??'TTS connector');?></option><?php endforeach;?></select><label for="sync-language-<?php echo $sampleControlId;?>">Language</label><input id="sync-language-<?php echo $sampleControlId;?>" name="language" value="en" maxlength="12" pattern="[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})?"><button class="btn-base btn-primary" type="submit">Sync voice sample</button></form><?php endif;?>
-            <form method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/connector-test');?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId);?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="voice_id" value="<?php echo almsivi_ui_h($sample['name']);?>"><label for="test-<?php echo $sampleControlId;?>">Test sample with</label><select id="test-<?php echo $sampleControlId;?>" name="configuration_id"><?php foreach($ttsPresets as$preset):?><option value="<?php echo almsivi_ui_h($preset['configuration_id']??'');?>"><?php echo almsivi_ui_h($preset['name']??'TTS connector');?></option><?php endforeach;?></select><button class="btn-base" type="submit">Test voice</button></form><?php endif;?>
-            <?php if($sampleReferences===[]):?><form method="post"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="voice_name" value="<?php echo almsivi_ui_h($sample['name']);?>"><button class="btn-base btn-danger" type="submit">Delete local sample</button></form><?php else:?><span class="management-note">Clear every listed reference before deleting this sample.</span><?php endif;?>
-        </div></article><?php endforeach;?></div><?php endif;?>
-    </div></section>
-</main>
-<?php include $uiRootDir.'/tmpl/footer.html';?>
+$additionalStylesheets=['herika-tts-studio.css?v='.(string)filemtime($uiRootDir.'/css/herika-tts-studio.css')];
+require __DIR__.'/tmpl/voice_library_studio.php';
+return;

@@ -14,6 +14,10 @@ require_once $applicationRoot . '/src/Autoload.php';
 $pageTitle = isset($pageTitle) ? (string) $pageTitle : 'ALMSIVI';
 $topNavSection = isset($topNavSection) ? (string) $topNavSection : '';
 $embedded = isset($_GET['embed']) && $_GET['embed'] === '1';
+$uiAssetVersion = (string) max(
+    (int) @filemtime(__DIR__ . '/js/almsivi-management.js'),
+    (int) @filemtime(__DIR__ . '/js/resource-page.js')
+);
 
 try {
     $configFile = getenv('ALMSIVI_CONFIG') ?: $applicationRoot . '/config/server.php';
@@ -94,3 +98,5 @@ function almsivi_ui_table(array $rows, string $emptyMessage = 'No records are av
     }
     echo '</tbody></table></div>';
 }
+
+require_once __DIR__ . '/ui_features.php';

@@ -157,6 +157,7 @@ final class ManagementRouter
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-save'=>$this->saveCoreProfile($v),
             'core-profile-revise'=>$this->service->revise('core_profile',$this->need($v,'core_profile_id'),$this->coreProfileContent($v),$this->need($v,'change_reason')),
             'core-profile-default'=>$this->makeDefaultCoreProfile($v),
             'core-profile-rollback'=>$this->service->rollback('core_profile',$this->need($v,'core_profile_id'),(int)($v['revision']??0),'management rollback'),
@@ -224,6 +225,8 @@ final class ManagementRouter
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
+        if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','autonomy'=>'world','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
@@ -315,6 +318,8 @@ final class ManagementRouter
     private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$this->uuid($value,$k);$out[$k]=$value;}return$out;}
     private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}
     private function uuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
+    /** Accept the legacy deterministic UUID shape used by persisted Core Profiles. */
+    private function persistentUuid(string $v,string $k):void{if(preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/D',$v)!==1)throw new InvalidArgumentException('invalid_'.$k);}
     private function jsonField(array $v,string $k):array{try{$d=json_decode((string)($v[$k]??'{}'),true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_'.$k);}if(!is_array($d)||($d!==[]&&array_is_list($d)))throw new InvalidArgumentException('invalid_'.$k);return$d;}
     private function need(array $v,string $k):string{$s=trim((string)($v[$k]??''));if($s==='')throw new InvalidArgumentException('invalid_'.$k);return$s;}
     private function path(string $p):string{if(!str_starts_with($p,$this->basePath))throw new RuntimeException('not_found');$v=substr($p,strlen($this->basePath));return$v===''?'/':$v;}
@@ -635,7 +640,7 @@ final class ManagementRouter
             $defaultCount=0;$slots=[];foreach($data['core_profiles']as$row){if(!$this->objectArray($row))throw new RuntimeException('backup_integrity_failed');$keys=array_keys($row);sort($keys);
                 if($keys!==['content','core_profile_id','default_npc','label','slot']||!is_string($row['core_profile_id'])||!is_string($row['label'])||trim($row['label'])===''||strlen($row['label'])>128
                     ||!is_bool($row['default_npc'])||($row['slot']!==null&&(!is_int($row['slot'])||$row['slot']<1||$row['slot']>4))||!$this->objectArray($row['content']))throw new RuntimeException('backup_integrity_failed');
-                $this->uuid($row['core_profile_id'],'core_profile_id');if(isset($coreIds[$row['core_profile_id']]))throw new RuntimeException('backup_integrity_failed');$coreIds[$row['core_profile_id']]=true;
+                $this->persistentUuid($row['core_profile_id'],'core_profile_id');if(isset($coreIds[$row['core_profile_id']]))throw new RuntimeException('backup_integrity_failed');$coreIds[$row['core_profile_id']]=true;
                 if($row['default_npc'])$defaultCount++;if($row['slot']!==null){if(isset($slots[$row['slot']]))throw new RuntimeException('backup_integrity_failed');$slots[$row['slot']]=true;}}
             if($defaultCount!==1)throw new RuntimeException('backup_integrity_failed');}
 
@@ -764,6 +769,15 @@ final class ManagementRouter
         ]);
     }
 
+    /** Save the typed Core Profile metadata and content represented by the copied Herika editor. */
+    private function saveCoreProfile(array $values):array
+    {
+        $slotRaw=trim((string)($values['slot']??''));$slot=$slotRaw===''?null:filter_var($slotRaw,FILTER_VALIDATE_INT);
+        if($slot===false||($slot!==null&&($slot<1||$slot>4)))throw new InvalidArgumentException('invalid_core_profile_slot');
+        return$this->service->reviseCoreProfile($this->need($values,'core_profile_id'),$this->need($values,'label'),isset($values['default_npc']),$slot,
+            $this->coreProfileContent($values),$this->need($values,'change_reason'));
+    }
+
     /** Promote an existing Core Profile without duplicating or mutating its content revision. */
     private function makeDefaultCoreProfile(array $values):array
     {
@@ -835,7 +849,7 @@ final class ManagementRouter
     private function profileContent(array $values):array
     {
         $content=isset($values['base_content_json'])?$this->jsonField($values,'base_content_json'):[];
-        foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','emote_moods','gender','race','notes']as$field){
+        foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','emote_moods','gender','race','tags','notes']as$field){
             if(!array_key_exists($field,$values))continue;
             $value=trim((string)($values[$field]??''));if($value!=='')$content[$field]=$value;else unset($content[$field]);
         }

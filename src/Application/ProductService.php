@@ -46,6 +46,17 @@ final class ProductService
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
     }
 
+    /** Validate and atomically save the Herika-style Core Profile editor document. */
+    public function reviseCoreProfile(string $id,string $label,bool $defaultNpc,?int $slot,array $content,string $reason):array
+    {
+        $this->uuid($id);$this->boundedString(['label'=>$label],'label',1,256);
+        if($slot!==null&&($slot<1||$slot>4))throw new InvalidArgumentException('invalid_core_profile_slot');
+        if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
+        if($this->repository->resourceKind($id)!=='core_profile')throw new InvalidArgumentException('resource_kind_mismatch');
+        $this->assertNoSecrets($content);$content=$this->validateConfiguration('core_profile',$content);
+        return$this->repository->reviseCoreProfile($id,$label,$defaultNpc,$slot,$content,$reason,$this->clock->iso());
+    }
+
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
@@ -231,7 +242,8 @@ final class ProductService
     }
 
     private function requireUuid(array $input, string $field): void { if (!isset($input[$field]) || !is_string($input[$field])) throw new InvalidArgumentException('invalid_' . $field); $this->uuid($input[$field]); }
-    private function uuid(string $value): void { if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $value) !== 1) throw new InvalidArgumentException('invalid_uuid'); }
+    /** Accept canonical PostgreSQL UUIDs, including legacy deterministic Core Profile identifiers. */
+    private function uuid(string $value): void { if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $value) !== 1) throw new InvalidArgumentException('invalid_uuid'); }
     private function boundedString(array $input, string $field, int $min, int $max): void { if (!isset($input[$field]) || !is_string($input[$field]) || strlen($input[$field]) < $min || strlen($input[$field]) > $max || !mb_check_encoding($input[$field], 'UTF-8')) throw new InvalidArgumentException('invalid_' . $field); }
 
     private function validateConfiguration(string $kind,array $content):array

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 $pageTitle = 'Server Logs';
 $topNavSection = 'control';
+$BODY_CLASS = 'configuration-resource view-server-logs';
 require __DIR__ . '/ui_bootstrap.php';
 
 /** Read only the bounded tail of an allowlisted local service log. */

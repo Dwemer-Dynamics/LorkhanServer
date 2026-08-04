@@ -2,6 +2,7 @@
 import atexit, html.parser, http.cookiejar, http.server, io, json, re, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 base=sys.argv[1].rstrip('/')
+provider_host=sys.argv[2] if len(sys.argv)>2 else '127.0.0.1'
 jar=http.cookiejar.CookieJar()
 opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
@@ -19,7 +20,7 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
         self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload)
     def log_message(self,format,*args): pass
 
-voice_provider=http.server.ThreadingHTTPServer(('127.0.0.1',0),VoiceProvider)
+voice_provider=http.server.ThreadingHTTPServer(('0.0.0.0',0),VoiceProvider)
 threading.Thread(target=voice_provider.serve_forever,daemon=True).start()
 atexit.register(voice_provider.server_close)
 atexit.register(voice_provider.shutdown)
@@ -32,8 +33,10 @@ class Page(html.parser.HTMLParser):
         if tag=='label':
             self.label_depth+=1
             if a.get('for'): self.labels.add(a['for'])
-        if tag in ('input','textarea','select') and a.get('name') and a.get('type') not in ('hidden','checkbox'): self.controls.append((tag,a.get('id'),a.get('name'),self.label_depth>0))
-        if tag=='a' and a.get('href','').startswith('/ALMSIVIserver/ui/'): self.nav.append(a['href']); self.current+=a.get('aria-current')=='page'
+        if tag in ('input','textarea','select') and a.get('name') and a.get('type') not in ('hidden','checkbox'): self.controls.append((tag,a.get('id'),a.get('name'),self.label_depth>0 or bool(a.get('aria-label'))))
+        if tag=='a' and a.get('href','').startswith('/ALMSIVIserver/ui/'):
+            self.nav.append(a['href'])
+            if 'dropdown-item' in a.get('class','').split(): self.current+=a.get('aria-current')=='page'
         if tag=='form': self.form={'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
         if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type')!='checkbox' or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
         if self.form is not None and tag=='select' and a.get('name') and 'disabled' not in a: self.select_name=a['name']
@@ -71,6 +74,11 @@ def selected_record_id(text,name):
     assert match,text
     return match.group(1)
 
+def connector_editor_id(text,name):
+    match=re.search(r'<a\b[^>]*href="[^"]*[?&](?:edit|selected)=([0-9a-f-]{36})[^"]*"[^>]*>(?:(?!</a>).)*?<span class="title">'+re.escape(name)+r'</span>',text,re.S)
+    assert match,text
+    return match.group(1)
+
 r=request('/ALMSIVIserver/manage/quickstart'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 p,text=parse(r); assert len(p.nav)>=4 and p.current==1 and 'Queued Jobs' in text
 assert 'class="chim-navbar-wrapper"' in text and '/ALMSIVIserver/ui/lib/ui/bootstrap/bootstrap.min.css' in text
@@ -85,11 +93,11 @@ for path,marker in [
 ]:
     page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path
     if path != '/ALMSIVIserver/ui/home.php': assert '<body class="hub-page">' in text,path
-journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and '<h2>Morrowind Journal</h2>' in text and 'id="journal-tab" class="tab-content active"' in text
-books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '<h2>Read Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
-memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '<h2>Memories</h2>' in text and 'Add or rebuild memories' in text
-relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '<h2>Relationships</h2>' in text and 'Add relationship' in text
-narratives_tab,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '<h2>Narratives</h2>' in text and 'Manage narratives' in text
+journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
+books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
+memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
+relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Relationships</h2>' in text and 'Add relationship' in text
+narratives_tab,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h2>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Manage narratives' in text
 narratives_page,text=parse(request('/ALMSIVIserver/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>Narratives</h1>' in text and 'Create narrative' in text
 cache,text=parse(request('/ALMSIVIserver/ui/cache_browser.php')); assert cache.current==1 and '<h1>Cache Browser</h1>' in text and 'private audio files' in text
 queue,text=parse(request('/ALMSIVIserver/ui/response_queue.php')); assert queue.current==1 and '<h1>Response Queue</h1>' in text and 'dialogue delivery states' in text
@@ -109,12 +117,11 @@ bad_archive=io.BytesIO()
 with zipfile.ZipFile(bad_archive,'w',zipfile.ZIP_DEFLATED) as bundle: bundle.writestr('../Escape.wav',wav)
 r=multipart_request('/ALMSIVIserver/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':''},'voice_sample','unsafe.zip','application/zip',bad_archive.getvalue()); body=r.read().decode()
 assert r.status==200 and 'invalid_voice_archive' in body and 'Escape' not in body,(r.status,r.geturl(),body)
-tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php')); create_sync_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/tts-providers'))
+tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?create=1')); create_sync_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/tts-providers'))
 sync_tts_name='HTTP voice sync '+uuid.uuid4().hex
-sync_values=dict(create_sync_tts['fields'],_csrf=csrf,installation_id=create_sync_tts['fields']['installation_id'],name=sync_tts_name,driver='xtts-fastapi',endpoint='http://127.0.0.1:'+str(voice_provider.server_port),model='default',voice='default',language='en',timeout_ms='30000',options_json='{}')
+sync_values=dict(create_sync_tts['fields'],_csrf=csrf,installation_id=create_sync_tts['fields']['installation_id'],name=sync_tts_name,driver='xtts-fastapi',endpoint='http://'+provider_host+':'+str(voice_provider.server_port),model='default',voice='default',language='en',timeout_ms='30000',options_json='{}')
 r=request(create_sync_tts['action'],'POST',sync_values); body=r.read().decode(); assert r.status==200 and sync_tts_name in body,(r.status,r.geturl(),body)
-sync_match=re.search(re.escape(sync_tts_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert sync_match,body
-sync_tts_id=sync_match.group(1)
+sync_tts_id=connector_editor_id(body,sync_tts_name)
 r=request('/ALMSIVIserver/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'sync','voice_name':batch_voice,'configuration_id':sync_tts_id,'language':'en'}); body=r.read().decode()
 assert r.status==200 and 'Voice sample synced to '+sync_tts_name+'.' in body,(r.status,r.geturl(),body)
 assert len(VoiceProvider.uploads)==1 and b'name="wavFile"' in VoiceProvider.uploads[0][1] and b'name="force"' in VoiceProvider.uploads[0][1] and b'\r\n\r\ntrue\r\n' in VoiceProvider.uploads[0][1],VoiceProvider.uploads
@@ -124,23 +131,25 @@ profiles_with_provider_voice=request('/ALMSIVIserver/ui/core/npc_master.php').re
 assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in profiles_with_provider_voice,profiles_with_provider_voice
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/ALMSIVIserver/ui/core/npc_master.php').read().decode()
-keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.current==1 and '<h1>API Keys</h1>' in text and 'ALMSIVI_LLM_API_KEY' in text and 'type="password"' in text
+keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'ALMSIVI_LLM_API_KEY' in text and 'type="password"' in text
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
-globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and '<h1>Global Settings</h1>' in text and 'name="rechat"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text
+globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php')); assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
-descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Description Database' in text
-plugins,text=parse(request('/ALMSIVIserver/ui/server_plugins.php')); assert plugins.current==1 and '<h1>Server Plugins</h1>' in text and 'First-party Worker Modules' in text and 'Speech Adapter Modules' in text
-llm,text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php')); assert llm.current==1 and '<h1>LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
+descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
+plugins,text=parse(request('/ALMSIVIserver/ui/server_plugins.php')); assert plugins.current==1 and '<h1>Server Plugins</h1>' in text and 'Automatic Game Plugin Sync' in text and 'first-party module inventory' in text
+llm,text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
 llm_runtime,runtime_text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'ALMSIVI_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
-for import_path in ['/ALMSIVIserver/ui/core/npc_master.php','/ALMSIVIserver/ui/core/llm_connectors.php','/ALMSIVIserver/ui/core/tts_connectors.php','/ALMSIVIserver/ui/prompts_manager.php']:
+for import_path in ['/ALMSIVIserver/ui/core/npc_master.php','/ALMSIVIserver/ui/core/llm_connectors.php?import=1','/ALMSIVIserver/ui/core/tts_connectors.php?import=1','/ALMSIVIserver/ui/prompts_manager.php']:
     _,import_text=parse(request(import_path)); assert 'type="file" accept="application/json,.json" data-json-import-target=' in import_text and 'Choose a JSON file or paste its contents here.' in import_text,import_path
-hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert 'player-page' in hub_text and 'narration-page' in hub_text and 'npcbio-page' in hub_text and 'keys-page' in hub_text and 'items-page' in hub_text and 'plugins-page' in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and 'stt-page' not in hub_text
+hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','ittcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'Narration' in hub_text and 'Excluded' in hub_text and 'autonomy-page' not in hub_text
 pages_css=request('/ALMSIVIserver/ui/css/almsivi-pages.css').read().decode()
 navbar_css=request('/ALMSIVIserver/ui/css/navbar.css').read().decode()
-assert '.dashboard-shell {\n    padding: 18px 10px 52px;' in pages_css
-assert 'body.hub-page > main' in pages_css and 'max-width: 1600px' not in pages_css
-assert 'min-height: calc(100vh - 205px)' not in pages_css and 'min-height: calc(100vh - 225px)' not in pages_css
+home_css=request('/ALMSIVIserver/ui/css/herika-home.css').read().decode()
+resource_css=request('/ALMSIVIserver/ui/css/herika-resource.css').read().decode()
+assert '.dashboard-container {' in home_css and 'grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));' in home_css
+assert '.llm-layout {' in resource_css and '.page-header {' in resource_css and '.conn-list {' in resource_css
+assert '.npc-grid { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:14px; }' in pages_css
 assert '.chim-navbar-wrapper {' in navbar_css and 'max-width: 1200px;' in navbar_css
 for path in [
     '/ALMSIVIserver/manage/quickstart', '/ALMSIVIserver/manage/roleplay',
@@ -162,15 +171,14 @@ for path in [
 ]:
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
-assert ('Voice sample' in profile_text
-        and all(label in profile_text for label in ['Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM'])
-        and 'LLM randomizer' in profile_text and 'Fallback retry' in profile_text and 'TTS connector' in profile_text
-        and 'Prompt head (advanced system guidance)' in profile_text and 'Core identity and boundaries' in profile_text
-        and 'Gender' in profile_text and 'Race' in profile_text
-        and 'Skills and capabilities' in profile_text and 'Allowed moods and emotes' in profile_text
-        and 'Lock against automatic AI profile generation' in profile_text and 'Favorite NPC' in profile_text)
+profile_labels=['Voice sample','Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM','LLM randomizer','Fallback retry','TTS connector','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
+missing_profile_labels=[label for label in profile_labels if label not in profile_text]
+assert not missing_profile_labels,missing_profile_labels
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
+if auto_lock['fields'].get('enabled')!='1':
+    r=request(auto_lock['action'],'POST',dict(auto_lock['fields'],_csrf=csrf,enabled='1')); assert r.status==200
+    characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php')); auto_lock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-auto-lock'))
 assert auto_lock['fields'].get('enabled')=='1','auto-lock preference did not default on'
 disabled=dict(auto_lock['fields'],_csrf=csrf); disabled.pop('enabled',None)
 r=request(auto_lock['action'],'POST',disabled); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl())
@@ -179,6 +187,7 @@ invalid=dict(form['fields'],_csrf=csrf,installation_id='invalid',name='Test',voi
 r=request(form['action'],'POST',invalid); _,text=parse(r); assert r.status==422 and 'role="alert"' in text
 profile_name='HTTP managed profile '+uuid.uuid4().hex
 valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary')
+valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
 profile_match=re.search(re.escape(profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert profile_match,profile_name
@@ -193,13 +202,13 @@ assert r.status==200 and r.geturl().endswith('/ui/core/character_manager.php?sta
 clone_id=selected_record_id(body,clone_name); clone_export=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+clone_id+'.json').read().decode())
 assert clone_export['name']==clone_name and clone_export['content']['biography']==valid['biography'] and clone_export['content']['core']==valid['core'] and clone_export['content']['skills']==valid['skills'] and clone_export['content']['gender']=='Female' and clone_export['content']['race']=='Dunmer' and 'portrait' not in clone_export['content'],clone_export
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':clone_id}); assert r.status==200
-tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php'))
+tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?create=1'))
 create_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/tts-providers'))
 assert create_tts['fields'].get('option_fields_present')=='1' and 'option__speed' in create_tts['fields'] and 'option__temperature' not in create_tts['fields'],create_tts
 tts_name='HTTP TTS '+uuid.uuid4().hex
 values=dict(create_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=tts_name,driver='pockettts',endpoint='http://127.0.0.1:8021',model='default',voice='default',language='en',timeout_ms='30000',fallback_male='TestMale',fallback_female='TestFemale',option__speed='1.1',option__temperature='0.6',options_json='{}')
 r=request(create_tts['action'],'POST',values); body=r.read().decode(); assert r.status==200 and tts_name in body,(r.status,r.geturl(),body)
-tts_id=selected_record_id(body,tts_name)
+tts_id=connector_editor_id(body,tts_name)
 tts_export_response=request('/ALMSIVIserver/manage/exports/connectors/'+tts_id+'.json'); tts_export=json.loads(tts_export_response.read().decode())
 assert tts_export['content']['options']['speed']==1.1 and tts_export['content']['options']['temperature']==0.6,tts_export
 tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?selected='+tts_id))
@@ -221,20 +230,21 @@ tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?selected='+t
 clone_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-clone') and f['fields'].get('configuration_id')==tts_id)
 clone_name=tts_name+' clone'; r=request(clone_tts['action'],'POST',dict(clone_tts['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
 assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
-clone_tts_id=selected_record_id(body,clone_name)
+clone_tts_id=connector_editor_id(body,clone_name)
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':clone_tts_id,'kind':'tts_provider'}); assert r.status==200
-tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php'))
+tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?import=1'))
 import_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-import'))
 r=request(import_tts['action'],'POST',dict(import_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],kind='tts_provider',connector_json=json.dumps(tts_export))); body=r.read().decode()
 assert r.status==200 and tts_export['name'] in body,(r.status,r.geturl(),body)
-import_tts_id=selected_record_id(body,tts_export['name'])
+import_tts_id=connector_editor_id(body,tts_export['name'])
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':import_tts_id,'kind':'tts_provider'}); assert r.status==200
 tts_page,_=parse(request('/ALMSIVIserver/ui/core/tts_connectors.php?selected='+tts_id)); activate_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-selection') and f['fields'].get('configuration_id')==tts_id)
 r=request(activate_tts['action'],'POST',dict(activate_tts['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),body)
 body=request('/ALMSIVIserver/ui/core/tts_connectors.php?selected='+tts_id).read().decode(); assert 'This active connector cannot be deleted.' in body,body
 provider_voice='ProviderVoice'+uuid.uuid4().hex
 r=request('/ALMSIVIserver/manage/forms/connector-default-voice','POST',{'_csrf':csrf,'configuration_id':tts_id,'voice_id':provider_voice,'language':'en'}); body=r.read().decode()
-assert r.status==200 and r.geturl().endswith('/ui/core/voice_library.php?status=saved') and provider_voice in body,(r.status,r.geturl(),body)
+saved_voice_url=urllib.parse.urlparse(r.geturl()); saved_voice_query=urllib.parse.parse_qs(saved_voice_url.query)
+assert r.status==200 and saved_voice_url.path.endswith('/ui/core/voice_library.php') and saved_voice_query.get('status')==['saved'] and saved_voice_query.get('configuration_id')==[tts_id] and provider_voice in body,(r.status,r.geturl(),body)
 updated_tts=json.loads(request('/ALMSIVIserver/manage/exports/connectors/'+tts_id+'.json').read().decode()); assert updated_tts['content']['voice']==provider_voice and updated_tts['content']['language']=='en',updated_tts
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':tts_id,'kind':'tts_provider'}); body=r.read().decode(); assert r.status==422 and 'connector_in_use' in body,(r.status,r.geturl(),body)
 managed_profile,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
@@ -245,11 +255,12 @@ revise=next(f for f in managed_profile.forms if f['action'].endswith('/forms/pro
 auto_lock=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-auto-lock'))
 r=request(auto_lock['action'],'POST',dict(auto_lock['fields'],_csrf=csrf,enabled='1')); assert r.status==200
 values=dict(revise['fields'],_csrf=csrf,favorite='1',voice_id='',voice_language='en',change_reason='HTTP auto-lock and favorite test'); values.pop('locked',None)
-r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Favorite' in body and 'Locked' in body and 'This profile is locked.' in body,(r.status,r.geturl(),body)
+r=request(revise['action'],'POST',values); body=r.read().decode(); locked_export=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
+assert r.status==200 and profile_name in body and 'data-lock-id="'+profile_id+'"' in body and locked_export['content']['management']=={'locked':True,'favorite':True},(r.status,r.geturl(),locked_export)
 r=request('/ALMSIVIserver/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'Local voice sample deleted.' in body and batch_voice not in body,(r.status,r.geturl(),body)
 filtered=request('/ALMSIVIserver/ui/core/character_manager.php?state=favorites&q='+urllib.parse.quote(profile_name)); filtered_body=filtered.read().decode()
-assert filtered.status==200 and profile_name in filtered_body and '<option value="favorites" selected>Favorites</option>' in filtered_body,(filtered.status,filtered.geturl())
+assert filtered.status==200 and profile_name in filtered_body and 'name="state" value="favorites"' in filtered_body and 'data-favorite-id="'+profile_id+'"' in filtered_body,(filtered.status,filtered.geturl())
 r=request('/ALMSIVIserver/manage/forms/profile-generate','POST',{'_csrf':csrf,'profile_id':profile_id}); body=r.read().decode(); assert r.status==422 and 'profile_locked' in body,(r.status,r.geturl(),body)
 portrait_png=bytes.fromhex('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000d49444154789c6360f8cff00000040101000db24bc40000000049454e44ae426082')
 r=multipart_request('/ALMSIVIserver/ui/core/profile_portrait.php',{'_csrf':csrf,'profile_id':profile_id,'action':'upload'},'portrait','portrait.png','image/png',portrait_png)
@@ -258,7 +269,8 @@ portrait_response=request('/ALMSIVIserver/ui/core/profile_portrait.php?profile_i
 assert portrait_response.status==200 and portrait_response.headers.get_content_type()=='image/png' and portrait_body==portrait_png,(portrait_response.status,portrait_response.headers.get_content_type(),portrait_response.headers.get('X-ALMSIVI-Portrait-Status'),len(portrait_body),portrait_body[:24].hex())
 export_response=request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json'); exported=json.loads(export_response.read().decode())
 assert export_response.status==200 and exported['schema']=='almsivi.profile-export.v1' and exported['name']==profile_name and 'installation_id' not in exported and 'portrait' not in exported['content'] and exported['content']['management']=={'locked':True,'favorite':True}
-r=request('/ALMSIVIserver/ui/core/profile_portrait.php','POST',{'_csrf':csrf,'profile_id':profile_id,'action':'delete'}); body=r.read().decode(); assert r.status==200 and 'Delete portrait' not in body,(r.status,r.geturl(),body)
+r=request('/ALMSIVIserver/ui/core/profile_portrait.php','POST',{'_csrf':csrf,'profile_id':profile_id,'action':'delete'}); body=r.read().decode(); deleted_portrait=request('/ALMSIVIserver/ui/core/profile_portrait.php?profile_id='+profile_id)
+assert r.status==200 and deleted_portrait.status==404,(r.status,r.geturl(),deleted_portrait.status)
 imported_name=profile_name+' imported'; exported['name']=imported_name
 profiles,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 import_form=next(f for f in profiles.forms if f['action'].endswith('/forms/profile-import'))
@@ -269,7 +281,8 @@ r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'pro
 characters,body=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 unlock=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-unlock'))
 r=request(unlock['action'],'POST',dict(unlock['fields'],_csrf=csrf,confirm='wrong')); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
-r=request(unlock['action'],'POST',dict(unlock['fields'],_csrf=csrf,confirm='Unlock')); body=r.read().decode(); assert r.status==200 and profile_name in body and 'This profile is locked.' not in body,(r.status,r.geturl(),body)
+r=request(unlock['action'],'POST',dict(unlock['fields'],_csrf=csrf,confirm='Unlock')); body=r.read().decode(); unlocked_export=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
+assert r.status==200 and profile_name in body and unlocked_export['content']['management']['locked'] is False,(r.status,r.geturl(),unlocked_export)
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 revise=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 r=request(revise['action'],'POST',dict(revise['fields'],_csrf=csrf,favorite='1',change_reason='Restore lock after bulk unlock test')); assert r.status==200
@@ -277,6 +290,7 @@ characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php')); aut
 disabled=dict(auto_lock['fields'],_csrf=csrf); disabled.pop('enabled',None); r=request(auto_lock['action'],'POST',disabled); assert r.status==200
 extra_name='HTTP bulk delete '+uuid.uuid4().hex
 extra=dict(form['fields'],_csrf=csrf,name=extra_name,voice_language='en',biography='Disposable unlocked bulk profile.')
+extra['installation_id']=valid['installation_id']
 r=request(form['action'],'POST',extra); body=r.read().decode(); assert r.status==200 and extra_name in body,(r.status,r.geturl(),body)
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 bulk_generate=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-generate'))
@@ -285,13 +299,14 @@ r=request(bulk_generate['action'],'POST',dict(bulk_generate['fields'],_csrf=csrf
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 delete_all=next(f for f in characters.forms if f['action'].endswith('/forms/profile-bulk-delete'))
 r=request(delete_all['action'],'POST',dict(delete_all['fields'],_csrf=csrf,confirm='Delete')); body=r.read().decode()
-assert r.status==200 and extra_name not in body and profile_name in body and 'This profile is locked.' in body,(r.status,r.geturl(),body)
+bulk_preserved=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
+assert r.status==200 and extra_name not in body and profile_name in body and bulk_preserved['content']['management']['locked'] is True,(r.status,r.geturl(),bulk_preserved)
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))
 create_playthrough=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthroughs'))
 playthrough_name='HTTP playthrough '+uuid.uuid4().hex
 values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=playthrough_name,content_json='{}')
 r=request(create_playthrough['action'],'POST',values); body=r.read().decode(); assert r.status==200 and playthrough_name in body and all(label in body for label in ['Sessions','Turns','Responses','Memories','Relationships','Narratives','Knowledge']),(r.status,r.geturl(),body)
-match=re.search(re.escape(playthrough_name)+r'.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
+match=re.search(r'<h2>'+re.escape(playthrough_name)+r'</h2>.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
 playthrough_id=match.group(1)
 narratives,_=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
 create_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narratives'))
@@ -335,32 +350,35 @@ values=dict(edit_relationship['fields'],_csrf=csrf,content_json=identity,disposi
 r=request(edit_relationship['action'],'POST',values); body=r.read().decode(); assert r.status==200 and '>20<' in body and '>40<' in body,(r.status,r.geturl(),body)
 r=request('/ALMSIVIserver/manage/forms/relationship-delete','POST',{'_csrf':csrf,'relationship_id':relationship_id}); body=r.read().decode(); assert r.status==200 and relationship_name not in body,(r.status,r.geturl())
 backup_response=request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
-assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']['playthrough_id']==playthrough_id
+assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))
 restore=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthrough-import'))
 values=dict(restore['fields'],_csrf=csrf,profile_id=profile_id,playthrough_id=playthrough_id,playthrough_json=json.dumps(backup))
-r=request(restore['action'],'POST',values); assert r.status==200 and r.geturl().endswith('/ui/playthrough_manager.php?status=saved'),(r.status,r.geturl())
+r=request(restore['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/playthrough_manager.php?status=saved'),(r.status,r.geturl(),values,backup['scope'],body)
 biographies,body=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
-bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise') and f['fields'].get('profile_id')==profile_id)
-values=dict(bio_form['fields'],_csrf=csrf,biography='Updated from the dedicated biography page.',change_reason='HTTP biography test')
+bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise'))
+current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
+values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from the dedicated biography page.',change_reason='HTTP biography test')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_biographies.php?status=saved'),(r.status,r.geturl())
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from the dedicated biography page.' in body and 'Preserved personality field.' in body
 database,body=parse(request('/ALMSIVIserver/ui/database_manager.php'))
+backup_ids_before=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body))
 create_backup=next(f for f in database.forms if f['action'].endswith('/forms/configuration-backup'))
 values=dict(create_backup['fields'],_csrf=csrf,installation_id=valid['installation_id'],confirm='wrong')
 r=request(create_backup['action'],'POST',values); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body,(r.status,r.geturl(),body)
 values['confirm']='Backup'; r=request(create_backup['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'Download backup' in body,(r.status,r.geturl(),body)
-backup_match=re.search(r'/exports/backups/([0-9a-f-]{36})\.json',body); assert backup_match,body
-configuration_backup_id=backup_match.group(1)
+backup_ids_after=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body)); created_backup_ids=backup_ids_after-backup_ids_before; assert len(created_backup_ids)==1,(backup_ids_before,backup_ids_after)
+configuration_backup_id=created_backup_ids.pop()
 backup_response=request('/ALMSIVIserver/manage/exports/backups/'+configuration_backup_id+'.json'); configuration_backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and configuration_backup['schema']=='almsivi.configuration-backup.v2' and configuration_backup['format_version']==2 and configuration_backup['installation_id']==valid['installation_id']
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
 assert all(row['core_profile_id'] in core_ids for row in configuration_backup['data']['profiles']),configuration_backup['data']['profiles']
 assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and 'api_key' not in json.dumps(configuration_backup).lower()
 biographies,_=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
-bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise') and f['fields'].get('profile_id')==profile_id)
-values=dict(bio_form['fields'],_csrf=csrf,biography='Changed after the configuration backup.',change_reason='HTTP pre-restore mutation')
+bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise'))
+current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
+values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Changed after the configuration backup.',change_reason='HTTP pre-restore mutation')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Changed after the configuration backup.' in body
 database,_=parse(request('/ALMSIVIserver/ui/database_manager.php'))
 restore_configuration=next(f for f in database.forms if f['action'].endswith('/forms/configuration-restore'))
@@ -380,11 +398,12 @@ r=request('/ALMSIVIserver/manage/forms/description-delete','POST',{'_csrf':csrf,
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime'))
 runtime_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-runtime-test'))
 r=request(runtime_test['action'],'POST',dict(runtime_test['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and 'Test completed: 1 valid utterance' in body,(r.status,r.geturl(),body)
-llm_form=next(f for f in llm_page.forms if f['action'].endswith('/forms/providers'))
+llm_create_page,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?create=1'))
+llm_form=next(f for f in llm_create_page.forms if f['action'].endswith('/forms/providers'))
 slot_name='HTTP model slot '+uuid.uuid4().hex
 values=dict(llm_form['fields'],_csrf=csrf,name=slot_name,driver='mock',model='deterministic-mock-v1',mock_prefix='[http] ')
 r=request(llm_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved') and slot_name in body,(r.status,r.geturl())
-slot_id=selected_record_id(body,slot_name)
+slot_id=connector_editor_id(body,slot_name)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 model_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-test') and f['fields'].get('configuration_id')==slot_id)
 r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and 'Test completed: 1 valid utterance' in body,(r.status,r.geturl(),body)
@@ -403,7 +422,8 @@ routing_match=re.search(re.escape(routing_profile_name)+r'.*?name="profile_id" v
 routing_profile_id=routing_match.group(1)
 routing_page=Page(); routing_page.feed(body)
 saved_routing=next(f for f in routing_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
-assert r.status==200 and saved_routing['fields'].get('llm_configuration_id')==slot_id and saved_routing['fields'].get('llm_fallback_configuration_id')==slot_id and saved_routing['fields'].get('llm_randomizer_enabled')=='1' and saved_routing['fields'].get('llm_fallback_enabled')=='1',(r.status,r.geturl(),saved_routing)
+saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); saved_routing_values=saved_routing_content.get('routing',{})
+assert r.status==200 and saved_routing_values.get('llm_configuration_id')==slot_id and saved_routing_values.get('llm_fallback_configuration_id')==slot_id and saved_routing_values.get('llm_randomizer_enabled') is True and saved_routing_values.get('llm_fallback_enabled') is True,(r.status,r.geturl(),saved_routing)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()
@@ -421,13 +441,13 @@ llm_page,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+s
 clone_provider=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-clone') and f['fields'].get('configuration_id')==slot_id)
 clone_name=slot_name+' clone'; r=request(clone_provider['action'],'POST',dict(clone_provider['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
 assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
-clone_provider_id=selected_record_id(body,clone_name)
+clone_provider_id=connector_editor_id(body,clone_name)
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':clone_provider_id}); assert r.status==200
-provider_export['name']=slot_name+' imported'; llm_page,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php'))
+provider_export['name']=slot_name+' imported'; llm_page,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?import=1'))
 import_provider=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-import'))
 r=request(import_provider['action'],'POST',dict(import_provider['fields'],_csrf=csrf,installation_id=valid['installation_id'],provider_json=json.dumps(provider_export))); body=r.read().decode()
 assert r.status==200 and provider_export['name'] in body,(r.status,r.geturl(),body)
-import_provider_id=selected_record_id(body,provider_export['name'])
+import_provider_id=connector_editor_id(body,provider_export['name'])
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':import_provider_id}); assert r.status==200
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved')
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
@@ -440,14 +460,14 @@ prompt_id=match.group(1)
 profiles_for_prompt,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 prompt_profile_form=next(f for f in profiles_for_prompt.forms if f['action'].endswith('/forms/profile-create'))
 prompt_profile_name='HTTP prompt profile '+uuid.uuid4().hex
-r=request(prompt_profile_form['action'],'POST',dict(prompt_profile_form['fields'],_csrf=csrf,name=prompt_profile_name,biography='Profile used to verify explicit prompt routing.',voice_language='en')); body=r.read().decode()
+r=request(prompt_profile_form['action'],'POST',dict(prompt_profile_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=prompt_profile_name,biography='Profile used to verify explicit prompt routing.',voice_language='en')); body=r.read().decode()
 prompt_profile_match=re.search(re.escape(prompt_profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert prompt_profile_match,body
 prompt_profile_id=prompt_profile_match.group(1)
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 profile_prompt=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==prompt_profile_id)
 values=dict(profile_prompt['fields'],_csrf=csrf,prompt_configuration_id=prompt_id,change_reason='Assign explicit dialogue prompt')
 r=request(profile_prompt['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl(),body)
-prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); assert '1 explicit assignments' in body and 'Prompt is assigned and cannot be deleted.' in body,body
+prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); assert '1 explicit profile assignments' in body and 'Assigned prompts cannot be deleted.' in body,body
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); body=r.read().decode(); assert r.status==422 and 'prompt_in_use' in body,(r.status,r.geturl(),body)
 page,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); revise=next(f for f in page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
 values=dict(revise['fields'],_csrf=csrf,kind='prompt',content_json='{"instruction":"Speak briefly in character."}',change_reason='HTTP prompt test')
@@ -472,7 +492,7 @@ r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=cs
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); assert r.status==200
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':prompt_profile_id}); assert r.status==200
 actions,body=parse(request('/ALMSIVIserver/ui/function_editor.php'))
-assert 'Server policy cannot invent Lua commands' in body and 'Allowed OpenMW actions' in body
+assert 'negotiated OpenMW action catalogue immutable' in body and 'Action Policies' in body
 policy_form=next(f for f in actions.forms if f['action'].endswith('/forms/action-policy-controls-create'))
 policy_name='HTTP action policy '+uuid.uuid4().hex
 values=dict(policy_form['fields'],_csrf=csrf,name=policy_name,enabled='1',max_tier='1')

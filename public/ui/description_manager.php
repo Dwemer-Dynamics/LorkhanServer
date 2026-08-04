@@ -2,35 +2,32 @@
 
 declare(strict_types=1);
 
-$pageTitle='Descriptions';$topNavSection='configuration';$bodyClass='configuration-resource view-descriptions';
-require __DIR__.'/ui_bootstrap.php';
-$rows=$uiRepository->rows('descriptions');$installations=[];
-foreach($uiRepository->rows('installations')as$installation){$id=(string)($installation['installation_id']??'');if($id!=='')$installations[$id]=(string)($installation['display_name']??$id);}
-include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
+$embedded = (string) ($_GET['embed'] ?? '') === '1';
+$pageTitle = 'Descriptions';
+$topNavSection = 'configuration';
+$BODY_CLASS = 'hub-page descriptions-page-shell' . ($embedded ? ' embedded-page' : '');
+require __DIR__ . '/ui_bootstrap.php';
+$rows = $uiRepository->rows('descriptions');
+$installations = [];
+foreach ($uiRepository->rows('installations') as $installation) { $id = (string) ($installation['installation_id'] ?? ''); if ($id !== '') $installations[$id] = (string) ($installation['display_name'] ?? $id); }
+$additionalStylesheets = ['herika-descriptions.css?v=' . (string) filemtime(__DIR__ . '/css/herika-descriptions.css')];
+include __DIR__ . '/tmpl/head.html';
+if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
-<main class="management-page">
-    <header class="configuration-page-header"><h1>Description Manager</h1><p>Describe Morrowind records by content file and record ID. ALMSIVI adds a description only when that record is present in the current bounded inventory or nearby-object context.</p></header>
-    <?php if(($_GET['status']??'')==='saved'):?><p class="page-status" role="status">Changes saved.</p><?php endif;?>
-    <div class="descriptions-top-grid"><section class="descriptions-panel">
-    <form class="management-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/description-save');?>"><fieldset><legend>Add or update description</legend>
-        <label for="description-installation">Installation</label><select id="description-installation" name="installation_id"><?php foreach($installations as$id=>$label):?><option value="<?php echo almsivi_ui_h($id);?>"><?php echo almsivi_ui_h($label);?></option><?php endforeach;?></select>
-        <label for="description-content-file">Content file</label><input id="description-content-file" name="content_file" value="Morrowind.esm" maxlength="256" required>
-        <label for="description-record-id">Record ID</label><input id="description-record-id" name="record_id" maxlength="256" required>
-        <label for="description-name">Display name</label><input id="description-name" name="display_name" maxlength="256" required>
-        <label for="description-text">Description</label><textarea id="description-text" name="description" maxlength="8192" required></textarea>
-    </fieldset><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Save description</button></form></section>
-    <section class="descriptions-panel"><h2>Database Management</h2><p>Descriptions are keyed by content file and Morrowind record ID, so only records present in current bounded game context are injected.</p><p>Existing records can be reviewed, edited, or deleted individually below. ALMSIVI does not expose a factory-reset control from this page.</p><div class="description-safety-note"><strong><?php echo count($rows);?></strong><span>custom descriptions</span></div></section></div>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Description Database</h3></div><div class="widget-content">
-        <?php if($rows===[]):?><p class="empty-state">No custom descriptions are configured.</p><?php else:?><div class="profile-grid"><?php foreach($rows as$row):?>
-            <article class="profile-card"><header><div><span class="connector-kind"><?php echo almsivi_ui_h($row['content_file']);?></span><h3><?php echo almsivi_ui_h($row['display_name']);?></h3></div><span class="status-badge"><?php echo almsivi_ui_h($row['record_id']);?></span></header><p><?php echo nl2br(almsivi_ui_h($row['description']));?></p>
-                <details><summary>Edit description</summary><form class="management-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/description-save');?>"><fieldset><legend>Save description</legend>
-                    <label for="content-<?php echo almsivi_ui_h($row['description_id']);?>">Content file</label><input id="content-<?php echo almsivi_ui_h($row['description_id']);?>" name="content_file" value="<?php echo almsivi_ui_h($row['content_file']);?>" maxlength="256" required>
-                    <label for="record-<?php echo almsivi_ui_h($row['description_id']);?>">Record ID</label><input id="record-<?php echo almsivi_ui_h($row['description_id']);?>" name="record_id" value="<?php echo almsivi_ui_h($row['record_id']);?>" maxlength="256" required>
-                    <label for="name-<?php echo almsivi_ui_h($row['description_id']);?>">Display name</label><input id="name-<?php echo almsivi_ui_h($row['description_id']);?>" name="display_name" value="<?php echo almsivi_ui_h($row['display_name']);?>" maxlength="256" required>
-                    <label for="text-<?php echo almsivi_ui_h($row['description_id']);?>">Description</label><textarea id="text-<?php echo almsivi_ui_h($row['description_id']);?>" name="description" maxlength="8192" required><?php echo almsivi_ui_h($row['description']);?></textarea>
-                </fieldset><input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($row['installation_id']);?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-primary" type="submit">Save description</button></form></details>
-                <form class="danger-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/description-delete');?>"><input type="hidden" name="description_id" value="<?php echo almsivi_ui_h($row['description_id']);?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf);?>"><button class="btn-base btn-danger" type="submit">Delete description</button></form>
-            </article><?php endforeach;?></div><?php endif;?>
-    </div></section>
+<main class="descriptions-page">
+    <header class="page-header"><h1>Description Manager</h1><p class="page-subtitle">Create custom descriptions for Morrowind items and equipment that enhance NPC context</p></header>
+    <?php if (($_GET['status'] ?? '') === 'saved'): ?><div class="description-notice">Changes saved.</div><?php endif; ?>
+    <div class="content-grid">
+        <section class="content-section"><h2>Batch Upload</h2><label>Select .csv file to upload:<input type="file" accept=".csv" disabled aria-disabled="true"></label><div class="button-group"><span class="status-control"><button type="button" class="action-button upload-csv" disabled>Upload CSV</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span><span class="status-control"><button type="button" class="action-button download-csv" disabled>Download Example CSV</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span><span class="status-control"><button type="button" class="action-button export-csv" disabled>Export Custom Descriptions</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span></div><p>Typed format: content file, record ID, display name, description, and installation scope.</p></section>
+        <section class="content-section"><h2>Database Management</h2><p>Descriptions are keyed by Morrowind content file and record ID.</p><p>Only records present in the current bounded inventory or nearby-object context are injected.</p><div class="button-group"><span class="status-control"><button type="button" class="btn-danger" disabled>Factory Reset Item Override Table</button><?php echo almsivi_ui_feature_badge('config.descriptions.reset', true); ?></span></div></section>
+    </div>
+    <section class="full-width-section">
+        <h2 id="entries">&#x1F4CB; Descriptions Database</h2>
+        <div class="action-container"><button type="button" class="action-button add-new" data-description-create>Add New Entry</button><div class="search-container"><input type="search" placeholder="Search descriptions..." data-description-search><button type="button" class="action-button edit">Search</button></div></div>
+        <div class="filter-section"><strong>Filter by Name:</strong><div class="filter-buttons"><button type="button" class="alphabet-button active" data-letter="">All</button><?php foreach (range('A','Z') as $letter): ?><button type="button" class="alphabet-button" data-letter="<?php echo $letter; ?>"><?php echo $letter; ?></button><?php endforeach; ?></div></div>
+        <section class="new-entry-panel" data-description-panel hidden><h2>Add New Entry</h2><form method="post" action="<?php echo almsivi_ui_h($managementBasePath . '/forms/description-save'); ?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><div class="entry-form-grid"><label>Installation<select name="installation_id"><?php foreach ($installations as $id => $label): ?><option value="<?php echo almsivi_ui_h($id); ?>"><?php echo almsivi_ui_h($label); ?></option><?php endforeach; ?></select></label><label>Content file<input name="content_file" value="Morrowind.esm" maxlength="256" required></label><label>Record ID<input name="record_id" maxlength="256" required></label><label>Display name<input name="display_name" maxlength="256" required></label><label class="wide">Description<textarea name="description" maxlength="8192" required></textarea></label></div><div class="button-group"><button class="action-button add-new" type="submit">Save description</button><button type="button" class="action-button" data-description-cancel>Cancel</button></div></form></section>
+        <div class="table-container"><table><thead><tr><th>Base ID</th><th>Plugin</th><th>Name</th><th>Description</th><th>Actions</th></tr></thead><tbody><?php foreach ($rows as $row): ?><tr data-description-row data-search="<?php echo almsivi_ui_h(strtolower((string) (($row['display_name'] ?? '') . ' ' . ($row['content_file'] ?? '') . ' ' . ($row['record_id'] ?? '')))); ?>"><td><?php echo almsivi_ui_h($row['record_id']); ?></td><td><?php echo almsivi_ui_h($row['content_file']); ?></td><td><?php echo almsivi_ui_h($row['display_name']); ?></td><td><?php echo almsivi_ui_h($row['description']); ?></td><td><details><summary>Edit</summary><form method="post" action="<?php echo almsivi_ui_h($managementBasePath . '/forms/description-save'); ?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($row['installation_id']); ?>"><input name="content_file" value="<?php echo almsivi_ui_h($row['content_file']); ?>" required><input name="record_id" value="<?php echo almsivi_ui_h($row['record_id']); ?>" required><input name="display_name" value="<?php echo almsivi_ui_h($row['display_name']); ?>" required><textarea name="description" required><?php echo almsivi_ui_h($row['description']); ?></textarea><button type="submit">Save</button></form></details><form method="post" action="<?php echo almsivi_ui_h($managementBasePath . '/forms/description-delete'); ?>"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="description_id" value="<?php echo almsivi_ui_h($row['description_id']); ?>"><button type="submit" class="btn-danger">Delete</button></form></td></tr><?php endforeach; ?><?php if ($rows === []): ?><tr><td colspan="5">No custom descriptions are configured.</td></tr><?php endif; ?></tbody></table></div>
+    </section>
 </main>
-<?php include __DIR__.'/tmpl/footer.html';?>
+<script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/descriptions.js?v=<?php echo almsivi_ui_h((string) filemtime(__DIR__ . '/js/descriptions.js')); ?>"></script>
+<?php include __DIR__ . '/tmpl/footer.html'; ?>

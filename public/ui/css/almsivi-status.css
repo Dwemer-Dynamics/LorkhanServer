@@ -1,0 +1,16 @@
+/* ALMSIVI availability tags are the sole addition to copied Herika controls. */
+.feature-state-badge{display:inline-flex;align-items:center;justify-content:center;min-height:24px;padding:3px 9px;border:1px solid #555;border-radius:999px;background:#2a2a2a;color:#ddd;font:700 11px/1.2 Arial,sans-serif;letter-spacing:.02em;white-space:nowrap}
+.feature-state-compact{flex:0 0 auto;min-height:18px;padding:2px 4px;margin-left:0;font-size:8px;letter-spacing:0;word-spacing:0;vertical-align:middle}
+.feature-state-live{border-color:#347a50;background:#203d2c;color:#a8e3ba}
+.feature-state-planned{border-color:#8c651c;background:#403116;color:#ffd27a}
+.feature-state-excluded{border-color:#8a3d3d;background:#432323;color:#ffb4b4}
+.feature-state-not-applicable{border-color:#616773;background:#30343a;color:#c8ced8}
+.feature-state-replaced{border-color:#4e6590;background:#27344c;color:#b8d2ff}
+.feature-placeholder-page{padding-top:80px;padding-bottom:32px}
+.feature-placeholder-page .page-header{margin:0 0 16px}
+.feature-placeholder-panel{padding:24px;border:1px solid #3a3a3a;border-radius:10px;background:linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98));box-shadow:0 2px 8px rgba(0,0,0,.2)}
+.feature-placeholder-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;padding-bottom:14px;border-bottom:1px solid rgba(242,124,17,.25)}
+.feature-placeholder-heading h2{margin:0;color:#f1f1f1;font-size:22px}
+.feature-placeholder-panel p{margin:16px 0;color:#cfd5df}
+.feature-placeholder-controls{display:flex;flex-wrap:wrap;gap:10px}
+.feature-placeholder-control,.feature-placeholder-control:disabled{min-width:190px;padding:8px 14px!important;border:1px solid #555!important;border-radius:8px!important;background:#333!important;color:#999!important;cursor:not-allowed!important;opacity:.72!important}
