@@ -193,7 +193,12 @@ $assert($status===200&&$controls['schema']==='almsivi.controls.v1'
     &&in_array($actorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&!in_array($narratorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&$controls['narrator_profile_id']===$narratorProfile['profile_id']
-    &&$controls['selected_model_slot_id']===null&&$controls['selected_profile_id']===null,
+    &&$controls['selected_model_slot_id']===null&&$controls['selected_profile_id']===null
+    &&($controls['effective_settings']['schema']??null)==='almsivi.effective-settings.v1'
+    &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
+    &&($controls['effective_settings']['profile_id']??null)===null
+    &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
+    &&!isset($controls['effective_settings']['settings']['behavior'],$controls['effective_settings']['settings']['presentation']),
     'in-game controls query did not return safe model/profile choices');
 
 $selectModel=$fixture('controls-select');
@@ -210,8 +215,10 @@ $assert($status===200&&$modelReplay==$modelSelected,'in-game model slot selectio
 $selectProfile=$selectModel;$selectProfile['message_id']=$newUuid(10);$selectProfile['request_id']=$newUuid(11);
 $selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProfile['profile_id'];
 [$status,$profileSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectProfile['message_id']),[],$selectProfile);
-$assert($status===200&&$profileSelected['selected_profile_id']===$actorProfile['profile_id'],
-    'in-game actor profile selection failed');
+    $assert($status===200&&$profileSelected['selected_profile_id']===$actorProfile['profile_id']
+        &&($profileSelected['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
+        &&($profileSelected['effective_settings']['change_token']??null)!==($controls['effective_settings']['change_token']??null),
+        'in-game actor profile selection failed');
 $turnLike=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId,
     'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$controlsQuery['target']]];
 $explicitContext=$products->providerContext($turnLike);
@@ -234,10 +241,17 @@ $inheritedContent=$actorProfile['content'];$inheritedContent['routing']=[];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$inheritedContent,'inherit Core Profile routing',$now);
 $inheritedContext=$products->providerContext($turnLike);
 $effectiveSettings=$products->effectiveSettingsForActor($installationId,$session['playthrough_id'],$controlsQuery['target']);
+$effectiveControlsQuery=$controlsQuery;$effectiveControlsQuery['message_id']=$newUuid(712);$effectiveControlsQuery['request_id']=$newUuid(713);
+[$effectiveControlsStatus,$effectiveControls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$effectiveControlsQuery);
 $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configuration_id']
     &&$effectiveSettings['settings']['behavior']['rechat']===true
     &&$effectiveSettings['settings']['memory']['knowledge_limit']===0
-    &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='core_profile',
+    &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='core_profile'
+    &&$effectiveControlsStatus===200
+    &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
+    &&($effectiveControls['effective_settings']['core_profile_id']??null)===$coreProfile['core_profile_id']
+    &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===0
+    &&($effectiveControls['effective_settings']['source_map']['settings.memory.knowledge_limit']??null)==='core_profile',
     'Core Profile routing and typed setting overrides did not reach runtime resolution');
 $maskedContent=$actorProfile['content'];$maskedContent['routing']=['llm_configuration_id'=>''];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$maskedContent,'explicit NPC route disable',$now);

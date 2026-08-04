@@ -41,7 +41,7 @@ stale references fail explicitly.
 | `POST /sessions` | Authenticate, validate runtime/content, bind profile/playthrough, negotiate caps. |
 | `DELETE /sessions/{id}` | End/cancel current session generation idempotently. |
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
-| `POST /controls/query` | Return safe revisioned model slots, NPC profiles, and the installation narrator ID for the active session. |
+| `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
 | `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Validate metadata/audio and produce transcript/failure event. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
@@ -81,6 +81,11 @@ same authenticated control query. The selected actor profile may
 change profile/prompt sources, but session-profile memory and relationship scope is retained. Turn
 acceptance freezes the assembled prompt and provider slot snapshot so later admin edits cannot alter an
 already accepted job.
+
+The controls response also returns a strict `almsivi.effective-settings.v1` snapshot for the active target.
+It contains the resolved memory, narrator, safety, and routing values, their Global/Core Profile/NPC source
+map, bound profile revisions, and a deterministic change token. Client-local presentation settings are not
+part of this target-effective document, and autonomy settings are excluded from this milestone.
 
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
