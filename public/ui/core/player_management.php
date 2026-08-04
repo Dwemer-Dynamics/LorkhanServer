@@ -90,7 +90,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </section>
             <?php endif; ?>
 
-            <?php if ($profile !== null): ?>
+            <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
                 <form id="player-speech-ai-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/player-speech-style-generate">
                     <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
                     <input type="hidden" name="profile_id" value="<?php echo almsivi_ui_h($profile['profile_id']); ?>">

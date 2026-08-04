@@ -249,7 +249,7 @@ updated_tts=json.loads(request('/ALMSIVIserver/manage/exports/connectors/'+tts_i
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':tts_id,'kind':'tts_provider'}); body=r.read().decode(); assert r.status==422 and 'connector_in_use' in body,(r.status,r.geturl(),body)
 managed_profile,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 generate=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-generate') and f['fields'].get('profile_id')==profile_id)
-    r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
+r=request(generate['action'],'POST',dict(generate['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 managed_profile,body=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 revise=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 auto_lock=next(f for f in managed_profile.forms if f['action'].endswith('/forms/profile-auto-lock'))
@@ -329,26 +329,15 @@ memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex
 values=dict(create_memory['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,tier='mid',content=memory_text,provenance='management-http')
-r=request(create_memory['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=memories-tab' in r.geturl() and memory_text in body,(r.status,r.geturl(),body)
+r=request(create_memory['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=memory' in r.geturl() and memory_text in body,(r.status,r.geturl(),body)
 memory_match=re.search(re.escape(memory_text)+r'.*?name="memory_id" value="([0-9a-f-]{36})"',body,re.S); assert memory_match,body
 memory_id=memory_match.group(1)
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 revise_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory-revise') and f['fields'].get('memory_id')==memory_id)
 revised_memory=memory_text+' revised'; r=request(revise_memory['action'],'POST',dict(revise_memory['fields'],_csrf=csrf,content=revised_memory)); body=r.read().decode(); assert r.status==200 and revised_memory in body,(r.status,r.geturl(),body)
 r=request('/ALMSIVIserver/manage/forms/memory-delete','POST',{'_csrf':csrf,'memory_id':memory_id}); body=r.read().decode(); assert r.status==200 and revised_memory not in body,(r.status,r.geturl())
-relationships,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab'))
-create_relationship=next(f for f in relationships.forms if f['action'].endswith('/forms/relationships'))
-relationship_name='HTTP Actor '+uuid.uuid4().hex
-identity=json.dumps({'kind':'npc','record_id':'http_actor','content_file':'HTTP Test.esp','display_name':relationship_name})
-values=dict(create_relationship['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,content_json=identity,disposition='12',affinity='34',reason='management-http')
-r=request(create_relationship['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=relationships-tab' in r.geturl() and relationship_name in body,(r.status,r.geturl(),body)
-relationship_match=re.search(re.escape(relationship_name)+r'.*?name="relationship_id" value="([0-9a-f-]{36})"',body,re.S); assert relationship_match,body
-relationship_id=relationship_match.group(1)
-relationships,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab'))
-edit_relationship=next(f for f in relationships.forms if f['action'].endswith('/forms/relationships') and f['fields'].get('profile_id')==profile_id and f['fields'].get('disposition')=='12')
-values=dict(edit_relationship['fields'],_csrf=csrf,content_json=identity,disposition='20',affinity='40',reason='management-http edit')
-r=request(edit_relationship['action'],'POST',values); body=r.read().decode(); assert r.status==200 and '>20<' in body and '>40<' in body,(r.status,r.geturl(),body)
-r=request('/ALMSIVIserver/manage/forms/relationship-delete','POST',{'_csrf':csrf,'relationship_id':relationship_id}); body=r.read().decode(); assert r.status==200 and relationship_name not in body,(r.status,r.geturl())
+legacy_relationships,body=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab'))
+assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content active"' in body and '/forms/relationships' not in body,(legacy_relationships.current,body)
 backup_response=request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))

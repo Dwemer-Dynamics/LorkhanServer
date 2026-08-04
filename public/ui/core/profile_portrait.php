@@ -62,12 +62,12 @@ try{
         unset($content['portrait']);$service->revise('profile',$profileId,$content,'portrait delete');
         $oldPath=almsivi_portrait_path($portraitRoot,$profileId,$old);if($oldPath!==null&&is_file($oldPath))@unlink($oldPath);
     }else throw new InvalidArgumentException('invalid_portrait_action');
-    header('Location: '.$webRoot.'/ui/core/character_manager.php?status=saved',true,303);exit;
+    header('Location: '.$webRoot.'/ui/core/npc_master.php?status=saved',true,303);exit;
 }catch(Throwable $error){
     if($_SERVER['REQUEST_METHOD']==='GET'){$safeGetCodes=['invalid_profile_id','not_found','profile_not_portraitable','portrait_metadata_invalid','portrait_file_missing'];
         $code=in_array($error->getMessage(),$safeGetCodes,true)?$error->getMessage():'portrait_not_found';
         http_response_code(404);header('Content-Type: text/plain; charset=utf-8');header('X-ALMSIVI-Portrait-Status: '.$code);echo"Portrait not found.\n";exit;}
     $known=['invalid_profile_id','profile_not_portraitable','portrait_upload_failed','invalid_profile_portrait','invalid_portrait_action','unauthorized'];
     $message=in_array($error->getMessage(),$known,true)?$error->getMessage():'portrait_action_failed';
-    header('Location: '.$webRoot.'/ui/core/character_manager.php?error='.rawurlencode($message),true,303);exit;
+    header('Location: '.$webRoot.'/ui/core/npc_master.php?error='.rawurlencode($message),true,303);exit;
 }
