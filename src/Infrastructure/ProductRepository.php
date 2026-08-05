@@ -47,6 +47,7 @@ final class ProductRepository
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
                     ->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id'] ?? null,'kind'=>$configKind,'name'=>$input['name'],'now'=>$now]);
                 $this->revision('configuration_revisions', 'configuration_id', $id, 1, $input['content'], $reason, $now);
+                if($configKind==='prompt')$this->syncPrompt($id,$input['content'],1,$now);
             }
             return $this->getRevisioned($kind, $id);
         });
@@ -208,6 +209,7 @@ final class ProductRepository
             $next = (int)$current + 1;
             $this->revision($revisions, $key, $id, $next, $content, $reason, $now);
             $this->db->prepare("UPDATE {$table} SET current_revision=:revision WHERE {$key}=:id")->execute(['revision'=>$next,'id'=>$id]);
+            if($kind==='prompt')$this->syncPrompt($id,$content,$next,$now);
             return $this->getRevisioned($kind,$id);
         });
     }
@@ -1068,6 +1070,14 @@ final class ProductRepository
         } else {
             $prompt['revision']=(int)$prompt['revision'];$prompt['content']=$this->json($prompt['content']);
         }
+        $promptOverride=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE installation_id=:installation AND source_configuration_id=:configuration');
+        $promptOverride->execute(['installation'=>$turn['installation_id'],'configuration'=>$prompt['configuration_id']]);
+        if($override=$promptOverride->fetch()){
+            $effectivePrompt=trim((string)($override['custom_prompt']??''));
+            if($effectivePrompt==='')$effectivePrompt=(string)$override['default_prompt'];
+            if($effectivePrompt!=='')$prompt['content']['instruction']=$effectivePrompt;
+            $prompt['content']['description']=(string)$override['description'];
+        }
         $profile['revision']=(int)$profile['current_revision'];
         $coreProfile=$effective['core_profile'];
         if(is_array($coreProfile)){
@@ -1081,12 +1091,70 @@ final class ProductRepository
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
         $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());
+        $actor=(array)$turn['payload']['target'];
+        $actorKey=[];
+        foreach(['kind','record_id','content_file']as$field){if(is_string($actor[$field]??null)&&$actor[$field]!=='')$actorKey[$field]=$actor[$field];}
+        if(is_array($actor['refnum']??null)&&!array_is_list($actor['refnum'])){
+            $refnum=[];foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
+            if($refnum!==[])$actorKey['refnum']=$refnum;
+        }
+        if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
+        $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
+        $historyStatement=$this->db->prepare(<<<'SQL'
+SELECT * FROM (
+    SELECT 'event:'||e.rowid::text AS id,
+           COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM e.created_at)*1000)::bigint) AS sort_ts,
+           e.created_at AS sort_created_at,0 AS source_rank,e.rowid AS sort_id,
+           jsonb_strip_nulls(jsonb_build_object(
+               'kind','event','type',e.type,
+               'input',CASE WHEN e.type IN ('turn.requested','rechat') AND t.turn_id IS NOT NULL
+                   THEN jsonb_build_object('kind',t.input_kind,'language',t.input_language,'text',t.input_text) END,
+               'details',CASE WHEN e.type NOT IN ('turn.requested','rechat') THEN e.payload->'payload' END,
+               'speaker',CASE WHEN e.speaker='{}'::jsonb THEN NULL ELSE e.speaker END,
+               'target',CASE WHEN e.target='{}'::jsonb THEN NULL ELSE e.target END,
+               'audience',CASE WHEN jsonb_array_length(e.audience)=0 THEN NULL ELSE e.audience END,
+               'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts
+           )) AS content
+    FROM eventlog e
+    LEFT JOIN turns t ON t.turn_id=e.turn_id
+    WHERE e.installation_id=:installation AND e.playthrough_id=:playthrough
+      AND e.type IN ('turn.requested','location','death','action.result','rechat','narration')
+      AND (e.speaker @> CAST(:event_speaker AS jsonb)
+           OR e.target @> CAST(:event_target AS jsonb)
+           OR e.audience @> CAST(:event_audience AS jsonb))
+    UNION ALL
+    SELECT 'speech:'||s.rowid::text,
+           COALESCE(s.ts,NULLIF(s.gamets,0),(extract(epoch FROM s.created_at)*1000)::bigint),
+           s.created_at,1,s.rowid,
+           jsonb_strip_nulls(jsonb_build_object(
+               'kind','speech','speaker',s.speaker,'listener',s.listener,'text',s.speech,
+               'location',s.location,'game_time',NULLIF(s.gamets,0),'event_time',s.ts,
+               'delivery_state',s.delivery_state
+           ))
+    FROM speech s
+    WHERE s.installation_id=:speech_installation AND s.playthrough_id=:speech_playthrough
+      AND s.delivery_state IN ('emitted','pending','spoken','played')
+      AND (s.speaker_identity @> CAST(:speech_speaker AS jsonb)
+           OR s.listener_identity @> CAST(:speech_listener AS jsonb)
+           OR s.audience @> CAST(:speech_audience AS jsonb))
+) h
+ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
+LIMIT 40
+SQL);
+        $historyStatement->execute([
+            'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
+            'speech_installation'=>$turn['installation_id'],'speech_playthrough'=>$turn['playthrough_id'],
+            'speech_speaker'=>$actorJson,'speech_listener'=>$actorJson,'speech_audience'=>$audienceJson,
+        ]);
+        $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
+            'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'content'=>$this->json($row['content'])];
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
-            'prompt'=>$prompt,'memory'=>array_slice($memories,0,10),'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
 
     /** Return the single current player roleplay profile for an installation, if configured. */
@@ -1178,14 +1246,32 @@ final class ProductRepository
         });
     }
 
-    public function searchTraces(string $installation,string $query,int $limit=50):array{$needle='%'.$query.'%';$stmt=$this->db->prepare('SELECT source_event_id AS id,event_kind AS type,occurred_at AS created_at,request_id,turn_id,payload FROM source_events WHERE installation_id=:installation AND (event_kind ILIKE :query OR payload::text ILIKE :query) ORDER BY received_at DESC LIMIT :limit');$stmt->bindValue(':installation',$installation);$stmt->bindValue(':query',$needle);$stmt->bindValue(':limit',$limit,PDO::PARAM_INT);$stmt->execute();return array_map(function($r){$r['payload']=$this->json($r['payload']);return$r;},$stmt->fetchAll());}
-    public function traceDetail(string $id):array{$s=$this->db->prepare('SELECT * FROM source_events WHERE source_event_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['payload']=$this->json($r['payload']);return $r;}
+    public function searchTraces(string $installation,string $query,int $limit=50):array{$needle='%'.$query.'%';$stmt=$this->db->prepare('SELECT source_event_id AS id,type,created_at,request_id,turn_id,payload FROM eventlog WHERE installation_id=:installation AND source_event_id IS NOT NULL AND (type ILIKE :query OR data ILIKE :query OR payload::text ILIKE :query) ORDER BY rowid DESC LIMIT :limit');$stmt->bindValue(':installation',$installation);$stmt->bindValue(':query',$needle);$stmt->bindValue(':limit',$limit,PDO::PARAM_INT);$stmt->execute();return array_map(function($r){$r['payload']=$this->json($r['payload']);return$r;},$stmt->fetchAll());}
+    public function traceDetail(string $id):array{$s=$this->db->prepare('SELECT * FROM eventlog WHERE source_event_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');foreach(['speaker','target','audience','payload']as$field)$r[$field]=$this->json($r[$field]);return $r;}
 
     public function diagnostics():array{return ['database'=>['connected'=>true,'version'=>(string)$this->db->query('SHOW server_version')->fetchColumn()],'counts'=>['installations'=>(int)$this->db->query('SELECT count(*) FROM installations WHERE revoked_at IS NULL')->fetchColumn(),'active_sessions'=>(int)$this->db->query("SELECT count(*) FROM sessions WHERE state='active'")->fetchColumn(),'queued_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='queued'")->fetchColumn(),'dead_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='dead'")->fetchColumn(),'memory_records'=>(int)$this->db->query('SELECT count(*) FROM memory_records WHERE deleted_at IS NULL')->fetchColumn()]];}
 
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
+    /** Mirror a revisioned Prompt Manager document into the CHIM-compatible prompt override table. */
+    private function syncPrompt(string $configurationId,array $content,int $revision,string $now):void
+    {
+        $owner=$this->db->prepare("SELECT installation_id,name FROM configuration_sets WHERE configuration_id=:id AND kind='prompt'");
+        $owner->execute(['id'=>$configurationId]);$row=$owner->fetch();if(!$row)throw new RuntimeException('not_found');
+        $key=substr((string)preg_replace('/[^a-z0-9_.-]+/','_',strtolower((string)$row['name'])),0,128);
+        $instruction=(string)($content['instruction']??'');
+        $default=(string)($content['default_prompt']??$instruction);
+        $custom=array_key_exists('custom_prompt',$content)?$content['custom_prompt']:$instruction;
+        $custom=is_string($custom)&&trim($custom)!==''?$custom:null;
+        $description=(string)($content['description']??$row['name']);
+        $this->db->prepare('INSERT INTO prompts (installation_id,prompt_key,default_prompt,custom_prompt,description,source_configuration_id,source_revision,created_at,updated_at) '
+            . 'VALUES (:installation,:key,:default,:custom,:description,:configuration,:revision,:now,:now) '
+            . 'ON CONFLICT (installation_id,prompt_key) DO UPDATE SET custom_prompt=EXCLUDED.custom_prompt,description=EXCLUDED.description,'
+            . 'source_configuration_id=EXCLUDED.source_configuration_id,source_revision=EXCLUDED.source_revision,updated_at=EXCLUDED.updated_at')
+            ->execute(['installation'=>$row['installation_id'],'key'=>$key,'default'=>$default,'custom'=>$custom,
+                'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
+    }
     private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}

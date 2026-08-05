@@ -150,6 +150,24 @@ $check(str_contains($assembled['provider_input']['_assembled_prompt'],'record_de
     'server-owned record descriptions are included with an explicit field allowlist');
 $check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0]) && $assembled['trace']['sources'][0]['redacted_preview']==='', 'prompt trace is bounded and metadata-only');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
+$historySelection=$promptSelection;$historySelection['memory']=[];$historySelection['recent_action_results']=[];
+$historySelection['history']=[
+    ['history_id'=>'old-history','content'=>str_repeat('O',1000)],
+    ['history_id'=>'middle-history','content'=>str_repeat('M',1000)],
+    ['history_id'=>'recent-history','content'=>'RECENT HISTORY SENTINEL'],
+];
+$budgetedHistory=(new PromptAssembler(512,256))->assemble($promptTurn,$historySelection);
+$recentHistorySource=array_values(array_filter($budgetedHistory['trace']['sources'],
+    static fn(array$source):bool=>$source['source_id']==='recent-history'));
+$check(str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RECENT HISTORY SENTINEL')
+    &&count($recentHistorySource)===1&&$recentHistorySource[0]['included'],
+    'prompt history budget did not preserve the newest chronological source');
+$largeContextTurn=$promptTurn;$largeContextTurn['payload']['context']=['inventory'=>str_repeat('X',2048)];
+$currentTurnSelection=$promptSelection;$currentTurnSelection['memory']=[];$currentTurnSelection['recent_action_results']=[];
+$budgetedTurn=(new PromptAssembler(2048,1024))->assemble($largeContextTurn,$currentTurnSelection);
+$check(str_contains($budgetedTurn['provider_input']['_assembled_prompt'],'"text":"Hello"')
+    &&str_contains($budgetedTurn['provider_input']['_assembled_prompt'],'world_context'),
+    'current input was displaced by the large OpenMW context snapshot');
 
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',

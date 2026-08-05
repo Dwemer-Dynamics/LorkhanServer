@@ -190,7 +190,7 @@ $disabledNumberField = static function (string $section, string $field, string $
             <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F4AC;</div><div>Conversation</div></div></div>
             <div class="provider-body">
                 <?php $disabledSelectSetting('setting_behavior_auto_greeting', 'Automatic Greeting', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['auto_greeting'] ?? null, 'autonomy'); ?>
-                <?php $disabledSelectSetting('setting_behavior_rechat', 'Rechat', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['rechat'] ?? null, 'autonomy'); ?>
+                <?php $selectSetting('setting_behavior_rechat', 'Rechat', 'Continue a player-started conversation after its speech queue completes.', $overrides['behavior']['rechat'] ?? null); ?>
                 <?php $disabledSelectSetting('setting_behavior_boredom', 'Bored Event', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['boredom'] ?? null, 'autonomy'); ?>
                 <?php $disabledSelectSetting('setting_behavior_combat_barks', 'Combat Barks', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['combat_barks'] ?? null, 'autonomy'); ?>
             </div>
@@ -199,7 +199,7 @@ $disabledNumberField = static function (string $section, string $field, string $
     <div class="profile-settings-columns">
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat &amp; Bored Event</h3><div class="provider-card">
             <?php $disabledNumberField('behavior', 'rechat_delay_seconds', 'Rechat Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
-            <?php $disabledNumberField('behavior', 'rechat_max_depth', 'Rechat Depth', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+            <?php $numberField('behavior', 'rechat_max_depth', 'Rechat Depth', 'Maximum inherited continuation replies.', 1, 20); ?>
             <?php $disabledNumberField('behavior', 'boredom_delay_seconds', 'Bored Event Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
             <?php $disabledNumberField('behavior', 'combat_bark_period_seconds', 'Combat Bark Period', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
         </div></section>

@@ -47,17 +47,20 @@ oversized data, duplicate conflicts, server restart and version mismatch.
 - Port mock and final vetted LLM connectors behind one typed contract with timeout/cancel/retry policy.
 - Persist ordered deltas/final response and expose bounded long-poll events with replay/cursor expiry.
 - Add explicit speaker/addressee/audience, group speaker selection and delivery completion/failure.
-- Implement STT upload/transcript policy and TTS generation/private media/hash/expiry/serve lifecycle.
+- Retain the bounded STT route only as compatibility scaffolding; do not expose or ship STT controls.
+  Implement TTS generation/private media/hash/expiry/serve lifecycle.
 
-Gate: mock solo/group/text/STT/TTS/interruption E2E and provider failure/redaction tests pass; partial
+Gate: mock solo/group/text/TTS/interruption E2E and provider failure/redaction tests pass; partial
 output never becomes a completed utterance or memory source.
 
 ## Workstream 4: profiles, memory, relationships and knowledge
 
 - Port base/dynamic profiles, prompt templates/revisions and per-profile provider/feature settings.
 - Port recent/middle/long memory, embeddings/retrieval, source trace, rebuild/delete/retention controls.
-- Port relationships, world knowledge, narrator, diary, rechat, boredom, automatic greeting and
-  playthrough summaries/export/restore, translated to TES3.
+- Port relationships, world knowledge, narrator, diary, playback-driven rechat and playthrough
+  summaries/export/restore, translated to TES3. Rechat uses scoped CHIM-style event/speech/response/
+  prompt records, advances only after final client playback, and cannot emit actions.
+- Exclude timer autonomy, boredom, automatic greeting, combat barks, STT, ITT and Background Life.
 - Ensure workers are idempotent, source-event-derived and visible in job/dead-letter UI.
 
 Gate: deterministic fixtures prove create/derive/retrieve/edit/delete/rebuild/restore and prompt source

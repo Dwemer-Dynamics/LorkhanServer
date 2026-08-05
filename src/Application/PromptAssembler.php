@@ -15,13 +15,14 @@ use JsonException;
  */
 final class PromptAssembler
 {
-    private const ALGORITHM = 'deterministic-prompt-v1';
+    private const ALGORITHM = 'chim-roleplay-prompt-v1';
 
     /** @var array<string,array{limit:int,bytes:int}> */
     private const SECTIONS = [
         'profile' => ['limit' => 1, 'bytes' => 12_288],
         'core_profile' => ['limit' => 1, 'bytes' => 65_536],
         'prompt' => ['limit' => 1, 'bytes' => 24_576],
+        'history' => ['limit' => 40, 'bytes' => 32_768],
         'memory' => ['limit' => 10, 'bytes' => 16_384],
         'relationship' => ['limit' => 10, 'bytes' => 8_192],
         'knowledge' => ['limit' => 10, 'bytes' => 24_576],
@@ -72,6 +73,7 @@ final class PromptAssembler
             'profile' => [$profile],
             'core_profile' => $coreProfile===null?[]:[$coreProfile],
             'prompt' => [$prompt],
+            'history' => $this->selectedList($selection, 'history'),
             'memory' => $this->selectedList($selection, 'memory'),
             'relationship' => $this->selectedList($selection, 'relationship'),
             'knowledge' => $this->selectedList($selection, 'knowledge'),
@@ -91,17 +93,22 @@ final class PromptAssembler
         foreach (self::SECTIONS as $kind => $policy) {
             $items = $rows[$kind];
             if (count($items) > $policy['limit']) {
-                $items = array_slice($items, 0, $policy['limit']);
+                $items = $kind === 'history'
+                    ? array_slice($items, -$policy['limit'])
+                    : array_slice($items, 0, $policy['limit']);
                 $truncated = true;
             }
 
             $sectionItems = [];
+            $sectionSources = [];
             $sectionBytes = 0;
-            $header = '[' . strtoupper($kind) . ']\n';
+            $header = '[' . strtoupper($kind) . "]\n";
             $separatorBytes = $parts === [] ? 0 : 2;
             $totalAvailable = $this->maxInputBytes - strlen(implode("\n\n", $parts)) - $separatorBytes - strlen($header);
 
-            foreach ($items as $item) {
+            // Reserve history space from newest to oldest, then render the selected rows chronologically.
+            $budgetItems = $kind === 'history' ? array_reverse($items) : $items;
+            foreach ($budgetItems as $item) {
                 if (!is_array($item) || array_is_list($item)) {
                     throw new InvalidArgumentException('invalid_prompt_source');
                 }
@@ -125,8 +132,7 @@ final class PromptAssembler
                     $sectionBytes += $delimiterBytes + $includedBytes;
                 }
                 $truncated = $truncated || $wasTruncated;
-                $sources[] = [
-                    'ordinal' => $ordinal++,
+                $sectionSources[] = [
                     'source_kind' => $kind,
                     'source_id' => $id,
                     'revision' => $this->sourceRevision($item),
@@ -138,6 +144,15 @@ final class PromptAssembler
                     // Kept for the trace persistence schema; raw source previews are intentionally absent.
                     'redacted_preview' => '',
                 ];
+            }
+
+            if ($kind === 'history') {
+                $sectionItems = array_reverse($sectionItems);
+                $sectionSources = array_reverse($sectionSources);
+            }
+            foreach ($sectionSources as $source) {
+                $source['ordinal'] = $ordinal++;
+                $sources[] = $source;
             }
 
             if ($sectionItems !== []) {
@@ -263,6 +278,7 @@ final class PromptAssembler
             'profile' => ['profile_id', 'id'],
             'core_profile' => ['core_profile_id', 'id'],
             'prompt' => ['configuration_id', 'id'],
+            'history' => ['history_id', 'id'],
             'memory' => ['memory_id', 'id'],
             'relationship' => ['relationship_id', 'id'],
             'knowledge' => ['document_id', 'id'],
@@ -296,6 +312,11 @@ final class PromptAssembler
     private function turnContent(array $turn): array
     {
         $content=$this->allow($turn['payload'], ['input', 'speaker', 'target', 'audience', 'context', 'ui_source']);
+        if (array_key_exists('context', $content)) {
+            // Keep input and actor identities ahead of the largest snapshot field under byte truncation.
+            $content['world_context']=$content['context'];
+            unset($content['context']);
+        }
         $player=$turn['_player_profile']??null;
         if(is_array($player)&&!array_is_list($player)){
             $identity=is_array($player['actor_identity']??null)&&!array_is_list($player['actor_identity'])
@@ -408,6 +429,6 @@ final class PromptAssembler
         if ($maxBytes <= 3) {
             return mb_strcut($value, 0, $maxBytes, 'UTF-8');
         }
-        return mb_strcut($value, 0, $maxBytes - 3, 'UTF-8') . '…';
+        return mb_strcut($value, 0, $maxBytes - 3, 'UTF-8') . "\u{2026}";
     }
 }

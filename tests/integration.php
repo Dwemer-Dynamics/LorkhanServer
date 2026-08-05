@@ -84,8 +84,14 @@ $defaultRouting=$defaultCore['content']['routing']??[];
 $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):bool=>str_starts_with($key,'llm_')
     &&str_ends_with($key,'_configuration_id'),ARRAY_FILTER_USE_BOTH))===4
     &&!array_key_exists('llm_fallback_configuration_id',$defaultRouting)
-    &&isset($defaultRouting['tts_configuration_id']),
+    &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id']),
     'new installation Core Profile routing did not match CHIM slots');
+$defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
+$defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();
+$assert($defaultPromptRow&&$defaultPromptRow['custom_prompt']===null
+    &&str_contains((string)$defaultPromptRow['default_prompt'],'selected Morrowind actor')
+    &&str_contains((string)$defaultPromptRow['description'],'CHIM-style roleplay prompt'),
+    'new installation did not receive the editable CHIM-style default roleplay prompt');
 $excludedCount=$db->prepare("SELECT count(*) FROM configuration_sets WHERE installation_id=:installation AND kind='stt_provider' AND deleted_at IS NULL");
 $excludedCount->execute(['installation'=>$defaultInstallationId]);
 $voiceCount=$db->prepare('SELECT count(*) FROM speech_connector_voices v JOIN configuration_sets c ON c.configuration_id=v.configuration_id WHERE c.installation_id=:installation');
@@ -768,6 +774,57 @@ $invalidTravel['payload']['input']['text']='Unsafe travel';$invalidTravel['paylo
 [$status,$invalidTravelError]=$call($router,'POST',$base.'/turns',$headers($invalidTravel['message_id']),[],$invalidTravel);
 $assert($status===409&&$invalidTravelError['code']==='action_parameters_invalid',
     'unknown travel coordinate field passed catalog validation: '.$status.' '.json_encode($invalidTravelError));
+
+// Rechat is a playback-gated continuation of a player-started chain, not timer-driven autonomy.
+$rechatChainId=$newUuid(820);
+$rechatTurn=$turn;
+$rechatTurn['message_id']=$newUuid(821);$rechatTurn['request_id']=$newUuid(822);$rechatTurn['turn_id']=$newUuid(823);
+$rechatTurn['payload']['ui_source']='almsivi_rechat';
+$rechatTurn['payload']['input']['text']='Please follow me again.';
+$rechatTurn['payload']['recent_action_results']=[];
+$rechatTurn['payload']['context']['rechat']=['chain_id'=>$rechatChainId,'depth'=>1,'max_depth'=>2,
+    'origin_turn_id'=>$turn['turn_id'],'previous_speaker'=>$dialogueEvent['payload']['speaker'],
+    'previous_listener'=>$turn['payload']['speaker']];
+[$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
+$assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
+$rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$rechatPrompt->execute(['turn'=>$rechatTurn['turn_id']]);
+$rechatManifest=json_decode((string)$rechatPrompt->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$rechatWorker=$runTurnWorker(new MockProvider());
+$rechatState=$db->prepare('SELECT state,current_depth,max_depth,origin_turn_id,latest_turn_id FROM rechat_chains WHERE chain_id=:chain');
+$rechatState->execute(['chain'=>$rechatChainId]);$firstRechatState=$rechatState->fetch();
+$rechatActions=$db->prepare("SELECT count(*) FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
+$rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
+$rechatActionCount=(int)$rechatActions->fetchColumn();
+    $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
+    $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&str_contains($assembledRechatPrompt,'[HISTORY]')&&str_contains($assembledRechatPrompt,'"type":"turn.requested"')
+    &&str_contains($assembledRechatPrompt,'Please follow me.')
+    &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
+    &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
+    &&(int)$firstRechatState['current_depth']===1&&(int)$firstRechatState['max_depth']===2
+    &&$firstRechatState['origin_turn_id']===$turn['turn_id']&&$firstRechatState['latest_turn_id']===$rechatTurn['turn_id']
+    &&$rechatActionCount===0,
+    'first rechat did not preserve CHIM history, chain state, or action-free continuation semantics: '.json_encode([
+        'worker'=>$rechatWorker,'has_history'=>str_contains($assembledRechatPrompt,'[HISTORY]'),
+        'state'=>$firstRechatState,'action_count'=>$rechatActionCount]));
+
+$finalRechat=$rechatTurn;
+$finalRechat['message_id']=$newUuid(824);$finalRechat['request_id']=$newUuid(825);$finalRechat['turn_id']=$newUuid(826);
+$finalRechat['payload']['input']['text']='Continue the conversation.';
+$finalRechat['payload']['context']['rechat']['depth']=2;
+$finalRechat['payload']['context']['rechat']['previous_speaker']=$rechatTurn['payload']['target'];
+$finalRechat['payload']['context']['rechat']['previous_listener']=$rechatTurn['payload']['speaker'];
+[$status,$finalRechatAccepted]=$call($router,'POST',$base.'/turns',$headers($finalRechat['message_id']),[],$finalRechat);
+$finalRechatWorker=$status===202?$runTurnWorker(new MockProvider()):[];
+$rechatState->execute(['chain'=>$rechatChainId]);$closedRechatState=$rechatState->fetch();
+$rechatSources=$db->prepare("SELECT count(*) FROM eventlog WHERE session_id=:session AND type='rechat' AND turn_id IN (:first,:second)");
+$rechatSources->execute(['session'=>$sessionId,'first'=>$rechatTurn['turn_id'],'second'=>$finalRechat['turn_id']]);
+$assert($status===202&&$finalRechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$closedRechatState&&$closedRechatState['state']==='closed'&&(int)$closedRechatState['current_depth']===2
+    &&$closedRechatState['origin_turn_id']===$turn['turn_id']
+    &&$closedRechatState['latest_turn_id']===$finalRechat['turn_id']&&(int)$rechatSources->fetchColumn()===2,
+    'rechat chain did not close deterministically at its configured maximum depth');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

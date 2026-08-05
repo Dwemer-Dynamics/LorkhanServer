@@ -57,22 +57,31 @@ public directory so source, configuration, storage, and secrets stay outside the
 2. Game API validates pairing token with constant-time comparison, rate limit and redacted audit.
 3. Strict schema, IDs, session/generation, runtime/capabilities, idempotency and content fingerprint
    are validated before application logic.
-4. Source event and request status persist transactionally; no provider call occurs in a DB
+4. The immutable typed source event and its scoped CHIM-compatible `eventlog` projection persist
+   transactionally; no provider call occurs in a DB
    transaction.
-5. Prompt service loads bounded profile/memory/relationship/world/current context with source IDs,
+5. Prompt service loads the revisioned `prompts` selection plus bounded chronological `eventlog` and
+   `speech` history, profile/memory/relationship/world/current context with source IDs,
    records a redacted prompt trace/revision and calls the configured provider.
 6. Bounded display-only text deltas may become visible while the provider streams; only validated final text becomes a durable utterance.
-7. Final text and action intent persist, then ordered dialogue/terminal events become visible and per-utterance TTS jobs are queued.
-8. TTS persists private media and emits a dialogue-correlated speech event independently; client delivery/action results remain immutable source events.
-9. Other derived jobs are enqueued after commit and process idempotently.
+7. Final text persists to the typed dialogue tables and scoped CHIM-compatible `speech`/`responselog`
+   projections, then ordered dialogue/terminal events become visible and per-utterance TTS jobs queue.
+8. TTS persists private media and emits a dialogue-correlated speech event independently; client
+   delivery updates the durable speech state and action results remain immutable source events.
+9. A rechat turn must advance one same-session `rechat_chains` row monotonically. It is action-free,
+   depth-bounded, cancelled by new player input/failure, and advanced by the client only after final
+   playback; no timer worker creates it.
+10. Other derived jobs are enqueued after commit and process idempotently.
 
 ## Persistence domains
 
 - installations/pairing-token hash and client profiles;
 - playthroughs, sessions, generations and content manifests/fingerprints;
 - actor/object identities and server character profiles;
-- immutable game/player/utterance/dialogue/action/result/system events;
-- turns, response chunks/finals, provider attempts and redacted prompt traces;
+- immutable game/player/utterance/dialogue/action/result/system events plus scoped CHIM-compatible
+  `eventlog`/`speech`/`responselog` projections;
+- turns, response chunks/finals, revisioned `prompts`, provider attempts, redacted prompt traces and
+  depth-bounded `rechat_chains`;
 - media metadata/ownership/hash/expiry (bytes outside DB/public root);
 - relationships, memories/embeddings, world knowledge, narrator/diary and dynamic profiles;
 - action definitions/policies/revisions and user settings;

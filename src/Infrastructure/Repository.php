@@ -231,7 +231,28 @@ final class Repository
                 'generation' => $m['generation'], 'kind' => $p['input']['kind'], 'language' => $p['input']['language'], 'text' => $p['input']['text'],
                 'speaker' => $this->encode($p['speaker']), 'target' => $this->encode($p['target']), 'audience' => $this->encode($p['audience']),
                 'context' => $this->encode($p['context']), 'state' => 'accepted', 'accepted' => $m['created_at']]);
-            $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], 'turn.requested', $m['created_at'],
+            $rechat=is_array($p['context']['rechat']??null)?$p['context']['rechat']:null;
+            if(($m['payload']['ui_source']??null)==='almsivi_rechat'){
+                if($rechat===null||!Uuid::isValid((string)($rechat['chain_id']??''))||!Uuid::isValid((string)($rechat['origin_turn_id']??''))
+                    ||!is_int($rechat['depth']??null)||!is_int($rechat['max_depth']??null)||$rechat['depth']<1
+                    ||$rechat['depth']>$rechat['max_depth']||$rechat['max_depth']>20)throw new \DomainException('invalid_rechat_context');
+                $chain=$this->db->prepare("INSERT INTO rechat_chains (chain_id,installation_id,playthrough_id,session_id,generation,mode,state,max_depth,current_depth,participants,previous_speaker,next_target,origin_turn_id,latest_turn_id,expires_at) "
+                    ."VALUES (:chain,:installation,:playthrough,:session,:generation,'tight','request_in_flight',:max_depth,:depth,CAST(:participants AS jsonb),CAST(:speaker AS jsonb),CAST(:target AS jsonb),:origin,:latest,clock_timestamp()+interval '10 minutes') "
+                    ."ON CONFLICT (chain_id) DO UPDATE SET state='request_in_flight',current_depth=EXCLUDED.current_depth,previous_speaker=EXCLUDED.previous_speaker,next_target=EXCLUDED.next_target,latest_turn_id=EXCLUDED.latest_turn_id,expires_at=EXCLUDED.expires_at,updated_at=clock_timestamp() "
+                    ."WHERE rechat_chains.session_id=EXCLUDED.session_id AND rechat_chains.generation=EXCLUDED.generation "
+                    ."AND rechat_chains.origin_turn_id=EXCLUDED.origin_turn_id AND rechat_chains.current_depth+1=EXCLUDED.current_depth "
+                    ."AND rechat_chains.state IN ('awaiting_playback','request_in_flight') RETURNING chain_id");
+                $chain->execute(['chain'=>$rechat['chain_id'],'installation'=>$m['installation_id'],'playthrough'=>$m['playthrough_id'],
+                    'session'=>$m['session_id'],'generation'=>$m['generation'],'max_depth'=>$rechat['max_depth'],'depth'=>$rechat['depth'],
+                    'participants'=>$this->encode($p['audience']),'speaker'=>$this->encode($rechat['previous_speaker']??[]),
+                    'target'=>$this->encode($p['target']),'origin'=>$rechat['origin_turn_id'],'latest'=>$m['turn_id']]);
+                if($chain->fetchColumn()===false)throw new \DomainException('rechat_chain_conflict');
+            }else{
+                $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason='new_player_input',updated_at=clock_timestamp() WHERE session_id=:session AND generation=:generation AND state IN ('open','awaiting_playback','request_in_flight')")
+                    ->execute(['session'=>$m['session_id'],'generation'=>$m['generation']]);
+            }
+            $sourceKind=($m['payload']['ui_source']??null)==='almsivi_rechat'?'rechat':'turn.requested';
+            $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], $sourceKind, $m['created_at'],
                 $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if ($providerInput !== null) {
@@ -350,6 +371,9 @@ final class Repository
         return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
+            if (($m['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+                $providerResult['action'] = null;
+            }
             $this->validateProviderResult($providerResult, $session, $m);
             $planner = new \ALMSIVIserver\Application\DialoguePlanner();
             $utterances = $planner->plan($m, $providerResult);
@@ -367,6 +391,20 @@ final class Repository
                         'idx' => $index + 1, 'count' => count($utterances), 'speaker' => $this->encode($utterance['speaker']),
                         'addressee' => $this->encode($utterance['addressee']), 'audience' => $this->encode($utterance['audience']),
                         'text' => $utterance['text'], 'emitted' => $dialogue['created_at']]);
+                $this->db->prepare('INSERT INTO speech (installation_id,playthrough_id,session_id,turn_id,dialogue_message_id,sess,speaker,speech,'
+                    . 'location,listener,localts,gamets,ts,utterance_id,speaker_identity,listener_identity,audience,delivery_state,created_at) '
+                    . 'VALUES (:installation,:playthrough,:session,:turn,:dialogue,:sess,:speaker,:speech,:location,:listener,'
+                    . 'extract(epoch FROM CAST(:created AS timestamptz))::bigint,:gamets,'
+                    . '(extract(epoch FROM CAST(:created AS timestamptz))*1000)::bigint,:utterance,CAST(:speaker_identity AS jsonb),'
+                    . 'CAST(:listener_identity AS jsonb),CAST(:audience AS jsonb),\'emitted\',:created) ON CONFLICT (dialogue_message_id) DO NOTHING')
+                    ->execute(['installation'=>$m['installation_id'],'playthrough'=>$m['playthrough_id'],'session'=>$m['session_id'],
+                        'turn'=>$m['turn_id'],'dialogue'=>$dialogue['message_id'],'sess'=>$m['session_id'],
+                        'speaker'=>$utterance['speaker']['display_name']??$utterance['speaker']['record_id']??null,
+                        'speech'=>$utterance['text'],'location'=>$m['payload']['context']['location']['name']??null,
+                        'listener'=>$utterance['addressee']['display_name']??$utterance['addressee']['record_id']??null,
+                        'created'=>$dialogue['created_at'],'gamets'=>(int)($m['payload']['context']['world']['game_time']??0),
+                        'utterance'=>$dialogue['message_id'],'speaker_identity'=>$this->encode($utterance['speaker']),
+                        'listener_identity'=>$this->encode($utterance['addressee']),'audience'=>$this->encode($utterance['audience'])]);
                 $expiryJob=Uuid::v4();$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority) VALUES(:job,'dialogue.expire',1,:key,CAST(:payload AS jsonb),1,CAST(:deadline AS timestamptz),50)")->execute(['job'=>$expiryJob,'key'=>'dialogue:'.$dialogue['message_id'],'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']]),'deadline'=>(new \DateTimeImmutable($dialogue['created_at']))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')]);$this->db->prepare('UPDATE dialogue_utterances SET expiry_job_id=:job WHERE dialogue_message_id=:id')->execute(['job'=>$expiryJob,'id'=>$dialogue['message_id']]);
                 $dialogues[] = $dialogue;
                 if ($queueSpeech && ($utterance['speech_enabled'] ?? true) !== false) {
@@ -392,6 +430,8 @@ final class Repository
             $updated = $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:id AND state IN ('accepted','processing')");
             $updated->execute(['id' => $m['turn_id']]);
             if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
+            $this->db->prepare("UPDATE rechat_chains SET state=CASE WHEN current_depth>=max_depth THEN 'closed' ELSE 'awaiting_playback' END,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state='request_in_flight'")
+                ->execute(['turn'=>$m['turn_id']]);
             return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents, 'action' => $action];
         });
     }
@@ -446,6 +486,8 @@ final class Repository
                 ->execute(['turn' => $m['turn_id']]);
             $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'turn.failed',
                 ['code' => $reason, 'retriable' => false]);
+            $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason=:reason,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state IN ('request_in_flight','awaiting_playback')")
+                ->execute(['reason'=>$reason,'turn'=>$m['turn_id']]);
         });
     }
 
@@ -495,7 +537,28 @@ final class Repository
 
     public function expireDialogue(string $dialogueId):void
     {
-        $this->transaction(function()use($dialogueId):void{$s=$this->db->prepare("SELECT u.*,se.installation_id FROM dialogue_utterances u JOIN sessions se ON se.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE");$s->execute(['id'=>$dialogueId]);$u=$s->fetch();if(!$u||$u['delivery_state']!=='pending'||new \DateTimeImmutable($u['delivery_deadline_at'])>new \DateTimeImmutable())return;$source=Uuid::v4();$payload=['schema'=>'almsivi.dialogue-delivery-result.v1','message_id'=>$source,'request_id'=>$u['request_id'],'dialogue_message_id'=>$dialogueId,'turn_id'=>$u['turn_id'],'session_id'=>$u['session_id'],'generation'=>(int)$u['generation'],'speaker'=>$this->json($u['speaker']),'status'=>'expired','reason_code'=>'delivery_deadline','completed_at'=>$this->utc($u['delivery_deadline_at'])];$this->source($source,$u['installation_id'],$u['session_id'],(int)$u['generation'],'dialogue.delivery',$payload['completed_at'],$payload['schema'],$u['request_id'],$u['turn_id'],null,$payload);$this->db->prepare('INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,:generation,CAST(:speaker AS jsonb),\'expired\',\'delivery_deadline\',:completed)')->execute(['dialogue'=>$dialogueId,'source'=>$source,'message'=>$source,'request'=>$u['request_id'],'turn'=>$u['turn_id'],'session'=>$u['session_id'],'generation'=>$u['generation'],'speaker'=>$u['speaker'],'completed'=>$payload['completed_at']]);$this->db->prepare("UPDATE dialogue_utterances SET delivery_state='expired',delivered_at=delivery_deadline_at WHERE dialogue_message_id=:id")->execute(['id'=>$dialogueId]);});
+        $this->transaction(function()use($dialogueId):void{
+            $s=$this->db->prepare("SELECT u.*,se.installation_id FROM dialogue_utterances u JOIN sessions se ON se.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE");
+            $s->execute(['id'=>$dialogueId]);
+            $u=$s->fetch();
+            if(!$u||$u['delivery_state']!=='pending'||new \DateTimeImmutable($u['delivery_deadline_at'])>new \DateTimeImmutable())return;
+            $source=Uuid::v4();
+            $payload=['schema'=>'almsivi.dialogue-delivery-result.v1','message_id'=>$source,'request_id'=>$u['request_id'],
+                'dialogue_message_id'=>$dialogueId,'turn_id'=>$u['turn_id'],'session_id'=>$u['session_id'],
+                'generation'=>(int)$u['generation'],'speaker'=>$this->json($u['speaker']),'status'=>'expired',
+                'reason_code'=>'delivery_deadline','completed_at'=>$this->utc($u['delivery_deadline_at'])];
+            $this->source($source,$u['installation_id'],$u['session_id'],(int)$u['generation'],'dialogue.delivery',
+                $payload['completed_at'],$payload['schema'],$u['request_id'],$u['turn_id'],null,$payload);
+            $this->db->prepare('INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) '
+                . 'VALUES(:dialogue,:source,:message,:request,:turn,:session,:generation,CAST(:speaker AS jsonb),\'expired\',\'delivery_deadline\',:completed)')
+                ->execute(['dialogue'=>$dialogueId,'source'=>$source,'message'=>$source,'request'=>$u['request_id'],
+                    'turn'=>$u['turn_id'],'session'=>$u['session_id'],'generation'=>$u['generation'],'speaker'=>$u['speaker'],
+                    'completed'=>$payload['completed_at']]);
+            $this->db->prepare("UPDATE dialogue_utterances SET delivery_state='expired',delivered_at=delivery_deadline_at WHERE dialogue_message_id=:id")
+                ->execute(['id'=>$dialogueId]);
+            $this->db->prepare("UPDATE speech SET delivery_state='expired' WHERE dialogue_message_id=:id")
+                ->execute(['id'=>$dialogueId]);
+        });
     }
 
     public function dialogueDeliveryResult(array $m):array
@@ -521,6 +584,9 @@ final class Repository
                 ->execute(['dialogue'=>$m['dialogue_message_id'],'source'=>$m['message_id'],'message'=>$m['message_id'],'request'=>$m['request_id'],'turn'=>$m['turn_id'],'session'=>$m['session_id'],'generation'=>$m['generation'],'speaker'=>$this->encode($m['speaker']),'status'=>$m['status'],'reason'=>$m['reason_code'],'completed'=>$m['completed_at']]);
             $this->db->prepare('UPDATE dialogue_utterances SET delivery_state=:state,delivered_at=:completed WHERE dialogue_message_id=:id')
                 ->execute(['state'=>$m['status'],'completed'=>$m['completed_at'],'id'=>$m['dialogue_message_id']]);
+            $speechState=$m['status']==='played'?'spoken':$m['status'];
+            $this->db->prepare('UPDATE speech SET delivery_state=:state WHERE dialogue_message_id=:id')
+                ->execute(['state'=>$speechState,'id'=>$m['dialogue_message_id']]);
             $this->db->prepare("UPDATE durable_jobs SET state='succeeded',completed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE job_id=:job AND state='queued'")->execute(['job'=>$stored['expiry_job_id']]);
             return['duplicate'=>false];
         });
@@ -719,6 +785,18 @@ final class Repository
             . 'VALUES (:session, :sequence, :message, :request, :generation, :turn, :type, CAST(:payload AS jsonb), :created)');
         $stmt->execute(['session' => $sessionId, 'sequence' => $sequence, 'message' => $messageId, 'request' => $requestId,
             'generation' => $generation, 'turn' => $turnId, 'type' => $type, 'payload' => $this->encode($payload), 'created' => $created]);
+        $scope=$this->db->prepare('SELECT installation_id,playthrough_id FROM sessions WHERE session_id=:session');
+        $scope->execute(['session'=>$sessionId]);$owner=$scope->fetch();
+        if($owner){
+            $actor=is_array($payload['speaker']??null)?$payload['speaker']:[];
+            $this->db->prepare('INSERT INTO responselog (installation_id,playthrough_id,session_id,turn_id,response_message_id,localts,sent,actor,text,action,tag,actor_identity,payload,created_at) '
+                . 'VALUES (:installation,:playthrough,:session,:turn,:message,extract(epoch FROM CAST(:created AS timestamptz))::bigint,1,:actor,:text,:action,:tag,'
+                . 'CAST(:identity AS jsonb),CAST(:payload AS jsonb),:created) ON CONFLICT (response_message_id) DO NOTHING')
+                ->execute(['installation'=>$owner['installation_id'],'playthrough'=>$owner['playthrough_id'],'session'=>$sessionId,
+                    'turn'=>$turnId,'message'=>$messageId,'created'=>$created,'actor'=>$actor['display_name']??$actor['record_id']??null,
+                    'text'=>is_string($payload['text']??null)?$payload['text']:null,'action'=>$type==='action.intent'?($payload['name']??null):null,
+                    'tag'=>$type,'identity'=>$actor===[]?'{}':$this->encode($actor),'payload'=>$this->encode($payload)]);
+        }
         return ['message_id' => $messageId, 'request_id' => $requestId, 'turn_id' => $turnId, 'session_id' => $sessionId,
             'generation' => $generation, 'sequence' => $sequence, 'created_at' => $created, 'type' => $type, 'payload' => $payload];
     }
@@ -800,6 +878,22 @@ final class Repository
             . ':schema, :request, :turn, :action, CAST(:payload AS jsonb))');
         $stmt->execute(['id' => $id, 'installation' => $installation, 'session' => $session, 'generation' => $generation, 'kind' => $kind,
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
+        $scope=null;
+        if($session!==null){$find=$this->db->prepare('SELECT playthrough_id,profile_id FROM sessions WHERE session_id=:session');$find->execute(['session'=>$session]);$scope=$find->fetch()?:null;}
+        $body=is_array($payload['payload']??null)?$payload['payload']:$payload;
+        $speaker=is_array($body['speaker']??null)?$body['speaker']:[];$target=is_array($body['target']??null)?$body['target']:[];
+        $audience=is_array($body['audience']??null)&&array_is_list($body['audience'])?$body['audience']:[];
+        $this->db->prepare('INSERT INTO eventlog (installation_id,playthrough_id,profile_id,session_id,source_event_id,request_id,turn_id,type,data,sess,gamets,localts,ts,people,location,party,speaker,target,audience,payload,created_at) '
+            . 'VALUES (:installation,:playthrough,:profile,:session,:source,:request,:turn,:type,:data,:sess,:gamets,'
+            . 'extract(epoch FROM CAST(:occurred AS timestamptz))::bigint,(extract(epoch FROM CAST(:occurred AS timestamptz))*1000)::bigint,'
+            . ':people,:location,:party,CAST(:speaker AS jsonb),CAST(:target AS jsonb),CAST(:audience AS jsonb),CAST(:payload AS jsonb),clock_timestamp()) '
+            . 'ON CONFLICT (source_event_id) DO NOTHING')->execute(['installation'=>$installation,'playthrough'=>$scope['playthrough_id']??null,
+                'profile'=>$scope['profile_id']??null,'session'=>$session,'source'=>$id,'request'=>$request,'turn'=>$turn,'type'=>$kind,
+                'data'=>$this->encode($payload),'sess'=>$session,'gamets'=>(int)($body['context']['world']['game_time']??0),
+                'occurred'=>$occurred,'people'=>is_string($body['people']??null)?$body['people']:null,
+                'location'=>$body['context']['location']['name']??null,'party'=>is_string($body['party']??null)?$body['party']:null,
+                'speaker'=>$speaker===[]?'{}':$this->encode($speaker),'target'=>$target===[]?'{}':$this->encode($target),
+                'audience'=>$this->encode($audience),'payload'=>$this->encode($payload)]);
     }
 
     private function encode(array $value): string { return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES); }

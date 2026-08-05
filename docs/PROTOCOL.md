@@ -43,7 +43,7 @@ stale references fail explicitly.
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
 | `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
 | `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
-| `POST /stt` | Validate metadata/audio and produce transcript/failure event. |
+| `POST /stt` | Compatibility-only bounded route; the shipped ALMSIVI client does not call it because STT is excluded. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
@@ -53,6 +53,13 @@ Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete
 `turn.complete`, `turn.failed`, `turn.cancelled`, `stt.transcript`, and `stt.failed`. Future variants such as status/notices require
 an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
+
+`ui_source=almsivi_rechat` denotes a playback-driven continuation, not timer autonomy. Its bounded
+context carries chain/origin IDs, monotonic depth and previous speaker/listener identities. The server
+accepts it only in the same active session/generation, stores one scoped chain, discards provider
+actions, and closes or cancels the chain at its configured depth, on new player input, or on failure.
+The client submits continuation only after every preceding utterance is terminal and the final
+delivery result is `played`.
 
 ## Actions
 
@@ -85,7 +92,8 @@ already accepted job.
 The controls response also returns a strict `almsivi.effective-settings.v1` snapshot for the active target.
 It contains the resolved memory, narrator, safety, and routing values, their Global/Core Profile/NPC source
 map, bound profile revisions, and a deterministic change token. Client-local presentation settings are not
-part of this target-effective document, and autonomy settings are excluded from this milestone.
+part of this target-effective document. Layered rechat enable/depth is included; timer scheduling,
+boredom, greetings, combat barks, STT, ITT, and Background Life are excluded.
 
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
