@@ -52,13 +52,6 @@ $sections = [
             ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
         ],
     ],
-    'safety-actions' => [
-        'Safety & OpenMW Actions' => [
-            ['actions_enabled', 'Enable Negotiated Actions', '&#x2694;&#xFE0F;', 'boolean', $settings['safety']['actions_enabled'], 'Allows only actions advertised by the connected OpenMW client.'],
-            ['allow_hostile', 'Allow Hostile NPC Targets', '&#x1F6E1;&#xFE0F;', 'boolean', $settings['safety']['allow_hostile'], 'Allows hostile actors to be selected when the client also permits them.'],
-            ['allow_creatures', 'Allow Creature Targets', '&#x1F43E;', 'boolean', $settings['safety']['allow_creatures'], 'Allows creatures to be selected when the client also permits them.'],
-        ],
-    ],
 ];
 
 $additionalStylesheets = ['herika-global-settings.css?v=' . (string) filemtime(__DIR__ . '/css/herika-global-settings.css')];
@@ -79,7 +72,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
 
     <nav class="settings-tabs" role="tablist" aria-label="Global settings categories">
-        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'safety-actions' => '&#x2694;&#xFE0F; Safety & Actions'] as $tabId => $tabLabel): ?>
+        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge'] as $tabId => $tabLabel): ?>
         <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" data-settings-tab="<?php echo almsivi_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
         <?php endforeach; ?>
     </nav>
@@ -89,6 +82,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">
+        <?php foreach ($settings['safety'] as $name => $enabled): if ($enabled): ?><input type="hidden" name="<?php echo almsivi_ui_h($name); ?>" value="1"><?php endif; endforeach; ?>
         <div class="content-grid">
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
             <section class="content-section" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
