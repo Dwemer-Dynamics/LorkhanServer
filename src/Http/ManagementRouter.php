@@ -752,6 +752,7 @@ final class ManagementRouter
     private function saveGlobalSettings(array $values,array $scope):array
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
         $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');

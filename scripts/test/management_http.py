@@ -326,9 +326,11 @@ assert r.status==200 and revised_title in body and revised_text in body,(r.statu
 r=request('/ALMSIVIserver/manage/forms/narrative-delete','POST',{'_csrf':csrf,'narrative_id':narrative_id}); body=r.read().decode(); assert r.status==200 and revised_title not in body,(r.status,r.geturl())
 globals_page,_=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
-values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],recent_turn_limit='20',knowledge_limit='6',narrator_name='The Narrator',narrator_inline_mode='Disabled',change_reason='HTTP layered global settings')
+values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],recent_turn_limit='20',knowledge_limit='6',narrator_name='The Narrator',narrator_inline_mode='Disabled',auto_lock_profile='1',change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
-globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" disabled aria-disabled="true"' in body and 'name="show_status_hud" value="1" disabled aria-disabled="true"' in body
+globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
+assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" disabled aria-disabled="true"' in body and 'name="auto_lock_profile" value="1" checked' in body
+assert all('<h2>'+section+'</h2>' in body for section in ['Memory','Misc','Quests','Translation']) and all(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','translation_provider']) and 'Background Life Trigger Time' not in body
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex
