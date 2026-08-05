@@ -42,10 +42,6 @@ $sections = [
     ],
     'context-knowledge' => [
         'Context & Knowledge' => [
-            ['narrator_enabled', 'Enable Narrator', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['narrator']['enabled'], 'Allows the typed narrator profile to participate in eligible events.'],
-            ['narrator_name', 'Narrator Name', '&#x1F3F7;&#xFE0F;', 'text', $settings['narrator']['name'], 'Display name used for narration, prompts, subtitles, and TTS.'],
-            ['narrator_inline_mode', 'Inline Mode', '&#x1F4DD;', 'select', $settings['narrator']['inline_mode'], 'Controls how inline narration is delivered.', ['values' => ['Disabled', 'Narrator', 'NPC', 'Text Only']]],
-            ['narrator_context_visibility', 'Include Narrator Context', '&#x1F441;&#xFE0F;', 'boolean', $settings['narrator']['context_visibility'], 'Includes narrator context in eligible roleplay requests.'],
             ['narrator_welcome_events', 'Welcome Events', '&#x1F44B;', 'boolean', $settings['narrator']['welcome_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['narrator_random_events', 'Random Events', '&#x1F3B2;', 'boolean', $settings['narrator']['random_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['narrator_quest_events', 'Quest Events', '&#x1F5FA;&#xFE0F;', 'boolean', $settings['narrator']['quest_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
@@ -83,6 +79,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">
         <?php foreach ($settings['safety'] as $name => $enabled): if ($enabled): ?><input type="hidden" name="<?php echo almsivi_ui_h($name); ?>" value="1"><?php endif; endforeach; ?>
+        <?php if ($settings['narrator']['enabled']): ?><input type="hidden" name="narrator_enabled" value="1"><?php endif; ?>
+        <input type="hidden" name="narrator_name" value="<?php echo almsivi_ui_h($settings['narrator']['name']); ?>">
+        <input type="hidden" name="narrator_inline_mode" value="<?php echo almsivi_ui_h($settings['narrator']['inline_mode']); ?>">
+        <?php if ($settings['narrator']['context_visibility']): ?><input type="hidden" name="narrator_context_visibility" value="1"><?php endif; ?>
         <div class="content-grid">
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
             <section class="content-section" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
