@@ -327,7 +327,12 @@ final class EventLogRepository
             if (!is_array($item) || array_is_list($item)) continue;
             $text = (string) ($item['text'] ?? $item['journal_entry'] ?? '');
             if ($text === '') continue;
-            $key = hash('sha256', json_encode($this->canonicalValue($item), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
+            $normalizedText=mb_strtolower(preg_replace('/\s+/u',' ',trim($text))??trim($text),'UTF-8');
+            $key = hash('sha256', json_encode([
+                'quest_id'=>mb_strtolower(trim((string)($item['quest_id']??$item['id']??$item['record_id']??'')),'UTF-8'),
+                'index'=>$item['index']??$item['stage']??null,
+                'text'=>$normalizedText,
+            ], JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
             $this->insert(array_merge($common, ['payload'=>$item,'type'=>'quest','data'=>$text,'projection_kind'=>'journal',
                 'projection_key'=>'quest:'.$common['playthrough_id'].':'.$key,'delivery_state'=>null,'utterance_id'=>null]));
         }

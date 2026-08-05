@@ -1135,7 +1135,7 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
   AND m.turn_id IS DISTINCT FROM :current_turn
   AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
-  AND (m.speaker @> CAST(:event_speaker AS jsonb)
+  AND (CAST(:is_rechat AS boolean)=true OR m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
@@ -1144,6 +1144,7 @@ SQL);
         $historyStatement->execute([
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
+            'is_rechat'=>(($turn['payload']['ui_source']??null)==='almsivi_rechat')?'true':'false',
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
         ]);
         $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],

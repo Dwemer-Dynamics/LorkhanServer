@@ -9,6 +9,7 @@ use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\SpeechProvider;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\ManagementRouter;
@@ -89,9 +90,10 @@ try {
         $database,
         (string) ($config['voice_storage_path'] ?? '/var/lib/almsiviserver/voices'),
     );
+    $repository = new Repository($database, (int) ($config['event_replay_limit'] ?? 256),
+        new ActionCatalogRepository($database), new ActionPolicyValidator(), $defaultConnectors);
     $router = new Router(
-        new Repository($database, (int) ($config['event_replay_limit'] ?? 256),
-            new ActionCatalogRepository($database), new ActionPolicyValidator(), $defaultConnectors),
+        $repository,
         new Validator(),
         $provider,
         $tokenHash,
@@ -109,6 +111,7 @@ try {
         $products,
         new PromptAssembler((int) ($config['max_context_bytes'] ?? 131_072)),
         MorrowindVoiceCatalog::bundled(),
+        new RechatCoordinator($repository, $products),
     );
     $request = Request::fromGlobals();
     if (str_starts_with($request->path, (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'))) {

@@ -199,7 +199,8 @@ $disabledNumberField = static function (string $section, string $field, string $
     <div class="profile-settings-columns">
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat &amp; Bored Event</h3><div class="provider-card">
             <?php $disabledNumberField('behavior', 'rechat_delay_seconds', 'Rechat Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
-            <?php $numberField('behavior', 'rechat_max_depth', 'Rechat Depth', 'Maximum inherited continuation replies.', 1, 20); ?>
+            <?php $numberField('behavior', 'rechat_max_depth', 'Rechat Rounds', 'Maximum inherited NPC-to-NPC continuation rounds.', 1, 20); ?>
+            <?php $numberField('behavior', 'rechat_probability_percent', 'Rechat Probability', 'Inherited chance, from 0 to 100, that the conversation continues.', 0, 100); ?>
             <?php $disabledNumberField('behavior', 'boredom_delay_seconds', 'Bored Event Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
             <?php $disabledNumberField('behavior', 'combat_bark_period_seconds', 'Combat Bark Period', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
         </div></section>

@@ -6,6 +6,7 @@ namespace ALMSIVIserver\Http;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
+use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\SpeechProvider;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
@@ -42,6 +43,7 @@ final class Router
         private readonly ?ProductRepository $products = null,
         private readonly ?PromptAssembler $promptAssembler = null,
         private readonly ?MorrowindVoiceCatalog $morrowindVoices = null,
+        private readonly ?RechatCoordinator $rechatCoordinator = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -117,7 +119,9 @@ final class Router
         $saved=$this->products?->globalSettingsForInstallation($installationId);
         if($saved!==null)return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$saved['content']];
         return['revision'=>'global-settings-default-v1','content'=>['schema'=>'almsivi.client-settings.v1',
-            'behavior'=>['auto_greeting'=>false,'rechat'=>false,'rechat_delay_seconds'=>45,'rechat_max_depth'=>10,
+            'behavior'=>['auto_greeting'=>false,'rechat'=>false,'rechat_delay_seconds'=>45,'rechat_max_depth'=>2,
+                'rechat_probability_percent'=>50,'rechat_mode'=>'random','rechat_strict_targeting'=>false,
+                'open_rechat'=>true,'rechat_allow_actions'=>false,'end_conversation_cooldown_seconds'=>60,
                 'boredom'=>false,'boredom_delay_seconds'=>180,'combat_barks'=>false,'combat_bark_period_seconds'=>20],
             'memory'=>['recent_turn_limit'=>20,'knowledge_limit'=>5],
             'narrator'=>['enabled'=>false,'name'=>'The Narrator','context_visibility'=>true,'inline_mode'=>'Disabled',
@@ -144,6 +148,11 @@ final class Router
             $hash = $this->semanticHash($m);
             $cached = $this->repository->idempotent($m['installation_id'], $m['message_id'], '/turns', $hash);
             if ($cached !== null) return Response::json($cached['status'], $cached['body']);
+
+            if (($m['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+                if ($this->rechatCoordinator === null) throw new DomainException('rechat_unavailable');
+                $m = $this->rechatCoordinator->resolve($m);
+            }
 
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
@@ -406,7 +415,8 @@ final class Router
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',
-            'stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
+            'rechat_chain_conflict','rechat_complete','rechat_cooldown','rechat_no_responder','rechat_unavailable',
+            'invalid_rechat_context','stale_generation','turn_terminal','unauthorized','unknown_action','unknown_session','unknown_turn'];
         return in_array($code,$allowed,true)?$code:'internal_error';
     }
 

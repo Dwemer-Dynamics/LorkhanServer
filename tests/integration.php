@@ -11,6 +11,7 @@ use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\ProductService;
+use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
@@ -45,7 +46,7 @@ $morrowindVoices=MorrowindVoiceCatalog::bundled();
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
     products:$products,promptAssembler:new PromptAssembler(),
-    morrowindVoices:$morrowindVoices);
+    morrowindVoices:$morrowindVoices,rechatCoordinator:new RechatCoordinator($repo,$products));
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
@@ -789,22 +790,24 @@ $assert($status===409&&$invalidTravelError['code']==='action_parameters_invalid'
     'unknown travel coordinate field passed catalog validation: '.$status.' '.json_encode($invalidTravelError));
 
 // Rechat is a playback-gated continuation of a player-started chain, not timer-driven autonomy.
-$rechatChainId=$newUuid(820);
+$rechatChainId=$newUuid(838);
 $rechatTurn=$turn;
 $rechatTurn['message_id']=$newUuid(821);$rechatTurn['request_id']=$newUuid(822);$rechatTurn['turn_id']=$newUuid(823);
 $rechatTurn['payload']['ui_source']='almsivi_rechat';
 $rechatTurn['payload']['input']['text']='Please follow me again.';
 $rechatTurn['payload']['recent_action_results']=[];
-$rechatTurn['payload']['context']['rechat']=['chain_id'=>$rechatChainId,'depth'=>1,'max_depth'=>2,
-    'origin_turn_id'=>$turn['turn_id'],'previous_speaker'=>$dialogueEvent['payload']['speaker'],
-    'previous_listener'=>$turn['payload']['speaker']];
+$rechatTurn['payload']['audience']=[$dialogueEvent['payload']['speaker'],$secondaryTarget];
+$rechatTurn['payload']['context']['rechat']=['speaker'=>$dialogueEvent['payload']['speaker'],
+    'listener_hint'=>$turn['payload']['speaker'],'rechat_target_hint'=>$secondaryTarget,
+    'origin_line'=>$turn['payload']['input']['text'],'rechat_depth'=>1,'chain_id'=>$rechatChainId,
+    'origin_turn_id'=>$turn['turn_id']];
 [$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
 $assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
 $rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $rechatPrompt->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatManifest=json_decode((string)$rechatPrompt->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $rechatWorker=$runTurnWorker(new MockProvider());
-$rechatState=$db->prepare('SELECT state,current_depth,max_depth,origin_turn_id,latest_turn_id FROM rechat_chains WHERE chain_id=:chain');
+$rechatState=$db->prepare('SELECT state,configured_mode,mode,current_depth,max_depth,round_budget,origin_turn_id,latest_turn_id FROM rechat_chains WHERE chain_id=:chain');
 $rechatState->execute(['chain'=>$rechatChainId]);$firstRechatState=$rechatState->fetch();
 $rechatActions=$db->prepare("SELECT count(*) FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
 $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
@@ -815,11 +818,14 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
     &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)>=3
     &&($rechatMessages[0]['role']??null)==='system'
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
     &&str_contains($assembledRechatPrompt,'Please follow me.')
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
+    &&$firstRechatState['configured_mode']==='random'&&$firstRechatState['mode']==='conversational'
     &&(int)$firstRechatState['current_depth']===1&&(int)$firstRechatState['max_depth']===2
+    &&(int)$firstRechatState['round_budget']===2
     &&$firstRechatState['origin_turn_id']===$turn['turn_id']&&$firstRechatState['latest_turn_id']===$rechatTurn['turn_id']
     &&$rechatActionCount===0,
     'first rechat did not preserve CHIM history, chain state, or action-free continuation semantics: '.json_encode([
@@ -829,9 +835,9 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
 $finalRechat=$rechatTurn;
 $finalRechat['message_id']=$newUuid(824);$finalRechat['request_id']=$newUuid(825);$finalRechat['turn_id']=$newUuid(826);
 $finalRechat['payload']['input']['text']='Continue the conversation.';
-$finalRechat['payload']['context']['rechat']['depth']=2;
-$finalRechat['payload']['context']['rechat']['previous_speaker']=$rechatTurn['payload']['target'];
-$finalRechat['payload']['context']['rechat']['previous_listener']=$rechatTurn['payload']['speaker'];
+$finalRechat['payload']['context']['rechat']['rechat_depth']=2;
+$finalRechat['payload']['context']['rechat']['speaker']=$secondaryTarget;
+$finalRechat['payload']['context']['rechat']['listener_hint']=$turn['payload']['speaker'];
 [$status,$finalRechatAccepted]=$call($router,'POST',$base.'/turns',$headers($finalRechat['message_id']),[],$finalRechat);
 $finalRechatWorker=$status===202?$runTurnWorker(new MockProvider()):[];
 $rechatState->execute(['chain'=>$rechatChainId]);$closedRechatState=$rechatState->fetch();
@@ -842,6 +848,13 @@ $assert($status===202&&$finalRechatWorker===['claimed'=>1,'succeeded'=>1,'retrie
     &&$closedRechatState['origin_turn_id']===$turn['turn_id']
     &&$closedRechatState['latest_turn_id']===$finalRechat['turn_id']&&(int)$rechatSources->fetchColumn()===2,
     'rechat chain did not close deterministically at its configured maximum depth');
+
+$cooldownRechat=$rechatTurn;
+$cooldownRechat['message_id']=$newUuid(827);$cooldownRechat['request_id']=$newUuid(828);$cooldownRechat['turn_id']=$newUuid(829);
+$cooldownRechat['payload']['context']['rechat']['chain_id']=$newUuid(839);
+[$status,$cooldownError]=$call($router,'POST',$base.'/turns',$headers($cooldownRechat['message_id']),[],$cooldownRechat);
+$assert($status===409&&($cooldownError['code']??null)==='rechat_cooldown',
+    'closed rechat chain did not enforce the Herika end-conversation cooldown');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);
@@ -858,6 +871,8 @@ $assert($status === 200 && $resultAfterEnd['duplicate'], 'terminal result replay
 $assert($status === 404 && $body['code'] === 'media_unavailable', 'ended-session media remained available');
 $settingsDocument=['schema'=>'almsivi.client-settings.v1','behavior'=>[
     'auto_greeting'=>true,'rechat'=>true,'rechat_delay_seconds'=>60,'rechat_max_depth'=>8,
+    'rechat_probability_percent'=>50,'rechat_mode'=>'random','rechat_strict_targeting'=>false,
+    'open_rechat'=>true,'rechat_allow_actions'=>false,'end_conversation_cooldown_seconds'=>60,
     'boredom'=>true,'boredom_delay_seconds'=>240,'combat_barks'=>true,'combat_bark_period_seconds'=>30],
     'memory'=>['recent_turn_limit'=>24,'knowledge_limit'=>6],
     'narrator'=>['enabled'=>true,'name'=>'The Temple Chronicler','context_visibility'=>true,'inline_mode'=>'Narrator',

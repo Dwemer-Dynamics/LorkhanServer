@@ -15,7 +15,13 @@ final class EffectiveSettingsResolver
             'auto_greeting' => false,
             'rechat' => false,
             'rechat_delay_seconds' => 45,
-            'rechat_max_depth' => 10,
+            'rechat_max_depth' => 2,
+            'rechat_probability_percent' => 50,
+            'rechat_mode' => 'random',
+            'rechat_strict_targeting' => false,
+            'open_rechat' => true,
+            'rechat_allow_actions' => false,
+            'end_conversation_cooldown_seconds' => 60,
             'boredom' => false,
             'boredom_delay_seconds' => 180,
             'combat_barks' => false,
@@ -184,6 +190,8 @@ final class EffectiveSettingsResolver
         $ranges = [
             'behavior.rechat_delay_seconds' => [30, 3600],
             'behavior.rechat_max_depth' => [1, 20],
+            'behavior.rechat_probability_percent' => [0, 100],
+            'behavior.end_conversation_cooldown_seconds' => [0, 300],
             'behavior.boredom_delay_seconds' => [30, 86400],
             'behavior.combat_bark_period_seconds' => [5, 300],
             'memory.recent_turn_limit' => [1, 100],
@@ -196,6 +204,9 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'narrator.inline_mode' && !in_array($value, ['Disabled', 'Narrator', 'NPC', 'Text Only'], true)) {
+            throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
+        }
+        if ($path === 'behavior.rechat_mode' && !in_array($value, ['tight', 'conversational', 'group', 'random'], true)) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 128 || !mb_check_encoding($value, 'UTF-8'))) {

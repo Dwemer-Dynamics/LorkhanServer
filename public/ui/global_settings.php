@@ -25,7 +25,13 @@ $sections = [
             ['auto_greeting', 'Automatic Greeting', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['rechat', 'Rechat', '&#x1F501;', 'boolean', $settings['behavior']['rechat'], 'Continue a player-started conversation only after the current spoken-response queue finishes.', []],
             ['rechat_delay_seconds', 'Rechat Delay', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['rechat_delay_seconds'], 'Automatic rechat scheduling is excluded from this build.', ['min' => 30, 'max' => 3600, 'feature' => 'autonomy']],
-            ['rechat_max_depth', 'Maximum Rechat Depth', '&#x1F4AC;', 'integer', $settings['behavior']['rechat_max_depth'], 'Maximum playback-driven continuation replies before waiting for new player input.', ['min' => 1, 'max' => 20]],
+            ['rechat_max_depth', 'Rechat Rounds', '&#x1F4AC;', 'integer', $settings['behavior']['rechat_max_depth'], 'Higher values increase the number of times AI NPCs can go back-and-forth during a conversation.', ['min' => 1, 'max' => 20]],
+            ['rechat_probability_percent', 'Rechat Probability', '&#x1F3B2;', 'integer', $settings['behavior']['rechat_probability_percent'], 'Chance that an AI NPC will continue an ongoing conversation.', ['min' => 0, 'max' => 100]],
+            ['rechat_mode', 'Rechat Mode', '&#x1F501;', 'select', $settings['behavior']['rechat_mode'], 'Tight uses the listener, Conversational prefers the current partner, Group rotates nearby NPCs, and Random selects one mode per chain.', ['values' => ['tight', 'conversational', 'group', 'random']]],
+            ['rechat_strict_targeting', 'Strict Rechat Targeting', '&#x1F3AF;', 'boolean', $settings['behavior']['rechat_strict_targeting'], 'Requires the selected responder to address the previous speaker directly.', []],
+            ['open_rechat', 'Open Rechat', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['behavior']['open_rechat'], 'Allows nearby scene participants to become the next responder when the selected mode permits it.', []],
+            ['rechat_allow_actions', 'Allow Rechat Actions', '&#x2694;&#xFE0F;', 'boolean', false, 'Actions between NPCs remain disabled until the OpenMW action matrix is proven.', ['feature' => 'actions.rechat']],
+            ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC remains ineligible for another rechat chain after ending a conversation.', ['min' => 0, 'max' => 300]],
             ['boredom', 'Boredom Events', '&#x1F4AD;', 'boolean', $settings['behavior']['boredom'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Automatic boredom scheduling is excluded from this build.', ['min' => 30, 'max' => 86400, 'feature' => 'autonomy']],
             ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
@@ -121,8 +127,6 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <?php foreach ([
                         ['Prompt Head', '&#x1F51D;', 'textarea', 'System Prompt. Defines the rules of the roleplay.', 'config.globals.prompt-head', []],
                         ['Emote Moods', '&#x1F3AD;', 'textarea', 'Default list of moods passed to the LLM. Core Profiles and NPCs can provide explicit profile text.', 'config.globals.emote-moods', []],
-                        ['Rechat Mode', '&#x1F501;', 'select', 'Controls which participant is preferred for the next rechat turn.', 'config.globals.rechat-mode', ['Tight', 'Conversational', 'Group', 'Random (Recommended)']],
-                        ['Strict Rechat Targeting', '&#x1F3AF;', 'boolean', 'Requires each rechat responder to address the previous speaker directly.', 'config.globals.strict-rechat', []],
                     ] as [$label, $icon, $placeholderType, $help, $placeholderFeature, $placeholderOptions]): ?>
                     <div class="provider-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>">
                         <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($placeholderType === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" disabled aria-disabled="true" aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
@@ -130,7 +134,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <div class="provider-help"><?php echo almsivi_ui_h($help); ?></div>
                     </div>
                     <?php endforeach; ?>
-                    <div class="provider-subsection-title">ALMSIVI Conversation Timing</div>
+                    <div class="provider-subsection-title">Roleplay Management</div>
                     <?php endif; ?>
                     <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $placeholderFeature = (string) ($options['feature'] ?? ''); $disabled = $placeholderFeature !== ''; ?>
                     <div class="provider-card"<?php if ($disabled): ?> title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>"<?php endif; ?>>
@@ -138,7 +142,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($disabled) echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
                         <div class="provider-body">
                             <?php if ($type === 'integer'): ?><input type="number" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" min="<?php echo almsivi_ui_h($options['min']); ?>" max="<?php echo almsivi_ui_h($options['max']); ?>" step="1" aria-label="<?php echo almsivi_ui_h($label); ?>">
-                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
+                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option value="<?php echo almsivi_ui_h($option); ?>"<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
                             <?php elseif ($type === 'text' || $type === 'url'): ?><input type="<?php echo $type; ?>" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" maxlength="512" aria-label="<?php echo almsivi_ui_h($label); ?>">
                             <?php endif; ?>
                         </div>

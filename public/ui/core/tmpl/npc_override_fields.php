@@ -21,7 +21,7 @@ $npcNumber=static function(string$section,string$field,string$label,int$min,int$
 </div></fieldset>
 <fieldset class="almsivi-group"><legend>NPC behavior overrides</legend><div class="almsivi-form-grid">
     <?php foreach(['auto_greeting'=>'Automatic greeting','rechat'=>'Rechat','boredom'=>'Boredom events','combat_barks'=>'Combat barks']as$field=>$label)$npcBool('setting_behavior_'.$field,$label,$overrides['behavior'][$field]??null); ?>
-    <?php $npcNumber('behavior','rechat_delay_seconds','Rechat delay',30,3600);$npcNumber('behavior','rechat_max_depth','Rechat depth',1,20);$npcNumber('behavior','boredom_delay_seconds','Boredom delay',30,86400);$npcNumber('behavior','combat_bark_period_seconds','Combat bark period',5,300); ?>
+    <?php $npcNumber('behavior','rechat_delay_seconds','Rechat delay',30,3600);$npcNumber('behavior','rechat_max_depth','Rechat rounds',1,20);$npcNumber('behavior','rechat_probability_percent','Rechat probability',0,100);$npcNumber('behavior','boredom_delay_seconds','Boredom delay',30,86400);$npcNumber('behavior','combat_bark_period_seconds','Combat bark period',5,300); ?>
     <?php $npcNumber('memory','recent_turn_limit','Recent turns',1,100);$npcNumber('memory','knowledge_limit','Knowledge results',0,20); ?>
     <?php $npcBool('setting_presentation_show_status_hud','Show status HUD',$overrides['presentation']['show_status_hud']??null);$npcNumber('presentation','transcript_rows','Transcript rows',2,20);$npcNumber('presentation','tts_volume_boost','TTS volume boost',1,4); ?>
     <?php foreach(['actions_enabled'=>'Negotiated actions','allow_hostile'=>'Hostile targets','allow_creatures'=>'Creature targets']as$field=>$label)$npcBool('setting_safety_'.$field,$label,$overrides['safety'][$field]??null); ?>

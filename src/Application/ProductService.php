@@ -276,6 +276,9 @@ final class ProductService
         if($keys!==$expected||($content['schema']??null)!=='almsivi.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
         $sections=['behavior'=>[
             'auto_greeting'=>'bool','rechat'=>'bool','rechat_delay_seconds'=>[30,3600],'rechat_max_depth'=>[1,20],
+            'rechat_probability_percent'=>[0,100],'rechat_mode'=>['tight','conversational','group','random'],
+            'rechat_strict_targeting'=>'bool','open_rechat'=>'bool','rechat_allow_actions'=>'bool',
+            'end_conversation_cooldown_seconds'=>[0,300],
             'boredom'=>'bool','boredom_delay_seconds'=>[30,86400],'combat_barks'=>'bool','combat_bark_period_seconds'=>[5,300],
         ],'memory'=>['recent_turn_limit'=>[1,100],'knowledge_limit'=>[0,20]],
         'narrator'=>[

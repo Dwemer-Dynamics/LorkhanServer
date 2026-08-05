@@ -523,13 +523,30 @@ final class PromptAssembler
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string}> */
     private function historyMessages(array $rows, array $turn, string $actorName, string $playerName): array
     {
+        if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+            $latestPlayerInput = null;
+            foreach ($rows as $index => $row) {
+                $content = $row['content'] ?? null;
+                if (is_array($content) && ($content['kind'] ?? null) === 'event'
+                    && in_array($content['type'] ?? null, ['inputtext', 'turn.requested'], true)) {
+                    $latestPlayerInput = $index;
+                }
+            }
+            if ($latestPlayerInput !== null) $rows = array_slice($rows, $latestPlayerInput);
+        }
         $messages = [];
+        $semanticEvents = [];
         foreach ($rows as $row) {
             $id = $this->sourceId('history', $row);
             $content = $row['content'] ?? null;
             $message = $this->historyMessage($content, $turn, $actorName, $playerName);
             if ($message === null) continue;
             $message['content'] = $this->truncateUtf8($message['content'], $this->maxSourceBytes);
+            if (str_starts_with($message['content'], '[Journal] ')) {
+                $semanticKey = mb_strtolower(preg_replace('/\s+/u', ' ', trim($message['content'])) ?? $message['content'], 'UTF-8');
+                if (isset($semanticEvents[$semanticKey])) continue;
+                $semanticEvents[$semanticKey] = true;
+            }
             $previous = $messages[array_key_last($messages)] ?? null;
             if ($previous !== null && $previous['role'] === $message['role'] && $previous['content'] === $message['content']) continue;
             $messages[] = $message + ['_source_id' => $id];
@@ -549,7 +566,7 @@ final class PromptAssembler
         if ($kind === 'event') {
             $type = (string) ($content['type'] ?? '');
             if ($type === 'rechat' || (($content['turn_id'] ?? null) === ($turn['turn_id'] ?? null))) return null;
-            if (in_array($type, ['turn.requested'], true)) {
+            if (in_array($type, ['inputtext', 'turn.requested'], true)) {
                 $text = trim((string) ($content['input']['text'] ?? ''));
                 if ($this->ignoredHistoryText($text)) return null;
                 $speaker = $this->identityName($content['speaker'] ?? null, $playerName);
@@ -594,13 +611,30 @@ final class PromptAssembler
 
     private function currentTurnMessage(array $turn, string $actorName, string $playerName): string
     {
+        $rechat = $turn['payload']['context']['rechat'] ?? null;
+        if (is_array($rechat) && !array_is_list($rechat)) {
+            $previous = $this->identityName($rechat['speaker'] ?? null, $playerName);
+            $strict = ($rechat['strict_targeting'] ?? false) === true;
+            $seed = (string) ($rechat['chain_id'] ?? '') . ':' . (string) ($rechat['rechat_depth'] ?? 1);
+            $cues = [
+                "Dialogue turn for {$actorName}. Respond naturally to whoever just spoke. Address the previous speaker directly.",
+                "Dialogue turn for {$actorName}. Continue the conversation naturally. Address whoever you're actually responding to.",
+                "Dialogue turn for {$actorName}. Focus on one actor - respond to whoever just spoke.",
+            ];
+            $cue = $strict
+                ? "Dialogue turn for {$actorName}. The previous speaker was {$previous}. You must respond directly to {$previous}."
+                : $cues[(int) (hexdec(substr(hash('sha256', $seed), 0, 7)) % count($cues))];
+            $listener = $strict
+                ? "Specify who {$actorName} is talking to. The listener must be exactly {$previous}. Address the person who just spoke."
+                : "Specify who {$actorName} is talking to. Address whoever just spoke - can be any person in the conversation.";
+            $closing = ($rechat['is_final_round'] ?? false) === true
+                ? "\n\n[This is your final response in this exchange. Conclude your current thought naturally — you are not leaving, just finishing what you were saying for now.]"
+                : '';
+            return $cue . "\n\n" . $listener . $closing;
+        }
         $text = trim((string) ($turn['payload']['input']['text'] ?? ''));
         if ($text === '') throw new InvalidArgumentException('invalid_turn_input');
         $speaker = $playerName;
-        $rechat = $turn['payload']['context']['rechat'] ?? null;
-        if (is_array($rechat) && !array_is_list($rechat)) {
-            $speaker = $this->identityName($rechat['previous_speaker'] ?? null, $playerName);
-        }
         return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}.";
     }
 

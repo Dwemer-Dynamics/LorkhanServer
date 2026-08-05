@@ -45,12 +45,21 @@ final class DialoguePlanner
         foreach ($raw as $index => $candidate) {
             if (!is_array($candidate) || array_is_list($candidate)) throw new DomainException('provider_invalid_output');
             $speaker = $candidate['speaker'] ?? $orderedSpeakers[$index % count($orderedSpeakers)];
-            $addressee = $candidate['addressee'] ?? $player;
+            $rechat=$payload['context']['rechat']??null;
+            $strictRechat=is_array($rechat)&&!array_is_list($rechat)&&($rechat['strict_targeting']??false)===true;
+            $previousSpeaker=$strictRechat?($rechat['speaker']??null):null;
+            $addressee = $candidate['addressee'] ?? ($strictRechat&&is_array($previousSpeaker)?$previousSpeaker:$player);
             if (!is_array($speaker) || !is_array($addressee) || !isset($eligible[$this->identityKey($speaker)])) {
                 throw new DomainException('provider_speaker_not_allowed');
             }
             $allowedAddressees = $eligible + [$this->identityKey($player) => $player];
+            if($strictRechat&&is_array($previousSpeaker)&&!array_is_list($previousSpeaker)) {
+                $allowedAddressees[$this->identityKey($previousSpeaker)]=$previousSpeaker;
+            }
             if (!isset($allowedAddressees[$this->identityKey($addressee)])) {
+                throw new DomainException('provider_addressee_not_allowed');
+            }
+            if($strictRechat&&(!$this->sameIdentity($addressee,$previousSpeaker))) {
                 throw new DomainException('provider_addressee_not_allowed');
             }
             $text = $candidate['text'] ?? null;
@@ -80,5 +89,11 @@ final class DialoguePlanner
         }
         return hash('sha256', json_encode([$identity['kind'] ?? null, $record, $content,
             $refnum['index'] ?? null, $refnum['content_file'] ?? null, $cell], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES));
+    }
+
+    private function sameIdentity(mixed $left,mixed $right):bool
+    {
+        return is_array($left)&&!array_is_list($left)&&is_array($right)&&!array_is_list($right)
+            &&$this->identityKey($left)===$this->identityKey($right);
     }
 }

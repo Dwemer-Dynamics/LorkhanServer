@@ -235,18 +235,24 @@ final class Repository
             $rechat=is_array($p['context']['rechat']??null)?$p['context']['rechat']:null;
             if(($m['payload']['ui_source']??null)==='almsivi_rechat'){
                 if($rechat===null||!Uuid::isValid((string)($rechat['chain_id']??''))||!Uuid::isValid((string)($rechat['origin_turn_id']??''))
-                    ||!is_int($rechat['depth']??null)||!is_int($rechat['max_depth']??null)||$rechat['depth']<1
-                    ||$rechat['depth']>$rechat['max_depth']||$rechat['max_depth']>20)throw new \DomainException('invalid_rechat_context');
-                $chain=$this->db->prepare("INSERT INTO rechat_chains (chain_id,installation_id,playthrough_id,session_id,generation,mode,state,max_depth,current_depth,participants,previous_speaker,next_target,origin_turn_id,latest_turn_id,expires_at) "
-                    ."VALUES (:chain,:installation,:playthrough,:session,:generation,'tight','request_in_flight',:max_depth,:depth,CAST(:participants AS jsonb),CAST(:speaker AS jsonb),CAST(:target AS jsonb),:origin,:latest,clock_timestamp()+interval '10 minutes') "
-                    ."ON CONFLICT (chain_id) DO UPDATE SET state='request_in_flight',current_depth=EXCLUDED.current_depth,previous_speaker=EXCLUDED.previous_speaker,next_target=EXCLUDED.next_target,latest_turn_id=EXCLUDED.latest_turn_id,expires_at=EXCLUDED.expires_at,updated_at=clock_timestamp() "
+                    ||!is_int($rechat['rechat_depth']??null)||!is_int($rechat['max_depth']??null)||!is_int($rechat['round_budget']??null)
+                    ||$rechat['rechat_depth']<1||$rechat['rechat_depth']>$rechat['round_budget']
+                    ||$rechat['round_budget']>$rechat['max_depth']||$rechat['max_depth']>20)throw new \DomainException('invalid_rechat_context');
+                $chain=$this->db->prepare("INSERT INTO rechat_chains (chain_id,installation_id,playthrough_id,session_id,generation,configured_mode,mode,state,max_depth,current_depth,probability_percent,strict_targeting,round_budget,participants,previous_speaker,previous_listener,next_target,origin_line,origin_turn_id,latest_turn_id,expires_at) "
+                    ."VALUES (:chain,:installation,:playthrough,:session,:generation,:configured_mode,:mode,'request_in_flight',:max_depth,:depth,:probability,:strict,:round_budget,CAST(:participants AS jsonb),CAST(:speaker AS jsonb),CAST(:listener AS jsonb),CAST(:target AS jsonb),:origin_line,:origin,:latest,clock_timestamp()+interval '10 minutes') "
+                    ."ON CONFLICT (chain_id) DO UPDATE SET state='request_in_flight',current_depth=EXCLUDED.current_depth,previous_speaker=EXCLUDED.previous_speaker,previous_listener=EXCLUDED.previous_listener,next_target=EXCLUDED.next_target,latest_turn_id=EXCLUDED.latest_turn_id,expires_at=EXCLUDED.expires_at,updated_at=clock_timestamp() "
                     ."WHERE rechat_chains.session_id=EXCLUDED.session_id AND rechat_chains.generation=EXCLUDED.generation "
                     ."AND rechat_chains.origin_turn_id=EXCLUDED.origin_turn_id AND rechat_chains.current_depth+1=EXCLUDED.current_depth "
                     ."AND rechat_chains.state IN ('awaiting_playback','request_in_flight') RETURNING chain_id");
                 $chain->execute(['chain'=>$rechat['chain_id'],'installation'=>$m['installation_id'],'playthrough'=>$m['playthrough_id'],
-                    'session'=>$m['session_id'],'generation'=>$m['generation'],'max_depth'=>$rechat['max_depth'],'depth'=>$rechat['depth'],
-                    'participants'=>$this->encode($p['audience']),'speaker'=>$this->encode($rechat['previous_speaker']??[]),
-                    'target'=>$this->encode($p['target']),'origin'=>$rechat['origin_turn_id'],'latest'=>$m['turn_id']]);
+                    'session'=>$m['session_id'],'generation'=>$m['generation'],'configured_mode'=>$rechat['configured_mode'],
+                    'mode'=>$rechat['mode'],'max_depth'=>$rechat['max_depth'],'depth'=>$rechat['rechat_depth'],
+                    'probability'=>$rechat['probability_percent'],'strict'=>$rechat['strict_targeting']?'true':'false',
+                    'round_budget'=>$rechat['round_budget'],'participants'=>$this->encode($rechat['participants']),
+                    'speaker'=>$this->encode($rechat['speaker']),
+                    'listener'=>isset($rechat['listener_hint'])?$this->encode($rechat['listener_hint']):null,
+                    'target'=>$this->encode($p['target']),'origin_line'=>$rechat['origin_line'],
+                    'origin'=>$rechat['origin_turn_id'],'latest'=>$m['turn_id']]);
                 if($chain->fetchColumn()===false)throw new \DomainException('rechat_chain_conflict');
             }else{
                 $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason='new_player_input',updated_at=clock_timestamp() WHERE session_id=:session AND generation=:generation AND state IN ('open','awaiting_playback','request_in_flight')")
@@ -288,6 +294,32 @@ final class Repository
             }
             return $event;
         });
+    }
+
+    /** Return the durable server-owned state for one active rechat chain. */
+    public function rechatChain(string $chainId, string $sessionId, int $generation): ?array
+    {
+        $statement=$this->db->prepare('SELECT * FROM rechat_chains WHERE chain_id=:chain AND session_id=:session AND generation=:generation');
+        $statement->execute(['chain'=>$chainId,'session'=>$sessionId,'generation'=>$generation]);
+        $row=$statement->fetch();
+        if(!$row)return null;
+        foreach(['participants','previous_speaker','previous_listener','next_target']as$field){
+            if($row[$field]!==null)$row[$field]=$this->json($row[$field]);
+        }
+        foreach(['generation','max_depth','current_depth','probability_percent','round_budget']as$field)$row[$field]=(int)$row[$field];
+        $row['strict_targeting']=filter_var($row['strict_targeting'],FILTER_VALIDATE_BOOL);
+        return$row;
+    }
+
+    /** Enforce the Herika end-of-conversation cooldown without client timers or extra polling. */
+    public function rechatCooldownActive(string $installationId, string $playthroughId, int $seconds): bool
+    {
+        if($seconds<=0)return false;
+        $statement=$this->db->prepare("SELECT 1 FROM rechat_chains WHERE installation_id=:installation "
+            ."AND playthrough_id=:playthrough AND state='closed' "
+            ."AND updated_at>clock_timestamp()-(:seconds||' seconds')::interval ORDER BY updated_at DESC LIMIT 1");
+        $statement->execute(['installation'=>$installationId,'playthrough'=>$playthroughId,'seconds'=>(string)$seconds]);
+        return$statement->fetchColumn()!==false;
     }
 
     /** Verify a player-selected action target against the bounded nearby-actor snapshot. */
@@ -433,7 +465,7 @@ final class Repository
             $updated = $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:id AND state IN ('accepted','processing')");
             $updated->execute(['id' => $m['turn_id']]);
             if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
-            $this->db->prepare("UPDATE rechat_chains SET state=CASE WHEN current_depth>=max_depth THEN 'closed' ELSE 'awaiting_playback' END,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state='request_in_flight'")
+            $this->db->prepare("UPDATE rechat_chains SET state=CASE WHEN current_depth>=round_budget THEN 'closed' ELSE 'awaiting_playback' END,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state='request_in_flight'")
                 ->execute(['turn'=>$m['turn_id']]);
             return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents, 'action' => $action];
         });
