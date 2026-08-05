@@ -17,6 +17,7 @@ use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
+use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
@@ -62,6 +63,42 @@ $call = function (Router $target, string $method, string $path, array $headers =
 $assert = function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
 $headers = fn(string $key): array => $jsonAuth + ['Idempotency-Key' => $key];
 $newUuid = function (int $n): string { return sprintf('10000000-0000-4000-8000-%012d', $n); };
+$defaultInstallationId='00000000-0000-4000-8000-000000000099';
+$defaultVoicePath=sys_get_temp_dir().'/almsivi-default-voices-'.bin2hex(random_bytes(8));
+mkdir($defaultVoicePath,0700,true);file_put_contents($defaultVoicePath.'/mw_dark_elf_male.wav','test');
+$defaultProvisioner=new DefaultConnectorProvisioner($db,$defaultVoicePath);
+$defaultRepository=new Repository($db,256,null,null,$defaultProvisioner);
+$defaultRepository->ensureInstallation($defaultInstallationId,hash('sha256','almsivi-default-installation'));
+$defaultRows=$db->prepare("SELECT c.name,r.content FROM configuration_sets c JOIN configuration_revisions r "
+    ."ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation "
+    ."AND c.deleted_at IS NULL ORDER BY c.kind,c.name");
+$defaultRows->execute(['installation'=>$defaultInstallationId]);$defaultConfigurations=$defaultRows->fetchAll();
+$defaultModels=[];foreach($defaultConfigurations as$configuration){$content=json_decode((string)$configuration['content'],true,16,JSON_THROW_ON_ERROR);
+    if(($content['driver']??null)==='configured')$defaultModels[(string)$configuration['name']]=$content['model']??null;}
+$assert($defaultModels===[
+    'DeepSeek Chat V3.2'=>'deepseek/deepseek-v3.2','GLM 4.7'=>'z-ai/glm-4.7','GLM 5'=>'z-ai/glm-5',
+    'Gemini 2.5 Flash Lite'=>'google/gemini-2.5-flash-lite'],
+    'new installation did not receive the pinned CHIM LLM connector set: '.json_encode($defaultModels));
+$defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
+$defaultRouting=$defaultCore['content']['routing']??[];
+$assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):bool=>str_starts_with($key,'llm_')
+    &&str_ends_with($key,'_configuration_id'),ARRAY_FILTER_USE_BOTH))===4
+    &&!array_key_exists('llm_fallback_configuration_id',$defaultRouting)
+    &&isset($defaultRouting['tts_configuration_id']),
+    'new installation Core Profile routing did not match CHIM slots');
+$excludedCount=$db->prepare("SELECT count(*) FROM configuration_sets WHERE installation_id=:installation AND kind='stt_provider' AND deleted_at IS NULL");
+$excludedCount->execute(['installation'=>$defaultInstallationId]);
+$voiceCount=$db->prepare('SELECT count(*) FROM speech_connector_voices v JOIN configuration_sets c ON c.configuration_id=v.configuration_id WHERE c.installation_id=:installation');
+$voiceCount->execute(['installation'=>$defaultInstallationId]);
+$assert((int)$excludedCount->fetchColumn()===0&&(int)$voiceCount->fetchColumn()===1,
+    'excluded STT or unavailable Morrowind voices were provisioned');
+$beforeRevision=(int)$defaultCore['current_revision'];$beforeConfigurations=count($defaultConfigurations);
+$defaultProvisioner->provision($defaultInstallationId);
+$defaultRows->execute(['installation'=>$defaultInstallationId]);
+$defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
+$assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
+    'default connector provisioning was not idempotent');
+unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
 $runWorker = function (array $types, ?Provider $provider = null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
         provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000,

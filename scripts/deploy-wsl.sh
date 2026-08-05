@@ -126,10 +126,13 @@ return [
     'rate_limit_requests' => 120,
     'rate_limit_window_seconds' => 60,
     'provider' => [
-        'driver' => 'mock',
-        'model' => 'deterministic-mock-v1',
-        'mock_prefix' => 'ALMSIVI: ',
-        'timeout_ms' => 1000,
+        'driver' => 'openai-compatible',
+        'endpoint' => 'https://openrouter.ai/api/v1/chat/completions',
+        'allowed_hosts' => ['openrouter.ai'],
+        'model' => 'z-ai/glm-4.7',
+        'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+        'timeout_ms' => 120000,
+        'disable_reasoning' => true,
     ],
     'speech_provider' => [
         'driver' => 'mock',
@@ -173,6 +176,7 @@ chown root:almsivi /etc/almsiviserver/worker.env
 chmod 0640 /etc/almsiviserver/worker.env
 
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/migrate.php" up
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-connectors.php"
 
 ln -sfn "${release_dir}" /var/www/ALMSIVIserver/current.next
 mv -Tf /var/www/ALMSIVIserver/current.next /var/www/ALMSIVIserver/current

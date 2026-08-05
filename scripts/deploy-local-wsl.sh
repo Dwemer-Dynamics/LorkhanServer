@@ -101,6 +101,7 @@ find "${target_root}/scripts" "${target_root}/deploy" -type f \
     \( -name '*.sh' -o -path '*/sysv/*' \) -exec sed -i 's/\r$//' {} +
 
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/migrate.php" up
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
 
 gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
 if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

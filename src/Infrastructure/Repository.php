@@ -19,6 +19,7 @@ final class Repository
         private readonly int $eventReplayLimit = 256,
         private readonly ?ActionCatalogRepository $actionCatalog = null,
         private readonly ?ActionPolicyValidator $actionPolicy = null,
+        private readonly ?DefaultConnectorProvisioner $defaultConnectors = null,
     ) {
         if ($eventReplayLimit < 1 || $eventReplayLimit > 1000) throw new \InvalidArgumentException('Invalid event replay limit.');
         if (($actionCatalog === null) !== ($actionPolicy === null)) throw new \InvalidArgumentException('Incomplete action policy composition.');
@@ -31,9 +32,14 @@ final class Repository
 
     public function ensureInstallation(string $installationId, string $tokenHash, ?string $macKey = null): void
     {
-        $sql = 'INSERT INTO installations (installation_id, token_fingerprint) VALUES (:id, :token) '
-            . 'ON CONFLICT (installation_id) DO UPDATE SET last_seen_at = clock_timestamp()';
-        $this->db->prepare($sql)->execute(['id' => $installationId, 'token' => $tokenHash]);
+        $insert = $this->db->prepare('INSERT INTO installations (installation_id, token_fingerprint) VALUES (:id, :token) '
+            . 'ON CONFLICT (installation_id) DO NOTHING RETURNING installation_id');
+        $insert->execute(['id' => $installationId, 'token' => $tokenHash]);
+        $created = $insert->fetchColumn() !== false;
+        if (!$created) {
+            $this->db->prepare('UPDATE installations SET last_seen_at=clock_timestamp() WHERE installation_id=:id')
+                ->execute(['id' => $installationId]);
+        }
         // Migration 004 makes pairing credentials server-owned. Seed the configured hash once;
         // subsequent requests only update last_seen_at and never reset rotated/revoked state.
         $pairing = $this->db->prepare("INSERT INTO pairing_tokens (pairing_token_id, installation_id, token_hash, mac_key, state) "
@@ -41,6 +47,7 @@ final class Repository
             . "ON CONFLICT DO NOTHING");
         $pairing->execute(['pairing' => Uuid::v4(), 'id' => $installationId, 'token' => $tokenHash]);
         if($macKey!==null){$update=$this->db->prepare('UPDATE pairing_tokens SET mac_key=:key WHERE installation_id=:id AND state=\'active\'');$update->bindValue(':key',$macKey,PDO::PARAM_LOB);$update->bindValue(':id',$installationId);$update->execute();}
+        if ($created && $this->defaultConnectors !== null) $this->defaultConnectors->provision($installationId);
     }
 
     public function consumeRateLimit(string $key, int $limit, int $windowSeconds): bool

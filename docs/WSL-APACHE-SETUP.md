@@ -102,13 +102,16 @@ shortcut.
 
 ## Configuration and pairing
 
-Copy tracked safe example to `/etc/almsiviserver`, configure DB and deterministic fake providers,
-validate permissions/URLs/limits/schema, migrate, then run a health/self-test. Generate a 256-bit
+Copy the tracked safe example to `/etc/almsiviserver`, configure the database, validate
+permissions/URLs/limits/schema, migrate, then run a health/self-test. The installer provisions the
+CHIM Standard/Fast/Powerful/Experimental model slots and PocketTTS without overwriting existing
+connector choices. Generate a 256-bit
 pairing token through the setup command; output one restrictive native config snippet, store only its
 server hash/fingerprint and redact all later display. Test token rotation and old-session revocation.
 
-Live provider keys are optional and added only after fake E2E passes. Browser UI masks them and never
-returns stored values. Default raw STT audio retention is off.
+Save `ALMSIVI_LLM_API_KEY` through the browser API Keys page or the restrictive service environment;
+the browser masks it and never returns the stored value. Mock providers remain available for test
+flows. Fallback LLM, STT, ITT, Background Life, and autonomy are not provisioned.
 
 ## Worker supervision
 
@@ -124,7 +127,7 @@ web process from unavailable derived processing. Game requests never fork unboun
 
 1. From WSL, run health, pair, session init and deterministic text/media/action-result flow.
 2. From Windows PowerShell, run sibling fake client against the same localhost URL.
-3. Verify browser Quickstart can configure mock mode and displays client/server/schema/DB/worker state.
+3. Verify the browser displays the provisioned model slots, PocketTTS, and client/server/schema/DB/worker state.
 4. Restart Apache, PostgreSQL, worker and WSL separately; prove bounded failure, idempotent recovery
    and no duplicate completed turn/action.
 5. Rotate token, test stale generation/cursor replay, auth/rate/body/media failures and redacted logs.

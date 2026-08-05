@@ -20,15 +20,15 @@ return [
     'events_max_wait_seconds' => 15,
     'rate_limit_requests' => 120,
     'rate_limit_window_seconds' => 60,
-    // Set driver to openai-compatible for a live endpoint. Keep the key in api_key_env, never this file.
+    // CHIM-compatible OpenRouter transport. Save ALMSIVI_LLM_API_KEY through API Keys or the service environment.
     'provider' => [
-        'driver' => 'mock',
-        'model' => 'deterministic-mock-v1',
-        'mock_prefix' => '',
-        'timeout_ms' => 1000,
-        // 'endpoint' => 'https://api.openai.com/v1/chat/completions',
-        // 'allowed_hosts' => ['api.openai.com'],
-        // 'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+        'driver' => 'openai-compatible',
+        'endpoint' => 'https://openrouter.ai/api/v1/chat/completions',
+        'allowed_hosts' => ['openrouter.ai'],
+        'model' => 'z-ai/glm-4.7',
+        'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+        'timeout_ms' => 120_000,
+        'disable_reasoning' => true,
     ],
     // OpenAI-compatible speech can be disabled, mocked for local plumbing tests, or sent to a vetted HTTPS host.
     'speech_provider' => [

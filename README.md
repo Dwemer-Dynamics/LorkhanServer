@@ -5,11 +5,12 @@ ALMSIVIserver is the local Apache/PHP/PostgreSQL backend and browser management 
 
 ## Status
 
-The complete local mock-provider vertical slice is implemented and deployed: authenticated sessions,
+The complete local provider vertical slice is implemented and deployed: authenticated sessions,
 turns and ordered events, dialogue/TTS media, action/result delivery, profiles and prompts, memory,
 relationships, knowledge, narrative/autonomy, durable jobs, diagnostics/backups, and the
-CSRF-protected CHIM-styled management surface. A vetted HTTPS OpenAI-compatible provider is available
-through server-side environment configuration; mock mode remains the safe local default. Default
+CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
+Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
+server credential storage, and mock providers remain available for deterministic tests. Default
 Windows/WSL URL: `http://127.0.0.1:8089/ALMSIVIserver/ui/home.php`. Apache and PostgreSQL are access-controlled for
 the local machine and are not exposed as a public service.
 
@@ -38,6 +39,8 @@ under `/var/lib/almsiviserver` and `/var/log/almsiviserver`. Run the sibling cli
 
 `scripts/deploy-wsl.sh` remains the immutable release/rollback installer described in
 `docs/WSL-APACHE-SETUP.md`; `scripts/deploy-local-wsl.sh` is the stable-path local development sync.
+Both installers idempotently backfill missing CHIM connector defaults without replacing saved routes
+or active TTS selections. Fallback LLM, STT, ITT, Background Life, and autonomy are not provisioned.
 
 ## Start here
 

@@ -18,6 +18,7 @@ use ALMSIVIserver\Http\Response;
 use ALMSIVIserver\Http\Router;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
 use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
@@ -91,9 +92,13 @@ try {
         if (!$sttProvider instanceof SpeechToTextProvider) throw new RuntimeException('STT provider factory did not return a SpeechToTextProvider.');
     }
     $products = new ProductRepository($database);
+    $defaultConnectors = new DefaultConnectorProvisioner(
+        $database,
+        (string) ($config['voice_storage_path'] ?? '/var/lib/almsiviserver/voices'),
+    );
     $router = new Router(
         new Repository($database, (int) ($config['event_replay_limit'] ?? 256),
-            new ActionCatalogRepository($database), new ActionPolicyValidator()),
+            new ActionCatalogRepository($database), new ActionPolicyValidator(), $defaultConnectors),
         new Validator(),
         $provider,
         $tokenHash,
