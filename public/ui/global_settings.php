@@ -52,7 +52,7 @@ $sections = [
             ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
         ],
     ],
-    'global-connectors' => [
+    'safety-actions' => [
         'Safety & OpenMW Actions' => [
             ['actions_enabled', 'Enable Negotiated Actions', '&#x2694;&#xFE0F;', 'boolean', $settings['safety']['actions_enabled'], 'Allows only actions advertised by the connected OpenMW client.'],
             ['allow_hostile', 'Allow Hostile NPC Targets', '&#x1F6E1;&#xFE0F;', 'boolean', $settings['safety']['allow_hostile'], 'Allows hostile actors to be selected when the client also permits them.'],
@@ -70,7 +70,6 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <div class="page-header-row">
             <h1 class="gs-title">Global Settings</h1>
             <div class="page-header-actions">
-                <span class="status-control"><button type="button" class="btn-action-blue" disabled aria-disabled="true">Test Global Connectors</button><?php echo almsivi_ui_feature_badge('config.globals.connector-test', true); ?></span>
                 <button type="submit" class="btn-save-green" name="save_all" value="1" form="gs_form">Save All</button>
             </div>
         </div>
@@ -80,7 +79,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
 
     <nav class="settings-tabs" role="tablist" aria-label="Global settings categories">
-        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'global-connectors' => '&#x1F50C; Global Connectors'] as $tabId => $tabLabel): ?>
+        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'safety-actions' => '&#x2694;&#xFE0F; Safety & Actions'] as $tabId => $tabLabel): ?>
         <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" data-settings-tab="<?php echo almsivi_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
         <?php endforeach; ?>
     </nav>
@@ -92,16 +91,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="change_reason" value="Management global settings">
         <div class="content-grid">
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
-            <section class="content-section<?php echo $tabId === 'global-connectors' ? ' connector-section' : ''; ?>" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
+            <section class="content-section" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
                 <h2><?php echo almsivi_ui_h($sectionTitle); ?></h2>
-                <?php if ($tabId === 'global-connectors'): ?>
-                <div class="provider-grid connector-placeholder-grid">
-                    <?php foreach ([['Global LLM Connector', '&#x1F9E0;', 'Inherited through Core Profile routing'], ['Global TTS Connector', '&#x1F50A;', 'Inherited through Core Profile routing']] as [$label, $icon, $help]): ?>
-                    <div class="provider-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.globals.connectors')['description']); ?>"><div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge('config.globals.connectors', true); ?></div></div><div class="provider-body"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($help); ?></option></select></div><div class="provider-help">Connector routing is selected by the Global default Core Profile and then inherited by NPCs.</div></div>
-                    <?php endforeach; ?>
-                </div>
-                <h2 class="subsection-heading">Safety &amp; OpenMW Actions</h2>
-                <?php endif; ?>
                 <div class="provider-grid">
                     <?php if ($tabId === 'prompt-rechat'): ?>
                     <?php foreach ([

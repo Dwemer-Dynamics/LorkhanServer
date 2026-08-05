@@ -85,8 +85,6 @@ function almsivi_ui_feature_registry(): array
         'config.keys.nano-gpt' => ['title' => 'Nano-GPT Credential', 'state' => 'planned', 'description' => 'Nano-GPT is not represented in the current typed ALMSIVI LLM provider document.'],
         'config.keys.deepl' => ['title' => 'DeepL Credential', 'state' => 'planned', 'description' => 'A separate translation connector is not represented in the current typed ALMSIVI pipeline.'],
         'config.globals' => ['title' => 'Global Settings', 'state' => 'live', 'description' => 'Installation-wide defaults inherited by Core Profiles and NPCs.'],
-        'config.globals.connector-test' => ['title' => 'Global Connector Test', 'state' => 'planned', 'description' => 'Bulk testing of inherited Core Profile connector routes is not connected yet.'],
-        'config.globals.connectors' => ['title' => 'Global Connector Routing', 'state' => 'replaced', 'description' => 'ALMSIVI routes connectors through the Global default Core Profile, then applies Core Profile and NPC overrides.'],
         'config.globals.prompt-head' => ['title' => 'Global Prompt Head', 'state' => 'replaced', 'description' => 'ALMSIVI uses revisioned Prompt Manager documents and Core Profile prompt routing instead of one untyped global prompt field.'],
         'config.globals.emote-moods' => ['title' => 'Global Emote Moods', 'state' => 'replaced', 'description' => 'ALMSIVI stores profile text and moods on Core Profiles and explicit NPC overrides rather than one untyped global list.'],
         'config.globals.rechat-mode' => ['title' => 'Rechat Mode', 'state' => 'excluded', 'description' => 'Rechat responder modes are autonomy and are excluded from this milestone.'],
