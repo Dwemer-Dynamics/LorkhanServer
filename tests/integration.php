@@ -199,6 +199,17 @@ $assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
     &&($automaticProfile['content']['biography']??null)==='A Bosmer raised beneath the great graht-oaks.'
     &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.',
     'first-seen NPC profile did not retain its catalog voice and matching biography template');
+$rediscoveredTarget=$automaticTarget;$rediscoveredTarget['record_id']='rediscovered_bosmer';
+$rediscoveredTarget['refnum']['index']=102;$rediscoveredTarget['display_name']='Rediscovered Bosmer';
+$deletedProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Rediscovered Bosmer',
+    'actor_identity'=>$rediscoveredTarget,'content'=>[]],$now);
+$products->deleteRevisioned('profile',$deletedProfile['profile_id'],$now);
+$rediscoveredProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$rediscoveredTarget]],$automaticVoice,$now);
+$rediscoveredProfile=$products->getRevisioned('profile',$rediscoveredProfileId);
+$assert($rediscoveredProfileId!==$deletedProfile['profile_id']&&$rediscoveredProfile['name']==='Rediscovered Bosmer',
+    'soft-deleted NPC name prevented automatic rediscovery');
 $legacyContent=$automaticProfile['content'];$legacyContent['voice']=['id'=>'automatic_bosmer','language'=>'en'];
 $legacyContent['management']['locked']=true;$products->revise('profile',$automaticProfileId,$legacyContent,'legacy automatic voice fixture',$now);
 $backfilled=$products->backfillMorrowindCatalogVoices($morrowindVoices,$now);
