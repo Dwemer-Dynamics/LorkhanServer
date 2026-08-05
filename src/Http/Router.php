@@ -7,7 +7,6 @@ use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\SpeechProvider;
-use ALMSIVIserver\Application\SpeechToTextProvider;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProductRepository;
@@ -42,7 +41,6 @@ final class Router
         private readonly ?ManagementRepository $management = null,
         private readonly ?ProductRepository $products = null,
         private readonly ?PromptAssembler $promptAssembler = null,
-        private readonly ?SpeechToTextProvider $sttProvider = null,
         private readonly ?MorrowindVoiceCatalog $morrowindVoices = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
@@ -73,7 +71,6 @@ final class Router
             if ($request->method === 'GET' && preg_match('#^/media/([0-9a-f-]{36})$#D', $path, $m)) return $this->media($m[1]);
             if ($request->method === 'POST' && $path === '/interruptions') return $this->interrupt($request);
             if ($request->method === 'POST' && $path === '/action-results') return $this->actionResult($request);
-            if ($request->method === 'POST' && $path === '/stt') return $this->stt($request);
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
@@ -86,7 +83,10 @@ final class Router
             return Response::error(409, $this->publicCode($error->getMessage()), $correlation);
         } catch (OutOfBoundsException $error) {
             return Response::error(404, $this->publicCode($error->getMessage()), $correlation);
-        } catch (Throwable) {
+        } catch (Throwable $error) {
+            $message=preg_replace('/[\r\n\t]+/',' ',trim($error->getMessage()))??'unavailable';
+            error_log(sprintf('[ALMSIVI] API internal_error correlation=%s method=%s path=%s exception=%s message=%s',
+                $correlation,$request->method,$request->path,$error::class,substr($message,0,1000)));
             return Response::error(500, 'internal_error', $correlation, true);
         }
     }
@@ -158,6 +158,7 @@ final class Router
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
                 if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
+                if(is_array($selection['nearby_actor_profiles']??null)&&$selection['nearby_actor_profiles']!==[])$providerInput['_nearby_actor_profiles']=$selection['nearby_actor_profiles'];
                 if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
                 $assembled = $this->promptAssembler->assemble($providerInput, $selection);
                 $providerInput['_prompt'] = $assembled['provider_input'];
@@ -186,27 +187,14 @@ final class Router
         }
         $this->assertPrincipal($this->repository->sessionInstallation($session));
         $deadline = microtime(true) + ($wait / 1000);
-        $autonomy=[];
         do {
             $events = $this->repository->events($session, $generation, $after, $this->eventLimit);
-            if($this->products!==null){
-                $sessionRow=$this->repository->session($session,$generation);
-                $now=gmdate('Y-m-d\TH:i:s\Z');
-                foreach($this->products->dueAutonomy(['installation_id'=>$sessionRow['installation_id'],
-                    'profile_id'=>$sessionRow['profile_id'],'playthrough_id'=>$sessionRow['playthrough_id']],$now) as $due){
-                    if((string)$due['current_session_id']!==$session)continue;
-                    $autonomy[]=['schema'=>'almsivi.autonomy-directive.v1','schedule_id'=>(string)$due['schedule_id'],
-                        'kind'=>(string)$due['kind'],'issued_at'=>$now];
-                    $this->products->markAutonomyTriggered((string)$due['schedule_id'],$now);
-                    if(count($autonomy)>=3)break;
-                }
-            }
-            if ($events !== [] || $autonomy !== [] || microtime(true) >= $deadline) break;
+            if ($events !== [] || microtime(true) >= $deadline) break;
             usleep((int) min(100_000, max(1_000, ($deadline - microtime(true)) * 1_000_000)));
         } while (true);
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
         return Response::json(200, ['schema' => 'almsivi.events.v1', 'session_id' => $session,
-            'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>$autonomy]);
+            'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]]);
     }
 
     private function controlsQuery(Request $request): Response
@@ -315,11 +303,6 @@ final class Router
             'request_id' => $m['request_id'], 'action_id' => $m['action_id'], 'turn_id' => $m['turn_id'],
             'session_id' => $m['session_id'], 'generation' => $m['generation'], 'status' => $m['status'],
             'duplicate' => $result['duplicate']]);
-    }
-
-    private function stt(Request $request):Response
-    {
-        if($this->sttProvider===null||$this->mediaStore===null)throw new ApiException(503,'provider_unavailable','STT unavailable.',true,1000);if(strtolower(trim((string)$request->header('Content-Type')))!=='application/octet-stream')throw new ApiException(415,'invalid_schema','Binary audio required.');$h=fn(string $n):string=>(string)($request->header('X-ALMSIVI-'.$n)??'');$m=['schema'=>$h('Schema'),'message_id'=>$h('Message-Id'),'request_id'=>$h('Request-Id'),'turn_id'=>$h('Turn-Id'),'session_id'=>$h('Session-Id'),'generation'=>filter_var($h('Generation'),FILTER_VALIDATE_INT),'created_at'=>$h('Created-At'),'codec'=>$h('Codec'),'language'=>$h('Language'),'audio_bytes'=>filter_var($h('Audio-Bytes'),FILTER_VALIDATE_INT),'sha256'=>$h('Sha256')];$this->validator->validate($m,'almsivi.stt.request.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);if(strlen($request->body)!==$m['audio_bytes']||!hash_equals($m['sha256'],hash('sha256',$request->body)))throw new ValidationException('invalid_schema');$semantic=$this->semanticHash($m);$mediaId=Uuid::v4();try{$this->mediaStore->put($mediaId,$request->body,'wav','audio/wav');}catch(\Throwable){throw new ApiException(422,'invalid_schema','Audio is not a valid WAV payload.');}try{$result=$this->repository->acceptStt($m,$mediaId,$semantic);if($result['duplicate'])$this->mediaStore->delete($mediaId);}catch(Throwable $e){$this->mediaStore->delete($mediaId);throw$e;}return Response::json(202,['schema'=>'almsivi.stt.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'event_cursor'=>$result['cursor'],'duplicate'=>$result['duplicate']]);
     }
 
     private function deliveryResult(Request $request):Response

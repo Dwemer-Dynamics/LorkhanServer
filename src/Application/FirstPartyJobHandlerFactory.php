@@ -14,7 +14,7 @@ final class FirstPartyJobHandlerFactory
     /** @return list<JobHandler> */
     public static function handlers(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        ?SpeechToTextProvider $sttProvider = null, array $providerConfig = []): array
+        array $providerConfig = []): array
     {
         $clock ??= new DeterministicClock();
         $repository = new FirstPartyJobRepository($db);
@@ -29,8 +29,6 @@ final class FirstPartyJobHandlerFactory
         $handlers[] = new SpeechSynthesizeJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$speechProvider,
             $mediaStore,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig,
             (int)($providerConfig['provider']['timeout_ms']??120_000));
-        if($sttProvider!==null)$handlers[]=new SttProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$sttProvider,$mediaStore,
-            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
             new MemoryDeriveJobHandler($repository, $clock),
             new MemoryRebuildJobHandler($repository, $clock),
@@ -44,9 +42,9 @@ final class FirstPartyJobHandlerFactory
 
     public static function registry(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        ?SpeechToTextProvider $sttProvider = null, array $providerConfig = []): JobHandlerRegistry
+        array $providerConfig = []): JobHandlerRegistry
     {
-        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$sttProvider,$providerConfig));
+        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$providerConfig));
     }
 
     /** @return list<string> */
@@ -55,7 +53,6 @@ final class FirstPartyJobHandlerFactory
         return [
             TurnProcessJobHandler::TYPE,
             SpeechSynthesizeJobHandler::TYPE,
-            SttProcessJobHandler::TYPE,
             MemoryDeriveJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,
             NarrativeJobHandler::SUMMARY_TYPE,

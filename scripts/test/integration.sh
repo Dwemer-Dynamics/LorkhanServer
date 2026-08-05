@@ -24,7 +24,7 @@ pg_dump -h 127.0.0.1 -p "$PORT" -Fc -f "$TMP/almsivi.backup" almsivi_test
 createdb -h 127.0.0.1 -p "$PORT" almsivi_restore_test
 pg_restore -h 127.0.0.1 -p "$PORT" -d almsivi_restore_test --exit-on-error "$TMP/almsivi.backup"
 RESTORED_TABLES=$(psql -h 127.0.0.1 -p "$PORT" -d almsivi_restore_test -Atc \
-    "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'public' AND table_name IN ('sessions','media_objects','durable_jobs','provider_attempts')")
+    "SELECT count(*) FROM information_schema.tables WHERE table_schema = 'almsivi_internal' AND table_name IN ('sessions','media_objects','durable_jobs','provider_attempts')")
 [ "$RESTORED_TABLES" = "4" ] || { printf 'backup restore schema check failed\n' >&2; exit 1; }
 ALMSIVI_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=almsivi_migrations_test" \
 php "$ROOT/tests/migrations_jobs.php"

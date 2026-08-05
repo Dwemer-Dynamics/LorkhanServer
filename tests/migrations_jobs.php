@@ -46,9 +46,9 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
-$eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
-$check($eventlogColumns===['rowid','type','data','sess','gamets','localts','ts','people','location','party','utterance_id','delivery_state'],
-    'eventlog does not expose the exact compact CHIM column contract: '.json_encode($eventlogColumns));
+$eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
+$check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
+    'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
@@ -68,6 +68,13 @@ $check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply 
 $check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
+$journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
+$journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','journal projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$journalTurn,'request'=>$journalRequest,'message'=>$journalMessage,'session'=>$legacySession,'context'=>$journalContext]);
+$journalProjection=$db->prepare('SELECT count(*) FROM almsivi_internal.questlog_metadata metadata JOIN public.questlog projected ON projected.rowid=metadata.rowid WHERE metadata.source_turn_id=:turn AND metadata.journal_id=:journal');
+$journalProjection->execute(['turn'=>$journalTurn,'journal'=>'A1_1_FindSpymaster']);
+$check((int)$journalProjection->fetchColumn()===1,'journal-bearing turn did not project into the Herika questlog contract');
 $check($runner->down(count($downVersions)) === $downVersions, 'product migration down failed after upgrade');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}'")->fetchColumn()===1, '005 down deleted backfilled profile');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}'")->fetchColumn()===1, '005 down deleted backfilled playthrough');
@@ -171,6 +178,9 @@ $playthrough = $service->createRevisioned('playthrough', ['installation_id'=>$in
 $providerConfig = $service->createRevisioned('provider', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
     'name'=>'Local mock','content'=>['driver'=>'mock','model'=>'deterministic-mock-v1'],'change_reason'=>'created']);
 $check($providerConfig['content']['driver'] === 'mock', 'mock provider config failed');
+$providerProjection=$db->prepare('SELECT count(*) FROM llm_connector_metadata metadata JOIN public.core_llm_connector connector ON connector.id=metadata.connector_id WHERE metadata.configuration_id=:configuration');
+$providerProjection->execute(['configuration'=>$providerConfig['configuration_id']]);
+$check((int)$providerProjection->fetchColumn()===1,'provider did not project into the Herika connector contract');
 $actionPolicy=$service->createRevisioned('action_policy',['installation_id'=>$installation,'name'=>'Safe actions',
     'content'=>['enabled'=>true,'max_tier'=>1,'denied_actions'=>['item.give']]]);
 $check($actionPolicy['content']['max_tier']===1,'bounded action policy config failed');
@@ -179,22 +189,14 @@ catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_ac
 $ttsConfig=$service->createRevisioned('tts_provider',['installation_id'=>$installation,'name'=>'Local OmniVoice',
     'content'=>['driver'=>'omnivoice','endpoint'=>'http://127.0.0.1:8021','model'=>'k2-fsa/OmniVoice',
         'voice'=>'test-voice','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
-$sttConfig=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet',
-    'content'=>['driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022/v1/audio/transcriptions',
-        'model'=>'parakeet-tdt-0.6b-v3','voice'=>'','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
 $service->selectConnector(['installation_id'=>$installation,'kind'=>'tts_provider','configuration_id'=>$ttsConfig['configuration_id']]);
-$service->selectConnector(['installation_id'=>$installation,'kind'=>'stt_provider','configuration_id'=>$sttConfig['configuration_id']]);
 $check(count($products->listRevisioned('provider',$installation))===1
     &&$products->connectorForInstallation($installation,'tts_provider')['configuration_id']===$ttsConfig['configuration_id']
-    &&count($products->connectorSelections($installation))===2,'speech connector presets are isolated and selectable');
-try{$service->deleteRevisioned('stt_provider',$sttConfig['configuration_id']);throw new RuntimeException('active connector deleted');}
-catch(InvalidArgumentException $error){$check($error->getMessage()==='connector_in_use','unexpected active connector deletion error');}
-$unusedStt=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Unused Parakeet',
-    'content'=>['driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022/v1/audio/transcriptions',
-        'model'=>'parakeet-tdt-0.6b-v3','voice'=>'','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
-$service->deleteRevisioned('stt_provider',$unusedStt['configuration_id']);
-$check($products->connectorForInstallation($installation,'stt_provider')['configuration_id']===$sttConfig['configuration_id']
-    &&count($products->listRevisioned('stt_provider',$installation))===1,'unused connector deletion changed the active selection');
+    &&count($products->connectorSelections($installation))===1,'TTS connector preset was not isolated and selectable');
+$sttExcluded=false;
+try{$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet','content'=>[]]);}
+catch(InvalidArgumentException $error){$sttExcluded=$error->getMessage()==='invalid_resource_kind';}
+$check($sttExcluded,'excluded STT connector remained writable through ProductService');
 $guardedProvider=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Profile-bound model slot',
     'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']]);
 $guardedProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Profile-bound NPC',
@@ -214,6 +216,9 @@ try {$service->createRevisioned('provider', ['installation_id'=>$installation,'n
 catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','invalid_provider_driver'], true), 'unexpected provider boundary error');}
 $scope=['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
 $selectedPrompt=$service->createRevisioned('prompt',['installation_id'=>$installation,'name'=>'Explicit selected prompt','content'=>['instruction'=>'This exact prompt must win.']]);
+$promptProjection=$db->prepare('SELECT count(*) FROM prompt_metadata metadata JOIN public.prompts prompt ON prompt.prompt_key=metadata.prompt_key WHERE metadata.source_configuration_id=:configuration');
+$promptProjection->execute(['configuration'=>$selectedPrompt['configuration_id']]);
+$check((int)$promptProjection->fetchColumn()===1,'prompt did not project into the Herika prompt contract');
 $service->revise('profile',$profile['profile_id'],['role'=>'player','routing'=>['prompt_configuration_id'=>$selectedPrompt['configuration_id']]],'select explicit prompt');
 $promptContext=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>['target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]],$clock->iso());
 $check($promptContext['prompt']['configuration_id']===$selectedPrompt['configuration_id']&&$promptContext['prompt']['content']['instruction']==='This exact prompt must win.','profile-selected prompt was not used');
@@ -224,15 +229,32 @@ $search=$service->searchMemory($scope,'alchemy Balmora');
 $check($search['results'][0]['id'] === $memory['memory_id'] && $search['results'][0]['score'] > 0, 'deterministic memory retrieval failed');
 $products->updateMemory($memory['memory_id'],'Nalcarya sells potions.', ['nalcarya','potions'], [0,0,0,0,0,0,0,0], $clock->iso());
 $check($products->rebuildMemories($scope,$clock->iso()) === 1, 'memory rebuild failed');
+$memoryProjection=$db->prepare('SELECT memory.message FROM memory_metadata metadata JOIN public.memory memory ON memory.rowid=metadata.rowid WHERE metadata.memory_id=:memory');
+$memoryProjection->execute(['memory'=>$memory['memory_id']]);
+$check($memoryProjection->fetchColumn()==='Nalcarya sells potions.','memory did not project into the Herika memory contract');
 $knowledge=$service->ingestKnowledge($scope+['title'=>'Balmora services','content'=>'Nalcarya operates an alchemy shop.',
     'provenance'=>['source'=>'authored-test']]);
 $knowledgeSearch=$service->searchKnowledge($scope,'alchemy shop');
 $check($knowledgeSearch['results'][0]['id'] === $knowledge['document_id'], 'knowledge retrieval failed');
-$relationship=$service->setRelationship($scope+['actor_identity'=>['record_id'=>'nalcarya'],'disposition'=>20,'affinity'=>5,
+$knowledgeProjection=$db->prepare('SELECT oghma.topic_desc FROM oghma_metadata metadata JOIN public.oghma oghma ON oghma.topic=metadata.topic WHERE metadata.document_id=:document');
+$knowledgeProjection->execute(['document'=>$knowledge['document_id']]);
+$check($knowledgeProjection->fetchColumn()==='Nalcarya operates an alchemy shop.','knowledge did not project into the Herika Oghma contract');
+$npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
+    'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
+$npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
+$relationship=$service->setRelationship($npcScope+['actor_identity'=>['record_id'=>'player','display_name'=>'Nerevarine'],'disposition'=>20,'affinity'=>5,
     'source_mode'=>'manual','reason'=>'test']);
-$check($relationship['disposition'] === 20 && count($products->relationships($scope)) === 1, 'relationship audit foundation failed');
-$service->createNarrative($scope+['kind'=>'diary','title'=>'Arrival','content'=>'I reached Balmora.',
+$check($relationship['disposition'] === 20 && count($products->relationships($npcScope)) === 1, 'relationship audit foundation failed');
+$relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
+$relationshipProjection->execute(['profile'=>$npcProfile['profile_id']]);
+$check($relationshipProjection->fetchColumn()==='20','relationship did not project into the Herika NPC contract');
+$service->deleteRevisioned('profile',$npcProfile['profile_id']);
+$narrative=$service->createNarrative($scope+['kind'=>'diary','title'=>'Arrival','content'=>'I reached Balmora.',
     'provenance'=>['source'=>'authored-test']]);
+$narrativeProjection=$db->prepare('SELECT diary.content FROM diarylog_metadata metadata JOIN public.diarylog diary ON diary.rowid=metadata.rowid WHERE metadata.narrative_id=:narrative');
+$narrativeProjection->execute(['narrative'=>$narrative['narrative_id']]);
+$check($narrativeProjection->fetchColumn()==='I reached Balmora.','narrative did not project into the Herika diary contract');
 $export=$service->exportPlaythrough($scope);
 $check($export['schema'] === 'almsivi.playthrough-export.v1' && count($export['data']['narratives']) === 1, 'playthrough export failed');
 $management=new ManagementRepository($db);
@@ -437,6 +459,9 @@ $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE ta
 $db->exec("UPDATE action_catalog SET continuation_capable=true WHERE action_name='ai.follow'");
 $actionId='50000000-0000-4000-8000-000000000001';$sourceId='50000000-0000-4000-8000-000000000002';
 $db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal','2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
+$actionProjection=$db->prepare('SELECT issued.action FROM action_issued_metadata metadata JOIN public.actions_issued issued ON issued.rowid=metadata.rowid WHERE metadata.action_id=:action');
+$actionProjection->execute(['action'=>$actionId]);
+$check($actionProjection->fetchColumn()==='ai.follow','action did not project into the Herika action contract');
 $db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','almsivi.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
 $db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
 $db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);

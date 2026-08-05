@@ -10,7 +10,6 @@ use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Application\SpeechProvider;
-use ALMSIVIserver\Application\SpeechToTextProvider;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\ManagementRouter;
 use ALMSIVIserver\Http\Request;
@@ -85,13 +84,6 @@ try {
         $speechProvider = ($config['speech_provider_factory'])();
         if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
     }
-    $sttProvider = ProviderFactory::speechToText($config);
-    if (isset($config['stt_provider_factory'])) {
-        if (($config['environment'] ?? 'production') !== 'test') throw new RuntimeException('STT provider factory is test-only.');
-        if (!is_callable($config['stt_provider_factory'])) throw new RuntimeException('STT provider factory is invalid.');
-        $sttProvider = ($config['stt_provider_factory'])();
-        if (!$sttProvider instanceof SpeechToTextProvider) throw new RuntimeException('STT provider factory did not return a SpeechToTextProvider.');
-    }
     $products = new ProductRepository($database);
     $defaultConnectors = new DefaultConnectorProvisioner(
         $database,
@@ -116,7 +108,6 @@ try {
         new ManagementRepository($database),
         $products,
         new PromptAssembler((int) ($config['max_context_bytes'] ?? 131_072)),
-        $sttProvider,
         MorrowindVoiceCatalog::bundled(),
     );
     $request = Request::fromGlobals();
@@ -136,7 +127,7 @@ try {
             (new Worker(new JobRepository($database),FirstPartyJobHandlerFactory::registry($database,
                 new MediaStore((string)($config['media_storage_path']??dirname(__DIR__).'/storage/media'),
                     (int)($config['media_max_bytes']??33_554_432),(int)($config['media_quota_bytes']??268_435_456)),
-                provider:$provider,speechProvider:$speechProvider,providerTimeoutMs:(int)($providerConfig['timeout_ms']??1000),sttProvider:$sttProvider,providerConfig:$config),
+                provider:$provider,speechProvider:$speechProvider,providerTimeoutMs:(int)($providerConfig['timeout_ms']??1000),providerConfig:$config),
                 'http-fallback:'.getmypid(),5,1,1,0,10,['turn.process'],static fn(int $microseconds):mixed=>null))->run();
         }
     }

@@ -1,0 +1,14 @@
+DROP TRIGGER IF EXISTS herika_project_action_catalog ON public.action_catalog;
+DROP FUNCTION IF EXISTS herika_compat.trigger_action_catalog_projection();
+DROP FUNCTION IF EXISTS herika_compat.sync_action_catalog_projection(text);
+DROP TABLE IF EXISTS herika_compat.action_catalog_metadata;
+DROP VIEW IF EXISTS herika_compat.combined_core_action;
+DROP VIEW IF EXISTS herika_compat.combined_animations;
+DROP TABLE IF EXISTS herika_compat.translations;
+DROP TABLE IF EXISTS herika_compat.json_personalities;
+DROP TABLE IF EXISTS herika_compat.import_rules;
+DROP TABLE IF EXISTS herika_compat.dynamic_bio;
+DROP TABLE IF EXISTS herika_compat.core_action_custom;
+DROP TABLE IF EXISTS herika_compat.core_action;
+DROP TABLE IF EXISTS herika_compat.animations_custom;
+DROP TABLE IF EXISTS herika_compat.animations;

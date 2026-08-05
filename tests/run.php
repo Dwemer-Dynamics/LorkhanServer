@@ -159,6 +159,37 @@ $check(str_contains((string)$systemMessage['content'],'Curious &amp; wary &lt;Bo
     &&!str_contains((string)$systemMessage['content'],'<name>Nerevarine</name>')
     &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
     'XML escaping, live player identity, and disabled narrator filtering are stable');
+$contextTurn=$promptTurn;
+$contextTurn['payload']['context']=[
+    'world'=>['cell'=>'Seyda Neen','cell_identity'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],
+        'region'=>'Bitter Coast','weather'=>['record_id'=>'cloudy','name'=>'Cloudy','is_storm'=>false],
+        'calendar'=>['year'=>427,'month'=>6,'month_name'=>"Sun's Height",'day'=>16,'time'=>'14:30']],
+    'nearbyActors'=>['items'=>[
+        $contextTurn['payload']['target'],
+        ['kind'=>'npc','record_id'=>'chargen_boat_guard_1','content_file'=>'Morrowind.esm','display_name'=>'Guard',
+            'distance'=>640,'equipment'=>[['slot'=>'carried_right','record_id'=>'iron_saber','display_name'=>'Iron Saber']]],
+    ]],
+    'actorActivities'=>['items'=>[['actor'=>['record_id'=>'chargen_boat_guard_1','content_file'=>'Morrowind.esm'],
+        'activity'=>'wander']]],
+    'nearbyObjects'=>['items'=>[
+        ['kind'=>'items','record_id'=>'ingred_bc_bungler_bane_01','display_name'=>'Bungler\'s Bane','count'=>2,'distance'=>120,
+            'position'=>['x'=>1,'y'=>2,'z'=>3]],
+        ['kind'=>'doors','record_id'=>'in_c_door_arched','display_name'=>'Census and Excise Office','distance'=>300,
+            'lock'=>['locked'=>true,'level'=>20]],
+    ]],
+];
+$contextTurn['_nearby_actor_profiles']=[['actor_identity'=>['kind'=>'npc','record_id'=>'chargen_boat_guard_1',
+    'content_file'=>'Morrowind.esm','display_name'=>'Guard'],'content'=>['biography'=>'A watchful Imperial guard.']]];
+$contextPrompt=(new PromptAssembler(16384,1024))->assemble($contextTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($contextPrompt,'<world><location>Seyda Neen</location>')
+    &&str_contains($contextPrompt,'<date>16 Sun&apos;s Height 3E 427</date>')
+    &&str_contains($contextPrompt,'<people_present>')&&str_contains($contextPrompt,'<nearby_actors>')
+    &&str_contains($contextPrompt,'<current_activity>wander</current_activity>')
+    &&str_contains($contextPrompt,'<basic_summary>A watchful Imperial guard.</basic_summary>')
+    &&str_contains($contextPrompt,'<nearby_items>')&&str_contains($contextPrompt,'<count>2</count>')
+    &&str_contains($contextPrompt,'<points_of_interest>')&&str_contains($contextPrompt,'<lock_level>20</lock_level>')
+    &&!str_contains($contextPrompt,'&quot;position&quot;')&&!str_contains($contextPrompt,'&quot;x&quot;'),
+    'OpenMW world, actors, items, and points of interest render as bounded semantic CHIM XML');
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
@@ -206,6 +237,19 @@ $check(array_column($roleMessages,'role')===['system','user','assistant','user',
     &&$roleMessages[3]['content']==='Guard: Move along.'
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'CHIM history projection preserves speaker roles and filters control noise');
+$semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
+$semanticHistory['history']=[
+    ['history_id'=>'location-event','content'=>['kind'=>'event','type'=>'location','details'=>['location'=>'Seyda Neen']]],
+    ['history_id'=>'weather-event','content'=>['kind'=>'event','type'=>'weather','details'=>['weather'=>'Cloudy']]],
+    ['history_id'=>'journal-event','content'=>['kind'=>'event','type'=>'quest','details'=>['text'=>'Report to Caius Cosades.']]],
+];
+$semanticMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$semanticHistory)['provider_input']['_messages'];
+$semanticText=json_encode($semanticMessages,JSON_THROW_ON_ERROR);
+$check(str_contains($semanticText,'[Location] The player entered Seyda Neen.')
+    &&str_contains($semanticText,'[Weather] The weather changed to Cloudy.')
+    &&str_contains($semanticText,'[Journal] Report to Caius Cosades.')
+    &&!str_contains($semanticText,'\\"details\\"'),
+    'world and journal history is semantic text rather than raw event JSON');
 
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',

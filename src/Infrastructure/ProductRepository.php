@@ -1119,7 +1119,11 @@ SELECT 'event:'||e.rowid::text AS id,
            jsonb_strip_nulls(jsonb_build_object(
                'kind','event','type',e.type,'turn_id',m.turn_id,
                'input',CASE WHEN e.type IN ('inputtext','rechat') THEN m.payload->'input' END,
-               'details',CASE WHEN e.type NOT IN ('inputtext','rechat') THEN m.payload END,
+               'details',CASE
+                   WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
+                   WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
+                   WHEN e.type IN ('quest','book','death','infoaction','narration') THEN m.payload
+                   ELSE NULL END,
                'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
                'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
                'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
@@ -1129,7 +1133,7 @@ FROM eventlog e
 JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
-  AND e.type IN ('inputtext','chat','location','death','infoaction','rechat','narration','quest','book')
+  AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
@@ -1148,8 +1152,35 @@ SQL);
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
+            'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+    }
+
+    /** Batch-load only profiles already bound to actors in the bounded current-turn context. */
+    public function nearbyActorProfilesForTurn(array $turn): array
+    {
+        $context=$turn['payload']['context']??[];
+        if(!is_array($context)||array_is_list($context))return[];
+        $nearby=$context['nearbyActors']??[];
+        if(is_array($nearby)&&!array_is_list($nearby))$nearby=$nearby['items']??[];
+        if(!is_array($nearby)||!array_is_list($nearby))return[];
+        $keys=[];
+        foreach(array_slice($nearby,0,12)as$actor){
+            if(!is_array($actor)||array_is_list($actor))continue;
+            try{$keys[$this->actorKey($actor)]=true;}catch(\Throwable){}
+        }
+        if($keys===[])return[];
+        $statement=$this->db->prepare('SELECT b.actor_key,p.profile_id,p.name,p.actor_identity,p.current_revision AS revision,r.content '
+            .'FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.deleted_at IS NULL '
+            .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
+            .'WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough '
+            .'AND b.actor_key=ANY(CAST(:keys AS text[])) ORDER BY p.name,p.profile_id LIMIT 12');
+        $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'keys'=>$this->pgArray(array_keys($keys))]);
+        $rows=[];foreach($statement->fetchAll()as$row){$row['revision']=(int)$row['revision'];
+            $row['actor_identity']=$this->json($row['actor_identity']);$row['content']=$this->json($row['content']);$rows[]=$row;}
+        return$rows;
     }
 
     /** Return the single current player roleplay profile for an installation, if configured. */

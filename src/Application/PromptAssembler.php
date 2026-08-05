@@ -207,8 +207,17 @@ final class PromptAssembler
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
         if ($instruction !== '') $blocks[] = $this->xmlTag('roleplay_prompt', $instruction);
 
-        $world = $this->worldXml($turn['payload']['context'] ?? []);
+        $context = $turn['payload']['context'] ?? [];
+        $world = $this->worldXml($context);
         if ($world !== '') $blocks[] = '<world>' . $world . '</world>';
+        $people = $this->peoplePresentXml($turn, $context);
+        if ($people !== '') $blocks[] = '<people_present>' . $people . '</people_present>';
+        $nearbyActors = $this->nearbyActorsXml($turn, $context);
+        if ($nearbyActors !== '') $blocks[] = '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
+        $nearbyItems = $this->nearbyObjectsXml($context, ['items'], 'item');
+        if ($nearbyItems !== '') $blocks[] = '<nearby_items>' . $nearbyItems . '</nearby_items>';
+        $pointsOfInterest = $this->nearbyObjectsXml($context, ['doors', 'containers', 'activators'], 'point');
+        if ($pointsOfInterest !== '') $blocks[] = '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
         $player = $this->playerXml($turn, $playerName);
         if ($player !== '') $blocks[] = '<player_character>' . $player . '</player_character>';
         $narrator = $this->narratorXml($turn);
@@ -277,7 +286,7 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['targetState'] ?? null))
             ? $turn['payload']['context']['targetState'] : [];
-        $stateXml = $this->knownFieldsXml($state, ['activity', 'disposition', 'health', 'health_percent', 'equipment', 'inventory']);
+        $stateXml = $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent']);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return '<character>' . $xml . '</character>';
     }
@@ -302,7 +311,7 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['playerState'] ?? null))
             ? $turn['payload']['context']['playerState'] : [];
-        $stateXml = $this->knownFieldsXml($state, ['race', 'class', 'level', 'health', 'health_percent', 'equipment']);
+        $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent']);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return $xml;
     }
@@ -331,12 +340,184 @@ final class PromptAssembler
         return $xml;
     }
 
+    /** Render actor state as semantic XML rather than embedding OpenMW state JSON. */
+    private function actorStateXml(array $state, array $scalarKeys): string
+    {
+        $xml = $this->knownFieldsXml($state, $scalarKeys);
+        $identity = $state['identity'] ?? null;
+        if (is_array($identity) && !array_is_list($identity)) {
+            $xml .= $this->knownFieldsXml($identity, ['race', 'class', 'gender', 'primary_faction']);
+        }
+        $stats = $state['stats'] ?? null;
+        if (is_array($stats) && !array_is_list($stats)) {
+            if (isset($stats['level']) && is_numeric($stats['level'])) $xml .= $this->xmlTag('level', (string)$stats['level']);
+            foreach (['health', 'magicka', 'fatigue'] as $name) {
+                $value = $stats[$name] ?? null;
+                if (!is_array($value) || array_is_list($value)) continue;
+                $summary = [];
+                foreach (['current', 'base'] as $field) if (isset($value[$field]) && is_numeric($value[$field])) $summary[] = $field . '=' . $value[$field];
+                if ($summary !== []) $xml .= $this->xmlTag($name, implode(', ', $summary));
+            }
+        }
+        foreach (['equipment'=>'equipment','inventory'=>'inventory'] as $field=>$tag) {
+            $items = $this->contextItems($state[$field] ?? []);
+            $itemsXml = '';
+            foreach (array_slice($items, 0, 48) as $item) {
+                if (!is_array($item) || array_is_list($item)) continue;
+                $name = trim((string)($item['display_name'] ?? $item['record_id'] ?? ''));
+                if ($name === '') continue;
+                $suffix = isset($item['slot']) ? ' [' . $item['slot'] . ']' : '';
+                if (isset($item['count']) && (int)$item['count'] > 1) $suffix .= ' x' . (int)$item['count'];
+                $itemsXml .= $this->xmlTag('item', $name . $suffix);
+            }
+            if ($itemsXml !== '') $xml .= '<' . $tag . '>' . $itemsXml . '</' . $tag . '>';
+        }
+        return $xml;
+    }
+
     private function worldXml(mixed $context): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
-        return $this->knownFieldsXml($context, [
-            'location', 'cell', 'region', 'weather', 'date', 'time', 'game_time', 'gameTime', 'day', 'month', 'year',
-        ]);
+        $world = is_array($context['world'] ?? null) && !array_is_list($context['world']) ? $context['world'] : $context;
+        $xml = '';
+        foreach (['cell'=>'location','region'=>'region'] as $field=>$tag) {
+            if (is_scalar($world[$field] ?? null) && trim((string)$world[$field]) !== '') {
+                $xml .= $this->xmlTag($tag, trim((string)$world[$field]));
+            }
+        }
+        $cell = $world['cell_identity'] ?? null;
+        if (is_array($cell) && !array_is_list($cell)) {
+            $xml .= $this->xmlTag('location_type', (string)($cell['kind'] ?? 'unknown'));
+            if (($cell['kind'] ?? null) === 'exterior' && isset($cell['grid_x'], $cell['grid_y'])) {
+                $xml .= $this->xmlTag('coordinates', (string)$cell['grid_x'] . ', ' . (string)$cell['grid_y']);
+            }
+        }
+        $weather = $world['weather'] ?? null;
+        if (is_array($weather) && !array_is_list($weather)) {
+            $name = trim((string)($weather['name'] ?? $weather['record_id'] ?? ''));
+            if ($name !== '') $xml .= $this->xmlTag('weather', $name);
+            if (($weather['is_storm'] ?? false) === true) $xml .= $this->xmlTag('weather_condition', 'storm');
+        } elseif (is_scalar($weather) && trim((string)$weather) !== '') {
+            $xml .= $this->xmlTag('weather', trim((string)$weather));
+        }
+        $calendar = $world['calendar'] ?? null;
+        if (is_array($calendar) && !array_is_list($calendar)) {
+            $parts = [];
+            if (isset($calendar['day'])) $parts[] = (string)$calendar['day'];
+            if (is_string($calendar['month_name'] ?? null) && $calendar['month_name'] !== '') $parts[] = $calendar['month_name'];
+            if (isset($calendar['year'])) $parts[] = '3E ' . (string)$calendar['year'];
+            if ($parts !== []) $xml .= $this->xmlTag('date', implode(' ', $parts));
+            if (is_string($calendar['time'] ?? null) && $calendar['time'] !== '') $xml .= $this->xmlTag('time', $calendar['time']);
+        }
+        return $xml;
+    }
+
+    private function peoplePresentXml(array $turn, mixed $context): string
+    {
+        if (!is_array($context) || array_is_list($context)) return '';
+        $identities = [$turn['payload']['speaker'] ?? null, $turn['payload']['target'] ?? null];
+        foreach ($this->contextItems($context['nearbyActors'] ?? []) as $actor) $identities[] = $actor;
+        $names = [];
+        foreach ($identities as $identity) {
+            $name = $this->identityName($identity, '');
+            if ($name !== '' && $name !== 'Unknown') $names[mb_strtolower($name, 'UTF-8')] = $name;
+        }
+        $xml = '';
+        foreach (array_values($names) as $name) $xml .= $this->xmlTag('person', $name);
+        return $xml;
+    }
+
+    private function nearbyActorsXml(array $turn, mixed $context): string
+    {
+        if (!is_array($context) || array_is_list($context)) return '';
+        $activities = [];
+        foreach ($this->contextItems($context['actorActivities'] ?? []) as $status) {
+            if (!is_array($status) || array_is_list($status)) continue;
+            $key = $this->actorSemanticKey($status['actor'] ?? null);
+            if ($key !== '') $activities[$key] = trim((string)($status['activity'] ?? ''));
+        }
+        $xml = '';
+        foreach ($this->contextItems($context['nearbyActors'] ?? []) as $actor) {
+            if (!is_array($actor) || array_is_list($actor)
+                || $this->sameActor($actor, $turn['payload']['speaker'] ?? [])
+                || $this->sameActor($actor, $turn['payload']['target'] ?? [])) continue;
+            $entry = $this->xmlTag('name', $this->identityName($actor, 'Unknown'));
+            $profile = $this->nearbyProfile($turn, $actor);
+            if ($profile !== null) {
+                $content = is_array($profile['content'] ?? null) && !array_is_list($profile['content']) ? $profile['content'] : [];
+                foreach (['basic_summary'=>['biography','background','basic_summary','persona'],
+                    'personality'=>['personality'],'appearance'=>['appearance'],'occupation'=>['occupation','class']] as $tag=>$keys) {
+                    $value=$this->fieldText($content,$keys);if($value!=='')$entry.=$this->xmlTag($tag,$value);
+                }
+            }
+            if (isset($actor['distance']) && is_numeric($actor['distance'])) $entry .= $this->xmlTag('distance', (string)$actor['distance']);
+            $activity = $activities[$this->actorSemanticKey($actor)] ?? '';
+            if ($activity !== '') $entry .= $this->xmlTag('current_activity', $activity);
+            $equipment = $this->contextItems($actor['equipment'] ?? []);
+            if ($equipment !== []) {
+                $equipmentXml = '';
+                foreach ($equipment as $item) {
+                    if (!is_array($item) || array_is_list($item)) continue;
+                    $label = trim((string)($item['display_name'] ?? $item['record_id'] ?? ''));
+                    if ($label !== '') $equipmentXml .= $this->xmlTag('item', $label . (isset($item['slot']) ? ' [' . $item['slot'] . ']' : ''));
+                }
+                if ($equipmentXml !== '') $entry .= '<equipment>' . $equipmentXml . '</equipment>';
+            }
+            $xml .= '<actor>' . $entry . '</actor>';
+        }
+        return $xml;
+    }
+
+    /** @param list<string> $kinds */
+    private function nearbyObjectsXml(mixed $context, array $kinds, string $tag): string
+    {
+        if (!is_array($context) || array_is_list($context)) return '';
+        $groups = [];
+        foreach ($this->contextItems($context['nearbyObjects'] ?? []) as $object) {
+            if (!is_array($object) || array_is_list($object) || !in_array($object['kind'] ?? null, $kinds, true)) continue;
+            $name = trim((string)($object['display_name'] ?? $object['record_id'] ?? ''));
+            if ($name === '') continue;
+            $key = mb_strtolower((string)($object['kind'] ?? '') . '|' . $name, 'UTF-8');
+            if (!isset($groups[$key])) $groups[$key] = ['name'=>$name,'kind'=>(string)$object['kind'],'count'=>0,'distance'=>$object['distance'] ?? null,'lock'=>$object['lock'] ?? null];
+            $groups[$key]['count'] += max(1, (int)($object['count'] ?? 1));
+            if (is_numeric($object['distance'] ?? null) && (!is_numeric($groups[$key]['distance']) || $object['distance'] < $groups[$key]['distance'])) $groups[$key]['distance'] = $object['distance'];
+        }
+        $xml = '';
+        foreach ($groups as $object) {
+            $entry = $this->xmlTag('name', $object['name']) . $this->xmlTag('kind', $object['kind']);
+            if ($object['count'] > 1) $entry .= $this->xmlTag('count', (string)$object['count']);
+            if (is_numeric($object['distance'])) $entry .= $this->xmlTag('distance', (string)$object['distance']);
+            if (is_array($object['lock']) && !array_is_list($object['lock'])) {
+                $entry .= $this->xmlTag('locked', ($object['lock']['locked'] ?? false) ? 'true' : 'false');
+                if (isset($object['lock']['level'])) $entry .= $this->xmlTag('lock_level', (string)$object['lock']['level']);
+            }
+            $xml .= '<' . $tag . '>' . $entry . '</' . $tag . '>';
+        }
+        return $xml;
+    }
+
+    /** Accept both raw client arrays and context.snapshot bounded-array envelopes. */
+    private function contextItems(mixed $value): array
+    {
+        if (!is_array($value)) return [];
+        if (array_is_list($value)) return $value;
+        return is_array($value['items'] ?? null) && array_is_list($value['items']) ? $value['items'] : [];
+    }
+
+    private function actorSemanticKey(mixed $identity): string
+    {
+        if (!is_array($identity) || array_is_list($identity)) return '';
+        return mb_strtolower(trim((string)($identity['content_file'] ?? '')) . '|' . trim((string)($identity['record_id'] ?? '')), 'UTF-8');
+    }
+
+    private function nearbyProfile(array $turn, array $actor): ?array
+    {
+        $profiles=$turn['_nearby_actor_profiles']??[];
+        if(!is_array($profiles)||!array_is_list($profiles))return null;
+        foreach($profiles as$profile){
+            if(is_array($profile)&&!array_is_list($profile)&&$this->sameActor($profile['actor_identity']??[],$actor))return$profile;
+        }
+        return null;
     }
 
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string}> */
@@ -375,8 +556,8 @@ final class PromptAssembler
                 return ['role' => 'user', 'content' => $speaker . ': ' . $text];
             }
             $details = $content['details'] ?? null;
-            if ($details === null) return null;
-            return ['role' => 'user', 'content' => '[World event] ' . $this->canonical($details)];
+            $event = $this->semanticHistoryEvent($type, $details, $content);
+            return $event === null ? null : ['role' => 'user', 'content' => $event];
         }
         if ($kind === 'speech') {
             $text = trim((string) ($content['text'] ?? ''));
@@ -390,6 +571,25 @@ final class PromptAssembler
                 : ['role' => 'user', 'content' => $speaker . ': ' . $text];
         }
         return null;
+    }
+
+    private function semanticHistoryEvent(string $type, mixed $details, array $content): ?string
+    {
+        $details = is_array($details) && !array_is_list($details) ? $details : [];
+        $location = trim((string)($details['location'] ?? $content['location'] ?? ''));
+        return match ($type) {
+            'location' => $location === '' ? null : '[Location] The player entered ' . $location . '.',
+            'weather' => ($weather = trim((string)($details['weather'] ?? $details['name'] ?? ''))) === ''
+                ? null : '[Weather] The weather changed to ' . $weather . '.',
+            'quest' => ($text = trim((string)($details['text'] ?? $details['journal_entry'] ?? ''))) === ''
+                ? null : '[Journal] ' . $text,
+            'book' => ($title = trim((string)($details['title'] ?? $details['record_id'] ?? ''))) === ''
+                ? null : '[Book read] ' . $title . (($text = trim((string)($details['text'] ?? ''))) === '' ? '' : ': ' . $text),
+            'death' => '[World event] ' . (trim((string)($details['text'] ?? 'An actor died.')) ?: 'An actor died.'),
+            'infoaction' => '[Action result] ' . (trim((string)($details['text'] ?? $details['data'] ?? 'An action completed.')) ?: 'An action completed.'),
+            'narration' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Narration] ' . $text,
+            default => null,
+        };
     }
 
     private function currentTurnMessage(array $turn, string $actorName, string $playerName): string

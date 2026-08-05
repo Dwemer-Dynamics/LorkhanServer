@@ -1,0 +1,12 @@
+DROP TRIGGER IF EXISTS herika_project_item_description ON public.item_descriptions;
+DROP FUNCTION IF EXISTS herika_compat.trigger_description_projection();
+DROP FUNCTION IF EXISTS herika_compat.sync_description_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.remove_description_projection(uuid);
+DROP TRIGGER IF EXISTS herika_project_turn_world ON public.turns;
+DROP FUNCTION IF EXISTS herika_compat.trigger_turn_world_projection();
+DROP FUNCTION IF EXISTS herika_compat.project_turn_world(uuid);
+DROP TABLE IF EXISTS herika_compat.currentmission_metadata;
+DROP INDEX IF EXISTS herika_compat.book_metadata_scope_record_unique;
+DROP INDEX IF EXISTS herika_compat.quest_metadata_scope_journal_unique;
+DROP INDEX IF EXISTS herika_compat.questlog_metadata_scope_entry_unique;
+ALTER TABLE herika_compat.questlog_metadata DROP COLUMN IF EXISTS entry_hash;

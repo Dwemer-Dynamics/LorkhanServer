@@ -7,7 +7,7 @@ are duplicated for independent release but their manifest hashes must be identic
 
 - Base URL: `http://127.0.0.1:8089/ALMSIVIserver/api/v1`.
 - Native client uses `hmac-sha256-v1` request MAC headers binding installation, timestamp, unique nonce, body digest, canonical method/target/content type; the 256-bit pairing key is not transmitted routinely and bearer authentication is rejected.
-- JSON content type is strict UTF-8. STT accepts only allowlisted bounded audio types.
+- JSON content type is strict UTF-8. STT schemas remain only in the compatibility fixture set; there is no shipped STT ingress.
 - Responses use ordered bounded long polling at `/events`, not an unbounded server socket.
 - Media uses authenticated `/media/{opaque_id}` and a stored descriptor/hash, never a supplied path.
 - POST idempotency key equals message/request/event ID.
@@ -43,14 +43,14 @@ stale references fail explicitly.
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
 | `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
 | `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
-| `POST /stt` | Compatibility-only bounded route; the shipped ALMSIVI client does not call it because STT is excluded. |
+| `POST /stt` | Reserved compatibility path; the shipped server returns `not_found` because STT is excluded. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
 | `GET /media/{id}` | Stream owned, unexpired allowlisted audio with fixed headers/hash/length. |
 
 Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `action.intent`,
-`turn.complete`, `turn.failed`, `turn.cancelled`, `stt.transcript`, and `stt.failed`. Future variants such as status/notices require
+`turn.complete`, `turn.failed`, and `turn.cancelled`. Future variants such as status/notices require
 an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
 
@@ -114,7 +114,7 @@ retried by the client; health/media may use bounded retries.
 
 Speech descriptor contains opaque ID, SHA-256, actual bytes, codec, duration and expiry. Route ignores
 any client path/name, checks authenticated ownership/session, and serves from private storage. Default
-max is 32 MiB. Raw STT audio retention defaults off; generated media has quota/expiry. Metadata and
+max is 32 MiB. Generated media has quota/expiry. Metadata and
 source response remain auditable after bytes expire according to retention policy.
 
 ## Local management operations

@@ -7,7 +7,6 @@ use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Application\SpeechProvider;
-use ALMSIVIserver\Application\SpeechToTextProvider;
 use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\JobRepository;
@@ -50,16 +49,10 @@ try {
         $speechProvider = ($config['speech_provider_factory'])();
         if (!$speechProvider instanceof SpeechProvider) throw new RuntimeException('Speech provider factory did not return a SpeechProvider.');
     }
-    $sttProvider = ProviderFactory::speechToText($config);
-    if (isset($config['stt_provider_factory'])) {
-        if (($config['environment'] ?? 'production') !== 'test' || !is_callable($config['stt_provider_factory'])) throw new RuntimeException('STT provider factory is test-only.');
-        $sttProvider = ($config['stt_provider_factory'])();
-        if (!$sttProvider instanceof SpeechToTextProvider) throw new RuntimeException('STT provider factory did not return a SpeechToTextProvider.');
-    }
     $runner = new Worker(
         new JobRepository($database),
         FirstPartyJobHandlerFactory::registry($database, $media, provider: $provider, speechProvider: $speechProvider,
-            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),sttProvider:$sttProvider,providerConfig:$config),
+            providerTimeoutMs: (int)($config['provider']['timeout_ms'] ?? 1000),providerConfig:$config),
         $workerId,
         (int) ($worker['lease_seconds'] ?? 30),
         (int) ($worker['batch_size'] ?? 1),

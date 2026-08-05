@@ -252,14 +252,17 @@ final class EventLogRepository
         if ($kind === 'action.result') {
             $status = is_string($body['status'] ?? null) ? $body['status'] : 'completed';
             $actionName = $this->actionName($actionId);
-            $this->insert($common + ['type'=>'infoaction','data'=>$this->displayName($speaker,'Actor').' '.$actionName.' '.$status,
-                'projection_kind'=>'action','projection_key'=>'action-result:'.$sourceId,'delivery_state'=>null,'utterance_id'=>null]);
+            $text=$this->displayName($speaker,'Actor').' '.$actionName.' '.$status;
+            $this->insert(array_merge($common, ['payload'=>['text'=>$text,'action'=>$actionName,'status'=>$status],
+                'type'=>'infoaction','data'=>$text,
+                'projection_kind'=>'action','projection_key'=>'action-result:'.$sourceId,'delivery_state'=>null,'utterance_id'=>null]));
             return;
         }
         if (in_array($kind, ['location','death','narration'], true)) {
             $text = is_string($body['text'] ?? null) ? $body['text'] : json_encode($body, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-            $this->insert($common + ['type'=>$kind,'data'=>(string) $text,'projection_kind'=>'world',
-                'projection_key'=>$kind.':'.$sourceId,'delivery_state'=>null,'utterance_id'=>null]);
+            $this->insert(array_merge($common, ['payload'=>['text'=>(string)$text],'type'=>$kind,'data'=>(string) $text,
+                'projection_kind'=>'world','projection_key'=>$kind.':'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));
         }
     }
 
@@ -298,16 +301,33 @@ final class EventLogRepository
                 . 'ORDER BY e.rowid DESC LIMIT 1');
             $latest->execute(['installation'=>$common['installation_id'],'playthrough'=>$common['playthrough_id']]);
             if ($latest->fetchColumn() !== $location) {
-                $this->insert($common + ['type'=>'location','data'=>'Player entered '.$location,'projection_kind'=>'location',
-                    'projection_key'=>'location:'.$sourceId,'delivery_state'=>null,'utterance_id'=>null]);
+                $world=$this->object($context['world']??[]);
+                $payload=['location'=>$location];
+                foreach(['region','cell_identity','calendar','weather','game_time']as$field){if(array_key_exists($field,$world))$payload[$field]=$world[$field];}
+                $this->insert(array_merge($common, ['payload'=>$payload,'type'=>'location','data'=>'Player entered '.$location,
+                    'projection_kind'=>'location','projection_key'=>'location:'.$sourceId,
+                    'delivery_state'=>null,'utterance_id'=>null]));
             }
+        }
+        $weather=$this->object($context['world']['weather']??[]);
+        $weatherName=trim((string)($weather['name']??$weather['record_id']??''));
+        if($weatherName!==''){
+            $latest=$this->db->prepare("SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid "
+                ."WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND e.type='weather' "
+                .'ORDER BY e.rowid DESC LIMIT 1');
+            $latest->execute(['installation'=>$common['installation_id'],'playthrough'=>$common['playthrough_id']]);
+            $text='Weather changed to '.$weatherName;
+            if($latest->fetchColumn()!==$text){$this->insert(array_merge($common,['payload'=>['weather'=>$weatherName,
+                'record_id'=>$weather['record_id']??null,'is_storm'=>($weather['is_storm']??false)===true],
+                'type'=>'weather','data'=>$text,'projection_kind'=>'weather','projection_key'=>'weather:'.$sourceId,
+                'delivery_state'=>null,'utterance_id'=>null]));}
         }
         $journal = $this->list($context['journal']['items'] ?? []);
         foreach ($journal as $item) {
             if (!is_array($item) || array_is_list($item)) continue;
             $text = (string) ($item['text'] ?? $item['journal_entry'] ?? '');
             if ($text === '') continue;
-            $key = hash('sha256', json_encode($item, JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE));
+            $key = hash('sha256', json_encode($this->canonicalValue($item), JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE|JSON_THROW_ON_ERROR));
             $this->insert(array_merge($common, ['payload'=>$item,'type'=>'quest','data'=>$text,'projection_kind'=>'journal',
                 'projection_key'=>'quest:'.$common['playthrough_id'].':'.$key,'delivery_state'=>null,'utterance_id'=>null]));
         }
@@ -455,6 +475,12 @@ final class EventLogRepository
 
     private function object(mixed $value): array { return is_array($value) && !array_is_list($value) ? $value : []; }
     private function list(mixed $value): array { return is_array($value) && array_is_list($value) ? $value : []; }
+    private function canonicalValue(mixed $value): mixed
+    {
+        if(!is_array($value))return$value;
+        if(array_is_list($value))return array_map(fn(mixed$item):mixed=>$this->canonicalValue($item),$value);
+        ksort($value,SORT_STRING);foreach($value as$key=>$item)$value[$key]=$this->canonicalValue($item);return$value;
+    }
     private function nullableString(mixed $value): ?string { return is_string($value) && trim($value) !== '' ? trim($value) : null; }
     private function encodeObject(array $value): string { return json_encode($value === [] ? (object) [] : $value, JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE); }
     private function encodeList(array $value): string { return json_encode(array_values($value), JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE); }

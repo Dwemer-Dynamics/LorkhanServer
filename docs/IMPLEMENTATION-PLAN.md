@@ -47,8 +47,8 @@ oversized data, duplicate conflicts, server restart and version mismatch.
 - Port mock and final vetted LLM connectors behind one typed contract with timeout/cancel/retry policy.
 - Persist ordered deltas/final response and expose bounded long-poll events with replay/cursor expiry.
 - Add explicit speaker/addressee/audience, group speaker selection and delivery completion/failure.
-- Retain the bounded STT route only as compatibility scaffolding; do not expose or ship STT controls.
-  Implement TTS generation/private media/hash/expiry/serve lifecycle.
+- Retain STT schemas and fixtures only as compatibility scaffolding; do not expose an STT route,
+  controls, capture, or request path. Implement TTS generation/private media/hash/expiry/serve lifecycle.
 
 Gate: mock solo/group/text/TTS/interruption E2E and provider failure/redaction tests pass; partial
 output never becomes a completed utterance or memory source.

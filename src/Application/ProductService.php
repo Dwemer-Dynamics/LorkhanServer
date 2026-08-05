@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'action_policy', 'global_settings'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -40,7 +40,7 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
@@ -60,7 +60,8 @@ final class ProductService
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
-        $this->uuid($id);if($this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
+            ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $content=$this->repository->revisionContent($kind,$id,$revision);$this->assertNoSecrets($content);$this->validateConfiguration($kind,$content);
         return $this->repository->rollback($kind, $id, $revision, $reason, $this->clock->iso());
     }
@@ -82,18 +83,18 @@ final class ProductService
     public function deleteRevisioned(string $kind,string $id):void
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings'],true)
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
 
-    /** Activate one saved TTS or STT preset for an installation. */
+    /** Activate one saved TTS preset for an installation. */
     public function selectConnector(array $input): array
     {
         $this->requireUuid($input, 'installation_id');
         $this->requireUuid($input, 'configuration_id');
         $kind = $input['kind'] ?? null;
-        if (!is_string($kind) || !in_array($kind, ['tts_provider', 'stt_provider'], true)) {
+        if ($kind !== 'tts_provider') {
             throw new InvalidArgumentException('invalid_connector_kind');
         }
         return $this->repository->selectConnector($input['installation_id'], $kind, $input['configuration_id'], $this->clock->iso());
@@ -179,19 +180,13 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function scheduleAutonomy(array $input): array
     {
-        $this->scope($input);
-        if (!in_array($input['kind'] ?? null, ['rechat', 'boredom', 'greeting'], true)) throw new InvalidArgumentException('invalid_schedule_kind');
-        foreach (['interval_seconds', 'cooldown_seconds'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < 30 || $input[$field] > 86400) throw new InvalidArgumentException('invalid_schedule');
-        if (($input['enabled'] ?? false) === true && (!isset($input['current_session_id']) || !isset($input['confirmed_at']))) throw new InvalidArgumentException('session_confirmation_required');
-        if (isset($input['current_session_id'])) $this->uuid((string) $input['current_session_id']);
-        return $this->repository->scheduleAutonomy($input, $this->clock->iso());
+        throw new InvalidArgumentException('feature_excluded');
     }
 
     /** @param array<string,mixed> $scope */
     public function dueAutonomy(array $scope): array
     {
-        $this->scope($scope);
-        return $this->repository->dueAutonomy($scope, $this->clock->iso());
+        return [];
     }
 
     /** @param array<string,mixed> $scope */

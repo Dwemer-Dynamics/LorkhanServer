@@ -8,7 +8,8 @@ are not sources for the ALMSIVI implementation.
 
 - Repository: `https://github.com/abeiro/HerikaServer.git`
 - Ref inspected: `origin/unstable`
-- Commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`
+- Presentation import commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`
+- Active schema/runtime comparison commit: `508d7335d26f8027b3d576137bf161b331ed8ad9`
 - Import mode: byte-identical presentation baseline before ALMSIVI rewiring
 
 ## Imported files

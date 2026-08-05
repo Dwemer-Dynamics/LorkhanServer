@@ -7,7 +7,6 @@ use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
 use ALMSIVIserver\Application\DeterministicClock;
 use ALMSIVIserver\Application\MockProvider;
 use ALMSIVIserver\Application\MockSpeechProvider;
-use ALMSIVIserver\Application\MockSpeechToTextProvider;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\PromptAssembler;
@@ -45,7 +44,7 @@ $products = new ProductRepository($db);
 $morrowindVoices=MorrowindVoiceCatalog::bundled();
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
-    products:$products,promptAssembler:new PromptAssembler(),sttProvider: new MockSpeechToTextProvider(),
+    products:$products,promptAssembler:new PromptAssembler(),
     morrowindVoices:$morrowindVoices);
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
@@ -107,8 +106,8 @@ $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCo
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
 $runWorker = function (array $types, ?Provider $provider = null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
-        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000,
-        sttProvider:new MockSpeechToTextProvider()), 'integration-worker',5,10,100,0,10,$types,
+        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000),
+        'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
 $runTurnWorker = function(Provider $provider) use($runWorker):array {
@@ -657,7 +656,7 @@ $combatIntents=array_values(array_filter($combatEvents['events'],static fn(array
 $assert($status===200&&count($combatIntents)===1&&$combatIntents[0]['payload']['name']==='combat.start'
     &&$combatIntents[0]['payload']['tier']===2,'combat.start tier-2 proposal was not emitted E2E');
 
-// STT is deliberately accepted and completed before a turn row with its turn_id exists.
+// STT remains visible as an excluded CHIM-parity control but has no runtime API or worker path.
 $sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \ALMSIVIserver\Application\NeverCancelledToken())['bytes'];
 $sttMessage=$newUuid(90);$sttRequest=$newUuid(91);$sttTurn=$newUuid(92);$sttCreated=gmdate('Y-m-d\TH:i:s\Z');
 $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttMessage,
@@ -665,33 +664,25 @@ $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttM
     'X-ALMSIVI-Turn-Id'=>$sttTurn,'X-ALMSIVI-Session-Id'=>$sessionId,'X-ALMSIVI-Generation'=>'7','X-ALMSIVI-Created-At'=>$sttCreated,
     'X-ALMSIVI-Codec'=>'wav','X-ALMSIVI-Language'=>'en-US','X-ALMSIVI-Audio-Bytes'=>(string)strlen($sttAudio),
     'X-ALMSIVI-Sha256'=>hash('sha256',$sttAudio)];
-[$status,$sttAccepted]=$call($router,'POST',$base.'/stt',$sttHeaders,[],$sttAudio);
-$assert($status===202&&!$sttAccepted['duplicate']&&(int)$db->query('SELECT count(*) FROM turns WHERE turn_id='.$db->quote($sttTurn))->fetchColumn()===0,
-    'direct pre-turn STT acceptance failed');
-$sttStats=$runWorker(['stt.process']);
+[$status,$sttExcluded]=$call($router,'POST',$base.'/stt',$sttHeaders,[],$sttAudio);
+$assert($status===404&&$sttExcluded['code']==='not_found'
+    &&(int)$db->query('SELECT count(*) FROM turns WHERE turn_id='.$db->quote($sttTurn))->fetchColumn()===0,
+    'excluded STT route remained reachable');
+$assert(!in_array('stt.process',FirstPartyJobHandlerFactory::jobTypes(),true),'excluded STT worker remained registered');
 [$status,$sttEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$combatEvents['next_after']]);
-$assert($sttStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]&&$status===200&&count($sttEvents['events'])===1
-    &&$sttEvents['events'][0]['type']==='stt.transcript'&&$sttEvents['events'][0]['turn_id']===$sttTurn,
-    'direct pre-turn STT did not complete through the worker');
+$assert($status===200&&$sttEvents['events']===[],'excluded STT emitted an event');
 
-$mismatchedAutonomy=false;
-try{$products->scheduleAutonomy(['installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
-    'playthrough_id'=>$newUuid(799),'kind'=>'rechat','enabled'=>true,'interval_seconds'=>30,'cooldown_seconds'=>30,
-    'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')],gmdate('Y-m-d\TH:i:s\Z'));}
-catch(InvalidArgumentException $error){$mismatchedAutonomy=$error->getMessage()==='active_session_scope_mismatch';}
-$assert($mismatchedAutonomy,'autonomy accepted an active session from a different playthrough scope');
-$autonomy=$products->scheduleAutonomy(['installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
+$autonomyExcluded=false;
+try{(new ProductService($products,new DeterministicClock()))->scheduleAutonomy([
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],
     'playthrough_id'=>$session['playthrough_id'],'kind'=>'rechat','enabled'=>true,'interval_seconds'=>30,
-    'cooldown_seconds'=>30,'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')],gmdate('Y-m-d\TH:i:s\Z'));
+    'cooldown_seconds'=>30,'current_session_id'=>$sessionId,'confirmed_at'=>gmdate('Y-m-d\TH:i:s\Z')]);}
+catch(InvalidArgumentException $error){$autonomyExcluded=$error->getMessage()==='feature_excluded';}
+$assert($autonomyExcluded,'excluded autonomy scheduling remained reachable');
 [$status,$autonomyEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$sttEvents['next_after']]);
-$assert($status===200&&count($autonomyEvents['autonomy'])===1
-    &&$autonomyEvents['autonomy'][0]['schedule_id']===$autonomy['schedule_id']
-    &&$autonomyEvents['autonomy'][0]['kind']==='rechat','due autonomy was not delivered to the active session');
-[$status,$autonomyReplay]=$call($router,'GET',$base.'/events',[],[
-    'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$autonomyEvents['next_after']]);
-$assert($status===200&&$autonomyReplay['autonomy']===[],'autonomy directive replayed inside its cooldown');
+$assert($status===200&&$autonomyEvents['autonomy']===[],'excluded autonomy directive was delivered');
 
 // Player menu actions bypass the provider but retain the same authenticated turn and action policy boundary.
 $menuTurn=$turn;$menuTurn['message_id']=$newUuid(280);$menuTurn['request_id']=$newUuid(281);$menuTurn['turn_id']=$newUuid(282);

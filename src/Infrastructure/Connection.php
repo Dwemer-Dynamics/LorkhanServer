@@ -16,10 +16,12 @@ final class Connection
             throw new \RuntimeException('PostgreSQL is required for server runtime persistence.');
         }
 
-        return new PDO($dsn, $user, $password, [
+        $db = new PDO($dsn, $user, $password, [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
+        $db->exec('SET search_path TO almsivi_internal, public, pg_temp');
+        return $db;
     }
 }

@@ -1,0 +1,1 @@
+DROP SCHEMA IF EXISTS herika_compat CASCADE;

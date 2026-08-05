@@ -11,6 +11,7 @@ use Throwable;
 final class MigrationRunner
 {
     private const LOCK_ID = 6_525_393_698_659_162;
+    private const LEDGER = 'almsivi_internal.schema_migrations';
 
     public function __construct(
         private readonly PDO $db,
@@ -166,7 +167,17 @@ final class MigrationRunner
             if ($upSql === false || $downSql === false || trim($upSql) === '' || trim($downSql) === '') {
                 throw new RuntimeException("Migration {$file} is unreadable or empty.");
             }
-            if (preg_match('/(^|;)\s*(BEGIN|COMMIT|ROLLBACK)\b/i', $upSql . "\n" . $downSql) === 1) {
+            // PostgreSQL function and DO bodies can contain PL/pgSQL BEGIN blocks; only
+            // reject transaction control that appears in the migration's top-level SQL.
+            $transactionScan = preg_replace(
+                '/\$(?<tag>[A-Za-z_][A-Za-z0-9_]*)\$.*?\$\k<tag>\$/s',
+                '',
+                $upSql . "\n" . $downSql
+            );
+            if ($transactionScan === null) {
+                throw new RuntimeException("Migration {$file} cannot be checked for transaction control.");
+            }
+            if (preg_match('/(^|;)\s*(BEGIN|COMMIT|ROLLBACK)\b/i', $transactionScan) === 1) {
                 throw new RuntimeException("Migration {$file} controls transactions; the runner must own the transaction.");
             }
             $migrations[] = [
@@ -183,17 +194,22 @@ final class MigrationRunner
 
     private function ensureTable(): void
     {
-        $this->db->exec('CREATE TABLE IF NOT EXISTS schema_migrations ('
+        $this->db->exec('CREATE SCHEMA IF NOT EXISTS almsivi_internal');
+        if ($this->db->query("SELECT to_regclass('public.schema_migrations')")->fetchColumn() !== null
+            && $this->db->query("SELECT to_regclass('almsivi_internal.schema_migrations')")->fetchColumn() === null) {
+            $this->db->exec('ALTER TABLE public.schema_migrations SET SCHEMA almsivi_internal');
+        }
+        $this->db->exec('CREATE TABLE IF NOT EXISTS ' . self::LEDGER . ' ('
             . 'version bigint PRIMARY KEY, name text, checksum char(64), applied_at timestamptz NOT NULL DEFAULT clock_timestamp())');
         // Upgrade the initial independently-authored metadata table without interpreting application data.
-        $this->db->exec('ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS name text');
-        $this->db->exec('ALTER TABLE schema_migrations ADD COLUMN IF NOT EXISTS checksum char(64)');
+        $this->db->exec('ALTER TABLE ' . self::LEDGER . ' ADD COLUMN IF NOT EXISTS name text');
+        $this->db->exec('ALTER TABLE ' . self::LEDGER . ' ADD COLUMN IF NOT EXISTS checksum char(64)');
     }
 
     /** @return array<int,array{name:?string,checksum:?string,applied_at:string}> */
     private function applied(): array
     {
-        $rows = $this->db->query('SELECT version, name, checksum, applied_at FROM schema_migrations ORDER BY version')->fetchAll();
+        $rows = $this->db->query('SELECT version, name, checksum, applied_at FROM ' . self::LEDGER . ' ORDER BY version')->fetchAll();
         $result = [];
         foreach ($rows as $row) {
             $result[(int) $row['version']] = [
@@ -233,7 +249,7 @@ final class MigrationRunner
     {
         $this->transaction(function () use ($migration): void {
             $this->db->exec($migration['up']);
-            $statement = $this->db->prepare('INSERT INTO schema_migrations (version, name, checksum) VALUES (:version, :name, :checksum)');
+            $statement = $this->db->prepare('INSERT INTO ' . self::LEDGER . ' (version, name, checksum) VALUES (:version, :name, :checksum)');
             $statement->execute(['version' => $migration['version'], 'name' => $migration['name'], 'checksum' => $migration['checksum']]);
         });
     }
@@ -242,7 +258,7 @@ final class MigrationRunner
     {
         $this->transaction(function () use ($migration): void {
             $this->db->exec($migration['down']);
-            $statement = $this->db->prepare('DELETE FROM schema_migrations WHERE version = :version');
+            $statement = $this->db->prepare('DELETE FROM ' . self::LEDGER . ' WHERE version = :version');
             $statement->execute(['version' => $migration['version']]);
             if ($statement->rowCount() !== 1) {
                 throw new RuntimeException("Migration {$migration['version']} metadata changed during rollback.");
@@ -254,6 +270,9 @@ final class MigrationRunner
     {
         $this->db->beginTransaction();
         try {
+            // Historical migrations intentionally build their source tables in public;
+            // the final cutover moves ALMSIVI-only state behind the internal schema.
+            $this->db->exec('SET LOCAL search_path TO public, pg_temp');
             $callback();
             $this->db->commit();
         } catch (Throwable $error) {
@@ -274,6 +293,7 @@ final class MigrationRunner
         } finally {
             $unlock = $this->db->prepare('SELECT pg_advisory_unlock(:lock)');
             $unlock->execute(['lock' => self::LOCK_ID]);
+            $this->db->exec('SET search_path TO almsivi_internal, public, pg_temp');
         }
     }
 }
