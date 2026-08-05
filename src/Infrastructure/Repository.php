@@ -20,6 +20,7 @@ final class Repository
         private readonly ?ActionCatalogRepository $actionCatalog = null,
         private readonly ?ActionPolicyValidator $actionPolicy = null,
         private readonly ?DefaultConnectorProvisioner $defaultConnectors = null,
+        private readonly ?EventLogRepository $eventLogRepository = null,
     ) {
         if ($eventReplayLimit < 1 || $eventReplayLimit > 1000) throw new \InvalidArgumentException('Invalid event replay limit.');
         if (($actionCatalog === null) !== ($actionPolicy === null)) throw new \InvalidArgumentException('Incomplete action policy composition.');
@@ -391,6 +392,8 @@ final class Repository
                         'idx' => $index + 1, 'count' => count($utterances), 'speaker' => $this->encode($utterance['speaker']),
                         'addressee' => $this->encode($utterance['addressee']), 'audience' => $this->encode($utterance['audience']),
                         'text' => $utterance['text'], 'emitted' => $dialogue['created_at']]);
+                $this->eventLog()->projectDialogue($m + ['request_id'=>$turn['request_id']], $utterance,
+                    $dialogue['message_id'], $dialogue['created_at']);
                 $this->db->prepare('INSERT INTO speech (installation_id,playthrough_id,session_id,turn_id,dialogue_message_id,sess,speaker,speech,'
                     . 'location,listener,localts,gamets,ts,utterance_id,speaker_identity,listener_identity,audience,delivery_state,created_at) '
                     . 'VALUES (:installation,:playthrough,:session,:turn,:dialogue,:sess,:speaker,:speech,:location,:listener,'
@@ -558,6 +561,7 @@ final class Repository
                 ->execute(['id'=>$dialogueId]);
             $this->db->prepare("UPDATE speech SET delivery_state='expired' WHERE dialogue_message_id=:id")
                 ->execute(['id'=>$dialogueId]);
+            $this->eventLog()->updateDialogueDelivery($dialogueId, 'expired');
         });
     }
 
@@ -587,6 +591,7 @@ final class Repository
             $speechState=$m['status']==='played'?'spoken':$m['status'];
             $this->db->prepare('UPDATE speech SET delivery_state=:state WHERE dialogue_message_id=:id')
                 ->execute(['state'=>$speechState,'id'=>$m['dialogue_message_id']]);
+            $this->eventLog()->updateDialogueDelivery($m['dialogue_message_id'], $m['status']);
             $this->db->prepare("UPDATE durable_jobs SET state='succeeded',completed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE job_id=:job AND state='queued'")->execute(['job'=>$stored['expiry_job_id']]);
             return['duplicate'=>false];
         });
@@ -878,22 +883,12 @@ final class Repository
             . ':schema, :request, :turn, :action, CAST(:payload AS jsonb))');
         $stmt->execute(['id' => $id, 'installation' => $installation, 'session' => $session, 'generation' => $generation, 'kind' => $kind,
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
-        $scope=null;
-        if($session!==null){$find=$this->db->prepare('SELECT playthrough_id,profile_id FROM sessions WHERE session_id=:session');$find->execute(['session'=>$session]);$scope=$find->fetch()?:null;}
-        $body=is_array($payload['payload']??null)?$payload['payload']:$payload;
-        $speaker=is_array($body['speaker']??null)?$body['speaker']:[];$target=is_array($body['target']??null)?$body['target']:[];
-        $audience=is_array($body['audience']??null)&&array_is_list($body['audience'])?$body['audience']:[];
-        $this->db->prepare('INSERT INTO eventlog (installation_id,playthrough_id,profile_id,session_id,source_event_id,request_id,turn_id,type,data,sess,gamets,localts,ts,people,location,party,speaker,target,audience,payload,created_at) '
-            . 'VALUES (:installation,:playthrough,:profile,:session,:source,:request,:turn,:type,:data,:sess,:gamets,'
-            . 'extract(epoch FROM CAST(:occurred AS timestamptz))::bigint,(extract(epoch FROM CAST(:occurred AS timestamptz))*1000)::bigint,'
-            . ':people,:location,:party,CAST(:speaker AS jsonb),CAST(:target AS jsonb),CAST(:audience AS jsonb),CAST(:payload AS jsonb),clock_timestamp()) '
-            . 'ON CONFLICT (source_event_id) DO NOTHING')->execute(['installation'=>$installation,'playthrough'=>$scope['playthrough_id']??null,
-                'profile'=>$scope['profile_id']??null,'session'=>$session,'source'=>$id,'request'=>$request,'turn'=>$turn,'type'=>$kind,
-                'data'=>$this->encode($payload),'sess'=>$session,'gamets'=>(int)($body['context']['world']['game_time']??0),
-                'occurred'=>$occurred,'people'=>is_string($body['people']??null)?$body['people']:null,
-                'location'=>$body['context']['location']['name']??null,'party'=>is_string($body['party']??null)?$body['party']:null,
-                'speaker'=>$speaker===[]?'{}':$this->encode($speaker),'target'=>$target===[]?'{}':$this->encode($target),
-                'audience'=>$this->encode($audience),'payload'=>$this->encode($payload)]);
+        $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload);
+    }
+
+    private function eventLog(): EventLogRepository
+    {
+        return $this->eventLogRepository ?? new EventLogRepository($this->db);
     }
 
     private function encode(array $value): string { return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES); }

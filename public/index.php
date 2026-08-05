@@ -19,6 +19,7 @@ use ALMSIVIserver\Http\Router;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
+use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
@@ -123,7 +124,8 @@ try {
         $management = new ManagementRouter(new ManagementRepository($database), $products,
             new ProductService($products, new DeterministicClock()),
             (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'),
-            (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600), $config);
+            (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600), $config,
+            new EventLogRepository($database));
         $management->dispatch($request)->emit();
     } else {
         $response=$router->dispatch($request);$response->emit();

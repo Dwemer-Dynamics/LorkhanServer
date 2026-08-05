@@ -431,6 +431,19 @@ $delivery['dialogue_message_id']=$dialogueEvent['message_id'];$delivery['turn_id
 $delivery['speaker']=$dialogueEvent['payload']['speaker'];$delivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
 [$status,$deliveryAccepted]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($delivery['message_id']),[],$delivery);
 $assert($status===200&&!$deliveryAccepted['duplicate'],'dialogue delivery result failed');
+$eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
+    .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');
+$eventProjection->execute(['turn'=>$turn['turn_id']]);$eventProjectionRows=$eventProjection->fetchAll();
+$assert(array_column($eventProjectionRows,'type')===['inputtext','chat']
+    &&str_contains((string)$eventProjectionRows[0]['data'],'Please follow me.')
+    &&!str_starts_with((string)$eventProjectionRows[0]['data'],'{')
+    &&$eventProjectionRows[1]['utterance_id']===$dialogueEvent['message_id']
+    &&$eventProjectionRows[1]['dialogue_message_id']===$dialogueEvent['message_id']
+    &&$eventProjectionRows[1]['delivery_state']==='played',
+    'CHIM event projection did not preserve readable turn/dialogue rows and exact delivery correlation: '.json_encode($eventProjectionRows));
+$immutableSourceCount=$db->prepare("SELECT count(*) FROM source_events WHERE turn_id=:turn AND event_kind IN ('turn.requested','dialogue.delivery')");
+$immutableSourceCount->execute(['turn'=>$turn['turn_id']]);
+$assert((int)$immutableSourceCount->fetchColumn()===2,'event projection replaced immutable ALMSIVI source records');
 [$status,$deliveryReplay]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($delivery['message_id']),[],$delivery);
 $assert($status===200&&$deliveryReplay['duplicate'],'dialogue delivery replay failed');
 $wrongRequestDelivery=$delivery;$wrongRequestDelivery['message_id']=$newUuid(24);$wrongRequestDelivery['request_id']=$newUuid(25);
@@ -467,6 +480,9 @@ $wrongResult = $result; $wrongResult['turn_id'] = $newUuid(21);
 $assert($status === 409 && $body['code'] === 'action_result_mismatch', 'unbound action result accepted');
 [$status, $resultAccepted] = $call($router, 'POST', $base . '/action-results', $headers($result['message_id']), [], $result);
 $assert($status === 200 && !($resultAccepted['duplicate'] ?? true), 'action result failed: ' . $status . ' ' . json_encode($resultAccepted));
+$actionProjection=$db->prepare("SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.source_event_id=:source AND e.type='infoaction'");
+$actionProjection->execute(['source'=>$result['message_id']]);
+$assert(str_contains((string)$actionProjection->fetchColumn(),'succeeded'),'terminal action did not project into CHIM event history');
 [$status, $resultDuplicate] = $call($router, 'POST', $base . '/action-results', $headers($result['message_id']), [], $result);
 $assert($status === 200 && $resultDuplicate['duplicate'], 'action result duplicate failed');
 $resultConflict = $result; $resultConflict['status'] = 'failed';
@@ -828,7 +844,7 @@ $finalRechat['payload']['context']['rechat']['previous_listener']=$rechatTurn['p
 [$status,$finalRechatAccepted]=$call($router,'POST',$base.'/turns',$headers($finalRechat['message_id']),[],$finalRechat);
 $finalRechatWorker=$status===202?$runTurnWorker(new MockProvider()):[];
 $rechatState->execute(['chain'=>$rechatChainId]);$closedRechatState=$rechatState->fetch();
-$rechatSources=$db->prepare("SELECT count(*) FROM eventlog WHERE session_id=:session AND type='rechat' AND turn_id IN (:first,:second)");
+$rechatSources=$db->prepare("SELECT count(*) FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.session_id=:session AND e.type='rechat' AND m.turn_id IN (:first,:second)");
 $rechatSources->execute(['session'=>$sessionId,'first'=>$rechatTurn['turn_id'],'second'=>$finalRechat['turn_id']]);
 $assert($status===202&&$finalRechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
     &&$closedRechatState&&$closedRechatState['state']==='closed'&&(int)$closedRechatState['current_depth']===2

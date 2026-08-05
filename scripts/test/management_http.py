@@ -95,6 +95,8 @@ for path,marker in [
 ]:
     page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path
     if path != '/ALMSIVIserver/ui/home.php': assert '<body class="hub-page">' in text,path
+events,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=eventlog'))
+assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text
 journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text

@@ -11,6 +11,7 @@ use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
+use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\Uuid;
 use ALMSIVIserver\Security\BrowserSession;
@@ -62,7 +63,7 @@ final class ManagementRouter
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
         private readonly ProductService $service,private readonly string $basePath='/ALMSIVIserver/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
-        private readonly array $providerConfig=[]){ }
+        private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null){ }
 
     public function dispatch(Request $r):Response
     {
@@ -90,6 +91,22 @@ final class ManagementRouter
 
     private function api(Request $r,string $path):Response
     {
+        if($path==='/api/v1/eventlog'){
+            $events=$this->eventLogRepository??throw new RuntimeException('not_found');
+            if($r->method==='GET')return Response::json(200,$events->page($r->query));
+            if($r->method==='DELETE')return Response::json(200,$events->suppress($this->json($r)));
+        }
+        if($r->method==='POST'&&$path==='/api/v1/eventlog/hidden-types'){
+            $events=$this->eventLogRepository??throw new RuntimeException('not_found');$body=$this->json($r);
+            $scope=$events->scope(is_string($body['installation_id']??null)?$body['installation_id']:null,
+                is_string($body['playthrough_id']??null)?$body['playthrough_id']:null);
+            if($scope===null)throw new InvalidArgumentException('invalid_eventlog_scope');
+            $action=(string)($body['action']??'');$type=(string)($body['type']??'');
+            $hidden=match($action){'hide'=>$events->hideType($scope['installation_id'],$type),
+                'show'=>$events->showType($scope['installation_id'],$type),'clear'=>$events->clearHiddenTypes($scope['installation_id']),
+                default=>throw new InvalidArgumentException('invalid_hidden_type_action')};
+            return Response::json(200,['ok'=>true,'hidden_types'=>$hidden]);
+        }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);

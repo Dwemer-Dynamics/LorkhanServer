@@ -2,11 +2,18 @@
 
 declare(strict_types=1);
 
+use ALMSIVIserver\Infrastructure\EventLogRepository;
+
 $pageTitle = 'ALMSIVI Roleplay';
 $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 $roleplay = $uiRepository->roleplay();
+$eventLogRepository = new EventLogRepository($database);
+$eventLogState = $eventLogRepository->page([
+    'installation_id'=>$_GET['installation_id']??null,'playthrough_id'=>$_GET['playthrough_id']??null,
+    'page'=>$_GET['page']??1,'limit'=>$_GET['limit']??100,'event_type'=>$_GET['event_type']??'',
+]);
 $allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'soulgaze', 'questgen', 'backgroundlife', 'journal'];
 $tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
     'relationships-tab'=>'journal','relationships'=>'journal','quests'=>'journal','narratives-tab'=>'adventure',
@@ -54,6 +61,47 @@ function almsivi_roleplay_relationship_manager(array $rows,array $installations,
         echo'<input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-primary" type="submit">Save relationship</button></fieldset></form></details><form class="danger-form" method="post" action="'.almsivi_ui_h($base.'/forms/relationship-delete').'"><input type="hidden" name="relationship_id" value="'.almsivi_ui_h($id).'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-danger" type="submit">Delete relationship</button></form></article>';}
     echo'</div>';
 }
+
+/** Render the CHIM Event Log controls and table while routing writes through ALMSIVI browser security. */
+function almsivi_roleplay_eventlog(array $state,string $apiPath,string $csrf,bool $autoRefresh):void
+{
+    $scope=is_array($state['scope']??null)?$state['scope']:[];$pagination=is_array($state['pagination']??null)?$state['pagination']:[];
+    $installation=(string)($scope['installation_id']??'');$playthrough=(string)($scope['playthrough_id']??'');
+    echo'<div id="eventlog-app" data-eventlog-api="'.almsivi_ui_h($apiPath).'" data-eventlog-csrf="'.almsivi_ui_h($csrf).'" data-installation-id="'.almsivi_ui_h($installation).'" data-playthrough-id="'.almsivi_ui_h($playthrough).'" data-page="'.almsivi_ui_h($pagination['current_page']??1).'" data-limit="'.almsivi_ui_h($pagination['limit']??100).'" data-auto-refresh="'.($autoRefresh?'true':'false').'">';
+    echo'<div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong>Events:</strong> Raw log of in-game events that provide context to the AI. These events are filtered and selectively added to prompts based on relevance.</div>';
+    if($scope!==[])echo'<div class="eventlog-scope"><strong>'.almsivi_ui_h($scope['installation_name']??'Installation').'</strong><span>'.almsivi_ui_h($scope['playthrough_name']??'Playthrough').'</span></div>';
+    echo'<div class="roleplay-toolbar eventlog-toolbar"><div class="eventlog-live-controls"><button type="button" class="roleplay-button '.($autoRefresh?'':'active').'" data-eventlog-live>'.($autoRefresh?'&#x23F8;&#xFE0F; Stop Live':'Auto Refresh').'</button><span class="eventlog-live-indicator" data-eventlog-live-indicator'.($autoRefresh?'':' hidden').'>LIVE</span></div><div class="delete-controls"><button type="button" class="roleplay-button danger" data-eventlog-delete-selected hidden>Delete Selected (<span data-eventlog-selected-count>0</span>)</button><select data-eventlog-delete-preset><option value="5">Delete Latest 5</option><option value="10">Delete Latest 10</option><option value="20">Delete Latest 20</option><option value="50">Delete Latest 50</option><option value="100">Delete Latest 100</option><option value="all">Delete ALL</option></select><button type="button" class="roleplay-button danger" data-eventlog-delete>Delete</button></div></div>';
+    echo'<div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Not all events are added to AI context. Hidden and suppressed entries remain available in immutable ALMSIVI source traces.</div><div data-eventlog-status role="status"></div>';
+    echo'<div class="roleplay-list-controls"><div class="pagination-shape" data-eventlog-pagination>';
+    almsivi_eventlog_pagination($pagination);
+    echo'</div><div class="eventlog-hide-controls"><label>Hide:<select data-eventlog-hide><option value="">Hide event...</option>';
+    foreach(($state['event_types']??[])as$type){$value=(string)($type['type']??'');if($value!=='')echo'<option value="'.almsivi_ui_h($value).'">'.almsivi_ui_h($value).'</option>';}
+    echo'</select></label><span data-eventlog-hidden>';
+    foreach(($state['hidden_types']??[])as$type)echo'<button type="button" class="eventlog-hidden-chip" data-eventlog-show-type="'.almsivi_ui_h($type).'">'.almsivi_ui_h($type).' &times;</button>';
+    echo'</span></div></div><div id="eventlog-table-container" class="roleplay-data table-responsive" data-eventlog-table>';
+    almsivi_eventlog_table(is_array($state['data']??null)?$state['data']:[]);
+    echo'</div></div>';
+}
+
+/** Render CHIM smart pagination without embedding executable script in the CSP-locked page. */
+function almsivi_eventlog_pagination(array $pagination):void
+{
+    $page=max(1,(int)($pagination['current_page']??1));$pages=max(0,(int)($pagination['total_pages']??0));
+    if($pages===0){echo'<button type="button" class="active" disabled>1</button>';return;}
+    if($page>1)echo'<button type="button" data-eventlog-page="'.($page-1).'">Previous</button>';
+    $numbers=$pages<=10?range(1,$pages):array_values(array_unique(array_merge([1],range(max(2,$page-2),min($pages-1,$page+2)),[$pages])));
+    $previous=0;foreach($numbers as$number){if($previous&&$number>$previous+1)echo'<span class="pagination-ellipsis">...</span>';echo'<button type="button" data-eventlog-page="'.$number.'"'.($number===$page?' class="active"':'').'>'.$number.'</button>';$previous=$number;}
+    if($page<$pages)echo'<button type="button" data-eventlog-page="'.($page+1).'">Next</button>';
+}
+
+/** Render the exact CHIM event columns with all stored text escaped. */
+function almsivi_eventlog_table(array $rows):void
+{
+    echo'<table class="eventlog-table"><thead><tr><th><input type="checkbox" data-eventlog-select-all aria-label="Select all events"></th><th>Event</th><th>Events</th><th>People Present</th><th>Tamrielic Time</th><th>Time (UTC)</th><th>ROWID</th></tr></thead><tbody>';
+    if($rows===[])echo'<tr class="eventlog-empty"><td colspan="7">No roleplay events have been recorded yet.</td></tr>';
+    foreach($rows as$row){$id=(int)($row['rowid']??0);$chat=($row['type']??'')==='chat';echo'<tr data-eventlog-row="'.$id.'"><td><input type="checkbox" class="event-checkbox" data-eventlog-rowid="'.$id.'" aria-label="Select event '.$id.'"></td><td'.($chat?' class="eventlog-chat"':'').'>'.almsivi_ui_h($row['type']??'').'</td><td'.($chat?' class="eventlog-chat"':'').'>'.nl2br(almsivi_ui_h($row['data']??'')).'</td><td>'.almsivi_ui_h($row['people']??'').'</td><td>'.almsivi_ui_h($row['game_time']??'—').'</td><td>'.almsivi_ui_h($row['time_utc']??'').'</td><td><button type="button" class="eventlog-row-delete" data-eventlog-delete-row="'.$id.'" title="Delete event">'.$id.' &#x1F5D1;&#xFE0F;</button></td></tr>';}
+    echo'</tbody></table>';
+}
 $additionalStylesheets=['almsivi-pages.css?v='.(string)filemtime(__DIR__.'/css/almsivi-pages.css'),'herika-roleplay.css?v='.(string)filemtime(__DIR__.'/css/herika-roleplay.css')];
 $includeManagementStyles=false;
 include __DIR__ . '/tmpl/head.html';
@@ -87,11 +135,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             ];
         ?>
             <section id="<?php echo almsivi_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
-                <div class="tab-panel-inner roleplay-panel" data-roleplay-panel><h2 class="visually-hidden"><?php echo almsivi_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo almsivi_ui_h($heading); ?>:</strong> <?php echo almsivi_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo almsivi_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-list-controls"><div class="pagination-shape"><button type="button" class="active">1</button><button type="button" disabled>Next</button></div><label>Filter:<input type="search" placeholder="Search <?php echo almsivi_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><div class="roleplay-data" data-roleplay-data><?php
+                <?php if($tabId==='eventlog'){almsivi_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{ ?><div class="tab-panel-inner roleplay-panel" data-roleplay-panel><h2 class="visually-hidden"><?php echo almsivi_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo almsivi_ui_h($heading); ?>:</strong> <?php echo almsivi_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo almsivi_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-list-controls"><div class="pagination-shape"><button type="button" class="active">1</button><button type="button" disabled>Next</button></div><label>Filter:<input type="search" placeholder="Search <?php echo almsivi_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><div class="roleplay-data" data-roleplay-data><?php
                     if($tabId==='memory')almsivi_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf);
                     elseif(in_array($tabId,['adventure','diaries'],true)){echo'<p><a class="btn-base btn-primary" href="'.almsivi_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';almsivi_ui_table($rows,$emptyMessage);}
                     else almsivi_ui_table($rows,$emptyMessage);
-                ?></div></div>
+                ?></div></div><?php } ?>
             </section>
         <?php endforeach; ?>
         <?php foreach (['soulgaze'=>'roleplay.soulgaze','questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=almsivi_ui_feature($featureId); ?>

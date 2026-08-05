@@ -76,7 +76,7 @@ final class ManagementUiRepository
     public function rows(string $view): array
     {
         $sql = match ($view) {
-            'events', 'request_logs' => "SELECT type,'chim-roleplay-event.v1' AS schema,request_id,turn_id,created_at AS occurred_at FROM eventlog ORDER BY rowid DESC LIMIT 100",
+            'events', 'request_logs' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
             'responses' => "SELECT COALESCE(speaker,'Unknown') AS speaker,speech AS text,delivery_state,created_at AS emitted_at FROM speech ORDER BY rowid DESC LIMIT 100",
             'memories' => "SELECT memory_id,installation_id,profile_id,playthrough_id,tier,content,provenance,occurred_at,updated_at FROM memory_records WHERE deleted_at IS NULL ORDER BY occurred_at DESC LIMIT 100",
             'relationships', 'relationship_logs' => "SELECT relationship_id,installation_id,profile_id,playthrough_id,actor_identity,COALESCE(actor_identity->>'display_name',actor_identity->>'name',actor_identity->>'record_id',actor_identity::text) AS actor,disposition,affinity,source_mode,updated_at FROM relationship_records WHERE deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100",

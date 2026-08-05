@@ -1101,54 +1101,46 @@ final class ProductRepository
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
         $historyStatement=$this->db->prepare(<<<'SQL'
-SELECT * FROM (
-    SELECT 'event:'||e.rowid::text AS id,
-           COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM e.created_at)*1000)::bigint) AS sort_ts,
-           e.created_at AS sort_created_at,0 AS source_rank,e.rowid AS sort_id,
+SELECT 'event:'||e.rowid::text AS id,
+       COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
+       m.created_at AS sort_created_at,CASE WHEN e.type='chat' THEN 1 ELSE 0 END AS source_rank,e.rowid AS sort_id,
+       CASE WHEN e.type='chat' THEN
            jsonb_strip_nulls(jsonb_build_object(
-               'kind','event','type',e.type,'turn_id',e.turn_id,
-               'input',CASE WHEN e.type IN ('turn.requested','rechat') AND t.turn_id IS NOT NULL
-                   THEN jsonb_build_object('kind',t.input_kind,'language',t.input_language,'text',t.input_text) END,
-               'details',CASE WHEN e.type NOT IN ('turn.requested','rechat') THEN e.payload->'payload' END,
-               'speaker',CASE WHEN e.speaker='{}'::jsonb THEN NULL ELSE e.speaker END,
-               'target',CASE WHEN e.target='{}'::jsonb THEN NULL ELSE e.target END,
-               'audience',CASE WHEN jsonb_array_length(e.audience)=0 THEN NULL ELSE e.audience END,
-               'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts
-           )) AS content
-    FROM eventlog e
-    LEFT JOIN turns t ON t.turn_id=e.turn_id
-    WHERE e.installation_id=:installation AND e.playthrough_id=:playthrough
-      AND e.type IN ('turn.requested','location','death','action.result','rechat','narration')
-      AND (e.speaker @> CAST(:event_speaker AS jsonb)
-           OR e.target @> CAST(:event_target AS jsonb)
-           OR e.audience @> CAST(:event_audience AS jsonb))
-    UNION ALL
-    SELECT 'speech:'||s.rowid::text,
-           COALESCE(s.ts,NULLIF(s.gamets,0),(extract(epoch FROM s.created_at)*1000)::bigint),
-           s.created_at,1,s.rowid,
+               'kind','speech','turn_id',m.turn_id,
+               'speaker',COALESCE(m.speaker->>'display_name',m.speaker->>'record_id'),
+               'listener',COALESCE(m.target->>'display_name',m.target->>'record_id'),
+               'text',COALESCE(m.payload->>'text',e.data),
+               'speaker_identity',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
+               'listener_identity',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
+               'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
+               'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts,
+               'delivery_state',e.delivery_state))
+       ELSE
            jsonb_strip_nulls(jsonb_build_object(
-               'kind','speech','turn_id',s.turn_id,'speaker',s.speaker,'listener',s.listener,'text',s.speech,
-               'speaker_identity',CASE WHEN s.speaker_identity='{}'::jsonb THEN NULL ELSE s.speaker_identity END,
-               'listener_identity',CASE WHEN s.listener_identity='{}'::jsonb THEN NULL ELSE s.listener_identity END,
-               'audience',CASE WHEN jsonb_array_length(s.audience)=0 THEN NULL ELSE s.audience END,
-               'location',s.location,'game_time',NULLIF(s.gamets,0),'event_time',s.ts,
-               'delivery_state',s.delivery_state
-           ))
-    FROM speech s
-    WHERE s.installation_id=:speech_installation AND s.playthrough_id=:speech_playthrough
-      AND s.delivery_state IN ('emitted','pending','spoken','played')
-      AND (s.speaker_identity @> CAST(:speech_speaker AS jsonb)
-           OR s.listener_identity @> CAST(:speech_listener AS jsonb)
-           OR s.audience @> CAST(:speech_audience AS jsonb))
-) h
+               'kind','event','type',e.type,'turn_id',m.turn_id,
+               'input',CASE WHEN e.type IN ('inputtext','rechat') THEN m.payload->'input' END,
+               'details',CASE WHEN e.type NOT IN ('inputtext','rechat') THEN m.payload END,
+               'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
+               'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
+               'audience',CASE WHEN jsonb_array_length(m.audience)=0 THEN NULL ELSE m.audience END,
+               'location',e.location,'game_time',NULLIF(e.gamets,0),'event_time',e.ts))
+       END AS content
+FROM eventlog e
+JOIN eventlog_metadata m ON m.rowid=e.rowid
+WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
+  AND m.turn_id IS DISTINCT FROM :current_turn
+  AND e.type IN ('inputtext','chat','location','death','infoaction','rechat','narration','quest','book')
+  AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
+  AND (m.speaker @> CAST(:event_speaker AS jsonb)
+       OR m.target @> CAST(:event_target AS jsonb)
+       OR m.audience @> CAST(:event_audience AS jsonb))
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
 LIMIT 40
 SQL);
         $historyStatement->execute([
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'current_turn'=>$turn['turn_id']??null,
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
-            'speech_installation'=>$turn['installation_id'],'speech_playthrough'=>$turn['playthrough_id'],
-            'speech_speaker'=>$actorJson,'speech_listener'=>$actorJson,'speech_audience'=>$audienceJson,
         ]);
         $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
             'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'content'=>$this->json($row['content'])];
@@ -1249,8 +1241,8 @@ SQL);
         });
     }
 
-    public function searchTraces(string $installation,string $query,int $limit=50):array{$needle='%'.$query.'%';$stmt=$this->db->prepare('SELECT source_event_id AS id,type,created_at,request_id,turn_id,payload FROM eventlog WHERE installation_id=:installation AND source_event_id IS NOT NULL AND (type ILIKE :query OR data ILIKE :query OR payload::text ILIKE :query) ORDER BY rowid DESC LIMIT :limit');$stmt->bindValue(':installation',$installation);$stmt->bindValue(':query',$needle);$stmt->bindValue(':limit',$limit,PDO::PARAM_INT);$stmt->execute();return array_map(function($r){$r['payload']=$this->json($r['payload']);return$r;},$stmt->fetchAll());}
-    public function traceDetail(string $id):array{$s=$this->db->prepare('SELECT * FROM eventlog WHERE source_event_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');foreach(['speaker','target','audience','payload']as$field)$r[$field]=$this->json($r[$field]);return $r;}
+    public function searchTraces(string $installation,string $query,int $limit=50):array{$needle='%'.$query.'%';$stmt=$this->db->prepare('SELECT source_event_id AS id,event_kind AS type,received_at AS created_at,request_id,turn_id,payload FROM source_events WHERE installation_id=:installation AND (event_kind ILIKE :query OR payload::text ILIKE :query) ORDER BY received_at DESC,source_event_id DESC LIMIT :limit');$stmt->bindValue(':installation',$installation);$stmt->bindValue(':query',$needle);$stmt->bindValue(':limit',$limit,PDO::PARAM_INT);$stmt->execute();return array_map(function($r){$r['payload']=$this->json($r['payload']);return$r;},$stmt->fetchAll());}
+    public function traceDetail(string $id):array{$s=$this->db->prepare('SELECT * FROM source_events WHERE source_event_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['payload']=$this->json($r['payload']);return$r;}
 
     public function diagnostics():array{return ['database'=>['connected'=>true,'version'=>(string)$this->db->query('SHOW server_version')->fetchColumn()],'counts'=>['installations'=>(int)$this->db->query('SELECT count(*) FROM installations WHERE revoked_at IS NULL')->fetchColumn(),'active_sessions'=>(int)$this->db->query("SELECT count(*) FROM sessions WHERE state='active'")->fetchColumn(),'queued_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='queued'")->fetchColumn(),'dead_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='dead'")->fetchColumn(),'memory_records'=>(int)$this->db->query('SELECT count(*) FROM memory_records WHERE deleted_at IS NULL')->fetchColumn()]];}
 

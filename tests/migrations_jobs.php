@@ -13,6 +13,7 @@ use ALMSIVIserver\Http\ManagementRouter;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
 use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
@@ -45,6 +46,9 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
+$check($eventlogColumns===['rowid','type','data','sess','gamets','localts','ts','people','location','party','utterance_id','delivery_state'],
+    'eventlog does not expose the exact compact CHIM column contract: '.json_encode($eventlogColumns));
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
@@ -240,7 +244,17 @@ $check(is_string($rotation['mac_key']??null)&&$rotation['overlap_seconds']===60,
 $management->revokePairingToken($rotation['pairing_token_id']);
 $check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
 $check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
-$managementRouter=new ManagementRouter($management,$products,$service);
+$eventLogs=new EventLogRepository($db);
+$baseEventRow=(int)$db->query('SELECT COALESCE(max(rowid),0) FROM eventlog')->fetchColumn();
+$insertEvent=$db->prepare("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death',:data,NULL,:gamets,:localts,:ts,'|Player|') RETURNING rowid");
+$insertMetadata=$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,'cursor_test',:key,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)");
+for($index=1;$index<=12;$index++){$insertEvent->execute(['data'=>'cursor event '.$index,'gamets'=>$index,'localts'=>1_700_000_000+$index,'ts'=>1_700_000_000_000+$index]);$rowid=(int)$insertEvent->fetchColumn();$insertMetadata->execute(['rowid'=>$rowid,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],'profile'=>$profile['profile_id'],'key'=>'cursor-test:'.$index]);}
+$firstCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$baseEventRow,'limit'=>10]);
+$firstCursorIds=array_column($firstCursorPage['data'],'rowid');$nextCursor=max($firstCursorIds);
+$secondCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$nextCursor,'limit'=>10]);
+$check(count($firstCursorIds)===10&&$nextCursor===$baseEventRow+10&&count($secondCursorPage['data'])===2,
+    'eventlog live cursor skipped or duplicated a burst window');
+$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs);
 $denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
 $signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
@@ -250,6 +264,22 @@ $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quick
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
+$eventlogResponse=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
+$eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
+$check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');
+$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogFilterDenied->status===401,'eventlog filter mutation accepted missing CSRF');
+$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogFilterAccepted->status===200,'eventlog filter mutation rejected valid browser CSRF');
+$eventLogs->suppress(['mode'=>'latest','count'=>5,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']]);
+$hiddenCursorSuppressions=(int)$db->query("SELECT count(*) FROM eventlog_metadata WHERE rowid>{$baseEventRow} AND projection_kind='cursor_test' AND suppressed_at IS NOT NULL")->fetchColumn();
+$check($hiddenCursorSuppressions===0,'delete latest suppressed a custom-hidden event type');
+$deleteRow=min($firstCursorIds);
+$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogDeleteDenied->status===401,'eventlog delete accepted missing CSRF');
+$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogDeleteAccepted->status===200&&json_decode($eventlogDeleteAccepted->body,true,8,JSON_THROW_ON_ERROR)['deleted_count']===1,
+    'eventlog row delete rejected valid browser CSRF or escaped its scope');
 $csrfDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfDenied->status===401, 'management write accepted missing CSRF');
 $csrfAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
