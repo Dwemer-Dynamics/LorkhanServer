@@ -378,9 +378,15 @@ $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THR
 $traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
+$promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
-    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'[PROFILE]')
-    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'[CORE_PROFILE]')
+    &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
+    &&($promptMessages[0]['role']??null)==='system'
+    &&str_contains((string)($promptMessages[0]['content']??''),'<roleplay_instructions>')
+    &&str_contains((string)($promptMessages[0]['content']??''),'<character>')
+    &&str_contains((string)($promptMessages[0]['content']??''),'<general_instructions>')
+    &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
+    &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me.')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'CORE PROFILE INSTRUCTION SENTINEL')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
     &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
@@ -797,16 +803,20 @@ $rechatActions=$db->prepare("SELECT count(*) FROM response_events WHERE turn_id=
 $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatActionCount=(int)$rechatActions->fetchColumn();
     $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
+    $rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
     $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
-    &&str_contains($assembledRechatPrompt,'[HISTORY]')&&str_contains($assembledRechatPrompt,'"type":"turn.requested"')
+    &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)>=3
+    &&($rechatMessages[0]['role']??null)==='system'
+    &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains($assembledRechatPrompt,'Please follow me.')
+    &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
     &&(int)$firstRechatState['current_depth']===1&&(int)$firstRechatState['max_depth']===2
     &&$firstRechatState['origin_turn_id']===$turn['turn_id']&&$firstRechatState['latest_turn_id']===$rechatTurn['turn_id']
     &&$rechatActionCount===0,
     'first rechat did not preserve CHIM history, chain state, or action-free continuation semantics: '.json_encode([
-        'worker'=>$rechatWorker,'has_history'=>str_contains($assembledRechatPrompt,'[HISTORY]'),
+        'worker'=>$rechatWorker,'message_count'=>is_array($rechatMessages)?count($rechatMessages):null,
         'state'=>$firstRechatState,'action_count'=>$rechatActionCount]));
 
 $finalRechat=$rechatTurn;

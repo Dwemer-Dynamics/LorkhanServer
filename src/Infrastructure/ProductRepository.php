@@ -1106,7 +1106,7 @@ SELECT * FROM (
            COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM e.created_at)*1000)::bigint) AS sort_ts,
            e.created_at AS sort_created_at,0 AS source_rank,e.rowid AS sort_id,
            jsonb_strip_nulls(jsonb_build_object(
-               'kind','event','type',e.type,
+               'kind','event','type',e.type,'turn_id',e.turn_id,
                'input',CASE WHEN e.type IN ('turn.requested','rechat') AND t.turn_id IS NOT NULL
                    THEN jsonb_build_object('kind',t.input_kind,'language',t.input_language,'text',t.input_text) END,
                'details',CASE WHEN e.type NOT IN ('turn.requested','rechat') THEN e.payload->'payload' END,
@@ -1127,7 +1127,10 @@ SELECT * FROM (
            COALESCE(s.ts,NULLIF(s.gamets,0),(extract(epoch FROM s.created_at)*1000)::bigint),
            s.created_at,1,s.rowid,
            jsonb_strip_nulls(jsonb_build_object(
-               'kind','speech','speaker',s.speaker,'listener',s.listener,'text',s.speech,
+               'kind','speech','turn_id',s.turn_id,'speaker',s.speaker,'listener',s.listener,'text',s.speech,
+               'speaker_identity',CASE WHEN s.speaker_identity='{}'::jsonb THEN NULL ELSE s.speaker_identity END,
+               'listener_identity',CASE WHEN s.listener_identity='{}'::jsonb THEN NULL ELSE s.listener_identity END,
+               'audience',CASE WHEN jsonb_array_length(s.audience)=0 THEN NULL ELSE s.audience END,
                'location',s.location,'game_time',NULLIF(s.gamets,0),'event_time',s.ts,
                'delivery_state',s.delivery_state
            ))

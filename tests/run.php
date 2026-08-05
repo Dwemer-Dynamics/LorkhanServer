@@ -132,22 +132,46 @@ $validator->validate($action, 'almsivi.action-result.v1');
 $check(true, 'expanded action-result validates');
 $check($validator->decode('{}', 8) === [], 'empty JSON object decodes');
 
-$promptTurn=['schema'=>'almsivi.turn.v1','request_id'=>'r','turn_id'=>'t','installation_id'=>'i','profile_id'=>'p','playthrough_id'=>'w','session_id'=>'s','generation'=>1,'content_fingerprint'=>'sha256:'.str_repeat('a',64),'payload'=>['input'=>['kind'=>'text','language'=>'en','text'=>'Hello'],'speaker'=>['record_id'=>'player'],'target'=>['record_id'=>'npc'],'audience'=>[],'context'=>[],'ui_source'=>'chat']];
-$promptSelection=['profile'=>['profile_id'=>'p','revision'=>1,'content'=>['role'=>'hero']],'prompt'=>['configuration_id'=>'c','revision'=>2,'content'=>['instruction'=>'Stay in character']],'memory'=>[['memory_id'=>'m','content'=>'A memory']],'relationship'=>[],'knowledge'=>[],'narrative'=>[],'recent_action_results'=>[['action_id'=>'a','status'=>'succeeded','reason_code'=>'ok','observed'=>[],'completed_at'=>'2026-01-01T00:00:00Z']]];
+$promptTurn=['schema'=>'almsivi.turn.v1','request_id'=>'r','turn_id'=>'t','installation_id'=>'i','profile_id'=>'p','playthrough_id'=>'w','session_id'=>'s','generation'=>1,'content_fingerprint'=>'sha256:'.str_repeat('a',64),'payload'=>['input'=>['kind'=>'text','language'=>'en','text'=>'Hello'],'speaker'=>['record_id'=>'player','display_name'=>'RANGROO'],'target'=>['record_id'=>'npc','display_name'=>'Fargoth'],'audience'=>[],'context'=>[],'ui_source'=>'chat']];
+$promptSelection=['profile'=>['profile_id'=>'p','revision'=>1,'name'=>'Fargoth','actor_identity'=>['record_id'=>'npc','display_name'=>'Fargoth'],'content'=>['biography'=>'Curious & wary <Bosmer>.','personality'=>'Cautious']],'prompt'=>['configuration_id'=>'c','revision'=>2,'content'=>['instruction'=>'Stay in character']],'memory'=>[['memory_id'=>'m','content'=>'A memory']],'relationship'=>[],'knowledge'=>[],'narrative'=>[],'recent_action_results'=>[['action_id'=>'a','status'=>'succeeded','reason_code'=>'ok','observed'=>[],'completed_at'=>'2026-01-01T00:00:00Z']]];
 $promptTurn['_player_profile']=['profile_id'=>'player-profile','name'=>'Nerevarine','revision'=>3,
     'actor_identity'=>['kind'=>'player','display_name'=>'Nerevarine'],
     'content'=>['biography'=>'Freed from the Imperial prison.','personality'=>'Curious','ignored'=>'not prompt-safe']];
+$promptTurn['_narrator_profile']=['actor_identity'=>['kind'=>'narrator','display_name'=>'The Narrator'],
+    'content'=>['enabled'=>false,'biography'=>'DISABLED NARRATOR SENTINEL']];
 $promptTurn['_item_descriptions']=[['description_id'=>'private','record_id'=>'iron_dagger','content_file'=>'Morrowind.esm','name'=>'Iron Dagger','description'=>'A short iron blade.','ignored'=>'not prompt-safe either']];
 $assembler=new PromptAssembler(4096,1024);$assembled=$assembler->assemble($promptTurn,$promptSelection);$repeat=$assembler->assemble($promptTurn,$promptSelection);
-$check($assembled===$repeat && str_starts_with($assembled['provider_input']['_assembled_prompt'],'[PROFILE]'), 'prompt assembly is deterministic and ordered');
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'player_profile')
+$systemMessage=$assembled['provider_input']['_messages'][0]??[];$finalMessage=$assembled['provider_input']['_messages'][array_key_last($assembled['provider_input']['_messages'])]??[];
+$check($assembled===$repeat && ($systemMessage['role']??null)==='system'
+    &&str_contains((string)($systemMessage['content']??''),'<roleplay_instructions>')
+    &&str_contains((string)($systemMessage['content']??''),'<character>')
+    &&($finalMessage['role']??null)==='user', 'CHIM XML prompt assembly is deterministic and role-separated');
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'<player_character>')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
     'server-owned player profile is included in turn context with an explicit field allowlist');
-$check(str_contains($assembled['provider_input']['_assembled_prompt'],'record_descriptions')
+$check(str_contains($assembled['provider_input']['_assembled_prompt'],'<record_descriptions>')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
     'server-owned record descriptions are included with an explicit field allowlist');
+$check(str_contains((string)$systemMessage['content'],'Curious &amp; wary &lt;Bosmer&gt;')
+    &&str_contains((string)$systemMessage['content'],'<name>RANGROO</name>')
+    &&!str_contains((string)$systemMessage['content'],'<name>Nerevarine</name>')
+    &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
+    'XML escaping, live player identity, and disabled narrator filtering are stable');
+$providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
+    ['_prompt'=>$assembled['provider_input']]);
+$check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
+    &&str_contains($providerMessages[0]['content'],'<action_contract>')
+    &&str_contains($providerMessages[0]['content'],'exactly one key named &quot;text&quot;')
+    &&str_ends_with($providerMessages[0]['content'],'</roleplay_context>'),
+    'OpenAI-compatible provider sends the frozen split messages with its action contract inside the XML root');
+$validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
+$validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello, outlander.']],'action'=>null]);
+try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outlander.'],'action'=>null]);
+    $check(false,'provider accepted string utterances outside the typed response contract');
+}catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+    'provider rejected malformed utterances with the wrong terminal code');}
 $check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0]) && $assembled['trace']['sources'][0]['redacted_preview']==='', 'prompt trace is bounded and metadata-only');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
 $historySelection=$promptSelection;$historySelection['memory']=[];$historySelection['recent_action_results']=[];
@@ -165,9 +189,23 @@ $check(str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'REC
 $largeContextTurn=$promptTurn;$largeContextTurn['payload']['context']=['inventory'=>str_repeat('X',2048)];
 $currentTurnSelection=$promptSelection;$currentTurnSelection['memory']=[];$currentTurnSelection['recent_action_results']=[];
 $budgetedTurn=(new PromptAssembler(2048,1024))->assemble($largeContextTurn,$currentTurnSelection);
-$check(str_contains($budgetedTurn['provider_input']['_assembled_prompt'],'"text":"Hello"')
-    &&str_contains($budgetedTurn['provider_input']['_assembled_prompt'],'world_context'),
+$check(($budgetedTurn['provider_input']['_messages'][array_key_last($budgetedTurn['provider_input']['_messages'])]['content']??null)==="RANGROO: Hello\n\nRespond as Fargoth. Write Fargoth's next dialogue line; do not write dialogue for RANGROO."
+    &&!str_contains($budgetedTurn['provider_input']['_assembled_prompt'],str_repeat('X',128)),
     'current input was displaced by the large OpenMW context snapshot');
+$roleHistory=$promptSelection;$roleHistory['memory']=[];$roleHistory['recent_action_results']=[];
+$roleHistory['history']=[
+    ['history_id'=>'player-line','content'=>['kind'=>'event','type'=>'turn.requested','turn_id'=>'old-turn','input'=>['text'=>'Where is my ring?'],'speaker'=>['record_id'=>'player','display_name'=>'RANGROO']]],
+    ['history_id'=>'fargoth-line','content'=>['kind'=>'speech','text'=>'I have not seen it.','speaker'=>'Fargoth','speaker_identity'=>['record_id'=>'npc','display_name'=>'Fargoth']]],
+    ['history_id'=>'guard-line','content'=>['kind'=>'speech','text'=>'Move along.','speaker'=>'Guard','speaker_identity'=>['record_id'=>'guard','display_name'=>'Guard']]],
+    ['history_id'=>'smoke-line','content'=>['kind'=>'event','type'=>'turn.requested','turn_id'=>'smoke-turn','input'=>['text'=>'Automated ALMSIVI smoke test.'],'speaker'=>['display_name'=>'RANGROO']]],
+];
+$roleMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input']['_messages'];
+$check(array_column($roleMessages,'role')===['system','user','assistant','user','user']
+    &&$roleMessages[1]['content']==='RANGROO: Where is my ring?'
+    &&$roleMessages[2]['content']==='I have not seen it.'
+    &&$roleMessages[3]['content']==='Guard: Move along.'
+    &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
+    'CHIM history projection preserves speaker roles and filters control noise');
 
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',

@@ -72,7 +72,7 @@ final class TurnProcessJobHandler implements JobHandler
         } catch (Throwable $error) {
             // Persisting the terminal failure is the successful handling of this turn job. Retrying
             // the provider after exposing turn.failed would contradict the terminal protocol state.
-            $this->repository->failTurn($message, 'provider_unavailable', $fence);
+            $this->repository->failTurn($message, $this->providerFailureCode($error), $fence);
             return;
         }
     }
@@ -102,11 +102,23 @@ final class TurnProcessJobHandler implements JobHandler
             }catch(OperationCancelled$error){
                 $this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
             }catch(Throwable$error){
-                try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+                try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error));}catch(Throwable){}
                 $lastError=$error;
             }
         }
         throw $lastError??new \RuntimeException('provider_unavailable');
+    }
+
+    private function providerFailureCode(Throwable $error): string
+    {
+        return match ($error->getMessage()) {
+            'provider_invalid_output', 'provider_speaker_not_allowed', 'provider_addressee_not_allowed',
+            'provider_invalid_identity' => 'provider_invalid_output',
+            'provider_invalid_action' => 'provider_invalid_action',
+            'provider_action_not_allowed' => 'provider_action_not_allowed',
+            'provider_timeout' => 'provider_timeout',
+            default => 'provider_unavailable',
+        };
     }
 
     private function uuid(array $payload,string $field):string
