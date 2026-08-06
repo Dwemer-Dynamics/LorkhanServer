@@ -111,12 +111,12 @@ final class ManagementRouter
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
-        if(preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|action-policies)$#D',$path,$m)){
+        if(preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)$#D',$path,$m)){
             $kind=$this->singular($m[1]);if($r->method==='GET')return Response::json(200,['items'=>$this->repository->listRevisioned($kind,$this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(201,$this->service->createRevisioned($kind,$this->json($r)));
         }
-        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
-        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})/(revisions|rollback)$#D',$path,$m)){$b=$this->json($r);return$m[3]==='revisions'?Response::json(201,$this->service->revise($this->singular($m[1]),$m[2],$b['content']??[],$b['reason']??'updated')):Response::json(200,$this->service->rollback($this->singular($m[1]),$m[2],(int)($b['revision']??0),(string)($b['reason']??'rollback')));}
+        if($r->method==='DELETE'&&preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)/([0-9a-f-]{36})$#D',$path,$m)){$this->service->deleteRevisioned($this->singular($m[1]),$m[2]);return Response::json(200,['deleted'=>true]);}
         if($path==='/api/v1/connector-selections'){
             if($r->method==='GET')return Response::json(200,['items'=>$this->repository->connectorSelections($this->queryUuid($r,'installation_id'))]);
             if($r->method==='POST')return Response::json(200,$this->service->selectConnector($this->json($r)));
@@ -142,7 +142,7 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);$content=$this->jsonField($v,'content_json');
-        if($domain==='stt-providers'||$domain==='autonomy'||($v['kind']??null)==='stt_provider')throw new RuntimeException('not_found');
+        if($domain==='autonomy')throw new RuntimeException('not_found');
         if($domain==='connector-test'){
             $detail=$this->testConnector($v);
             $target=(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors');
@@ -265,7 +265,7 @@ final class ManagementRouter
             ]),
             'configuration'=>$this->hubHtml([
                 ['providers','Providers','Configure deterministic and live provider presets.'],
-                ['ai-voice','AI & Voice','Configure LLM and TTS connectors. STT is excluded.'],
+                ['ai-voice','AI & Voice','Configure LLM, TTS, and installation-global STT connectors.'],
                 ['prompts-actions','Prompts & Actions','Manage prompts and negotiated action policies.'],
             ]),
             'control-panel'=>$this->hubHtml([

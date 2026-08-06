@@ -11,14 +11,17 @@ final class CredentialStore
 {
     public function __construct(private readonly string $path)
     {
-        if($path===''||!str_starts_with($path,DIRECTORY_SEPARATOR)||str_contains($path,"\0"))throw new InvalidArgumentException('invalid_credential_store_path');
+        $absolute=str_starts_with($path,DIRECTORY_SEPARATOR)||preg_match('/^[A-Za-z]:[\\\\\/]/D',$path)===1;
+        if($path===''||!$absolute||str_contains($path,"\0"))throw new InvalidArgumentException('invalid_credential_store_path');
     }
 
     /** Return the server-controlled credential names accepted by the management UI and provider factory. */
     public static function allowedVariables(): array
     {
         $variables=['ALMSIVI_LLM_API_KEY','ALMSIVI_TTS_API_KEY','ALMSIVI_STT_API_KEY'];
-        foreach(['tts_provider','stt_provider']as$kind)foreach(ConnectorCatalog::all($kind)as$definition)$variables[]=(string)$definition['credential_environment'];
+        foreach(['tts_provider','stt_provider']as$kind)foreach(ConnectorCatalog::all($kind)as$definition){
+            $variable=(string)$definition['credential_environment'];if($variable!=='')$variables[]=$variable;
+        }
         $variables=array_values(array_unique($variables));sort($variables,SORT_STRING);return$variables;
     }
 

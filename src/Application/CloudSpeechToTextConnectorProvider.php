@@ -37,9 +37,10 @@ final class CloudSpeechToTextConnectorProvider implements SpeechToTextProvider
         $cancellation->throwIfCancellationRequested();
         if ($codec !== 'wav' || strlen($bytes) < 44 || strlen($bytes) > 33_554_432
             || substr($bytes, 0, 4) !== 'RIFF' || substr($bytes, 8, 4) !== 'WAVE'
-            || $this->apiKey === '' || $language === '' || strlen($language) > 35) {
+            || $language === '' || strlen($language) > 35) {
             throw new RuntimeException('invalid_audio');
         }
+        if ($this->apiKey === '') throw new RuntimeException('provider_unavailable');
         [$url, $body, $headers] = $this->request($bytes, $language);
         $handle = curl_init(OutboundUrlPolicy::validate($url, [$this->host]));
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -61,9 +62,9 @@ final class CloudSpeechToTextConnectorProvider implements SpeechToTextProvider
             $response = curl_exec($handle);
             $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
             if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
-            if (!is_string($response) || $status < 200 || $status >= 300 || strlen($response) > 2_097_152) {
-                throw new RuntimeException('provider_unavailable');
-            }
+            if (!is_string($response) || strlen($response) > 2_097_152) throw new RuntimeException('provider_invalid_output');
+            if ($status === 408 || $status === 429 || $status >= 500) throw new RuntimeException('provider_timeout');
+            if ($status < 200 || $status >= 300) throw new RuntimeException('provider_unavailable');
         } finally {
             curl_close($handle);
         }
@@ -83,7 +84,7 @@ final class CloudSpeechToTextConnectorProvider implements SpeechToTextProvider
         }
         if ($this->driver === 'deepgram') {
             $url = str_contains($base, '/v1/listen') ? $base : $base . '/v1/listen';
-            $query = ['punctuate' => 'true', 'utterances' => 'true', 'language' => $language,
+            $query = ['punctuate' => 'true', 'filler_words' => 'true', 'utterances' => 'true', 'language' => $language,
                 'model' => $this->model !== '' ? $this->model : 'nova-3'];
             return [$url . (str_contains($url, '?') ? '&' : '?') . http_build_query($query, '', '&', PHP_QUERY_RFC3986),
                 $bytes, ['Authorization: Token ' . $this->apiKey, 'Content-Type: audio/wav', 'Accept: application/json']];
@@ -99,13 +100,16 @@ final class CloudSpeechToTextConnectorProvider implements SpeechToTextProvider
         $model = $this->model !== '' ? $this->model : 'gemini-2.5-flash';
         $url = str_contains($base, ':generateContent') ? $base
             : (str_contains($base, '/v1beta/models/') ? $base : $base . '/v1beta/models/' . rawurlencode($model)) . ':generateContent';
-        $prompt = 'Transcribe this RPG player audio accurately. Return only JSON with fields transcript and tone. '
-            . 'Use tone neutral when no clear vocal emotion is audible. Language: ' . $language;
+        $prompt = "You are a speech-to-text system for a fantasy RPG game. Transcribe this audio accurately and detect the speaker's emotional tone from their voice.\n\n"
+            . "Language: {$language}\n\nReturn ONLY valid JSON with exactly these two fields:\n"
+            . "{\"transcript\": \"the transcribed text\", \"tone\": \"one or two words describing the emotional tone of the speaker's voice\"}\n\n"
+            . 'If the audio is silent or unintelligible, return: {"transcript": "", "tone": "neutral"}';
         $payload = ['contents' => [['parts' => [['text' => $prompt], ['inline_data' => [
             'mime_type' => 'audio/wav', 'data' => base64_encode($bytes)]]]]], 'generationConfig' => [
                 'temperature' => 0.1, 'maxOutputTokens' => 1024, 'responseMimeType' => 'application/json']];
+        $url .= (str_contains($url, '?') ? '&' : '?') . 'key=' . rawurlencode($this->apiKey);
         return [$url, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES),
-            ['x-goog-api-key: ' . $this->apiKey, 'Content-Type: application/json', 'Accept: application/json']];
+            ['Content-Type: application/json', 'Accept: application/json']];
     }
 
     /** Extract and bound the transcript from each provider's documented JSON response. */
@@ -125,9 +129,13 @@ final class CloudSpeechToTextConnectorProvider implements SpeechToTextProvider
             $generated = trim((string) ($decoded['candidates'][0]['content']['parts'][0]['text'] ?? ''));
             if (preg_match('/```(?:json)?\s*(\{.*\})\s*```/s', $generated, $match) === 1) $generated = $match[1];
             $result = json_decode($generated, true);
-            if (!is_array($result)) throw new RuntimeException('provider_invalid_output');
-            $text = trim((string) ($result['transcript'] ?? ''));
-            $tone = trim((string) ($result['tone'] ?? 'neutral'));
+            if (!is_array($result)) {
+                $text = $generated;
+                $tone = 'neutral';
+            } else {
+                $text = trim((string) ($result['transcript'] ?? ''));
+                $tone = trim((string) ($result['tone'] ?? 'neutral'));
+            }
             if (($this->options['include_tone'] ?? true) === true && $text !== '' && $tone !== '' && strtolower($tone) !== 'neutral'
                 && mb_strlen($tone) <= 40) $text = '(' . $tone . ') ' . $text;
         }

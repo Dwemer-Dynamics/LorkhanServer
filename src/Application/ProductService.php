@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'action_policy', 'global_settings'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -88,13 +88,13 @@ final class ProductService
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
 
-    /** Activate one saved TTS preset for an installation. */
+    /** Activate one saved installation-global speech preset. */
     public function selectConnector(array $input): array
     {
         $this->requireUuid($input, 'installation_id');
         $this->requireUuid($input, 'configuration_id');
         $kind = $input['kind'] ?? null;
-        if ($kind !== 'tts_provider') {
+        if (!in_array($kind, ['tts_provider','stt_provider'], true)) {
             throw new InvalidArgumentException('invalid_connector_kind');
         }
         return $this->repository->selectConnector($input['installation_id'], $kind, $input['configuration_id'], $this->clock->iso());

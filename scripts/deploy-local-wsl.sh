@@ -60,7 +60,7 @@ else
     usermod --append --groups www-data almsivi
 fi
 install -d -m 0755 /var/www/html
-install -d -o almsivi -g www-data -m 2750 /var/lib/almsiviserver/media
+install -d -o almsivi -g www-data -m 2770 /var/lib/almsiviserver/media
 find /var/lib/almsiviserver/media -xdev -type f -name '*.media' -exec chown almsivi:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/voices
 find /var/lib/almsiviserver/voices -xdev -type f -name '*.wav' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +

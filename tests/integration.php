@@ -7,6 +7,7 @@ use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
 use ALMSIVIserver\Application\DeterministicClock;
 use ALMSIVIserver\Application\MockProvider;
 use ALMSIVIserver\Application\MockSpeechProvider;
+use ALMSIVIserver\Application\MockSpeechToTextProvider;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\PromptAssembler;
@@ -42,6 +43,8 @@ $token = PairingToken::generate();
 $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installationId='00000000-0000-4000-8000-000000000001';
 $attempts = new ProviderAttemptRepository($db);
 $products = new ProductRepository($db);
+$repo->ensureInstallation($installationId,$tokenHash,$macKey);
+(new DefaultConnectorProvisioner($db))->provision($installationId);
 $morrowindVoices=MorrowindVoiceCatalog::bundled();
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
@@ -96,8 +99,9 @@ $excludedCount=$db->prepare("SELECT count(*) FROM configuration_sets WHERE insta
 $excludedCount->execute(['installation'=>$defaultInstallationId]);
 $voiceCount=$db->prepare('SELECT count(*) FROM speech_connector_voices v JOIN configuration_sets c ON c.configuration_id=v.configuration_id WHERE c.installation_id=:installation');
 $voiceCount->execute(['installation'=>$defaultInstallationId]);
-$assert((int)$excludedCount->fetchColumn()===0&&(int)$voiceCount->fetchColumn()===1,
-    'excluded STT or unavailable Morrowind voices were provisioned');
+$assert((int)$excludedCount->fetchColumn()===1&&(int)$voiceCount->fetchColumn()===1
+    &&$products->connectorForInstallation($defaultInstallationId,'stt_provider')!==null,
+    'global STT default or available Morrowind voices were not provisioned');
 $beforeRevision=(int)$defaultCore['current_revision'];$beforeConfigurations=count($defaultConfigurations);
 $defaultProvisioner->provision($defaultInstallationId);
 $defaultRows->execute(['installation'=>$defaultInstallationId]);
@@ -105,9 +109,10 @@ $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($de
 $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
     'default connector provisioning was not idempotent');
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
-$runWorker = function (array $types, ?Provider $provider = null) use ($db,$mediaStore): array {
+$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
-        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000),
+        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000,
+        sttProvider:$sttProvider),
         'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
@@ -657,7 +662,7 @@ $combatIntents=array_values(array_filter($combatEvents['events'],static fn(array
 $assert($status===200&&count($combatIntents)===1&&$combatIntents[0]['payload']['name']==='combat.start'
     &&$combatIntents[0]['payload']['tier']===2,'combat.start tier-2 proposal was not emitted E2E');
 
-// STT remains visible as an excluded CHIM-parity control but has no runtime API or worker path.
+// Authenticated binary STT is durable and returns its transcript through the session event stream.
 $sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \ALMSIVIserver\Application\NeverCancelledToken())['bytes'];
 $sttMessage=$newUuid(90);$sttRequest=$newUuid(91);$sttTurn=$newUuid(92);$sttCreated=gmdate('Y-m-d\TH:i:s\Z');
 $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttMessage,
@@ -665,14 +670,15 @@ $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttM
     'X-ALMSIVI-Turn-Id'=>$sttTurn,'X-ALMSIVI-Session-Id'=>$sessionId,'X-ALMSIVI-Generation'=>'7','X-ALMSIVI-Created-At'=>$sttCreated,
     'X-ALMSIVI-Codec'=>'wav','X-ALMSIVI-Language'=>'en-US','X-ALMSIVI-Audio-Bytes'=>(string)strlen($sttAudio),
     'X-ALMSIVI-Sha256'=>hash('sha256',$sttAudio)];
-[$status,$sttExcluded]=$call($router,'POST',$base.'/stt',$sttHeaders,[],$sttAudio);
-$assert($status===404&&$sttExcluded['code']==='not_found'
-    &&(int)$db->query('SELECT count(*) FROM turns WHERE turn_id='.$db->quote($sttTurn))->fetchColumn()===0,
-    'excluded STT route remained reachable');
-$assert(!in_array('stt.process',FirstPartyJobHandlerFactory::jobTypes(),true),'excluded STT worker remained registered');
+[$status,$sttAccepted]=$call($router,'POST',$base.'/stt',$sttHeaders,[],$sttAudio);
+$assert($status===202&&!$sttAccepted['duplicate'],'typed STT route did not durably accept audio');
+$assert(in_array('stt.process',FirstPartyJobHandlerFactory::jobTypes(),true),'STT worker was not registered');
+$sttWorker=$runWorker(['stt.process'],null,new MockSpeechToTextProvider());
+$assert($sttWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'STT worker did not complete transcription');
 [$status,$sttEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$combatEvents['next_after']]);
-$assert($status===200&&$sttEvents['events']===[],'excluded STT emitted an event');
+$assert($status===200&&array_column($sttEvents['events'],'type')===['stt.transcript']
+    &&($sttEvents['events'][0]['payload']['text']??'')!=='','STT transcript event was not emitted');
 
 $autonomyExcluded=false;
 try{(new ProductService($products,new DeterministicClock()))->scheduleAutonomy([

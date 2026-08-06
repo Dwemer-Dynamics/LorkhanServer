@@ -8,6 +8,7 @@ use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\SpeechProvider;
+use ALMSIVIserver\Application\SpeechToTextProvider;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProductRepository;
@@ -44,6 +45,7 @@ final class Router
         private readonly ?PromptAssembler $promptAssembler = null,
         private readonly ?MorrowindVoiceCatalog $morrowindVoices = null,
         private readonly ?RechatCoordinator $rechatCoordinator = null,
+        private readonly ?SpeechToTextProvider $sttProviderOverride = null,
     ) {
         if (($products === null) !== ($promptAssembler === null)) throw new \InvalidArgumentException('Incomplete prompt composition.');
     }
@@ -73,6 +75,7 @@ final class Router
             if ($request->method === 'GET' && preg_match('#^/media/([0-9a-f-]{36})$#D', $path, $m)) return $this->media($m[1]);
             if ($request->method === 'POST' && $path === '/interruptions') return $this->interrupt($request);
             if ($request->method === 'POST' && $path === '/action-results') return $this->actionResult($request);
+            if ($request->method === 'POST' && $path === '/stt') return $this->stt($request);
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
@@ -314,6 +317,55 @@ final class Router
             'duplicate' => $result['duplicate']]);
     }
 
+    /** Persist authenticated opaque audio and enqueue one durable transcription job. */
+    private function stt(Request $request): Response
+    {
+        if ($this->mediaStore === null) throw new ApiException(503, 'provider_unavailable', 'STT unavailable.', true, 1000);
+        if (strtolower(trim((string) $request->header('Content-Type'))) !== 'application/octet-stream') {
+            throw new ApiException(415, 'invalid_schema', 'Binary audio required.');
+        }
+        $header = fn(string $name): string => (string) ($request->header('X-ALMSIVI-' . $name) ?? '');
+        $message = [
+            'schema' => $header('Schema'), 'message_id' => $header('Message-Id'), 'request_id' => $header('Request-Id'),
+            'turn_id' => $header('Turn-Id'), 'session_id' => $header('Session-Id'),
+            'generation' => filter_var($header('Generation'), FILTER_VALIDATE_INT), 'created_at' => $header('Created-At'),
+            'codec' => $header('Codec'), 'language' => $header('Language'),
+            'audio_bytes' => filter_var($header('Audio-Bytes'), FILTER_VALIDATE_INT), 'sha256' => $header('Sha256'),
+        ];
+        $this->validator->validate($message, 'almsivi.stt.request.v1');
+        $installationId = $this->repository->sessionInstallation($message['session_id']);
+        $this->assertPrincipal($installationId);
+        $this->requireIdempotency($request, $message['message_id']);
+        $session = $this->repository->session($message['session_id'], (int) $message['generation']);
+        if (!in_array('speech.listen', $session['capabilities'], true)) {
+            throw new ApiException(403, 'forbidden', 'Speech input was not negotiated for this session.');
+        }
+        $preset = $this->products?->connectorForInstallation($installationId, 'stt_provider');
+        if ($this->sttProviderOverride === null && ($preset === null || ($preset['content']['driver'] ?? 'none') === 'none')) {
+            throw new ApiException(503, 'provider_unavailable', 'STT unavailable.', true, 1000);
+        }
+        if (strlen($request->body) !== $message['audio_bytes'] || !hash_equals($message['sha256'], hash('sha256', $request->body))) {
+            throw new ValidationException('invalid_schema');
+        }
+        $semanticHash = $this->semanticHash($message);
+        $mediaId = Uuid::v4();
+        try {
+            $this->mediaStore->put($mediaId, $request->body, 'wav', 'audio/wav');
+        } catch (Throwable) {
+            throw new ApiException(422, 'invalid_audio', 'Audio is not a valid WAV payload.');
+        }
+        try {
+            $result = $this->repository->acceptStt($message, $mediaId, $semanticHash);
+            if ($result['duplicate']) $this->mediaStore->delete($mediaId);
+        } catch (Throwable $error) {
+            $this->mediaStore->delete($mediaId);
+            throw $error;
+        }
+        return Response::json(202, ['schema' => 'almsivi.stt.accepted.v1', 'message_id' => $message['message_id'],
+            'request_id' => $message['request_id'], 'turn_id' => $message['turn_id'], 'session_id' => $message['session_id'],
+            'generation' => $message['generation'], 'event_cursor' => $result['cursor'], 'duplicate' => $result['duplicate']]);
+    }
+
     private function deliveryResult(Request $request):Response
     {
         $m=$this->json($request,'almsivi.dialogue-delivery-result.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);$result=$this->repository->dialogueDeliveryResult($m);return Response::json(200,['schema'=>'almsivi.dialogue-delivery-result.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'dialogue_message_id'=>$m['dialogue_message_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$result['duplicate']]);
@@ -411,7 +463,7 @@ final class Router
     private function publicCode(string $code):string
     {
         $aliases=['dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
-        $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch',
+        $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',
             'provider_invalid_output','provider_timeout','provider_unavailable','rate_limited','request_mismatch',

@@ -34,13 +34,14 @@ final class ConnectorCatalog
     ];
 
     private const STT = [
-        'localwhisper' => ['Local Whisper', true, 'ALMSIVI_STT_LOCALWHISPER_API_KEY'],
-        'parakeet' => ['Parakeet', true, 'ALMSIVI_STT_PARAKEET_API_KEY'],
-        'whisper' => ['OpenAI Whisper', false, 'ALMSIVI_STT_OPENAI_API_KEY'],
-        'azure' => ['Azure Speech', false, 'ALMSIVI_STT_AZURE_API_KEY'],
-        'deepgram' => ['Deepgram', false, 'ALMSIVI_STT_DEEPGRAM_API_KEY'],
+        'none' => ['Disabled', true, ''],
+        'localwhisper' => ['Local Whisper', true, ''],
+        'parakeet' => ['Parakeet', true, 'ALMSIVI_TTS_OPENAI_API_KEY'],
+        'whisper' => ['OpenAI Whisper', false, 'ALMSIVI_TTS_OPENAI_API_KEY'],
+        'azure' => ['Azure Speech', false, 'ALMSIVI_TTS_AZURE_API_KEY'],
+        'deepgram' => ['Deepgram', false, 'ALMSIVI_TTS_DEEPGRAM_API_KEY'],
         'gemini' => ['Gemini', false, 'ALMSIVI_STT_GEMINI_API_KEY'],
-        'inworld' => ['Inworld', false, 'ALMSIVI_STT_INWORLD_API_KEY'],
+        'inworld' => ['Inworld', false, 'ALMSIVI_TTS_INWORLD_API_KEY'],
     ];
 
     private const TTS_OPTIONS = [
@@ -62,6 +63,8 @@ final class ConnectorCatalog
     ];
 
     private const STT_OPTIONS = [
+        'localwhisper'=>[['file_field','Audio form field','select',['audio_file','file']]],
+        'whisper'=>[['translate','Translate to English','boolean']],
         'azure'=>[['profanity','Profanity handling','select',['masked','removed','raw']]],
         'gemini'=>[['include_tone','Prefix detected vocal tone','boolean']],
     ];
@@ -92,6 +95,7 @@ final class ConnectorCatalog
     ];
 
     private const STT_DEFAULTS = [
+        'none'=>['disabled://stt','disabled','','en'],
         'localwhisper'=>['http://127.0.0.1:9876/api/v0/transcribe','whisper-1','','en'],
         'parakeet'=>['http://127.0.0.1:8022','parakeet-tdt-0.6b-v3','','en'],
         'whisper'=>['https://api.openai.com/v1/audio/transcriptions','whisper-1','','en'],
@@ -126,7 +130,9 @@ final class ConnectorCatalog
         $allowed = ['driver', 'endpoint', 'model', 'voice', 'language', 'timeout_ms', 'options'];
         if (array_diff(array_keys($content), $allowed) !== []) throw new InvalidArgumentException('invalid_connector_content');
         $endpoint = trim((string) ($content['endpoint'] ?? ''));
-        if ($endpoint === '' || strlen($endpoint) > 2048) throw new InvalidArgumentException('invalid_connector_endpoint');
+        if ($endpoint === '' || strlen($endpoint) > 2048 || ($driver !== 'none' && parse_url($endpoint, PHP_URL_HOST) === null)) {
+            throw new InvalidArgumentException('invalid_connector_endpoint');
+        }
         foreach (['model' => 256, 'voice' => 512, 'language' => 35] as $field => $limit) {
             if (isset($content[$field]) && (!is_string($content[$field]) || strlen($content[$field]) > $limit || !mb_check_encoding($content[$field], 'UTF-8'))) {
                 throw new InvalidArgumentException('invalid_connector_' . $field);

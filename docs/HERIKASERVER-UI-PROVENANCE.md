@@ -54,4 +54,4 @@ are not sources for the ALMSIVI implementation.
 The imported PHP pages are an HTML, CSS, JavaScript, and interaction reference. Before deployment,
 their bootstrap and mutations must use ALMSIVI browser sessions, CSRF validation, typed services,
 PostgreSQL migrations, OpenMW identities, and the revisioned Global Settings -> Core Profile -> NPC
-resolver. Skyrim-only operations and ITT, STT, and Background Life controls are excluded.
+resolver. The Herika STT connector page is rewired as a single installation-global ALMSIVI connector; Skyrim-only operations, ITT, and Background Life controls remain excluded.

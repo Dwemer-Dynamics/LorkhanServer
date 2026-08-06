@@ -1,4 +1,11 @@
 (() => {
+    document.querySelectorAll('[data-route-select]').forEach((control) => {
+        control.addEventListener('change', () => {
+            const option = control.options[control.selectedIndex];
+            if (option && option.dataset.url) window.location.assign(option.dataset.url);
+        });
+    });
+
     document.querySelectorAll('[data-json-import-target]').forEach((picker) => {
         picker.addEventListener('change', () => {
             const file = picker.files && picker.files[0];

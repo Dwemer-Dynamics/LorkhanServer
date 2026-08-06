@@ -47,8 +47,8 @@ oversized data, duplicate conflicts, server restart and version mismatch.
 - Port mock and final vetted LLM connectors behind one typed contract with timeout/cancel/retry policy.
 - Persist ordered deltas/final response and expose bounded long-poll events with replay/cursor expiry.
 - Add explicit speaker/addressee/audience, group speaker selection and delivery completion/failure.
-- Retain STT schemas and fixtures only as compatibility scaffolding; do not expose an STT route,
-  controls, capture, or request path. Implement TTS generation/private media/hash/expiry/serve lifecycle.
+- Activate authenticated binary STT ingress, durable PostgreSQL request/job state, provider adapters,
+  transcript/failure events, and the single installation-global connector. Implement TTS generation/private media/hash/expiry/serve lifecycle.
 
 Gate: mock solo/group/text/TTS/interruption E2E and provider failure/redaction tests pass; partial
 output never becomes a completed utterance or memory source.
@@ -60,7 +60,7 @@ output never becomes a completed utterance or memory source.
 - Port relationships, world knowledge, narrator, diary, playback-driven rechat and playthrough
   summaries/export/restore, translated to TES3. Rechat uses scoped CHIM-style event/speech/response/
   prompt records, advances only after final client playback, and cannot emit actions.
-- Exclude timer autonomy, boredom, automatic greeting, combat barks, STT, ITT and Background Life.
+- Exclude timer autonomy, boredom, automatic greeting, combat barks, ITT and Background Life.
 - Ensure workers are idempotent, source-event-derived and visible in job/dead-letter UI.
 
 Gate: deterministic fixtures prove create/derive/retrieve/edit/delete/rebuild/restore and prompt source

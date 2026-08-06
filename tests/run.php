@@ -270,7 +270,8 @@ $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===tr
     'text-only narration remains visible without synthesizing narrator audio');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
-$check(count($ttsCatalog)===22 && count($sttCatalog)===7, 'CHIM-lineage TTS and STT connector catalogs are complete');
+$check(count($ttsCatalog)===22 && count($sttCatalog)===8
+    &&in_array('none',array_column($sttCatalog,'driver'),true), 'CHIM-lineage TTS and STT connector catalogs are complete');
 $check(array_column(ConnectorCatalog::optionFields('tts_provider','xtts-fastapi'),'name')===
     ['speed','temperature','top_p','top_k','repetition_penalty']
     &&array_column(ConnectorCatalog::optionFields('stt_provider','azure'),'name')===['profanity']
@@ -312,6 +313,45 @@ foreach(['azure','deepgram','gemini','inworld'] as $driver){
     $check(ProviderFactory::speechToTextForPreset([], $cloudSttPreset($driver)) instanceof CloudSpeechToTextConnectorProvider,
         $driver . ' selected STT connector builds a credential-isolated cloud adapter');
 }
+$sttRequest=new ReflectionMethod(CloudSpeechToTextConnectorProvider::class,'request');
+$deepgramRequest=$sttRequest->invoke(new CloudSpeechToTextConnectorProvider('https://api.deepgram.com','deepgram','nova-3','secret'),
+    str_repeat("\0",44),'en-US');
+$check(str_contains($deepgramRequest[0],'/v1/listen?')&&str_contains($deepgramRequest[0],'filler_words=true')
+    &&in_array('Authorization: Token secret',$deepgramRequest[2],true)&&$deepgramRequest[1]===str_repeat("\0",44),
+    'Deepgram STT uses the CHIM raw-WAV query and Token authorization contract');
+$azureRequest=$sttRequest->invoke(new CloudSpeechToTextConnectorProvider('https://westus.stt.speech.microsoft.com','azure','default','secret',['profanity'=>'raw']),
+    str_repeat("\0",44),'en-US');
+$check(str_contains($azureRequest[0],'/speech/recognition/conversation/cognitiveservices/v1?')
+    &&str_contains($azureRequest[0],'language=en-US')&&str_contains($azureRequest[0],'profanity=raw')
+    &&in_array('Ocp-Apim-Subscription-Key: secret',$azureRequest[2],true),
+    'Azure STT uses the short-audio WAV endpoint and subscription-key contract');
+$inworldRequest=$sttRequest->invoke(new CloudSpeechToTextConnectorProvider('https://api.inworld.ai','inworld','groq/whisper-large-v3','secret'),
+    str_repeat("\0",44),'en-US');$inworldBody=json_decode($inworldRequest[1],true);
+$check($inworldRequest[0]==='https://api.inworld.ai/stt/v1/transcribe'
+    &&($inworldBody['transcribeConfig']['sampleRateHertz']??null)===16000
+    &&($inworldBody['audioData']['content']??null)===base64_encode(str_repeat("\0",44))
+    &&in_array('Authorization: Basic secret',$inworldRequest[2],true),
+    'Inworld STT uses the CHIM transcribeConfig and base64 audioData contract');
+$geminiRequest=$sttRequest->invoke(new CloudSpeechToTextConnectorProvider('https://generativelanguage.googleapis.com','gemini','gemini-2.5-flash','secret'),
+    str_repeat("\0",44),'en');$geminiBody=json_decode($geminiRequest[1],true);
+$check(str_contains($geminiRequest[0],'/v1beta/models/gemini-2.5-flash:generateContent?key=secret')
+    &&($geminiBody['contents'][0]['parts'][1]['inline_data']['mime_type']??null)==='audio/wav'
+    &&($geminiBody['generationConfig']['responseMimeType']??null)==='application/json',
+    'Gemini STT uses the CHIM inline-audio generateContent JSON contract');
+$multipartPath=tempnam(sys_get_temp_dir(),'almsivi-stt-fields-');file_put_contents($multipartPath,str_repeat("\0",44));
+$multipartFields=new ReflectionMethod(OpenAiCompatibleSpeechToTextProvider::class,'multipartFields');
+$localFields=$multipartFields->invoke(new OpenAiCompatibleSpeechToTextProvider('http://127.0.0.1:9876/api/v0/transcribe',
+    ['127.0.0.1'],'whisper-1','',30000,true,'audio_file',false),$multipartPath,'en-US');
+$parakeetFields=$multipartFields->invoke(new OpenAiCompatibleSpeechToTextProvider('http://127.0.0.1:8022/v1/audio/transcriptions',
+    ['127.0.0.1'],'whisper-1','secret',30000,true,'file',true,'ALMSIVI,Nerevarine,Morrowind'),$multipartPath,'en-US');
+$translationFields=$multipartFields->invoke(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/translations',
+    ['api.openai.com'],'whisper-1','secret',30000,false,'file',true,'',false),$multipartPath,'fr-FR');
+$check(array_keys($localFields)===['audio_file']
+    &&array_keys($parakeetFields)===['file','model','prompt','language']
+    &&$parakeetFields['model']==='whisper-1'&&$parakeetFields['language']==='en'
+    &&array_keys($translationFields)===['file','model'],
+    'LocalWhisper, Parakeet, Whisper transcription, and Whisper translation multipart fields match CHIM');
+unlink($multipartPath);
 $voiceRoot=sys_get_temp_dir().'/almsivi-zonos-'.bin2hex(random_bytes(4));mkdir($voiceRoot);
 $zonosPreset=['kind'=>'tts_provider','content'=>['driver'=>'zonos_gradio','endpoint'=>'http://127.0.0.1:8999',
     'model'=>'Zyphra/Zonos-v0.1-hybrid','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
@@ -376,6 +416,7 @@ $check(strlen($speech['bytes']) === 204 && substr($speech['bytes'], 0, 4) === 'R
 $check(OpenAiCompatibleSpeechProvider::wavDurationMs($speech['bytes']) === 20, 'live TTS validates WAV framing and duration');
 $mediaId = '00000000-0000-4000-8000-000000000099';
 $mediaHash = $media->put($mediaId, $speech['bytes'], $speech['codec'], $speech['mime_type']);
+$check((fileperms($mediaRoot) & 0777) === 0770, 'private media keeps the Apache and worker shared directory writable');
 $check(hash_equals($mediaHash, hash('sha256', $media->read($mediaId, 204, $mediaHash))), 'private media verifies bytes and hash');
 try {
     $media->put('../escape', $speech['bytes'], $speech['codec'], $speech['mime_type']);
@@ -391,6 +432,13 @@ try {
 }
 $media->delete($mediaId);
 rmdir($mediaRoot);
+
+foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
+    $deployScript = file_get_contents(dirname(__DIR__) . '/scripts/' . $scriptName);
+    $check($deployScript !== false && str_contains($deployScript,
+        'install -d -o almsivi -g www-data -m 2770 /var/lib/almsiviserver/media'),
+        $scriptName . ' preserves shared media write access');
+}
 
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");

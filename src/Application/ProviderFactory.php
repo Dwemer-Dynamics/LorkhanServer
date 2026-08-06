@@ -147,13 +147,19 @@ final class ProviderFactory
         $content=self::preset($preset,'stt_provider');$definition=ConnectorCatalog::definition('stt_provider',(string)$content['driver']);
         $endpoint=rtrim((string)$content['endpoint'],'/');$driver=(string)$content['driver'];$parts=parse_url($endpoint);
         $host=is_array($parts)?(string)($parts['host']??''):'';$loopback=($parts['scheme']??null)==='http';
+        if($driver==='none')throw new RuntimeException('provider_unavailable');
+        $options=(array)$content['options'];
         if($driver==='parakeet'&&!str_ends_with($endpoint,'/v1/audio/transcriptions'))$endpoint.='/v1/audio/transcriptions';
+        $translate=$driver==='whisper'&&($options['translate']??false)===true;
+        if($translate&&str_ends_with($endpoint,'/v1/audio/transcriptions'))$endpoint=substr($endpoint,0,-strlen('transcriptions')).'translations';
         if(in_array($driver,['parakeet','localwhisper','whisper'],true))return new OpenAiCompatibleSpeechToTextProvider(
-            $endpoint,[$host],(string)($content['model']?:($driver==='parakeet'?'parakeet-tdt-0.6b-v3':'whisper-1')),
-            self::environment((string)$definition['credential_environment'],$config),(int)$content['timeout_ms'],$loopback);
+            $endpoint,[$host],$driver==='parakeet'?'whisper-1':(string)($content['model']?:'whisper-1'),
+            self::environment((string)$definition['credential_environment'],$config),(int)$content['timeout_ms'],$loopback,
+            $driver==='localwhisper'?(string)($options['file_field']??'audio_file'):'file',$driver!=='localwhisper',
+            !$translate&&$driver!=='localwhisper'?(string)($options['prompt']??'ALMSIVI,Nerevarine,Morrowind'):'',!$translate);
         if(in_array($driver,['azure','deepgram','gemini','inworld'],true))return new CloudSpeechToTextConnectorProvider(
             $endpoint,$driver,(string)$content['model'],self::environment((string)$definition['credential_environment'],$config),
-            (array)$content['options'],(int)$content['timeout_ms']);
+            $options,(int)$content['timeout_ms']);
         throw new RuntimeException('Unsupported selected speech-to-text connector driver.');
     }
 

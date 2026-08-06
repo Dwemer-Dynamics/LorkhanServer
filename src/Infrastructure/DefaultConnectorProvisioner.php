@@ -88,6 +88,23 @@ final class DefaultConnectorProvisioner
             }
             $routes['tts_configuration_id'] = $selectedTtsId;
 
+            $deepgramSttId = $this->ensureConfiguration($service, $installationId, 'stt_provider', 'Global STT Connector', [
+                'driver' => 'deepgram',
+                'endpoint' => 'https://api.deepgram.com',
+                'model' => 'nova-3',
+                'voice' => '',
+                'language' => 'en-US',
+                'timeout_ms' => 30_000,
+                'options' => [],
+            ]);
+            $sttSelection = $repository->connectorForInstallation($installationId, 'stt_provider');
+            if ($sttSelection === null) {
+                $repository->selectConnector($installationId, 'stt_provider', $deepgramSttId, gmdate('Y-m-d\TH:i:s\Z'));
+                $selectedSttId = $deepgramSttId;
+            } else {
+                $selectedSttId = (string) $sttSelection['configuration_id'];
+            }
+
             $core = $repository->defaultCoreProfileForInstallation($installationId, gmdate('Y-m-d\TH:i:s\Z'), true)
                 ?? throw new RuntimeException('default_core_profile_unavailable');
             $content = $core['content'];
@@ -116,6 +133,8 @@ final class DefaultConnectorProvisioner
                 'llm' => array_intersect_key($routes, self::LLM_DEFAULTS),
                 'tts_configuration_id' => $pocketTtsId,
                 'selected_tts_configuration_id' => $selectedTtsId,
+                'stt_configuration_id' => $deepgramSttId,
+                'selected_stt_configuration_id' => $selectedSttId,
                 'fallback_configuration_id' => null,
                 'voice_count' => $voiceCount,
                 'core_profile_revision' => (int) ($core['current_revision'] ?? $core['revision'] ?? 0),

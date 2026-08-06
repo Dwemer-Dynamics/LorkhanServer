@@ -24,7 +24,7 @@ Recorded baseline: 2026-07-19. Updated local WSL/browser acceptance: 2026-08-03 
 | Security | AUTOMATED | Separate HttpOnly/SameSite browser sessions, CSRF on writes, query-token rejection, normalized rate buckets, hash-only pairing config, rotation/overlap/revocation records, secret-field rejection, redacted worker failures and HTTPS/public-address URL policy are implemented and locally tested. Full DNS pinning requires a real HTTP connector. |
 | Contract | AUTOMATED | 19 Draft 2020-12 schemas, 31 fixtures and 50 manifest files, including STT/delivery/inspect.report surfaces, validate with the dependency-free validator and are byte-identical across active worktrees. Full jsonschema validation is unavailable because the dependency is not installed and installation is forbidden. |
 | Migration | EXTERNAL-DEFERRED | Final predecessor completion gate/pins remain unavailable; no predecessor source was imported. |
-| STT | EXCLUDED | No shipped microphone, capture, transcription, or STT management workflow. |
+| STT | AUTOMATED | Authenticated binary WAV ingress, PostgreSQL request/job state, provider-selected durable transcription, transcript/failure events, and the single global Herika-style connector workflow are covered by protocol, unit, migration/job, integration, management HTTP, and local deployment checks. Live cloud credentials and in-game microphone acceptance remain external. |
 | ITT | EXCLUDED | No shipped image-to-text capture or management workflow. |
 | Background Life | EXCLUDED | No shipped background-life scheduler, controls, or worker entry point. |
 | Externally hosted SaaS | EXCLUDED | Local loopback product boundary. |

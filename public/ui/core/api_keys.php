@@ -25,14 +25,12 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 $variable = (string) $variable;
                 $credential = is_string($credential) ? trim($credential) : '';
                 if ($credential === '') continue;
-                if (str_contains($variable, 'STT')) throw new InvalidArgumentException('stt_excluded');
                 $store->set($variable, $credential);
                 $saved++;
             }
             $notice = $saved === 1 ? '1 API key saved.' : $saved . ' API keys saved.';
         } else {
             $variable = (string) ($_POST['variable'] ?? '');
-            if (str_contains($variable, 'STT')) throw new InvalidArgumentException('stt_excluded');
             if ($action === 'set') {
                 $store->set($variable, (string) ($_POST['credential'] ?? ''));
                 $notice = 'Credential saved.';
@@ -59,6 +57,7 @@ $providers = [
     'elevenlabs' => ['ElevenLabs', 'https://elevenlabs.io/app/settings/api-keys', 'ALMSIVI_TTS_ELEVENLABS_API_KEY', ['TTS'], 'config.keys'],
     'cartesia' => ['Cartesia', 'https://play.cartesia.ai/console', 'ALMSIVI_TTS_CARTESIA_API_KEY', ['TTS'], 'config.keys'],
     'inworld' => ['Inworld', 'https://studio.inworld.ai/', 'ALMSIVI_TTS_INWORLD_API_KEY', ['TTS'], 'config.keys'],
+    'google-stt' => ['Google Gemini STT', 'https://aistudio.google.com/apikey', 'ALMSIVI_STT_GEMINI_API_KEY', ['STT'], 'config.keys'],
     'replicate' => ['Replicate', 'https://replicate.com/account/api-tokens', null, ['Soulgaze Gallery Processor'], 'config.keys.replicate'],
     'groq' => ['Groq', 'https://console.groq.com/keys', null, ['LLM'], 'config.keys.groq'],
     'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', null, ['LLM'], 'config.keys.nano-gpt'],

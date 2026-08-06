@@ -111,7 +111,7 @@ server hash/fingerprint and redact all later display. Test token rotation and ol
 
 Save `ALMSIVI_LLM_API_KEY` through the browser API Keys page or the restrictive service environment;
 the browser masks it and never returns the stored value. Mock providers remain available for test
-flows. Fallback LLM, STT, ITT, Background Life, and autonomy are not provisioned.
+flows. The installer provisions one Deepgram STT connector without overwriting an existing selection. ITT, Background Life, and timer-driven autonomy are not provisioned.
 
 ## Worker supervision
 

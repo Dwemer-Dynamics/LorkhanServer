@@ -193,10 +193,12 @@ $service->selectConnector(['installation_id'=>$installation,'kind'=>'tts_provide
 $check(count($products->listRevisioned('provider',$installation))===1
     &&$products->connectorForInstallation($installation,'tts_provider')['configuration_id']===$ttsConfig['configuration_id']
     &&count($products->connectorSelections($installation))===1,'TTS connector preset was not isolated and selectable');
-$sttExcluded=false;
-try{$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet','content'=>[]]);}
-catch(InvalidArgumentException $error){$sttExcluded=$error->getMessage()==='invalid_resource_kind';}
-$check($sttExcluded,'excluded STT connector remained writable through ProductService');
+$sttConfig=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet','content'=>[
+    'driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022','model'=>'parakeet-tdt-0.6b-v3','voice'=>'',
+    'language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$service->selectConnector(['installation_id'=>$installation,'kind'=>'stt_provider','configuration_id'=>$sttConfig['configuration_id']]);
+$check($products->connectorForInstallation($installation,'stt_provider')['configuration_id']===$sttConfig['configuration_id'],
+    'installation-global STT connector was not writable and selectable');
 $guardedProvider=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Profile-bound model slot',
     'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']]);
 $guardedProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Profile-bound NPC',
