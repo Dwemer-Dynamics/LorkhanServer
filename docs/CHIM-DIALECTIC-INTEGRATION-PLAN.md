@@ -1,6 +1,6 @@
 # ALMSIVIserver CHIM/Dialectic integration plan
 
-Status: implementation-ready server and data plan, audited 2026-08-09.
+Status: finalized long-running server and data plan, audited and user-confirmed 2026-08-09.
 
 The paired client plan is `ALMSIVI/docs/CHIM-DIALECTIC-INTEGRATION-PLAN.md`. This document defines the server cutover needed to preserve HerikaServer's useful product/data shape while using Dialectic's typed JSON response format and ALMSIVI's PostgreSQL, security, identity, and worker model.
 
@@ -14,6 +14,10 @@ The paired client plan is `ALMSIVI/docs/CHIM-DIALECTIC-INTEGRATION-PLAN.md`. Thi
 - Preserve the Global -> Core Profile -> NPC inheritance model.
 - Rechat is playback-gated continuation, not timer autonomy.
 - Do not implement AI Quests, Background Life, timer-driven autonomy, greetings, boredom, combat barks, or ITT.
+- Consolidate all current work into the existing client and server draft PR branches, keep the PRs draft, and do not merge them into `main` without a separate explicit instruction.
+- Freeze the audited CHIM, HerikaServer, Dialectic, and DialecticServer commits recorded in the paired client plan until implementation completes.
+- Preserve exact applicable HerikaServer/DialecticServer public table names, column order, types, defaults, indexes, views, and page formats over the typed ALMSIVI sources.
+- Require UTF-8 end to end for source files, PostgreSQL connections/storage, JSON, prompts, profiles, Journal text, subtitles, provider input/output, and browser rendering.
 
 ## 2. Current database disposition
 
@@ -23,7 +27,7 @@ The database already has three overlapping layers:
 2. Public CHIM-style runtime surfaces from migration 024 onward: `eventlog`, `eventlog_view`, `speech`, `responselog`, `prompts`, and `rechat_chains`.
 3. Staged `herika_compat` tables and projections for connectors, profiles, NPCs, settings, prompts, audits, memories, relationships, knowledge, world data, actions, and historical compatibility.
 
-The target is not a fourth layer. The cutover must assign one authority to every concept and reduce the other representations to views/adapters or excluded compatibility state.
+The target is not a fourth layer. The cutover must assign one authority to every concept and reduce the other representations to exact Herika-compatible views/adapters or excluded compatibility state.
 
 ## 3. Canonical table map
 
@@ -46,7 +50,7 @@ The target is not a fourth layer. The cutover must assign one authority to every
 | quest engine tables | staged `herika_compat` quest tables | Excluded and quarantined. No public routes, jobs, seeds, or writes. Journal observation remains separate and live. |
 | Background Life/autonomy tables | `autonomy_schedules`, `herika_compat.bgl_history` | Excluded compatibility state. No polling, worker, scheduler, capability, or writable UI. |
 
-Before changing schema, produce a generated inventory containing table, column, type, default, key, index, foreign key, owner, writer, readers, retention policy, and disposition. Review that inventory against current HerikaServer and DialecticServer definitions.
+Before changing schema, produce a generated inventory containing table, ordinal column position, type, default, encoding/collation behavior, key, index, foreign key, owner, writer, readers, retention policy, and disposition. Review that inventory against the frozen HerikaServer and DialecticServer definitions. Copy the applicable contract exactly; translate only product/game identity and fields that are deprecated or excluded by this plan.
 
 ## 4. Migration strategy
 
@@ -63,6 +67,8 @@ Use additive, idempotent phases:
 9. Remove deprecated columns/tables only in a later explicitly approved migration after upgrade evidence.
 
 Every migration must pass fresh install, released/current upgrade, rerun, backup/restore, and rollback-policy validation. Existing user profiles, keys, voices, memories, playthroughs, and logs must survive.
+
+All migrations and fixtures must be UTF-8. PostgreSQL must report `server_encoding = UTF8`; application connections must use `client_encoding = UTF8`; JSON responses must use RFC 8259 UTF-8 without lossy replacement. Add round-trip fixtures for non-ASCII NPC names, prompt text, Journal text, subtitles, and voice metadata.
 
 ## 5. Canonical JSON response model
 
@@ -161,7 +167,9 @@ Unsupported controls remain visible only when required for 1:1 presentation and 
 
 ### S0 - CI and evidence
 
-- Add server CI for lint, schema parity, tests, migrations, PostgreSQL integration, workers, and management HTTP.
+- Consolidate all current branches into the two existing draft PR heads before feature work continues.
+- Remove macOS and redundant client workflow/matrix lanes. Keep one Ubuntu foundation/contract job and one Windows 2022 x64 Release native job.
+- Add one server CI workflow for PHP lint, schema parity, the existing tests, migrations, disposable PostgreSQL integration, workers, and management HTTP.
 - Refresh completion ledgers against current commits and remove stale `PLANNED` claims.
 
 Gate: branch CI is green and evidence distinguishes automated, deployed, and in-game proof.
@@ -207,12 +215,12 @@ Gate: deterministic fixtures prove exact prompt sources and no failed/stale/unpl
 
 Gate: browser and server matrices pass with preserved user data and no unexplained warnings/retry loops.
 
-### S6 - Paired in-game acceptance
+### S6 - Paired build, deployment, and runtime acceptance
 
-- Validate client/server correlation for text, STT, group conversation, streaming, TTS, delivery, interruption, rechat, actions, target/session replacement, and provider failure.
-- Confirm idle polling/request rates do not regress OpenMW frame rate.
+- Build and deploy the pinned Windows client and WSL server, then validate all automatable client/server correlation for text, STT, group conversation, streaming, TTS, delivery, interruption, rechat, actions, target/session replacement, and provider failure.
+- Prove bounded idle polling/request rates automatically and add observed OpenMW frame-rate behavior to the post-goal gameplay checklist.
 
-Gate: current-timestamp client, server, Apache, worker, provider, STT, and TTS logs prove the full path on both a clean and existing playthrough.
+Gate: builds, schemas, migrations, fake-client flows, deployment hashes, HTTP health, workers, and current logs are clean. Produce a clean-profile/existing-playthrough gameplay checklist, but do not block implementation completion waiting for manual game input and do not claim that unchecked gameplay passed.
 
 ## 11. Definition of server parity
 
@@ -224,7 +232,7 @@ Server parity is complete when:
 - Global -> Core Profile -> NPC settings and connector routing are deterministic and traceable;
 - prompt/event/speech/response/memory/rechat records correlate end to end;
 - excluded systems have no active capability, route, scheduler, or worker;
-- migrations, workers, browser workflows, deployment, and paired in-game behavior have current evidence;
+- migrations, workers, browser workflows, builds, deployment, and automatable paired runtime behavior have current evidence;
 - client and server CI are green.
 
-Do not claim this state from schema presence, HTTP 200 responses, or mock-provider tests alone.
+Do not claim manual in-game proof from schema presence, HTTP 200 responses, builds, or mock-provider tests. Gameplay verification remains a clearly reported post-goal follow-up.
