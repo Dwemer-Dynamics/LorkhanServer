@@ -107,7 +107,8 @@ Load under token/row/age budgets:
 - recent source events/utterances and unresolved terminal results;
 - relationship state and source-derived memories/summaries;
 - relevant world knowledge with retrieval source IDs;
-- narrator/diary/autonomy instruction only when that explicit event type is active;
+- narrator, diary, or playback-gated rechat instruction only when that explicit player-originated
+  flow is active; no timer-autonomy instruction is accepted;
 - capability-filtered allowed actions and output schema.
 
 Persist source IDs, ordering, truncation, model/provider/config revision, durations and a redacted
@@ -152,7 +153,8 @@ playthrough deletion are explicit and auditable.
 
 - Quickstart and health: DB/migrations, pairing fingerprint/rotation, client pin/caps/content, provider
   tests, workers/media/backup.
-- Configuration: profiles, prompts, actions/tiers, providers, autonomy/narrator/diary and retention.
+- Configuration: profiles, prompts, actions/tiers, providers, narrator/diary/rechat and retention;
+  excluded autonomy controls remain disabled presentation landmarks only.
 - Inspection: source events, turns, prompt/provider attempts, utterances, speech, action/results,
   actors/content manifests, memories, relationships, knowledge and playthroughs.
 - Operations: jobs/dead letters/replay, diagnostics bundle, backups/restore, schema/release version,
