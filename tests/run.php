@@ -10,6 +10,7 @@ use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Application\CredentialStore;
 use ALMSIVIserver\Application\CloudSpeechConnectorProvider;
 use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
+use ALMSIVIserver\Application\CanonicalResponseNormalizer;
 use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
@@ -254,6 +255,27 @@ $check(str_contains($semanticText,'[Location] The player entered Seyda Neen.')
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',
     'cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>$name];
+$canonicalTurn=['installation_id'=>'10000000-0000-4000-8000-000000000001',
+    'profile_id'=>'10000000-0000-4000-8000-000000000002','playthrough_id'=>'10000000-0000-4000-8000-000000000003',
+    'session_id'=>'10000000-0000-4000-8000-000000000004','turn_id'=>'10000000-0000-4000-8000-000000000005',
+    'request_id'=>'10000000-0000-4000-8000-000000000006','generation'=>7,'runtime_generation'=>4,
+    'payload'=>['speaker'=>$identity('player','player',0,'Nerevarine'),
+        'target'=>$identity('npc','fargoth',112,'Fargoth'),'audience'=>[],
+        'context'=>['rechat'=>['rechat_depth'=>2]]]];
+$canonicalResult=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,
+    ['utterances'=>[['text'=>'You found my engraved ring—thank you!']],
+        'action'=>['name'=>'ai.follow','tier'=>1,'actor'=>$canonicalTurn['payload']['target'],
+            'target'=>$canonicalTurn['payload']['speaker'],'parameters'=>['distance'=>192]]]);
+$validator->validate($canonicalResult,'almsivi.response.v1');
+$check($canonicalResult['request_id']===$canonicalTurn['request_id']&&$canonicalResult['runtime_generation']===4
+    &&array_column($canonicalResult['lines'],'action')===['say','rolecommand']
+    &&$canonicalResult['lines'][0]['text']==='You found my engraved ring—thank you!'
+    &&$canonicalResult['lines'][1]['command_args']===['distance=192'],
+    'provider result normalizes once into ordered UTF-8 response lines with full correlation');
+$failedCanonical=(new CanonicalResponseNormalizer())->failure($canonicalTurn,'provider_unavailable');
+$validator->validate($failedCanonical,'almsivi.response.v1');
+$check($failedCanonical['ok']===false&&$failedCanonical['lines']===[]
+    &&$failedCanonical['error']==='provider_unavailable','terminal failure response is canonical and empty');
 $narrator=$identity('narrator','almsivi:narrator',0,'The Narrator');$narrator['content_file']='ALMSIVI';
 $narrationTurn=['payload'=>['speaker'=>$identity('player','player',2,'Nerevarine'),
     'target'=>$identity('npc','fargoth',1,'Fargoth'),'audience'=>[]],

@@ -229,12 +229,12 @@ final class Repository
                 $validatedDirectAction = $this->actionPolicy->validate($proposal,
                     $this->actionCatalog->loadForSession($m['session_id'], $m['generation']));
             }
-            $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, input_kind, '
+            $stmt = $this->db->prepare('INSERT INTO turns (turn_id, request_id, message_id, session_id, generation, runtime_generation, input_kind, '
                 . 'input_language, input_text, speaker, target, audience, context, state, accepted_at) VALUES '
-                . '(:turn, :request, :message, :session, :generation, :kind, :language, :text, CAST(:speaker AS jsonb), '
+                . '(:turn, :request, :message, :session, :generation, :runtime_generation, :kind, :language, :text, CAST(:speaker AS jsonb), '
                 . 'CAST(:target AS jsonb), CAST(:audience AS jsonb), CAST(:context AS jsonb), :state, :accepted)');
             $stmt->execute(['turn' => $m['turn_id'], 'request' => $m['request_id'], 'message' => $m['message_id'], 'session' => $m['session_id'],
-                'generation' => $m['generation'], 'kind' => $p['input']['kind'], 'language' => $p['input']['language'], 'text' => $p['input']['text'],
+                'generation' => $m['generation'], 'runtime_generation' => $m['runtime_generation'], 'kind' => $p['input']['kind'], 'language' => $p['input']['language'], 'text' => $p['input']['text'],
                 'speaker' => $this->encode($p['speaker']), 'target' => $this->encode($p['target']), 'audience' => $this->encode($p['audience']),
                 'context' => $this->encode($p['context']), 'state' => 'accepted', 'accepted' => $m['created_at']]);
             $rechat=is_array($p['context']['rechat']??null)?$p['context']['rechat']:null;
@@ -283,13 +283,22 @@ final class Repository
                     ->execute(['id' => Uuid::v4(), 'key' => 'turn:' . $m['turn_id'], 'payload' => $this->encode($jobPayload)]);
             }
             if ($validatedDirectAction !== null) {
-                $this->action($m, $m['request_id'], $validatedDirectAction);
+                $canonical = $this->validatedCanonicalResponse(
+                    (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
+                $actionLine = $canonical['lines'][0];
+                $this->action($m, $m['request_id'], $validatedDirectAction, $actionLine['line_id']);
+                $this->db->prepare("UPDATE responselog SET tag='response.line',actor=:actor,text=NULL,action='rolecommand',"
+                    . 'actor_identity=CAST(:identity AS jsonb),payload=CAST(:payload AS jsonb) WHERE response_message_id=:message')
+                    ->execute(['actor'=>$actionLine['display_name'],'identity'=>$this->encode($actionLine['speaker_identity']),
+                        'payload'=>$this->encode($actionLine),'message'=>$actionLine['line_id']]);
                 $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'],
                     'turn.complete', ['status' => 'complete']);
                 $updated = $this->db->prepare(
-                    "UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:id AND state='accepted'"
+                    "UPDATE turns SET state='complete',completed_at=clock_timestamp(),response_id=:response,"
+                    . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:id AND state='accepted'"
                 );
-                $updated->execute(['id' => $m['turn_id']]);
+                $updated->execute(['id' => $m['turn_id'], 'response' => $canonical['response_id'],
+                    'payload' => $this->encode($canonical), 'created' => $canonical['created_at']]);
                 if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
             }
             $event['capabilities'] = $session['capabilities'];
@@ -409,24 +418,37 @@ final class Repository
         return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
+            $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
             if (($m['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
                 $providerResult['action'] = null;
             }
             $this->validateProviderResult($providerResult, $session, $m);
-            $planner = new \ALMSIVIserver\Application\DialoguePlanner();
-            $utterances = $planner->plan($m, $providerResult);
+            $canonical = $this->validatedCanonicalResponse(
+                (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult));
+            $dialogueLines = array_values(array_filter($canonical['lines'],
+                static fn(array $line): bool => $line['action'] === 'say'));
+            $actionLines = array_values(array_filter($canonical['lines'],
+                static fn(array $line): bool => $line['action'] === 'rolecommand'));
+            $audience = $m['payload']['audience'];
+            if (!array_filter($audience, fn(array $identity): bool => $this->sameIdentity($identity, $m['payload']['target']))) {
+                array_unshift($audience, $m['payload']['target']);
+            }
             $dialogues = [];
             $speechEvents = [];
-            foreach ($utterances as $index => $utterance) {
+            foreach ($dialogueLines as $index => $line) {
+                $utterance = ['speaker' => $line['speaker_identity'], 'addressee' => $line['listener_identity'],
+                    'audience' => $audience, 'text' => $line['text'],
+                    'speech_enabled' => ($line['metadata']['speech_enabled'] ?? true) !== false];
                 $dialogue = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'dialogue.complete', [
                     'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $utterance['text'],
-                ]);
+                ], $line['line_id']);
                 $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
-                    . 'utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
-                    . '(:id,:session,:turn,:request,:generation,:idx,:count,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),CAST(:audience AS jsonb),'
+                    . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
+                    . '(:id,:session,:turn,:request,:generation,:idx,:count,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),CAST(:audience AS jsonb),'
                     . ':text,:emitted,CAST(:emitted AS timestamptz)+interval \'5 minutes\')')->execute(['id' => $dialogue['message_id'],
                         'session' => $m['session_id'], 'turn' => $m['turn_id'], 'request' => $turn['request_id'], 'generation' => $m['generation'],
-                        'idx' => $index + 1, 'count' => count($utterances), 'speaker' => $this->encode($utterance['speaker']),
+                        'idx' => $index + 1, 'count' => count($dialogueLines), 'line' => $line['line_id'],
+                        'utterance' => $line['utterance_id'], 'runtime_generation' => $m['runtime_generation'], 'speaker' => $this->encode($utterance['speaker']),
                         'addressee' => $this->encode($utterance['addressee']), 'audience' => $this->encode($utterance['audience']),
                         'text' => $utterance['text'], 'emitted' => $dialogue['created_at']]);
                 $this->eventLog()->projectDialogue($m + ['request_id'=>$turn['request_id']], $utterance,
@@ -443,8 +465,12 @@ final class Repository
                         'speech'=>$utterance['text'],'location'=>$m['payload']['context']['location']['name']??null,
                         'listener'=>$utterance['addressee']['display_name']??$utterance['addressee']['record_id']??null,
                         'created'=>$dialogue['created_at'],'gamets'=>(int)($m['payload']['context']['world']['game_time']??0),
-                        'utterance'=>$dialogue['message_id'],'speaker_identity'=>$this->encode($utterance['speaker']),
+                        'utterance'=>$line['utterance_id'],'speaker_identity'=>$this->encode($utterance['speaker']),
                         'listener_identity'=>$this->encode($utterance['addressee']),'audience'=>$this->encode($utterance['audience'])]);
+                $this->db->prepare("UPDATE responselog SET tag='response.line',actor=:actor,text=:text,action='say',"
+                    . 'actor_identity=CAST(:identity AS jsonb),payload=CAST(:payload AS jsonb) WHERE response_message_id=:message')
+                    ->execute(['actor'=>$line['display_name'],'text'=>$line['text'],'identity'=>$this->encode($line['speaker_identity']),
+                        'payload'=>$this->encode($line),'message'=>$line['line_id']]);
                 $expiryJob=Uuid::v4();$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority) VALUES(:job,'dialogue.expire',1,:key,CAST(:payload AS jsonb),1,CAST(:deadline AS timestamptz),50)")->execute(['job'=>$expiryJob,'key'=>'dialogue:'.$dialogue['message_id'],'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']]),'deadline'=>(new \DateTimeImmutable($dialogue['created_at']))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')]);$this->db->prepare('UPDATE dialogue_utterances SET expiry_job_id=:job WHERE dialogue_message_id=:id')->execute(['job'=>$expiryJob,'id'=>$dialogue['message_id']]);
                 $dialogues[] = $dialogue;
                 if ($queueSpeech && ($utterance['speech_enabled'] ?? true) !== false) {
@@ -465,14 +491,25 @@ final class Repository
                     $speechEvents[] = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'speech.ready', $descriptor);
                 }
             }
-            $action = ($providerResult['action'] ?? null) === null ? null : $this->action($m, $turn['request_id'], $providerResult['action']);
+            $action = null;
+            if (($providerResult['action'] ?? null) !== null) {
+                $actionLine = $actionLines[0] ?? throw new \DomainException('provider_invalid_output');
+                $action = $this->action($m, $turn['request_id'], $providerResult['action'], $actionLine['line_id']);
+                $this->db->prepare("UPDATE responselog SET tag='response.line',actor=:actor,text=NULL,action='rolecommand',"
+                    . 'actor_identity=CAST(:identity AS jsonb),payload=CAST(:payload AS jsonb) WHERE response_message_id=:message')
+                    ->execute(['actor'=>$actionLine['display_name'],'identity'=>$this->encode($actionLine['speaker_identity']),
+                        'payload'=>$this->encode($actionLine),'message'=>$actionLine['line_id']]);
+            }
             $complete = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'turn.complete', ['status' => 'complete']);
-            $updated = $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp() WHERE turn_id=:id AND state IN ('accepted','processing')");
-            $updated->execute(['id' => $m['turn_id']]);
+            $updated = $this->db->prepare("UPDATE turns SET state='complete',completed_at=clock_timestamp(),response_id=:response,"
+                . 'response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:id AND state IN (\'accepted\',\'processing\')');
+            $updated->execute(['id' => $m['turn_id'], 'response' => $canonical['response_id'],
+                'payload' => $this->encode($canonical), 'created' => $canonical['created_at']]);
             if ($updated->rowCount() !== 1) throw new \DomainException('turn_terminal');
             $this->db->prepare("UPDATE rechat_chains SET state=CASE WHEN current_depth>=round_budget THEN 'closed' ELSE 'awaiting_playback' END,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state='request_in_flight'")
                 ->execute(['turn'=>$m['turn_id']]);
-            return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents, 'action' => $action];
+            return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents,
+                'action' => $action, 'response' => $canonical];
         });
     }
 
@@ -522,8 +559,13 @@ final class Repository
         $this->transaction(function () use ($m, $reason, $fence): void {
             $this->session($m['session_id'], $m['generation'], true);
             $turn=$this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
-            $this->db->prepare("UPDATE turns SET state = 'failed', completed_at = clock_timestamp() WHERE turn_id = :turn")
-                ->execute(['turn' => $m['turn_id']]);
+            $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
+            $canonical=$this->validatedCanonicalResponse(
+                (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->failure($m,$reason));
+            $this->db->prepare("UPDATE turns SET state='failed',completed_at=clock_timestamp(),response_id=:response,"
+                . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
+                ->execute(['turn'=>$m['turn_id'],'response'=>$canonical['response_id'],
+                    'payload'=>$this->encode($canonical),'created'=>$canonical['created_at']]);
             $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'turn.failed',
                 ['code' => $reason, 'retriable' => false]);
             $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason=:reason,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state IN ('request_in_flight','awaiting_playback')")
@@ -693,7 +735,8 @@ final class Repository
                 $cursor->execute(['session' => $m['session_id'], 'turn' => $m['turn_id']]);
                 return ['cursor' => (int) $cursor->fetchColumn(), 'duplicate' => true];
             }
-            $stmt = $this->db->prepare('SELECT state, request_id FROM turns WHERE turn_id = :turn AND session_id = :session FOR UPDATE');
+            $stmt = $this->db->prepare('SELECT t.state,t.request_id,t.runtime_generation,s.installation_id,s.profile_id,s.playthrough_id '
+                . 'FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.turn_id=:turn AND t.session_id=:session FOR UPDATE OF t');
             $stmt->execute(['turn' => $m['turn_id'], 'session' => $m['session_id']]);
             $turn = $stmt->fetch();
             if (!$turn) throw new \OutOfBoundsException('unknown_turn');
@@ -705,8 +748,14 @@ final class Repository
             $installation = $this->session($m['session_id'], $m['generation']);
             $this->source($m['message_id'], $installation['installation_id'], $m['session_id'], $m['generation'], 'turn.interrupted',
                 $m['created_at'], $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
-            $this->db->prepare("UPDATE turns SET state = 'cancelled', completed_at = clock_timestamp() WHERE turn_id = :turn")
-                ->execute(['turn' => $m['turn_id']]);
+            $terminal=$m+['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],
+                'playthrough_id'=>$turn['playthrough_id'],'runtime_generation'=>(int)$turn['runtime_generation']];
+            $canonical=$this->validatedCanonicalResponse((new \ALMSIVIserver\Application\CanonicalResponseNormalizer())
+                ->failure($terminal,'interrupted.'.$m['reason']));
+            $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
+                . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
+                ->execute(['turn'=>$m['turn_id'],'response'=>$canonical['response_id'],
+                    'payload'=>$this->encode($canonical),'created'=>$canonical['created_at']]);
             $this->db->prepare("UPDATE durable_jobs SET state='succeeded',completed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE job_type='turn.process' AND idempotency_key=:key AND state='queued'")->execute(['key'=>'turn:'.$m['turn_id']]);
             $this->db->prepare("UPDATE dialogue_utterances SET delivery_state='interrupted',delivered_at=clock_timestamp() WHERE turn_id=:turn AND delivery_state='pending'")->execute(['turn'=>$m['turn_id']]);
             $this->db->prepare("UPDATE media_objects SET expires_at=LEAST(expires_at,clock_timestamp()) WHERE turn_id=:turn AND deleted_at IS NULL")->execute(['turn'=>$m['turn_id']]);
@@ -795,7 +844,7 @@ final class Repository
         }
     }
 
-    private function action(array $m, string $requestId, array $action): array
+    private function action(array $m, string $requestId, array $action, ?string $messageId = null): array
     {
         $actionId = Uuid::v4();
         $expires = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->modify('+30 seconds')->format('Y-m-d\TH:i:s\Z');
@@ -812,15 +861,16 @@ final class Repository
         $wireParameters = $action['parameters'] === [] ? (object) [] : $action['parameters'];
         $payload = ['schema' => 'almsivi.action-intent.v1', 'action_id' => $actionId, 'turn_id' => $m['turn_id'], 'name' => $action['name'],
             'tier' => $action['tier'], 'actor' => $action['actor'], 'target' => $action['target'], 'parameters' => $wireParameters, 'expires_at' => $expires];
-        return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload);
+        return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload, $messageId);
     }
 
-    private function event(string $sessionId, int $generation, ?string $requestId, ?string $turnId, string $type, array $payload): array
+    private function event(string $sessionId, int $generation, ?string $requestId, ?string $turnId, string $type,
+        array $payload, ?string $messageId = null): array
     {
         $next = $this->db->prepare('UPDATE sessions SET event_sequence = event_sequence + 1 WHERE session_id = :session RETURNING event_sequence');
         $next->execute(['session' => $sessionId]);
         $sequence = (int) $next->fetchColumn();
-        $messageId = Uuid::v4();
+        $messageId ??= Uuid::v4();
         $created = gmdate('Y-m-d\TH:i:s\Z');
         $stmt = $this->db->prepare('INSERT INTO response_events '
             . '(session_id, sequence, message_id, request_id, generation, turn_id, event_type, payload, created_at) '
@@ -845,7 +895,7 @@ final class Repository
 
     private function lockPendingTurn(string $turnId, string $sessionId, ?array $fence = null): array
     {
-        $stmt = $this->db->prepare('SELECT request_id,state,processing_job_id,processing_lease_token,processing_job_attempt '
+        $stmt = $this->db->prepare('SELECT request_id,state,runtime_generation,processing_job_id,processing_lease_token,processing_job_attempt '
             . 'FROM turns WHERE turn_id = :turn AND session_id = :session FOR UPDATE');
         $stmt->execute(['turn' => $turnId, 'session' => $sessionId]);
         $turn = $stmt->fetch();
@@ -867,7 +917,6 @@ final class Repository
         $keys = array_keys($result);
         sort($keys);
         if ($keys !== ['action', 'utterances']) throw new \DomainException('provider_invalid_output');
-        (new \ALMSIVIserver\Application\DialoguePlanner())->plan($m,$result);
         if ($result['action'] === null) return;
         $action = $result['action'];
         if (!is_array($action) || array_is_list($action)) throw new \DomainException('provider_invalid_action');
@@ -892,11 +941,21 @@ final class Repository
 
     private function cancelOutstandingTurns(string $sessionId,string $reason):void
     {
-        $select=$this->db->prepare("SELECT turn_id,request_id,generation FROM turns WHERE session_id=:session AND state IN ('accepted','processing') FOR UPDATE");
+        $select=$this->db->prepare("SELECT t.turn_id,t.request_id,t.generation,t.runtime_generation,s.installation_id,s.profile_id,s.playthrough_id "
+            . "FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.session_id=:session "
+            . "AND t.state IN ('accepted','processing') FOR UPDATE OF t");
         $select->execute(['session'=>$sessionId]);
         foreach($select->fetchAll() as $turn){
-            $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp() WHERE turn_id=:turn")
-                ->execute(['turn'=>$turn['turn_id']]);
+            $terminal=['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],
+                'playthrough_id'=>$turn['playthrough_id'],'session_id'=>$sessionId,'turn_id'=>$turn['turn_id'],
+                'request_id'=>$turn['request_id'],'generation'=>(int)$turn['generation'],
+                'runtime_generation'=>(int)$turn['runtime_generation']];
+            $canonical=$this->validatedCanonicalResponse((new \ALMSIVIserver\Application\CanonicalResponseNormalizer())
+                ->failure($terminal,$reason,in_array($reason,['session_ended','session_replaced'],true)));
+            $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
+                . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
+                ->execute(['turn'=>$turn['turn_id'],'response'=>$canonical['response_id'],
+                    'payload'=>$this->encode($canonical),'created'=>$canonical['created_at']]);
             $this->event($sessionId,(int)$turn['generation'],$turn['request_id'],$turn['turn_id'],'turn.cancelled',['reason'=>$reason]);
             $this->db->prepare("UPDATE provider_attempts SET state='cancelled',finished_at=clock_timestamp(),error_code='operation_cancelled',"
                 . "duration_ms=GREATEST(0,floor(extract(epoch FROM(clock_timestamp()-started_at))*1000)::integer) WHERE turn_id=:turn AND state='started'")
@@ -926,6 +985,12 @@ final class Repository
     private function eventLog(): EventLogRepository
     {
         return $this->eventLogRepository ?? new EventLogRepository($this->db);
+    }
+
+    private function validatedCanonicalResponse(array $response):array
+    {
+        (new \ALMSIVIserver\Protocol\Validator())->validate($response,'almsivi.response.v1');
+        return $response;
     }
 
     private function encode(array $value): string { return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES); }

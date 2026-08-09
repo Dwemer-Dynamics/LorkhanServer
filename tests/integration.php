@@ -411,6 +411,36 @@ $assert($status === 422, 'oversized event wait accepted');
 [$status, $events] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => '0', 'wait_ms' => '15000']);
 $assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted', 'dialogue.complete', 'action.intent', 'turn.complete', 'speech.ready'], 'event order failed');
+$canonicalStatement=$db->prepare('SELECT response_id,response_payload,runtime_generation FROM turns WHERE turn_id=:turn');
+$canonicalStatement->execute(['turn'=>$turn['turn_id']]);$canonicalRow=$canonicalStatement->fetch();
+$canonicalResponse=json_decode((string)$canonicalRow['response_payload'],true,64,JSON_THROW_ON_ERROR);
+$canonicalLines=$canonicalResponse['lines']??[];
+$canonicalDialogueLines=array_values(array_filter($canonicalLines,static fn(array $line):bool=>$line['action']==='say'));
+$canonicalActionLines=array_values(array_filter($canonicalLines,static fn(array $line):bool=>$line['action']==='rolecommand'));
+$projectedResponseEvents=array_values(array_filter($events['events'],
+    static fn(array $event):bool=>in_array($event['type'],['dialogue.complete','action.intent'],true)));
+$assert($canonicalResponse['schema']==='almsivi.response.v1'&&$canonicalResponse['response_id']===$canonicalRow['response_id']
+    &&$canonicalResponse['installation_id']===$installationId&&$canonicalResponse['session_id']===$sessionId
+    &&$canonicalResponse['turn_id']===$turn['turn_id']&&$canonicalResponse['request_id']===$turn['request_id']
+    &&$canonicalResponse['generation']===7&&$canonicalResponse['runtime_generation']===$turn['runtime_generation']
+    &&(int)$canonicalRow['runtime_generation']===$turn['runtime_generation']&&$canonicalResponse['ok']===true
+    &&array_column($canonicalLines,'action')===['say','rolecommand']
+    &&array_column($canonicalLines,'line_index')===[0,1]
+    &&array_column($projectedResponseEvents,'message_id')===array_column($canonicalLines,'line_id'),
+    'turn did not persist and project one fully correlated ordered canonical response');
+$canonicalUtterance=$db->prepare('SELECT dialogue_message_id,response_line_id,utterance_id,runtime_generation FROM dialogue_utterances WHERE turn_id=:turn');
+$canonicalUtterance->execute(['turn'=>$turn['turn_id']]);$canonicalUtteranceRow=$canonicalUtterance->fetch();
+$canonicalLogs=$db->prepare("SELECT response_message_id,tag,payload FROM responselog WHERE turn_id=:turn AND tag='response.line' ORDER BY rowid");
+$canonicalLogs->execute(['turn'=>$turn['turn_id']]);$canonicalLogRows=$canonicalLogs->fetchAll();
+$assert($canonicalUtteranceRow['dialogue_message_id']===$canonicalDialogueLines[0]['line_id']
+    &&$canonicalUtteranceRow['response_line_id']===$canonicalDialogueLines[0]['line_id']
+    &&$canonicalUtteranceRow['utterance_id']===$canonicalDialogueLines[0]['utterance_id']
+    &&(int)$canonicalUtteranceRow['runtime_generation']===$turn['runtime_generation']
+    &&array_column($canonicalLogRows,'response_message_id')===array_column($canonicalLines,'line_id')
+    &&array_column($canonicalLogRows,'tag')===['response.line','response.line']
+    &&array_map(static fn(array $row):string=>json_decode((string)$row['payload'],true,64,JSON_THROW_ON_ERROR)['schema'],
+        $canonicalLogRows)===['almsivi.response.line.v1','almsivi.response.line.v1'],
+    'canonical response lines did not retain line, utterance, generation, and responselog identity');
 $pollStarted = microtime(true);
 [$status, $emptyPoll] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => (string) $events['next_after'], 'wait_ms' => '50']);
@@ -511,6 +541,12 @@ $assert($status === 202 && $interruptStatus === 202, 'active turn interruption f
 [$status, $cancelledEvents] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => (string) $events['next_after']]);
 $assert($status === 200 && array_column($cancelledEvents['events'], 'type') === ['turn.accepted', 'turn.cancelled'], 'interruption was not terminal');
+$cancelledProjection=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
+$cancelledProjection->execute(['turn'=>$cancelledTurn['turn_id']]);
+$cancelledResponse=json_decode((string)$cancelledProjection->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($cancelledResponse['schema']==='almsivi.response.v1'&&$cancelledResponse['ok']===false
+    &&$cancelledResponse['lines']===[]&&$cancelledResponse['error']==='interrupted.player',
+    'interrupted turn did not persist a canonical terminal response');
 
 $failingProvider = new class implements Provider { public function complete(array $turn, CancellationToken $cancellation): array { throw new RuntimeException('provider secret'); } };
 $failingRouter = new Router($repo, new Validator(), $failingProvider, $tokenHash, rateLimitRequests: 1000,
@@ -527,6 +563,12 @@ $assert($status === 200 && array_column($failedEvents['events'], 'type') === ['t
 $failedAttempt = $db->query("SELECT state, error_code, error_detail FROM provider_attempts WHERE turn_id = " . $db->quote($failedTurn['turn_id']))->fetch();
 $assert($failedAttempt === ['state' => 'failed', 'error_code' => 'provider_unavailable', 'error_detail' => null],
     'provider failure attempt was not redacted/reconciled');
+$failedProjection=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
+$failedProjection->execute(['turn'=>$failedTurn['turn_id']]);
+$failedResponse=json_decode((string)$failedProjection->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($failedResponse['schema']==='almsivi.response.v1'&&$failedResponse['ok']===false
+    &&$failedResponse['lines']===[]&&$failedResponse['error']==='provider_unavailable',
+    'provider failure did not persist a canonical terminal response');
 
 // A profile fallback is frozen with the accepted turn and is attempted once after the default provider fails.
 $fallbackTarget=$controlsQuery['target'];$fallbackTarget['record_id']='fallback_actor';$fallbackTarget['display_name']='Fallback Actor';

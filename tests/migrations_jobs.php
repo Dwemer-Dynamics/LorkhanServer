@@ -46,6 +46,15 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$canonicalTurnColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+    . "AND table_name='turns' AND column_name IN ('runtime_generation','response_id','response_payload','response_created_at') ORDER BY column_name")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+    . "AND table_name='dialogue_utterances' AND column_name IN ('response_line_id','utterance_id','runtime_generation') ORDER BY column_name")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$check($canonicalTurnColumns===['response_created_at','response_id','response_payload','runtime_generation']
+    &&$canonicalDialogueColumns===['response_line_id','runtime_generation','utterance_id'],
+    'canonical response projection columns are incomplete');
 $eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
 $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
     'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
@@ -94,8 +103,9 @@ $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,genera
     ->execute(['turn'=>$migrationTurn,'request'=>$migrationRequest,'message'=>$migrationMessage,'session'=>$legacySession]);
 $dialogueIds=[];$mediaIds=[];
 for($i=1;$i<=3;++$i){$dialogueIds[$i]=Uuid::v4();$mediaIds[$i]=Uuid::v4();
-    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
-        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,'idx'=>$i,'text'=>'utterance '.$i]);
+    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,
+            'idx'=>$i,'line'=>$dialogueIds[$i],'utterance'=>Uuid::v4(),'text'=>'utterance '.$i]);
     $db->prepare("INSERT INTO media_objects(media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES(:media,:installation,:session,:turn,1,:sha,44,'wav','audio/wav',1,'2026-01-01T00:05:00Z',:dialogue)")
         ->execute(['media'=>$mediaIds[$i],'installation'=>$legacyInstallation,'session'=>$legacySession,'turn'=>$migrationTurn,'sha'=>hash('sha256','media-'.$i),'dialogue'=>$dialogueIds[$i]]);}
 $deliverySource=Uuid::v4();$deliveryMessage=Uuid::v4();

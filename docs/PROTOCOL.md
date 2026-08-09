@@ -19,7 +19,7 @@ idempotency and endpoint-specific limits.
 ## Common envelope
 
 Every gameplay message includes strict schema name, message/request/turn IDs as applicable,
-installation/profile/playthrough/session IDs, generation, UTC creation timestamp, runtime block,
+installation/profile/playthrough/session IDs, session generation, client runtime generation, UTC creation timestamp, runtime block,
 content fingerprint and typed payload. Runtime block contains `game=tes3`, `variant=openmw`, exact
 OpenMW version/commit, Lua API revision, client version/platform and negotiated capabilities.
 
@@ -35,6 +35,9 @@ response/runtime generation correlation. Each strict `almsivi.response.line.v1` 
 `rolecommand` and carries stable speaker/listener/rechat identities, request/utterance IDs, and bounded
 text, TTS/media/cache, command, and metadata fields. Provider output is normalized once; database
 projections, client events, TTS, actions, delivery receipts, diagnostics, and rechat consume it.
+The immutable response envelope is stored on the turn. Its line and utterance IDs are reused by
+`response_events`, `dialogue_utterances`, `speech`, and `responselog`; failed and cancelled turns store
+the same envelope with `ok=false`, no lines, and a bounded terminal error.
 
 `almsivi.gamedata.v1` accepts only typed TES3 actor, inventory, nearby-actor, world, Journal,
 captured-dialogue, and prompt-bridge payloads. AI quests, boredom, greetings, combat barks, ITT, and

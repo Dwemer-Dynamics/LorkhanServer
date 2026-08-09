@@ -40,6 +40,7 @@ final class Validator
             'almsivi.dialogue-delivery-result.v1' => $this->delivery($message),
             'almsivi.controls.query.v1' => $this->controlsQuery($message),
             'almsivi.controls.select.v1' => $this->controlsSelect($message),
+            'almsivi.response.v1' => $this->response($message),
             default => throw new ValidationException('invalid_schema'),
         };
     }
@@ -54,8 +55,12 @@ final class Validator
     /** @param array<string, mixed> $message */
     private function turn(array $message): void
     {
-        $this->keys($message, ['schema','message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id','generation','created_at','runtime','content_fingerprint','payload']);
+        $this->keys($message, ['schema','message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id','generation','runtime_generation','created_at','runtime','content_fingerprint','payload']);
         $this->common($message, 'almsivi.turn.v1', ['message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id']);
+        if (!is_int($message['runtime_generation']) || $message['runtime_generation'] < 1
+            || $message['runtime_generation'] > 9_007_199_254_740_991) {
+            throw new ValidationException('invalid_schema');
+        }
         $payload = $message['payload'] ?? null;
         if (!is_array($payload) || array_is_list($payload)) {
             throw new ValidationException('invalid_schema');
@@ -186,7 +191,7 @@ final class Validator
     /** @param array<string, mixed> $message @param list<string> $uuidFields */
     private function common(array $message, string $schema, array $uuidFields): void
     {
-        if (($message['schema'] ?? null) !== $schema || !is_int($message['generation']) || $message['generation'] < 0 || $message['generation'] > 9_007_199_254_740_991
+        if (($message['schema'] ?? null) !== $schema || !is_int($message['generation']) || $message['generation'] < 1 || $message['generation'] > 9_007_199_254_740_991
             || !is_string($message['content_fingerprint']) || !preg_match(self::FINGERPRINT, $message['content_fingerprint'])) {
             throw new ValidationException('invalid_schema');
         }
@@ -195,6 +200,80 @@ final class Validator
         }
         $this->timestamp($message['created_at'] ?? null);
         $this->runtime($message['runtime'] ?? null);
+    }
+
+    /** Validate the server-owned canonical response before it is persisted or projected. */
+    private function response(array $message): void
+    {
+        $this->keys($message,['schema','response_id','installation_id','profile_id','playthrough_id','session_id',
+            'turn_id','request_id','generation','runtime_generation','created_at','ok','lines','close','error']);
+        if (($message['schema']??null)!=='almsivi.response.v1') throw new ValidationException('invalid_schema');
+        foreach(['response_id','installation_id','profile_id','playthrough_id','session_id','turn_id','request_id'] as $field) {
+            $this->uuid($message[$field]??null);
+        }
+        if(!is_int($message['generation'])||$message['generation']<1||$message['generation']>9_007_199_254_740_991
+            ||!is_int($message['runtime_generation'])||$message['runtime_generation']<1
+            ||$message['runtime_generation']>9_007_199_254_740_991||!is_bool($message['ok'])||!is_bool($message['close'])
+            ||!is_string($message['error'])||!mb_check_encoding($message['error'],'UTF-8')||mb_strlen($message['error'],'UTF-8')>256
+            ||!is_array($message['lines'])||!array_is_list($message['lines'])||count($message['lines'])>64) {
+            throw new ValidationException('invalid_schema');
+        }
+        $this->timestamp($message['created_at']);
+        $lineIds=[];
+        foreach($message['lines'] as $line){$this->responseLine($line);$lineId=$line['line_id'];
+            if(isset($lineIds[$lineId]))throw new ValidationException('invalid_schema');$lineIds[$lineId]=true;}
+    }
+
+    private function responseLine(mixed $line): void
+    {
+        if(!is_array($line)||array_is_list($line))throw new ValidationException('invalid_schema');
+        $keys=['schema','line_id','line_index','speaker','display_name','speaker_identity','action','text','subtitle','tts_text',
+            'request_id','utterance_id','listener','listener_identity','rechat_target','rechat_target_identity','final_response_line','metadata'];
+        foreach(['command_args','command_name','media','tts_cache_key'] as $optional)if(array_key_exists($optional,$line))$keys[]=$optional;
+        $this->keys($line,$keys);
+        if(($line['schema']??null)!=='almsivi.response.line.v1'||!is_int($line['line_index'])||$line['line_index']<0||$line['line_index']>63
+            ||!in_array($line['action']??null,['say','rolecommand'],true)||!is_bool($line['final_response_line']??null)) {
+            throw new ValidationException('invalid_schema');
+        }
+        foreach(['line_id','request_id','utterance_id'] as $field)$this->uuid($line[$field]??null);
+        foreach(['speaker','display_name','listener','rechat_target'] as $field)$this->boundedUtf8($line[$field]??null,1,256);
+        foreach(['text','subtitle','tts_text'] as $field)$this->boundedUtf8($line[$field]??null,$line['action']==='say'?1:0,4096);
+        foreach(['speaker_identity','listener_identity','rechat_target_identity'] as $field)$this->identity($line[$field]??null);
+        if(array_key_exists('tts_cache_key',$line)
+            &&(!is_string($line['tts_cache_key'])||preg_match('/^[A-Za-z0-9._:-]{1,256}$/D',$line['tts_cache_key'])!==1)) {
+            throw new ValidationException('invalid_schema');
+        }
+        if(array_key_exists('media',$line))$this->mediaDescriptor($line['media']);
+        if(!is_array($line['metadata'])||($line['metadata']!==[]&&array_is_list($line['metadata']))||count($line['metadata'])>6
+            ||array_diff(array_keys($line['metadata']),['animation','emotion','mood','rechat_depth','speech_enabled','source'])) {
+            throw new ValidationException('invalid_schema');
+        }
+        foreach(['animation','emotion','mood','source'] as $field)if(array_key_exists($field,$line['metadata']))$this->boundedUtf8($line['metadata'][$field],0,64);
+        if(array_key_exists('rechat_depth',$line['metadata'])&&(!is_int($line['metadata']['rechat_depth'])||$line['metadata']['rechat_depth']<0||$line['metadata']['rechat_depth']>20))throw new ValidationException('invalid_schema');
+        if(array_key_exists('speech_enabled',$line['metadata'])&&!is_bool($line['metadata']['speech_enabled']))throw new ValidationException('invalid_schema');
+        if($line['action']==='rolecommand'){
+            if(!is_string($line['command_name']??null)||preg_match('/^[a-z][a-z0-9_.]{0,63}$/D',$line['command_name'])!==1
+                ||!is_array($line['command_args']??null)||!array_is_list($line['command_args'])||count($line['command_args'])>16)throw new ValidationException('invalid_schema');
+            foreach($line['command_args'] as $argument)$this->boundedUtf8($argument,0,512);
+        }
+    }
+
+    private function boundedUtf8(mixed $value,int $minimum,int $maximum):void
+    {
+        if(!is_string($value)||!mb_check_encoding($value,'UTF-8'))throw new ValidationException('invalid_schema');
+        $length=mb_strlen($value,'UTF-8');if($length<$minimum||$length>$maximum)throw new ValidationException('invalid_schema');
+    }
+
+    private function mediaDescriptor(mixed $media):void
+    {
+        if(!is_array($media)||array_is_list($media))throw new ValidationException('invalid_schema');
+        $this->keys($media,['media_id','dialogue_message_id','sha256','bytes','codec','duration_ms','expires_at']);
+        $this->uuid($media['media_id']??null);$this->uuid($media['dialogue_message_id']??null);
+        if(!is_string($media['sha256']??null)||preg_match('/^[0-9a-f]{64}$/D',$media['sha256'])!==1
+            ||!is_int($media['bytes'])||$media['bytes']<1||$media['bytes']>33_554_432
+            ||!in_array($media['codec']??null,['mp3','ogg','wav'],true)
+            ||!is_int($media['duration_ms'])||$media['duration_ms']<1)throw new ValidationException('invalid_schema');
+        $this->timestamp($media['expires_at']??null);
     }
 
     private function runtime(mixed $runtime): void
