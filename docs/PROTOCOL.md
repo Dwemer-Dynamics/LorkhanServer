@@ -26,6 +26,22 @@ OpenMW version/commit, Lua API revision, client version/platform and negotiated 
 Unknown fields/enums are rejected in v1. Strings are valid UTF-8, numbers/arrays/objects have schema
 limits and total JSON is at most 2 MiB (context at most 128 KiB). Negotiation may lower limits only.
 
+## Canonical input, event, response, and game-data split
+
+`almsivi.input.v1` is the normalized player-text/STT input envelope and `almsivi.event.v1` is the
+typed immutable source-event envelope. `almsivi.response.v1` contains `ok`, ordered bounded `lines`,
+`close`, an error string, and complete installation/profile/playthrough/session/turn/request plus
+response/runtime generation correlation. Each strict `almsivi.response.line.v1` is `say` or
+`rolecommand` and carries stable speaker/listener/rechat identities, request/utterance IDs, and bounded
+text, TTS/media/cache, command, and metadata fields. Provider output is normalized once; database
+projections, client events, TTS, actions, delivery receipts, diagnostics, and rechat consume it.
+
+`almsivi.gamedata.v1` accepts only typed TES3 actor, inventory, nearby-actor, world, Journal,
+captured-dialogue, and prompt-bridge payloads. AI quests, boredom, greetings, combat barks, ITT, and
+Background Life have no accepted variants. `almsivi.events.v1.autonomy` remains required for v1 wire
+compatibility but must always be empty. Rechat is a normal correlated turn. Canonical envelopes require
+both response generation and runtime generation values greater than zero.
+
 ## Object identity
 
 TES3/OpenMW object identity is a typed record ID, runtime RefNum/FormId when exposed, source content
@@ -50,7 +66,7 @@ stale references fail explicitly.
 | `GET /media/{id}` | Stream owned, unexpired allowlisted audio with fixed headers/hash/length. |
 
 Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `stt.transcript`, `stt.failed`, `action.intent`,
-`turn.complete`, `turn.failed`, and `turn.cancelled`. Future variants such as status/notices require
+`turn.complete`, `turn.failed`, and `turn.cancelled`. The required `autonomy` array is always empty. Future variants such as status/notices require
 an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
 
