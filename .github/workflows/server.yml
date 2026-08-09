@@ -27,7 +27,7 @@ jobs:
       - name: Install PHP and PostgreSQL
         run: |
           sudo apt-get update
-          sudo apt-get install --yes php-cli php-curl php-mbstring php-pgsql postgresql postgresql-client
+          sudo apt-get install --yes php-cli php-curl php-mbstring php-pgsql postgresql postgresql-client postgresql-16-pgvector
           pg_config --version
           php --version
           echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
