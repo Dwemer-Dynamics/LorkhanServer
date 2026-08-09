@@ -195,3 +195,7 @@ public/ui/provider_attempts.php,,,,repository proprietary,original,Physical embe
 public/ui/backup_health.php,,,,repository proprietary,original,Physical embedded backup and health entry page,Codex
 public/ui/diagnostics.php,,,,repository proprietary,original,Physical embedded diagnostics entry page,Codex
 public/ui/css/navbar.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/tmpl/navbar.php,Dwemer Dynamics shared UI MIT lineage,modified,Ported centered navbar geometry with ALMSIVI selectors,Codex
+database/migrations/042_schema_authority_and_exclusion_quarantine.up.sql,,,,repository proprietary,original,Internal migration authority and read-only excluded compatibility quarantine,Codex
+database/migrations/042_schema_authority_and_exclusion_quarantine.down.sql,,,,repository proprietary,original,Reversible excluded compatibility trigger teardown,Codex
+scripts/schema-inventory.php,,,,repository proprietary,original,Deterministic PostgreSQL catalog ownership and UTF-8 inventory generator,Codex
+docs/evidence/schema-inventory-summary.json,,,,repository proprietary,generated,Deterministic schema inventory counts dispositions and content hash,Codex

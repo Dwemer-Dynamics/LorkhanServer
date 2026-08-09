@@ -1,0 +1,25 @@
+{
+    "format": "almsivi.schema-inventory-summary.v1",
+    "generated_inventory": "build/schema-inventory.json",
+    "reference_commits": {
+        "herikaserver": "c973f5c8fde2d01cb8211be3d5f96d1783663da4",
+        "dialecticserver": "4f3d8fed834b283fd53ff0655ddd091d849dea1d"
+    },
+    "server_encoding": "UTF8",
+    "client_encoding": "UTF8",
+    "inventory_sha256": "1decd3c2844e82dcf83115f7b87611562c4af873e1fb71162721fd505d6d5b82",
+    "relation_count": 169,
+    "column_count": 1525,
+    "relation_kinds": {
+        "table": 160,
+        "view": 9
+    },
+    "dispositions": {
+        "exact_herika_compatibility_contract": 47,
+        "excluded_quarantined_compatibility": 1,
+        "excluded_read_only_compatibility": 25,
+        "morrowind_adapted_herika_contract": 17,
+        "typed_authority": 54,
+        "typed_companion_metadata": 25
+    }
+}

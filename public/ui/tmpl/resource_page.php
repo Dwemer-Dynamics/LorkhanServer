@@ -10,7 +10,7 @@ require $uiRootDir . '/ui_bootstrap.php';
 $rows = $uiRepository->rows($view);
 $policyRows = $view === 'actions' ? $uiRepository->rows('action_policies') : [];
 $narrativeRows = $view === 'autonomy' ? $uiRepository->rows('narratives') : [];
-$scheduleRows = $view === 'global_settings' ? $uiRepository->rows('autonomy') : [];
+$scheduleRows = [];
 $backupRows = $view === 'database_manager' ? $uiRepository->rows('backup_health') : [];
 $observedNpcs = $view === 'characters' ? $uiRepository->rows('observed_npcs') : [];
 $profilePreferenceRows = $view === 'characters' ? $uiRepository->rows('profile_preferences') : [];
@@ -77,7 +77,7 @@ $descriptions = [
     'llm' => 'Configure server-side dialogue provider presets. Stored secrets remain redacted.',
     'tts' => 'Configure server-side speech provider presets. Stored secrets remain redacted.',
     'stt' => 'Configure server-side speech-to-text provider presets. Stored secrets remain redacted.',
-    'global_settings' => 'Inspect registered installations and configure bounded rechat, boredom, and greeting schedules for an active playthrough.',
+    'global_settings' => 'Inspect registered installations and configure inherited playback-gated rechat. Timer-driven autonomy remains excluded.',
     'worldknowledge' => 'Create and inspect scoped Morrowind world knowledge.',
     'actions' => 'Inspect the negotiated OpenMW action catalog and create action-policy revisions.',
     'prompts' => 'Create and inspect versioned dialogue prompt configurations.',
@@ -252,16 +252,7 @@ $forms = match ($view) {
         'route'=>'connector-import','legend'=>'Import '.strtoupper($view).' connector','hidden'=>['kind'=>$view.'_provider'],
         'fields'=>[['installation_id','Installation','select','',$installationOptions],['connector_json','Portable ALMSIVI connector JSON','jsonfile']],
     ]],
-    'global_settings' => [[
-        'route'=>'autonomy','legend'=>'Save rechat, boredom, or greeting schedule','fields'=>[
-            ['installation_id','Installation','select','',$installationOptions],['profile_id','Profile','select','',$profileOptions],
-            ['playthrough_id','Playthrough','select','',$playthroughOptions],
-            ['kind','Behavior','select','rechat',['rechat'=>'Rechat','boredom'=>'Bored event','greeting'=>'Greeting']],
-            ['interval_seconds','Interval seconds','number','300'],['cooldown_seconds','Cooldown seconds','number','300'],
-            ['current_session_id','Active game session','select','',$sessionOptions,false],
-            ['enabled','Enable after active-session confirmation','checkbox','1'],
-        ],
-    ]],
+    'global_settings' => [],
     'worldknowledge' => [[
         'route' => 'knowledge', 'legend' => 'Add world knowledge',
         'fields' => [['installation_id', 'Installation', 'select', '', $installationOptions], ['profile_id', 'Profile', 'select', '', $profileOptions], ['playthrough_id', 'Playthrough', 'select', '', $playthroughOptions], ['title', 'Title'], ['content', 'Knowledge', 'textarea'], ['provenance', 'Provenance source', 'text', 'management']],
@@ -937,19 +928,11 @@ function almsivi_ui_biography_cards(array $rows,string $managementBasePath,strin
       echo'</div>';
   }
 
-/** Render runtime-backed rechat, boredom, and greeting schedules with explicit active-session gating. */
+/** Explain the disabled autonomy surface while directing rechat to inherited profile settings. */
 function almsivi_ui_schedule_cards(array $rows,array $sessionOptions,string $managementBasePath,string $csrf):void
 {
-    if($rows===[]){echo'<p class="empty-state">No server behavior schedules are configured. Client-side defaults remain in effect.</p>';return;}
-    echo'<div class="profile-grid">';foreach($rows as$row){$kind=(string)($row['kind']??'rechat');$enabled=filter_var($row['enabled']??false,FILTER_VALIDATE_BOOL);
-        $sessionId=(string)($row['current_session_id']??'');$options=[''=>'Select an active game session']+$sessionOptions;
-        if($sessionId!==''&&!isset($options[$sessionId]))$options[$sessionId]='Session is no longer active';
-        echo'<article class="profile-card"><header><div><span class="connector-kind">Bounded behavior</span><h3>'.almsivi_ui_h(ucwords(str_replace('_',' ',$kind))).'</h3></div><span class="status-badge'.($enabled?' connector-active':'').'">'.($enabled?'Enabled':'Disabled').'</span></header><dl><dt>Interval</dt><dd>'.almsivi_ui_h($row['interval_seconds']??0).' seconds</dd><dt>Cooldown</dt><dd>'.almsivi_ui_h($row['cooldown_seconds']??0).' seconds</dd><dt>Last triggered</dt><dd>'.almsivi_ui_h($row['last_triggered_at']??'Never').'</dd></dl><details><summary>Edit schedule</summary>';
-        almsivi_ui_management_form(['route'=>'autonomy','id'=>'schedule-'.($row['schedule_id']??$kind),'legend'=>'Save behavior schedule',
-            'hidden'=>['installation_id'=>$row['installation_id']??'','profile_id'=>$row['profile_id']??'','playthrough_id'=>$row['playthrough_id']??'','kind'=>$kind],
-            'fields'=>[['interval_seconds','Interval seconds','number',(string)($row['interval_seconds']??300)],['cooldown_seconds','Cooldown seconds','number',(string)($row['cooldown_seconds']??300)],['current_session_id','Active game session','select',$sessionId,$options,false],['enabled','Enable after active-session confirmation','checkbox','1',[],false,$enabled]]],$managementBasePath,$csrf);
-        echo'</details></article>';}
-    echo'</div>';
+    echo'<div class="feature-status feature-state-excluded"><h3>Automatic schedules <span class="status-badge">Excluded</span></h3>';
+    echo'<p>Automatic greetings, boredom, combat barks, and timer-driven model requests cannot be enabled. Playback-gated rechat is inherited through Global &rarr; Core Profile &rarr; NPC settings and starts only after successful dialogue playback.</p></div>';
 }
 
 /** Render speech presets as CHIM-style connector cards with an explicit active selection. */
@@ -1124,7 +1107,7 @@ function almsivi_ui_global_settings_page(array $rows,array $installationRows,arr
     $configured=[];foreach($rows as$row){$configured[(string)($row['installation_id']??'')]=true;echo'<details class="global-settings-document" open><summary>'.almsivi_ui_h($row['display_name']??'Installation').' <span class="status-badge">Revision '.almsivi_ui_h($row['current_revision']??1).'</span></summary>';almsivi_ui_global_settings_form($row,$installationOptions,$managementBasePath,$csrf);echo'</details>';}
     foreach($installationOptions as$id=>$label)if(!isset($configured[$id])){echo'<details class="global-settings-document" open><summary>Create settings for '.almsivi_ui_h($label).'</summary>';almsivi_ui_global_settings_form(['installation_id'=>$id],$installationOptions,$managementBasePath,$csrf);echo'</details>';}
     if($installationOptions===[])echo'<p class="empty-state">No OpenMW installation has paired with ALMSIVIserver yet.</p>';echo'</section>';
-    echo'<section class="global-settings-panel"><h2>Rechat, Boredom &amp; Greetings</h2><p>Schedules remain bounded to the selected installation, profile, playthrough, and confirmed active session.</p>';
+    echo'<section class="global-settings-panel"><h2>Conversation Continuation</h2><p>Rechat is playback-gated profile behavior, not an idle schedule.</p>';
     almsivi_ui_schedule_cards($scheduleRows,$sessionOptions,$managementBasePath,$csrf);echo'</section>';
     echo'<section class="global-settings-panel"><h2>Registered Installations</h2>';almsivi_ui_table($installationRows);echo'</section></div>';
 }
@@ -1319,7 +1302,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         ?></div>
     </section>
     <?php if ($view === 'global_settings'): ?>
-    <section class="widget widget-wide"><div class="widget-header"><h3>Rechat, Boredom &amp; Greetings</h3></div><div class="widget-content"><?php almsivi_ui_schedule_cards($scheduleRows,$sessionOptions,$managementBasePath,$csrf); ?></div></section>
+    <section class="widget widget-wide"><div class="widget-header"><h3>Conversation Continuation</h3></div><div class="widget-content"><?php almsivi_ui_schedule_cards($scheduleRows,$sessionOptions,$managementBasePath,$csrf); ?></div></section>
     <?php endif; ?>
     <?php if ($view === 'database_manager'): ?>
     <section class="widget widget-wide"><div class="widget-header"><h3>Installation Configuration Backups</h3></div><div class="widget-content"><p>Includes profiles, prompts, model slots, TTS/STT presets, action policies, connector selections, and profile safety preferences. API keys, portrait files, voice files, memories, relationships, narratives, and runtime database records are excluded.</p><?php almsivi_ui_configuration_backup_cards($backupRows,$installationOptions,$managementBasePath); ?></div></section>

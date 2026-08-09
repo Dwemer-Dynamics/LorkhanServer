@@ -20,6 +20,8 @@ createdb -h 127.0.0.1 -p "$PORT" almsivi_test
 createdb -h 127.0.0.1 -p "$PORT" almsivi_migrations_test
 ALMSIVI_TEST_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=almsivi_test" \
 ALMSIVI_RESPONSE_CAPTURE="${ALMSIVI_RESPONSE_CAPTURE:-}" php "$ROOT/tests/integration.php"
+ALMSIVI_SCHEMA_DSN="pgsql:host=127.0.0.1;port=$PORT;dbname=almsivi_test" \
+php "$ROOT/scripts/schema-inventory.php" --check
 pg_dump -h 127.0.0.1 -p "$PORT" -Fc -f "$TMP/almsivi.backup" almsivi_test
 createdb -h 127.0.0.1 -p "$PORT" almsivi_restore_test
 pg_restore -h 127.0.0.1 -p "$PORT" -d almsivi_restore_test --exit-on-error "$TMP/almsivi.backup"

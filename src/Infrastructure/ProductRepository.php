@@ -771,18 +771,6 @@ final class ProductRepository
     public function deleteNarrative(string $id,string $now):void{$this->db->prepare('UPDATE narrative_records SET deleted_at=:now,updated_at=:now WHERE narrative_id=:id')->execute(['now'=>$now,'id'=>$id]);}
     public function narratives(array $scope):array{$s=$this->db->prepare('SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
 
-    /** Save one bounded behavior schedule after confirming its live session owns the same scope. */
-    public function scheduleAutonomy(array $input,string $now):array
-    {
-        if(($input['enabled']??false)===true){$session=$this->db->prepare("SELECT 1 FROM sessions WHERE session_id=:session AND installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND state='active'");
-            $session->execute($this->scopeParams($input)+['session'=>$input['current_session_id']??null]);if(!$session->fetchColumn())throw new \InvalidArgumentException('active_session_scope_mismatch');}
-        $id=$input['schedule_id']??Uuid::v4();$this->db->prepare('INSERT INTO autonomy_schedules (schedule_id,installation_id,profile_id,playthrough_id,kind,enabled,interval_seconds,cooldown_seconds,current_session_id,confirmed_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:kind,:enabled,:interval,:cooldown,:session,:confirmed,:now) ON CONFLICT (installation_id,profile_id,playthrough_id,kind) DO UPDATE SET enabled=EXCLUDED.enabled,interval_seconds=EXCLUDED.interval_seconds,cooldown_seconds=EXCLUDED.cooldown_seconds,current_session_id=EXCLUDED.current_session_id,confirmed_at=EXCLUDED.confirmed_at,updated_at=EXCLUDED.updated_at RETURNING schedule_id')
-            ->execute($this->scopeParams($input)+['id'=>$id,'kind'=>$input['kind'],'enabled'=>$input['enabled']?'true':'false','interval'=>$input['interval_seconds'],'cooldown'=>$input['cooldown_seconds'],'session'=>$input['current_session_id']??null,'confirmed'=>$input['confirmed_at']??null,'now'=>$now]);
-        return['schedule_id'=>$id,'kind'=>$input['kind'],'enabled'=>$input['enabled']];
-    }
-    public function dueAutonomy(array $scope,string $now):array{$s=$this->db->prepare("SELECT a.* FROM autonomy_schedules a JOIN sessions s ON s.session_id=a.current_session_id AND s.state='active' AND s.installation_id=a.installation_id WHERE a.installation_id=:installation AND a.profile_id=:profile AND a.playthrough_id=:playthrough AND a.enabled AND a.confirmed_at IS NOT NULL AND (a.last_triggered_at IS NULL OR a.last_triggered_at + make_interval(secs=>GREATEST(a.interval_seconds,a.cooldown_seconds)) <= :now) ORDER BY a.kind");$s->execute($this->scopeParams($scope)+['now'=>$now]);return $s->fetchAll();}
-    public function markAutonomyTriggered(string $id,string $now):void{$this->db->prepare('UPDATE autonomy_schedules SET last_triggered_at=:now,updated_at=:now WHERE schedule_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-
     public function exportScope(array $scope):array
     {
         $queries=[

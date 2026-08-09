@@ -139,6 +139,8 @@ keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.cur
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
+assert '/forms/autonomy' not in text and 'New Schedule' not in text
+excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php')); assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 plugins,text=parse(request('/ALMSIVIserver/ui/server_plugins.php')); assert plugins.current==1 and '<h1>Server Plugins</h1>' in text and 'Automatic Game Plugin Sync' in text and 'first-party module inventory' in text

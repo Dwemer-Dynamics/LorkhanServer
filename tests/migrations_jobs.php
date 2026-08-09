@@ -49,6 +49,12 @@ $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migr
 $eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
 $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
     'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
+$check($db->query("SELECT to_regclass('public.schema_migrations') IS NULL")->fetchColumn()===true,
+    'migration authority leaked into the Herika public schema');
+foreach(['UPDATE almsivi_internal.autonomy_schedules SET enabled=enabled','INSERT INTO public.bgl_history DEFAULT VALUES'] as $excludedWrite){
+    try{$db->exec($excludedWrite);throw new RuntimeException('excluded compatibility write remained reachable');}
+    catch(PDOException $error){$check($error->getCode()==='0A000','unexpected excluded-write SQL state: '.$error->getCode());}
+}
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');

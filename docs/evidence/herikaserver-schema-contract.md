@@ -3,8 +3,8 @@
 ## Baseline
 
 - Repository: `https://github.com/abeiro/HerikaServer.git`
-- Ref: `origin/unstable`
-- Commit: `508d7335d26f8027b3d576137bf161b331ed8ad9`
+- Ref: frozen `origin/unstable` parity baseline
+- Commit: `c973f5c8fde2d01cb8211be3d5f96d1783663da4`
 - Operational comparison database: local `dwemer` PostgreSQL schema inspected read-only on 2026-08-05
 - ALMSIVI migration strategy: exact Herika product tables plus separate OpenMW ownership/correlation metadata
 
@@ -23,7 +23,7 @@ and `herika_compat` is removed.
 | Copy Exact | Preserve Herika name, columns, order, type, default, nullability, sequence, constraints, indexes, comments and view behavior. |
 | Morrowind Adaptation | Preserve the table contract while replacing Skyrim-only producers or derived display fields with TES3/OpenMW semantics. |
 | Internal Companion | Store installation, playthrough, session, source-event, turn and exact TES3 identity without modifying copied Herika columns. |
-| Functional Exclusion | Schema/UI compatibility may remain, but no STT, ITT, Background Life or autonomy runtime is provisioned. |
+| Functional Exclusion | Schema/UI compatibility may remain, but no ITT, Background Life, AI Quest, greeting, boredom, combat-bark or timer-autonomy runtime is provisioned. STT is installation-global and active. |
 | Proven Deprecated | Omit only when Herika identifies the object as legacy and production-reference review confirms no required writer/reader. |
 
 ## First staged family
@@ -46,8 +46,9 @@ Their companion metadata therefore owns the row ID as its primary key without ad
 that would require changing the copied Herika tables. Repository transactions and parity checks must
 enforce the one-to-one relationship.
 
-`core_stt_connector` and `core_itt_connector` exist only because active Herika profile foreign keys
-reference them. They remain empty and have no functional ALMSIVI runtime or enabled UI.
+`core_stt_connector` preserves the Herika page/table contract over ALMSIVI's active installation-global
+STT presets and selection. `core_itt_connector` exists only for the active Herika profile foreign-key
+contract and remains read-only with no functional ALMSIVI runtime or enabled UI.
 
 ## Proven deprecated objects
 
@@ -134,8 +135,9 @@ job, integration vertical-slice and browser-like management HTTP suites pass tog
 
 The live Morrowind projections contain no Skyrim-labelled quest, location or content-file data. The
 five active Herika `skyrim_quest_*` tables remain present for exact schema parity but contain no rows
-and have no ALMSIVI producer. Functional STT, ITT, Background Life and general autonomy remain
-excluded even where exact Herika compatibility tables are retained.
+and have no ALMSIVI producer. ITT, Background Life, AI Quest, greetings, boredom, combat barks and
+timer autonomy remain excluded even where exact Herika compatibility tables are retained. STT is
+active through the single installation-global connector workflow.
 
 Final acceptance remains intentionally separate from catalog and server tests: after this cutover,
 an actual OpenMW conversation must produce a correlated turn, prompt trace, eventlog dialogue,
