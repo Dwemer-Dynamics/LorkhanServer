@@ -345,3 +345,10 @@ body.llm-page-shell > main.llm-page {
     .llm-page .llm-editor-toolbar { flex-wrap: wrap; }
     .llm-page .llm-test-note { width: 100%; max-width: none; }
 }
+
+@media (max-width: 720px) {
+    .llm-page .llm-layout { grid-template-columns: minmax(0, 1fr); }
+    .llm-page .llm-left { height: auto; max-height: none; }
+    .llm-page .conn-li .actions { flex-wrap: wrap; }
+    .llm-page .conn-li .actions button { min-width: 0; max-width: 100%; }
+}

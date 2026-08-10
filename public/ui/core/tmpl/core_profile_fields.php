@@ -72,11 +72,10 @@ $selectSetting = static function (string $name, string $label, string $descripti
 
 $disabledSelectSetting = static function (string $name, string $label, string $description, mixed $value, string $featureId): void {
     $display = $value === true ? 'On' : ($value === false ? 'Off' : 'Inherit');
-    $stored = $value === true ? '1' : ($value === false ? '0' : 'inherit');
     ?>
     <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
         <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="hidden" name="<?php echo almsivi_ui_h($name); ?>" value="<?php echo almsivi_ui_h($stored); ?>"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($display); ?></option></select></div>
+        <div class="setting-control"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($display); ?></option></select></div>
     </div>
     <?php
 };
@@ -86,7 +85,7 @@ $disabledNumberField = static function (string $section, string $field, string $
     ?>
     <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
         <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="hidden" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>" value="<?php echo almsivi_ui_h($value); ?>"><input type="text" value="<?php echo almsivi_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
+        <div class="setting-control"><input type="text" value="<?php echo almsivi_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
     </div>
     <?php
 };

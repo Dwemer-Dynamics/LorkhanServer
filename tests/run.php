@@ -445,12 +445,21 @@ $globalSettings['behavior']['rechat']=true;
 $globalSettings['memory']['knowledge_limit']=5;
 $coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['knowledge_limit'=>0]],
     'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111']];
-$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>false]],'routing'=>['llm_configuration_id'=>'']];
+$globalSettings['behavior']['auto_greeting']=true;
+$globalSettings['narrator']['welcome_events']=true;
+$coreLayer['settings_overrides']['behavior']['rechat_allow_actions']=true;
+$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true]],'routing'=>['llm_configuration_id'=>'']];
 $effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
 $check($effective['settings']['behavior']['rechat']===false
     && $effective['settings']['memory']['knowledge_limit']===0
     && $effective['routing']['llm_configuration_id']==='',
     'Global to Core Profile to NPC resolution preserves explicit false, zero, and empty overrides');
+$check($effective['settings']['behavior']['auto_greeting']===false
+    && $effective['settings']['behavior']['rechat_allow_actions']===false
+    && $effective['settings']['behavior']['combat_barks']===false
+    && $effective['settings']['narrator']['welcome_events']===false
+    && ($effective['sources']['settings.behavior.combat_barks']??null)==='excluded',
+    'excluded automation compatibility fields cannot become effective');
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
     && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
     && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,

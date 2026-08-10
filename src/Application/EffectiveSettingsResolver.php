@@ -94,6 +94,21 @@ final class EffectiveSettingsResolver
             }
         }
 
+        // Compatibility fields remain in the v1 document, but excluded automation can never become effective.
+        foreach ([
+            ['behavior', 'auto_greeting'],
+            ['behavior', 'rechat_allow_actions'],
+            ['behavior', 'boredom'],
+            ['behavior', 'combat_barks'],
+            ['narrator', 'welcome_events'],
+            ['narrator', 'random_events'],
+            ['narrator', 'quest_events'],
+            ['narrator', 'book_events'],
+        ] as [$section, $field]) {
+            $settings[$section][$field] = false;
+            $sources['settings.' . $section . '.' . $field] = 'excluded';
+        }
+
         $document = ['schema' => 'almsivi.effective-settings.v1', 'settings' => $settings, 'routing' => $routing];
         return [
             'document' => $document,

@@ -818,18 +818,16 @@ final class ManagementRouter
 
         $overrides=[];
         $booleanFields=[
-            'behavior'=>['auto_greeting','rechat','rechat_strict_targeting','open_rechat','rechat_allow_actions','boredom','combat_barks'],
-            'narrator'=>['enabled','context_visibility','welcome_events','random_events','quest_events','book_events'],
-            'presentation'=>['show_status_hud'],
+            'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
+            'narrator'=>['enabled','context_visibility'],
             'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
         ];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$value=(string)($values[$key]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$key);
             $overrides[$section][$field]=$value==='1';}
         $integerFields=[
-            'behavior'=>['rechat_delay_seconds','rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds','boredom_delay_seconds','combat_bark_period_seconds'],
+            'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
             'memory'=>['recent_turn_limit','knowledge_limit'],
-            'presentation'=>['transcript_rows','tts_volume_boost'],
         ];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
             if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
@@ -848,20 +846,19 @@ final class ManagementRouter
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $mode=(string)($values['narrator_inline_mode']??'Disabled');
         return['schema'=>'almsivi.client-settings.v1','behavior'=>[
-            'auto_greeting'=>isset($values['auto_greeting']),'rechat'=>isset($values['rechat']),
+            'auto_greeting'=>false,'rechat'=>isset($values['rechat']),
             'rechat_delay_seconds'=>$integer($values,'rechat_delay_seconds',45),'rechat_max_depth'=>$integer($values,'rechat_max_depth',2),
             'rechat_probability_percent'=>$integer($values,'rechat_probability_percent',50),
             'rechat_mode'=>trim((string)($values['rechat_mode']??'random')),
             'rechat_strict_targeting'=>isset($values['rechat_strict_targeting']),
             'open_rechat'=>isset($values['open_rechat']),'rechat_allow_actions'=>false,
             'end_conversation_cooldown_seconds'=>$integer($values,'end_conversation_cooldown_seconds',60),
-            'boredom'=>isset($values['boredom']),'boredom_delay_seconds'=>$integer($values,'boredom_delay_seconds',180),
-            'combat_barks'=>isset($values['combat_barks']),'combat_bark_period_seconds'=>$integer($values,'combat_bark_period_seconds',20),
+            'boredom'=>false,'boredom_delay_seconds'=>180,
+            'combat_barks'=>false,'combat_bark_period_seconds'=>20,
         ],'memory'=>['recent_turn_limit'=>$integer($values,'recent_turn_limit',20),'knowledge_limit'=>$integer($values,'knowledge_limit',5)],
         'narrator'=>['enabled'=>isset($values['narrator_enabled']),'name'=>trim((string)($values['narrator_name']??'The Narrator')),
             'context_visibility'=>isset($values['narrator_context_visibility']),'inline_mode'=>$mode,
-            'welcome_events'=>isset($values['narrator_welcome_events']),'random_events'=>isset($values['narrator_random_events']),
-            'quest_events'=>isset($values['narrator_quest_events']),'book_events'=>isset($values['narrator_book_events'])],
+            'welcome_events'=>false,'random_events'=>false,'quest_events'=>false,'book_events'=>false],
         'presentation'=>['show_status_hud'=>isset($values['show_status_hud']),'transcript_rows'=>$integer($values,'transcript_rows',8),
             'tts_volume_boost'=>$integer($values,'tts_volume_boost',3)],
         'safety'=>['actions_enabled'=>isset($values['actions_enabled']),'allow_hostile'=>isset($values['allow_hostile']),
@@ -905,14 +902,13 @@ final class ManagementRouter
     /** Parse optional per-NPC setting values; absent keys continue to inherit from the Core Profile. */
     private function profileSettingsOverrides(array $values):array
     {
-        $overrides=[];$booleanFields=['behavior'=>['auto_greeting','rechat','rechat_strict_targeting','open_rechat','rechat_allow_actions','boredom','combat_barks'],
-            'narrator'=>['enabled','context_visibility','welcome_events','random_events','quest_events','book_events'],
-            'presentation'=>['show_status_hud'],'safety'=>['actions_enabled','allow_hostile','allow_creatures']];
+        $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
+            'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures']];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
-        $integerFields=['behavior'=>['rechat_delay_seconds','rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds','boredom_delay_seconds','combat_bark_period_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit'],'presentation'=>['transcript_rows','tts_volume_boost']];
+        $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
+            'memory'=>['recent_turn_limit','knowledge_limit']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));

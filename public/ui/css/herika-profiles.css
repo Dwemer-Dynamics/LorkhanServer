@@ -724,3 +724,8 @@ body.profiles-page-shell > main.profiles-page {
 @media (max-width: 860px) {
     .profiles-page .llm-layout { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
 }
+
+@media (max-width: 720px) {
+    .profiles-page .llm-layout { grid-template-columns: minmax(0, 1fr); }
+    .profiles-page .llm-left { height: auto; max-height: none; }
+}

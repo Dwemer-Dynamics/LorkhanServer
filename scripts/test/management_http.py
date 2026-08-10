@@ -194,12 +194,14 @@ form=next(f for f in profile.forms if f['action'].endswith('/forms/profile-creat
 invalid=dict(form['fields'],_csrf=csrf,installation_id='invalid',name='Test',voice_language='en')
 r=request(form['action'],'POST',invalid); _,text=parse(r); assert r.status==422 and 'role="alert"' in text
 profile_name='HTTP managed profile '+uuid.uuid4().hex
-valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary')
+valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
 valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
 profile_match=re.search(re.escape(profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert profile_match,profile_name
 profile_id=profile_match.group(1)
+profile_export=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode()); profile_overrides=profile_export['content']['settings_overrides']
+assert profile_overrides['behavior']=={'rechat':True,'rechat_max_depth':4} and 'presentation' not in profile_overrides,profile_overrides
 r=request('/ALMSIVIserver/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'voice_sample_in_use' in body and 'Profile: '+profile_name in body and batch_voice in body,(r.status,r.geturl(),body)
 managed_for_clone,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))

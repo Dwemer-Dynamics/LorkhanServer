@@ -10,6 +10,12 @@ $npcBool=static function(string$name,string$label,mixed$value):void{ ?>
 $npcNumber=static function(string$section,string$field,string$label,int$min,int$max)use($overrides):void{$value=$overrides[$section][$field]??''; ?>
     <label><?php echo almsivi_ui_h($label); ?><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section.'_'.$field); ?>" value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></label>
 <?php };
+$npcDisabledBool=static function(string$label,mixed$value,string$featureId):void{$display=$value===true?'Enabled':($value===false?'Disabled':'Inherit'); ?>
+    <label class="feature-placeholder-card"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId,true); ?><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($display); ?></option></select></label>
+<?php };
+$npcDisabledNumber=static function(string$section,string$field,string$label,string$featureId)use($overrides):void{$value=$overrides[$section][$field]??''; ?>
+    <label class="feature-placeholder-card"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId,true); ?><input type="text" value="<?php echo almsivi_ui_h($value===''?'Inherit':$value); ?>" disabled aria-disabled="true"></label>
+<?php };
 ?>
 <input type="hidden" name="llm_routing_fields" value="1">
 <fieldset class="almsivi-group"><legend>NPC connector overrides</legend><div class="almsivi-form-grid">
@@ -20,9 +26,9 @@ $npcNumber=static function(string$section,string$field,string$label,int$min,int$
     <?php $npcBool('llm_randomizer_enabled','LLM randomizer',$routing['llm_randomizer_enabled']??null);$npcBool('llm_fallback_enabled','Fallback retry',$routing['llm_fallback_enabled']??null); ?>
 </div></fieldset>
 <fieldset class="almsivi-group"><legend>NPC behavior overrides</legend><div class="almsivi-form-grid">
-    <?php foreach(['auto_greeting'=>'Automatic greeting','rechat'=>'Rechat','boredom'=>'Boredom events','combat_barks'=>'Combat barks']as$field=>$label)$npcBool('setting_behavior_'.$field,$label,$overrides['behavior'][$field]??null); ?>
-    <?php $npcNumber('behavior','rechat_delay_seconds','Rechat delay',30,3600);$npcNumber('behavior','rechat_max_depth','Rechat rounds',1,20);$npcNumber('behavior','rechat_probability_percent','Rechat probability',0,100);$npcNumber('behavior','boredom_delay_seconds','Boredom delay',30,86400);$npcNumber('behavior','combat_bark_period_seconds','Combat bark period',5,300); ?>
+    <?php $npcDisabledBool('Automatic greeting',$overrides['behavior']['auto_greeting']??null,'autonomy');$npcBool('setting_behavior_rechat','Rechat',$overrides['behavior']['rechat']??null);$npcDisabledBool('Boredom events',$overrides['behavior']['boredom']??null,'autonomy');$npcDisabledBool('Combat barks',$overrides['behavior']['combat_barks']??null,'autonomy'); ?>
+    <?php $npcDisabledNumber('behavior','rechat_delay_seconds','Rechat delay','autonomy');$npcNumber('behavior','rechat_max_depth','Rechat rounds',1,20);$npcNumber('behavior','rechat_probability_percent','Rechat probability',0,100);$npcDisabledNumber('behavior','boredom_delay_seconds','Boredom delay','autonomy');$npcDisabledNumber('behavior','combat_bark_period_seconds','Combat bark period','autonomy'); ?>
     <?php $npcNumber('memory','recent_turn_limit','Recent turns',1,100);$npcNumber('memory','knowledge_limit','Knowledge results',0,20); ?>
-    <?php $npcBool('setting_presentation_show_status_hud','Show status HUD',$overrides['presentation']['show_status_hud']??null);$npcNumber('presentation','transcript_rows','Transcript rows',2,20);$npcNumber('presentation','tts_volume_boost','TTS volume boost',1,4); ?>
+    <?php $npcDisabledBool('Show status HUD',$overrides['presentation']['show_status_hud']??null,'presentation.local');$npcDisabledNumber('presentation','transcript_rows','Transcript rows','presentation.local');$npcDisabledNumber('presentation','tts_volume_boost','TTS volume boost','presentation.local'); ?>
     <?php foreach(['actions_enabled'=>'Negotiated actions','allow_hostile'=>'Hostile targets','allow_creatures'=>'Creature targets']as$field=>$label)$npcBool('setting_safety_'.$field,$label,$overrides['safety'][$field]??null); ?>
 </div></fieldset>
