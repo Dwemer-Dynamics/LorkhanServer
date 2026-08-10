@@ -143,12 +143,13 @@ assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php')); assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
-plugins,text=parse(request('/ALMSIVIserver/ui/server_plugins.php')); assert plugins.current==1 and '<h1>Server Plugins</h1>' in text and 'Automatic Game Plugin Sync' in text and 'first-party module inventory' in text
+assert request('/ALMSIVIserver/ui/server_plugins.php').status==404
+assert request('/ALMSIVIserver/manage/server-plugins').status==404
 llm,text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
 llm_runtime,runtime_text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'ALMSIVI_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
 for import_path in ['/ALMSIVIserver/ui/core/npc_master.php','/ALMSIVIserver/ui/core/llm_connectors.php?import=1','/ALMSIVIserver/ui/core/tts_connectors.php?import=1','/ALMSIVIserver/ui/prompts_manager.php']:
     _,import_text=parse(request(import_path)); assert 'type="file" accept="application/json,.json" data-json-import-target=' in import_text and 'Choose a JSON file or paste its contents here.' in import_text,import_path
-hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'data-tab="ittcfg"' not in hub_text and 'ITT</span>' not in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
+hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','keys','globals','oghma','items','actions','prompts']) and 'data-tab="serverplugins"' not in hub_text and 'Server Plugins' not in hub_text and 'data-tab="ittcfg"' not in hub_text and 'ITT</span>' not in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
 pages_css=request('/ALMSIVIserver/ui/css/almsivi-pages.css').read().decode()
 navbar_css=request('/ALMSIVIserver/ui/css/navbar.css').read().decode()
 navbar_layout_css=request('/ALMSIVIserver/ui/css/herika-navbar-layout.css').read().decode()
@@ -166,7 +167,6 @@ for path in [
     '/ALMSIVIserver/manage/player',
     '/ALMSIVIserver/manage/npc-biographies',
     '/ALMSIVIserver/manage/descriptions',
-    '/ALMSIVIserver/manage/server-plugins',
     '/ALMSIVIserver/manage/providers', '/ALMSIVIserver/manage/ai-voice',
     '/ALMSIVIserver/manage/action-editor',
     '/ALMSIVIserver/manage/prompts-actions', '/ALMSIVIserver/manage/world',

@@ -21,7 +21,7 @@ use Throwable;
 
 final class ManagementRouter
 {
-    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','server-plugins','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
+    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -41,7 +41,6 @@ final class ManagementRouter
         'action-editor'=>'/ui/function_editor.php',
         'world'=>'/ui/core/config_hub.php?tab=globals-page',
         'descriptions'=>'/ui/description_manager.php',
-        'server-plugins'=>'/ui/server_plugins.php',
         'traces'=>'/ui/request_logs.php',
         'memory'=>'/ui/events-memories.php?tab=memory',
         'relationships'=>'/ui/control_panel.php?tab=rellogs',

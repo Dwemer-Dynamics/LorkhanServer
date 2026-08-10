@@ -109,12 +109,6 @@ function almsivi_ui_feature_registry(): array
         'config.actions.advanced' => ['title' => 'Action Advanced Options', 'state' => 'replaced', 'description' => 'Confirmation and tier behavior are represented by typed ALMSIVI action metadata and scoped policies rather than arbitrary per-action JSON.'],
         'config.prompts' => ['title' => 'Prompts Manager', 'state' => 'live', 'description' => 'Revisioned prompt templates and routing.'],
         'config.prompts.csv' => ['title' => 'Herika Prompt CSV', 'state' => 'replaced', 'description' => 'ALMSIVI uses redacted portable JSON documents so typed revisions and installation ownership remain intact.'],
-        'config.plugins' => ['title' => 'Server Plugins', 'state' => 'replaced', 'description' => 'ALMSIVI exposes a read-only first-party module inventory; arbitrary plugin installation is disabled.', 'controls' => ['Install Server Plugin', 'Upload Plugin Package']],
-        'config.plugins.sync' => ['title' => 'Automatic Plugin Sync', 'state' => 'planned', 'description' => 'Signed and typed OpenMW-to-server package negotiation is not connected yet.'],
-        'config.plugins.lifecycle' => ['title' => 'Plugin Lifecycle', 'state' => 'replaced', 'description' => 'First-party ALMSIVI modules are source-controlled and deployed through the guarded local deployment workflow.'],
-        'config.plugins.marketplace' => ['title' => 'Plugin Repository', 'state' => 'planned', 'description' => 'The ALMSIVI plugin package contract and repository are not available yet.'],
-        'config.plugins.skyrim' => ['title' => 'Skyrim Plugin', 'state' => 'not-applicable', 'description' => 'This Herika extension depends on Skyrim-specific runtime capabilities and is not applicable to OpenMW.'],
-
         'roleplay.events' => ['title' => 'Events', 'state' => 'live', 'description' => 'Immutable OpenMW and dialogue source events.'],
         'roleplay.responses' => ['title' => 'AI Responses', 'state' => 'live', 'description' => 'Persisted dialogue and delivery states.'],
         'roleplay.adventure' => ['title' => 'Adventure Log', 'state' => 'live', 'description' => 'Narratives, summaries, and playthrough records.'],

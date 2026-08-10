@@ -36,7 +36,6 @@ $configSections = [
             'items' => ['Descriptions', '&#x1F4D6;', 'config.descriptions', $webRoot . '/ui/description_manager.php?embed=1'],
             'actions' => ['Action Editor', '&#x2694;&#xFE0F;', 'config.actions', $webRoot . '/ui/function_editor.php?embed=1'],
             'prompts' => ['Prompts Manager', '&#x1F4AC;', 'config.prompts', $webRoot . '/ui/prompts_manager.php?embed=1'],
-            'serverplugins' => ['Server Plugins', '&#x1F9E9;', 'config.plugins', $webRoot . '/ui/server_plugins.php?embed=1'],
         ],
     ],
 ];
@@ -44,7 +43,7 @@ $configSections = [
 $aliases = [
     'npc-page' => 'npc', 'profiles-page' => 'profiles', 'player-page' => 'player', 'narration-page' => 'narrator', 'npcbio-page' => 'npcbio',
     'llm-page' => 'llm', 'tts-page' => 'ttscfg', 'studio-page' => 'xtts', 'stt-page' => 'sttcfg', 'keys-page' => 'keys',
-    'globals-page' => 'globals', 'knowledge-page' => 'oghma', 'items-page' => 'items', 'actions-page' => 'actions', 'prompts-page' => 'prompts', 'plugins-page' => 'serverplugins',
+    'globals-page' => 'globals', 'knowledge-page' => 'oghma', 'items-page' => 'items', 'actions-page' => 'actions', 'prompts-page' => 'prompts',
 ];
 $requested = (string) ($_GET['tab'] ?? 'npc');
 $requested = $aliases[$requested] ?? $requested;
