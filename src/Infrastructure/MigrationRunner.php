@@ -139,7 +139,7 @@ final class MigrationRunner
         });
     }
 
-    /** @return list<array{version:int,name:string,up:string,down:string,checksum:string}> */
+    /** @return list<array{version:int,name:string,up:string,down:string,checksum:string,crlf_checksum:string}> */
     private function discover(): array
     {
         if (!is_dir($this->directory)) {
@@ -185,7 +185,14 @@ final class MigrationRunner
                 'name' => $match[2],
                 'up' => $upSql,
                 'down' => $downSql,
-                'checksum' => hash('sha256', "up\0" . $upSql . "\0down\0" . $downSql),
+                'checksum' => self::checksum(
+                    self::canonicalizeLineEndings($upSql),
+                    self::canonicalizeLineEndings($downSql),
+                ),
+                'crlf_checksum' => self::checksum(
+                    str_replace("\n", "\r\n", self::canonicalizeLineEndings($upSql)),
+                    str_replace("\n", "\r\n", self::canonicalizeLineEndings($downSql)),
+                ),
             ];
             ++$expected;
         }
@@ -238,7 +245,9 @@ final class MigrationRunner
             if ($row['checksum'] === null || $row['name'] === null) {
                 throw new RuntimeException("Applied migration {$version} lacks checksum metadata; explicit reconciliation is required.");
             }
-            if (!hash_equals($byVersion[$version]['checksum'], $row['checksum']) || $row['name'] !== $byVersion[$version]['name']) {
+            $checksumMatches = hash_equals($byVersion[$version]['checksum'], $row['checksum'])
+                || hash_equals($byVersion[$version]['crlf_checksum'], $row['checksum']);
+            if (!$checksumMatches || $row['name'] !== $byVersion[$version]['name']) {
                 throw new RuntimeException("Migration drift detected at version {$version}.");
             }
             ++$expectedApplied;
@@ -281,6 +290,17 @@ final class MigrationRunner
             }
             throw $error;
         }
+    }
+
+    // Git and deployment tools may materialize identical SQL with LF or CRLF bytes.
+    private static function canonicalizeLineEndings(string $sql): string
+    {
+        return str_replace(["\r\n", "\r"], "\n", $sql);
+    }
+
+    private static function checksum(string $upSql, string $downSql): string
+    {
+        return hash('sha256', "up\0" . $upSql . "\0down\0" . $downSql);
     }
 
     private function locked(callable $callback): mixed

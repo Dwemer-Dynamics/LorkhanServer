@@ -67,6 +67,20 @@ foreach(['UPDATE almsivi_internal.autonomy_schedules SET enabled=enabled','INSER
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
+$firstMigrationUp = glob(dirname(__DIR__) . '/database/migrations/001_*.up.sql')[0]
+    ?? throw new RuntimeException('first source migration missing');
+$firstMigrationDown = substr($firstMigrationUp, 0, -7) . '.down.sql';
+$toCrlf = static fn(string $sql): string => str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $sql));
+$legacyCrlfChecksum = hash(
+    'sha256',
+    "up\0" . $toCrlf((string) file_get_contents($firstMigrationUp))
+        . "\0down\0" . $toCrlf((string) file_get_contents($firstMigrationDown)),
+);
+$check(!hash_equals($status[0]['checksum'], $legacyCrlfChecksum), 'line-ending compatibility fixture is not distinct');
+$setMigrationChecksum = $db->prepare('UPDATE almsivi_internal.schema_migrations SET checksum = :checksum WHERE version = 1');
+$setMigrationChecksum->execute(['checksum' => $legacyCrlfChecksum]);
+$check(count($runner->status()) === count($expectedVersions), 'historical CRLF migration checksum was rejected');
+$setMigrationChecksum->execute(['checksum' => $status[0]['checksum']]);
 $check($runner->down(1) === [$latestVersion], 'down did not revert latest migration');
 $check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
