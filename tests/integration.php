@@ -402,7 +402,9 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
 $successfulWorkerStats=$runTurnWorker(new MockProvider());
-$assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0], 'successful turn job was not acknowledged');
+$successfulJob=$db->query("SELECT state,last_error_code,last_error_detail FROM durable_jobs WHERE job_type='turn.process' ORDER BY created_at DESC LIMIT 1")->fetch();
+$assert($successfulWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
+    'successful turn job was not acknowledged: '.json_encode(['stats'=>$successfulWorkerStats,'job'=>$successfulJob]));
 [$status, $turnDuplicate] = $call($router, 'POST', $base . '/turns', $headers($turn['message_id']), [], $turn);
 $assert($status === 202 && $turnDuplicate == $turnAccepted, 'turn duplicate failed');
 [$status] = $call($router, 'GET', $base . '/events', [], [
@@ -410,7 +412,8 @@ $assert($status === 202 && $turnDuplicate == $turnAccepted, 'turn duplicate fail
 $assert($status === 422, 'oversized event wait accepted');
 [$status, $events] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => '0', 'wait_ms' => '15000']);
-$assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted', 'dialogue.complete', 'action.intent', 'turn.complete', 'speech.ready'], 'event order failed');
+$assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted','response.complete','dialogue.complete',
+    'action.intent','turn.complete','speech.ready'], 'event order failed');
 $canonicalStatement=$db->prepare('SELECT response_id,response_payload,runtime_generation FROM turns WHERE turn_id=:turn');
 $canonicalStatement->execute(['turn'=>$turn['turn_id']]);$canonicalRow=$canonicalStatement->fetch();
 $canonicalResponse=json_decode((string)$canonicalRow['response_payload'],true,64,JSON_THROW_ON_ERROR);
@@ -419,6 +422,7 @@ $canonicalDialogueLines=array_values(array_filter($canonicalLines,static fn(arra
 $canonicalActionLines=array_values(array_filter($canonicalLines,static fn(array $line):bool=>$line['action']==='rolecommand'));
 $projectedResponseEvents=array_values(array_filter($events['events'],
     static fn(array $event):bool=>in_array($event['type'],['dialogue.complete','action.intent'],true)));
+$responseCompleteEvents=array_values(array_filter($events['events'],static fn(array $event):bool=>$event['type']==='response.complete'));
 $assert($canonicalResponse['schema']==='almsivi.response.v1'&&$canonicalResponse['response_id']===$canonicalRow['response_id']
     &&$canonicalResponse['installation_id']===$installationId&&$canonicalResponse['session_id']===$sessionId
     &&$canonicalResponse['turn_id']===$turn['turn_id']&&$canonicalResponse['request_id']===$turn['request_id']
@@ -426,6 +430,8 @@ $assert($canonicalResponse['schema']==='almsivi.response.v1'&&$canonicalResponse
     &&(int)$canonicalRow['runtime_generation']===$turn['runtime_generation']&&$canonicalResponse['ok']===true
     &&array_column($canonicalLines,'action')===['say','rolecommand']
     &&array_column($canonicalLines,'line_index')===[0,1]
+    &&count($responseCompleteEvents)===1&&$responseCompleteEvents[0]['message_id']===$canonicalResponse['response_id']
+    &&$responseCompleteEvents[0]['payload']===$canonicalResponse
     &&array_column($projectedResponseEvents,'message_id')===array_column($canonicalLines,'line_id'),
     'turn did not persist and project one fully correlated ordered canonical response');
 $canonicalUtterance=$db->prepare('SELECT dialogue_message_id,response_line_id,utterance_id,runtime_generation FROM dialogue_utterances WHERE turn_id=:turn');
@@ -540,7 +546,7 @@ $cancelRequest = ['schema'=>'almsivi.interrupt.v1','message_id'=>$newUuid(36),'r
 $assert($status === 202 && $interruptStatus === 202, 'active turn interruption failed');
 [$status, $cancelledEvents] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => (string) $events['next_after']]);
-$assert($status === 200 && array_column($cancelledEvents['events'], 'type') === ['turn.accepted', 'turn.cancelled'], 'interruption was not terminal');
+$assert($status === 200 && array_column($cancelledEvents['events'], 'type') === ['turn.accepted','response.complete','turn.cancelled'], 'interruption was not terminal');
 $cancelledProjection=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
 $cancelledProjection->execute(['turn'=>$cancelledTurn['turn_id']]);
 $cancelledResponse=json_decode((string)$cancelledProjection->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
@@ -559,7 +565,7 @@ $assert($failedWorkerStats === ['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=
 $assert($status === 202, 'provider failure lost durable acceptance');
 [$status, $failedEvents] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => (string) $cancelledEvents['next_after']]);
-$assert($status === 200 && array_column($failedEvents['events'], 'type') === ['turn.accepted', 'turn.failed'], 'provider failure not terminally persisted');
+$assert($status === 200 && array_column($failedEvents['events'], 'type') === ['turn.accepted','response.complete','turn.failed'], 'provider failure not terminally persisted');
 $failedAttempt = $db->query("SELECT state, error_code, error_detail FROM provider_attempts WHERE turn_id = " . $db->quote($failedTurn['turn_id']))->fetch();
 $assert($failedAttempt === ['state' => 'failed', 'error_code' => 'provider_unavailable', 'error_detail' => null],
     'provider failure attempt was not redacted/reconciled');
@@ -638,8 +644,8 @@ $assert($groupWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'gro
 [$status,$groupEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$groupAfter]);
 $groupTypes=array_column($groupEvents['events'],'type');
-$assert($status===200&&$groupTypes===['turn.accepted','dialogue.complete','dialogue.complete','dialogue.complete',
-    'dialogue.complete','turn.complete','speech.ready','speech.ready','speech.ready','speech.ready'],'four-utterance group event order failed');
+$assert($status===200&&$groupTypes===['turn.accepted','response.complete','dialogue.complete','dialogue.complete',
+    'dialogue.complete','dialogue.complete','turn.complete','speech.ready','speech.ready','speech.ready','speech.ready'],'four-utterance group event order failed');
 $groupDialogues=array_values(array_filter($groupEvents['events'],static fn(array $e):bool=>$e['type']==='dialogue.complete'));
 $groupSpeech=array_values(array_filter($groupEvents['events'],static fn(array $e):bool=>$e['type']==='speech.ready'));
 $assert(count($groupDialogues)===4&&count($groupSpeech)===4&&count(array_unique(array_column(array_column($groupSpeech,'payload'),'media_id')))===4,
@@ -745,7 +751,7 @@ $menuTypes=array_column($menuEvents['events'],'type');
 $menuIntents=array_values(array_filter($menuEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
 $menuJobs=$db->prepare("SELECT count(*) FROM durable_jobs WHERE job_type='turn.process' AND payload->>'turn_id'=:turn");
 $menuJobs->execute(['turn'=>$menuTurn['turn_id']]);
-$assert($status===200&&$menuTypes===['turn.accepted','action.intent','turn.complete']
+$assert($status===200&&$menuTypes===['turn.accepted','response.complete','action.intent','turn.complete']
     &&count($menuIntents)===1&&$menuIntents[0]['payload']['name']==='ai.wander'
     &&$menuIntents[0]['payload']['parameters']===['distance'=>0,'duration_seconds'=>3600]
     &&$menuAccepted['event_cursor']===$menuEvents['next_after']&&(int)$menuJobs->fetchColumn()===0,
@@ -769,7 +775,7 @@ $assert($status===202,'secondary-target combat action was rejected');
 [$status,$targetedEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$menuEvents['next_after']]);
 $targetedIntents=array_values(array_filter($targetedEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
-$assert($status===200&&array_column($targetedEvents['events'],'type')===['turn.accepted','action.intent','turn.complete']
+$assert($status===200&&array_column($targetedEvents['events'],'type')===['turn.accepted','response.complete','action.intent','turn.complete']
     &&count($targetedIntents)===1&&$targetedIntents[0]['payload']['actor']==$targetedTurn['payload']['target']
     &&$targetedIntents[0]['payload']['target']==$secondaryTarget
     &&$targetedAccepted['event_cursor']===$targetedEvents['next_after'],
@@ -786,7 +792,7 @@ $assert($status===202,'same-cell travel action was rejected');
 [$status,$travelEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$targetedEvents['next_after']]);
 $travelIntents=array_values(array_filter($travelEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
-$assert($status===200&&array_column($travelEvents['events'],'type')===['turn.accepted','action.intent','turn.complete']
+$assert($status===200&&array_column($travelEvents['events'],'type')===['turn.accepted','response.complete','action.intent','turn.complete']
     &&count($travelIntents)===1&&$travelIntents[0]['payload']['name']==='ai.travel'
     &&$travelIntents[0]['payload']['parameters']===$destination
     &&$travelAccepted['event_cursor']===$travelEvents['next_after'],'travel destination was not preserved end to end');

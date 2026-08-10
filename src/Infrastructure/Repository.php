@@ -286,6 +286,8 @@ final class Repository
                 $canonical = $this->validatedCanonicalResponse(
                     (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
                 $actionLine = $canonical['lines'][0];
+                $this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],
+                    'response.complete',$canonical,$canonical['response_id']);
                 $this->action($m, $m['request_id'], $validatedDirectAction, $actionLine['line_id']);
                 $this->db->prepare("UPDATE responselog SET tag='response.line',actor=:actor,text=NULL,action='rolecommand',"
                     . 'actor_identity=CAST(:identity AS jsonb),payload=CAST(:payload AS jsonb) WHERE response_message_id=:message')
@@ -425,6 +427,8 @@ final class Repository
             $this->validateProviderResult($providerResult, $session, $m);
             $canonical = $this->validatedCanonicalResponse(
                 (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult));
+            $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
+                'response.complete',$canonical,$canonical['response_id']);
             $dialogueLines = array_values(array_filter($canonical['lines'],
                 static fn(array $line): bool => $line['action'] === 'say'));
             $actionLines = array_values(array_filter($canonical['lines'],
@@ -509,7 +513,7 @@ final class Repository
             $this->db->prepare("UPDATE rechat_chains SET state=CASE WHEN current_depth>=round_budget THEN 'closed' ELSE 'awaiting_playback' END,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state='request_in_flight'")
                 ->execute(['turn'=>$m['turn_id']]);
             return ['cursor' => $complete['sequence'], 'dialogues' => $dialogues, 'speech' => $speechEvents,
-                'action' => $action, 'response' => $canonical];
+                'action' => $action, 'response_event'=>$responseEvent, 'response' => $canonical];
         });
     }
 
@@ -566,6 +570,8 @@ final class Repository
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
                 ->execute(['turn'=>$m['turn_id'],'response'=>$canonical['response_id'],
                     'payload'=>$this->encode($canonical),'created'=>$canonical['created_at']]);
+            $this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
+                'response.complete',$canonical,$canonical['response_id']);
             $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'turn.failed',
                 ['code' => $reason, 'retriable' => false]);
             $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason=:reason,updated_at=clock_timestamp() WHERE latest_turn_id=:turn AND state IN ('request_in_flight','awaiting_playback')")
@@ -761,6 +767,8 @@ final class Repository
             $this->db->prepare("UPDATE media_objects SET expires_at=LEAST(expires_at,clock_timestamp()) WHERE turn_id=:turn AND deleted_at IS NULL")->execute(['turn'=>$m['turn_id']]);
             $this->db->prepare("UPDATE action_intents SET state='terminal' WHERE turn_id=:turn AND state<>'terminal'")->execute(['turn'=>$m['turn_id']]);
             $this->db->prepare("UPDATE action_delivery d SET terminal_at=COALESCE(terminal_at,clock_timestamp()),continuation_state='none',updated_at=clock_timestamp() FROM action_intents a WHERE a.turn_id=:turn AND d.action_id=a.action_id")->execute(['turn'=>$m['turn_id']]);
+            $this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],
+                'response.complete',$canonical,$canonical['response_id']);
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.cancelled',
                 ['reason' => $m['reason']]);
             return ['cursor' => $event['sequence'], 'duplicate' => false];
@@ -956,6 +964,8 @@ final class Repository
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
                 ->execute(['turn'=>$turn['turn_id'],'response'=>$canonical['response_id'],
                     'payload'=>$this->encode($canonical),'created'=>$canonical['created_at']]);
+            $this->event($sessionId,(int)$turn['generation'],$turn['request_id'],$turn['turn_id'],
+                'response.complete',$canonical,$canonical['response_id']);
             $this->event($sessionId,(int)$turn['generation'],$turn['request_id'],$turn['turn_id'],'turn.cancelled',['reason'=>$reason]);
             $this->db->prepare("UPDATE provider_attempts SET state='cancelled',finished_at=clock_timestamp(),error_code='operation_cancelled',"
                 . "duration_ms=GREATEST(0,floor(extract(epoch FROM(clock_timestamp()-started_at))*1000)::integer) WHERE turn_id=:turn AND state='started'")
