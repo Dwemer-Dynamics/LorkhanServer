@@ -107,6 +107,36 @@ final class MemoryDeriveJobHandler extends FirstPartyJobHandler
         }
         $this->repository->assertMemorySourceEligible($memory);
         $this->repository->upsertMemory($memoryId, $memory, $this->clock->iso());
+        $this->repository->enqueueMemoryConsolidation($memoryId, $memory);
+    }
+}
+
+final class MemoryConsolidateJobHandler extends FirstPartyJobHandler
+{
+    public const TYPE = 'memory.consolidate';
+
+    public function supports(string $jobType, int $schemaVersion): bool
+    {
+        return $jobType === self::TYPE && $schemaVersion === 1;
+    }
+
+    public function handle(array $payload, string $idempotencyKey, callable $heartbeat): void
+    {
+        $this->heartbeat($heartbeat);
+        $sourceTier = $this->text($payload, 'source_tier', 16);
+        if (!in_array($sourceTier, ['recent', 'mid'], true)) {
+            throw new InvalidArgumentException('invalid_memory_source_tier');
+        }
+        $derived = $this->repository->consolidateMemories(
+            $this->scope($payload),
+            $sourceTier,
+            $this->uuid($payload, 'source_memory_id'),
+            $this->clock->iso(),
+        );
+        $this->heartbeat($heartbeat);
+        if ($derived !== null) {
+            $this->repository->enqueueMemoryConsolidation($derived['memory_id'], $derived);
+        }
     }
 }
 

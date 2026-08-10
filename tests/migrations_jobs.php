@@ -446,6 +446,66 @@ $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyPro
     'provenance'=>['source'=>'dialogue.delivery','status'=>'played']];
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
+$derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstallation,$legacyProfile,$legacyPlaythrough,$legacySession):void{
+    $source=Uuid::v4();$dialogue=Uuid::v4();$message=Uuid::v4();$memory=Uuid::v4();$turn=Uuid::v4();$request=Uuid::v4();$turnMessage=Uuid::v4();
+    $occurred=sprintf('2026-01-01T00:00:%02dZ',$ordinal);
+    $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+        ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
+    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>'Played memory '.$ordinal.'.']);
+    $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+        ->execute(['source'=>$source,'installation'=>$legacyInstallation,'session'=>$legacySession,'occurred'=>$occurred,'request'=>$request,'turn'=>$turn]);
+    $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok',:occurred)")
+        ->execute(['dialogue'=>$dialogue,'source'=>$source,'message'=>$message,'request'=>$request,'turn'=>$turn,'session'=>$legacySession,'occurred'=>$occurred]);
+    $derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+        'memory_id'=>$memory,'tier'=>'recent','content'=>'Played memory '.$ordinal.'.','source_event_id'=>$source,
+        'occurred_at'=>$occurred,'provenance'=>['source'=>'dialogue.delivery','status'=>'played','source_event_ids'=>[$source]]],
+        'memory.derive:played:'.$ordinal,static fn():bool=>true);
+};
+foreach(range(2,4)as$ordinal)$derivePlayedMemory($ordinal);
+$consolidationWorker=new Worker($jobs,$firstPartyRegistry,'memory-consolidation-four',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null);
+$fourStats=$consolidationWorker->run();
+$check($fourStats['retried']===0&&$fourStats['dead']===0
+    &&(int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier='mid' AND deleted_at IS NULL")->fetchColumn()===1,
+    'four eligible recent memories did not produce exactly one middle memory');
+foreach(range(5,16)as$ordinal)$derivePlayedMemory($ordinal);
+$allStats=(new Worker($jobs,$firstPartyRegistry,'memory-consolidation-all',5,1,50,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
+$consolidated=$db->query("SELECT memory_id,tier,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
+$middleRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='mid'));
+$longRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='long'));
+$check($allStats['retried']===0&&$allStats['dead']===0&&count($middleRows)===4&&count($longRows)===1,
+    'sixteen eligible recent memories did not produce four middle and one long memory');
+foreach($middleRows as$row){$provenance=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR);$check((int)$row['current_revision']===1
+    &&$provenance['source']==='memory.consolidate'&&$provenance['provider']==='first-party'
+    &&$provenance['model']==='deterministic-extractive-v1'&&$provenance['revision']===1&&$provenance['source_tier']==='recent'
+    &&count($provenance['source_memory_ids'])===4&&count($provenance['source_event_ids'])===4
+    &&isset($provenance['source_range']['from'],$provenance['source_range']['to']),'middle-memory provenance is incomplete');}
+$longProvenance=json_decode((string)$longRows[0]['provenance'],true,64,JSON_THROW_ON_ERROR);
+$check((int)$longRows[0]['current_revision']===1&&$longProvenance['source_tier']==='mid'
+    &&count($longProvenance['source_memory_ids'])===4&&count($longProvenance['source_event_ids'])===16
+    &&$longProvenance['source_range']['from']==='2026-01-01T00:00:04Z'
+    &&$longProvenance['source_range']['to']==='2026-01-01T00:00:16Z',
+    'long-memory source range or flattened provenance is incomplete');
+$consolidate=$firstPartyRegistry->for('memory.consolidate',1);
+$consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'source_memory_id'=>$derivedMemoryId,'source_tier'=>'recent'],'memory.consolidate:repeat',static fn():bool=>true);
+$check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
+    &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
+    'memory consolidation replay was not idempotent');
+$failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
+$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);
+$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'Failed output','2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+    ->execute(['dialogue'=>$failedDialogue,'session'=>$legacySession,'turn'=>$failedTurn,'request'=>$failedRequest,'line'=>$failedDialogue,'utterance'=>Uuid::v4()]);
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:17Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    ->execute(['source'=>$failedSource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$failedRequest,'turn'=>$failedTurn]);
+$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'failed','audio_failed','2026-01-01T00:00:17Z')")
+    ->execute(['dialogue'=>$failedDialogue,'source'=>$failedSource,'message'=>$failedMessage,'request'=>$failedRequest,'turn'=>$failedTurn,'session'=>$legacySession]);
+try{$derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'memory_id'=>Uuid::v4(),'tier'=>'recent','content'=>'Failed output must not persist.','source_event_id'=>$failedSource,
+    'provenance'=>['source'=>'dialogue.delivery','status'=>'failed']],'memory.derive:failed',static fn():bool=>true);throw new RuntimeException('failed dialogue entered recent memory');}
+catch(RuntimeException $error){$check($error->getMessage()==='memory_source_ineligible','unexpected failed-dialogue memory error');}
+$check(!in_array($failedSource,$longProvenance['source_event_ids'],true),'failed dialogue entered consolidated provenance');
 $badFirstParty=Uuid::v4();$jobs->enqueue($badFirstParty,'memory.derive',1,'memory.derive:retry',['memory_id'=>'bad'],2);
 $retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10,['memory.derive']);$retryStats=$retryWorker->run();
 $retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();

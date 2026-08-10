@@ -33,6 +33,7 @@ final class FirstPartyJobHandlerFactory
             new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
             new MemoryDeriveJobHandler($repository, $clock),
+            new MemoryConsolidateJobHandler($repository, $clock),
             new MemoryRebuildJobHandler($repository, $clock),
             new NarrativeJobHandler($repository, $clock),
             new MediaCleanupJobHandler($repository, $clock, $mediaStore),
@@ -57,6 +58,7 @@ final class FirstPartyJobHandlerFactory
             SpeechSynthesizeJobHandler::TYPE,
             SttProcessJobHandler::TYPE,
             MemoryDeriveJobHandler::TYPE,
+            MemoryConsolidateJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,
             NarrativeJobHandler::SUMMARY_TYPE,
             NarrativeJobHandler::DIARY_TYPE,

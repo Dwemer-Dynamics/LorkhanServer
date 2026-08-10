@@ -65,6 +65,165 @@ final class FirstPartyJobRepository
         }
     }
 
+    /** Chain delivered recent memories into bounded event-driven middle/long consolidation. */
+    public function enqueueMemoryConsolidation(string $memoryId, array $memory): void
+    {
+        $sourceTier = (string) ($memory['tier'] ?? '');
+        if (!in_array($sourceTier, ['recent', 'mid'], true)) {
+            return;
+        }
+        $payload = [
+            'installation_id' => (string) $memory['installation_id'],
+            'profile_id' => (string) $memory['profile_id'],
+            'playthrough_id' => (string) $memory['playthrough_id'],
+            'source_memory_id' => $memoryId,
+            'source_tier' => $sourceTier,
+        ];
+        $statement = $this->db->prepare("INSERT INTO durable_jobs "
+            . "(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+            . "VALUES(:job,'memory.consolidate',1,:key,CAST(:payload AS jsonb),3,30) "
+            . 'ON CONFLICT(job_type,idempotency_key) DO NOTHING');
+        $statement->execute([
+            'job' => Uuid::v4(),
+            'key' => 'memory:consolidate:' . $sourceTier . ':' . $memoryId,
+            'payload' => $this->encode($payload),
+        ]);
+    }
+
+    /**
+     * Consolidate the oldest four unused eligible rows from one tier. The incoming source ID is an authority fence,
+     * while deterministic IDs and derivation keys make concurrent or replayed jobs converge on the same record.
+     *
+     * @param array<string,string> $scope
+     * @return array<string,mixed>|null
+     */
+    public function consolidateMemories(array $scope, string $sourceTier, string $sourceMemoryId, string $now): ?array
+    {
+        $targetTier = $sourceTier === 'recent' ? 'mid' : 'long';
+        $eligible = $sourceTier === 'recent'
+            ? "m.source_event_id IS NOT NULL AND se.installation_id=m.installation_id "
+                . "AND source_session.profile_id=m.profile_id AND source_session.playthrough_id=m.playthrough_id "
+                . "AND ((se.event_kind='dialogue.delivery' AND delivery.status='played') "
+                . "OR se.event_kind IN ('turn.requested','stt.transcript','action.result','location','death','narration'))"
+            : "m.derivation_key IS NOT NULL AND m.provenance->>'source'='memory.consolidate' "
+                . "AND m.provenance->>'provider'='first-party' "
+                . "AND m.provenance->>'model'='deterministic-extractive-v1' "
+                . "AND m.provenance->>'source_tier'='recent'";
+        $sql = "WITH eligible AS (SELECT m.memory_id,m.content,m.source_event_id,m.provenance,m.occurred_at "
+            . "FROM memory_records m LEFT JOIN source_events se ON se.source_event_id=m.source_event_id "
+            . "LEFT JOIN sessions source_session ON source_session.session_id=se.session_id "
+            . "LEFT JOIN dialogue_delivery_results delivery ON delivery.source_event_id=se.source_event_id "
+            . "WHERE m.installation_id=:installation AND m.profile_id=:profile AND m.playthrough_id=:playthrough "
+            . "AND m.tier=:source_tier AND m.deleted_at IS NULL AND {$eligible}), "
+            . "unused AS (SELECT e.* FROM eligible e WHERE NOT EXISTS (SELECT 1 FROM memory_records derived "
+            . "CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(derived.provenance->'source_memory_ids','[]'::jsonb)) used(memory_id) "
+            . "WHERE derived.installation_id=:installation AND derived.profile_id=:profile "
+            . "AND derived.playthrough_id=:playthrough AND derived.tier=:target_tier AND derived.deleted_at IS NULL "
+            . "AND used.memory_id=e.memory_id::text) ORDER BY e.occurred_at,e.memory_id LIMIT 4) "
+            . "SELECT * FROM unused WHERE EXISTS (SELECT 1 FROM unused WHERE memory_id=:source_memory) "
+            . "ORDER BY occurred_at,memory_id";
+        $statement = $this->db->prepare($sql);
+        $statement->execute($this->scope($scope) + [
+            'source_tier' => $sourceTier,
+            'target_tier' => $targetTier,
+            'source_memory' => $sourceMemoryId,
+        ]);
+        $rows = $statement->fetchAll();
+        if (count($rows) < 4) {
+            return null;
+        }
+
+        $sourceMemoryIds = [];
+        $sourceEventIds = [];
+        $parts = [];
+        foreach ($rows as $row) {
+            $sourceMemoryIds[] = (string) $row['memory_id'];
+            $content = trim((string) $row['content']);
+            if ($content !== '' && !in_array($content, $parts, true)) {
+                $parts[] = $content;
+            }
+            if ($sourceTier === 'recent') {
+                $sourceEventIds[] = (string) $row['source_event_id'];
+                continue;
+            }
+            $provenance = json_decode((string) $row['provenance'], true, 64, JSON_THROW_ON_ERROR);
+            foreach (($provenance['source_event_ids'] ?? []) as $sourceEventId) {
+                if (is_string($sourceEventId) && !in_array($sourceEventId, $sourceEventIds, true)) {
+                    $sourceEventIds[] = $sourceEventId;
+                }
+            }
+        }
+        $content = trim(mb_strcut(implode($targetTier === 'mid' ? "\n" : "\n\n", $parts), 0, 16384, 'UTF-8'));
+        if ($content === '') {
+            throw new RuntimeException('memory_consolidation_empty');
+        }
+        $utc = new \DateTimeZone('UTC');
+        $sourceFrom = (new \DateTimeImmutable((string) $rows[0]['occurred_at']))->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');
+        $sourceTo = (new \DateTimeImmutable((string) $rows[array_key_last($rows)]['occurred_at']))->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');
+        $derivationKey = 'memory.consolidate:' . $targetTier . ':' . implode(',', $sourceMemoryIds);
+        $memoryId = Uuid::deterministicV4($derivationKey);
+        $memory = $scope + [
+            'memory_id' => $memoryId,
+            'tier' => $targetTier,
+            'content' => $content,
+            'occurred_at' => $sourceTo,
+            'derivation_key' => $derivationKey,
+            'provenance' => [
+                'source' => 'memory.consolidate',
+                'provider' => 'first-party',
+                'model' => 'deterministic-extractive-v1',
+                'revision' => 1,
+                'source_tier' => $sourceTier,
+                'source_memory_ids' => $sourceMemoryIds,
+                'source_event_ids' => $sourceEventIds,
+                'source_range' => ['from' => $sourceFrom, 'to' => $sourceTo],
+            ],
+        ];
+        $this->upsertConsolidatedMemory($memory, $now);
+        return $memory;
+    }
+
+    /** @param array<string,mixed> $memory */
+    private function upsertConsolidatedMemory(array $memory, string $now): void
+    {
+        $content = (string) $memory['content'];
+        $statement = $this->db->prepare('INSERT INTO memory_records '
+            . '(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at,derivation_key) '
+            . 'VALUES (:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),NULL,CAST(:provenance AS jsonb),:occurred,NULL,:now,:now,:derivation) '
+            . 'ON CONFLICT (memory_id) DO UPDATE SET tier=EXCLUDED.tier,content=EXCLUDED.content,lexical_terms=EXCLUDED.lexical_terms,'
+            . 'fake_vector=EXCLUDED.fake_vector,source_event_id=NULL,provenance=EXCLUDED.provenance,occurred_at=EXCLUDED.occurred_at,'
+            . 'expires_at=NULL,updated_at=EXCLUDED.updated_at,derivation_key=EXCLUDED.derivation_key,deleted_at=NULL '
+            . 'WHERE memory_records.installation_id=EXCLUDED.installation_id AND memory_records.profile_id=EXCLUDED.profile_id '
+            . 'AND memory_records.playthrough_id=EXCLUDED.playthrough_id AND memory_records.derivation_key=EXCLUDED.derivation_key '
+            . 'AND (memory_records.tier, memory_records.content, memory_records.lexical_terms, memory_records.fake_vector, '
+            . 'memory_records.provenance, memory_records.occurred_at, memory_records.deleted_at) IS DISTINCT FROM '
+            . '(EXCLUDED.tier, EXCLUDED.content, EXCLUDED.lexical_terms, EXCLUDED.fake_vector, EXCLUDED.provenance, EXCLUDED.occurred_at, NULL)');
+        $statement->execute([
+            'id' => $memory['memory_id'],
+            'installation' => $memory['installation_id'],
+            'profile' => $memory['profile_id'],
+            'playthrough' => $memory['playthrough_id'],
+            'tier' => $memory['tier'],
+            'content' => $content,
+            'terms' => $this->pgArray(DeterministicRetrieval::terms($content)),
+            'vector' => $this->encode(DeterministicRetrieval::fakeVector($content)),
+            'provenance' => $this->encode($memory['provenance']),
+            'occurred' => $memory['occurred_at'],
+            'now' => $now,
+            'derivation' => $memory['derivation_key'],
+        ]);
+        if ($statement->rowCount() === 1) {
+            return;
+        }
+        $existing = $this->db->prepare('SELECT installation_id,profile_id,playthrough_id,derivation_key FROM memory_records WHERE memory_id=:id');
+        $existing->execute(['id' => $memory['memory_id']]);
+        $row = $existing->fetch();
+        if (!$row || $row['installation_id'] !== $memory['installation_id'] || $row['profile_id'] !== $memory['profile_id']
+            || $row['playthrough_id'] !== $memory['playthrough_id'] || $row['derivation_key'] !== $memory['derivation_key']) {
+            throw new RuntimeException('memory_identity_conflict');
+        }
+    }
+
     /** @param array<string,string> $scope */
     public function rebuildMemories(array $scope, ?string $afterId, int $limit, string $now): int
     {

@@ -15,7 +15,7 @@ spl_autoload_register(static function (string $class): void {
         return;
     }
     if (str_starts_with($relative, 'Application\\') && in_array(substr($relative, strlen('Application\\')), [
-        'FirstPartyJobHandler', 'MemoryDeriveJobHandler', 'MemoryRebuildJobHandler', 'NarrativeJobHandler',
+        'FirstPartyJobHandler', 'MemoryDeriveJobHandler', 'MemoryConsolidateJobHandler', 'MemoryRebuildJobHandler', 'NarrativeJobHandler',
         'MediaCleanupJobHandler', 'RetentionJobHandler', 'ProviderReconciliationJobHandler',
     ], true)) {
         require __DIR__ . '/Application/FirstPartyJobHandlers.php';
