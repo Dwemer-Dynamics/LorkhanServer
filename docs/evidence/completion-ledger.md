@@ -24,7 +24,7 @@ Recorded baseline: 2026-07-19. Updated parity/CI audit: 2026-08-09. `AUTOMATED` 
 | Management UI | AUTOMATED | Herika presentation geometry, hubs, navigation, controls, assets, compact cards, and centralized disabled status badges are wired to ALMSIVI's typed repositories, browser session, CSRF, and PRG flows. The browser-like HTTP workflow passes, and the principal page families were inspected at 1280x720 plus true 390x844 mobile emulation without document-level horizontal overflow. |
 | Security | AUTOMATED | Separate HttpOnly/SameSite browser sessions, CSRF on writes, query-token rejection, normalized rate buckets, hash-only pairing config, rotation/overlap/revocation records, secret-field rejection, redacted worker failures and HTTPS/public-address URL policy are implemented and locally tested. Full DNS pinning requires a real HTTP connector. |
 | Contract | AUTOMATED | 28 Draft 2020-12 schemas and 49 fixtures across 77 manifest files validate and are byte-identical between the paired worktrees. The canonical input, event, response, response-line, and TES3 game-data split includes UTF-8, stale-generation, duplicate, malformed, over-limit, hostile cache-key, excluded-autonomy, and Morrowind-identity fixtures. Provider results normalize once into ordered response lines; successful, direct-action, failed, interrupted, and session-cancelled turns persist one correlated response envelope and publish a strict `response.complete` event before legacy dialogue/action projections. The deterministic schema inventory covers 171 PostgreSQL relations and 1,565 columns with UTF-8, ownership, reader/writer, retention and disposition evidence. |
-| Migration | AUTOMATED | Ordered migrations through 046 pass fresh/up/rerun/down, populated upgrade, backup/restore, exact Herika public-schema cutover, internal migration authority, excluded-table write quarantine, canonical response/line/utterance backfill, ordered prompt/memory trace additions, the constrained `response.complete` event type, and idempotent safe-action catalog additions in disposable PostgreSQL. Final deployment upgrade remains pending. |
+| Migration | AUTOMATED | Ordered migrations through 046 pass fresh/up/rerun/down, populated upgrade, backup/restore, exact Herika public-schema cutover, internal migration authority, excluded-table write quarantine, canonical response/line/utterance backfill, ordered prompt/memory trace additions, the constrained `response.complete` event type, and idempotent safe-action catalog additions in disposable PostgreSQL. The preserved local WSL lineage upgraded from 041 through 046 after a validated private backup; a second deployment applied no migrations. |
 | STT | AUTOMATED | Authenticated binary WAV ingress, PostgreSQL request/job state, provider-selected durable transcription, transcript/failure events, and the single global Herika-style connector workflow are covered by protocol, unit, migration/job, integration, management HTTP, and local deployment checks. Live cloud credentials and in-game microphone acceptance remain external. |
 | ITT | EXCLUDED | No shipped image-to-text capture or management workflow. |
 | Background Life | EXCLUDED | No shipped background-life scheduler, controls, or worker entry point. |
@@ -34,4 +34,14 @@ Recorded baseline: 2026-07-19. Updated parity/CI audit: 2026-08-09. `AUTOMATED` 
 | Browser/game credential exposure | EXCLUDED | Secret boundary. |
 | Arbitrary code/SQL/URL/file/console/Lua/MWScript | EXCLUDED | Permanent action boundary. |
 
-Local WSL deployment, Apache, worker, health, PostgreSQL integration, browser-like HTTP flows, and desktop/mobile browser rendering are proven for the historical deployment evidence above. The consolidated draft branches now also have green Ubuntu foundation, Windows x64 Release, and PHP/PostgreSQL GitHub workflows. Final post-goal deployment, in-game action/playback success, publication, and release remain unproven. No local mock or browser check is promoted to game evidence.
+Final local acceptance used implementation commit `414a8435b297c5aedd16ee1e1d9afa895f2b5dfc`.
+The private pre-upgrade backup at
+`/var/lib/almsiviserver/backups/pre-parity-schema-v41-before-39cef63.dump` has SHA-256
+`10b70f6d6ca4c4f09084126712bd457bea65d6b90445e7a8a92dcc6cba495704`. The deployed database has
+46/46 migrations and the same 171-relation, 1,565-column inventory hash
+`39578a7d6360d6c18fad0ad3f536efc7ebc5581a131f93e6ac2dc2956834fea7` as a fresh installation.
+Apache, the durable worker, typed health, PostgreSQL integration, management HTTP/CSRF, provider/queue
+tests, and responsive browser rendering pass. The deployed tree has zero checksum differences from the
+pushed implementation source after preserved runtime paths are excluded. Both draft PRs are green.
+In-game action/playback success, compatibility, publication, and release remain unproven; no local mock,
+schema, build, deployment, or browser check is promoted to game evidence.
