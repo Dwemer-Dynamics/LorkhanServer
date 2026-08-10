@@ -6,6 +6,7 @@ namespace ALMSIVIserver\Infrastructure;
 
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
+use ALMSIVIserver\Application\DeterministicRetrieval;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -732,7 +733,7 @@ final class ProductRepository
 
     public function memoryCandidates(array $scope,string $now): array
     {
-        $stmt=$this->db->prepare('SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC LIMIT 500');$stmt->execute($this->scopeParams($scope)+['now'=>$now]);return array_map(fn($r)=>$this->decodeMemory($r),$stmt->fetchAll());
+        $stmt=$this->db->prepare('SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at,updated_at,current_revision FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC LIMIT 500');$stmt->execute($this->scopeParams($scope)+['now'=>$now]);return array_map(fn($r)=>$this->decodeMemory($r),$stmt->fetchAll());
     }
 
     public function createKnowledge(array $input,array $terms,string $now): array
@@ -1072,7 +1073,8 @@ final class ProductRepository
             $coreContent=is_array($coreProfile['content']??null)?$coreProfile['content']:[];
             $coreProfile['content']=['prompt'=>(string)($coreContent['prompt']??'')];
         }
-        $memories=$this->memoryCandidates($scope,$now);usort($memories,fn($a,$b)=>strcmp((string)$a['id'],(string)$b['id']));
+        $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
+        $memories=$memorySelection['rows'];
         $knowledge=$this->knowledgeCandidates($scope);usort($knowledge,fn($a,$b)=>strcmp((string)$a['id'],(string)$b['id']));
         $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $narratives=$this->narratives($scope);usort($narratives,fn($a,$b)=>strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
@@ -1136,14 +1138,49 @@ SQL);
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
         ]);
         $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
-            'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],'content'=>$this->json($row['content'])];
+            'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],
+            'created_at'=>(string)$row['sort_created_at'],'content'=>$this->json($row['content'])];
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
             'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
-            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'memory_retrieval'=>$memorySelection['trace'],
+            'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),
+            'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+    }
+
+    /** Rank turn memories deterministically and persist why each prompt source was selected. */
+    private function selectPromptMemories(array $turn,array $scope,array $memories,string $now):array
+    {
+        $query=trim((string)($turn['payload']['input']['text']??''));
+        if($query===''){
+            $target=$turn['payload']['target']??[];
+            $name=is_array($target)?trim((string)($target['display_name']??$target['record_id']??'')):'';
+            $query='Continue the current conversation'.($name===''?'':' with '.$name);
+        }
+        $query=mb_strcut($query,0,4096,'UTF-8');
+        foreach($memories as&$memory){
+            $base=DeterministicRetrieval::score($query,$memory['lexical_terms'],$memory['fake_vector']);
+            $tierBoost=match($memory['tier']??null){'recent'=>0.15,'mid'=>0.08,'long'=>0.03,default=>0.0};
+            $memory['_prompt_score']=$base+$tierBoost;
+        }
+        unset($memory);
+        usort($memories,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])
+            ?:strcmp((string)($b['occurred_at']??''),(string)($a['occurred_at']??''))
+            ?:strcmp((string)$a['id'],(string)$b['id']));
+        $selected=array_slice($memories,0,10);
+        $scores=[];$reasons=[];
+        foreach($selected as$rank=>&$memory){
+            $scores[$memory['id']]=$memory['_prompt_score'];
+            $reasons[$memory['id']]=['rank'=>$rank+1,'tier'=>$memory['tier'],'reason'=>'deterministic relevance plus tier recency'];
+            unset($memory['_prompt_score']);
+        }
+        unset($memory);
+        return['rows'=>$selected,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
+            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1',
+            'created_at'=>$now,'prompt_section'=>'memory_context','scope'=>$scope]];
     }
 
     /** Batch-load only profiles already bound to actors in the bounded current-turn context. */
@@ -1256,7 +1293,40 @@ SQL);
             ]);
             $find=$this->db->prepare('SELECT prompt_trace_id FROM prompt_traces WHERE turn_id=:turn');
             $find->execute(['turn'=>$turn['turn_id']]);$stored=(string)$find->fetchColumn();
-            foreach($trace['sources'] as $source){$this->db->prepare('INSERT INTO prompt_trace_sources (prompt_trace_id,ordinal,source_kind,source_id,included,reason,source_sha256,included_bytes,redacted_preview) VALUES (:trace,:ordinal,:kind,:source,:included,:reason,:sha,:bytes,:preview) ON CONFLICT DO NOTHING')->execute(['trace'=>$stored,'ordinal'=>$source['ordinal'],'kind'=>$source['source_kind'],'source'=>$source['source_id'],'included'=>$source['included']?'true':'false','reason'=>$source['reason'],'sha'=>$source['source_sha256'],'bytes'=>$source['included_bytes'],'preview'=>'']);}
+            foreach($trace['sources'] as $source){
+                $kind=(string)$source['source_kind'];
+                $section=match($kind){'profile','core_profile','prompt'=>'npc_context','knowledge','narrative'=>'morrowind_context',
+                    'relationship'=>'relationships_factions','memory'=>'memory_context','history'=>'conversation_context',
+                    'action_result','action_catalog'=>'negotiated_actions',default=>'current_turn'};
+                $sectionOrder=['npc_context'=>2,'morrowind_context'=>4,'relationships_factions'=>5,'memory_context'=>6,
+                    'conversation_context'=>7,'negotiated_actions'=>9,'current_turn'=>10][$section];
+                $table=match($kind){'profile'=>'profile_revisions','core_profile'=>'core_profile_revisions','prompt'=>'configuration_revisions',
+                    'history'=>'eventlog','memory'=>'memory_records','relationship'=>'relationship_records','knowledge'=>'knowledge_documents',
+                    'narrative'=>'narrative_records','action_result'=>'action_results','action_catalog'=>'action_catalog',default=>'turns'};
+                $characters=(int)($source['source_characters']??$source['included_bytes']);
+                $this->db->prepare('INSERT INTO prompt_trace_sources '
+                    . '(prompt_trace_id,ordinal,source_kind,source_id,included,reason,source_sha256,included_bytes,redacted_preview,'
+                    . 'section_key,section_order,source_table,source_revision,source_occurred_at,playthrough_id,source_characters,estimated_tokens) '
+                    . 'VALUES (:trace,:ordinal,:kind,:source,:included,:reason,:sha,:bytes,:preview,:section,:section_order,:source_table,'
+                    . ':source_revision,:source_occurred_at,:playthrough,:characters,:tokens) ON CONFLICT DO NOTHING')->execute([
+                        'trace'=>$stored,'ordinal'=>$source['ordinal'],'kind'=>$kind,'source'=>$source['source_id'],
+                        'included'=>$source['included']?'true':'false','reason'=>$source['reason'],'sha'=>$source['source_sha256'],
+                        'bytes'=>$source['included_bytes'],'preview'=>$source['redacted_preview']??'',
+                        'section'=>$source['section_key']??$section,'section_order'=>$source['section_order']??$sectionOrder,
+                        'source_table'=>$source['source_table']??$table,'source_revision'=>$source['source_revision']??$source['revision']??null,
+                        'source_occurred_at'=>$source['source_occurred_at']??null,'playthrough'=>$turn['playthrough_id'],
+                        'characters'=>$characters,'tokens'=>$source['estimated_tokens']??($characters===0?0:(int)ceil($characters/4))]);
+            }
+            foreach($trace['sections']??[] as$section){$this->db->prepare('INSERT INTO prompt_trace_sections '
+                . '(prompt_trace_id,section_order,section_key,source_refs,inclusion_reason,source_occurred_at,playthrough_id,'
+                . 'source_characters,estimated_tokens,redacted_preview,source_sha256) '
+                . 'VALUES (:trace,:section_order,:section_key,CAST(:source_refs AS jsonb),:reason,:occurred,:playthrough,'
+                . ':characters,:tokens,:preview,:sha) ON CONFLICT DO NOTHING')->execute([
+                    'trace'=>$stored,'section_order'=>$section['section_order'],'section_key'=>$section['section_key'],
+                    'source_refs'=>$this->encode($section['source_refs']),'reason'=>$section['inclusion_reason'],
+                    'occurred'=>$section['source_occurred_at'],'playthrough'=>$turn['playthrough_id'],
+                    'characters'=>$section['source_characters'],'tokens'=>$section['estimated_tokens'],
+                    'preview'=>$section['redacted_preview'],'sha'=>$section['source_sha256']]);}
             return$stored;
         });
     }

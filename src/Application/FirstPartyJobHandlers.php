@@ -105,6 +105,7 @@ final class MemoryDeriveJobHandler extends FirstPartyJobHandler
                 $memory[$optional] = $optional === 'source_event_id' ? $this->uuid($payload, $optional) : $this->timestamp($payload, $optional);
             }
         }
+        $this->repository->assertMemorySourceEligible($memory);
         $this->repository->upsertMemory($memoryId, $memory, $this->clock->iso());
     }
 }

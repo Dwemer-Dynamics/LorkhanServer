@@ -19,4 +19,11 @@ final class Uuid
         return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-' . substr($hex, 12, 4)
             . '-' . substr($hex, 16, 4) . '-' . substr($hex, 20);
     }
+
+    public static function deterministicV4(string $value): string
+    {
+        $hex = md5($value);
+        return substr($hex, 0, 8) . '-' . substr($hex, 8, 4) . '-4' . substr($hex, 13, 3)
+            . '-8' . substr($hex, 17, 3) . '-' . substr($hex, 20, 12);
+    }
 }

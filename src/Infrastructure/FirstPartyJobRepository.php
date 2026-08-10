@@ -13,6 +13,26 @@ final class FirstPartyJobRepository
 {
     public function __construct(private readonly PDO $db) {}
 
+    /** Reject derived memories whose immutable source is outside scope or did not finish playback. */
+    public function assertMemorySourceEligible(array $memory): void
+    {
+        $sourceId = $memory['source_event_id'] ?? null;
+        if (!is_string($sourceId)) throw new RuntimeException('memory_source_required');
+        $statement = $this->db->prepare('SELECT se.event_kind,se.installation_id,s.profile_id,s.playthrough_id,d.status '
+            . 'FROM source_events se LEFT JOIN sessions s ON s.session_id=se.session_id '
+            . 'LEFT JOIN dialogue_delivery_results d ON d.source_event_id=se.source_event_id '
+            . 'WHERE se.source_event_id=:source');
+        $statement->execute(['source'=>$sourceId]);
+        $source = $statement->fetch();
+        if (!$source || $source['installation_id'] !== $memory['installation_id']
+            || $source['profile_id'] !== $memory['profile_id'] || $source['playthrough_id'] !== $memory['playthrough_id']) {
+            throw new RuntimeException('memory_source_scope_mismatch');
+        }
+        if ($source['event_kind'] === 'dialogue.delivery' && $source['status'] === 'played') return;
+        if (in_array($source['event_kind'], ['turn.requested','stt.transcript','action.result','location','death','narration'], true)) return;
+        throw new RuntimeException('memory_source_ineligible');
+    }
+
     /** @param array<string,mixed> $memory */
     public function upsertMemory(string $memoryId, array $memory, string $now): void
     {

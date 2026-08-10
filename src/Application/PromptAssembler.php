@@ -12,6 +12,20 @@ final class PromptAssembler
 {
     private const ALGORITHM = 'chim-roleplay-prompt-v1';
 
+    /** @var array<string,int> */
+    private const SECTION_ORDER = [
+        'output_contract' => 1,
+        'npc_context' => 2,
+        'player_narrator_context' => 3,
+        'morrowind_context' => 4,
+        'relationships_factions' => 5,
+        'memory_context' => 6,
+        'conversation_context' => 7,
+        'audience_speaker_rules' => 8,
+        'negotiated_actions' => 9,
+        'current_turn' => 10,
+    ];
+
     /** @var array<string,array{limit:int,bytes:int}> */
     private const SECTIONS = [
         'profile' => ['limit' => 1, 'bytes' => 12_288],
@@ -73,13 +87,16 @@ final class PromptAssembler
         $final = $this->currentTurnMessage($turn, $actorName, $playerName);
         $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName);
 
-        $historyReserve = min(self::SECTIONS['history']['bytes'], intdiv($this->maxInputBytes, 3));
+        $historyReserve = 0;
+        foreach ($historyMessages as $message) $historyReserve += strlen($message['content']) + 16;
+        $historyReserve = min(self::SECTIONS['history']['bytes'], $historyReserve);
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - $historyReserve - 256);
         $system = $this->systemPrompt(
             $turn,
             $profile,
             $coreProfile,
             $prompt,
+            $history,
             $memory,
             $relationships,
             $knowledge,
@@ -121,7 +138,8 @@ final class PromptAssembler
             'action_result' => $actions,
             'turn' => [['id' => $turn['turn_id'], 'content' => $this->turnTraceContent($turn)]],
         ];
-        $sources = $this->traceSources($rows, $turn, $includedHistory);
+        $sources = $this->traceSources($rows, $turn, $includedHistory, $system);
+        $sections = $this->traceSections($system, $rows, $turn);
         $truncated = false;
         foreach (['history', 'memory', 'relationship', 'knowledge', 'narrative'] as $kind) {
             $truncated = $truncated || count($rows[$kind]) < count($this->selectedList($selection, $kind));
@@ -143,7 +161,9 @@ final class PromptAssembler
             'settings_sources' => $selection['effective_settings']['sources'] ?? [],
             'prompt_configuration_id' => $this->sourceId('prompt', $prompt),
             'prompt_revision' => $this->requiredRevision($prompt),
+            'memory_retrieval' => $selection['memory_retrieval'] ?? null,
             'sources' => $sources,
+            'sections' => $sections,
         ];
         return ['provider_input' => $providerInput, 'trace' => $trace];
     }
@@ -171,6 +191,7 @@ final class PromptAssembler
     /**
      * Construct the same broad XML families CHIM uses while keeping ALMSIVI's typed response contract.
      * @param list<array<string,mixed>> $memory
+     * @param list<array<string,mixed>> $history
      * @param list<array<string,mixed>> $relationships
      * @param list<array<string,mixed>> $knowledge
      * @param list<array<string,mixed>> $narrative
@@ -181,6 +202,7 @@ final class PromptAssembler
         array $profile,
         ?array $coreProfile,
         array $prompt,
+        array $history,
         array $memory,
         array $relationships,
         array $knowledge,
@@ -190,60 +212,93 @@ final class PromptAssembler
         string $playerName,
         int $budget,
     ): string {
+        $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
+            . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
+            . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
+            . 'Do not add prose outside JSON.';
         $roleplay = 'You are ' . $actorName . ', a character in the universe of Morrowind. '
             . 'This world is your reality. Remain ' . $actorName . ' and never speak, decide, or narrate dialogue for ' . $playerName . '.';
-        $character = $this->characterXml($turn, $profile, $actorName);
         $general = "Write {$actorName}'s next dialogue line. Address {$playerName} or the most recent speaker, review the conversation, and avoid repeating prior dialogue.";
-        $base = '<roleplay_context>'
-            . $this->xmlTag('roleplay_instructions', $roleplay)
-            . $character
-            . $this->xmlTag('general_instructions', $general)
-            . '</roleplay_context>';
-        if (strlen($base) > $budget) return $this->minimalSystemPrompt($actorName, $playerName);
 
-        $blocks = [];
+        $npc = $this->xmlTag('roleplay_instructions', $roleplay)
+            . $this->characterXml($turn, $profile, $actorName);
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
-        if ($core !== '') $blocks[] = $this->xmlTag('core_profile_instructions', $core);
+        if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
-        if ($instruction !== '') $blocks[] = $this->xmlTag('roleplay_prompt', $instruction);
+        if ($instruction !== '') $npc .= $this->xmlTag('roleplay_prompt', $instruction);
+        $npc .= $this->xmlTag('general_instructions', $general);
 
         $context = $turn['payload']['context'] ?? [];
+        $morrowind = '';
         $world = $this->worldXml($context);
-        if ($world !== '') $blocks[] = '<world>' . $world . '</world>';
+        if ($world !== '') $morrowind .= '<world>' . $world . '</world>';
         $people = $this->peoplePresentXml($turn, $context);
-        if ($people !== '') $blocks[] = '<people_present>' . $people . '</people_present>';
+        if ($people !== '') $morrowind .= '<people_present>' . $people . '</people_present>';
         $nearbyActors = $this->nearbyActorsXml($turn, $context);
-        if ($nearbyActors !== '') $blocks[] = '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
+        if ($nearbyActors !== '') $morrowind .= '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
         $nearbyItems = $this->nearbyObjectsXml($context, ['items'], 'item');
-        if ($nearbyItems !== '') $blocks[] = '<nearby_items>' . $nearbyItems . '</nearby_items>';
+        if ($nearbyItems !== '') $morrowind .= '<nearby_items>' . $nearbyItems . '</nearby_items>';
         $pointsOfInterest = $this->nearbyObjectsXml($context, ['doors', 'containers', 'activators'], 'point');
-        if ($pointsOfInterest !== '') $blocks[] = '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
-        $player = $this->playerXml($turn, $playerName);
-        if ($player !== '') $blocks[] = '<player_character>' . $player . '</player_character>';
-        $narrator = $this->narratorXml($turn);
-        if ($narrator !== '') $blocks[] = '<narrator>' . $narrator . '</narrator>';
-        $descriptions = $this->recordDescriptionsXml($turn['_item_descriptions'] ?? []);
-        if ($descriptions !== '') $blocks[] = '<record_descriptions>' . $descriptions . '</record_descriptions>';
-        foreach ([
-            'memories' => ['memory', $memory],
-            'relationships' => ['relationship', $relationships],
-            'knowledge' => ['knowledge', $knowledge],
-            'narrative_context' => ['narrative', $narrative],
-            'recent_action_results' => ['action_result', $actions],
-        ] as $tag => [$kind, $rows]) {
-            $xml = $this->sourceItemsXml($rows, $kind);
-            if ($xml !== '') $blocks[] = '<' . $tag . '>' . $xml . '</' . $tag . '>';
-        }
-        $blocks[] = $this->xmlTag('response_contract',
-            'Return one JSON object with exactly two keys: "utterances" and "action". "utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. Do not add prose outside JSON.');
+        if ($pointsOfInterest !== '') $morrowind .= '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
 
-        $closing = '</roleplay_context>';
-        $system = substr($base, 0, -strlen($closing));
-        foreach ($blocks as $block) {
-            if (strlen($system) + strlen($block) + strlen($closing) > $budget) continue;
-            $system .= $block;
+        $playerNarrator = '';
+        $player = $this->playerXml($turn, $playerName);
+        if ($player !== '') $playerNarrator .= '<player_character>' . $player . '</player_character>';
+        $narrator = $this->narratorXml($turn);
+        if ($narrator !== '') $playerNarrator .= '<narrator>' . $narrator . '</narrator>';
+        $descriptions = $this->recordDescriptionsXml($turn['_item_descriptions'] ?? []);
+        if ($descriptions !== '') $morrowind .= '<record_descriptions>' . $descriptions . '</record_descriptions>';
+        $knowledgeXml = $this->sourceItemsXml($knowledge, 'knowledge');
+        if ($knowledgeXml !== '') $morrowind .= '<knowledge>' . $knowledgeXml . '</knowledge>';
+        $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
+        if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
+
+        $conversation = '';
+        foreach ($this->historyMessages($history, $turn, $actorName, $playerName) as $message) {
+            $conversation .= $this->xmlTag('message', strtoupper($message['role']) . ': ' . $message['content']);
         }
-        return $system . $closing;
+        $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
+        $memoryXml = $this->sourceItemsXml($memory, 'memory');
+        $actionResults = $this->sourceItemsXml($actions, 'action_result');
+        $capabilities = $turn['_negotiated_capabilities'] ?? [];
+        $capabilityXml = '';
+        if (is_array($capabilities)) {
+            foreach ($capabilities as $capability) if (is_string($capability)) $capabilityXml .= $this->xmlTag('capability', $capability);
+        }
+        $negotiatedActions = $capabilityXml;
+        if ($actionResults !== '') $negotiatedActions .= '<recent_action_results>' . $actionResults . '</recent_action_results>';
+        $negotiatedActions .= $this->xmlTag('action_contract',
+            'action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. '
+            . 'Allowed actions are null; inspect.report with empty parameters; ai.follow with distance 192; ai.stop with empty parameters; '
+            . 'ai.wander with integer distance 0..2048 and duration_seconds 1..3600; combat.start or combat.stop with empty parameters; '
+            . 'animation.play with group idle2 through idle9; item.use with an inventory record_id; item.equip with an inventory record_id '
+            . 'and equipment slot; or item.unequip with an equipment slot.');
+
+        $sections = [
+            'output_contract' => $this->xmlTag('response_contract', $outputContract),
+            'npc_context' => $npc,
+            'player_narrator_context' => $playerNarrator,
+            'morrowind_context' => $morrowind,
+            'relationships_factions' => $relationshipXml,
+            'memory_context' => $memoryXml,
+            'conversation_context' => $conversation,
+            'audience_speaker_rules' => $this->xmlTag('rules', "Only speak as {$actorName}. Address the most recent speaker and never invent dialogue for {$playerName} or another actor."),
+            'negotiated_actions' => $negotiatedActions,
+            'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName)),
+        ];
+        $render = static function(array $bodies):string {
+            $xml = '<roleplay_context>';
+            foreach (self::SECTION_ORDER as $key => $_) $xml .= '<' . $key . '>' . $bodies[$key] . '</' . $key . '>';
+            return $xml . '</roleplay_context>';
+        };
+        $system = $render($sections);
+        foreach (['conversation_context','morrowind_context','memory_context','relationships_factions',
+            'player_narrator_context','npc_context','audience_speaker_rules'] as $optional) {
+            if (strlen($system) <= $budget) break;
+            $sections[$optional] = '';
+            $system = $render($sections);
+        }
+        return strlen($system) <= $budget ? $system : $this->minimalSystemPrompt($actorName, $playerName);
     }
 
     private function minimalSystemPrompt(string $actorName, string $playerName): string
@@ -251,7 +306,7 @@ final class PromptAssembler
         return '<roleplay_context>'
             . $this->xmlTag('roleplay_instructions', "You are {$actorName} in Morrowind. Never speak as {$playerName}.")
             . '<character>' . $this->xmlTag('name', $actorName) . '</character>'
-            . $this->xmlTag('general_instructions', "Write {$actorName}'s next dialogue line.")
+            . $this->xmlTag('general_instructions', "Write {$actorName}'s next dialogue line and return the required JSON object.")
             . '</roleplay_context>';
     }
 
@@ -773,32 +828,158 @@ final class PromptAssembler
     }
 
     /** @param array<string,list<array<string,mixed>>> $rows @return list<array<string,mixed>> */
-    private function traceSources(array $rows, array $turn, array $includedHistory): array
+    private function traceSources(array $rows, array $turn, array $includedHistory, string $system): array
     {
         $sources = [];
         $ordinal = 0;
+        $sectionBodies = [];
+        foreach (self::SECTION_ORDER as $key => $_) {
+            if (preg_match('#<' . preg_quote($key, '#') . '>(.*?)</' . preg_quote($key, '#') . '>#s', $system, $match) === 1) {
+                $sectionBodies[$key] = (string)$match[1];
+            }
+        }
         foreach ($rows as $kind => $items) {
             foreach ($items as $item) {
                 $this->assertSourceScope($item, $turn, $kind);
                 $content = $this->canonical($this->sourceContent($kind, $item));
                 $id = $this->sourceId($kind, $item);
-                $included = $kind !== 'history' || isset($includedHistory[$id]);
+                $section = $this->sectionForSource($kind);
+                $included = $kind === 'history' ? isset($includedHistory[$id])
+                    : ($kind === 'turn' || (($sectionBodies[$section] ?? '') !== ''));
                 $includedBytes = $included ? min(strlen($content), $this->maxSourceBytes, self::SECTIONS[$kind]['bytes']) : 0;
+                $includedContent = $includedBytes > 0 ? $this->truncateUtf8($content, $includedBytes) : '';
                 $sources[] = [
                     'source_kind' => $kind,
                     'source_id' => $id,
-                    'revision' => $this->sourceRevision($item),
+                    'section_key' => $section,
+                    'section_order' => self::SECTION_ORDER[$section],
+                    'source_table' => $this->sourceTable($kind),
+                    'source_revision' => $this->sourceRevision($item),
+                    'source_occurred_at' => $this->sourceTimestamp($item),
+                    'playthrough_id' => $turn['playthrough_id'],
                     'included' => $included,
-                    'reason' => !$included ? 'section_limit' : ($includedBytes < strlen($content) ? 'byte_limit' : 'included'),
+                    'reason' => !$included ? ($kind === 'history' ? 'section_limit' : 'byte_limit')
+                        : ($includedBytes < strlen($content) ? 'byte_limit' : 'included'),
                     'source_sha256' => hash('sha256', $content),
                     'source_bytes' => strlen($content),
                     'included_bytes' => $includedBytes,
-                    'redacted_preview' => '',
+                    'source_characters' => mb_strlen($includedContent, 'UTF-8'),
+                    'estimated_tokens' => $includedContent === '' ? 0 : (int) ceil(mb_strlen($includedContent, 'UTF-8') / 4),
+                    'redacted_preview' => $this->truncateUtf8($kind . ':' . $id . ' [content redacted]', 256),
                     'ordinal' => $ordinal++,
                 ];
             }
         }
         return $sources;
+    }
+
+    /** Persist all ten ordered prompt families, including empty or budget-truncated sections. */
+    private function traceSections(string $system, array $rows, array $turn): array
+    {
+        $hasOrderedSections = str_contains($system, '<output_contract>');
+        $sections = [];
+        foreach (self::SECTION_ORDER as $key => $order) {
+            $body = '';
+            if ($hasOrderedSections && preg_match('#<' . preg_quote($key, '#') . '>(.*?)</' . preg_quote($key, '#') . '>#s', $system, $match) === 1) {
+                $body = (string) $match[1];
+            }
+            $refs = $this->sectionSourceRefs($key, $rows, $turn);
+            $timestamp = null;
+            foreach ($refs as $ref) {
+                if (is_string($ref['occurred_at'] ?? null) && ($timestamp === null || strcmp($ref['occurred_at'], $timestamp) > 0)) {
+                    $timestamp = $ref['occurred_at'];
+                }
+            }
+            $characters = mb_strlen($body, 'UTF-8');
+            $sections[] = [
+                'section_order' => $order,
+                'section_key' => $key,
+                'source_refs' => $refs,
+                'inclusion_reason' => !$hasOrderedSections ? 'minimal_fallback'
+                    : ($body !== '' ? 'included' : ($refs === [] ? 'empty' : 'byte_limit')),
+                'source_occurred_at' => $timestamp,
+                'playthrough_id' => $turn['playthrough_id'],
+                'source_characters' => $characters,
+                'estimated_tokens' => $characters === 0 ? 0 : (int) ceil($characters / 4),
+                'redacted_preview' => $key . ' [content redacted; ' . $characters . ' characters]',
+                'source_sha256' => hash('sha256', $body),
+            ];
+        }
+        return $sections;
+    }
+
+    /** @return list<array{table:string,id:string,revision:?int,occurred_at:?string}> */
+    private function sectionSourceRefs(string $section, array $rows, array $turn): array
+    {
+        $refs = [];
+        foreach ($rows as $kind => $items) {
+            if ($this->sectionForSource($kind) !== $section) continue;
+            foreach ($items as $item) {
+                $refs[] = [
+                    'table' => $this->sourceTable($kind),
+                    'id' => $this->sourceId($kind, $item),
+                    'revision' => $this->sourceRevision($item),
+                    'occurred_at' => $this->sourceTimestamp($item),
+                ];
+            }
+        }
+        if (in_array($section, ['output_contract','audience_speaker_rules','current_turn'], true)
+            || ($section === 'morrowind_context' && $refs === []) || ($section === 'negotiated_actions' && $refs === [])) {
+            $refs[] = ['table'=>'turns','id'=>(string)$turn['turn_id'],'revision'=>null,
+                'occurred_at'=>$this->sourceTimestamp($turn)];
+        }
+        if ($section === 'player_narrator_context') {
+            foreach (['_player_profile','_narrator_profile'] as $field) {
+                $profile = $turn[$field] ?? null;
+                if (!is_array($profile) || array_is_list($profile)) continue;
+                try {
+                    $refs[] = ['table'=>'profile_revisions','id'=>$this->sourceId('profile',$profile),
+                        'revision'=>$this->sourceRevision($profile),'occurred_at'=>$this->sourceTimestamp($profile)];
+                } catch (InvalidArgumentException) {
+                    // Optional legacy profile context may not carry a durable profile identifier.
+                }
+            }
+        }
+        return $refs;
+    }
+
+    private function sectionForSource(string $kind): string
+    {
+        return match ($kind) {
+            'profile', 'core_profile', 'prompt' => 'npc_context',
+            'knowledge', 'narrative' => 'morrowind_context',
+            'relationship' => 'relationships_factions',
+            'memory' => 'memory_context',
+            'history' => 'conversation_context',
+            'action_result' => 'negotiated_actions',
+            'turn' => 'current_turn',
+            default => throw new InvalidArgumentException('invalid_prompt_source_kind'),
+        };
+    }
+
+    private function sourceTable(string $kind): string
+    {
+        return match ($kind) {
+            'profile' => 'profile_revisions',
+            'core_profile' => 'core_profile_revisions',
+            'prompt' => 'configuration_revisions',
+            'history' => 'eventlog',
+            'memory' => 'memory_records',
+            'relationship' => 'relationship_records',
+            'knowledge' => 'knowledge_documents',
+            'narrative' => 'narrative_records',
+            'action_result' => 'action_results',
+            'turn' => 'turns',
+            default => throw new InvalidArgumentException('invalid_prompt_source_kind'),
+        };
+    }
+
+    private function sourceTimestamp(array $source): ?string
+    {
+        foreach (['occurred_at','completed_at','updated_at','created_at'] as $field) {
+            if (is_string($source[$field] ?? null) && $source[$field] !== '') return $source[$field];
+        }
+        return null;
     }
 
     /** @param array<string,mixed> $turn @param list<array<string,string>> $messages */

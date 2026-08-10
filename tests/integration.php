@@ -383,6 +383,10 @@ $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THR
 $traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
+$promptSectionStatement=$db->prepare('SELECT section_order,section_key,inclusion_reason,source_refs,source_sha256 FROM prompt_trace_sections WHERE prompt_trace_id=(SELECT prompt_trace_id FROM prompt_traces WHERE turn_id=:turn) ORDER BY section_order');
+$promptSectionStatement->execute(['turn'=>$turn['turn_id']]);$promptSections=$promptSectionStatement->fetchAll();
+$memoryRetrievalStatement=$db->prepare("SELECT prompt_section,result_ids,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='memory'");
+$memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=$memoryRetrievalStatement->fetch();
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
@@ -399,6 +403,12 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&(int)($layerTrace['core_profile_revision']??0)===(int)$coreProfile['current_revision']
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($layerTrace['effective_settings_sha256']??''))===1
     &&($traceSources['settings.behavior.rechat']??null)==='core_profile'
+    &&array_column($promptSections,'section_order')===range(1,10)
+    &&array_column($promptSections,'section_key')===['output_contract','npc_context','player_narrator_context',
+        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'negotiated_actions','current_turn']
+    &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===10
+    &&($memoryRetrieval['prompt_section']??null)==='memory_context'
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
 $successfulWorkerStats=$runTurnWorker(new MockProvider());
@@ -472,6 +482,23 @@ $delivery['dialogue_message_id']=$dialogueEvent['message_id'];$delivery['turn_id
 $delivery['speaker']=$dialogueEvent['payload']['speaker'];$delivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
 [$status,$deliveryAccepted]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($delivery['message_id']),[],$delivery);
 $assert($status===200&&!$deliveryAccepted['duplicate'],'dialogue delivery result failed');
+$memoryJobStatement=$db->prepare("SELECT payload FROM durable_jobs WHERE job_type='memory.derive' AND idempotency_key=:key");
+$memoryJobStatement->execute(['key'=>'memory:dialogue:'.$delivery['dialogue_message_id']]);
+$memoryJobPayload=json_decode((string)$memoryJobStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert(($memoryJobPayload['source_event_id']??null)===$delivery['message_id']
+    &&($memoryJobPayload['provenance']['status']??null)==='played'
+    &&($memoryJobPayload['tier']??null)==='recent',
+    'played dialogue did not queue one delivery-fenced recent-memory derivation');
+$memoryWorkerStats=$runWorker(['memory.derive']);
+$deliveredMemoryStatement=$db->prepare('SELECT tier,content,source_event_id,current_revision,provenance FROM memory_records WHERE source_event_id=:source');
+$deliveredMemoryStatement->execute(['source'=>$delivery['message_id']]);$deliveredMemory=$deliveredMemoryStatement->fetch();
+$deliveredMemoryProvenance=$deliveredMemory?json_decode((string)$deliveredMemory['provenance'],true,32,JSON_THROW_ON_ERROR):[];
+$assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)==='recent'
+    &&str_contains((string)($deliveredMemory['content']??''),(string)$dialogueEvent['payload']['text'])
+    &&($deliveredMemory['source_event_id']??null)===$delivery['message_id']
+    &&(int)($deliveredMemory['current_revision']??0)===1
+    &&($deliveredMemoryProvenance['status']??null)==='played',
+    'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
 $eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
     .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');
 $eventProjection->execute(['turn'=>$turn['turn_id']]);$eventProjectionRows=$eventProjection->fetchAll();

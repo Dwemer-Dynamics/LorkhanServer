@@ -171,10 +171,18 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             }
             if ($safe !== [] && $safe[0]['role'] === 'system' && $safe[array_key_last($safe)]['role'] === 'user') {
                 $contract = '<action_contract>action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. Allowed actions are null; inspect.report with empty parameters; ai.follow with distance 192; ai.stop with empty parameters; ai.wander with integer distance 0..2048 and duration_seconds 1..3600; combat.start or combat.stop with empty parameters; animation.play with group idle2 through idle9; item.use with an inventory record_id; item.equip with an inventory record_id and equipment slot; or item.unequip with an equipment slot.</action_contract>';
+                $actionClosing = '</negotiated_actions>';
                 $closing = '</roleplay_context>';
-                $safe[0]['content'] = str_ends_with($safe[0]['content'], $closing)
-                    ? substr($safe[0]['content'], 0, -strlen($closing)) . $contract . $closing
-                    : $safe[0]['content'] . "\n" . $contract;
+                if (str_contains($safe[0]['content'], '<action_contract>')) {
+                    return $safe;
+                }
+                if (str_contains($safe[0]['content'], $actionClosing)) {
+                    $safe[0]['content'] = str_replace($actionClosing, $contract . $actionClosing, $safe[0]['content']);
+                } else {
+                    $safe[0]['content'] = str_ends_with($safe[0]['content'], $closing)
+                        ? substr($safe[0]['content'], 0, -strlen($closing)) . $contract . $closing
+                        : $safe[0]['content'] . "\n" . $contract;
+                }
                 return $safe;
             }
         }

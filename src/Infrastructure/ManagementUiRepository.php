@@ -76,9 +76,24 @@ final class ManagementUiRepository
     public function rows(string $view): array
     {
         $sql = match ($view) {
-            'events', 'request_logs' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN almsivi_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
+            'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN almsivi_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
+            'request_logs' => "SELECT trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.truncated,"
+                . "count(section.section_order)::int AS section_count,jsonb_object_agg(section.section_key,section.inclusion_reason ORDER BY section.section_order) AS sections,"
+                . "trace.input_sha256,trace.created_at FROM prompt_traces trace JOIN prompt_trace_sections section ON section.prompt_trace_id=trace.prompt_trace_id "
+                . "GROUP BY trace.prompt_trace_id ORDER BY trace.created_at DESC LIMIT 100",
             'responses' => "SELECT COALESCE(s.speaker,'Unknown') AS speaker,s.speech AS text,m.delivery_state,m.created_at AS emitted_at FROM public.speech s LEFT JOIN almsivi_internal.speech_metadata m ON m.rowid=s.rowid ORDER BY s.rowid DESC LIMIT 100",
-            'memories' => "SELECT metadata.memory_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,metadata.tier,m.message AS content,jsonb_build_object('speaker',m.speaker,'listener',m.listener,'event',m.event,'momentum',m.momentum) AS provenance,to_timestamp(m.localts) AS occurred_at,to_timestamp(m.localts) AS updated_at FROM public.memory m JOIN almsivi_internal.memory_metadata metadata ON metadata.rowid=m.rowid ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
+            'memories' => "SELECT metadata.memory_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,metadata.tier,m.message AS content,"
+                . "jsonb_build_object('speaker',m.speaker,'listener',m.listener,'event',m.event,'momentum',m.momentum) AS provenance,"
+                . "source.current_revision,source.source_event_id,CASE WHEN source.source_event_id IS NULL THEN 'authored' "
+                . "WHEN delivery.status='played' THEN 'played dialogue' ELSE COALESCE(event.event_kind,'derived') END AS eligibility,"
+                . "(SELECT jsonb_agg(jsonb_build_object('revision',revision.revision,'reason',revision.change_reason,'created_at',revision.created_at) ORDER BY revision.revision DESC) "
+                . "FROM memory_record_revisions revision WHERE revision.memory_id=source.memory_id) AS revisions,"
+                . "to_timestamp(m.localts) AS occurred_at,source.updated_at FROM public.memory m "
+                . "JOIN almsivi_internal.memory_metadata metadata ON metadata.rowid=m.rowid "
+                . "LEFT JOIN almsivi_internal.memory_records source ON source.memory_id=metadata.memory_id "
+                . "LEFT JOIN almsivi_internal.source_events event ON event.source_event_id=source.source_event_id "
+                . "LEFT JOIN almsivi_internal.dialogue_delivery_results delivery ON delivery.source_event_id=source.source_event_id "
+                . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
             'relationships', 'relationship_logs' => "SELECT COALESCE(source.relationship_id::text,metadata.source_profile_id::text||':'||rel.key) AS relationship_id,metadata.installation_id,metadata.source_profile_id AS profile_id,source.playthrough_id,COALESCE(source.actor_identity,jsonb_build_object('record_id',rel.key,'display_name',rel.value->>'name')) AS actor_identity,COALESCE(rel.value->>'name',rel.key) AS actor,rel.value->>'disposition' AS disposition,rel.value->>'affinity' AS affinity,COALESCE(rel.value->>'source',source.source_mode) AS source_mode,source.updated_at FROM public.core_npc_master npc JOIN almsivi_internal.npc_metadata metadata ON metadata.npc_id=npc.id CROSS JOIN LATERAL jsonb_each(COALESCE(npc.extended_data->'relationships','{}'::jsonb)) rel LEFT JOIN almsivi_internal.relationship_records source ON source.profile_id=metadata.source_profile_id AND source.deleted_at IS NULL AND lower(COALESCE(source.actor_identity->>'record_id',source.actor_identity->>'display_name',''))=lower(rel.key) ORDER BY source.updated_at DESC NULLS LAST,npc.id,rel.key LIMIT 100",
             'narratives' => "SELECT metadata.narrative_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,d.tags AS kind,d.topic AS title,d.content,jsonb_build_object('location',d.location,'people',d.people,'tags',d.tags) AS provenance,to_timestamp(d.localts) AS created_at FROM public.diarylog d JOIN almsivi_internal.diarylog_metadata metadata ON metadata.rowid=d.rowid ORDER BY d.localts DESC,d.rowid DESC LIMIT 100",
             'knowledge', 'worldknowledge' => "SELECT metadata.document_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,o.topic AS title,left(o.topic_desc,4000) AS content,jsonb_build_object('category',o.category,'class',o.knowledge_class,'tags',o.tags,'aliases',o.aliases) AS provenance,source.created_at FROM public.oghma o JOIN almsivi_internal.oghma_metadata metadata ON metadata.topic=o.topic LEFT JOIN almsivi_internal.knowledge_documents source ON source.document_id=metadata.document_id ORDER BY source.created_at DESC NULLS LAST,o.topic LIMIT 100",
@@ -129,8 +144,8 @@ final class ManagementUiRepository
             'response_queue' => "SELECT COALESCE(s.speaker,'Unknown') AS speaker,left(s.speech,1000) AS text,metadata.delivery_state,"
                 . "CASE WHEN metadata.delivery_state IN ('emitted','pending') AND d.delivery_deadline_at<=clock_timestamp() THEN 'overdue' ELSE 'current' END AS queue_health,"
                 . "metadata.created_at AS emitted_at,d.delivery_deadline_at,d.delivered_at FROM public.speech s JOIN almsivi_internal.speech_metadata metadata ON metadata.rowid=s.rowid LEFT JOIN almsivi_internal.dialogue_utterances d ON d.dialogue_message_id=metadata.dialogue_message_id ORDER BY s.rowid DESC LIMIT 100",
-            'oghma_audit' => "SELECT domain,left(query,1000) AS query,cardinality(result_ids) AS result_count,algorithm,created_at "
-                . "FROM retrieval_traces WHERE domain='knowledge' ORDER BY created_at DESC LIMIT 100",
+            'oghma_audit' => "SELECT domain,prompt_section,left(query,1000) AS query,cardinality(result_ids) AS result_count,reasons,algorithm,turn_id,created_at "
+                . "FROM retrieval_traces ORDER BY created_at DESC LIMIT 100",
             'provider_usage' => "SELECT provider_kind,provider_name,COALESCE(model,'default') AS model,count(*)::int AS attempts,"
                 . "count(*) FILTER(WHERE state='succeeded')::int AS succeeded,count(*) FILTER(WHERE state IN('failed','cancelled'))::int AS failed_or_cancelled,"
                 . "COALESCE(sum(input_bytes),0)::bigint AS input_bytes,COALESCE(sum(output_bytes),0)::bigint AS output_bytes,"

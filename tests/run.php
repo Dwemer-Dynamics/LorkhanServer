@@ -146,6 +146,8 @@ $systemMessage=$assembled['provider_input']['_messages'][0]??[];$finalMessage=$a
 $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&str_contains((string)($systemMessage['content']??''),'<roleplay_instructions>')
     &&str_contains((string)($systemMessage['content']??''),'<character>')
+    &&strpos((string)$systemMessage['content'],'<output_contract>')<strpos((string)$systemMessage['content'],'<npc_context>')
+    &&strpos((string)$systemMessage['content'],'<npc_context>')<strpos((string)$systemMessage['content'],'<current_turn>')
     &&($finalMessage['role']??null)==='user', 'CHIM XML prompt assembly is deterministic and role-separated');
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'<player_character>')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
@@ -196,6 +198,7 @@ $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invo
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
     &&str_contains($providerMessages[0]['content'],'<action_contract>')
     &&str_contains($providerMessages[0]['content'],'exactly one key named &quot;text&quot;')
+    &&strpos($providerMessages[0]['content'],'<action_contract>')<strpos($providerMessages[0]['content'],'<current_turn>')
     &&str_ends_with($providerMessages[0]['content'],'</roleplay_context>'),
     'OpenAI-compatible provider sends the frozen split messages with its action contract inside the XML root');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
@@ -204,7 +207,12 @@ try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outl
     $check(false,'provider accepted string utterances outside the typed response contract');
 }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
     'provider rejected malformed utterances with the wrong terminal code');}
-$check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0]) && $assembled['trace']['sources'][0]['redacted_preview']==='', 'prompt trace is bounded and metadata-only');
+$check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0])
+    &&str_contains($assembled['trace']['sources'][0]['redacted_preview'],'content redacted')
+    &&array_column($assembled['trace']['sections'],'section_order')===range(1,10)
+    &&array_column($assembled['trace']['sections'],'section_key')===['output_contract','npc_context','player_narrator_context',
+        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'negotiated_actions','current_turn'], 'prompt trace is bounded, redacted, and records all ordered sections');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
 $historySelection=$promptSelection;$historySelection['memory']=[];$historySelection['recent_action_results']=[];
 $historySelection['history']=[

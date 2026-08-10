@@ -247,6 +247,9 @@ $search=$service->searchMemory($scope,'alchemy Balmora');
 $check($search['results'][0]['id'] === $memory['memory_id'] && $search['results'][0]['score'] > 0, 'deterministic memory retrieval failed');
 $products->updateMemory($memory['memory_id'],'Nalcarya sells potions.', ['nalcarya','potions'], [0,0,0,0,0,0,0,0], $clock->iso());
 $check($products->rebuildMemories($scope,$clock->iso()) === 1, 'memory rebuild failed');
+$memoryRevision=$db->query("SELECT current_revision FROM memory_records WHERE memory_id='{$memory['memory_id']}'")->fetchColumn();
+$memoryRevisionCount=$db->query("SELECT count(*) FROM memory_record_revisions WHERE memory_id='{$memory['memory_id']}'")->fetchColumn();
+$check((int)$memoryRevision===2&&(int)$memoryRevisionCount===2,'memory edit did not preserve an auditable revision history');
 $memoryProjection=$db->prepare('SELECT memory.message FROM memory_metadata metadata JOIN public.memory memory ON memory.rowid=metadata.rowid WHERE metadata.memory_id=:memory');
 $memoryProjection->execute(['memory'=>$memory['memory_id']]);
 $check($memoryProjection->fetchColumn()==='Nalcarya sells potions.','memory did not project into the Herika memory contract');
@@ -437,7 +440,10 @@ $check($products->bulkDeleteUnlockedNpcProfiles($installation,$clock->iso())===1
     &&(int)$db->query("SELECT count(*) FROM actor_profile_bindings WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn()===0,
     'bulk delete did not remove only the unlocked NPC profile and its binding');
 $check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk unlock did not revise the locked NPC profile');
-$derivedMemoryId='30000000-0000-4000-8000-000000000001';$derivedPayload=$scope+['memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.'];
+$derivedMemoryId='30000000-0000-4000-8000-000000000001';
+$derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,
+    'provenance'=>['source'=>'dialogue.delivery','status'=>'played']];
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
 $badFirstParty=Uuid::v4();$jobs->enqueue($badFirstParty,'memory.derive',1,'memory.derive:retry',['memory_id'=>'bad'],2);

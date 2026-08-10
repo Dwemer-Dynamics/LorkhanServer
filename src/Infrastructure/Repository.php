@@ -653,7 +653,7 @@ final class Repository
     public function dialogueDeliveryResult(array $m):array
     {
         return $this->transaction(function()use($m):array{
-            $utterance=$this->db->prepare('SELECT u.*,s.installation_id FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE');
+            $utterance=$this->db->prepare('SELECT u.*,s.installation_id,s.profile_id,s.playthrough_id FROM dialogue_utterances u JOIN sessions s ON s.session_id=u.session_id WHERE u.dialogue_message_id=:id FOR UPDATE');
             $utterance->execute(['id'=>$m['dialogue_message_id']]);$stored=$utterance->fetch();if(!$stored)throw new \OutOfBoundsException('unknown_dialogue');
             $existing=$this->db->prepare('SELECT * FROM dialogue_delivery_results WHERE dialogue_message_id=:id OR message_id=:message');
             $existing->execute(['id'=>$m['dialogue_message_id'],'message'=>$m['message_id']]);
@@ -678,6 +678,22 @@ final class Repository
                 ->execute(['state'=>$speechState,'id'=>$m['dialogue_message_id']]);
             $this->eventLog()->updateDialogueDelivery($m['dialogue_message_id'], $m['status']);
             $this->db->prepare("UPDATE durable_jobs SET state='succeeded',completed_at=clock_timestamp(),updated_at=clock_timestamp() WHERE job_id=:job AND state='queued'")->execute(['job'=>$stored['expiry_job_id']]);
+            if ($m['status'] === 'played') {
+                $speaker = $this->json($stored['speaker']);
+                $speakerName = trim((string)($speaker['display_name'] ?? $speaker['record_id'] ?? 'NPC')) ?: 'NPC';
+                $memoryId = Uuid::deterministicV4('memory:dialogue:' . $m['dialogue_message_id']);
+                $payload = [
+                    'memory_id'=>$memoryId,'installation_id'=>$stored['installation_id'],'profile_id'=>$stored['profile_id'],
+                    'playthrough_id'=>$stored['playthrough_id'],'tier'=>'recent','content'=>$speakerName . ': ' . $stored['text'],
+                    'source_event_id'=>$m['message_id'],'occurred_at'=>$m['completed_at'],
+                    'provenance'=>['source'=>'dialogue.delivery','revision'=>1,'dialogue_message_id'=>$m['dialogue_message_id'],
+                        'turn_id'=>$m['turn_id'],'request_id'=>$m['request_id'],'status'=>'played',
+                        'source_event_ids'=>[$m['message_id']]],
+                ];
+                $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+                    . "VALUES(:job,'memory.derive',1,:key,CAST(:payload AS jsonb),3,40) ON CONFLICT(job_type,idempotency_key) DO NOTHING")
+                    ->execute(['job'=>Uuid::v4(),'key'=>'memory:dialogue:'.$m['dialogue_message_id'],'payload'=>$this->encode($payload)]);
+            }
             return['duplicate'=>false];
         });
     }
@@ -978,7 +994,38 @@ final class Repository
         $settingsSources=$trace['settings_sources']??[];
         $settingsSourcesJson=json_encode($settingsSources===[]?(object)[]:$settingsSources,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
         $id=Uuid::v4();$this->db->prepare('INSERT INTO prompt_traces (prompt_trace_id,installation_id,profile_id,playthrough_id,session_id,turn_id,request_id,prompt_configuration_id,prompt_revision,selected_profile_id,selected_profile_revision,core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources,algorithm,input_sha256,input_bytes,truncated,created_at) VALUES (:id,:installation,:profile,:playthrough,:session,:turn,:request,:config,:revision,:selected_profile,:selected_revision,:core_profile,:core_revision,:settings_sha,CAST(:settings_sources AS jsonb),:algorithm,:sha,:bytes,:truncated,clock_timestamp())')->execute(['id'=>$id,'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],'session'=>$turn['session_id'],'turn'=>$turn['turn_id'],'request'=>$turn['request_id'],'config'=>$trace['prompt_configuration_id']===$trace['profile_id']?null:$trace['prompt_configuration_id'],'revision'=>$trace['prompt_revision'],'selected_profile'=>$trace['profile_id'],'selected_revision'=>$trace['profile_revision'],'core_profile'=>$trace['core_profile_id']??null,'core_revision'=>$trace['core_profile_revision']??null,'settings_sha'=>$trace['effective_settings_sha256']??null,'settings_sources'=>$settingsSourcesJson,'algorithm'=>$trace['algorithm'],'sha'=>$trace['input_sha256'],'bytes'=>$trace['input_bytes'],'truncated'=>$trace['truncated']?'true':'false']);
-        foreach($trace['sources'] as $source)$this->db->prepare('INSERT INTO prompt_trace_sources (prompt_trace_id,ordinal,source_kind,source_id,included,reason,source_sha256,included_bytes,redacted_preview) VALUES (:trace,:ordinal,:kind,:source,:included,:reason,:sha,:bytes,\'\')')->execute(['trace'=>$id,'ordinal'=>$source['ordinal'],'kind'=>$source['source_kind'],'source'=>$source['source_id'],'included'=>$source['included']?'true':'false','reason'=>$source['reason'],'sha'=>$source['source_sha256'],'bytes'=>$source['included_bytes']]);
+        foreach($trace['sources'] as $source)$this->db->prepare('INSERT INTO prompt_trace_sources '
+            . '(prompt_trace_id,ordinal,source_kind,source_id,included,reason,source_sha256,included_bytes,redacted_preview,'
+            . 'section_key,section_order,source_table,source_revision,source_occurred_at,playthrough_id,source_characters,estimated_tokens) '
+            . 'VALUES (:trace,:ordinal,:kind,:source,:included,:reason,:sha,:bytes,:preview,:section_key,:section_order,:source_table,'
+            . ':source_revision,:source_occurred_at,:playthrough,:characters,:tokens)')->execute([
+                'trace'=>$id,'ordinal'=>$source['ordinal'],'kind'=>$source['source_kind'],'source'=>$source['source_id'],
+                'included'=>$source['included']?'true':'false','reason'=>$source['reason'],'sha'=>$source['source_sha256'],
+                'bytes'=>$source['included_bytes'],'preview'=>$source['redacted_preview'],'section_key'=>$source['section_key'],
+                'section_order'=>$source['section_order'],'source_table'=>$source['source_table'],
+                'source_revision'=>$source['source_revision'],'source_occurred_at'=>$source['source_occurred_at'],
+                'playthrough'=>$source['playthrough_id'],'characters'=>$source['source_characters'],'tokens'=>$source['estimated_tokens']]);
+        foreach($trace['sections'] as $section)$this->db->prepare('INSERT INTO prompt_trace_sections '
+            . '(prompt_trace_id,section_order,section_key,source_refs,inclusion_reason,source_occurred_at,playthrough_id,'
+            . 'source_characters,estimated_tokens,redacted_preview,source_sha256) '
+            . 'VALUES (:trace,:section_order,:section_key,CAST(:source_refs AS jsonb),:reason,:occurred,:playthrough,'
+            . ':characters,:tokens,:preview,:sha)')->execute([
+                'trace'=>$id,'section_order'=>$section['section_order'],'section_key'=>$section['section_key'],
+                'source_refs'=>$this->encode($section['source_refs']),'reason'=>$section['inclusion_reason'],
+                'occurred'=>$section['source_occurred_at'],'playthrough'=>$section['playthrough_id'],
+                'characters'=>$section['source_characters'],'tokens'=>$section['estimated_tokens'],
+                'preview'=>$section['redacted_preview'],'sha'=>$section['source_sha256']]);
+        $retrieval=$trace['memory_retrieval']??null;
+        if(is_array($retrieval)&&!array_is_list($retrieval)){
+            $this->db->prepare('INSERT INTO retrieval_traces '
+                . '(retrieval_trace_id,installation_id,profile_id,playthrough_id,domain,query,result_ids,scores,algorithm,created_at,'
+                . 'turn_id,prompt_section,reasons) VALUES (:id,:installation,:profile,:playthrough,\'memory\',:query,'
+                . 'CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:created,:turn,\'memory_context\',CAST(:reasons AS jsonb))')
+                ->execute(['id'=>Uuid::v4(),'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],
+                    'playthrough'=>$turn['playthrough_id'],'query'=>$retrieval['query'],'ids'=>$this->pgArray($retrieval['result_ids']),
+                    'scores'=>$this->encodeObject($retrieval['scores']),'algorithm'=>$retrieval['algorithm'],
+                    'created'=>$retrieval['created_at'],'turn'=>$turn['turn_id'],'reasons'=>$this->encodeObject($retrieval['reasons'])]);
+        }
     }
 
     private function source(string $id, string $installation, ?string $session, ?int $generation, string $kind, string $occurred,
@@ -1004,6 +1051,7 @@ final class Repository
     }
 
     private function encode(array $value): string { return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES); }
+    private function encodeObject(array $value):string{return json_encode($value===[]?(object)[]:$value,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);}
     private function encodeCanonical(array $value):string{$sort=static function(mixed $v)use(&$sort):mixed{if(!is_array($v))return$v;if(array_is_list($v))return array_map($sort,$v);ksort($v);foreach($v as &$x)$x=$sort($x);return$v;};return json_encode($sort($value),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);}
     private function json(mixed $value): array { return is_array($value) ? $value : json_decode((string) $value, true, 64, JSON_THROW_ON_ERROR); }
     private function pgArray(array $values): string { return '{' . implode(',', array_map(fn($v) => '"' . addcslashes((string) $v, '"\\') . '"', $values)) . '}'; }
