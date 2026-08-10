@@ -55,8 +55,8 @@ TEXT_LIMITS = {
     "speechstyle": 700, "goals": 800,
 }
 STYLE_WORD_BOUNDS = {
-    "core": (14, 34), "npc_static_bio": (35, 95), "appearance": (20, 65),
-    "personality": (24, 75), "occupation": (20, 60), "speechstyle": (16, 55),
+    "core": (14, 34), "npc_static_bio": (30, 95), "appearance": (20, 65),
+    "personality": (24, 75), "occupation": (18, 60), "speechstyle": (16, 55),
 }
 STYLE_SENTENCE_BOUNDS = {
     "core": (1, 1), "npc_static_bio": (2, 3), "appearance": (2, 3),
@@ -108,7 +108,7 @@ Put each stable fact in the single field where it is most useful instead of repe
 Formatting rules:
 - oghma_knowledge_tags: return an empty string. ALMSIVI knowledge tags are intentionally deferred.
 - core: exactly one identity sentence of 18-34 words.
-- npc_static_bio: 2-3 sentences and 45-95 words covering stable background, location, affiliations, and role.
+- npc_static_bio: 2-3 sentences and 30-95 words covering stable background, location, affiliations, and role.
 - appearance: 2-3 sentences and 20-65 words covering physical appearance only. Use precise age, hair,
   eyes, scars, posture, or condition only when the supplied evidence supports them. When evidence is
   sparse, use restrained race and build descriptors rather than inventing distinctive features.
@@ -124,7 +124,7 @@ Formatting rules:
   Use the exact target "Player" only for an established durable relationship at the stable baseline,
   never a potential future meeting, task, cure, or optional outcome. Never use the Nerevarine or a
   display name as a replacement key. Do not include the character themself.
-- occupation: 1-2 sentences and 20-60 words describing social role and regular duties.
+- occupation: 1-2 sentences and 18-60 words describing social role and regular duties.
 - skills: 4-6 distinct JSON array items of 5-18 words each. Use descriptive competence phrases like
   CHIM defaults, not bare skill names, game statistics, stock lists, or exhaustive spell lists.
   Include learned, practiced competencies only. Never list passive racial powers, resistances, vision,
@@ -578,7 +578,13 @@ def word_count(value: str) -> int:
 
 
 def sentence_count(value: str) -> int:
-    endings = len(re.findall(r"[.!?](?=\s|$)", value))
+    normalized = re.sub(
+        r"\b(?:St|Mr|Mrs|Ms|Dr|Sr|Jr)\.",
+        lambda match: match.group(0)[:-1],
+        value,
+        flags=re.IGNORECASE,
+    )
+    endings = len(re.findall(r"[.!?](?=\s|$)", normalized))
     return max(1, endings) if value.strip() else 0
 
 
@@ -611,7 +617,8 @@ def content_violations(
                     f"{field} bullet {index} has {actual} words; required {minimum_words}-{maximum_words}"
                 )
     equipment = re.compile(
-        r"\b(?:wears?|clad|clothing|attire|garb|armor|robe|shirt|pants|boots|shoes|weapon|sword|dagger|staff|bare[- ]chest(?:ed)?)\b",
+        r"\b(?:wears|wearing|clad|clothing|attire|garb|armor|robe|shirt|pants|boots|shoes|"
+        r"weapon|sword|dagger|staff|bare[- ]chest(?:ed)?)\b",
         re.IGNORECASE,
     )
     if equipment.search(profile["appearance"]):
