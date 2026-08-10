@@ -133,7 +133,9 @@ $indexStatement = $db->prepare(
     . "JOIN pg_class idx ON idx.oid=i.indexrelid WHERE n.nspname=:schema AND r.relname=:relation "
     . "ORDER BY idx.relname"
 );
-$currentOwner = (string) $db->query('SELECT current_user')->fetchColumn();
+$databaseOwner = (string) $db->query(
+    'SELECT pg_get_userbyid(datdba) FROM pg_database WHERE datname = current_database()'
+)->fetchColumn();
 $objects = [];
 foreach ($relations as $relation) {
     $schema = (string) $relation['schema_name'];
@@ -163,7 +165,7 @@ foreach ($relations as $relation) {
         'schema' => $schema,
         'name' => $name,
         'kind' => (string) $relation['relation_kind'],
-        'owner' => $relation['owner_name'] === $currentOwner ? '<database-owner>' : (string) $relation['owner_name'],
+        'owner' => $relation['owner_name'] === $databaseOwner ? '<database-owner>' : (string) $relation['owner_name'],
         'disposition' => $objectDisposition,
         'retention' => retention($schema, $name, $objectDisposition),
         'writers' => $references[$key]['writers'],
