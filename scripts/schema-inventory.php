@@ -70,15 +70,7 @@ function runtimeReferences(string $root, array $relations, array $relationKeys):
 }
 
 $references = runtimeReferences($root, $relations, $relationKeys);
-$excludedPublic = array_fill_keys([
-    'bgl_history','core_faction_politics_development','core_faction_politics_relation',
-    'core_faction_politics_state','core_itt_connector','master_packages','npc_commitments',
-    'quest_asset_group_members','quest_asset_groups',
-    'quest_asset_imports','quest_asset_packs','quest_assets','quest_item_types',
-    'quest_npc_own_templates','quest_npc_templates','quest_outfits','quest_weapons',
-    'skyrim_quest_action_outbox','skyrim_quest_beat_state','skyrim_quest_definitions',
-    'skyrim_quest_events','skyrim_quest_instances','sneq_quests','sneq_quests_saved','visual_context',
-], true);
+$excludedPublic = [];
 $morrowindAdapted = array_fill_keys([
     'books','currentmission','descriptions','descriptions_custom','combined_descriptions','eventlog',
     'eventlog_view','faction_vanilla','factions','game_plugins','locations','locations_v','market_cache',
@@ -88,7 +80,6 @@ $morrowindAdapted = array_fill_keys([
 function disposition(string $schema, string $name, array $excludedPublic, array $morrowindAdapted): string
 {
     if ($schema === 'almsivi_internal') {
-        if ($name === 'autonomy_schedules') return 'excluded_quarantined_compatibility';
         if (str_ends_with($name, '_metadata')) return 'typed_companion_metadata';
         return 'typed_authority';
     }

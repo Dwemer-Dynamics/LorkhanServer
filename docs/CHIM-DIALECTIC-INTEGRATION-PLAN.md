@@ -48,7 +48,7 @@ The target is not a fourth layer. The cutover must assign one authority to every
 | books, Journal, locations, factions, descriptions, plugins | Morrowind knowledge/context source tables and retrieval projections | Preserve Herika-shaped read/search/edit pages while using TES3 identity and provenance. |
 | diaries/narrative records | `narrative_records` | Manual/player-triggered records only; no background scheduler. |
 | quest engine tables | staged `herika_compat` quest tables | Excluded and quarantined. No public routes, jobs, seeds, or writes. Journal observation remains separate and live. |
-| Background Life/autonomy tables | `autonomy_schedules`, `herika_compat.bgl_history` | Excluded compatibility state. No polling, worker, scheduler, capability, or writable UI. |
+| Background Life/autonomy tables | Retired before beta by migration 047. | No polling, worker, scheduler, capability, writable UI, or retained compatibility state. |
 
 Before changing schema, produce a generated inventory containing table, ordinal column position, type, default, encoding/collation behavior, key, index, foreign key, owner, writer, readers, retention policy, and disposition. Review that inventory against the frozen HerikaServer and DialecticServer definitions. Copy the applicable contract exactly; translate only product/game identity and fields that are deprecated or excluded by this plan.
 
@@ -177,7 +177,7 @@ Gate: branch CI is green and evidence distinguishes automated, deployed, and in-
 ### S1 - Schema inventory and exclusions
 
 - Generate the table/column/writer/reader/disposition inventory.
-- Quarantine AI Quest, Background Life, autonomy, and ITT writes/routes/workers.
+- Remove AI Quest, Background Life, autonomy, and ITT schema/routes/workers before beta.
 - Verify Journal observation remains live without the AI Quest engine.
 
 Gate: every table has one owner/disposition and excluded features cannot create jobs or requests.

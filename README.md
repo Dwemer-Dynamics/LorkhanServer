@@ -7,7 +7,7 @@ ALMSIVIserver is the local Apache/PHP/PostgreSQL backend and browser management 
 
 The complete local provider vertical slice is implemented and deployed: authenticated sessions,
 turns and ordered events, dialogue/TTS media, action/result delivery, profiles and prompts, memory,
-relationships, knowledge, narrative/autonomy, durable jobs, diagnostics/backups, and the
+relationships, knowledge, narrative, durable jobs, diagnostics/backups, and the
 CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
 Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
 server credential storage, and mock providers remain available for deterministic tests. Default
@@ -40,7 +40,8 @@ under `/var/lib/almsiviserver` and `/var/log/almsiviserver`. Run the sibling cli
 `scripts/deploy-wsl.sh` remains the immutable release/rollback installer described in
 `docs/WSL-APACHE-SETUP.md`; `scripts/deploy-local-wsl.sh` is the stable-path local development sync.
 Both installers idempotently backfill missing CHIM connector defaults without replacing saved routes
-or active TTS selections. Fallback LLM, STT, ITT, Background Life, and autonomy are not provisioned.
+or active TTS selections. STT is installation-global; ITT, Background Life, and timer autonomy are
+not provisioned and their pre-beta compatibility schema has been retired.
 
 ## Start here
 

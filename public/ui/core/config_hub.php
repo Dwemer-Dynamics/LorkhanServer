@@ -25,7 +25,6 @@ $configSections = [
             'ttscfg' => ['TTS', '&#x1F50A;', 'config.tts', $webRoot . '/ui/core/tts_connectors.php?embed=1'],
             'xtts' => ['TTS Studio', '&#x1F4E2;', 'config.tts-studio', $webRoot . '/ui/core/voice_library.php?embed=1'],
             'sttcfg' => ['STT', '&#x1F3A4;', 'config.stt', $webRoot . '/ui/core/stt_connectors.php?embed=1'],
-            'ittcfg' => ['ITT', '&#x1F5BC;&#xFE0F;', 'config.itt', $webRoot . '/ui/core/itt_connectors.php?embed=1'],
             'keys' => ['API Keys', '&#x1F511;', 'config.keys', $webRoot . '/ui/core/api_keys.php?embed=1'],
         ],
     ],
@@ -44,7 +43,7 @@ $configSections = [
 
 $aliases = [
     'npc-page' => 'npc', 'profiles-page' => 'profiles', 'player-page' => 'player', 'narration-page' => 'narrator', 'npcbio-page' => 'npcbio',
-    'llm-page' => 'llm', 'tts-page' => 'ttscfg', 'studio-page' => 'xtts', 'stt-page' => 'sttcfg', 'itt-page' => 'ittcfg', 'keys-page' => 'keys',
+    'llm-page' => 'llm', 'tts-page' => 'ttscfg', 'studio-page' => 'xtts', 'stt-page' => 'sttcfg', 'keys-page' => 'keys',
     'globals-page' => 'globals', 'knowledge-page' => 'oghma', 'items-page' => 'items', 'actions-page' => 'actions', 'prompts-page' => 'prompts', 'plugins-page' => 'serverplugins',
 ];
 $requested = (string) ($_GET['tab'] ?? 'npc');

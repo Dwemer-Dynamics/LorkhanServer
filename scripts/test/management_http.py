@@ -96,7 +96,7 @@ for path,marker in [
     page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path
     if path != '/ALMSIVIserver/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=eventlog'))
-assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text
+assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text
 journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
@@ -148,7 +148,7 @@ llm,text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php')); assert llm
 llm_runtime,runtime_text=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'ALMSIVI_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
 for import_path in ['/ALMSIVIserver/ui/core/npc_master.php','/ALMSIVIserver/ui/core/llm_connectors.php?import=1','/ALMSIVIserver/ui/core/tts_connectors.php?import=1','/ALMSIVIserver/ui/prompts_manager.php']:
     _,import_text=parse(request(import_path)); assert 'type="file" accept="application/json,.json" data-json-import-target=' in import_text and 'Choose a JSON file or paste its contents here.' in import_text,import_path
-hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','ittcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'Narration' in hub_text and 'Excluded' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
+hub_text=request('/ALMSIVIserver/ui/core/config_hub.php').read().decode(); assert all('data-tab="'+tab+'"' in hub_text for tab in ['npc','profiles','player','narrator','npcbio','llm','ttscfg','xtts','sttcfg','keys','globals','oghma','items','actions','prompts','serverplugins']) and 'data-tab="ittcfg"' not in hub_text and 'ITT</span>' not in hub_text and 'Narration' in hub_text and 'autonomy-page' not in hub_text and '/ui/css/herika-navbar-layout.css' in hub_text
 pages_css=request('/ALMSIVIserver/ui/css/almsivi-pages.css').read().decode()
 navbar_css=request('/ALMSIVIserver/ui/css/navbar.css').read().decode()
 navbar_layout_css=request('/ALMSIVIserver/ui/css/herika-navbar-layout.css').read().decode()

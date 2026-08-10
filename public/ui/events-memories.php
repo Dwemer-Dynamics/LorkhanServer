@@ -14,7 +14,7 @@ $eventLogState = $eventLogRepository->page([
     'installation_id'=>$_GET['installation_id']??null,'playthrough_id'=>$_GET['playthrough_id']??null,
     'page'=>$_GET['page']??1,'limit'=>$_GET['limit']??100,'event_type'=>$_GET['event_type']??'',
 ]);
-$allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'soulgaze', 'questgen', 'backgroundlife', 'journal'];
+$allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'questgen', 'backgroundlife', 'journal'];
 $tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
     'relationships-tab'=>'journal','relationships'=>'journal','quests'=>'journal','narratives-tab'=>'adventure',
     'journal-tab'=>'journal','books-tab'=>'books'];
@@ -142,7 +142,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 ?></div></div><?php } ?>
             </section>
         <?php endforeach; ?>
-        <?php foreach (['soulgaze'=>'roleplay.soulgaze','questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=almsivi_ui_feature($featureId); ?>
+        <?php foreach (['questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=almsivi_ui_feature($featureId); ?>
         <section id="<?php echo almsivi_ui_h($tabId); ?>-tab" class="tab-content active"><div class="tab-panel-inner feature-placeholder-panel"><div class="feature-placeholder-heading"><h2><?php echo almsivi_ui_h($feature['title']); ?></h2><?php echo almsivi_ui_feature_badge($featureId); ?></div><p><?php echo almsivi_ui_h($feature['description']); ?></p><div class="feature-placeholder-controls"><?php foreach($feature['controls']as$control)echo almsivi_ui_placeholder_control((string)$control,$featureId); ?></div></div></section>
         <?php endforeach; ?>
     </div>

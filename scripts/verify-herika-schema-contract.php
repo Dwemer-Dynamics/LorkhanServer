@@ -10,7 +10,7 @@ $user = getenv('ALMSIVI_SCHEMA_DB_USER') ?: null;
 $password = getenv('ALMSIVI_SCHEMA_DB_PASSWORD') ?: null;
 
 $tables = [
-    'bio_templates', 'bio_templates_custom', 'core_api_badge', 'core_itt_connector',
+    'bio_templates', 'bio_templates_custom', 'core_api_badge',
     'core_llm_connector', 'core_narrator', 'core_npc_master', 'core_npc_master_history',
     'core_player', 'core_profiles', 'core_stt_connector', 'core_tts_connector',
     'core_tts_fallback', 'general_settings', 'prompts', 'responselog', 'speech',
@@ -22,29 +22,19 @@ $tables = [
     'locations', 'named_cell', 'questlog', 'quests',
     'animations', 'animations_custom', 'core_action', 'core_action_custom', 'dynamic_bio',
     'import_rules', 'json_personalities', 'translations',
-    'bgl_history', 'core_faction_politics_development', 'core_faction_politics_relation',
-    'core_faction_politics_state', 'faction_vanilla', 'market_cache', 'master_packages',
-    'npc_commitments', 'npc_profile_backup', 'oghma_context_rule', 'visual_context',
-    'quest_asset_group_members', 'quest_asset_groups', 'quest_asset_imports', 'quest_asset_packs',
-    'quest_assets', 'quest_item_types', 'quest_npc_own_templates', 'quest_npc_templates',
-    'quest_outfits', 'quest_weapons', 'skyrim_quest_action_outbox', 'skyrim_quest_beat_state',
-    'skyrim_quest_definitions', 'skyrim_quest_events', 'skyrim_quest_instances',
-    'sneq_quests', 'sneq_quests_saved',
+    'faction_vanilla', 'market_cache', 'npc_profile_backup', 'oghma_context_rule',
 ];
 $views = ['combined_animations', 'combined_bio_templates', 'combined_core_action', 'combined_descriptions', 'memory_v'];
 $sequences = [
     'actions_issued_rowid_seq','api_badge_id_seq','audit_request_rowid_seq','books_rowid_seq',
     'core_npc_master_history_history_id_seq','core_tts_fallback_id_seq','currentmission_rowid_seq',
-    'diarylog_rowid_seq','itt_connector_id_seq','llm_connector_id_seq','log_rowid_seq',
+    'diarylog_rowid_seq','llm_connector_id_seq','log_rowid_seq',
     'memory_rowid_seq','memory_summary_rowid_seq','memory_uid_seq','npc_master_id_seq',
     'oghma_dynamic_id_seq','profiles_id_seq','questlog_rowid_seq','quests_rowid_seq',
     'relationship_eval_queue_id_seq','relationship_init_queue_id_seq','responselog_rowid_seq',
     'rolemaster_rowid_seq','rumors_id_seq','speech_rowid_seq','stt_connector_id_seq','tts_connector_id_seq',
     'core_action_id_seq','core_action_custom_id_seq','dynamic_bio_id_seq','import_rules_id_seq','translations_id_seq',
-    'bgl_history_rowid_seq','core_faction_politics_development_id_seq','npc_commitments_id_seq',
-    'oghma_context_rule_id_seq','visual_context_id_seq',
-    'quest_asset_imports_id_seq','skyrim_quest_action_outbox_id_seq','skyrim_quest_events_id_seq',
-    'sneq_quests_saved_history_id_seq',
+    'oghma_context_rule_id_seq',
 ];
 
 // Build one strict catalog snapshot without reading table contents or secret values.
@@ -61,7 +51,7 @@ function catalogSnapshot(PDO $db, string $schema, array $tables, array $views, a
         . "WHERE cols.table_schema=:schema AND cols.table_name=:table ORDER BY cols.ordinal_position"
     );
     $constraints = $db->prepare(
-        "SELECT c.contype,pg_get_constraintdef(c.oid,true) AS definition "
+        "SELECT pg_get_constraintdef(c.oid,true) AS definition "
         . "FROM pg_constraint c JOIN pg_class r ON r.oid=c.conrelid JOIN pg_namespace n ON n.oid=r.relnamespace "
         . "WHERE n.nspname=:schema AND r.relname=:table ORDER BY c.contype,definition"
     );
@@ -143,6 +133,19 @@ $reference = new PDO($referenceDsn, $user ?: null, $password ?: null, $options);
 $target = new PDO($targetDsn, $user ?: null, $password ?: null, $options);
 $expected = normalizeSnapshot(catalogSnapshot($reference, $referenceSchema, $tables, $views, $sequences), $referenceSchema);
 $actual = normalizeSnapshot(catalogSnapshot($target, $targetSchema, $tables, $views, $sequences), $targetSchema);
+
+// ALMSIVI retired ITT before beta, so the otherwise exact profile contract
+// intentionally omits Herika's nullable ITT foreign-key column and constraint.
+$expected['tables']['core_profiles']['columns'] = array_values(array_filter(
+    $expected['tables']['core_profiles']['columns'],
+    static fn(array $column): bool => $column['column_name'] !== 'itt_connector_id',
+));
+foreach ($expected['tables']['core_profiles']['columns'] as $index => &$column) $column['ordinal_position'] = $index + 1;
+unset($column);
+$expected['tables']['core_profiles']['constraints'] = array_values(array_filter(
+    $expected['tables']['core_profiles']['constraints'],
+    static fn(string $constraint): bool => !str_contains($constraint, 'itt_connector_id'),
+));
 
 if ($expected !== $actual) {
     foreach ($tables as $table) {

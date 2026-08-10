@@ -60,10 +60,22 @@ $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid',
     'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
 $check($db->query("SELECT to_regclass('public.schema_migrations') IS NULL")->fetchColumn()===true,
     'migration authority leaked into the Herika public schema');
-foreach(['UPDATE almsivi_internal.autonomy_schedules SET enabled=enabled','INSERT INTO public.bgl_history DEFAULT VALUES'] as $excludedWrite){
-    try{$db->exec($excludedWrite);throw new RuntimeException('excluded compatibility write remained reachable');}
-    catch(PDOException $error){$check($error->getCode()==='0A000','unexpected excluded-write SQL state: '.$error->getCode());}
+$retiredRelations=[
+    'almsivi_internal.autonomy_schedules','public.bgl_history','public.core_faction_politics_development',
+    'public.core_faction_politics_relation','public.core_faction_politics_state','public.core_itt_connector',
+    'public.master_packages','public.npc_commitments','public.quest_asset_group_members','public.quest_asset_groups',
+    'public.quest_asset_imports','public.quest_asset_packs','public.quest_assets','public.quest_item_types',
+    'public.quest_npc_own_templates','public.quest_npc_templates','public.quest_outfits','public.quest_weapons',
+    'public.skyrim_quest_action_outbox','public.skyrim_quest_beat_state','public.skyrim_quest_definitions',
+    'public.skyrim_quest_events','public.skyrim_quest_instances','public.sneq_quests','public.sneq_quests_saved',
+    'public.visual_context',
+];
+foreach($retiredRelations as $retiredRelation){
+    $check($db->query('SELECT to_regclass('.$db->quote($retiredRelation).') IS NULL')->fetchColumn()===true,
+        'retired beta relation remains: '.$retiredRelation);
 }
+$check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='core_profiles' AND column_name='itt_connector_id'")->fetchColumn()===0,
+    'retired ITT profile column remains');
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');

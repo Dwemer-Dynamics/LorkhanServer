@@ -10,7 +10,6 @@ $roleplayGroups = [
         ['key' => 'memory', 'label' => 'Memories', 'icon' => '&#x1F9E0;', 'feature' => 'roleplay.memories'],
         ['key' => 'diaries', 'label' => 'ALMSIVI Diaries', 'icon' => '&#x1F4D4;', 'feature' => 'roleplay.diaries'],
         ['key' => 'books', 'label' => 'Books', 'icon' => '&#x1F4DA;', 'feature' => 'roleplay.books'],
-        ['key' => 'soulgaze', 'label' => 'Soulgaze Gallery', 'icon' => '&#x1F5BC;&#xFE0F;', 'feature' => 'roleplay.soulgaze'],
     ]],
     ['label' => 'World & Quests', 'aria' => 'World and quest pages', 'tabs' => [
         ['key' => 'journal', 'label' => 'Journal', 'icon' => '&#x1F4D6;', 'feature' => 'roleplay.journal'],
