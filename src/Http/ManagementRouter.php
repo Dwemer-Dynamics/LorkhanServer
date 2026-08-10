@@ -1050,13 +1050,21 @@ final class ManagementRouter
     }
     private function actions():array{return[
         ['name'=>'inspect.report','tier'=>0,'capability'=>'action.inspect.report','description'=>'Read-only observation report.'],
+        ['name'=>'inventory.inspect','tier'=>0,'capability'=>'action.inventory.inspect','description'=>'Read-only bounded NPC inventory report.'],
         ['name'=>'ai.follow','tier'=>1,'capability'=>'action.ai.follow','description'=>'Follow the player.'],
         ['name'=>'ai.stop','tier'=>1,'capability'=>'action.ai.stop','description'=>'Stop ALMSIVI movement packages.'],
+        ['name'=>'ai.approach','tier'=>1,'capability'=>'action.ai.approach','description'=>'Approach the addressed actor in the current cell.'],
+        ['name'=>'ai.wait','tier'=>1,'capability'=>'action.ai.wait','description'=>'Wait in place for a bounded duration.'],
+        ['name'=>'ai.travel','tier'=>1,'capability'=>'action.ai.travel','description'=>'Travel to a confirmed same-cell destination.'],
+        ['name'=>'ai.escort','tier'=>1,'capability'=>'action.ai.escort','description'=>'Escort the player to a confirmed same-cell destination.'],
+        ['name'=>'ai.face','tier'=>1,'capability'=>'action.ai.face','description'=>'Turn to face the player or a confirmed actor.'],
         ['name'=>'ai.wander','tier'=>1,'capability'=>'action.ai.wander','description'=>'Bounded local wandering.'],
         ['name'=>'combat.start','tier'=>2,'capability'=>'action.combat.start','description'=>'Start combat after player confirmation.'],
         ['name'=>'combat.stop','tier'=>1,'capability'=>'action.combat.stop','description'=>'Stop combat with the selected target.'],
         ['name'=>'animation.play','tier'=>1,'capability'=>'action.animation.play','description'=>'Play an allowlisted idle animation.'],
         ['name'=>'item.use','tier'=>2,'capability'=>'action.item.use','description'=>'Use an existing inventory item after confirmation.'],
+        ['name'=>'item.equip','tier'=>2,'capability'=>'action.item.equip','description'=>'Equip an existing inventory item after confirmation.'],
+        ['name'=>'item.unequip','tier'=>2,'capability'=>'action.item.unequip','description'=>'Unequip an occupied slot after confirmation.'],
     ];}
     private function redirect(string $to,array $headers=[]):Response{return new Response(303,'',$headers+['Location'=>$to,'Content-Type'=>'text/plain; charset=utf-8']);}
     /** Resolve legacy management slugs to the canonical sibling-style PHP page. */

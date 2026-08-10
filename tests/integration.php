@@ -140,7 +140,6 @@ $call($limited, 'GET', $base . '/events', [], $limitedQuery);
 $assert($status === 429 && $rateError['retry_after_ms'] === 1000, 'rate retry_after_ms missing');
 
 $session = $fixture('session-init');
-$session['runtime']['capabilities'][] = 'action.inspect.report';
 [$status] = $call($router, 'POST', $base . '/sessions', $jsonAuth, [], $session);
 $assert($status === 422, 'missing session idempotency key accepted');
 [$status] = $call($router, 'POST', $base . '/sessions', $headers($newUuid(3)), [], $session);
@@ -148,8 +147,9 @@ $assert($status === 422, 'incoherent session idempotency key accepted');
 [$status, $accepted] = $call($router, 'POST', $base . '/sessions', $headers($session['message_id']), [], $session);
 $assert($status === 201 && $accepted['generation'] === 7
     && $accepted['capabilities'] === ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
-        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use']
+        'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
+        'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
+        'action.inventory.inspect']
     &&$accepted['config_revision']==='global-settings-default-v1'
     &&($accepted['client_settings']['schema']??null)==='almsivi.client-settings.v1'
     &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
@@ -725,7 +725,7 @@ $assert($status===202,'wander turn acceptance failed');$runTurnWorker(new MockPr
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$inspectEvents['next_after']]);
 $wanderIntents=array_values(array_filter($wanderEvents['events'],static fn(array $e):bool=>$e['type']==='action.intent'));
 $assert($status===200&&count($wanderIntents)===1&&$wanderIntents[0]['payload']['name']==='ai.wander'
-    &&$wanderIntents[0]['payload']['parameters']===['distance'=>512,'duration_seconds'=>60],'ai.wander was not emitted E2E');
+    &&$wanderIntents[0]['payload']['parameters']===['distance'=>512,'duration_seconds'=>3600],'ai.wander was not emitted E2E');
 
 $combatTurn=$turn;$combatTurn['message_id']=$newUuid(183);$combatTurn['request_id']=$newUuid(184);$combatTurn['turn_id']=$newUuid(185);
 $combatTurn['payload']['input']['text']='Attack that target.';$combatTurn['payload']['recent_action_results']=[];
@@ -769,7 +769,7 @@ $assert($status===200&&$autonomyEvents['autonomy']===[],'excluded autonomy direc
 // Player menu actions bypass the provider but retain the same authenticated turn and action policy boundary.
 $menuTurn=$turn;$menuTurn['message_id']=$newUuid(280);$menuTurn['request_id']=$newUuid(281);$menuTurn['turn_id']=$newUuid(282);
 $menuTurn['payload']['input']['text']='Wait here';$menuTurn['payload']['recent_action_results']=[];
-$menuTurn['payload']['action_request']=['name'=>'ai.wander','tier'=>1,'parameters'=>['distance'=>0,'duration_seconds'=>3600]];
+$menuTurn['payload']['action_request']=['name'=>'ai.wait','tier'=>1,'parameters'=>['duration_seconds'=>3600]];
 [$status,$menuAccepted]=$call($router,'POST',$base.'/turns',$headers($menuTurn['message_id']),[],$menuTurn);
 $assert($status===202,'typed player action turn acceptance failed: '.$status.' '.json_encode($menuAccepted));
 [$status,$menuEvents]=$call($router,'GET',$base.'/events',[],[
@@ -779,8 +779,8 @@ $menuIntents=array_values(array_filter($menuEvents['events'],static fn(array $e)
 $menuJobs=$db->prepare("SELECT count(*) FROM durable_jobs WHERE job_type='turn.process' AND payload->>'turn_id'=:turn");
 $menuJobs->execute(['turn'=>$menuTurn['turn_id']]);
 $assert($status===200&&$menuTypes===['turn.accepted','response.complete','action.intent','turn.complete']
-    &&count($menuIntents)===1&&$menuIntents[0]['payload']['name']==='ai.wander'
-    &&$menuIntents[0]['payload']['parameters']===['distance'=>0,'duration_seconds'=>3600]
+    &&count($menuIntents)===1&&$menuIntents[0]['payload']['name']==='ai.wait'
+    &&$menuIntents[0]['payload']['parameters']===['duration_seconds'=>3600]
     &&$menuAccepted['event_cursor']===$menuEvents['next_after']&&(int)$menuJobs->fetchColumn()===0,
     'typed player action did not follow the direct policy-validated path');
 

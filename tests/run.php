@@ -85,6 +85,15 @@ $check(($normalizedAction['action']['name'] ?? null) === 'animation.play'
     && ($normalizedAction['action']['tier'] ?? null) === 1
     && ($normalizedAction['action']['actor']['record_id'] ?? null) === 'fargoth',
     'OpenAI-compatible provider normalizes compact actions with trusted identities and canonical tiers');
+foreach (['inventory.inspect'=>0,'ai.approach'=>1,'ai.wait'=>1,'ai.travel'=>1,'ai.escort'=>1,'ai.face'=>1] as $name=>$tier) {
+    $parameters=$name==='ai.wait'?['duration_seconds'=>3600]:(in_array($name,['ai.travel','ai.escort'],true)
+        ?['destination_x'=>1,'destination_y'=>2,'destination_z'=>3,'destination_cell'=>'exterior:0:0']:[]);
+    $normalized=$normalizeAction->invoke($actionProvider,
+        ['utterances'=>[['text'=>'Ready.']],'action'=>['name'=>$name,'parameters'=>$parameters]],
+        ['payload'=>['target'=>['record_id'=>'fargoth'],'speaker'=>['record_id'=>'player']]]);
+    $check(($normalized['action']['name']??null)===$name&&($normalized['action']['tier']??null)===$tier,
+        "OpenAI-compatible provider exposes {$name} with its canonical tier");
+}
 $check(new OpenAiCompatibleSpeechProvider('https://api.openai.com/v1/audio/speech', ['api.openai.com'], 'tts-test', 'alloy') instanceof OpenAiCompatibleSpeechProvider,
     'OpenAI-compatible TTS accepts a vetted HTTPS endpoint');
 $check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
@@ -93,6 +102,18 @@ $check(ProviderFactory::dialogue([]) instanceof \ALMSIVIserver\Application\MockP
     && ProviderFactory::speech([]) instanceof MockSpeechProvider
     && ProviderFactory::speechToText([]) instanceof \ALMSIVIserver\Application\MockSpeechToTextProvider,
     'shared provider factory gives HTTP and worker the same safe defaults');
+$mockActionProvider=new \ALMSIVIserver\Application\MockProvider();
+foreach ([
+    ['Check your inventory.','action.inventory.inspect','inventory.inspect',[]],
+    ['Come closer.','action.ai.approach','ai.approach',[]],
+    ['Wait here.','action.ai.wait','ai.wait',['duration_seconds'=>3600]],
+] as [$text,$capability,$name,$parameters]) {
+    $mockAction=$mockActionProvider->complete(['payload'=>[
+        'input'=>['text'=>$text],'target'=>['record_id'=>'fargoth'],'speaker'=>['record_id'=>'player'],
+    ],'_negotiated_capabilities'=>[$capability]],new \ALMSIVIserver\Application\NeverCancelledToken())['action']??null;
+    $check(is_array($mockAction)&&($mockAction['name']??null)===$name&&($mockAction['parameters']??null)===$parameters,
+        "mock provider emits {$name} only through its negotiated capability");
+}
 $response = Response::error(401, 'unauthorized', 'correlation');
 $decodedError = json_decode($response->body, true, 16, JSON_THROW_ON_ERROR);
 $check($decodedError['message'] === 'Request rejected', 'generic client error');

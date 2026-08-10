@@ -511,12 +511,18 @@ $retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10
 $retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();
 $check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$retryState['attempt_count']===1, 'first-party handler failure did not schedule retry');
 
-$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow','action.ai.travel','action.ai.escort','action.ai.face','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','ai.follow','ai.travel','ai.escort','ai.face','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
+$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.inventory.inspect','action.ai.follow','action.ai.approach','action.ai.wait','action.ai.travel','action.ai.escort','action.ai.face','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','inventory.inspect','ai.follow','ai.approach','ai.wait','ai.travel','ai.escort','ai.face','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
 $catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
 $proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
 $check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
 $inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($inspect,$loaded)['name']==='inspect.report','empty-object inspect action validation failed');
+$inventoryInspect=['name'=>'inventory.inspect','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($inventoryInspect,$loaded)['name']==='inventory.inspect','inventory inspection validation failed');
+$approach=['name'=>'ai.approach','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($approach,$loaded)['name']==='ai.approach','approach action validation failed');
+$wait=['name'=>'ai.wait','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['duration_seconds'=>3600]];
+$check($policy->validate($wait,$loaded)['parameters']['duration_seconds']===3600,'bounded wait action validation failed');
 $animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['group'=>'idle2']];
 $check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
 $itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s']];
@@ -530,6 +536,7 @@ $face=['name'=>'ai.face','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['rec
 $check($policy->validate($face,$loaded)['name']==='ai.face','face action validation failed');
 try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
 try{$policy->validate(array_replace($travel,['parameters'=>$destination+['teleport'=>true]]),$loaded);throw new RuntimeException('unknown travel parameter accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected travel parameter error');}
+try{$policy->validate(array_replace($wait,['parameters'=>['duration_seconds'=>3599]]),$loaded);throw new RuntimeException('sub-hour wait accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected wait parameter error');}
 
 $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-0000-4000-8000-000000000002';
 foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}

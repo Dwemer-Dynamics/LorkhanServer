@@ -98,6 +98,14 @@ The direct `ai.travel` and `ai.escort` actions accept only bounded destination c
 canonical cell key captured by the player's in-game camera ray. The acting client rechecks that cell
 before starting the native OpenMW package; arbitrary free-form movement commands are not accepted.
 
+The negotiated API-129 catalog contains Tier 0 `inspect.report` and `inventory.inspect`; Tier 1
+`ai.follow`, `ai.stop`, `ai.approach`, `ai.wait`, `ai.travel`, `ai.escort`, `ai.face`,
+`ai.wander`, `combat.stop`, and `animation.play`; and Tier 2 `combat.start`, `item.use`,
+`item.equip`, and `item.unequip`. Approach is same-cell only; wait and wander accept only whole-hour
+durations from 3600 through 86400 seconds because API 129 stores Wander duration in game hours; inventory
+inspection is read-only; and Halt/session/generation replacement cancels owned work.
+The frozen-catalog disposition is recorded in `docs/evidence/openmw-action-parity-audit.md`.
+
 Controls are authenticated and generation-scoped. They expose no credentials or endpoints. A
 `configured` provider slot freezes only a selected model plus configuration revision; the worker keeps
 its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile

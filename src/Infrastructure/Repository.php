@@ -10,10 +10,11 @@ use Throwable;
 final class Repository
 {
     private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
-        'action.ai.stop', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander', 'action.combat.start', 'action.combat.stop',
-        'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use'];
-    private const ENABLED_ACTIONS = ['inspect.report','ai.follow','ai.stop','ai.travel','ai.escort','ai.face','ai.wander','combat.start','combat.stop',
-        'animation.play','item.equip','item.unequip','item.use'];
+        'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
+        'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
+        'action.inventory.inspect'];
+    private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','ai.approach','ai.wait','ai.travel','ai.escort',
+        'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use'];
     public function __construct(
         private readonly PDO $db,
         private readonly int $eventReplayLimit = 256,

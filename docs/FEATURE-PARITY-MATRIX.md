@@ -18,7 +18,7 @@ route or table exists. The implementation ledger adds state and evidence to ever
 | Narrative | Narrator, diary, playthrough summary and export/restore. |
 | Rechat | Included only as a depth-bounded continuation of a player-started conversation after final playback; it uses the layered Global/Core Profile/NPC enable/depth values and cannot emit actions. |
 | Autonomy | Excluded. Timer scheduling, boredom, greetings, combat barks, ITT and Background Life remain visible only as disabled compatibility placeholders where presentation parity requires them. |
-| Actions | Immutable catalog/tier boundary, labelled allow/deny policy editor with advanced JSON/revisions, capability validation, intent, terminal result and one follow-up. |
+| Actions | Immutable 16-action API-129 catalog/tier boundary, labelled allow/deny policy editor with advanced JSON/revisions, capability validation, bounded intent, cancellation, terminal result and recorded Not Applicable reasons for unsafe frozen actions. |
 | Events/traces | Search/detail scoped CHIM-style `eventlog`, `speech`, `responselog`, revisioned `prompts`, turns, prompt/provider attempts, response/action/result, and rechat-chain state. Each accepted roleplay turn persists the ten ordered XML section keys, source references/revisions/timestamps/scope, sizes, redacted previews and hashes; memory retrieval records its ranked IDs and reasons against the same turn. |
 | Workers | Durable idempotent jobs, leases, retry, dead letter, status/replay. |
 | Operations | Structured health/metrics/logs, diagnostics, scoped roleplay exports, hash-verified same-installation configuration backup/restore, retention/deletion. |
