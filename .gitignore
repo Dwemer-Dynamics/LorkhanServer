@@ -20,3 +20,4 @@ storage/backups/*
 *.dump
 *.sql.gz
 secrets/
+scripts/output/

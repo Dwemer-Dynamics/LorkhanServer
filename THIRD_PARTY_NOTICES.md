@@ -23,3 +23,13 @@ NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPO
 NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
 DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
 OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## UESP Morrowind reference material
+
+The optional offline biography-generation tool can enrich official Morrowind NPC identity records
+with material retrieved from the Unofficial Elder Scrolls Pages (UESP). UESP's MediaWiki rights
+metadata identifies this material as Attribution-ShareAlike 2.5. Generated catalog artifacts retain
+the exact source page and revision identifiers used for each character. UESP material is paraphrased;
+raw page caches are local build inputs and are not distributed with ALMSIVIserver.
+
+Source: https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership
