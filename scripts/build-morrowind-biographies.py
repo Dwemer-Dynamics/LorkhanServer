@@ -56,7 +56,7 @@ TEXT_LIMITS = {
 }
 STYLE_WORD_BOUNDS = {
     "core": (14, 34), "npc_static_bio": (28, 95), "appearance": (20, 65),
-    "personality": (23, 75), "occupation": (18, 60), "speechstyle": (15, 55),
+    "personality": (22, 75), "occupation": (18, 60), "speechstyle": (15, 55),
 }
 STYLE_SENTENCE_BOUNDS = {
     "core": (1, 1), "npc_static_bio": (2, 3), "appearance": (2, 3),
@@ -113,7 +113,7 @@ Formatting rules:
   eyes, scars, posture, or condition only when the supplied evidence supports them. When evidence is
   sparse, use restrained race and build descriptors rather than inventing distinctive features.
   Never describe clothing, armor, weapons, inventory, or temporary equipment.
-- personality: 2-3 practical sentences and 23-75 words describing repeatable behavior and temperament.
+- personality: 2-3 practical sentences and 22-75 words describing repeatable behavior and temperament.
 - relationships: a JSON array of CHIM/Dialectic relationship seeds. Each item has target, aff (-100
   to 100), one canonical type, and concise relation, note, best, and worst strings. Use empty strings
   for unsupported optional details and an empty array when no relationship has strong evidence. Use
