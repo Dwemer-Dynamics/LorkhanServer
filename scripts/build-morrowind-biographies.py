@@ -55,8 +55,8 @@ TEXT_LIMITS = {
     "speechstyle": 700, "goals": 800,
 }
 STYLE_WORD_BOUNDS = {
-    "core": (14, 34), "npc_static_bio": (35, 95), "appearance": (25, 65),
-    "personality": (28, 75), "occupation": (20, 60), "speechstyle": (20, 55),
+    "core": (14, 34), "npc_static_bio": (35, 95), "appearance": (20, 65),
+    "personality": (24, 75), "occupation": (20, 60), "speechstyle": (16, 55),
 }
 STYLE_SENTENCE_BOUNDS = {
     "core": (1, 1), "npc_static_bio": (2, 3), "appearance": (2, 3),
@@ -109,11 +109,11 @@ Formatting rules:
 - oghma_knowledge_tags: return an empty string. ALMSIVI knowledge tags are intentionally deferred.
 - core: exactly one identity sentence of 18-34 words.
 - npc_static_bio: 2-3 sentences and 45-95 words covering stable background, location, affiliations, and role.
-- appearance: 2-3 sentences and 30-65 words covering physical appearance only. Use precise age, hair,
+- appearance: 2-3 sentences and 20-65 words covering physical appearance only. Use precise age, hair,
   eyes, scars, posture, or condition only when the supplied evidence supports them. When evidence is
   sparse, use restrained race and build descriptors rather than inventing distinctive features.
   Never describe clothing, armor, weapons, inventory, or temporary equipment.
-- personality: 2-3 practical sentences and 40-75 words describing repeatable behavior and temperament.
+- personality: 2-3 practical sentences and 24-75 words describing repeatable behavior and temperament.
 - relationships: a JSON array of CHIM/Dialectic relationship seeds. Each item has target, aff (-100
   to 100), one canonical type, and concise relation, note, best, and worst strings. Use empty strings
   for unsupported optional details and an empty array when no relationship has strong evidence. Use
@@ -129,7 +129,7 @@ Formatting rules:
   CHIM defaults, not bare skill names, game statistics, stock lists, or exhaustive spell lists.
   Include learned, practiced competencies only. Never list passive racial powers, resistances, vision,
   missing abilities, training-menu services, or an absence of skill as a competency.
-- speechstyle: 1-2 practical sentences and 20-55 words covering tone, vocabulary, and cadence.
+- speechstyle: 1-2 practical sentences and 16-55 words covering tone, vocabulary, and cadence.
 - goals: 3-5 distinct JSON array items of 5-16 words each, using stable motives rather than outcomes.
 
 Evidence rules:
