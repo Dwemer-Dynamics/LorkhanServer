@@ -101,5 +101,6 @@ These files remain review artifacts and are not imported or deployed automatical
 
 For a full official-catalog run, use a new run directory, set `--size 3041`, and retain
 `--max-cost 30`. The runner records cumulative attempt cost and holds the configured budget reserve
-before launching another bounded child. Collect the full evidence-only stage first, review its exact,
+before launching another bounded child. Per-record files remain immediately resumable while aggregate
+outputs are rebuilt every 25 processed records by default. Collect the full evidence-only stage first, review its exact,
 not-found, mismatch, and error counts, and then resume the same locked selection for generation.

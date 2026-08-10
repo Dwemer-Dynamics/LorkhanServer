@@ -451,6 +451,10 @@ def parse_args(builder: Any) -> argparse.Namespace:
     parser.add_argument("--process-timeout", type=float, default=900.0)
     parser.add_argument("--delay", type=float, default=0.5)
     parser.add_argument("--max-failures", type=int, default=10)
+    parser.add_argument(
+        "--checkpoint-every", type=int, default=25,
+        help="Rebuild aggregate manifest and combined outputs after this many processed records. Defaults to 25.",
+    )
     parser.add_argument("--max-cost", type=float, help="Stop generation before recorded provider spend reaches this limit.")
     parser.add_argument(
         "--budget-reserve", type=float, default=0.10,
@@ -463,6 +467,8 @@ def parse_args(builder: Any) -> argparse.Namespace:
         parser.error("--size must be at least 5")
     if args.max_failures < 1:
         parser.error("--max-failures must be at least 1")
+    if args.checkpoint_every < 1:
+        parser.error("--checkpoint-every must be at least 1")
     if args.max_cost is not None and args.max_cost <= 0:
         parser.error("--max-cost must be greater than zero")
     if args.budget_reserve < 0:
@@ -480,6 +486,12 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
     )
     failures = 0
     budget_exhausted = False
+    processed_since_checkpoint = 0
+    initial_manifest = build_manifest(
+        builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
+        args.max_cost, args.budget_reserve,
+    )
+    recorded_cost = float(initial_manifest["usage"].get("cost") or 0.0)
     for index, npc in enumerate(selected, start=1):
         key = record_key(builder, npc["record_id"])
         record_dir = args.run_dir / "records" / key
@@ -492,14 +504,10 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
             print(f"[skip] {index}/{len(selected)} {npc['display_name']} ({npc['record_id']}): complete", flush=True)
             continue
         if not args.evidence_only and args.max_cost is not None:
-            current_manifest = build_manifest(
-                builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
-                args.max_cost, args.budget_reserve,
-            )
-            if not current_manifest["budget"]["next_call_allowed"]:
+            if recorded_cost >= args.max_cost - args.budget_reserve:
                 budget_exhausted = True
                 print(
-                    f"[stop] provider budget reached: spent={current_manifest['budget']['spent']:.6f} "
+                    f"[stop] provider budget reached: spent={recorded_cost:.6f} "
                     f"limit={args.max_cost:.2f} reserve={args.budget_reserve:.2f}",
                     flush=True,
                 )
@@ -530,7 +538,11 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
         if not args.evidence_only:
             result["telemetry"] = generation_telemetry(record_dir)
             append_attempt(record_dir, result)
+            attempt_cost = result["telemetry"].get("cost")
+            if isinstance(attempt_cost, (int, float)):
+                recorded_cost += float(attempt_cost)
         atomic_json(record_dir / ("evidence-run.json" if args.evidence_only else "run.json"), result)
+        processed_since_checkpoint += 1
         if not valid:
             failures += 1
             print(f"[quarantine] {npc['record_id']}: {error}", flush=True)
@@ -546,11 +558,13 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
             )
         if args.delay > 0:
             time.sleep(args.delay)
-        manifest = build_manifest(
-            builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
-            args.max_cost, args.budget_reserve,
-        )
-        write_combined(builder, args.run_dir, selected, manifest, actor_aliases)
+        if processed_since_checkpoint >= args.checkpoint_every:
+            manifest = build_manifest(
+                builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
+                args.max_cost, args.budget_reserve,
+            )
+            write_combined(builder, args.run_dir, selected, manifest, actor_aliases)
+            processed_since_checkpoint = 0
     manifest = build_manifest(
         builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
         args.max_cost, args.budget_reserve,
