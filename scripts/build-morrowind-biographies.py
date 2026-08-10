@@ -297,7 +297,7 @@ def fetch_uesp_page(
         payload = uesp_request(
             session,
             {
-                "action": "parse", "page": page_title, "prop": "text|categories", "format": "json",
+                "action": "parse", "page": page_title, "prop": "text|categories|revid", "format": "json",
                 "formatversion": "2", "redirects": "1",
             },
             timeout,

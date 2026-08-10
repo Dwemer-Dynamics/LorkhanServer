@@ -322,6 +322,8 @@ def build_manifest(
     catalog_count: int,
     model: str,
     actor_aliases: dict[str, dict[str, str]],
+    max_cost: float | None = None,
+    budget_reserve: float = 0.0,
 ) -> dict[str, Any]:
     items: list[dict[str, Any]] = []
     for npc in selected:
@@ -367,6 +369,16 @@ def build_manifest(
             value = item["cumulative_telemetry"].get(field)
             if isinstance(value, (int, float)):
                 usage[field] = usage.get(field, 0.0) + value
+    spent = float(usage.get("cost") or 0.0)
+    budget = None
+    if max_cost is not None:
+        budget = {
+            "limit": max_cost,
+            "reserve": budget_reserve,
+            "spent": spent,
+            "remaining": max(0.0, max_cost - spent),
+            "next_call_allowed": spent < max_cost - budget_reserve,
+        }
     return {
         "format": FORMAT_VERSION,
         "updated_at_utc": utc_timestamp(),
@@ -384,6 +396,7 @@ def build_manifest(
         "builder_sha256": hashlib.sha256(BUILDER_PATH.read_bytes()).hexdigest(),
         "model": model,
         "usage": usage,
+        "budget": budget,
         "usage_history_complete_count": sum(item["attempt_count"] > 0 for item in items),
         "usage_history_is_complete": all(
             item["generation_status"] == "pending" or item["attempt_count"] > 0 for item in items
@@ -438,6 +451,11 @@ def parse_args(builder: Any) -> argparse.Namespace:
     parser.add_argument("--process-timeout", type=float, default=900.0)
     parser.add_argument("--delay", type=float, default=0.5)
     parser.add_argument("--max-failures", type=int, default=10)
+    parser.add_argument("--max-cost", type=float, help="Stop generation before recorded provider spend reaches this limit.")
+    parser.add_argument(
+        "--budget-reserve", type=float, default=0.10,
+        help="Amount held below --max-cost so one bounded child cannot overshoot the budget. Defaults to 0.10.",
+    )
     parser.add_argument("--evidence-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
     args = parser.parse_args()
@@ -445,6 +463,12 @@ def parse_args(builder: Any) -> argparse.Namespace:
         parser.error("--size must be at least 5")
     if args.max_failures < 1:
         parser.error("--max-failures must be at least 1")
+    if args.max_cost is not None and args.max_cost <= 0:
+        parser.error("--max-cost must be greater than zero")
+    if args.budget_reserve < 0:
+        parser.error("--budget-reserve cannot be negative")
+    if args.max_cost is not None and args.budget_reserve >= args.max_cost:
+        parser.error("--budget-reserve must be less than --max-cost")
     return args
 
 
@@ -455,6 +479,7 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
         builder, args.run_dir, args.data_dir, args.size,
     )
     failures = 0
+    budget_exhausted = False
     for index, npc in enumerate(selected, start=1):
         key = record_key(builder, npc["record_id"])
         record_dir = args.run_dir / "records" / key
@@ -466,6 +491,19 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
         if args.resume and valid:
             print(f"[skip] {index}/{len(selected)} {npc['display_name']} ({npc['record_id']}): complete", flush=True)
             continue
+        if not args.evidence_only and args.max_cost is not None:
+            current_manifest = build_manifest(
+                builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
+                args.max_cost, args.budget_reserve,
+            )
+            if not current_manifest["budget"]["next_call_allowed"]:
+                budget_exhausted = True
+                print(
+                    f"[stop] provider budget reached: spent={current_manifest['budget']['spent']:.6f} "
+                    f"limit={args.max_cost:.2f} reserve={args.budget_reserve:.2f}",
+                    flush=True,
+                )
+                break
         command = child_command(args, npc["record_id"], record_dir, args.evidence_only)
         print(
             f"[run] {index}/{len(selected)} {npc['display_name']} ({npc['record_id']}): "
@@ -510,16 +548,23 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
             time.sleep(args.delay)
         manifest = build_manifest(
             builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
+            args.max_cost, args.budget_reserve,
         )
         write_combined(builder, args.run_dir, selected, manifest, actor_aliases)
-    manifest = build_manifest(builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases)
+    manifest = build_manifest(
+        builder, args.run_dir, selected, hashes, catalog_count, args.model, actor_aliases,
+        args.max_cost, args.budget_reserve,
+    )
     write_combined(builder, args.run_dir, selected, manifest, actor_aliases)
     print(
         f"[summary] selected={manifest['selected_count']} "
         f"evidence={manifest['evidence_completed_count']} evidence_failed={manifest['evidence_failed_count']} "
-        f"complete={manifest['completed_count']} failed={manifest['failed_count']} run_dir={args.run_dir}",
+        f"complete={manifest['completed_count']} failed={manifest['failed_count']} "
+        f"cost={float(manifest['usage'].get('cost') or 0.0):.6f} run_dir={args.run_dir}",
         flush=True,
     )
+    if budget_exhausted and manifest["completed_count"] < manifest["selected_count"]:
+        return 2
     return 1 if failures else 0
 
 

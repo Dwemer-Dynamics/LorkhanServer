@@ -86,6 +86,7 @@ Then set `OPENROUTER_API_KEY` in the current process and generate the same locke
 python scripts/run-morrowind-biography-preflight.py `
   --run-dir C:\path\to\morrowind-biography-preflight-50 `
   --size 50 `
+  --max-cost 30 `
   --resume
 ```
 
@@ -97,3 +98,8 @@ status and aggregate provider telemetry, append-only `attempts.json` files prese
 from processing the same run directory concurrently. Rejected candidates and their telemetry are
 retained in `rejected.json` for diagnosis.
 These files remain review artifacts and are not imported or deployed automatically.
+
+For a full official-catalog run, use a new run directory, set `--size 3041`, and retain
+`--max-cost 30`. The runner records cumulative attempt cost and holds the configured budget reserve
+before launching another bounded child. Collect the full evidence-only stage first, review its exact,
+not-found, mismatch, and error counts, and then resume the same locked selection for generation.
