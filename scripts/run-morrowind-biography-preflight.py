@@ -261,7 +261,14 @@ def run_child(command: list[str], timeout: float) -> dict[str, Any]:
     started_at = utc_timestamp()
     started = time.perf_counter()
     try:
-        completed = subprocess.run(command, capture_output=True, text=True, encoding="utf-8", timeout=timeout)
+        completed = subprocess.run(
+            command,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
         return {
             "started_at_utc": started_at,
             "finished_at_utc": utc_timestamp(),
