@@ -150,7 +150,9 @@ Evidence rules:
 FORBIDDEN_PATTERNS = tuple(
     re.compile(pattern, re.IGNORECASE)
     for pattern in (
-        r"\bUESP\b", r"\bwiki(?:pedia)?\b", r"\bHTML\b", r"\blanguage model\b", r"\bprompt\b",
+        r"\bUESP\b", r"\bwiki(?:pedia)?\b", r"\bHTML\b", r"\blanguage model\b",
+        r"\b(?:the|this|that|system|user|generation|given|provided|original|current) prompt\b",
+        r"\bprompt (?:asks|states|requests|requires|instructs|says|provides)\b",
         r"\bthe player\b", r"\bplayer character\b", r"\bNPCs?\b", r"\bquests?\b",
         r"\bgame mechanic", r"\bin the game\b", r"\bif the (?:player|Nerevarine)\b",
         r"\bdepending on (?:the|a) choice\b", r"\beventually\b", r"\btrainer\b",
