@@ -1,0 +1,166 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "catalog_version": "morrowind-official-3e427-v3",
+  "row_count": 616,
+  "articles_sha256": "3c89a3841bd482b121c7f565cb7aa9cf46a43818a9800eb3326477ccf6bcccb1",
+  "csv_sha256": "96e0aaf58aa60ac74870e921fa5219c15d44f14ab7a507cefed065e9dbba8a9b",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "488e69658394ac456ed6d750196dd6e72b291d4d9709a772c3542df499de7871",
+  "editorial_decisions_sha256": "aa4e03c0d9114318848f24a87a787d8cb697cc54c68956f56b252e0cb4163d75",
+  "generator_sha256": "b892889a4b313f863103cac898ea9623e86eabf5c1d9b5482fe3196b1b9eb381",
+  "builder_sha256": "91d0a35173d7bff634a3b06a2b86c24855cc9e0d0e2065de75a0fee21debda92",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "category_counts": {
+    "alchemy": 3,
+    "artifacts": 71,
+    "creatures": 74,
+    "cultures": 32,
+    "diseases": 26,
+    "factions": 64,
+    "figures": 60,
+    "history": 31,
+    "locations": 72,
+    "lore": 18,
+    "magic": 24,
+    "races": 18,
+    "regions": 32,
+    "religion": 49,
+    "settlements": 42
+  },
+  "alias_key_count": 1331,
+  "dropped_alias_collisions": [
+    {
+      "topic": "the_power_of_the_skaal",
+      "alias": "Oneness",
+      "owner": "oneness"
+    },
+    {
+      "topic": "the_power_of_the_skaal",
+      "alias": "Ritual of the Gifts",
+      "owner": "ritual_of_the_gifts"
+    }
+  ],
+  "source_runs": [
+    {
+      "articles_sha256": "52678c6854e851d9b41d87ac16a29a90f8ae3e2e60abf771dcbaf406ce336856",
+      "manifest_sha256": "07093049c75e349dd773274007f4481c668d51fcf2e361580e00ddc6c7fa730c",
+      "row_count": 522,
+      "model": null,
+      "cost": 0.0
+    },
+    {
+      "articles_sha256": "2631e260378791c0714bdb01796661ef0dd9d8af225281e57411b65ba07695a0",
+      "manifest_sha256": "6ab0147e293183a76124f17a3616a05fb385aa18c8f1326d13b710013756f832",
+      "row_count": 97,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.27271037699999995
+    }
+  ],
+  "reviewed_row_count": 619,
+  "editorial_exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "The generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "birthsign",
+      "reason": "generation_repair",
+      "note": "GLM 5.1 produced a valid basic explanation but collapsed the advanced field after six attempts; the advanced article was repaired editorially from official dialogue evidence and revalidated."
+    },
+    {
+      "topic": "cleaver_of_st_felms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain the relic's identity and history without asserting its recoverable location or custody."
+    },
+    {
+      "topic": "darts_of_judgement",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove present ownership and acquisition details while preserving the artifact's origin and significance."
+    },
+    {
+      "topic": "ring_of_the_wind",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove the ring's reported 3E 427 hiding place while retaining established artifact lore."
+    },
+    {
+      "topic": "shoes_of_st_rilms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the Temple relic without asserting a quest-stage location or recovery outcome."
+    },
+    {
+      "topic": "breeding_netch",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain stable netch behavior without describing one removable pair near Gnaar Mok."
+    },
+    {
+      "topic": "crimson_plague",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the disease and its history without asserting a resolvable outbreak state in Mournhold."
+    },
+    {
+      "topic": "sjoring_hard_heart",
+      "reason": "anchor_to_3e427",
+      "note": "Replace an unstable current-state phrase with an explicit 3E 427 role description."
+    },
+    {
+      "topic": "darius",
+      "reason": "anchor_to_3e427",
+      "note": "Replace unstable recruitment wording with an explicit 3E 427 command description."
+    },
+    {
+      "topic": "ald_redaynia",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the enduring site without presenting temporary occupancy as defining knowledge."
+    },
+    {
+      "topic": "andasreth",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the stronghold and Propylon network without temporary bandit or expedition state."
+    },
+    {
+      "topic": "crater_citadels",
+      "reason": "anchor_to_3e427",
+      "note": "Frame Sixth House occupation as the 3E 427 baseline rather than an unqualified permanent state."
+    },
+    {
+      "topic": "ihinipalit",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the enduring Daedric shrine without a removable cult occupation."
+    },
+    {
+      "topic": "tear",
+      "reason": "anchor_to_3e427",
+      "note": "Anchor the city's ruler to the catalog date instead of using an unstable current-state phrase."
+    }
+  ],
+  "generation_cost": 0.27271037699999995,
+  "temporal_anchor": "3E 427",
+  "excluded": [
+    "ordinary_npcs",
+    "generic_equipment",
+    "consumables",
+    "routine_spells",
+    "minor_quest_objects",
+    "walkthroughs",
+    "player_outcomes",
+    "fourth_era",
+    "dynamic_oghma"
+  ]
+}

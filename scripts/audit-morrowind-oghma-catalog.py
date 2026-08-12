@@ -25,6 +25,7 @@ QUEST_LIKE = re.compile(
 )
 NEAR_DUPLICATE_RESOLUTIONS = {
     frozenset(("ashlanders", "ashlands")): "Distinct culture and geographic region; similar titles are intentional.",
+    frozenset(("aldmeri", "aldmeris")): "Distinct people and mythical ancestral homeland; similar titles are intentional.",
 }
 
 
@@ -167,7 +168,7 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_json(args.output_dir / "review.json", report)
     lines = [
-        "# Morrowind Oghma v2 catalog review", "",
+        "# Morrowind Oghma catalog review", "",
         f"- Catalog: `{report['catalog_version']}`", f"- Rows: **{report['row_count']}**",
         f"- Articles SHA-256: `{report['articles_sha256']}`", f"- Validation errors: **{len(report['errors'])}**",
         f"- Unique topic/alias keys: **{report['alias_key_count']}**",
@@ -194,7 +195,7 @@ def main() -> int:
     markdown = "\n".join(lines) + "\n"
     (args.output_dir / "review.md").write_text(markdown, encoding="utf-8", newline="\n")
     (args.output_dir / "review.html").write_text(
-        "<!doctype html><meta charset='utf-8'><title>Morrowind Oghma v2 review</title><style>body{font:15px sans-serif;max-width:1100px;margin:30px auto;background:#151515;color:#eee;line-height:1.5}code{color:#f27c11}pre{white-space:pre-wrap}</style><pre>" + html.escape(markdown) + "</pre>",
+        "<!doctype html><meta charset='utf-8'><title>Morrowind Oghma review</title><style>body{font:15px sans-serif;max-width:1100px;margin:30px auto;background:#151515;color:#eee;line-height:1.5}code{color:#f27c11}pre{white-space:pre-wrap}</style><pre>" + html.escape(markdown) + "</pre>",
         encoding="utf-8", newline="\n",
     )
     print(json.dumps({key: report[key] for key in ["catalog_version", "row_count", "errors", "alias_key_count", "record_linked_count", "source_evidence", "generation_cost"]}, indent=2))

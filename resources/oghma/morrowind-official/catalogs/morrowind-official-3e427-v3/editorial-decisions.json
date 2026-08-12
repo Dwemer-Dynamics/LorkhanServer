@@ -1,0 +1,173 @@
+{
+  "format": "almsivi.morrowind-oghma-editorial-decisions.v1",
+  "catalog_version": "morrowind-official-3e427-v3",
+  "reviewed_additions": 97,
+  "reviewed_on": "2026-08-12",
+  "exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "The generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "overrides": [
+    {
+      "topic": "birthsign",
+      "reason": "generation_repair",
+      "note": "GLM 5.1 produced a valid basic explanation but collapsed the advanced field after six attempts; the advanced article was repaired editorially from official dialogue evidence and revalidated.",
+      "article": {
+        "aliases": [
+          "birth sign",
+          "star sign",
+          "astrological sign"
+        ],
+        "topic_desc": "Birthsigns are the constellations governing the heavens at the moment of a person's birth. Tamrielic astrologers teach that particular celestial conjunctions impress lasting magical influences upon those born beneath them. Such people may be fortunate in their aspects, receiving unusual gifts of body, mind, or sorcery, yet the same influence can impose a corresponding weakness or burden. A birthsign is therefore understood as both an omen and an enduring part of a person's nature, joining astronomy, magic, and fate in a single tradition.",
+        "knowledge_class": [
+          "scholar"
+        ],
+        "topic_desc_basic": "A birthsign is the constellation ruling the sky when someone is born. Its celestial influence may grant remarkable natural abilities, but it can also bring an unusual weakness or curse.",
+        "knowledge_class_basic": [
+          "common",
+          "traveler"
+        ],
+        "tags": [
+          "birthsign",
+          "constellations",
+          "astrology",
+          "celestial influence",
+          "magic",
+          "fate",
+          "Tamriel"
+        ],
+        "category": "lore"
+      }
+    },
+    {
+      "topic": "cleaver_of_st_felms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain the relic's identity and history without asserting its recoverable location or custody.",
+      "article": {
+        "topic_desc": "The Cleaver of St. Felms the Bold is a holy axe revered by the Tribunal Temple and named for Saint Felms, a celebrated warrior-saint of Temple tradition. The relic was borne by Mendel Eves, a Buoyant Armiger who fell fighting the forces of Dagoth Ur on the slopes of Red Mountain. Its association with Felms and the Armigers gives it importance as both a sacred object and a memorial to the Temple's long defense of Vvardenfell against the Sixth House.",
+        "topic_desc_basic": "The Cleaver of St. Felms is a holy Tribunal Temple axe named for the warrior-saint. Buoyant Armiger Mendel Eves carried it while fighting the Sixth House at Red Mountain."
+      }
+    },
+    {
+      "topic": "darts_of_judgement",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove present ownership and acquisition details while preserving the artifact's origin and significance.",
+      "article": {
+        "topic_desc": "The Darts of Judgement are exceptionally rare throwing darts crafted in Valenwood from daedric material. They unite Bosmeri expertise in ranged weapons with the lethal resilience associated with daedric arms. Only a small number are known outside their homeland, making them prized by collectors, marksmen, and dealers in unusual weaponry. Their scarcity and craftsmanship distinguish them from ordinary darts and account for their considerable value wherever rare Valenwood arms are traded.",
+        "topic_desc_basic": "The Darts of Judgement are rare Valenwood throwing weapons made from daedric material. Their Bosmeri craftsmanship, scarcity, and deadly effectiveness make them highly valuable to marksmen and collectors."
+      }
+    },
+    {
+      "topic": "ring_of_the_wind",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove the ring's reported 3E 427 hiding place while retaining established artifact lore.",
+      "article": {
+        "topic_desc": "The Ring of the Wind is a legendary enchanted ring from Elsweyr, sacred to Kynareth in the best-known tradition, though some accounts associate it with Zenithar. It grants extraordinary speed to its wearer. The artifact is famously linked to the Khajiiti acrobat Kisimba Spring-Snow, celebrated for always landing upon her feet unless she chose otherwise. Yagrum Bagarn's Tamrielic Lore includes the ring among artifacts of exceptional significance, and its movements have inspired competing rumors throughout the Empire.",
+        "topic_desc_basic": "The Ring of the Wind is a legendary Elsweyr artifact sacred to Kynareth. It grants great speed and is traditionally associated with the nimble Khajiiti acrobat Kisimba Spring-Snow."
+      }
+    },
+    {
+      "topic": "shoes_of_st_rilms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the Temple relic without asserting a quest-stage location or recovery outcome.",
+      "article": {
+        "topic_desc": "The Shoes of St. Rilms are a sacred relic of the Tribunal Temple associated with Saint Rilms the Barefooted, patron of pilgrims and the poor. Temple tradition treats objects connected to Rilms as reminders of humility, charity, and service despite the authority carried by senior clergy. Accounts connect the shoes with the Daedric shrine of Ald Sotha and with priestly visions concerning their preservation. Their religious value rests chiefly in their connection to the saint rather than the material worth of the footwear.",
+        "topic_desc_basic": "The Shoes of St. Rilms are a Tribunal Temple relic associated with Saint Rilms the Barefooted. They symbolize humility, charity, pilgrimage, and service to the poor."
+      }
+    },
+    {
+      "topic": "breeding_netch",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain stable netch behavior without describing one removable pair near Gnaar Mok.",
+      "article": {
+        "topic_desc": "Breeding netch are mated bull and betty netch whose behavior changes markedly during their reproductive cycle. Netch are ordinarily docile floating creatures valued for hides and other useful products, but breeding pairs become territorial and aggressive when approached. Their size, reach, and persistence can endanger herders, travelers, and settlements near their nesting grounds. Experienced hunters therefore distinguish the behavior of a breeding pair from the calmer habits normally associated with wild or domesticated netch.",
+        "topic_desc_basic": "A breeding pair of bull and betty netch becomes territorial and aggressive during its reproductive cycle. Although netch are usually docile, breeding pairs can threaten nearby herders and settlements."
+      }
+    },
+    {
+      "topic": "crimson_plague",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the disease and its history without asserting a resolvable outbreak state in Mournhold.",
+      "article": {
+        "topic_desc": "The Crimson Plague is a virulent disease remembered for spreading easily and acting with alarming speed. Historical records hold that it was stamped out during the Second Age, making any suspected recurrence a grave concern to healers and Temple authorities. Accounts from Mournhold associate transmission with infected rats emerging from old tombs beneath the city and connect the disease with the lich Gedna Relvel. Its rapid contagion and debilitating effects give even isolated cases the potential to become a destructive urban epidemic.",
+        "topic_desc_basic": "The Crimson Plague is a fast-spreading disease believed eradicated during the Second Age. Mournhold accounts associate it with infected rats from old subterranean tombs and the lich Gedna Relvel."
+      }
+    },
+    {
+      "topic": "sjoring_hard_heart",
+      "reason": "anchor_to_3e427",
+      "note": "Replace an unstable current-state phrase with an explicit 3E 427 role description.",
+      "article": {
+        "topic_desc": "In 3E 427, Sjoring Hard-Heart is the Nord Guildmaster of the Fighters Guild in Morrowind, based in Vivec's Foreign Quarter. His leadership is controversial because many members suspect close ties between him and the Camonna Tong, as well as an aggressive campaign against the rival Thieves Guild. Sjoring is also regarded as one of Vvardenfell's strongest warriors and carries a steel warhammer of smiting. He is the brother of Radd Hard-Heart.",
+        "topic_desc_basic": "Sjoring Hard-Heart is the Nord Guildmaster of Morrowind's Fighters Guild in 3E 427. Based in Vivec, he is a formidable warrior suspected of corrupt ties to the Camonna Tong."
+      }
+    },
+    {
+      "topic": "darius",
+      "reason": "anchor_to_3e427",
+      "note": "Replace unstable recruitment wording with an explicit 3E 427 command description.",
+      "article": {
+        "topic_desc": "General Darius is the Imperial Legion commandant of the Deathshead Legion garrison at Gnisis in 3E 427. He operates from the Madach Tradehouse and is respected for preserving morale and discipline among both human and Orc soldiers. Darius serves as the Legion's principal recruiting commander on Vvardenfell and oversees Imperial military interests around Gnisis. His command is complicated by disputes between the garrison, local settlers, and neighboring communities, requiring political judgment as well as military authority.",
+        "topic_desc_basic": "General Darius commands the Imperial Legion's Deathshead Legion garrison at Gnisis in 3E 427. He is respected for maintaining discipline among its mixed human and Orc soldiers."
+      }
+    },
+    {
+      "topic": "ald_redaynia",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the enduring site without presenting temporary occupancy as defining knowledge.",
+      "article": {
+        "topic_desc": "Ald Redaynia is an ancient ruined wizard's tower on the western tip of a large island off Vvardenfell's northern coast, west of Sheogorad. The isolated Velothi structure dates to the Merethic Era and preserves the character of an early Dunmer settlement. Its surviving upper chambers overlook the northern sea, while a concealed flooded chamber lies beneath the tower. A small fishing community nearby emphasizes the remoteness of the site and its distance from the island's major roads and ports.",
+        "topic_desc_basic": "Ald Redaynia is a ruined Merethic Era wizard's tower on an island off Vvardenfell's northern coast. The remote Velothi site includes upper chambers and a hidden flooded level."
+      }
+    },
+    {
+      "topic": "andasreth",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the stronghold and Propylon network without temporary bandit or expedition state.",
+      "article": {
+        "topic_desc": "Andasreth is one of Vvardenfell's ancient Dunmer strongholds, standing in a dry pocket of the West Gash north of Khartag Point and Gnaar Mok. Its heavy Velothi construction recalls an era when such fortresses protected regional travel and noble power. The stronghold contains a Propylon Chamber linked to Hlormaren and Berandas, placing it within the old magical transport network that joins the ten Dunmer strongholds. Centuries of abandonment have left its halls dangerous despite their historical and architectural importance.",
+        "topic_desc_basic": "Andasreth is an ancient Dunmer stronghold in the West Gash north of Khartag Point. Its Propylon Chamber connects the ruin with Hlormaren and Berandas through the old stronghold transport network."
+      }
+    },
+    {
+      "topic": "crater_citadels",
+      "reason": "anchor_to_3e427",
+      "note": "Frame Sixth House occupation as the 3E 427 baseline rather than an unqualified permanent state.",
+      "article": {
+        "topic_desc": "The crater citadels are five ancient Dwemer strongholds within the Red Mountain crater. By 3E 427 they form the fortified heart of the Sixth House under Dagoth Ur and his ash vampire kin. The citadels are known by the names of their Dagoth Lords: Endusal, Odrosal, Vemynal, Tureynulal, and Dagoth Ur. Ghostgate and Foyada Esannudan provide the principal approach through the Ghostfence, beyond which the strongholds support the Sixth House and the spread of the Blight across Vvardenfell.",
+        "topic_desc_basic": "Five ancient Dwemer citadels stand inside Red Mountain's crater. In 3E 427 they are strongholds of Dagoth Ur and the Sixth House, approached through Ghostgate and the Ghostfence."
+      }
+    },
+    {
+      "topic": "ihinipalit",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the enduring Daedric shrine without a removable cult occupation.",
+      "article": {
+        "topic_desc": "Ihinipalit is a shrine to Sheogorath hidden in the sewers beneath the St. Delyn Canton of Vivec City. Its Daedric worship stands in deliberate contrast to the Tribunal Temple institutions occupying the cantons above. The shrine contains a statue through which the Madgod is said to address mortals, often demanding dangerous, absurd, or humiliating acts. Temple authorities regard Ihinipalit as a profane site, while followers of Sheogorath value it as a concealed place of communion with their unpredictable patron.",
+        "topic_desc_basic": "Ihinipalit is a hidden shrine to Sheogorath in the sewers beneath Vivec's St. Delyn Canton. Its statue is said to let the Madgod address worshippers and impose bizarre demands."
+      }
+    },
+    {
+      "topic": "tear",
+      "reason": "anchor_to_3e427",
+      "note": "Anchor the city's ruler to the catalog date instead of using an unstable current-state phrase.",
+      "article": {
+        "topic_desc": "Tear, also called Dres, is the capital of Great House Dres and a major mainland Morrowind city near the hot, humid borderlands of Argonia. Its wealth comes from vast saltrice plantations and a dominant role in the Dunmeri slave trade, with its notorious slave-pens supplying labor throughout the region. Although House Dres is strongly traditionalist and isolationist, Tear maintains an active harbor and significant commerce. In 3E 427 King Niasth rules this fortified center of agrarian power.",
+        "topic_desc_basic": "Tear, also called Dres, is the mainland capital of Great House Dres. Its saltrice plantations, harbor, and slave trade make it a wealthy commercial center near the Argonian border."
+      }
+    }
+  ]
+}

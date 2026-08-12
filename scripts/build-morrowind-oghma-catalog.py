@@ -158,7 +158,7 @@ def main() -> int:
     columns = ["topic", "aliases", "topic_desc", "knowledge_class", "topic_desc_basic",
                "knowledge_class_basic", "tags", "category"]
     with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for row in ordered:
             writer.writerow({column: ", ".join(row[column]) if isinstance(row[column], list) else row[column]

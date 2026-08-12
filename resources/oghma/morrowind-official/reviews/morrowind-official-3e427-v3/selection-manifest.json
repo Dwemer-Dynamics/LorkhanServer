@@ -1,0 +1,32 @@
+{
+  "format": "almsivi.morrowind-oghma-v3-selection.v1",
+  "baseline_count": 522,
+  "strict_candidates": 68,
+  "strict_exclusions": 31,
+  "strict_retained": 37,
+  "manual_promotions": 60,
+  "selected_new_count": 97,
+  "editorial_excluded_count": 3,
+  "accepted_new_count": 94,
+  "proposed_catalog_count": 616,
+  "category_counts": {
+    "alchemy": 2,
+    "artifacts": 8,
+    "creatures": 13,
+    "cultures": 3,
+    "diseases": 17,
+    "factions": 6,
+    "figures": 11,
+    "history": 2,
+    "locations": 11,
+    "lore": 2,
+    "magic": 1,
+    "races": 4,
+    "regions": 4,
+    "religion": 5,
+    "settlements": 5
+  },
+  "record_linked_count": 27,
+  "curation_cost": 0.289362593,
+  "seeds_sha256": "2f2a69e6c72c885f46345d8023b308dd8c3cbfff425b3ac93286ed33fe081a7e"
+}
