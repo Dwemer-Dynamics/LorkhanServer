@@ -8,20 +8,21 @@ route or table exists. The implementation ledger adds state and evidence to ever
 | Setup | Clean WSL install, DB migrations, pairing, mock quickstart, health and upgrade/rollback. |
 | Sessions | Install/profile/playthrough binding, OpenMW/API/content caps, generation replacement. |
 | Ingress | Strict auth/schema/size/rate/idempotency, immutable source event and correlation. |
-| Dialogue | Solo/group turns, speaker/addressee/audience, ordered deltas/final, delivery result. |
-| Providers | Vetted final Synthserver LLM/STT/TTS set, mock mode, health, timeout/cancel/redaction. |
+| Dialogue | Solo/group turns, speaker/addressee/audience, ordered deltas/final, delivery result, and playback-gated action-free rechat continuation. |
+| Providers | Vetted LLM/TTS set plus installation-global Deepgram, Parakeet, Whisper, LocalWhisper, Gemini, Azure, Inworld, and Disabled STT; mock mode; health; timeout/cancel/redaction; API Badge integration; secret-free portable presets; dynamically labelled controls; connector-level fallback voices; bounded voice sample management; and durable catalogs. |
 | Media | Private opaque storage, hash/type/size/ownership/expiry, authenticated serving and quota. |
-| Profiles | Base/dynamic character profiles, prompt template revision/rollback and playthrough scope. |
-| Memory | Recent/middle/long memory, embeddings/retrieval, source provenance, rebuild/edit/delete. |
+| Profiles | Base/dynamic character profiles with CHIM-style prompt head, core identity, biography, gender/race, skills, moods, explicit dialogue-prompt routing, Standard/Fast/Powerful/Experimental LLM slots, deterministic per-turn slot randomization, an explicit one-attempt fallback LLM, per-profile TTS routing and connector-level male/female fallback voices, search/favorites/locking, independent cloning, private portraits, bulk operations, revision-safe individual and bounded installation-batch NPC generation, narrator generation and player speech-style analysis, portable prompt templates with revision/rollback, playthrough scope, and in-use protection for routed connectors and local TTS samples. |
+| Memory | Recent/middle/long memory, deterministic retrieval, source provenance, revisioned rebuild/edit/delete, and delivery-gated derivation. Confirmed `played` dialogue queues one idempotent recent-memory job; event-driven durable consolidation turns each chronological group of four eligible recent records into one middle record and four eligible middle records into one long record. Deterministic IDs, source ranges, source memory/event IDs, scope, revision, and first-party model metadata are retained. Failed, expired, interrupted, stale, partial, and unplayed output cannot satisfy the eligibility guard. |
 | Relationships | Actor-player state, derived events, manual edit/audit and prompt integration. |
 | World knowledge | Scoped documents/facts, ingestion validation, retrieval trace and deletion. |
 | Narrative | Narrator, diary, playthrough summary and export/restore. |
-| Autonomy | Rechat, boredom and auto-greeting scheduling with client safety/cooldown confirmation. |
-| Actions | Catalog/tier/policy/editor, capability validation, intent, terminal result and one follow-up. |
-| Events/traces | Search/detail source events, turns, prompt/provider attempts, response/action/result. |
+| Rechat | Included only as a depth-bounded continuation of a player-started conversation after final playback; it uses the layered Global/Core Profile/NPC enable/depth values and cannot emit actions. |
+| Autonomy | Excluded. Timer scheduling, boredom, greetings, combat barks, ITT and Background Life cannot initiate model work. ITT and Soulgaze surfaces are removed from the beta UI and schema. |
+| Actions | Immutable 16-action API-129 catalog/tier boundary, labelled allow/deny policy editor with advanced JSON/revisions, capability validation, bounded intent, cancellation, terminal result and recorded Not Applicable reasons for unsafe frozen actions. |
+| Events/traces | Search/detail scoped CHIM-style `eventlog`, `speech`, `responselog`, revisioned `prompts`, turns, prompt/provider attempts, response/action/result, and rechat-chain state. Each accepted roleplay turn persists the ten ordered XML section keys, source references/revisions/timestamps/scope, sizes, redacted previews and hashes; memory retrieval records its ranked IDs and reasons against the same turn. |
 | Workers | Durable idempotent jobs, leases, retry, dead letter, status/replay. |
-| Operations | Structured health/metrics/logs, diagnostics, backups/restore drill, retention/deletion. |
-| Management UI | Quickstart, providers, profiles, prompts/actions, events, memory, relationships, knowledge, playthroughs, workers, backup, health. |
+| Operations | Structured health/metrics/logs, diagnostics, scoped roleplay exports, hash-verified same-installation configuration backup/restore, retention/deletion. |
+| Management UI | Quickstart, providers, profiles, prompts/actions, events, memory, relationships, knowledge, playthrough activity statistics, JSON file-picker imports, workers, backup, health. |
 | Security | Separate game/browser auth, CSRF, SSRF/URL safety, secret redaction, abuse limits. |
 | Contract | Byte-identical sibling schemas/fixtures manifest and fake-client E2E. |
 | Migration | Final Synthserver provenance retained; all Fallout/Skyrim semantics translated/audited. |
@@ -41,3 +42,21 @@ requires retry/idempotency proof; UI requires browser/API proof. Game delivery/a
 - Client/provider credentials in browser/game payloads.
 - Arbitrary model code/SQL/URL/file/console/Lua/MWScript execution.
 - Fallout/Skyrim-specific UI, entities or actions except explicit migration documentation/tests.
+
+## CHIM management-page disposition
+
+| CHIM outcome | ALMSIVI destination or decision |
+| --- | --- |
+| Home dashboard and shared navbar | `home.php` plus the same Home, Roleplay, Configuration, and Control Panel navbar/hub structure; no login interstitial. |
+| NPC Master, NPC Report, profiles, player and narrator | Character Manager, Profiles, NPC Biographies, Player Management, and Narration, including revisions, lock/favorite/search, portraits, clone/import/export, bulk unlock/switch/delete/generate, LLM/TTS routing, target generation, and narrator generation. |
+| LLM, TTS, STT and API badges | Revisioned LLM/TTS slots, one installation-global STT connector, provider-specific controls/defaults, isolated API-key management, testing, cloning, portable presets, active selection, and in-use deletion guards. |
+| XTTS cloning and voice utilities | TTS Studio WAV/ZIP management, compatible local-provider sample sync, explicit voice discovery, durable provider catalogs, profile voice selection, connector default voice, and male/female fallback voices. |
+| Global/configuration settings | Global Settings plus focused revisioned editors; rechat enable/depth follows Global -> Core Profile -> NPC inheritance, other autonomy controls remain visible and disabled, while HUD, transcript and TTS gain are labelled as local OpenMW settings. |
+| Prompt and function editors | Prompts Manager and Action Editor with labelled controls, advanced JSON compatibility, revisions, policy validation and negotiated OpenMW capabilities. |
+| Events, memories, relationships, requests and response queue | Roleplay and Control Panel tabs with bounded create/edit/delete/rebuild operations. Memory cards expose revision/eligibility state, Request Logs expose correlated ten-section prompt traces, and Oghma Audit includes both knowledge and prompt-memory retrieval reasons without exposing prompt bodies. |
+| Oghma/world knowledge, descriptions and cache | Oghma Infinium, Oghma Audit, Description Manager and Cache Browser without exposing private media or filesystem paths. |
+| Playthrough, database, diagnostics and logs | Playthrough Manager, Database Manager, Server Health, Server Logs, provider usage/attempts, jobs and request traces with configuration backup/restore and bounded retention. |
+| Server plugins | Removed from the beta browser UI; game capability exchange remains part of the typed OpenMW runtime protocol. |
+| Timer autonomy, boredom, greetings, combat barks, ITT and Background Life/automatic diary systems | Explicitly excluded from the requested ALMSIVI scope. ITT has no beta page, profile control, API-key landmark, or database relation. Playback-driven rechat, manual narrator/diary/summary records, and player-triggered STT remain available. |
+| Soulgaze gallery, map view, AI Quest Manager and Skyrim teleport/return tools | Skyrim/Prisma/FormID-specific outcomes with no safe OpenMW equivalent in the current authority model. Soulgaze is removed from the beta navigation and schema; the remaining unsupported outcomes stay inert where retained for presentation parity. |
+| Web updater, raw DB import/export and executable test pages | Replaced by the guarded local deploy skill, schema migrations, secret-free configuration backup/restore and focused diagnostics; arbitrary file/SQL/test execution is intentionally not exposed. |

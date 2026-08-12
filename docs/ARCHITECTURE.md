@@ -25,7 +25,8 @@ flowchart LR
 ## Target source layout
 
 ```text
-public/                    # front controller and built static UI only
+public/                    # game/API front controller and browser-served files
+public/ui/                 # physical PHP management pages, shared templates and vendored assets
 src/Http/                  # routing/controllers/middleware
 src/Application/           # turns, sessions, actions, profiles, memories
 src/Domain/                # typed IDs/entities/policy
@@ -34,7 +35,6 @@ config/                    # tracked non-secret defaults/schema
 database/migrations/       # ordered source-controlled migrations
 database/seeds/            # test/development authored data only
 workers/                   # supervised CLI entrypoints
-ui/                        # management frontend
 schemas/ fixtures/         # shared protocol contract
 tests/                     # unit/integration/e2e/security/migration
 scripts/                   # setup/test/audit/backup/restore
@@ -45,27 +45,43 @@ docs/evidence/
 Use the final Synthserver's proven framework and conventions instead of forcing this illustrative
 layout if its equivalent is stronger. Preserve separation and ownership, not folder spelling.
 
+The browser surface deliberately follows the maintained Dwemer server page composition. Each
+top-level PHP page loads `public/ui/ui_bootstrap.php`, includes the common head and navbar, renders
+its own page family, and includes the common footer. Embedded pages use the same bootstrap and CSRF
+session but omit the navbar when requested with `embed=1`. Apache aliases `/ALMSIVIserver` to the
+public directory so source, configuration, storage, and secrets stay outside the served tree.
+
 ## Request lifecycle
 
 1. Apache accepts only allowed method/path/content type/body size.
 2. Game API validates pairing token with constant-time comparison, rate limit and redacted audit.
 3. Strict schema, IDs, session/generation, runtime/capabilities, idempotency and content fingerprint
    are validated before application logic.
-4. Source event and request status persist transactionally; no provider call occurs in a DB
+4. The immutable typed source event and its scoped CHIM-compatible `eventlog` projection persist
+   transactionally; no provider call occurs in a DB
    transaction.
-5. Prompt service loads bounded profile/memory/relationship/world/current context with source IDs,
+5. Prompt service loads the revisioned `prompts` selection plus bounded chronological `eventlog` and
+   `speech` history, profile/memory/relationship/world/current context with source IDs,
    records a redacted prompt trace/revision and calls the configured provider.
-6. Final text, action intent and media metadata persist before ordered response events become visible.
-7. Client reports delivery/action terminal result as new immutable source events.
-8. Derived jobs are enqueued after commit and process idempotently.
+6. Bounded display-only text deltas may become visible while the provider streams; only validated final text becomes a durable utterance.
+7. Final text persists to the typed dialogue tables and scoped CHIM-compatible `speech`/`responselog`
+   projections, then ordered dialogue/terminal events become visible and per-utterance TTS jobs queue.
+8. TTS persists private media and emits a dialogue-correlated speech event independently; client
+   delivery updates the durable speech state and action results remain immutable source events.
+9. A rechat turn must advance one same-session `rechat_chains` row monotonically. It is action-free,
+   depth-bounded, cancelled by new player input/failure, and advanced by the client only after final
+   playback; no timer worker creates it.
+10. Other derived jobs are enqueued after commit and process idempotently.
 
 ## Persistence domains
 
 - installations/pairing-token hash and client profiles;
 - playthroughs, sessions, generations and content manifests/fingerprints;
 - actor/object identities and server character profiles;
-- immutable game/player/utterance/dialogue/action/result/system events;
-- turns, response chunks/finals, provider attempts and redacted prompt traces;
+- immutable game/player/utterance/dialogue/action/result/system events plus scoped CHIM-compatible
+  `eventlog`/`speech`/`responselog` projections;
+- turns, response chunks/finals, revisioned `prompts`, provider attempts, redacted prompt traces and
+  depth-bounded `rechat_chains`;
 - media metadata/ownership/hash/expiry (bytes outside DB/public root);
 - relationships, memories/embeddings, world knowledge, narrator/diary and dynamic profiles;
 - action definitions/policies/revisions and user settings;

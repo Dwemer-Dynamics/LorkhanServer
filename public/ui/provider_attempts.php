@@ -1,0 +1,3 @@
+<?php
+declare(strict_types=1);$pageTitle='Provider Attempts';$topNavSection='control';$BODY_CLASS='hub-page';require __DIR__.'/ui_bootstrap.php';$rows=$uiRepository->rows('provider_attempts');include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';?>
+<main class="almsivi-page<?php echo $embedded?' embedded':''; ?>"><header class="almsivi-page-header"><div><h1>Provider Attempts</h1><p>Redacted LLM and TTS attempt state, duration, and error codes.</p></div><span class="almsivi-badge"><?php echo count($rows); ?> attempts</span></header><section class="almsivi-card"><?php almsivi_ui_table($rows,'No provider attempts have been recorded.'); ?></section></main><?php include __DIR__.'/tmpl/footer.html'; ?>

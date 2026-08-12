@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -u
+
+if [[ -r /etc/almsiviserver/worker.env ]]; then
+    set -a
+    # The root-owned environment file contains the runtime database and provider variables.
+    source /etc/almsiviserver/worker.env
+    set +a
+fi
+: "${ALMSIVI_CONFIG:=/etc/almsiviserver/server.php}"
+export ALMSIVI_CONFIG
+
+child_pid=
+stop_worker() {
+    if [[ ${child_pid:-} =~ ^[0-9]+$ ]] && kill -0 "${child_pid}" 2>/dev/null; then
+        kill "${child_pid}" 2>/dev/null || true
+        wait "${child_pid}" 2>/dev/null || true
+    fi
+    exit 0
+}
+trap stop_worker TERM INT
+
+while true; do
+    /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
+    child_pid=$!
+    status=0
+    wait "${child_pid}" || status=$?
+    child_pid=
+    # Normal bounded exits restart immediately so newly queued dialogue is not held for five seconds.
+    if (( status != 0 )); then
+        /usr/bin/sleep 1 &
+        child_pid=$!
+        wait "${child_pid}" || true
+        child_pid=
+    fi
+done

@@ -14,20 +14,25 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'playthrough', 'prompt', 'provider', 'action_policy'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
-        if (!isset($input['content']) || !is_array($input['content']) || array_is_list($input['content'])) throw new InvalidArgumentException('invalid_content');
-        $this->assertNoSecrets($input['content']);
-        if ($kind === 'provider') {
-            $provider = $input['content'];
-            if (($provider['driver'] ?? null) !== 'mock' || isset($provider['api_key']) || isset($provider['credential'])) {
-                throw new InvalidArgumentException('only_mock_provider_supported');
-            }
-            $provider += ['driver' => 'mock', 'model' => 'deterministic-mock-v1', 'timeout_ms' => 1000];
-            $input['content'] = $provider;
+        if (!isset($input['content']) || !is_array($input['content'])
+            || ($input['content'] !== [] && array_is_list($input['content']))) throw new InvalidArgumentException('invalid_content');
+        if ($kind === 'profile' && isset($input['actor_identity'])
+            && (!is_array($input['actor_identity']) || array_is_list($input['actor_identity']))) {
+            throw new InvalidArgumentException('invalid_actor_identity');
         }
+        if ($kind === 'profile' && isset($input['core_profile_id'])) $this->uuid((string)$input['core_profile_id']);
+        if ($kind === 'core_profile') {
+            if (isset($input['default_npc']) && !is_bool($input['default_npc'])) throw new InvalidArgumentException('invalid_default_npc');
+            if (isset($input['slot']) && (!is_int($input['slot']) || $input['slot'] < 1 || $input['slot'] > 4)) {
+                throw new InvalidArgumentException('invalid_core_profile_slot');
+            }
+        }
+        $this->assertNoSecrets($input['content']);
+        $input['content']=$this->validateConfiguration($kind,$input['content']);
         return $this->repository->createRevisioned($kind, $input, $this->clock->iso());
     }
 
@@ -35,18 +40,88 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','playthrough','prompt','provider','action_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
-        $this->assertNoSecrets($content);$content=$this->validateProvider($kind,$content);
+        $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
+    }
+
+    /** Validate and atomically save the Herika-style Core Profile editor document. */
+    public function reviseCoreProfile(string $id,string $label,bool $defaultNpc,?int $slot,array $content,string $reason):array
+    {
+        $this->uuid($id);$this->boundedString(['label'=>$label],'label',1,256);
+        if($slot!==null&&($slot<1||$slot>4))throw new InvalidArgumentException('invalid_core_profile_slot');
+        if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
+        if($this->repository->resourceKind($id)!=='core_profile')throw new InvalidArgumentException('resource_kind_mismatch');
+        $this->assertNoSecrets($content);$content=$this->validateConfiguration('core_profile',$content);
+        return$this->repository->reviseCoreProfile($id,$label,$defaultNpc,$slot,$content,$reason,$this->clock->iso());
     }
 
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
-        $this->uuid($id);if($this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
-        $content=$this->repository->revisionContent($kind,$id,$revision);$this->assertNoSecrets($content);$this->validateProvider($kind,$content);
+        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
+            ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        $content=$this->repository->revisionContent($kind,$id,$revision);$this->assertNoSecrets($content);$this->validateConfiguration($kind,$content);
         return $this->repository->rollback($kind, $id, $revision, $reason, $this->clock->iso());
+    }
+
+    /** Create or update one Morrowind record description used by bounded turn context. */
+    public function saveItemDescription(array $input): array
+    {
+        $this->requireUuid($input,'installation_id');
+        foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,1,$limit);
+        return$this->repository->saveItemDescription($input,$this->clock->iso());
+    }
+
+    /** Validate and atomically store a bounded CHIM-format CSV batch as custom overrides. */
+    public function importItemDescriptions(string $installationId,array $rows): array
+    {
+        $this->uuid($installationId);
+        if($rows===[]||count($rows)>5000)throw new InvalidArgumentException('invalid_description_batch');
+        $validated=[];$seen=[];
+        foreach($rows as$row){
+            if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_description_row');
+            $input=['installation_id'=>$installationId,'content_file'=>$row['plugin']??null,'record_id'=>$row['baseid']??null,
+                'display_name'=>$row['name']??null,'description'=>$row['description']??null];
+            foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,1,$limit);
+            $key=strtolower(trim((string)$input['content_file']))."\0".strtolower(trim((string)$input['record_id']));
+            if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_description_identity');
+            $seen[$key]=true;$validated[]=$input;
+        }
+        return$this->repository->saveItemDescriptions($validated,$this->clock->iso());
+    }
+
+    public function resetItemDescriptions(string $installationId): int
+    {
+        $this->uuid($installationId);return$this->repository->resetItemDescriptions($installationId,$this->clock->iso());
+    }
+
+    public function deleteItemDescription(string $descriptionId,string $installationId): void
+    {
+        $this->uuid($descriptionId);$this->uuid($installationId);
+        $this->repository->deleteItemDescription($descriptionId,$installationId,$this->clock->iso());
+    }
+
+    /** Soft-delete one versioned management resource without removing its audit revisions. */
+    public function deleteRevisioned(string $kind,string $id):void
+    {
+        $this->uuid($id);
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
+            ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
+    }
+
+    /** Activate one saved installation-global speech preset. */
+    public function selectConnector(array $input): array
+    {
+        $this->requireUuid($input, 'installation_id');
+        $this->requireUuid($input, 'configuration_id');
+        $kind = $input['kind'] ?? null;
+        if (!in_array($kind, ['tts_provider','stt_provider'], true)) {
+            throw new InvalidArgumentException('invalid_connector_kind');
+        }
+        return $this->repository->selectConnector($input['installation_id'], $kind, $input['configuration_id'], $this->clock->iso());
     }
 
     /** @param array<string,mixed> $input */
@@ -76,11 +151,36 @@ final class ProductService
     public function ingestKnowledge(array $input): array
     {
         $this->requireUuid($input, 'installation_id');
-        $this->boundedString($input, 'title', 1, 256);
-        $this->boundedString($input, 'content', 1, 131072);
+        $input=$this->knowledgeInput($input);
         foreach (['profile_id', 'playthrough_id'] as $field) if (isset($input[$field]) && $input[$field] !== null) $this->uuid((string) $input[$field]);
         $input['provenance'] = $this->provenance($input);
-        return $this->repository->createKnowledge($input, DeterministicRetrieval::terms($input['content']), $this->clock->iso());
+        return $this->repository->createKnowledge($input, DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']])), $this->clock->iso());
+    }
+
+    /** Validate every CSV row before atomically creating any Oghma documents. */
+    public function importKnowledge(array $inputs):array
+    {
+        if($inputs===[]||count($inputs)>5000)throw new InvalidArgumentException('invalid_knowledge_import');
+        $prepared=[];
+        foreach($inputs as$input){
+            if(!is_array($input)||array_is_list($input))throw new InvalidArgumentException('invalid_knowledge_import');
+            $this->requireUuid($input,'installation_id');$input=$this->knowledgeInput($input);
+            foreach(['profile_id','playthrough_id']as$field)if(isset($input[$field])&&$input[$field]!==null)$this->uuid((string)$input[$field]);
+            $input['provenance']=$this->provenance($input);
+            $prepared[]=['input'=>$input,'terms'=>DeterministicRetrieval::terms(implode(' ',[
+                $input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]))];
+        }
+        return$this->repository->createKnowledgeBatch($prepared,$this->clock->iso());
+    }
+
+    /** Replace one user-authored Oghma document while retaining its installation scope. */
+    public function updateKnowledge(string $documentId,array $input):array
+    {
+        $this->uuid($documentId);$current=$this->repository->knowledge($documentId);
+        if(($current['provenance']['source']??null)==='factory-oghma')throw new InvalidArgumentException('factory_knowledge_read_only');
+        $input=$this->knowledgeInput($input);$input['provenance']=$this->provenance($input);
+        $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
+        return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
     }
 
     /** @param array<string,mixed> $scope */
@@ -117,22 +217,25 @@ final class ProductService
         return $this->repository->createNarrative($input, $this->clock->iso());
     }
 
+    /** Edit one existing narrator, diary, or summary record without changing its playthrough scope. */
+    public function updateNarrative(string $narrativeId,array $input):array
+    {
+        $this->uuid($narrativeId);
+        if(!in_array($input['kind']??null,['narrator','diary','summary'],true))throw new InvalidArgumentException('invalid_narrative_kind');
+        $this->boundedString($input,'title',1,256);$this->boundedString($input,'content',1,65536);
+        $input['provenance']=$this->provenance($input);return$this->repository->updateNarrative($narrativeId,$input,$this->clock->iso());
+    }
+
     /** @param array<string,mixed> $input */
     public function scheduleAutonomy(array $input): array
     {
-        $this->scope($input);
-        if (!in_array($input['kind'] ?? null, ['rechat', 'boredom', 'greeting'], true)) throw new InvalidArgumentException('invalid_schedule_kind');
-        foreach (['interval_seconds', 'cooldown_seconds'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < 30 || $input[$field] > 86400) throw new InvalidArgumentException('invalid_schedule');
-        if (($input['enabled'] ?? false) === true && (!isset($input['current_session_id']) || !isset($input['confirmed_at']))) throw new InvalidArgumentException('session_confirmation_required');
-        if (isset($input['current_session_id'])) $this->uuid((string) $input['current_session_id']);
-        return $this->repository->scheduleAutonomy($input, $this->clock->iso());
+        throw new InvalidArgumentException('feature_excluded');
     }
 
     /** @param array<string,mixed> $scope */
     public function dueAutonomy(array $scope): array
     {
-        $this->scope($scope);
-        return $this->repository->dueAutonomy($scope, $this->clock->iso());
+        return [];
     }
 
     /** @param array<string,mixed> $scope */
@@ -172,6 +275,24 @@ final class ProductService
         return $value;
     }
 
+    /** Normalize the exact CHIM static-Oghma fields while accepting legacy title/content callers. */
+    private function knowledgeInput(array $input):array
+    {
+        $input['topic']=trim((string)($input['topic']??$input['title']??''));
+        $input['title']=trim((string)($input['title']??str_replace('_',' ',$input['topic'])));
+        $input['content']=trim((string)($input['content']??$input['topic_desc']??''));
+        $input['topic_desc_basic']=trim((string)($input['topic_desc_basic']??$input['content']));
+        foreach(['topic'=>256,'title'=>256,'content'=>131072,'topic_desc_basic'=>131072]as$field=>$max)$this->boundedString($input,$field,1,$max);
+        foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$value=$input[$field]??'';
+            if(is_array($value)){if(!array_is_list($value))throw new InvalidArgumentException('invalid_'.$field);$value=implode(',',array_map(static fn(mixed$item):string=>trim((string)$item),$value));}
+            if(!is_string($value)||strlen($value)>8192||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_'.$field);$input[$field]=trim($value);}
+        $input['knowledge_class']=$input['knowledge_class']===''?'common':$input['knowledge_class'];
+        $input['knowledge_class_basic']=$input['knowledge_class_basic']===''?'common':$input['knowledge_class_basic'];
+        $input['category']=trim((string)($input['category']??($input['provenance']['category']??'ALMSIVI')));
+        if($input['category']===''||strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');
+        return$input;
+    }
+
     private function scope(array $input): void
     {
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) $this->requireUuid($input, $field);
@@ -183,14 +304,119 @@ final class ProductService
     }
 
     private function requireUuid(array $input, string $field): void { if (!isset($input[$field]) || !is_string($input[$field])) throw new InvalidArgumentException('invalid_' . $field); $this->uuid($input[$field]); }
-    private function uuid(string $value): void { if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $value) !== 1) throw new InvalidArgumentException('invalid_uuid'); }
+    /** Accept canonical PostgreSQL UUIDs, including legacy deterministic Core Profile identifiers. */
+    private function uuid(string $value): void { if (preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/D', $value) !== 1) throw new InvalidArgumentException('invalid_uuid'); }
     private function boundedString(array $input, string $field, int $min, int $max): void { if (!isset($input[$field]) || !is_string($input[$field]) || strlen($input[$field]) < $min || strlen($input[$field]) > $max || !mb_check_encoding($input[$field], 'UTF-8')) throw new InvalidArgumentException('invalid_' . $field); }
 
-    private function validateProvider(string $kind,array $content):array
+    private function validateConfiguration(string $kind,array $content):array
     {
+        if (in_array($kind, ['tts_provider', 'stt_provider'], true)) return ConnectorCatalog::validate($kind, $content);
+        if ($kind === 'profile') return $this->validateProfile($content);
+        if ($kind === 'core_profile') return EffectiveSettingsResolver::validateCoreProfile($content);
+        if($kind==='prompt'){
+            $encoded=json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
+            if(strlen($encoded)>65_536)throw new InvalidArgumentException('invalid_prompt_content');
+            return$content;
+        }
+        if($kind==='action_policy')return$this->validateActionPolicy($content);
+        if($kind==='global_settings')return EffectiveSettingsResolver::validateGlobalSettings($content);
         if($kind!=='provider')return$content;
-        if(($content['driver']??null)!=='mock')throw new InvalidArgumentException('only_mock_provider_supported');
-        return$content+['model'=>'deterministic-mock-v1','timeout_ms'=>1000];
+        $driver=$content['driver']??null;
+        if(!in_array($driver,['configured','mock'],true))throw new InvalidArgumentException('invalid_provider_driver');
+        $model=$content['model']??($driver==='mock'?'deterministic-mock-v1':null);
+        if(!is_string($model)||$model===''||strlen($model)>256||!mb_check_encoding($model,'UTF-8'))
+            throw new InvalidArgumentException('invalid_provider_model');
+        if($driver==='configured'){
+            $keys=array_keys($content);sort($keys);if($keys!==['driver','model'])throw new InvalidArgumentException('invalid_provider_content');
+            return['driver'=>'configured','model'=>$model];
+        }
+        $allowed=['driver','mock_prefix','model','timeout_ms'];$keys=array_keys($content);sort($keys);
+        if(array_diff($keys,$allowed)!==[]||!is_string($content['mock_prefix']??'')||strlen((string)($content['mock_prefix']??''))>256)
+            throw new InvalidArgumentException('invalid_provider_content');
+        return['driver'=>'mock','model'=>$model,'mock_prefix'=>(string)($content['mock_prefix']??'')];
+    }
+
+    /** Keep server-to-client settings bounded, typed, and free of executable or transport values. */
+    private function validateGlobalSettings(array $content):array
+    {
+        $expected=['behavior','memory','narrator','presentation','safety','schema'];$keys=array_keys($content);sort($keys);
+        if($keys!==$expected||($content['schema']??null)!=='almsivi.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
+        $sections=['behavior'=>[
+            'auto_greeting'=>'bool','rechat'=>'bool','rechat_delay_seconds'=>[30,3600],'rechat_max_depth'=>[1,20],
+            'rechat_probability_percent'=>[0,100],'rechat_mode'=>['tight','conversational','group','random'],
+            'rechat_strict_targeting'=>'bool','open_rechat'=>'bool','rechat_allow_actions'=>'bool',
+            'end_conversation_cooldown_seconds'=>[0,300],
+            'boredom'=>'bool','boredom_delay_seconds'=>[30,86400],'combat_barks'=>'bool','combat_bark_period_seconds'=>[5,300],
+        ],'memory'=>['recent_turn_limit'=>[1,100],'knowledge_limit'=>[0,20]],
+        'narrator'=>[
+            'enabled'=>'bool','name'=>'string','context_visibility'=>'bool','inline_mode'=>['Disabled','Narrator','NPC','Text Only'],
+            'welcome_events'=>'bool','random_events'=>'bool','quest_events'=>'bool','book_events'=>'bool',
+        ],'presentation'=>['show_status_hud'=>'bool','transcript_rows'=>[2,20],'tts_volume_boost'=>[1,4]],
+        'safety'=>['actions_enabled'=>'bool','allow_hostile'=>'bool','allow_creatures'=>'bool']];
+        $result=['schema'=>'almsivi.client-settings.v1'];
+        foreach($sections as$section=>$fields){$value=$content[$section]??null;if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_global_settings');
+            $sectionKeys=array_keys($value);sort($sectionKeys);$expectedKeys=array_keys($fields);sort($expectedKeys);if($sectionKeys!==$expectedKeys)throw new InvalidArgumentException('invalid_global_settings');$result[$section]=[];
+            foreach($fields as$field=>$rule){$item=$value[$field];if($rule==='bool'){if(!is_bool($item))throw new InvalidArgumentException('invalid_global_settings');}
+                elseif($rule==='string'){if(!is_string($item)||trim($item)===''||strlen($item)>128||!mb_check_encoding($item,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings');$item=trim($item);}
+                elseif(isset($rule[0])&&is_int($rule[0])){if(!is_int($item)||$item<$rule[0]||$item>$rule[1])throw new InvalidArgumentException('invalid_global_settings');}
+                elseif(!is_string($item)||!in_array($item,$rule,true))throw new InvalidArgumentException('invalid_global_settings');
+                $result[$section][$field]=$item;}}
+        return$result;
+    }
+
+    /** Validate the editable CHIM-lineage NPC fields while preserving a compact OpenMW profile document. */
+    private function validateProfile(array $content):array
+    {
+        if(strlen(json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>131_072)throw new InvalidArgumentException('invalid_profile_content');
+        if(array_key_exists('management',$content)){
+            $management=$content['management'];
+            if(!is_array($management)||array_is_list($management)||array_diff(array_keys($management),['locked','favorite'])!==[])
+                throw new InvalidArgumentException('invalid_profile_management');
+            foreach(['locked','favorite']as$field)if(isset($management[$field])&&!is_bool($management[$field]))
+                throw new InvalidArgumentException('invalid_profile_management');
+            $content['management']=['locked'=>($management['locked']??false)===true,'favorite'=>($management['favorite']??false)===true];
+        }
+        if(array_key_exists('portrait',$content)){
+            $portrait=$content['portrait'];$keys=is_array($portrait)?array_keys($portrait):[];sort($keys);
+            if(!is_array($portrait)||array_is_list($portrait)||$keys!==['bytes','filename','height','mime','sha256','updated_at','width']
+                ||!is_string($portrait['filename']??null)||preg_match('/^[0-9a-f-]{36}-[0-9a-f]{16}\.(?:png|jpg|webp)$/D',$portrait['filename'])!==1
+                ||!in_array($portrait['mime']??null,['image/png','image/jpeg','image/webp'],true)
+                ||!is_int($portrait['bytes']??null)||$portrait['bytes']<1||$portrait['bytes']>5_242_880
+                ||!is_int($portrait['width']??null)||$portrait['width']<1||$portrait['width']>2048
+                ||!is_int($portrait['height']??null)||$portrait['height']<1||$portrait['height']>2048
+                ||!is_string($portrait['sha256']??null)||preg_match('/^[0-9a-f]{64}$/D',$portrait['sha256'])!==1
+                ||!is_string($portrait['updated_at']??null)||strlen($portrait['updated_at'])>64)
+                throw new InvalidArgumentException('invalid_profile_portrait');
+        }
+        if (array_key_exists('routing', $content)) {
+            $content['routing'] = EffectiveSettingsResolver::validateRouting($content['routing']);
+        }
+        if (array_key_exists('settings_overrides', $content)) {
+            $content['settings_overrides'] = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
+        }
+        if(!array_key_exists('voice',$content))return$content;
+        $voice=$content['voice'];if(!is_array($voice)||array_is_list($voice)||array_diff(array_keys($voice),['id','language'])!==[])
+            throw new InvalidArgumentException('invalid_profile_voice');
+        $id=$voice['id']??null;$language=$voice['language']??'en';
+        if(!is_string($id)||$id===''||strlen($id)>512||!mb_check_encoding($id,'UTF-8')
+            ||!is_string($language)||$language===''||strlen($language)>35||!mb_check_encoding($language,'UTF-8'))
+            throw new InvalidArgumentException('invalid_profile_voice');
+        $content['voice']=['id'=>$id,'language'=>$language];return$content;
+    }
+
+    /** Validate the same bounded action-policy document consumed by the runtime catalog gate. */
+    private function validateActionPolicy(array $content):array
+    {
+        $known=['enabled','max_tier','allowed_actions','denied_actions','actions'];
+        if(array_diff(array_keys($content),$known)!==[])throw new InvalidArgumentException('invalid_action_policy');
+        if(isset($content['enabled'])&&!is_bool($content['enabled']))throw new InvalidArgumentException('invalid_action_policy');
+        if(isset($content['max_tier'])&&(!is_int($content['max_tier'])||$content['max_tier']<0||$content['max_tier']>3))throw new InvalidArgumentException('invalid_action_policy');
+        foreach(['allowed_actions','denied_actions']as$field){if(!array_key_exists($field,$content))continue;$values=$content[$field];
+            if(!is_array($values)||!array_is_list($values)||count($values)>128)throw new InvalidArgumentException('invalid_action_policy');
+            foreach($values as$value)if(!is_string($value)||$value===''||strlen($value)>128||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_action_policy');}
+        if(isset($content['actions'])){if(!is_array($content['actions'])||array_is_list($content['actions'])||count($content['actions'])>128)throw new InvalidArgumentException('invalid_action_policy');
+            foreach($content['actions']as$name=>$enabled)if(!is_string($name)||$name===''||strlen($name)>128||!is_bool($enabled))throw new InvalidArgumentException('invalid_action_policy');}
+        return$content;
     }
 
     private function assertNoSecrets(array $content): void

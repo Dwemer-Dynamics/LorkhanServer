@@ -1,4 +1,5 @@
 target_path,source_url,source_sha,source_path,license,disposition,transformation,reviewer
+.github/workflows/server.yml,,,,repository proprietary,original,Supported PHP 8.3 and PostgreSQL 16 validation workflow,Codex
 composer.json,,,,repository proprietary,original,Independent package/runtime requirements and scripts,Claude
 config/server.example.php,,,,repository proprietary,original,Safe non-secret PostgreSQL/mock-provider configuration example,Claude
 database/migrations/001_independent_vertical_slice.up.sql,,,,repository proprietary,original,PostgreSQL 16 vertical-slice schema,Claude
@@ -150,3 +151,75 @@ src/Security/PairingToken.php,,,,repository proprietary,original,Independently a
 src/Security/Redactor.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
 tests/Support/StateStore.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
 tests/run.php,,,,repository proprietary,original,Independently authored server foundation or synchronized protocol contract,Claude
+public/ui/css/style_new.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/style_new.css,Dwemer Dynamics shared UI MIT lineage,copied,Copied shared base UI stylesheet,Codex
+public/ui/css/navbar.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/navbar.css,Dwemer Dynamics shared UI MIT lineage,modified,Renamed Dialectic product selectors to ALMSIVI,Codex
+public/ui/css/main.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/main.css,Dwemer Dynamics shared UI MIT lineage,modified,Copied shared page stylesheet and removed external font import,Codex
+public/ui/css/hub-navigation.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/hub-navigation.css,Dwemer Dynamics shared UI MIT lineage,modified,Renamed Dialectic theme variables to ALMSIVI,Codex
+public/ui/css/almsivi-theme.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/dialectic-theme.css,Dwemer Dynamics shared UI MIT lineage,modified,Renamed product selectors and theme variables to ALMSIVI,Codex
+public/ui/css/font/Gothic821CondensedRegular.otf,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/font/Gothic821CondensedRegular.otf,Dwemer Dynamics shared UI asset lineage,copied,Copied sibling-served font asset,Codex
+public/ui/css/font/MonofontoRg.otf,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/css/font/MonofontoRg.otf,Dwemer Dynamics shared UI asset lineage,copied,Copied sibling-served font asset,Codex
+public/ui/lib/ui/bootstrap/bootstrap.min.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/lib/ui/bootstrap/bootstrap.min.css,Bootstrap upstream license,copied,Vendored sibling Bootstrap runtime,Codex
+public/ui/lib/ui/bootstrap/bootstrap.bundle.min.js,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/lib/ui/bootstrap/bootstrap.bundle.min.js,Bootstrap upstream license,copied,Vendored sibling Bootstrap runtime,Codex
+public/ui/images/navbarback.png,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/navbarback.png,Dwemer Dynamics shared UI asset lineage,copied,Copied shared navbar background,Codex
+public/ui/images/DwemerDynamics.png,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/DwemerDynamics.png,Dwemer Dynamics shared UI asset lineage,copied,Copied shared brand mark,Codex
+public/ui/images/favicon.ico,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/favicon.ico,Dwemer Dynamics shared UI asset lineage,copied,Copied shared favicon,Codex
+public/ui/ui_bootstrap.php,,,,repository proprietary,original,ALMSIVI browser session database and security bootstrap,Codex
+public/ui/home.php,,,,repository proprietary,original,Dialectic format dashboard backed by ALMSIVI tables,Codex
+public/ui/events-memories.php,,,,repository proprietary,original,Dialectic format roleplay tabs backed by ALMSIVI tables,Codex
+public/ui/core/config_hub.php,,,,repository proprietary,original,Dialectic format configuration iframe hub,Codex
+public/ui/control_panel.php,,,,repository proprietary,original,Dialectic format control panel iframe hub,Codex
+public/ui/tmpl/head.html,,,,repository proprietary,original,ALMSIVI shared document head using vendored assets,Codex
+public/ui/tmpl/navbar.php,,,,repository proprietary,original,Dialectic DOM format translated to ALMSIVI routes and branding,Codex
+public/ui/tmpl/footer.html,,,,repository proprietary,original,Shared document close template,Codex
+public/ui/tmpl/events_memories_navigation.php,,,,repository proprietary,original,Grouped ALMSIVI roleplay navigation,Codex
+public/ui/tmpl/resource_page.php,,,,repository proprietary,original,Shared embedded management page renderer and forms,Codex
+public/ui/css/almsivi-pages.css,,,,repository proprietary,original,ALMSIVI dashboard hub form and responsive page styling,Codex
+public/ui/js/almsivi-ui.js,,,,repository proprietary,original,Shared tab activation and lazy iframe behavior,Codex
+src/Infrastructure/ManagementUiRepository.php,,,,repository proprietary,original,Bounded redacted management page read models,Codex
+THIRD_PARTY_NOTICES.md,,,,repository proprietary,original,License notice for shared UI lineage and vendored dependencies,Codex
+public/ui/core/character_manager.php,,,,repository proprietary,original,Physical embedded character management entry page,Codex
+public/ui/core/core_profiles.php,,,,repository proprietary,original,Physical embedded profile management entry page,Codex
+public/ui/core/llm_connectors.php,,,,repository proprietary,original,Physical embedded LLM connector entry page,Codex
+public/ui/core/tts_connectors.php,,,,repository proprietary,original,Physical embedded TTS connector entry page,Codex
+public/ui/core/stt_connectors.php,,,,repository proprietary,original,Physical embedded STT connector entry page,Codex
+public/ui/core/global_settings.php,,,,repository proprietary,original,Physical embedded global settings entry page,Codex
+public/ui/worldknowledge_upload.php,,,,repository proprietary,original,Physical embedded world knowledge entry page,Codex
+public/ui/function_editor.php,,,,repository proprietary,original,Physical embedded action editor entry page,Codex
+public/ui/prompts_manager.php,,,,repository proprietary,original,Physical embedded prompt manager entry page,Codex
+public/ui/narrator_management.php,,,,repository proprietary,original,Physical embedded narrator and autonomy entry page,Codex
+public/ui/playthrough_manager.php,,,,repository proprietary,original,Physical embedded playthrough manager entry page,Codex
+public/ui/request_logs.php,,,,repository proprietary,original,Physical embedded request trace entry page,Codex
+public/ui/relationship_logs.php,,,,repository proprietary,original,Physical embedded relationship audit entry page,Codex
+public/ui/jobs.php,,,,repository proprietary,original,Physical embedded worker job entry page,Codex
+public/ui/provider_attempts.php,,,,repository proprietary,original,Physical embedded provider attempt entry page,Codex
+public/ui/backup_health.php,,,,repository proprietary,original,Physical embedded backup and health entry page,Codex
+public/ui/diagnostics.php,,,,repository proprietary,original,Physical embedded diagnostics entry page,Codex
+public/ui/css/navbar.css,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/tmpl/navbar.php,Dwemer Dynamics shared UI MIT lineage,modified,Ported centered navbar geometry with ALMSIVI selectors,Codex
+database/migrations/042_schema_authority_and_exclusion_quarantine.up.sql,,,,repository proprietary,original,Internal migration authority and read-only excluded compatibility quarantine,Codex
+database/migrations/042_schema_authority_and_exclusion_quarantine.down.sql,,,,repository proprietary,original,Reversible excluded compatibility trigger teardown,Codex
+scripts/schema-inventory.php,,,,repository proprietary,original,Deterministic PostgreSQL catalog ownership and UTF-8 inventory generator,Codex
+docs/evidence/schema-inventory-summary.json,,,,repository proprietary,generated,Deterministic schema inventory counts dispositions and content hash,Codex
+protocol/fixtures/v1/hostile/response-path-cache-key.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.line.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Strict hostile TTS cache identity fixture adapted to TES3,Codex
+protocol/fixtures/v1/invalid/events-excluded-autonomy.json,,,,repository proprietary,original,Always-empty v1 autonomy compatibility fixture,Codex
+protocol/fixtures/v1/invalid/gamedata-wrong-game.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.gamedata.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,TES3 game identity rejection fixture,Codex
+protocol/fixtures/v1/invalid/response-duplicate-line.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Duplicate canonical response-line fixture,Codex
+protocol/fixtures/v1/invalid/response-line-over-limit.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.line.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Bounded response metadata fixture,Codex
+protocol/fixtures/v1/invalid/response-malformed-extra.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Loose provider field rejection fixture,Codex
+protocol/fixtures/v1/invalid/response-stale-generation.json,,,,repository proprietary,original,Dual-generation queue fencing fixture,Codex
+protocol/fixtures/v1/valid/event-journal-utf8.json,,,,repository proprietary,original,UTF-8 Morrowind Journal observation fixture,Codex
+protocol/fixtures/v1/valid/gamedata-morrowind.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.gamedata.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,TES3 identity and nearby-actor fixture,Codex
+protocol/fixtures/v1/valid/input-utf8.json,,,,repository proprietary,original,UTF-8 typed player input fixture,Codex
+protocol/fixtures/v1/valid/response-utf8-and-action.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Ordered UTF-8 dialogue and rolecommand fixture adapted to TES3,Codex
+protocol/schemas/v1/event.schema.json,,,,repository proprietary,original,Strict correlated ALMSIVI event envelope,Codex
+protocol/schemas/v1/gamedata.schema.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.gamedata.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Strict bounded TES3 game-data envelope excluding AI quests and boredom,Codex
+protocol/schemas/v1/input.schema.json,,,,repository proprietary,original,Strict correlated ALMSIVI input envelope,Codex
+protocol/schemas/v1/response-line.schema.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.line.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Strict bounded response-line contract with TES3 identities and dual queue metadata,Codex
+protocol/schemas/v1/response.schema.json,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Correlated ok-lines-close response envelope with dual generation fencing,Codex
+database/migrations/043_canonical_response_projection.up.sql,,,,repository proprietary,original,Canonical response and response-line persistence with upgrade backfill,Codex
+database/migrations/043_canonical_response_projection.down.sql,,,,repository proprietary,original,Reversible canonical response persistence teardown,Codex
+src/Application/CanonicalResponseNormalizer.php,https://github.com/Dwemer-Dynamics/DialecticServer,4f3d8fed834b283fd53ff0655ddd091d849dea1d,docs/schemas/dialectic.response.v1.schema.json,Dwemer Dynamics shared protocol MIT lineage,modified,Single provider result normalization boundary adapted to typed TES3 identities,Codex
+scripts/build-morrowind-biographies.py,https://github.com/abeiro/HerikaServer,9595562370780f16bd85ce1915b2f5dba4365c8f,data/bio_templates_20250913.sql,CHIM and HerikaServer project lineage,concept,Original offline TES3 extractor and GLM generator preserving the CHIM biography field order and prose format,Codex
+docs/MORROWIND-BIOGRAPHY-GENERATOR.md,,,,repository proprietary,original,Source identity licensing and bounded review workflow for offline biography generation,Codex
+scripts/run-morrowind-biography-preflight.py,,,,repository proprietary,original,Durable exact-record stratified and full-catalog biography runner with locking quarantine telemetry resume and provider budget enforcement,Codex
+database/migrations/050_biography_factory_catalog.up.sql,https://github.com/abeiro/HerikaServer,9595562370780f16bd85ce1915b2f5dba4365c8f,data/bio_templates_20250913.sql,CHIM and HerikaServer project lineage,modified,Versioned factory biography catalog retaining exact OpenMW identity beside the CHIM biography contract,Codex
+src/Infrastructure/BiographyCatalogImporter.php,https://github.com/abeiro/HerikaServer,9595562370780f16bd85ce1915b2f5dba4365c8f,processor/biography_import.php,CHIM and HerikaServer project lineage,modified,Strict transactional CHIM biography package validation activation rollback and projection,Codex

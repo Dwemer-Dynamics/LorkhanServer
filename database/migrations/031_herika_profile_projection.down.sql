@@ -1,0 +1,25 @@
+DROP TRIGGER IF EXISTS herika_project_profile_revision ON public.profile_revisions;
+DROP TRIGGER IF EXISTS herika_project_profile ON public.profiles;
+DROP TRIGGER IF EXISTS herika_remove_profile ON public.profiles;
+DROP TRIGGER IF EXISTS herika_project_core_profile_revision ON public.core_profile_revisions;
+DROP TRIGGER IF EXISTS herika_project_core_profile ON public.core_profiles;
+DROP TRIGGER IF EXISTS herika_remove_core_profile ON public.core_profiles;
+DROP TRIGGER IF EXISTS herika_project_configuration_revision ON public.configuration_revisions;
+DROP TRIGGER IF EXISTS herika_project_configuration ON public.configuration_sets;
+DROP TRIGGER IF EXISTS herika_remove_configuration ON public.configuration_sets;
+
+DROP FUNCTION IF EXISTS herika_compat.trigger_profile_removal();
+DROP FUNCTION IF EXISTS herika_compat.trigger_profile_projection();
+DROP FUNCTION IF EXISTS herika_compat.sync_profile_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.remove_npc_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.rebuild_special_profiles();
+DROP FUNCTION IF EXISTS herika_compat.trigger_core_profile_removal();
+DROP FUNCTION IF EXISTS herika_compat.trigger_core_profile_projection();
+DROP FUNCTION IF EXISTS herika_compat.sync_core_profile_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.remove_core_profile_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.trigger_configuration_removal();
+DROP FUNCTION IF EXISTS herika_compat.trigger_configuration_projection();
+DROP FUNCTION IF EXISTS herika_compat.sync_configuration_projection(uuid);
+DROP FUNCTION IF EXISTS herika_compat.remove_configuration_projection(uuid);
+DROP VIEW IF EXISTS herika_compat.almsivi_core_profiles_source;
+DROP TABLE IF EXISTS herika_compat.general_setting_metadata;

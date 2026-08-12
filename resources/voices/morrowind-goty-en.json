@@ -1,0 +1,30 @@
+{
+  "schema": "almsivi.morrowind-voice-catalog.v1",
+  "language": "en",
+  "known_actor_defaults": {
+    "fargoth": {"race": "wood elf", "gender": "male"}
+  },
+  "voices": [
+    {"key": "argonian:male", "voice_id": "mw_argonian_male", "display_name": "Morrowind Argonian Male", "race": "argonian", "gender": "male", "sample_path": "Sound/Vo/a/m/Hlo_AM078.mp3", "reference_text": "You should find healing. You look unwell."},
+    {"key": "argonian:female", "voice_id": "mw_argonian_female", "display_name": "Morrowind Argonian Female", "race": "argonian", "gender": "female", "sample_path": "Sound/Vo/a/f/Hlo_AF115.mp3", "reference_text": "Such fine company. One would be wise to listen."},
+    {"key": "breton:male", "voice_id": "mw_breton_male", "display_name": "Morrowind Breton Male", "race": "breton", "gender": "male", "sample_path": "Sound/Vo/b/m/Hlo_BM135.mp3", "reference_text": "Well, I find myself in pleasant company. Please, share your thoughts."},
+    {"key": "breton:female", "voice_id": "mw_breton_female", "display_name": "Morrowind Breton Female", "race": "breton", "gender": "female", "sample_path": "Sound/Vo/b/f/Hlo_BF133.mp3", "reference_text": "Do my eyes deceive me? I'm not used to such lively company."},
+    {"key": "dark elf:male", "voice_id": "mw_dark_elf_male", "display_name": "Morrowind Dark Elf Male", "race": "dark elf", "gender": "male", "sample_path": "Sound/Vo/d/m/Hlo_DM161.mp3", "reference_text": "Are you all right, outlander? You might have a healer tend to those wounds."},
+    {"key": "dark elf:female", "voice_id": "mw_dark_elf_female", "display_name": "Morrowind Dark Elf Female", "race": "dark elf", "gender": "female", "sample_path": "Sound/Vo/d/f/Hlo_DF161.mp3", "reference_text": "Are you all right, outlander? You might have a healer tend those wounds."},
+    {"key": "high elf:male", "voice_id": "mw_high_elf_male", "display_name": "Morrowind High Elf Male", "race": "high elf", "gender": "male", "sample_path": "Sound/Vo/h/m/Hlo_HM023.mp3", "reference_text": "I am certain you have something very special to say, just do so elsewhere."},
+    {"key": "high elf:female", "voice_id": "mw_high_elf_female", "display_name": "Morrowind High Elf Female", "race": "high elf", "gender": "female", "sample_path": "Sound/Vo/h/f/Hlo_HF129.mp3", "reference_text": "Oh, my good friend. What happened to you? I think you should have that looked at by a healer."},
+    {"key": "imperial:male", "voice_id": "mw_imperial_male", "display_name": "Morrowind Imperial Male", "race": "imperial", "gender": "male", "sample_path": "Sound/Vo/i/m/Hlo_IM158.mp3", "reference_text": "A nudist! How wonderful! You seem to be a lively spirit!"},
+    {"key": "imperial:female", "voice_id": "mw_imperial_female", "display_name": "Morrowind Imperial Female", "race": "imperial", "gender": "female", "sample_path": "Sound/Vo/i/f/Hlo_IF158.mp3", "reference_text": "A nudist! How wonderful! You seem to be a lively spirit!"},
+    {"key": "khajiit:male", "voice_id": "mw_khajiit_male", "display_name": "Morrowind Khajiit Male", "race": "khajiit", "gender": "male", "sample_path": "Sound/Vo/k/m/Hlo_KM071.mp3", "reference_text": "Khajiit better than lizard. We work hard. No steal. Make you happy."},
+    {"key": "khajiit:female", "voice_id": "mw_khajiit_female", "display_name": "Morrowind Khajiit Female", "race": "khajiit", "gender": "female", "sample_path": "Sound/Vo/k/f/Hlo_KF071.mp3", "reference_text": "Khajiit better than lizard. We work hard. No steal. Make you happy."},
+    {"key": "nord:male", "voice_id": "mw_nord_male", "display_name": "Morrowind Nord Male", "race": "nord", "gender": "male", "sample_path": "Sound/Vo/n/m/Hlo_NM107.mp3", "reference_text": "Ack! You're sick. Get to a healer, friend, before you infect us all."},
+    {"key": "nord:female", "voice_id": "mw_nord_female", "display_name": "Morrowind Nord Female", "race": "nord", "gender": "female", "sample_path": "Sound/Vo/n/f/Hlo_NF112.mp3", "reference_text": "That's how I like it, bold and direct! Come, I like you."},
+    {"key": "orc:male", "voice_id": "mw_orc_male", "display_name": "Morrowind Orc Male", "race": "orc", "gender": "male", "sample_path": "Sound/Vo/o/m/Hlo_OM109.mp3", "reference_text": "You need not be afraid. My anger is reserved for the foolish."},
+    {"key": "orc:female", "voice_id": "mw_orc_female", "display_name": "Morrowind Orc Female", "race": "orc", "gender": "female", "sample_path": "Sound/Vo/o/f/Hlo_OF109.mp3", "reference_text": "You need not be afraid. Only fools earn my anger."},
+    {"key": "redguard:male", "voice_id": "mw_redguard_male", "display_name": "Morrowind Redguard Male", "race": "redguard", "gender": "male", "sample_path": "Sound/Vo/r/m/Hlo_RM137.mp3", "reference_text": "Stay as long as you like. It would be a privilege to talk with you."},
+    {"key": "redguard:female", "voice_id": "mw_redguard_female", "display_name": "Morrowind Redguard Female", "race": "redguard", "gender": "female", "sample_path": "Sound/Vo/r/f/Hlo_RF121.mp3", "reference_text": "Greetings! It's not often I find such good company. Please, speak, Khajiit."},
+    {"key": "wood elf:male", "voice_id": "mw_wood_elf_male", "display_name": "Morrowind Wood Elf Male", "race": "wood elf", "gender": "male", "sample_path": "Sound/Vo/w/m/Hlo_WM085.mp3", "reference_text": "Hello. I don't know if I can help you, but I'll try."},
+    {"key": "wood elf:female", "voice_id": "mw_wood_elf_female", "display_name": "Morrowind Wood Elf Female", "race": "wood elf", "gender": "female", "sample_path": "Sound/Vo/w/f/Hlo_WF092.mp3", "reference_text": "I've rarely seen one as lovely as you. Please, ask your question."},
+    {"key": "special:ordinator", "voice_id": "mw_ordinator_male", "display_name": "Morrowind Ordinator Male", "race": "dark elf", "gender": "male", "record_id_contains": "ordinator", "sample_path": "Sound/Vo/ord/Hlo_ORM020.mp3", "reference_text": "Welcome, citizen. How may I be of assistance?"}
+  ]
+}

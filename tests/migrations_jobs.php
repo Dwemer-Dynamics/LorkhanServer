@@ -12,9 +12,13 @@ use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\ManagementRouter;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
+use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
 use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\DescriptionCatalogImporter;
+use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
+use ALMSIVIserver\Infrastructure\ManagementUiRepository;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
@@ -45,9 +49,53 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$canonicalTurnColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+    . "AND table_name='turns' AND column_name IN ('runtime_generation','response_id','response_payload','response_created_at') ORDER BY column_name")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+    . "AND table_name='dialogue_utterances' AND column_name IN ('response_line_id','utterance_id','runtime_generation') ORDER BY column_name")
+    ->fetchAll(PDO::FETCH_COLUMN);
+$check($canonicalTurnColumns===['response_created_at','response_id','response_payload','runtime_generation']
+    &&$canonicalDialogueColumns===['response_line_id','runtime_generation','utterance_id'],
+    'canonical response projection columns are incomplete');
+$eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
+$check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
+    'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
+$check($db->query("SELECT to_regclass('public.schema_migrations') IS NULL")->fetchColumn()===true,
+    'migration authority leaked into the Herika public schema');
+$retiredRelations=[
+    'almsivi_internal.autonomy_schedules','public.bgl_history','public.core_faction_politics_development',
+    'public.core_faction_politics_relation','public.core_faction_politics_state','public.core_itt_connector',
+    'public.master_packages','public.npc_commitments','public.quest_asset_group_members','public.quest_asset_groups',
+    'public.quest_asset_imports','public.quest_asset_packs','public.quest_assets','public.quest_item_types',
+    'public.quest_npc_own_templates','public.quest_npc_templates','public.quest_outfits','public.quest_weapons',
+    'public.skyrim_quest_action_outbox','public.skyrim_quest_beat_state','public.skyrim_quest_definitions',
+    'public.skyrim_quest_events','public.skyrim_quest_instances','public.sneq_quests','public.sneq_quests_saved',
+    'public.visual_context',
+];
+foreach($retiredRelations as $retiredRelation){
+    $check($db->query('SELECT to_regclass('.$db->quote($retiredRelation).') IS NULL')->fetchColumn()===true,
+        'retired beta relation remains: '.$retiredRelation);
+}
+$check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_schema='public' AND table_name='core_profiles' AND column_name='itt_connector_id'")->fetchColumn()===0,
+    'retired ITT profile column remains');
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
+$firstMigrationUp = glob(dirname(__DIR__) . '/database/migrations/001_*.up.sql')[0]
+    ?? throw new RuntimeException('first source migration missing');
+$firstMigrationDown = substr($firstMigrationUp, 0, -7) . '.down.sql';
+$toCrlf = static fn(string $sql): string => str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $sql));
+$legacyCrlfChecksum = hash(
+    'sha256',
+    "up\0" . $toCrlf((string) file_get_contents($firstMigrationUp))
+        . "\0down\0" . $toCrlf((string) file_get_contents($firstMigrationDown)),
+);
+$check(!hash_equals($status[0]['checksum'], $legacyCrlfChecksum), 'line-ending compatibility fixture is not distinct');
+$setMigrationChecksum = $db->prepare('UPDATE almsivi_internal.schema_migrations SET checksum = :checksum WHERE version = 1');
+$setMigrationChecksum->execute(['checksum' => $legacyCrlfChecksum]);
+$check(count($runner->status()) === count($expectedVersions), 'historical CRLF migration checksum was rejected');
+$setMigrationChecksum->execute(['checksum' => $status[0]['checksum']]);
 $check($runner->down(1) === [$latestVersion], 'down did not revert latest migration');
 $check($runner->up() === [$latestVersion], 'up did not restore reverted migration');
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
@@ -64,6 +112,26 @@ $check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply 
 $check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
+$journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
+$journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','journal projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$journalTurn,'request'=>$journalRequest,'message'=>$journalMessage,'session'=>$legacySession,'context'=>$journalContext]);
+$journalProjection=$db->prepare('SELECT count(*) FROM almsivi_internal.questlog_metadata metadata JOIN public.questlog projected ON projected.rowid=metadata.rowid WHERE metadata.source_turn_id=:turn AND metadata.journal_id=:journal');
+$journalProjection->execute(['turn'=>$journalTurn,'journal'=>'A1_1_FindSpymaster']);
+$check((int)$journalProjection->fetchColumn()===1,'journal-bearing turn did not project into the Herika questlog contract');
+$identityTurn=Uuid::v4();$identityRequest=Uuid::v4();$identityMessage=Uuid::v4();
+$identityContext=json_encode(['contentFiles'=>['items'=>['morrowind.esm','custom-items.omwaddon']],
+    'inventory'=>['items'=>[['record_id'=>'iron_dagger','content_file'=>'custom-items.omwaddon',
+        'reference_content_file'=>'morrowind.esm','display_name'=>'Renamed Blade','kind'=>'item','count'=>1]]]],JSON_THROW_ON_ERROR);
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','record identity projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:02Z')")
+    ->execute(['turn'=>$identityTurn,'request'=>$identityRequest,'message'=>$identityMessage,'session'=>$legacySession,'context'=>$identityContext]);
+$manifest=$db->query("SELECT content_file,load_order FROM content_manifest_files WHERE installation_id='{$legacyInstallation}' AND active ORDER BY load_order")->fetchAll();
+$check(array_column($manifest,'content_file')===['morrowind.esm','custom-items.omwaddon']
+    &&array_map('intval',array_column($manifest,'load_order'))===[0,1],'OpenMW content manifest did not preserve canonical load order');
+$discovered=$db->query("SELECT content_file,record_id,display_name,reference_content_file FROM discovered_items WHERE installation_id='{$legacyInstallation}'")->fetch();
+$check($discovered&&$discovered['content_file']==='custom-items.omwaddon'&&$discovered['record_id']==='iron_dagger'
+    &&$discovered['display_name']==='Renamed Blade'&&$discovered['reference_content_file']==='morrowind.esm',
+    'canonical custom item identity was not discovered independently of its display name or live reference source');
 $check($runner->down(count($downVersions)) === $downVersions, 'product migration down failed after upgrade');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}'")->fetchColumn()===1, '005 down deleted backfilled profile');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}'")->fetchColumn()===1, '005 down deleted backfilled playthrough');
@@ -77,8 +145,9 @@ $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,genera
     ->execute(['turn'=>$migrationTurn,'request'=>$migrationRequest,'message'=>$migrationMessage,'session'=>$legacySession]);
 $dialogueIds=[];$mediaIds=[];
 for($i=1;$i<=3;++$i){$dialogueIds[$i]=Uuid::v4();$mediaIds[$i]=Uuid::v4();
-    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
-        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,'idx'=>$i,'text'=>'utterance '.$i]);
+    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,:idx,3,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+        ->execute(['dialogue'=>$dialogueIds[$i],'session'=>$legacySession,'turn'=>$migrationTurn,'request'=>$migrationRequest,
+            'idx'=>$i,'line'=>$dialogueIds[$i],'utterance'=>Uuid::v4(),'text'=>'utterance '.$i]);
     $db->prepare("INSERT INTO media_objects(media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES(:media,:installation,:session,:turn,1,:sha,44,'wav','audio/wav',1,'2026-01-01T00:05:00Z',:dialogue)")
         ->execute(['media'=>$mediaIds[$i],'installation'=>$legacyInstallation,'session'=>$legacySession,'turn'=>$migrationTurn,'sha'=>hash('sha256','media-'.$i),'dialogue'=>$dialogueIds[$i]]);}
 $deliverySource=Uuid::v4();$deliveryMessage=Uuid::v4();
@@ -99,7 +168,8 @@ $db->exec('ALTER TABLE dialogue_delivery_results DISABLE TRIGGER ALL');
 $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','legacy','2025-01-01T00:00:01Z')")
     ->execute(['dialogue'=>$legacyDialogue,'source'=>$legacySource,'message'=>$legacyDeliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
 $db->exec('ALTER TABLE dialogue_delivery_results ENABLE TRIGGER ALL');
-$check($runner->down(2)===[$latestVersion,8],'populated 008 down failed');
+$downThroughEight=range($latestVersion,8);
+$check($runner->down(count($downThroughEight))===$downThroughEight,'populated 008 down failed');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===1,'008 down did not expose one 007 media row');
 $check((int)$db->query("SELECT count(*) FROM migration_008_media_archive WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 down lost multi-utterance media archive');
 $check($db->query("SELECT state FROM stt_requests WHERE message_id='{$sttMessage}'")->fetchColumn()==='accepted','processing STT was not safely downgraded');
@@ -108,7 +178,7 @@ $check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dia
 try{$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','invalid','2026-01-01T00:00:01Z')")
     ->execute(['dialogue'=>Uuid::v4(),'source'=>Uuid::v4(),'message'=>Uuid::v4(),'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);throw new RuntimeException('new orphan dialogue delivery accepted');}
 catch(PDOException $error){$check($error->getCode()==='23503','unexpected legacy delivery FK error');}
-$check($runner->up()===[8,$latestVersion],'populated 008 reapply failed');
+$check($runner->up()===range(8,$latestVersion),'populated 008 reapply failed');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}'")->fetchColumn()===3,'008 reapply did not restore multi-utterance media');
 $check((int)$db->query("SELECT count(*) FROM media_objects WHERE turn_id='{$migrationTurn}' AND dialogue_message_id IS NOT NULL")->fetchColumn()===3,'008 reapply lost media dialogue links');
 $restoredStt=$db->query("SELECT state,storage_media_id,semantic_hash FROM stt_requests WHERE message_id='{$sttMessage}'")->fetch();
@@ -145,8 +215,145 @@ $db->prepare('INSERT INTO installations (installation_id,token_fingerprint) VALU
 $products = new ProductRepository($db);
 $clock = new DeterministicClock(new DateTimeImmutable('2026-01-01T00:00:00Z'));
 $service = new ProductService($products, $clock);
+$check($products->profileAutoLockEnabled($installation),'profile auto-lock did not default on');
+$products->setProfileAutoLock($installation,false,$clock->iso());$check(!$products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist off');
+$products->setProfileAutoLock($installation,true,$clock->iso());$check($products->profileAutoLockEnabled($installation),'profile auto-lock preference did not persist on');
 $profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['record_id'=>'player'],
     'content'=>['role'=>'player'],'change_reason'=>'created']);
+$description=$service->saveItemDescription(['installation_id'=>$installation,'content_file'=>'Morrowind.esm','record_id'=>'iron_dagger','display_name'=>'Iron Dagger','description'=>'A serviceable iron blade.']);
+$descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>[
+    'contentFiles'=>['items'=>['morrowind.esm']],
+    'inventory'=>['items'=>[['record_id'=>'iron_dagger','content_file'=>'morrowind.esm','count'=>1]]]
+]]];
+$descriptionContext=$products->itemDescriptionsForTurn($descriptionTurn);
+$check(count($descriptionContext)===1&&$descriptionContext[0]['description']==='A serviceable iron blade.','turn context resolves an unambiguous managed record description');
+$service->deleteItemDescription($description['description_id'],$installation);
+$check($products->itemDescriptionsForTurn($descriptionTurn)===[],'deleted record descriptions are excluded from prompts');
+$db->exec("INSERT INTO descriptions(plugin,baseid,name,description) VALUES('Morrowind.esm','iron_dagger','Iron Dagger','A factory iron blade.'),('Tribunal.esm','temple_book','Temple Book','A factory temple volume.')");
+$imported=$service->importItemDescriptions($installation,[
+    ['plugin'=>'Morrowind.esm','baseid'=>'iron_dagger','name'=>'Iron Dagger','description'=>'A custom iron blade.'],
+    ['plugin'=>'Custom.esp','baseid'=>'custom_item','name'=>'Custom Item','description'=>'A custom mod item.'],
+]);
+$check(count($imported)===2&&count($products->customItemDescriptions($installation))===2,'bounded description batch import failed');
+$uiDescriptions=new ManagementUiRepository($db);$descriptionPage=$uiDescriptions->descriptionCatalog($installation,['source'=>'all']);
+$sources=[];foreach($descriptionPage['items']as$row)$sources[strtolower($row['content_file']).'|'.strtolower($row['record_id'])]=$row['source'];
+$check(($sources['morrowind.esm|iron_dagger']??null)==='custom'&&($sources['tribunal.esm|temple_book']??null)==='default'
+    &&($sources['custom.esp|custom_item']??null)==='custom','effective description catalog precedence failed');
+$db->exec("INSERT INTO descriptions(plugin,baseid,name,description) SELECT 'Morrowind.esm','bulk_'||value,'Bulk Item '||lpad(value::text,3,'0'),'A bounded catalog test description.' FROM generate_series(1,120) value");
+$secondDescriptionPage=$uiDescriptions->descriptionCatalog($installation,['search'=>'Bulk Item','page'=>2]);
+$check($secondDescriptionPage['total']===120&&$secondDescriptionPage['pages']===3&&$secondDescriptionPage['page']===2
+    &&count($secondDescriptionPage['items'])===50,'description catalog server-side pagination failed');
+$catalogFixtureRoot=sys_get_temp_dir().'/almsivi-description-catalog-'.bin2hex(random_bytes(6));
+if(!mkdir($catalogFixtureRoot,0700,true)&&!is_dir($catalogFixtureRoot))throw new RuntimeException('description catalog fixture directory failed');
+$writeCatalogFixture=static function(string$version,array$rows)use($catalogFixtureRoot):array{
+    $csvPath=$catalogFixtureRoot.'/'.$version.'.csv';$manifestPath=$catalogFixtureRoot.'/'.$version.'.json';
+    $csv=fopen($csvPath,'wb');if($csv===false)throw new RuntimeException('description catalog fixture CSV failed');
+    fwrite($csv,"\xEF\xBB\xBF");fputcsv($csv,['plugin','baseid','name','description'],',','"','');
+    foreach($rows as$row)fputcsv($csv,$row,',','"','');fclose($csv);
+    $items=array_map(static fn(array$row):array=>['content_file'=>$row[0],'record_id'=>$row[1],'status'=>'complete','error'=>null],$rows);
+    $manifest=['format'=>'almsivi.morrowind-item-description-preflight.v1','model'=>'fixture/model',
+        'prompt_sha256'=>hash('sha256','fixture prompt'),'official_content_sha256'=>[
+            'Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],
+        'selected_count'=>count($rows),'completed_count'=>count($rows),'pending_count'=>0,'items'=>$items];
+    file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+    return[$csvPath,$manifestPath];
+};
+$factoryV1Rows=[
+    ['Morrowind.esm','iron_dagger','Iron Dagger','A narrow iron blade meets a plain leather grip beneath a small, undecorated crossguard.'],
+    ['Bloodmoon.esm','nordic_axe','Nordic Axe','A broad steel axe head rests on a sturdy wooden haft wrapped with dark hide.'],
+];
+[$factoryV1Csv,$factoryV1Manifest]=$writeCatalogFixture('fixture-v1',$factoryV1Rows);
+$catalogImporter=new DescriptionCatalogImporter($db);$factoryPlan=$catalogImporter->plan($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryPlan['valid']===true&&$factoryPlan['row_count']===2&&$factoryPlan['duplicate_count']===0,
+    'factory description catalog dry-run failed');
+$factoryApplied=$catalogImporter->apply($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryApplied['applied']===true&&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2,
+    'factory description catalog apply did not replace official defaults atomically');
+$factoryIdempotent=$catalogImporter->apply($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryIdempotent['applied']===false&&$factoryIdempotent['idempotent']===true
+    &&(int)$db->query("SELECT count(*) FROM description_catalogs WHERE catalog_version='fixture-v1'")->fetchColumn()===1,
+    'factory description catalog repeat apply was not idempotent');
+$factoryV1Crlf=$catalogFixtureRoot.'/fixture-v1-crlf.csv';
+file_put_contents($factoryV1Crlf,str_replace("\n","\r\n",(string)file_get_contents($factoryV1Csv)));
+$factoryCrlfProvision=$catalogImporter->provision($factoryV1Crlf,$factoryV1Manifest,'fixture-v1');
+$check($factoryCrlfProvision['applied']===false&&$factoryCrlfProvision['idempotent']===true,
+    'factory description catalog checksum changed across LF and CRLF line endings');
+$effectiveAfterFactory=$uiDescriptions->descriptionCatalog($installation,['search'=>'Iron Dagger']);
+$check(count($effectiveAfterFactory['items'])===1&&$effectiveAfterFactory['items'][0]['source']==='custom'
+    &&$effectiveAfterFactory['items'][0]['description']==='A custom iron blade.',
+    'installation custom description did not override the active factory catalog');
+$factoryV2Rows=[
+    ['Tribunal.esm','temple_book','Temple Book','A slim parchment volume bears a simple cloth cover reinforced by neat stitching along its spine.'],
+];
+[$factoryV2Csv,$factoryV2Manifest]=$writeCatalogFixture('fixture-v2',$factoryV2Rows);
+$catalogImporter->apply($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$factoryRollback=$catalogImporter->rollback();
+$check($factoryRollback['rolled_back']===true&&$factoryRollback['catalog_version']==='fixture-v1'
+    &&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2
+    &&$db->query("SELECT description FROM descriptions WHERE plugin='Bloodmoon.esm' AND baseid='nordic_axe'")->fetchColumn()===$factoryV1Rows[1][3],
+    'factory description catalog rollback did not restore the prior catalog');
+$factoryProvisionAfterRollback=$catalogImporter->provision($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$check($factoryProvisionAfterRollback['applied']===false&&$factoryProvisionAfterRollback['idempotent']===true
+    &&$factoryProvisionAfterRollback['state']==='superseded'
+    &&$db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v1',
+    'routine factory provisioning overrode an explicit catalog rollback');
+$factoryReactivated=$catalogImporter->apply($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$check($factoryReactivated['applied']===true&&$factoryReactivated['reactivated']===true
+    &&$db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v2',
+    'explicit factory catalog apply did not reactivate a reviewed prior version');
+$catalogImporter->rollback('fixture-v1');
+$duplicateRows=[$factoryV1Rows[0],['morrowind.esm','IRON_DAGGER','Iron Dagger Copy','A narrow iron blade carries a plain hide grip and a small crossguard without any ornament.']];
+[$duplicateCsv,$duplicateManifest]=$writeCatalogFixture('fixture-duplicate',$duplicateRows);
+$duplicatePlan=$catalogImporter->plan($duplicateCsv,$duplicateManifest,'fixture-duplicate');
+$check($duplicatePlan['valid']===false&&$duplicatePlan['duplicate_count']===1&&$duplicatePlan['invalid_count']>0,
+    'factory description catalog duplicate identity was not quarantined');
+try{$catalogImporter->apply($duplicateCsv,$duplicateManifest,'fixture-duplicate');throw new RuntimeException('invalid factory catalog applied');}
+catch(InvalidArgumentException$error){$check(str_starts_with($error->getMessage(),'invalid_catalog_package:'),'unexpected invalid factory catalog error');}
+$check($db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v1'
+    &&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2,
+    'invalid factory catalog changed the active projection');
+foreach(glob($catalogFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($catalogFixtureRoot);
+$biographyFixtureRoot=sys_get_temp_dir().'/almsivi-biography-catalog-'.bin2hex(random_bytes(6));
+if(!mkdir($biographyFixtureRoot,0700,true)&&!is_dir($biographyFixtureRoot))throw new RuntimeException('biography catalog fixture directory failed');
+$writeBiographyFixture=static function(string$version,array$rows)use($biographyFixtureRoot):array{
+    $biographiesPath=$biographyFixtureRoot.'/'.$version.'.json';$manifestPath=$biographyFixtureRoot.'/'.$version.'-manifest.json';
+    file_put_contents($biographiesPath,json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+    $items=array_map(static fn(array$row):array=>['record_id'=>$row['refid'],'display_name'=>ucwords(str_replace('_',' ',$row['npc_name'])),
+        'content_file'=>'Morrowind.esm','generation_status'=>'complete'],$rows);
+    $manifest=['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>count($rows),'completed_count'=>count($rows),
+        'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture biography builder'),
+        'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],'items'=>$items];
+    file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));return[$biographiesPath,$manifestPath];
+};
+$biographyRow=static fn(string$name,string$record,string$bio):array=>['npc_name'=>$name,'oghma_knowledge_tags'=>'',
+    'core'=>ucwords(str_replace('_',' ',$name)).' is a resident of Vvardenfell with a clearly defined local role.',
+    'npc_static_bio'=>$bio,'appearance'=>'A practical traveler with weathered clothing and an attentive bearing.',
+    'personality'=>'Patient, observant, and direct when speaking with unfamiliar travelers.','relationships'=>'{}',
+    'occupation'=>'A local resident who performs useful work for the surrounding settlement.',
+    'skills'=>'* Navigating nearby roads\n* Recognizing local dangers\n* Speaking with visiting travelers',
+    'speechstyle'=>'Speaks in concise, practical phrases with a measured and cautious tone.',
+    'goals'=>'* Remain safe\n* Complete daily work\n* Protect the local community','voiceid'=>null,'gender'=>'male','race'=>'Dark Elf','refid'=>$record];
+$biographyV1Rows=[$biographyRow('fixture_dunmer','fixture_dunmer','The fixture Dunmer lives near Balmora and knows the roads leading through the surrounding hills.')];
+[$biographyV1Json,$biographyV1Manifest]=$writeBiographyFixture('biography-v1',$biographyV1Rows);
+$biographyImporter=new BiographyCatalogImporter($db);$biographyPlan=$biographyImporter->plan($biographyV1Json,$biographyV1Manifest,'biography-v1');
+$check($biographyPlan['valid']===true&&$biographyPlan['row_count']===1,'factory biography catalog dry-run failed');
+$biographyApplied=$biographyImporter->apply($biographyV1Json,$biographyV1Manifest,'biography-v1');
+$check($biographyApplied['applied']===true&&$db->query("SELECT npc_static_bio FROM bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()===$biographyV1Rows[0]['npc_static_bio'],
+    'factory biography catalog did not project into the CHIM table');
+$db->exec("INSERT INTO bio_templates_custom(npc_name,core,npc_static_bio,relationships,refid) VALUES('fixture_dunmer','Custom core','Custom biography','{}','fixture_dunmer')");
+$check($db->query("SELECT npc_static_bio FROM combined_bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()==='Custom biography',
+    'custom CHIM biography did not override the active factory catalog');
+$biographyV2Rows=[$biographyRow('fixture_argonian','fixture_argonian','The fixture Argonian works beside the river and watches for travelers approaching the nearby crossing.')];
+[$biographyV2Json,$biographyV2Manifest]=$writeBiographyFixture('biography-v2',$biographyV2Rows);$biographyImporter->apply($biographyV2Json,$biographyV2Manifest,'biography-v2');
+$biographyRollback=$biographyImporter->rollback();
+$check($biographyRollback['rolled_back']===true&&$biographyRollback['catalog_version']==='biography-v1'
+    &&(int)$db->query("SELECT count(*) FROM bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()===1,
+    'factory biography catalog rollback did not restore the prior CHIM projection');
+$biographyProvisionAfterRollback=$biographyImporter->provision($biographyV2Json,$biographyV2Manifest,'biography-v2');
+$check($biographyProvisionAfterRollback['applied']===false&&$biographyProvisionAfterRollback['state']==='superseded',
+    'routine biography provisioning overrode an explicit rollback');
+foreach(glob($biographyFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($biographyFixtureRoot);
+$check($service->resetItemDescriptions($installation)===2&&$products->customItemDescriptions($installation)===[],'description override reset failed');
 $check($profile['current_revision'] === 1, 'profile creation failed');
 $profileRevised = $service->revise('profile', $profile['profile_id'], ['role'=>'hero'], 'refined');
 $check($profileRevised['current_revision'] === 2 && $profileRevised['content']['role'] === 'hero', 'profile revision failed');
@@ -157,24 +364,88 @@ $playthrough = $service->createRevisioned('playthrough', ['installation_id'=>$in
 $providerConfig = $service->createRevisioned('provider', ['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
     'name'=>'Local mock','content'=>['driver'=>'mock','model'=>'deterministic-mock-v1'],'change_reason'=>'created']);
 $check($providerConfig['content']['driver'] === 'mock', 'mock provider config failed');
+$providerProjection=$db->prepare('SELECT count(*) FROM llm_connector_metadata metadata JOIN public.core_llm_connector connector ON connector.id=metadata.connector_id WHERE metadata.configuration_id=:configuration');
+$providerProjection->execute(['configuration'=>$providerConfig['configuration_id']]);
+$check((int)$providerProjection->fetchColumn()===1,'provider did not project into the Herika connector contract');
+$actionPolicy=$service->createRevisioned('action_policy',['installation_id'=>$installation,'name'=>'Safe actions',
+    'content'=>['enabled'=>true,'max_tier'=>1,'denied_actions'=>['item.give']]]);
+$check($actionPolicy['content']['max_tier']===1,'bounded action policy config failed');
+try{$service->revise('action_policy',$actionPolicy['configuration_id'],['enabled'=>'yes'],'unsafe edit');throw new RuntimeException('invalid action policy accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_action_policy','unexpected action policy boundary error');}
+$ttsConfig=$service->createRevisioned('tts_provider',['installation_id'=>$installation,'name'=>'Local OmniVoice',
+    'content'=>['driver'=>'omnivoice','endpoint'=>'http://127.0.0.1:8021','model'=>'k2-fsa/OmniVoice',
+        'voice'=>'test-voice','language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$service->selectConnector(['installation_id'=>$installation,'kind'=>'tts_provider','configuration_id'=>$ttsConfig['configuration_id']]);
+$check(count($products->listRevisioned('provider',$installation))===1
+    &&$products->connectorForInstallation($installation,'tts_provider')['configuration_id']===$ttsConfig['configuration_id']
+    &&count($products->connectorSelections($installation))===1,'TTS connector preset was not isolated and selectable');
+$sttConfig=$service->createRevisioned('stt_provider',['installation_id'=>$installation,'name'=>'Local Parakeet','content'=>[
+    'driver'=>'parakeet','endpoint'=>'http://127.0.0.1:8022','model'=>'parakeet-tdt-0.6b-v3','voice'=>'',
+    'language'=>'en','timeout_ms'=>30000,'options'=>[]]]);
+$service->selectConnector(['installation_id'=>$installation,'kind'=>'stt_provider','configuration_id'=>$sttConfig['configuration_id']]);
+$check($products->connectorForInstallation($installation,'stt_provider')['configuration_id']===$sttConfig['configuration_id'],
+    'installation-global STT connector was not writable and selectable');
+$guardedProvider=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Profile-bound model slot',
+    'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']]);
+$guardedProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Profile-bound NPC',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'bound_npc','content_file'=>'Morrowind.esm'],
+    'content'=>['routing'=>['llm_configuration_id'=>$guardedProvider['configuration_id']]]]);
+try{$service->deleteRevisioned('provider',$guardedProvider['configuration_id']);throw new RuntimeException('profile-bound model slot deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected model-slot deletion error');}
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>[]],'remove model-slot assignment');
+$service->deleteRevisioned('provider',$guardedProvider['configuration_id']);
+$guardedPrompt=$service->createRevisioned('prompt',['installation_id'=>$installation,'name'=>'Profile-bound prompt','content'=>['instruction'=>'Use the explicitly selected prompt.']]);
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>['prompt_configuration_id'=>$guardedPrompt['configuration_id']]],'assign prompt');
+try{$service->deleteRevisioned('prompt',$guardedPrompt['configuration_id']);throw new RuntimeException('profile-bound prompt deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='prompt_in_use','unexpected prompt deletion error');}
+$service->revise('profile',$guardedProfile['profile_id'],['routing'=>[]],'remove prompt assignment');
+$service->deleteRevisioned('prompt',$guardedPrompt['configuration_id']);$service->deleteRevisioned('profile',$guardedProfile['profile_id']);
 try {$service->createRevisioned('provider', ['installation_id'=>$installation,'name'=>'unsafe','content'=>['driver'=>'remote','api_key'=>'secret']]); throw new RuntimeException('provider secret accepted');}
-catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','only_mock_provider_supported'], true), 'unexpected provider boundary error');}
+catch (InvalidArgumentException $error) {$check(in_array($error->getMessage(), ['secret_not_accepted','invalid_provider_driver'], true), 'unexpected provider boundary error');}
 $scope=['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
+$selectedPrompt=$service->createRevisioned('prompt',['installation_id'=>$installation,'name'=>'Explicit selected prompt','content'=>['instruction'=>'This exact prompt must win.']]);
+$promptProjection=$db->prepare('SELECT count(*) FROM prompt_metadata metadata JOIN public.prompts prompt ON prompt.prompt_key=metadata.prompt_key WHERE metadata.source_configuration_id=:configuration');
+$promptProjection->execute(['configuration'=>$selectedPrompt['configuration_id']]);
+$check((int)$promptProjection->fetchColumn()===1,'prompt did not project into the Herika prompt contract');
+$service->revise('profile',$profile['profile_id'],['role'=>'player','routing'=>['prompt_configuration_id'=>$selectedPrompt['configuration_id']]],'select explicit prompt');
+$promptContext=$products->promptContext($scope+['session_id'=>'20000000-0000-4000-8000-000000000099','payload'=>['target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]],$clock->iso());
+$check($promptContext['prompt']['configuration_id']===$selectedPrompt['configuration_id']&&$promptContext['prompt']['content']['instruction']==='This exact prompt must win.','profile-selected prompt was not used');
+$service->revise('profile',$profile['profile_id'],['role'=>'player'],'remove explicit prompt');$service->deleteRevisioned('prompt',$selectedPrompt['configuration_id']);
 $memory=$service->createMemory($scope+['tier'=>'recent','content'=>'Nalcarya sells alchemy supplies in Balmora.',
     'provenance'=>['source'=>'authored-test']]);
 $search=$service->searchMemory($scope,'alchemy Balmora');
 $check($search['results'][0]['id'] === $memory['memory_id'] && $search['results'][0]['score'] > 0, 'deterministic memory retrieval failed');
 $products->updateMemory($memory['memory_id'],'Nalcarya sells potions.', ['nalcarya','potions'], [0,0,0,0,0,0,0,0], $clock->iso());
 $check($products->rebuildMemories($scope,$clock->iso()) === 1, 'memory rebuild failed');
+$memoryRevision=$db->query("SELECT current_revision FROM memory_records WHERE memory_id='{$memory['memory_id']}'")->fetchColumn();
+$memoryRevisionCount=$db->query("SELECT count(*) FROM memory_record_revisions WHERE memory_id='{$memory['memory_id']}'")->fetchColumn();
+$check((int)$memoryRevision===2&&(int)$memoryRevisionCount===2,'memory edit did not preserve an auditable revision history');
+$memoryProjection=$db->prepare('SELECT memory.message FROM memory_metadata metadata JOIN public.memory memory ON memory.rowid=metadata.rowid WHERE metadata.memory_id=:memory');
+$memoryProjection->execute(['memory'=>$memory['memory_id']]);
+$check($memoryProjection->fetchColumn()==='Nalcarya sells potions.','memory did not project into the Herika memory contract');
 $knowledge=$service->ingestKnowledge($scope+['title'=>'Balmora services','content'=>'Nalcarya operates an alchemy shop.',
     'provenance'=>['source'=>'authored-test']]);
 $knowledgeSearch=$service->searchKnowledge($scope,'alchemy shop');
 $check($knowledgeSearch['results'][0]['id'] === $knowledge['document_id'], 'knowledge retrieval failed');
-$relationship=$service->setRelationship($scope+['actor_identity'=>['record_id'=>'nalcarya'],'disposition'=>20,'affinity'=>5,
+$knowledgeProjection=$db->prepare('SELECT oghma.topic_desc FROM oghma_metadata metadata JOIN public.oghma oghma ON oghma.topic=metadata.topic WHERE metadata.document_id=:document');
+$knowledgeProjection->execute(['document'=>$knowledge['document_id']]);
+$check($knowledgeProjection->fetchColumn()==='Nalcarya operates an alchemy shop.','knowledge did not project into the Herika Oghma contract');
+$npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
+    'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
+$npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
+$relationship=$service->setRelationship($npcScope+['actor_identity'=>['record_id'=>'player','display_name'=>'Nerevarine'],'disposition'=>20,'affinity'=>5,
     'source_mode'=>'manual','reason'=>'test']);
-$check($relationship['disposition'] === 20 && count($products->relationships($scope)) === 1, 'relationship audit foundation failed');
-$service->createNarrative($scope+['kind'=>'diary','title'=>'Arrival','content'=>'I reached Balmora.',
+$check($relationship['disposition'] === 20 && count($products->relationships($npcScope)) === 1, 'relationship audit foundation failed');
+$relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
+$relationshipProjection->execute(['profile'=>$npcProfile['profile_id']]);
+$check($relationshipProjection->fetchColumn()==='20','relationship did not project into the Herika NPC contract');
+$service->deleteRevisioned('profile',$npcProfile['profile_id']);
+$narrative=$service->createNarrative($scope+['kind'=>'diary','title'=>'Arrival','content'=>'I reached Balmora.',
     'provenance'=>['source'=>'authored-test']]);
+$narrativeProjection=$db->prepare('SELECT diary.content FROM diarylog_metadata metadata JOIN public.diarylog diary ON diary.rowid=metadata.rowid WHERE metadata.narrative_id=:narrative');
+$narrativeProjection->execute(['narrative'=>$narrative['narrative_id']]);
+$check($narrativeProjection->fetchColumn()==='I reached Balmora.','narrative did not project into the Herika diary contract');
 $export=$service->exportPlaythrough($scope);
 $check($export['schema'] === 'almsivi.playthrough-export.v1' && count($export['data']['narratives']) === 1, 'playthrough export failed');
 $management=new ManagementRepository($db);
@@ -186,17 +457,48 @@ $check(is_string($rotation['mac_key']??null)&&$rotation['overlap_seconds']===60,
 $management->revokePairingToken($rotation['pairing_token_id']);
 $check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
 $check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
-$managementRouter=new ManagementRouter($management,$products,$service,hash('sha256','manage-secret'));
-$login=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/login'));
-$check($login->status===200 && str_contains($login->body,'<label for="setup_secret">'), 'accessible login page missing label');
+$eventLogs=new EventLogRepository($db);
+$baseEventRow=(int)$db->query('SELECT COALESCE(max(rowid),0) FROM eventlog')->fetchColumn();
+$insertEvent=$db->prepare("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death',:data,NULL,:gamets,:localts,:ts,'|Player|') RETURNING rowid");
+$insertMetadata=$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,'cursor_test',:key,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)");
+for($index=1;$index<=12;$index++){$insertEvent->execute(['data'=>'cursor event '.$index,'gamets'=>$index,'localts'=>1_700_000_000+$index,'ts'=>1_700_000_000_000+$index]);$rowid=(int)$insertEvent->fetchColumn();$insertMetadata->execute(['rowid'=>$rowid,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],'profile'=>$profile['profile_id'],'key'=>'cursor-test:'.$index]);}
+$firstCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$baseEventRow,'limit'=>10]);
+$firstCursorIds=array_column($firstCursorPage['data'],'rowid');$nextCursor=max($firstCursorIds);
+$secondCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$nextCursor,'limit'=>10]);
+$check(count($firstCursorIds)===10&&$nextCursor===$baseEventRow+10&&count($secondCursorPage['data'])===2,
+    'eventlog live cursor skipped or duplicated a burst window');
+$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs);
 $denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
-$signed=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/login',['Content-Type'=>'application/x-www-form-urlencoded'],[], 'setup_secret=manage-secret'));
-$setCookies=$signed->headers['Set-Cookie']??[];$setCookies=is_array($setCookies)?$setCookies:[$setCookies];$csrf=$signed->headers['X-CSRF-Token']??'';
-$cookie=implode('; ',array_map(static fn(string $value):string=>explode(';',$value,2)[0],$setCookies));$cookieHeaders=implode(' ',$setCookies);
-$check($signed->status===303 && str_contains($cookieHeaders,'HttpOnly') && str_contains($cookieHeaders,'SameSite=Strict') && $csrf!=='', 'management login cookie failed');
+$signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
+$check($signed->status===303 && ($signed->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
+$csrf=$browser['csrf'];$cookie='almsivi_management='.$browser['session'].'; almsivi_csrf='.$csrf;
+$descriptionCsv=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
+$check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin,baseid,name,description')
+    &&($descriptionCsv->headers['Content-Type']??'')==='text/csv; charset=utf-8','description example CSV export failed');
+$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
+$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+    'description reset did not reject missing CSRF');
+$home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
+$check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
+$eventlogResponse=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
+$eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
+$check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');
+$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogFilterDenied->status===401,'eventlog filter mutation accepted missing CSRF');
+$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogFilterAccepted->status===200,'eventlog filter mutation rejected valid browser CSRF');
+$eventLogs->suppress(['mode'=>'latest','count'=>5,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']]);
+$hiddenCursorSuppressions=(int)$db->query("SELECT count(*) FROM eventlog_metadata WHERE rowid>{$baseEventRow} AND projection_kind='cursor_test' AND suppressed_at IS NOT NULL")->fetchColumn();
+$check($hiddenCursorSuppressions===0,'delete latest suppressed a custom-hidden event type');
+$deleteRow=min($firstCursorIds);
+$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogDeleteDenied->status===401,'eventlog delete accepted missing CSRF');
+$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$check($eventlogDeleteAccepted->status===200&&json_decode($eventlogDeleteAccepted->body,true,8,JSON_THROW_ON_ERROR)['deleted_count']===1,
+    'eventlog row delete rejected valid browser CSRF or escaped its scope');
 $csrfDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfDenied->status===401, 'management write accepted missing CSRF');
 $csrfAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
@@ -254,21 +556,163 @@ $check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'
 
 $firstPartyMediaRoot=sys_get_temp_dir().'/almsivi-first-party-'.bin2hex(random_bytes(6));
 $firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
-$derivedMemoryId='30000000-0000-4000-8000-000000000001';$derivedPayload=$scope+['memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.'];
+$profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
+    ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore],3);
+$profileStats=(new Worker($jobs,$firstPartyRegistry,'profile-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$profileAfter=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$scope['profile_id']}'")->fetch();
+$check($profileStats['succeeded']===1&&(int)$profileAfter['current_revision']===$profileBefore+1&&str_contains((string)$profileAfter['content'],'Deterministic mock generation'), 'profile generation did not create a revision');
+$generatedContent=json_decode((string)$profileAfter['content'],true,64,JSON_THROW_ON_ERROR);
+$lockedProfile=$service->revise('profile',$scope['profile_id'],$generatedContent+['management'=>['locked'=>true,'favorite'=>true]],'lock generated profile');
+try{$products->enqueueProfileGeneration($scope['profile_id']);throw new RuntimeException('locked profile queued automatic generation');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_locked','unexpected locked profile queue error');}
+$lockedJob=Uuid::v4();$jobs->enqueue($lockedJob,'profile.generate',1,'profile.generate:locked-test',
+    ['profile_id'=>$scope['profile_id'],'base_revision'=>$lockedProfile['current_revision']],3);
+$lockedStats=(new Worker($jobs,$firstPartyRegistry,'profile-locked-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$lockedRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
+$check($lockedStats['succeeded']===1&&$lockedRevision===$lockedProfile['current_revision'],'locked profile generation changed the current revision');
+$playerProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Nerevarine',
+    'actor_identity'=>['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm','display_name'=>'Test Nerevarine'],
+    'content'=>['biography'=>'Arrived by prison ship.','speech_style'=>'Not analyzed.']]);
+$playerTurn=Uuid::v4();$playerRequest=Uuid::v4();$playerMessage=Uuid::v4();
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','Can you tell me where the nearest guild is?',CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:01Z')")
+    ->execute(['turn'=>$playerTurn,'request'=>$playerRequest,'message'=>$playerMessage,'session'=>$legacySession,'speaker'=>json_encode(['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm'],JSON_THROW_ON_ERROR)]);
+$queuedPlayerStyle=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id']);
+$playerStyleStats=(new Worker($jobs,$firstPartyRegistry,'player-speech-style-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$playerStyleRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$playerProfile['profile_id']}'")->fetch();
+$playerStyleContent=json_decode((string)$playerStyleRow['content'],true,64,JSON_THROW_ON_ERROR);
+$check(($queuedPlayerStyle['mode']??null)==='player_speech_style'&&$playerStyleStats['succeeded']===1
+    &&(int)$playerStyleRow['current_revision']===2&&str_contains((string)$playerStyleContent['speech_style'],'1 recent player input')
+    &&$playerStyleContent['biography']==='Arrived by prison ship.','player speech-style generation did not preserve non-style fields');
+$narratorProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Narrator',
+    'actor_identity'=>['kind'=>'narrator','record_id'=>'almsivi:narrator','content_file'=>'ALMSIVI','display_name'=>'Test Narrator'],
+    'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','biography'=>'Existing narrator background.',
+        'routing'=>['tts_configuration_id'=>Uuid::v4()],'voice'=>['id'=>'narrator-test','language'=>'en']]]);
+$queuedNarrator=$products->enqueueNarratorProfileGeneration($narratorProfile['profile_id']);
+$narratorStats=(new Worker($jobs,$firstPartyRegistry,'narrator-profile-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$narratorRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$narratorProfile['profile_id']}'")->fetch();
+$narratorContent=json_decode((string)$narratorRow['content'],true,64,JSON_THROW_ON_ERROR);
+$check(($queuedNarrator['mode']??null)==='narrator_profile'&&$narratorStats['succeeded']===1
+    &&(int)$narratorRow['current_revision']===2&&str_contains((string)$narratorContent['notes'],'mock narrator generation')
+    &&$narratorContent['enabled']===true&&$narratorContent['inline_narration_mode']==='Narrator'
+    &&($narratorContent['routing']['tts_configuration_id']??null)===($narratorProfile['content']['routing']['tts_configuration_id']??null)
+    &&($narratorContent['voice']['id']??null)==='narrator-test','narrator profile generation did not preserve routing fields');
+$switchTarget=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Alternate NPC profile',
+    'actor_identity'=>['kind'=>'npc','record_id'=>'alternate','content_file'=>'Morrowind.esm'],
+    'content'=>['biography'=>'Alternate profile','management'=>['locked'=>false,'favorite'=>false]]]);
+$switchActor=['kind'=>'npc','record_id'=>'nalcarya','content_file'=>'Morrowind.esm'];
+$products->bindActorProfile($scope,$switchActor,$scope['profile_id'],$clock->iso());
+$skippedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],false,$clock->iso());
+$check($skippedSwitch===['updated'=>0,'skipped_locked'=>1],'bulk profile switch did not respect the source lock');
+$appliedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],true,$clock->iso());
+$boundProfile=$db->query("SELECT profile_id FROM actor_profile_bindings WHERE installation_id='{$installation}' AND playthrough_id='{$playthrough['playthrough_id']}'")->fetchColumn();
+$check($appliedSwitch===['updated'=>1,'skipped_locked'=>0]&&$boundProfile===$switchTarget['profile_id'],'bulk profile switch did not move the actor binding');
+$batchGeneration=$products->bulkEnqueueNpcProfileGeneration($installation);
+$batchStats=(new Worker($jobs,$firstPartyRegistry,'profile-bulk-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$batchRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn();
+$check($batchGeneration===['queued'=>1,'eligible'=>1,'truncated'=>0]&&$batchStats['succeeded']===1&&$batchRevision===2,
+    'bounded bulk profile generation did not queue only the unlocked NPC profile');
+$check($products->bulkDeleteUnlockedNpcProfiles($installation,$clock->iso())===1
+    &&(int)$db->query("SELECT count(*) FROM actor_profile_bindings WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn()===0,
+    'bulk delete did not remove only the unlocked NPC profile and its binding');
+$check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk unlock did not revise the locked NPC profile');
+$derivedMemoryId='30000000-0000-4000-8000-000000000001';
+$derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,
+    'provenance'=>['source'=>'dialogue.delivery','status'=>'played']];
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
+$derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstallation,$legacyProfile,$legacyPlaythrough,$legacySession):void{
+    $source=Uuid::v4();$dialogue=Uuid::v4();$message=Uuid::v4();$memory=Uuid::v4();$turn=Uuid::v4();$request=Uuid::v4();$turnMessage=Uuid::v4();
+    $occurred=sprintf('2026-01-01T00:00:%02dZ',$ordinal);
+    $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+        ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
+    $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>'Played memory '.$ordinal.'.']);
+    $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+        ->execute(['source'=>$source,'installation'=>$legacyInstallation,'session'=>$legacySession,'occurred'=>$occurred,'request'=>$request,'turn'=>$turn]);
+    $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok',:occurred)")
+        ->execute(['dialogue'=>$dialogue,'source'=>$source,'message'=>$message,'request'=>$request,'turn'=>$turn,'session'=>$legacySession,'occurred'=>$occurred]);
+    $derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+        'memory_id'=>$memory,'tier'=>'recent','content'=>'Played memory '.$ordinal.'.','source_event_id'=>$source,
+        'occurred_at'=>$occurred,'provenance'=>['source'=>'dialogue.delivery','status'=>'played','source_event_ids'=>[$source]]],
+        'memory.derive:played:'.$ordinal,static fn():bool=>true);
+};
+foreach(range(2,4)as$ordinal)$derivePlayedMemory($ordinal);
+$consolidationWorker=new Worker($jobs,$firstPartyRegistry,'memory-consolidation-four',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null);
+$fourStats=$consolidationWorker->run();
+$check($fourStats['retried']===0&&$fourStats['dead']===0
+    &&(int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier='mid' AND deleted_at IS NULL")->fetchColumn()===1,
+    'four eligible recent memories did not produce exactly one middle memory');
+foreach(range(5,16)as$ordinal)$derivePlayedMemory($ordinal);
+$allStats=(new Worker($jobs,$firstPartyRegistry,'memory-consolidation-all',5,1,50,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
+$consolidated=$db->query("SELECT memory_id,tier,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
+$middleRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='mid'));
+$longRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='long'));
+$check($allStats['retried']===0&&$allStats['dead']===0&&count($middleRows)===4&&count($longRows)===1,
+    'sixteen eligible recent memories did not produce four middle and one long memory');
+foreach($middleRows as$row){$provenance=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR);$check((int)$row['current_revision']===1
+    &&$provenance['source']==='memory.consolidate'&&$provenance['provider']==='first-party'
+    &&$provenance['model']==='deterministic-extractive-v1'&&$provenance['revision']===1&&$provenance['source_tier']==='recent'
+    &&count($provenance['source_memory_ids'])===4&&count($provenance['source_event_ids'])===4
+    &&isset($provenance['source_range']['from'],$provenance['source_range']['to']),'middle-memory provenance is incomplete');}
+$longProvenance=json_decode((string)$longRows[0]['provenance'],true,64,JSON_THROW_ON_ERROR);
+$check((int)$longRows[0]['current_revision']===1&&$longProvenance['source_tier']==='mid'
+    &&count($longProvenance['source_memory_ids'])===4&&count($longProvenance['source_event_ids'])===16
+    &&$longProvenance['source_range']['from']==='2026-01-01T00:00:04Z'
+    &&$longProvenance['source_range']['to']==='2026-01-01T00:00:16Z',
+    'long-memory source range or flattened provenance is incomplete');
+$consolidate=$firstPartyRegistry->for('memory.consolidate',1);
+$consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'source_memory_id'=>$derivedMemoryId,'source_tier'=>'recent'],'memory.consolidate:repeat',static fn():bool=>true);
+$check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
+    &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
+    'memory consolidation replay was not idempotent');
+$failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
+$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
+    ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);
+$db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'Failed output','2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
+    ->execute(['dialogue'=>$failedDialogue,'session'=>$legacySession,'turn'=>$failedTurn,'request'=>$failedRequest,'line'=>$failedDialogue,'utterance'=>Uuid::v4()]);
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:17Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    ->execute(['source'=>$failedSource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$failedRequest,'turn'=>$failedTurn]);
+$db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'failed','audio_failed','2026-01-01T00:00:17Z')")
+    ->execute(['dialogue'=>$failedDialogue,'source'=>$failedSource,'message'=>$failedMessage,'request'=>$failedRequest,'turn'=>$failedTurn,'session'=>$legacySession]);
+try{$derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
+    'memory_id'=>Uuid::v4(),'tier'=>'recent','content'=>'Failed output must not persist.','source_event_id'=>$failedSource,
+    'provenance'=>['source'=>'dialogue.delivery','status'=>'failed']],'memory.derive:failed',static fn():bool=>true);throw new RuntimeException('failed dialogue entered recent memory');}
+catch(RuntimeException $error){$check($error->getMessage()==='memory_source_ineligible','unexpected failed-dialogue memory error');}
+$check(!in_array($failedSource,$longProvenance['source_event_ids'],true),'failed dialogue entered consolidated provenance');
 $badFirstParty=Uuid::v4();$jobs->enqueue($badFirstParty,'memory.derive',1,'memory.derive:retry',['memory_id'=>'bad'],2);
 $retryWorker=new Worker($jobs,$firstPartyRegistry,'first-party-retry',5,1,1,1,10,['memory.derive']);$retryStats=$retryWorker->run();
 $retryState=$db->query("SELECT state,attempt_count FROM durable_jobs WHERE job_id='{$badFirstParty}'")->fetch();
 $check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$retryState['attempt_count']===1, 'first-party handler failure did not schedule retry');
 
-$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.ai.follow'],enabled_actions=ARRAY['inspect.report','ai.follow'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
+$db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.inventory.inspect','action.ai.follow','action.ai.approach','action.ai.wait','action.ai.travel','action.ai.escort','action.ai.face','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','inventory.inspect','ai.follow','ai.approach','ai.wait','ai.travel','ai.escort','ai.face','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
 $catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
 $proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
 $check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
 $inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($inspect,$loaded)['name']==='inspect.report','empty-object inspect action validation failed');
+$inventoryInspect=['name'=>'inventory.inspect','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($inventoryInspect,$loaded)['name']==='inventory.inspect','inventory inspection validation failed');
+$approach=['name'=>'ai.approach','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($approach,$loaded)['name']==='ai.approach','approach action validation failed');
+$wait=['name'=>'ai.wait','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['duration_seconds'=>3600]];
+$check($policy->validate($wait,$loaded)['parameters']['duration_seconds']===3600,'bounded wait action validation failed');
+$animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['group'=>'idle2']];
+$check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
+$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']];
+$check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
+$destination=['destination_x'=>100.5,'destination_y'=>-200,'destination_z'=>8,'destination_cell'=>'exterior:0:0'];
+$travel=['name'=>'ai.travel','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>$destination];
+$check($policy->validate($travel,$loaded)['parameters']===$destination,'travel destination validation failed');
+$escort=array_replace($travel,['name'=>'ai.escort']);
+$check($policy->validate($escort,$loaded)['name']==='ai.escort','escort destination validation failed');
+$face=['name'=>'ai.face','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$check($policy->validate($face,$loaded)['name']==='ai.face','face action validation failed');
 try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
+try{$policy->validate(array_replace($travel,['parameters'=>$destination+['teleport'=>true]]),$loaded);throw new RuntimeException('unknown travel parameter accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected travel parameter error');}
+try{$policy->validate(array_replace($wait,['parameters'=>['duration_seconds'=>3599]]),$loaded);throw new RuntimeException('sub-hour wait accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected wait parameter error');}
 
 $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-0000-4000-8000-000000000002';
 foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}
@@ -282,6 +726,9 @@ $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE ta
 $db->exec("UPDATE action_catalog SET continuation_capable=true WHERE action_name='ai.follow'");
 $actionId='50000000-0000-4000-8000-000000000001';$sourceId='50000000-0000-4000-8000-000000000002';
 $db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal','2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
+$actionProjection=$db->prepare('SELECT issued.action FROM action_issued_metadata metadata JOIN public.actions_issued issued ON issued.rowid=metadata.rowid WHERE metadata.action_id=:action');
+$actionProjection->execute(['action'=>$actionId]);
+$check($actionProjection->fetchColumn()==='ai.follow','action did not project into the Herika action contract');
 $db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','almsivi.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
 $db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
 $db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);

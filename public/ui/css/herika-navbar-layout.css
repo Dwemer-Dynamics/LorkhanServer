@@ -1,0 +1,78 @@
+/* HerikaServer's centered navbar geometry, externalized for ALMSIVI's strict CSP. */
+.chim-navbar .container-fluid {
+    display: flex !important;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.chim-navbar {
+    height: 64px;
+}
+
+.chim-navbar .container-fluid > * {
+    align-items: center;
+}
+
+.chim-navbar .navbar-brand,
+.chim-navbar .navbar-center button.navbar-brand {
+    padding: 0;
+    line-height: 1;
+    text-decoration: none;
+}
+
+.chim-navbar .navbar-brand img {
+    vertical-align: bottom;
+}
+
+.navbar-left,
+.navbar-right,
+.chim-navbar .nav-item.mx-2,
+.chim-navbar .nav-item.dropdown.mx-2 {
+    display: none !important;
+}
+
+.navbar-content-wrapper {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    flex: 1;
+    max-width: 1000px;
+    margin: 0 auto;
+}
+
+.navbar-center {
+    display: flex;
+    justify-content: center;
+    flex: 0 0 auto;
+    margin: 0 20px;
+}
+
+.navbar-center .navbar-brand {
+    margin: 0;
+    padding: 0;
+}
+
+@media (max-width: 992px) {
+    .chim-navbar .container-fluid {
+        flex-direction: column;
+        gap: 10px;
+        align-items: center;
+    }
+
+    .navbar-content-wrapper {
+        flex-direction: column;
+        gap: 10px;
+        order: 1;
+    }
+
+    .navbar-center {
+        order: -1;
+        margin: 0;
+    }
+
+    .dropdown-menu {
+        left: 50%;
+        transform: translateX(-50%);
+    }
+}

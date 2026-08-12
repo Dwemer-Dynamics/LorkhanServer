@@ -1,0 +1,329 @@
+{
+  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "updated_at_utc": "2026-08-12T05:41:16Z",
+  "model": "z-ai/glm-5.1",
+  "prompt_sha256": "82b55f55d24272c13b55dc8b53406c737fc7afedbee3dc1258aa79a943a5c13a",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "e1cd504d48f2856b3796ec8e3c736859795d2cc53cd92ffe26e585037505c6c0",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "selected_count": 50,
+  "evidence_completed_count": 50,
+  "completed_count": 50,
+  "failed_count": 0,
+  "pending_count": 0,
+  "usage": {
+    "cost": 0.29401325879999995
+  },
+  "budget": {
+    "limit": 5.0,
+    "reserve": 0.1,
+    "spent": 0.29401325879999995,
+    "next_call_allowed": true
+  },
+  "items": [
+    {
+      "topic": "alchemy",
+      "title": "Alchemy",
+      "category": "alchemy",
+      "status": "complete"
+    },
+    {
+      "topic": "azuras_star",
+      "title": "Azura's Star",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "ash_vampires",
+      "title": "Ash Vampires",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "ashlanders",
+      "title": "The Ashlanders",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "blight",
+      "title": "The Blight",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "blades",
+      "title": "The Blades",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "almalexia",
+      "title": "Almalexia",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "battle_of_red_mountain",
+      "title": "The Battle of Red Mountain",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "clockwork_city",
+      "title": "The Clockwork City",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "heart_of_lorkhan",
+      "title": "The Heart of Lorkhan",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "propylon_chambers",
+      "title": "Propylon Chambers",
+      "category": "magic",
+      "status": "complete"
+    },
+    {
+      "topic": "dunmer",
+      "title": "The Dunmer",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "morrowind",
+      "title": "Morrowind",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "tribunal",
+      "title": "The Tribunal",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "balmora",
+      "title": "Balmora",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "vvardenfell",
+      "title": "Vvardenfell",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "nerevarine",
+      "title": "The Nerevarine",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "nerevarine_prophecies",
+      "title": "The Nerevarine Prophecies",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "sixth_house",
+      "title": "The Sixth House",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "red_mountain",
+      "title": "Red Mountain",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "chimer",
+      "title": "The Chimer",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "dwemer",
+      "title": "The Dwemer",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "ghostfence",
+      "title": "The Ghostfence",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "corprus",
+      "title": "Corprus",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "vivec",
+      "title": "Vivec",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "sotha_sil",
+      "title": "Sotha Sil",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "dagoth_ur",
+      "title": "Dagoth Ur",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "indoril_nerevar",
+      "title": "Indoril Nerevar",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "azura",
+      "title": "Azura",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "barenziah",
+      "title": "Barenziah",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "divayth_fyr",
+      "title": "Divayth Fyr",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "yagrum_bagarn",
+      "title": "Yagrum Bagarn",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "caius_cosades",
+      "title": "Caius Cosades",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "tribunal_temple",
+      "title": "The Tribunal Temple",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "morag_tong",
+      "title": "The Morag Tong",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "house_hlaalu",
+      "title": "Great House Hlaalu",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "house_redoran",
+      "title": "Great House Redoran",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "house_telvanni",
+      "title": "Great House Telvanni",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "slavery_in_morrowind",
+      "title": "Slavery in Morrowind",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "seyda_neen",
+      "title": "Seyda Neen",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "vivec_city",
+      "title": "Vivec City",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "mournhold",
+      "title": "Mournhold",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "solstheim",
+      "title": "Solstheim",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "skaal",
+      "title": "The Skaal",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "scrib",
+      "title": "Scribs",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "silt_strider",
+      "title": "Silt Striders",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "kagrenacs_tools",
+      "title": "Kagrenac's Tools",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "keening",
+      "title": "Keening",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "sunder",
+      "title": "Sunder",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "wraithguard",
+      "title": "Wraithguard",
+      "category": "artifacts",
+      "status": "complete"
+    }
+  ]
+}

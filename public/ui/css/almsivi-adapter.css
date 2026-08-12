@@ -1,0 +1,38 @@
+.almsivi-brand-name{display:inline-block;margin-left:.65rem;color:#f2a900;font-family:Georgia,serif;font-size:1.05rem;font-weight:700;letter-spacing:.12em;vertical-align:middle}
+.almsivi-page{width:min(1500px,calc(100% - 24px));margin:0 auto;padding:86px 0 32px}
+.almsivi-page.embedded{width:100%;padding:16px}
+.almsivi-page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1rem}
+.almsivi-page-header h1{margin:0;color:#f3f4f6;font-size:1.75rem}
+.almsivi-page-header p{margin:.35rem 0 0;color:#aeb7c4}
+.almsivi-toolbar,.almsivi-card,.almsivi-editor{background:#25282d;border:1px solid #40454d;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.22)}
+.almsivi-toolbar{display:flex;align-items:end;gap:.75rem;padding:.85rem;margin-bottom:1rem;flex-wrap:wrap}
+.almsivi-toolbar label{min-width:240px;flex:1}
+.almsivi-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:1rem}
+.almsivi-card{padding:1rem;overflow:hidden}
+.almsivi-card h2,.almsivi-card h3{margin:0;color:#f3f4f6}
+.almsivi-card-header{display:flex;align-items:start;justify-content:space-between;gap:.75rem;margin-bottom:.75rem}
+.almsivi-badges{display:flex;gap:.4rem;flex-wrap:wrap}
+.almsivi-badge{display:inline-flex;align-items:center;border:1px solid #59616c;border-radius:999px;padding:.15rem .55rem;color:#cbd3dc;font-size:.76rem}
+.almsivi-badge.default{border-color:#c78518;color:#f3bd55;background:#3a2d18}
+.almsivi-card details{border-top:1px solid #3b4149;margin-top:.8rem;padding-top:.7rem}
+.almsivi-card summary{cursor:pointer;color:#f0b94f;font-weight:600}
+.almsivi-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem 1rem}
+.almsivi-form-grid .wide{grid-column:1/-1}
+.almsivi-page label{display:flex;flex-direction:column;gap:.3rem;color:#d7dce2;font-size:.88rem}
+.almsivi-page input,.almsivi-page select,.almsivi-page textarea{width:100%;border:1px solid #505761;border-radius:5px;background:#181a1e;color:#f3f4f6;padding:.55rem .65rem}
+.almsivi-page input[type=checkbox],.almsivi-page input[type=radio]{width:auto;padding:0}
+.almsivi-page textarea{min-height:120px;resize:vertical}
+.almsivi-page button,.almsivi-page .button-link{display:inline-flex;align-items:center;justify-content:center;border:1px solid #9c6a18;border-radius:5px;background:#7b4f0b;color:#fff;padding:.48rem .8rem;text-decoration:none;cursor:pointer}
+.almsivi-page button.secondary,.almsivi-page .button-link.secondary{border-color:#555d68;background:#343940}
+.almsivi-page button.danger{border-color:#8f3d3d;background:#6d2525}
+.almsivi-actions{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.8rem}
+.almsivi-muted{color:#9ba5b2}.almsivi-empty{padding:2rem;text-align:center;color:#9ba5b2}
+.almsivi-inheritance{display:grid;grid-template-columns:repeat(3,1fr);gap:.5rem;margin:.75rem 0}
+.almsivi-inheritance span{padding:.45rem;border:1px solid #424850;border-radius:5px;text-align:center;color:#cbd3dc}
+.almsivi-inheritance .active{border-color:#b47718;color:#f0b94f}
+.almsivi-group{border:1px solid #3d434b;border-radius:6px;padding:.75rem;margin-top:.8rem}
+.almsivi-group legend{float:none;width:auto;margin:0;padding:0 .35rem;color:#f0b94f;font-size:.95rem}
+.almsivi-status{border-left:3px solid #ca8a24;background:#2d2921;padding:.65rem .8rem;margin-bottom:1rem}
+.almsivi-config-hub{height:100vh;padding:78px 10px 10px;display:flex;flex-direction:column;gap:.6rem;overflow:hidden}
+.almsivi-config-hub .config-navigation{flex:0 0 auto}.almsivi-config-hub .tab-groups{display:flex;gap:.6rem;overflow-x:auto}.almsivi-config-hub .tab-group{display:none;min-width:max-content}.almsivi-config-hub .tab-group.active{display:block}.almsivi-config-hub .tab-group-label{color:#aeb7c4;font-size:.75rem;text-transform:uppercase;letter-spacing:.08em;margin-bottom:.25rem}.almsivi-config-hub .tab-buttons{display:flex;gap:.35rem}.almsivi-config-hub .tab-button{border:1px solid #454c55;border-radius:5px;background:#282c31;color:#d9dee5;padding:.45rem .7rem}.almsivi-config-hub .tab-button.active{border-color:#b87917;background:#654309;color:#fff}.almsivi-hub-content{flex:1;min-height:0}.almsivi-hub-panel{display:none;width:100%;height:100%;border:1px solid #3f454d;border-radius:8px;overflow:hidden;background:#202328}.almsivi-hub-panel.active{display:block}.almsivi-hub-panel iframe{width:100%;height:100%;border:0;background:#202328}
+@media(max-width:720px){.almsivi-page{width:min(100% - 16px,1500px);padding-top:76px}.almsivi-page.embedded{width:100%;padding:10px}.almsivi-page-header{display:block}.almsivi-form-grid{grid-template-columns:1fr}.almsivi-inheritance{grid-template-columns:1fr}.almsivi-toolbar label{min-width:100%}.almsivi-config-hub{padding:72px 6px 6px}.almsivi-config-hub .tab-button{padding:.4rem .55rem}}

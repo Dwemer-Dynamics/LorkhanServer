@@ -52,7 +52,9 @@ because Tamriel Rebuilt/Project Tamriel profiles add land, cells, factions and q
 2. Add ALMSIVI names/config alongside existing names just long enough for data migration tests.
 3. Add new constrained columns/tables and deterministic backfill for test/dev data.
 4. Switch application reads/writes and v1 endpoints atomically by migration version.
-5. Remove legacy names/routes/columns/fixtures and compatibility aliases.
+5. Remove misleading Fallout/Skyrim names/routes/columns/fixtures. Retain only the explicitly
+   approved Herika-compatible UTF-8 public table/view and browser presentation contracts over typed
+   ALMSIVI sources.
 6. Run forbidden-term/source/provenance/schema/UI audit and clean-install plus upgrade fixtures.
 
 Never silently reinterpret persisted production-like rows. This is a new private project; prefer a
@@ -71,6 +73,7 @@ explicit negative tests. Every allowlist entry is path/line-purpose specific.
 - imported baseline and migrated suite are green;
 - fresh database and supported upgrade fixture reach the same schema/data invariants;
 - protocol/identity/action/context fixtures are TES3/OpenMW-native;
-- no misleading legacy route/config/table/UI alias remains;
+- no misleading Fallout/Skyrim route/config/table/UI alias remains; approved Herika-compatible
+  table/view and presentation contracts are documented and backed by typed ALMSIVI sources;
 - secret/user/game-data scan is clean;
 - sibling fake E2E and schema manifest parity pass.

@@ -18,10 +18,10 @@ final class TurnProcessJobHandler implements JobHandler
     public function __construct(
         private readonly Repository $repository,
         private readonly Provider $provider,
-        private readonly ?SpeechProvider $speechProvider,
         private readonly ?MediaStore $mediaStore,
         private readonly ?ProviderAttemptRepository $attempts,
         private readonly int $timeoutMs = 1000,
+        private readonly array $providerConfig = [],
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -55,53 +55,70 @@ final class TurnProcessJobHandler implements JobHandler
             $now=hrtime(true);if($cancelled||$now>=$deadline)return true;if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;
             return $cancelled=!$heartbeat()||$this->repository->isTurnCancellationRequested($sessionId,$turnId,$generation);
         });
-        $attemptId = Uuid::v4();
-        $stagedMedia=[];
         try {
-            $this->attempts?->start($attemptId, 'llm', 'mock', 'complete_turn', $job['attempt'],
-                $message['request_id'], $turnId, $job['job_id'], inputBytes: strlen($message['payload']['input']['text']),
-                metadata: ['mode' => 'deterministic_mock', 'job' => true]);
-            $result = $this->provider->complete($message, $token);
-            $utterances = (new DialoguePlanner())->plan($message, $result);
-            $speech = [];
-            if ($this->speechProvider !== null && $this->mediaStore !== null
-                && in_array('speech.say', $message['_negotiated_capabilities'], true)) {
-                foreach ($utterances as $index => $utterance) {
-                    $token->throwIfCancellationRequested();
-                    $speechAttempt = Uuid::v4();
-                    $ttsAttempt=(($job['attempt']-1)*4)+$index+1;
-                    $this->attempts?->start($speechAttempt,'tts','mock','synthesize',$ttsAttempt,$message['request_id'],$turnId,$job['job_id'],
-                        inputBytes:strlen($utterance['text']),metadata:['mode'=>'deterministic_mock','job'=>true,'utterance_index'=>$index+1]);
-                    $generated = $this->speechProvider->synthesize($utterance['text'], $token);
-                    $this->attempts?->finish($speechAttempt,'succeeded',strlen($generated['bytes']));
-                    $mediaId = Uuid::v4();
-                    $sha = $this->mediaStore->put($mediaId, $generated['bytes'], $generated['codec'], $generated['mime_type']);
-                    $stagedMedia[]=$mediaId;
-                    $speech[] = ['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),'codec'=>$generated['codec'],
-                        'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
-                        'expires_at'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')];
-                }
-            }
+            $progress = function (string $delta) use ($message, $fence): void {
+                if ($delta !== '') $this->repository->appendDialogueDelta($message, $delta, $fence);
+            };
+            $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             $token->throwIfCancellationRequested();
-            $this->repository->completeTurn($message, $result, $speech, $fence);
-            $stagedMedia=[];
-            $bytes = array_sum(array_map(static fn(array $u):int => strlen($u['text']), $utterances));
-            $this->attempts?->finish($attemptId, 'succeeded', $bytes);
+            $queueSpeech = $this->mediaStore !== null
+                && in_array('speech.say', $message['_negotiated_capabilities'], true);
+            $this->repository->completeTurn($message, $result, null, $fence, $queueSpeech);
         } catch (OperationCancelled) {
-            foreach($stagedMedia as $mediaId)$this->mediaStore?->delete($mediaId);
-            $this->attempts?->finish($attemptId, 'cancelled', errorCode: 'operation_cancelled');
             if (!$this->repository->isTurnCancellationRequested($sessionId, $turnId, $generation)) {
                 $this->repository->failTurn($message, 'provider_timeout', $fence);
             }
             return;
         } catch (Throwable $error) {
-            foreach($stagedMedia as $mediaId)$this->mediaStore?->delete($mediaId);
-            try {$this->attempts?->finish($attemptId, 'failed', errorCode: 'provider_unavailable');} catch (Throwable) {}
             // Persisting the terminal failure is the successful handling of this turn job. Retrying
             // the provider after exposing turn.failed would contradict the terminal protocol state.
-            $this->repository->failTurn($message, 'provider_unavailable', $fence);
+            $this->repository->failTurn($message, $this->providerFailureCode($error), $fence);
             return;
         }
+    }
+
+    /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot. */
+    private function completeWithFallback(array $message,array $job,CancellationToken $token,callable $onDialogueDelta):array
+    {
+        $primary=$message['_provider_configuration']??null;$fallback=$message['_fallback_provider_configuration']??null;
+        $routes=[['snapshot'=>is_array($primary)?$primary:null,'fallback'=>false]];
+        if(is_array($fallback)&&($fallback['configuration_id']??null)!==($primary['configuration_id']??null))
+            $routes[]=['snapshot'=>$fallback,'fallback'=>true];
+        $lastError=null;
+        foreach($routes as$index=>$route){
+            $snapshot=$route['snapshot'];$provider=$snapshot===null?$this->provider:ProviderFactory::dialogueForSlot($this->providerConfig,$snapshot);
+            $providerName=$provider instanceof OpenAiCompatibleProvider?'openai-compatible':'mock';$attemptId=Uuid::v4();
+            $this->attempts?->start($attemptId,'llm',$providerName,'complete_turn',(($job['attempt']-1)*2)+$index+1,
+                $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($message['payload']['input']['text']),
+                metadata:['mode'=>$providerName,'job'=>true,'fallback'=>$route['fallback'],
+                    'configuration_id'=>$snapshot['configuration_id']??null,'configuration_revision'=>$snapshot['revision']??null,
+                    'model'=>$snapshot['content']['model']??null]);
+            try{
+                $result=$provider instanceof StreamingProvider
+                    ?$provider->completeStreaming($message,$token,$onDialogueDelta)
+                    :$provider->complete($message,$token);
+                $bytes=strlen(json_encode($result,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)?:'');
+                $this->attempts?->finish($attemptId,'succeeded',$bytes);return$result;
+            }catch(OperationCancelled$error){
+                $this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
+            }catch(Throwable$error){
+                try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error));}catch(Throwable){}
+                $lastError=$error;
+            }
+        }
+        throw $lastError??new \RuntimeException('provider_unavailable');
+    }
+
+    private function providerFailureCode(Throwable $error): string
+    {
+        return match ($error->getMessage()) {
+            'provider_invalid_output', 'provider_speaker_not_allowed', 'provider_addressee_not_allowed',
+            'provider_invalid_identity' => 'provider_invalid_output',
+            'provider_invalid_action' => 'provider_invalid_action',
+            'provider_action_not_allowed' => 'provider_action_not_allowed',
+            'provider_timeout' => 'provider_timeout',
+            default => 'provider_unavailable',
+        };
     }
 
     private function uuid(array $payload,string $field):string

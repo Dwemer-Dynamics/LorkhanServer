@@ -27,8 +27,44 @@ final class MockProvider implements Provider
         }
         $action = null;
         $capabilities = $turn['_negotiated_capabilities'] ?? [];
-        if (in_array('action.inspect.report',$capabilities,true)&&preg_match('/\binspect\b/i',$input)===1){
+        $itemContentFile=static function(array$payload,string$recordId):?string{
+            $context=$payload['context']??[];if(!is_array($context))return null;
+            $collections=[$context['inventory']['items']??[],$context['targetState']['equipment']??[]];
+            foreach($collections as$items)if(is_array($items))foreach($items as$item)if(is_array($item)
+                &&strcasecmp((string)($item['record_id']??''),$recordId)===0&&is_string($item['content_file']??null))
+                return$item['content_file'];return null;};
+        if (in_array('action.inventory.inspect',$capabilities,true)&&preg_match('/\b(?:check|inspect) (?:your )?inventory\b/i',$input)===1){
+            $action=['name'=>'inventory.inspect','tier'=>0,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.inspect.report',$capabilities,true)&&preg_match('/\binspect\b/i',$input)===1){
             $action=['name'=>'inspect.report','tier'=>0,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.ai.approach',$capabilities,true)&&preg_match('/\b(?:come closer|approach me|come here)\b/i',$input)===1){
+            $action=['name'=>'ai.approach','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.ai.wait',$capabilities,true)&&preg_match('/\b(?:wait here|stay here)\b/i',$input)===1){
+            $action=['name'=>'ai.wait','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,
+                'parameters'=>['duration_seconds'=>3600]];
+        } elseif (in_array('action.combat.stop',$capabilities,true)&&preg_match('/\b(?:stop fighting|stop combat|stand down)\b/i',$input)===1){
+            $action=['name'=>'combat.stop','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.combat.start',$capabilities,true)&&preg_match('/\b(?:attack|fight)\b/i',$input)===1){
+            $action=['name'=>'combat.start','tier'=>2,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.ai.wander',$capabilities,true)&&preg_match('/\b(?:wander|roam|relax)\b/i',$input)===1){
+            $action=['name'=>'ai.wander','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,
+                'parameters'=>['distance'=>512,'duration_seconds'=>3600]];
+        } elseif (in_array('action.ai.stop',$capabilities,true)&&preg_match('/\b(?:stop following|stop moving)\b/i',$input)===1){
+            $action=['name'=>'ai.stop','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>[]];
+        } elseif (in_array('action.item.equip',$capabilities,true)
+            && preg_match('/\[equip:([a-z0-9_. -]{1,128}):(helmet|cuirass|greaves|left_pauldron|right_pauldron|left_gauntlet|right_gauntlet|boots|shirt|pants|skirt|robe|left_ring|right_ring|amulet|belt|carried_right|carried_left|ammunition)\]/i',$input,$match)===1){
+            $action=['name'=>'item.equip','tier'=>2,'actor'=>$targetIdentity,'target'=>$speakerIdentity,
+                'parameters'=>['record_id'=>$match[1],'content_file'=>$itemContentFile($payload,$match[1]),'slot'=>strtolower($match[2])]];
+        } elseif (in_array('action.item.unequip',$capabilities,true)
+            && preg_match('/\[unequip:(helmet|cuirass|greaves|left_pauldron|right_pauldron|left_gauntlet|right_gauntlet|boots|shirt|pants|skirt|robe|left_ring|right_ring|amulet|belt|carried_right|carried_left|ammunition)\]/i',$input,$match)===1){
+            $action=['name'=>'item.unequip','tier'=>2,'actor'=>$targetIdentity,'target'=>$speakerIdentity,
+                'parameters'=>['slot'=>strtolower($match[1])]];
+        } elseif (in_array('action.item.use',$capabilities,true)
+            && preg_match('/\[use:([a-z0-9_. -]{1,128})\]/i',$input,$match)===1){
+            $action=['name'=>'item.use','tier'=>2,'actor'=>$targetIdentity,'target'=>$speakerIdentity,
+                'parameters'=>['record_id'=>$match[1],'content_file'=>$itemContentFile($payload,$match[1])]];
+        } elseif (in_array('action.animation.play',$capabilities,true)&&preg_match('/\b(?:gesture|animate|wave)\b/i',$input)===1){
+            $action=['name'=>'animation.play','tier'=>1,'actor'=>$targetIdentity,'target'=>$speakerIdentity,'parameters'=>['group'=>'idle2']];
         } elseif (in_array('action.ai.follow', $capabilities, true) && preg_match('/\bfollow\b/i', $input) === 1) {
             $action = [
                 'name' => 'ai.follow',

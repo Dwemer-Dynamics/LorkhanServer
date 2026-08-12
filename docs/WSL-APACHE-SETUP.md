@@ -49,6 +49,12 @@ Use a dedicated `almsiviserver` worker/service identity and deliberate Apache re
 Only media/runtime/log paths are writable. Config/secrets must reject group/world write and never be
 under the document root. Git checkout is not a writable production release.
 
+For local Dwemer development, `scripts/deploy-local-wsl.sh` intentionally mirrors the active source
+to `/var/www/html/ALMSIVIserver`, matching the HerikaServer/DialecticServer workstation layout. It
+keeps the same `/etc`, `/var/lib`, and `/var/log` persistence boundaries and leaves the immutable
+release tree intact. The sibling `ALMSIVI/scripts/deploy/full-local.ps1` is the normal two-stage local
+entrypoint. `scripts/deploy-wsl.sh` remains the immutable release/rollback workflow described here.
+
 ## PostgreSQL
 
 Create database `almsivi`, an owner/migration role and a lower-privilege runtime role with locally
@@ -72,13 +78,14 @@ Listen 127.0.0.1:8089
 
 <VirtualHost 127.0.0.1:8089>
     ServerName almsiviserver.local
-    DocumentRoot /var/www/ALMSIVIserver/current/public
+    DocumentRoot /var/www/html
+    Alias /ALMSIVIserver /var/www/ALMSIVIserver/current/public
 
     <Directory /var/www/ALMSIVIserver/current/public>
         Options -Indexes -ExecCGI
         AllowOverride None
         Require local
-        DirectoryIndex index.php
+        DirectoryIndex ui/home.php index.php
     </Directory>
 
     LimitRequestBody 33554432
@@ -95,13 +102,16 @@ shortcut.
 
 ## Configuration and pairing
 
-Copy tracked safe example to `/etc/almsiviserver`, configure DB and deterministic fake providers,
-validate permissions/URLs/limits/schema, migrate, then run a health/self-test. Generate a 256-bit
+Copy the tracked safe example to `/etc/almsiviserver`, configure the database, validate
+permissions/URLs/limits/schema, migrate, then run a health/self-test. The installer provisions the
+CHIM Standard/Fast/Powerful/Experimental model slots and PocketTTS without overwriting existing
+connector choices. Generate a 256-bit
 pairing token through the setup command; output one restrictive native config snippet, store only its
 server hash/fingerprint and redact all later display. Test token rotation and old-session revocation.
 
-Live provider keys are optional and added only after fake E2E passes. Browser UI masks them and never
-returns stored values. Default raw STT audio retention is off.
+Save `ALMSIVI_LLM_API_KEY` through the browser API Keys page or the restrictive service environment;
+the browser masks it and never returns the stored value. Mock providers remain available for test
+flows. The installer provisions one Deepgram STT connector without overwriting an existing selection. ITT, Background Life, and timer-driven autonomy are not provisioned.
 
 ## Worker supervision
 
@@ -117,7 +127,7 @@ web process from unavailable derived processing. Game requests never fork unboun
 
 1. From WSL, run health, pair, session init and deterministic text/media/action-result flow.
 2. From Windows PowerShell, run sibling fake client against the same localhost URL.
-3. Verify browser Quickstart can configure mock mode and displays client/server/schema/DB/worker state.
+3. Verify the browser displays the provisioned model slots, PocketTTS, and client/server/schema/DB/worker state.
 4. Restart Apache, PostgreSQL, worker and WSL separately; prove bounded failure, idempotent recovery
    and no duplicate completed turn/action.
 5. Rotate token, test stale generation/cursor replay, auth/rate/body/media failures and redacted logs.

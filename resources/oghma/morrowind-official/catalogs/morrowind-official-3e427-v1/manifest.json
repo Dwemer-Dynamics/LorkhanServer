@@ -1,0 +1,63 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "catalog_version": "morrowind-official-3e427-v1",
+  "row_count": 112,
+  "articles_sha256": "13a9f5dd55bf6b17b97efc0079468b686aa6370cfee8e83476216de55292ac2a",
+  "csv_sha256": "8d1150145cc5c2cc40b5d5cb4ae9783039e116f2ccdc4edb1208d452ef9dee4e",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "018148c26f115554d4d1953fbc266f81c9aa748a3662e32b30d9d9a85b8f9a4d",
+  "generator_sha256": "0f0b7bbefcb18b5589e1b89a03cd7e579bdd34f830128528d0eb97c4505c3f93",
+  "builder_sha256": "029e200f1717f0e892ac17b651ba6c1d9a4894210fd2e0d5b9ee1e32dd59a057",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "category_counts": {
+    "alchemy": 1,
+    "artifacts": 15,
+    "creatures": 9,
+    "cultures": 4,
+    "diseases": 2,
+    "factions": 19,
+    "figures": 14,
+    "history": 3,
+    "locations": 3,
+    "lore": 3,
+    "magic": 7,
+    "races": 6,
+    "regions": 11,
+    "religion": 4,
+    "settlements": 11
+  },
+  "alias_key_count": 220,
+  "source_runs": [
+    {
+      "articles_sha256": "adad8beae37bbe15b17704a2ce4418f9cfc6b7840717ddc55d229b187fd6c087",
+      "manifest_sha256": "171a36f7d5d1483f76936c5f9bc202f2ff9bbb711757a4f65e79d5be36a4d817",
+      "row_count": 50,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.29401325879999995
+    },
+    {
+      "articles_sha256": "2cc484e2c055d72dd4ec3f20d91588b54106a8a19930c7676bde05f2c00f2c3a",
+      "manifest_sha256": "427006bd46a549eb2b97d251fb1d422cac816634ac57ef9c4a3e70239c0f03f0",
+      "row_count": 62,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.2402959348
+    }
+  ],
+  "generation_cost": 0.5343091936,
+  "temporal_anchor": "3E 427",
+  "excluded": [
+    "ordinary_npcs",
+    "generic_equipment",
+    "consumables",
+    "routine_spells",
+    "minor_quest_objects",
+    "walkthroughs",
+    "player_outcomes",
+    "fourth_era",
+    "dynamic_oghma"
+  ]
+}

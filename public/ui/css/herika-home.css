@@ -1,0 +1,100 @@
+/* Pinned HerikaServer dashboard presentation, kept external for ALMSIVI's CSP. */
+.home-version-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    margin-top: 6px;
+    color: #6c757d;
+    font: .9em Arial, sans-serif;
+}
+
+.home-version-stack { display: flex; flex-direction: column; gap: 2px; }
+.home-social-links { display: flex; align-items: center; gap: 12px; }
+.home-social-links img { display: block; width: 20px; height: 20px; }
+
+.dashboard-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    max-width: 1600px;
+    margin: 0 auto;
+}
+
+.widget {
+    background: #2d2d2d;
+    border-radius: 8px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
+    overflow: hidden;
+}
+
+.widget-wide { grid-column: 1 / -1; }
+
+.widget-header {
+    background: #1a1a1a;
+    padding: 15px;
+    border-bottom: 1px solid #3a3a3a;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.widget-header h3 { margin: 0; color: #f8f9fa; font-size: 1.2em; }
+.widget-content { padding: 15px; color: #d4d4d4; }
+.widget-table { overflow-x: auto; }
+.widget-table table { width: 100%; border-collapse: collapse; }
+.widget-table th,
+.widget-table td { padding: 8px; text-align: left; border-bottom: 1px solid #3a3a3a; }
+.widget-table th { background: #1a1a1a; color: #f8f9fa; }
+
+.widget-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+}
+
+.stat-card { background: #1a1a1a; padding: 15px; border-radius: 4px; text-align: center; }
+.stat-value { display: block; font-size: 1.5em; font-weight: bold; color: rgba(212, 94, 0, .9); }
+.stat-label { display: block; font-size: .9em; color: #6c757d; margin-top: 5px; }
+
+.dashboard-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 10px;
+    margin: 20px 0;
+    padding: 0 20px;
+}
+
+.dashboard-btn {
+    display: inline-flex;
+    align-items: center;
+    padding: 8px 16px;
+    background: #2d2d2d;
+    color: #f8f9fa;
+    text-decoration: none;
+    border-radius: 6px;
+    font-size: .9em;
+    transition: all .3s ease;
+    border: 1px solid #3a3a3a;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, .2);
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.dashboard-btn:hover { background: #3a3a3a; color: #f8f9fa; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, .3); }
+.dashboard-btn:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
+.dashboard-btn .btn-icon { margin-right: 8px; font-size: 1.1em; }
+.word-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
+.word-chip { padding: 5px 9px; border: 1px solid #3a3a3a; border-radius: 999px; background: #1a1a1a; }
+.empty-state { color: #6c757d; }
+
+@media (max-width: 768px) {
+    .dashboard-container { grid-template-columns: 1fr; }
+    .widget-wide { grid-column: auto; }
+    .dashboard-buttons { gap: 8px; }
+    .dashboard-btn { padding: 6px 12px; font-size: .8em; }
+    .home-version-info { align-items: flex-start; }
+}

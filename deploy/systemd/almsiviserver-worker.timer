@@ -3,9 +3,9 @@ Description=Run ALMSIVIserver durable job worker
 
 [Timer]
 OnBootSec=15s
-OnUnitInactiveSec=5s
-AccuracySec=1s
-RandomizedDelaySec=1s
+OnUnitInactiveSec=1s
+AccuracySec=100ms
+RandomizedDelaySec=0
 Persistent=true
 Unit=almsiviserver-worker.service
 

@@ -1,0 +1,15 @@
+DROP TABLE IF EXISTS herika_compat.action_issued_metadata;
+DROP TABLE IF EXISTS herika_compat.log_metadata;
+DROP TABLE IF EXISTS herika_compat.audit_request_metadata;
+DROP TABLE IF EXISTS herika_compat.database_versioning;
+DROP TABLE IF EXISTS herika_compat.conf_opts;
+DROP TABLE IF EXISTS herika_compat.rolemaster;
+DROP TABLE IF EXISTS herika_compat.moods_issued;
+DROP TABLE IF EXISTS herika_compat.actions_issued;
+DROP TABLE IF EXISTS herika_compat.log;
+DROP TABLE IF EXISTS herika_compat.audit_memory;
+DROP TABLE IF EXISTS herika_compat.audit_request;
+DROP SEQUENCE IF EXISTS herika_compat.rolemaster_rowid_seq;
+DROP SEQUENCE IF EXISTS herika_compat.actions_issued_rowid_seq;
+DROP SEQUENCE IF EXISTS herika_compat.log_rowid_seq;
+DROP SEQUENCE IF EXISTS herika_compat.audit_request_rowid_seq;

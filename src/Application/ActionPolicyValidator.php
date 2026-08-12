@@ -175,7 +175,7 @@ final class ActionPolicyValidator
     private function matchesSchema(mixed $value, array $schema): bool
     {
         $supported = ['type', 'properties', 'required', 'additionalProperties', 'const', 'enum', 'minimum',
-            'maximum', 'minLength', 'maxLength', 'minItems', 'maxItems', 'items'];
+            'maximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems', 'items'];
         foreach (array_keys($schema) as $keyword) {
             if (!in_array($keyword, $supported, true)) {
                 return false;
@@ -188,6 +188,11 @@ final class ActionPolicyValidator
         if (is_int($value) || is_float($value)) {
             if (isset($schema['minimum']) && (!is_int($schema['minimum']) && !is_float($schema['minimum']) || $value < $schema['minimum'])) return false;
             if (isset($schema['maximum']) && (!is_int($schema['maximum']) && !is_float($schema['maximum']) || $value > $schema['maximum'])) return false;
+            if (isset($schema['multipleOf'])) {
+                $multiple=$schema['multipleOf'];
+                if ((!is_int($multiple)&&!is_float($multiple))||$multiple<=0
+                    || abs(($value/$multiple)-round($value/$multiple))>1.0E-9) return false;
+            }
         }
         if (is_string($value)) {
             $length = mb_strlen($value, 'UTF-8');
