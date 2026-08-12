@@ -269,7 +269,7 @@ final class PromptAssembler
         if ($actionResults !== '') $negotiatedActions .= '<recent_action_results>' . $actionResults . '</recent_action_results>';
         $negotiatedActions .= $this->xmlTag('action_contract',
             'action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. '
-            . 'Allowed actions are null; inspect.report or inventory.inspect with empty parameters; ai.follow with distance 192; ai.stop, ai.approach, or ai.face with empty parameters; ai.wait with duration_seconds in whole-hour multiples from 3600..86400; ai.wander with integer distance 0..2048 and duration_seconds in whole-hour multiples from 3600..86400; ai.travel or ai.escort with destination_x, destination_y, destination_z, and destination_cell; combat.start or combat.stop with empty parameters; animation.play with group idle2 through idle9; item.use with an inventory record_id; item.equip with an inventory record_id and equipment slot; or item.unequip with an equipment slot.');
+            . 'Allowed actions are null; inspect.report or inventory.inspect with empty parameters; ai.follow with distance 192; ai.stop, ai.approach, or ai.face with empty parameters; ai.wait with duration_seconds in whole-hour multiples from 3600..86400; ai.wander with integer distance 0..2048 and duration_seconds in whole-hour multiples from 3600..86400; ai.travel or ai.escort with destination_x, destination_y, destination_z, and destination_cell; combat.start or combat.stop with empty parameters; animation.play with group idle2 through idle9; item.use with inventory content_file and record_id; item.equip with inventory content_file, record_id, and equipment slot; or item.unequip with an equipment slot.');
 
         $sections = [
             'output_contract' => $this->xmlTag('response_contract', $outputContract),
@@ -799,7 +799,7 @@ final class PromptAssembler
         $safe = [];
         foreach (array_slice($rows, 0, 64) as $row) {
             if (!is_array($row) || array_is_list($row)) continue;
-            $record = $this->allow($row, ['record_id', 'content_file', 'name', 'description']);
+            $record = $this->allow($row, ['record_id', 'content_file', 'name', 'description', 'source']);
             if (isset($record['record_id'], $record['description'])) $safe[] = $record;
         }
         return $this->itemsXml($safe, 'record');

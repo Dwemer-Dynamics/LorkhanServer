@@ -8,6 +8,7 @@ $topNavSection = 'configuration';
 $BODY_CLASS = 'hub-page descriptions-page-shell' . ($embedded ? ' embedded-page' : '');
 require __DIR__ . '/ui_bootstrap.php';
 $rows = $uiRepository->rows('descriptions');
+$discoveredItems = $uiRepository->rows('discovered_items');
 $installations = [];
 foreach ($uiRepository->rows('installations') as $installation) { $id = (string) ($installation['installation_id'] ?? ''); if ($id !== '') $installations[$id] = (string) ($installation['display_name'] ?? $id); }
 $additionalStylesheets = ['herika-descriptions.css?v=' . (string) filemtime(__DIR__ . '/css/herika-descriptions.css')];
@@ -21,6 +22,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <section class="content-section"><h2>Batch Upload</h2><label>Select .csv file to upload:<input type="file" accept=".csv" disabled aria-disabled="true"></label><div class="button-group"><span class="status-control"><button type="button" class="action-button upload-csv" disabled>Upload CSV</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span><span class="status-control"><button type="button" class="action-button download-csv" disabled>Download Example CSV</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span><span class="status-control"><button type="button" class="action-button export-csv" disabled>Export Custom Descriptions</button><?php echo almsivi_ui_feature_badge('config.descriptions.batch', true); ?></span></div><p>Typed format: content file, record ID, display name, description, and installation scope.</p></section>
         <section class="content-section"><h2>Database Management</h2><p>Descriptions are keyed by Morrowind content file and record ID.</p><p>Only records present in the current bounded inventory or nearby-object context are injected.</p><div class="button-group"><span class="status-control"><button type="button" class="btn-danger" disabled>Factory Reset Item Override Table</button><?php echo almsivi_ui_feature_badge('config.descriptions.reset', true); ?></span></div></section>
     </div>
+    <section class="full-width-section">
+        <h2>&#x1F50E; Discovered OpenMW Items</h2>
+        <p>Items are learned automatically from bounded inventory, equipment, and nearby-object context. Identity uses the winning content file and record ID; display names are metadata only.</p>
+        <div class="table-container"><table><thead><tr><th>Base ID</th><th>Plugin</th><th>Name</th><th>Seen In</th><th>Status</th></tr></thead><tbody><?php foreach ($discoveredItems as $item): ?><tr><td><?php echo almsivi_ui_h($item['record_id']); ?></td><td><?php echo almsivi_ui_h($item['content_file']); ?></td><td><?php echo almsivi_ui_h($item['display_name'] ?? ''); ?></td><td><?php $sources=json_decode((string)($item['observed_sources']??'[]'),true);echo almsivi_ui_h(is_array($sources)?implode(', ',$sources):''); ?></td><td><?php echo $item['description_id'] ? 'Custom description' : 'Detected'; ?><?php if (!filter_var($item['active'] ?? false,FILTER_VALIDATE_BOOL)): ?> (inactive plugin)<?php endif; ?></td></tr><?php endforeach; ?><?php if ($discoveredItems === []): ?><tr><td colspan="5">No items have been discovered in game yet.</td></tr><?php endif; ?></tbody></table></div>
+    </section>
     <section class="full-width-section">
         <h2 id="entries">&#x1F4CB; Descriptions Database</h2>
         <div class="action-container"><button type="button" class="action-button add-new" data-description-create>Add New Entry</button><div class="search-container"><input type="search" placeholder="Search descriptions..." data-description-search><button type="button" class="action-button edit">Search</button></div></div>

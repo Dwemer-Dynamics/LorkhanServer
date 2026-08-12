@@ -116,6 +116,19 @@ $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,genera
 $journalProjection=$db->prepare('SELECT count(*) FROM almsivi_internal.questlog_metadata metadata JOIN public.questlog projected ON projected.rowid=metadata.rowid WHERE metadata.source_turn_id=:turn AND metadata.journal_id=:journal');
 $journalProjection->execute(['turn'=>$journalTurn,'journal'=>'A1_1_FindSpymaster']);
 $check((int)$journalProjection->fetchColumn()===1,'journal-bearing turn did not project into the Herika questlog contract');
+$identityTurn=Uuid::v4();$identityRequest=Uuid::v4();$identityMessage=Uuid::v4();
+$identityContext=json_encode(['contentFiles'=>['items'=>['morrowind.esm','custom-items.omwaddon']],
+    'inventory'=>['items'=>[['record_id'=>'iron_dagger','content_file'=>'custom-items.omwaddon',
+        'reference_content_file'=>'morrowind.esm','display_name'=>'Renamed Blade','kind'=>'item','count'=>1]]]],JSON_THROW_ON_ERROR);
+$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','record identity projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:02Z')")
+    ->execute(['turn'=>$identityTurn,'request'=>$identityRequest,'message'=>$identityMessage,'session'=>$legacySession,'context'=>$identityContext]);
+$manifest=$db->query("SELECT content_file,load_order FROM content_manifest_files WHERE installation_id='{$legacyInstallation}' AND active ORDER BY load_order")->fetchAll();
+$check(array_column($manifest,'content_file')===['morrowind.esm','custom-items.omwaddon']
+    &&array_map('intval',array_column($manifest,'load_order'))===[0,1],'OpenMW content manifest did not preserve canonical load order');
+$discovered=$db->query("SELECT content_file,record_id,display_name,reference_content_file FROM discovered_items WHERE installation_id='{$legacyInstallation}'")->fetch();
+$check($discovered&&$discovered['content_file']==='custom-items.omwaddon'&&$discovered['record_id']==='iron_dagger'
+    &&$discovered['display_name']==='Renamed Blade'&&$discovered['reference_content_file']==='morrowind.esm',
+    'canonical custom item identity was not discovered independently of its display name or live reference source');
 $check($runner->down(count($downVersions)) === $downVersions, 'product migration down failed after upgrade');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}'")->fetchColumn()===1, '005 down deleted backfilled profile');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}'")->fetchColumn()===1, '005 down deleted backfilled playthrough');
@@ -205,7 +218,10 @@ $products->setProfileAutoLock($installation,true,$clock->iso());$check($products
 $profile = $service->createRevisioned('profile', ['installation_id'=>$installation,'name'=>'Nerevarine','actor_identity'=>['record_id'=>'player'],
     'content'=>['role'=>'player'],'change_reason'=>'created']);
 $description=$service->saveItemDescription(['installation_id'=>$installation,'content_file'=>'Morrowind.esm','record_id'=>'iron_dagger','display_name'=>'Iron Dagger','description'=>'A serviceable iron blade.']);
-$descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>['inventory'=>['items'=>[['record_id'=>'iron_dagger','count'=>1]]]]]];
+$descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>[
+    'contentFiles'=>['items'=>['morrowind.esm']],
+    'inventory'=>['items'=>[['record_id'=>'iron_dagger','content_file'=>'morrowind.esm','count'=>1]]]
+]]];
 $descriptionContext=$products->itemDescriptionsForTurn($descriptionTurn);
 $check(count($descriptionContext)===1&&$descriptionContext[0]['description']==='A serviceable iron blade.','turn context resolves an unambiguous managed record description');
 $service->deleteItemDescription($description['description_id']);
@@ -551,7 +567,7 @@ $wait=['name'=>'ai.wait','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['rec
 $check($policy->validate($wait,$loaded)['parameters']['duration_seconds']===3600,'bounded wait action validation failed');
 $animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['group'=>'idle2']];
 $check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
-$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s']];
+$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']];
 $check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
 $destination=['destination_x'=>100.5,'destination_y'=>-200,'destination_z'=>8,'destination_cell'=>'exterior:0:0'];
 $travel=['name'=>'ai.travel','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>$destination];

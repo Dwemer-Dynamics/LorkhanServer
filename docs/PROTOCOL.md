@@ -52,6 +52,11 @@ file and its order/index, cell identity and display-name snapshot. It is accompa
 ordered content fingerprint. Display name is never a lookup key. Ambiguous, missing, wrong-content or
 stale references fail explicitly.
 
+Inventory, equipment, and nearby-object records use `(content_file, record_id)` as their canonical
+base identity. `content_file` is the final loaded file that supplies the winning record definition;
+an optional `reference_content_file` records a different placed/runtime reference source. Item
+actions carry both canonical fields and fail closed if the current inventory winner no longer matches.
+
 ## API
 
 | Endpoint | Behavior |

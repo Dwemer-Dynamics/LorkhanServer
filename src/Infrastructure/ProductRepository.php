@@ -1254,23 +1254,58 @@ SQL);
         $statement->execute(['id'=>$descriptionId,'now'=>$now]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');
     }
 
-    /** Select only unambiguous descriptions for inventory and nearby records in this turn. */
+    /** Resolve custom then shipped descriptions for canonical item identities in the active OpenMW manifest. */
     public function itemDescriptionsForTurn(array $turn): array
     {
         $context=$turn['payload']['context']??[];if(!is_array($context)||array_is_list($context))return[];
-        $wanted=[];
-        foreach(['inventory','nearbyObjects','equipment']as$collection){$value=$context[$collection]??[];
-            if(is_array($value)&&!array_is_list($value))$value=$value['items']??[];if(!is_array($value))continue;
-            foreach(array_slice($value,0,64)as$item){if(!is_array($item)||array_is_list($item))continue;$record=strtolower(trim((string)($item['record_id']??'')));
-                if($record===''||strlen($record)>256)continue;$content=strtolower(trim((string)($item['content_file']??'')));$wanted[$record][$content]=true;}}
+        $active=[];$files=$context['contentFiles']??[];if(is_array($files)&&!array_is_list($files))$files=$files['items']??[];
+        if(is_array($files))foreach(array_slice($files,0,256)as$order=>$file)if(is_string($file)&&trim($file)!=='')$active[strtolower(trim($file))]=(int)$order;
+        $wanted=[];foreach($this->turnItemRows($context)as$item){$record=strtolower(trim((string)($item['record_id']??'')));
+            if($record===''||strlen($record)>256)continue;$content=strtolower(trim((string)($item['content_file']??'')));
+            if(strlen($content)>256)continue;$wanted[$record][$content]=true;}
         if($wanted===[])return[];
-        $statement=$this->db->prepare('SELECT description_id,content_file,record_id,display_name,description FROM item_descriptions WHERE installation_id=:installation AND deleted_at IS NULL AND lower(record_id)=ANY(CAST(:records AS text[])) ORDER BY lower(record_id),lower(content_file),description_id');
+        $statement=$this->db->prepare(<<<'SQL'
+SELECT 'custom' AS description_source,d.description_id::text,d.content_file,d.record_id,d.display_name,d.description
+FROM item_descriptions d
+WHERE d.installation_id=:installation AND d.deleted_at IS NULL
+ AND lower(d.record_id)=ANY(CAST(:records AS text[]))
+UNION ALL
+SELECT 'default',NULL,d.plugin,d.baseid,d.name,d.description
+FROM public.descriptions d
+WHERE lower(d.baseid)=ANY(CAST(:records AS text[]))
+ORDER BY record_id,description_source DESC,content_file
+SQL);
         $statement->execute(['installation'=>$turn['installation_id'],'records'=>$this->pgArray(array_keys($wanted))]);$grouped=[];
-        foreach($statement->fetchAll()as$row)$grouped[strtolower((string)$row['record_id'])][]=$row;
+        foreach($statement->fetchAll()as$row){$content=strtolower((string)$row['content_file']);
+            if($active!==[]&&!array_key_exists($content,$active))continue;$row['load_order']=$active[$content]??-1;
+            $grouped[strtolower((string)$row['record_id'])][]=$row;}
+        foreach($grouped as&$matches)usort($matches,static fn(array$left,array$right):int=>(int)$right['load_order']<=>(int)$left['load_order']);unset($matches);
         $result=[];foreach($wanted as$record=>$contentFiles){$matches=$grouped[$record]??[];
-            foreach($contentFiles as$contentFile=>$_){$selected=$contentFile===''?(count($matches)===1?$matches[0]:null):current(array_filter($matches,static fn(array$row):bool=>strtolower((string)$row['content_file'])===$contentFile));
-                if(!is_array($selected))continue;$result[]=['description_id'=>(string)$selected['description_id'],'record_id'=>(string)$selected['record_id'],'content_file'=>(string)$selected['content_file'],'name'=>(string)$selected['display_name'],'description'=>(string)$selected['description']];if(count($result)>=64)break 2;}}
+            foreach($contentFiles as$contentFile=>$_){$candidates=$contentFile===''?$matches:array_values(array_filter($matches,
+                    static fn(array$row):bool=>strtolower((string)$row['content_file'])===$contentFile));
+                if($candidates===[])continue;$selected=$candidates[0];foreach($candidates as$candidate){
+                    if($candidate['description_source']==='custom'){$selected=$candidate;break;}}
+                $descriptionId=$selected['description_id']??null;if(!is_string($descriptionId)||$descriptionId==='')
+                    $descriptionId='default:'.hash('sha256',strtolower((string)$selected['content_file'])."\0".strtolower((string)$selected['record_id']));
+                $result[]=['description_id'=>$descriptionId,'source'=>(string)$selected['description_source'],
+                    'record_id'=>(string)$selected['record_id'],'content_file'=>(string)$selected['content_file'],
+                    'name'=>(string)$selected['display_name'],'description'=>(string)$selected['description']];
+                if(count($result)>=64)break 2;}}
         return$result;
+    }
+
+    /** Flatten every bounded item-bearing context lane without treating display names as identity. */
+    private function turnItemRows(array $context): array
+    {
+        $rows=[];$append=static function(mixed$value)use(&$rows):void{if(is_array($value)&&!array_is_list($value))$value=$value['items']??[];
+            if(!is_array($value))return;foreach(array_slice($value,0,64)as$item)if(is_array($item)&&!array_is_list($item))$rows[]=$item;};
+        $append($context['inventory']??[]);$append($context['nearbyObjects']??[]);$append($context['equipment']??[]);
+        foreach(['playerState','targetState']as$state){$value=$context[$state]??[];if(is_array($value)&&!array_is_list($value)){
+            $append($value['equipment']??[]);$append($value['held_items']??[]);}}
+        $actors=$context['nearbyActors']??[];if(is_array($actors)&&!array_is_list($actors))$actors=$actors['items']??[];
+        if(is_array($actors))foreach(array_slice($actors,0,12)as$actor)if(is_array($actor)&&!array_is_list($actor)){
+            $append($actor['equipment']??[]);$append($actor['held_items']??[]);}
+        return array_slice($rows,0,256);
     }
 
     public function recordPromptTrace(array $turn, array $trace, string $now): string
