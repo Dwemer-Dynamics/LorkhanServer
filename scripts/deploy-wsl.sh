@@ -104,6 +104,11 @@ if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname=
     runuser -u postgres -- createdb --template=template0 --owner=almsivi_runtime --encoding=UTF8 almsivi
 fi
 
+# pgvector is not a trusted PostgreSQL extension, so the restricted runtime role cannot install it
+# during a genuinely fresh migration. Keep extension ownership with PostgreSQL administration.
+runuser -u postgres -- psql --dbname=almsivi --set=ON_ERROR_STOP=1 \
+    --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
+
 cat > /etc/almsiviserver/server.php <<'PHP'
 <?php
 declare(strict_types=1);

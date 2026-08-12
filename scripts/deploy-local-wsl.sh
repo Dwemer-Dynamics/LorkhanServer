@@ -100,6 +100,11 @@ find "${target_root}" -type f -exec chmod 0644 {} +
 find "${target_root}/scripts" "${target_root}/deploy" -type f \
     \( -name '*.sh' -o -path '*/sysv/*' \) -exec sed -i 's/\r$//' {} +
 
+# pgvector is not a trusted PostgreSQL extension, so the restricted runtime role cannot install it
+# during a genuinely fresh migration. Keep extension ownership with PostgreSQL administration.
+runuser -u postgres -- psql --dbname=almsivi --set=ON_ERROR_STOP=1 \
+    --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
+
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/migrate.php" up
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-descriptions.php"
