@@ -80,6 +80,7 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
             if($r->method==='GET'&&$path==='/exports/descriptions/example.csv')return$this->exampleDescriptionsCsv();
             if($r->method==='GET'&&$path==='/exports/descriptions/custom.csv')return$this->exportDescriptionsCsv($this->queryUuid($r,'installation_id'));
+            if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
             if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
@@ -130,6 +131,7 @@ final class ManagementRouter
         if($path==='/api/v1/relationships')return$r->method==='POST'?Response::json(201,$this->service->setRelationship($this->json($r))):Response::json(200,['items'=>$this->repository->relationships($this->scopeQuery($r))]);
         if($r->method==='POST'&&$path==='/api/v1/knowledge')return Response::json(201,$this->service->ingestKnowledge($this->json($r)));
         if($r->method==='GET'&&$path==='/api/v1/knowledge/search')return Response::json(200,$this->service->searchKnowledge($this->scopeQuery($r),(string)($r->query['q']??''),(int)($r->query['limit']??10)));
+        if($r->method==='PATCH'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->service->updateKnowledge($m[1],$this->json($r)));
         if($r->method==='DELETE'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m)){$this->repository->deleteKnowledge($m[1],gmdate('Y-m-d\TH:i:s\Z'));return Response::json(200,['deleted'=>true]);}
         if($path==='/api/v1/narratives')return$r->method==='POST'?Response::json(201,$this->service->createNarrative($this->json($r))):Response::json(200,['items'=>$this->repository->narratives($this->scopeQuery($r))]);
         if($r->method==='GET'&&$path==='/api/v1/playthrough-export')return Response::json(200,$this->service->exportPlaythrough($this->scopeQuery($r)));
@@ -167,6 +169,12 @@ final class ManagementRouter
         if($domain==='description-import'){
             $saved=$this->service->importItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->descriptionCsvRows($r));
             return$this->redirect($this->descriptionPageLocation($scope['installation_id'],'imported',count($saved)));
+        }
+        if($domain==='knowledge-import'){
+            $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$inputs=[];
+            foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
+            $saved=$this->service->importKnowledge($inputs);
+            return$this->redirect($this->uiPath('knowledge').'&status=imported&count='.count($saved));
         }
         match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
@@ -236,7 +244,8 @@ final class ManagementRouter
             'memory-rebuild'=>$this->repository->rebuildMemories($scope,gmdate('Y-m-d\TH:i:s\Z')),
             'relationships'=>$this->service->setRelationship($scope+['actor_identity'=>$content,'disposition'=>(int)($v['disposition']??0),'affinity'=>(int)($v['affinity']??0),'source_mode'=>'manual','reason'=>$v['reason']??'management']),
             'relationship-delete'=>$this->repository->deleteRelationship($this->need($v,'relationship_id'),gmdate('Y-m-d\TH:i:s\Z')),
-            'knowledge'=>$this->service->ingestKnowledge($scope+['title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
+            'knowledge'=>$this->service->ingestKnowledge($scope+$this->knowledgeFormInput($v)),
+            'knowledge-revise'=>$this->service->updateKnowledge($this->need($v,'document_id'),$this->knowledgeFormInput($v)),
             'knowledge-delete'=>$this->deleteKnowledgeDocument($v),
             'narratives'=>$this->service->createNarrative($scope+['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
             'narrative-revise'=>$this->service->updateNarrative($this->need($v,'narrative_id'),['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
@@ -250,7 +259,7 @@ final class ManagementRouter
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -377,6 +386,34 @@ final class ManagementRouter
         foreach($rows as$row)fputcsv($stream,[(string)($row['plugin']??''),(string)($row['baseid']??''),(string)($row['name']??''),(string)($row['description']??'')],',','"','\\');
         rewind($stream);$body=stream_get_contents($stream);fclose($stream);if(!is_string($body))throw new RuntimeException('csv_unavailable');
         return new Response(200,$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Parse one bounded UTF-8 CSV using CHIM's exact static Oghma column order. */
+    private function oghmaCsvRows(Request $request):array
+    {
+        $file=$request->files['csv_file']??null;if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('oghma_csv_missing');
+        $size=(int)($file['size']??0);if($size<1||$size>$this->maxJsonBytes)throw new InvalidArgumentException('oghma_csv_size');
+        if(strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='csv')throw new InvalidArgumentException('oghma_csv_type');
+        $handle=fopen((string)$file['tmp_name'],'rb');if($handle===false)throw new InvalidArgumentException('oghma_csv_unreadable');$rows=[];
+        try{$header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('oghma_csv_header');
+            if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0]);
+            $expected=['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'];
+            if($header!==$expected)throw new InvalidArgumentException('oghma_csv_header');
+            while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){if($values===[null]||count($values)===0)continue;if(count($values)!==8)throw new InvalidArgumentException('oghma_csv_columns');
+                if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('oghma_csv_encoding');
+                $rows[]=['topic'=>(string)$values[0],'title'=>str_replace('_',' ',(string)$values[0]),'content'=>(string)$values[1],
+                    'knowledge_class'=>(string)$values[2],'topic_desc_basic'=>(string)$values[3],'knowledge_class_basic'=>(string)$values[4],
+                    'tags'=>(string)$values[5],'category'=>(string)$values[6],'aliases'=>(string)$values[7]];
+                if(count($rows)>5000)throw new InvalidArgumentException('oghma_csv_rows');}
+        }finally{fclose($handle);}if($rows===[])throw new InvalidArgumentException('oghma_csv_empty');return$rows;
+    }
+
+    private function exampleOghmaCsv():Response
+    {
+        $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');fwrite($stream,"\xEF\xBB\xBF");
+        fputcsv($stream,['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'],',','"','\\');
+        fputcsv($stream,['vivec_city','Advanced article.','scholar,dunmer','Basic article.','common','Vivec,Cantons','settlements','Vivec City'],',','"','\\');
+        rewind($stream);$body=stream_get_contents($stream);fclose($stream);return new Response(200,(string)$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="example_oghma.csv"','X-Content-Type-Options'=>'nosniff']);
     }
 
     private function resetDescriptions(array $values,array $scope):int
@@ -836,6 +873,7 @@ final class ManagementRouter
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
+        $this->repository->setOghmaKnowledgeTags($installation,trim((string)($values['oghma_knowledge_tags']??'common')),gmdate('Y-m-d\TH:i:s\Z'));
         $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
@@ -900,6 +938,8 @@ final class ManagementRouter
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
             if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
             $overrides[$section][$field]=(int)$value;}
+        $oghmaTags=trim((string)($values['setting_memory_oghma_knowledge_tags']??''));
+        if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$key='setting_narrator_'.$field;$value=trim((string)($values[$key]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
@@ -979,6 +1019,8 @@ final class ManagementRouter
             'memory'=>['recent_turn_limit','knowledge_limit']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
+        $oghmaTags=trim((string)($values['setting_memory_oghma_knowledge_tags']??''));
+        if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
@@ -1105,6 +1147,19 @@ final class ManagementRouter
         if(strlen($content)>16384)throw new InvalidArgumentException('invalid_content');
         return$this->repository->updateMemory($id,$content,DeterministicRetrieval::terms($content),
             DeterministicRetrieval::fakeVector($content),gmdate('Y-m-d\TH:i:s\Z'));
+    }
+
+    /** Map Herika-style Oghma controls onto the exact typed static knowledge fields. */
+    private function knowledgeFormInput(array $values):array
+    {
+        $source=trim((string)($values['provenance']??'management'));if($source==='')$source='management';
+        $topic=$this->need($values,'topic');$title=trim((string)($values['title']??str_replace('_',' ',$topic)));
+        if($title==='')$title=str_replace('_',' ',$topic);
+        return['topic'=>$topic,'title'=>$title,'aliases'=>(string)($values['aliases']??''),
+            'content'=>$this->need($values,'content'),'knowledge_class'=>(string)($values['knowledge_class']??''),
+            'topic_desc_basic'=>$this->need($values,'topic_desc_basic'),'knowledge_class_basic'=>(string)($values['knowledge_class_basic']??''),
+            'tags'=>(string)($values['tags']??''),'category'=>$this->need($values,'category'),
+            'provenance'=>['source'=>$source,'category'=>$this->need($values,'category')]];
     }
 
     private function actionCatalog():string

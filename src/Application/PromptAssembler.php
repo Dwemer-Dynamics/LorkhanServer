@@ -162,6 +162,7 @@ final class PromptAssembler
             'prompt_configuration_id' => $this->sourceId('prompt', $prompt),
             'prompt_revision' => $this->requiredRevision($prompt),
             'memory_retrieval' => $selection['memory_retrieval'] ?? null,
+            'knowledge_retrieval' => $selection['knowledge_retrieval'] ?? null,
             'sources' => $sources,
             'sections' => $sections,
         ];
@@ -1071,7 +1072,7 @@ final class PromptAssembler
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) {
             if (!array_key_exists($field, $source) || $source[$field] === null) continue;
             $expected = $turn[$field];
-            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt'], true)
+            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge'], true)
                 && is_string($turn['_selected_profile_id'] ?? null)) $expected = $turn['_selected_profile_id'];
             if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {
                 throw new InvalidArgumentException('prompt_source_scope_mismatch');
@@ -1102,6 +1103,8 @@ final class PromptAssembler
         if ($kind === 'profile') {
             return $this->allow($source, ['name', 'actor_identity', 'content']);
         }
+        if($kind==='knowledge')return['topic'=>(string)($source['topic']??$source['title']??''),
+            'access_level'=>(string)($source['access_level']??'authorized'),'article'=>(string)($source['content']??'')];
         if (array_key_exists('content', $source)) return $source['content'];
         return match ($kind) {
             'relationship' => $this->allow($source, ['actor_identity', 'disposition', 'affinity']),

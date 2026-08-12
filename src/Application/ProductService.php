@@ -151,11 +151,36 @@ final class ProductService
     public function ingestKnowledge(array $input): array
     {
         $this->requireUuid($input, 'installation_id');
-        $this->boundedString($input, 'title', 1, 256);
-        $this->boundedString($input, 'content', 1, 131072);
+        $input=$this->knowledgeInput($input);
         foreach (['profile_id', 'playthrough_id'] as $field) if (isset($input[$field]) && $input[$field] !== null) $this->uuid((string) $input[$field]);
         $input['provenance'] = $this->provenance($input);
-        return $this->repository->createKnowledge($input, DeterministicRetrieval::terms($input['content']), $this->clock->iso());
+        return $this->repository->createKnowledge($input, DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']])), $this->clock->iso());
+    }
+
+    /** Validate every CSV row before atomically creating any Oghma documents. */
+    public function importKnowledge(array $inputs):array
+    {
+        if($inputs===[]||count($inputs)>5000)throw new InvalidArgumentException('invalid_knowledge_import');
+        $prepared=[];
+        foreach($inputs as$input){
+            if(!is_array($input)||array_is_list($input))throw new InvalidArgumentException('invalid_knowledge_import');
+            $this->requireUuid($input,'installation_id');$input=$this->knowledgeInput($input);
+            foreach(['profile_id','playthrough_id']as$field)if(isset($input[$field])&&$input[$field]!==null)$this->uuid((string)$input[$field]);
+            $input['provenance']=$this->provenance($input);
+            $prepared[]=['input'=>$input,'terms'=>DeterministicRetrieval::terms(implode(' ',[
+                $input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]))];
+        }
+        return$this->repository->createKnowledgeBatch($prepared,$this->clock->iso());
+    }
+
+    /** Replace one user-authored Oghma document while retaining its installation scope. */
+    public function updateKnowledge(string $documentId,array $input):array
+    {
+        $this->uuid($documentId);$current=$this->repository->knowledge($documentId);
+        if(($current['provenance']['source']??null)==='factory-oghma')throw new InvalidArgumentException('factory_knowledge_read_only');
+        $input=$this->knowledgeInput($input);$input['provenance']=$this->provenance($input);
+        $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
+        return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
     }
 
     /** @param array<string,mixed> $scope */
@@ -248,6 +273,24 @@ final class ProductService
         $value = $input['provenance'] ?? null;
         if (!is_array($value) || array_is_list($value) || !is_string($value['source'] ?? null) || $value['source'] === '') throw new InvalidArgumentException('provenance_required');
         return $value;
+    }
+
+    /** Normalize the exact CHIM static-Oghma fields while accepting legacy title/content callers. */
+    private function knowledgeInput(array $input):array
+    {
+        $input['topic']=trim((string)($input['topic']??$input['title']??''));
+        $input['title']=trim((string)($input['title']??str_replace('_',' ',$input['topic'])));
+        $input['content']=trim((string)($input['content']??$input['topic_desc']??''));
+        $input['topic_desc_basic']=trim((string)($input['topic_desc_basic']??$input['content']));
+        foreach(['topic'=>256,'title'=>256,'content'=>131072,'topic_desc_basic'=>131072]as$field=>$max)$this->boundedString($input,$field,1,$max);
+        foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$value=$input[$field]??'';
+            if(is_array($value)){if(!array_is_list($value))throw new InvalidArgumentException('invalid_'.$field);$value=implode(',',array_map(static fn(mixed$item):string=>trim((string)$item),$value));}
+            if(!is_string($value)||strlen($value)>8192||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_'.$field);$input[$field]=trim($value);}
+        $input['knowledge_class']=$input['knowledge_class']===''?'common':$input['knowledge_class'];
+        $input['knowledge_class_basic']=$input['knowledge_class_basic']===''?'common':$input['knowledge_class_basic'];
+        $input['category']=trim((string)($input['category']??($input['provenance']['category']??'ALMSIVI')));
+        if($input['category']===''||strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');
+        return$input;
     }
 
     private function scope(array $input): void

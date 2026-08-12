@@ -104,6 +104,7 @@ ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/migrate
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-descriptions.php"
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-biographies.php"
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-oghma.php"
 
 gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
 if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

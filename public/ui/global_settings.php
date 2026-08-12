@@ -18,6 +18,7 @@ if ($installationId === '' && isset($installations[0])) $installationId = (strin
 $stored = $installationId === '' ? null : $productRepository->globalSettingsForInstallation($installationId);
 $settings = is_array($stored['content'] ?? null) ? $stored['content'] : EffectiveSettingsResolver::defaults();
 $autoLockProfile = $installationId === '' || $productRepository->profileAutoLockEnabled($installationId);
+$oghmaKnowledgeTags = $installationId === '' ? 'common' : $productRepository->oghmaKnowledgeTags($installationId);
 
 $sections = [
     'prompt-rechat' => [
@@ -72,6 +73,7 @@ $sections = [
     ],
     'context-knowledge' => [
         'Context & Knowledge' => [
+            ['oghma_knowledge_tags', 'Oghma Knowledge Tags', '&#x1F4D9;', 'text', $oghmaKnowledgeTags, 'Installation knowledge classes inherited by Core Profiles and NPCs. Use comma-separated CHIM tags such as common, traveler, dunmer, scholar, or knowall.', []],
             ['narrator_welcome_events', 'Welcome Events', '&#x1F44B;', 'boolean', $settings['narrator']['welcome_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['narrator_random_events', 'Random Events', '&#x1F3B2;', 'boolean', $settings['narrator']['random_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
             ['narrator_quest_events', 'Quest Events', '&#x1F5FA;&#xFE0F;', 'boolean', $settings['narrator']['quest_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],

@@ -78,6 +78,8 @@ final class EffectiveSettingsResolver
             $sources = [];
             $this->markLeaves($settings, 'global', 'settings', $sources);
         }
+        $settings['memory']['oghma_knowledge_tags'] = 'common';
+        $sources['settings.memory.oghma_knowledge_tags'] = 'server_default';
 
         $routing = [];
         foreach ([['core_profile', $coreProfileContent], ['npc', $npcProfileContent]] as [$source, $content]) {
@@ -91,6 +93,10 @@ final class EffectiveSettingsResolver
             foreach ($route as $key => $value) {
                 $routing[$key] = $value;
                 $sources['routing.' . $key] = $source;
+            }
+            if ($source === 'npc' && is_string($content['oghma_knowledge_tags'] ?? null)) {
+                $settings['memory']['oghma_knowledge_tags'] = trim($content['oghma_knowledge_tags']);
+                $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
             }
         }
 
@@ -157,7 +163,13 @@ final class EffectiveSettingsResolver
         if (!is_array($overrides) || ($overrides !== [] && array_is_list($overrides)) || array_key_exists('schema', $overrides)) {
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
-        self::validateSettingsShape($overrides, self::DEFAULT_SETTINGS, true);
+        $validation=$overrides;
+        if(array_key_exists('oghma_knowledge_tags',$validation['memory']??[])){
+            $value=$validation['memory']['oghma_knowledge_tags'];
+            if(!is_string($value)||strlen($value)>4096||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['memory']['oghma_knowledge_tags']);if($validation['memory']===[])unset($validation['memory']);
+        }
+        self::validateSettingsShape($validation, self::DEFAULT_SETTINGS, true);
         return $overrides;
     }
 
@@ -225,6 +237,9 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 128 || !mb_check_encoding($value, 'UTF-8'))) {
+            throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
+        }
+        if ($path === 'memory.oghma_knowledge_tags' && (strlen($value) > 4096 || !mb_check_encoding($value, 'UTF-8'))) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
     }

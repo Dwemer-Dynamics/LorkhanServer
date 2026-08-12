@@ -10,6 +10,25 @@ final class ManagementUiRepository
 {
     public function __construct(private readonly PDO $db) {}
 
+    /** Return the static Oghma catalog with bounded server-side search, category, order, and pagination. */
+    public function oghmaCatalog(array $filters=[]):array
+    {
+        $search=mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8');$category=trim((string)($filters['category']??''));
+        $order=strtolower((string)($filters['order']??'asc'))==='desc'?'DESC':'ASC';$page=max(1,(int)($filters['page']??1));$pageSize=50;
+        $where=['d.deleted_at IS NULL'];$params=[];$installation=trim((string)($filters['installation_id']??''));
+        if($installation!==''){$where[]='d.installation_id=:installation';$params['installation']=$installation;}
+        if($search!==''){$where[]="to_tsvector('simple',concat_ws(' ',d.topic,d.title,d.aliases,d.content,d.topic_desc_basic,d.tags)) @@ plainto_tsquery('simple',:search)";$params['search']=$search;}
+        if($category!==''){$where[]='d.category=:category';$params['category']=$category;}
+        $base=' FROM knowledge_documents d WHERE '.implode(' AND ',$where);$count=$this->db->prepare('SELECT count(*)'.$base);$count->execute($params);$total=(int)$count->fetchColumn();
+        $statement=$this->db->prepare('SELECT d.document_id,d.installation_id,d.profile_id,d.playthrough_id,d.topic,d.title,d.aliases,d.content,d.knowledge_class,d.topic_desc_basic,d.knowledge_class_basic,d.tags,d.category,d.provenance,d.created_at'.$base.' ORDER BY lower(d.topic) '.$order.',d.document_id LIMIT '.$pageSize.' OFFSET '.(($page-1)*$pageSize));$statement->execute($params);$rows=$statement->fetchAll();
+        foreach($rows as&$row)$row['provenance']=json_decode((string)$row['provenance'],true,16,JSON_THROW_ON_ERROR);unset($row);
+        return['rows'=>$rows,'total'=>$total,'page'=>$page,'pages'=>max(1,(int)ceil($total/$pageSize))];
+    }
+
+    public function oghmaCategories():array{return$this->db->query("SELECT DISTINCT category FROM knowledge_documents WHERE deleted_at IS NULL AND category<>'' ORDER BY category")->fetchAll(PDO::FETCH_COLUMN);}
+
+    public function oghmaCatalogStatus():?array{$row=$this->db->query("SELECT catalog_version,row_count,articles_sha256,activated_at FROM oghma_catalogs WHERE state='active'")->fetch();return$row===false?null:$row;}
+
     /** Query the effective default/custom catalog with server-side filters and bounded pagination. */
     public function descriptionCatalog(string $installationId,array $filters=[]): array
     {
@@ -191,7 +210,7 @@ SQL);
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
             'relationships', 'relationship_logs' => "SELECT COALESCE(source.relationship_id::text,metadata.source_profile_id::text||':'||rel.key) AS relationship_id,metadata.installation_id,metadata.source_profile_id AS profile_id,source.playthrough_id,COALESCE(source.actor_identity,jsonb_build_object('record_id',rel.key,'display_name',rel.value->>'name')) AS actor_identity,COALESCE(rel.value->>'name',rel.key) AS actor,rel.value->>'disposition' AS disposition,rel.value->>'affinity' AS affinity,COALESCE(rel.value->>'source',source.source_mode) AS source_mode,source.updated_at FROM public.core_npc_master npc JOIN almsivi_internal.npc_metadata metadata ON metadata.npc_id=npc.id CROSS JOIN LATERAL jsonb_each(COALESCE(npc.extended_data->'relationships','{}'::jsonb)) rel LEFT JOIN almsivi_internal.relationship_records source ON source.profile_id=metadata.source_profile_id AND source.deleted_at IS NULL AND lower(COALESCE(source.actor_identity->>'record_id',source.actor_identity->>'display_name',''))=lower(rel.key) ORDER BY source.updated_at DESC NULLS LAST,npc.id,rel.key LIMIT 100",
             'narratives' => "SELECT metadata.narrative_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,d.tags AS kind,d.topic AS title,d.content,jsonb_build_object('location',d.location,'people',d.people,'tags',d.tags) AS provenance,to_timestamp(d.localts) AS created_at FROM public.diarylog d JOIN almsivi_internal.diarylog_metadata metadata ON metadata.rowid=d.rowid ORDER BY d.localts DESC,d.rowid DESC LIMIT 100",
-            'knowledge', 'worldknowledge' => "SELECT metadata.document_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,o.topic AS title,left(o.topic_desc,4000) AS content,jsonb_build_object('category',o.category,'class',o.knowledge_class,'tags',o.tags,'aliases',o.aliases) AS provenance,source.created_at FROM public.oghma o JOIN almsivi_internal.oghma_metadata metadata ON metadata.topic=o.topic LEFT JOIN almsivi_internal.knowledge_documents source ON source.document_id=metadata.document_id ORDER BY source.created_at DESC NULLS LAST,o.topic LIMIT 100",
+            'knowledge', 'worldknowledge' => "SELECT document_id,installation_id,profile_id,playthrough_id,topic,title,aliases,left(content,4000) AS content,knowledge_class,left(topic_desc_basic,4000) AS topic_desc_basic,knowledge_class_basic,tags,category,provenance,created_at FROM knowledge_documents WHERE deleted_at IS NULL ORDER BY lower(topic),document_id LIMIT 100",
             'journal' => "SELECT metadata.installation_id,session.profile_id,metadata.playthrough_id,q.id_quest AS quest_id,COALESCE(NULLIF(q.briefing2,''),NULLIF(q.briefing,''),q.data) AS journal_entry,NULL::text AS game_day,NULL::text AS game_month,NULL::text AS day_of_month,to_timestamp(q.localts) AS last_synced_at FROM public.questlog q JOIN almsivi_internal.questlog_metadata metadata ON metadata.rowid=q.rowid LEFT JOIN almsivi_internal.sessions session ON session.session_id=metadata.session_id ORDER BY q.localts DESC,q.rowid DESC LIMIT 100",
             'books' => "SELECT metadata.installation_id,session.profile_id,metadata.playthrough_id,b.title,metadata.record_id,b.content AS book_text,NULL::text AS is_scroll,NULL::text AS taught_skill,to_timestamp(b.localts) AS last_read_at FROM public.books b JOIN almsivi_internal.book_metadata metadata ON metadata.rowid=b.rowid LEFT JOIN almsivi_internal.sessions session ON session.session_id=metadata.session_id ORDER BY b.localts DESC,b.rowid DESC LIMIT 100",
             'descriptions' => "SELECT metadata.description_id,metadata.installation_id,d.plugin AS content_file,d.baseid AS record_id,d.name AS display_name,d.description,source.updated_at FROM public.combined_descriptions d JOIN almsivi_internal.description_metadata metadata ON metadata.plugin=d.plugin AND metadata.baseid=d.baseid LEFT JOIN almsivi_internal.item_descriptions source ON source.description_id=metadata.description_id ORDER BY lower(d.name),lower(d.plugin),lower(d.baseid) LIMIT 500",

@@ -370,6 +370,9 @@ final class ProductRepository
         $statement->execute(['installation'=>$installationId,'enabled'=>$enabled?'true':'false','now'=>$now]);
     }
 
+    public function oghmaKnowledgeTags(string $installationId):string{$statement=$this->db->prepare('SELECT knowledge_tags FROM oghma_installation_settings WHERE installation_id=:installation');$statement->execute(['installation'=>$installationId]);$value=$statement->fetchColumn();return$value===false?'common':(string)$value;}
+    public function setOghmaKnowledgeTags(string $installationId,string $tags,string $now):void{$tags=trim($tags);if(strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new \InvalidArgumentException('invalid_oghma_knowledge_tags');$this->db->prepare('INSERT INTO oghma_installation_settings(installation_id,knowledge_tags,updated_at) VALUES(:installation,:tags,:now) ON CONFLICT(installation_id) DO UPDATE SET knowledge_tags=EXCLUDED.knowledge_tags,updated_at=EXCLUDED.updated_at')->execute(['installation'=>$installationId,'tags'=>$tags,'now'=>$now]);}
+
     /** Soft-delete only unlocked NPC profiles in one installation and clear their actor bindings. */
     public function bulkDeleteUnlockedNpcProfiles(string $installationId,string $now):int
     {
@@ -522,6 +525,13 @@ final class ProductRepository
             is_array($core['content']??null)?$core['content']:[],
             is_array($profile['content']??null)?$profile['content']:[],
         );
+        $globalTags=$this->oghmaKnowledgeTags($installationId);
+        if(($resolved['sources']['settings.memory.oghma_knowledge_tags']??'')==='server_default'){
+            $resolved['settings']['memory']['oghma_knowledge_tags']=$globalTags;
+            $resolved['document']['settings']['memory']['oghma_knowledge_tags']=$globalTags;
+            $resolved['sources']['settings.memory.oghma_knowledge_tags']='global';
+            $resolved['sha256']=hash('sha256',$this->encodeCanonical($resolved['document']));
+        }
         return$resolved+['global_settings'=>$global,'core_profile'=>$core,'npc_profile'=>$profile];
     }
 
@@ -754,11 +764,17 @@ final class ProductRepository
 
     public function createKnowledge(array $input,array $terms,string $now): array
     {
-        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$this->db->prepare('INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now)')->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now]);return $this->knowledge($id);
+        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$this->db->prepare('INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)')->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);return $this->knowledge($id);
     }
+    /** Insert a fully validated Oghma import as one transaction. */
+    public function createKnowledgeBatch(array $prepared,string $now):array
+    {
+        return$this->transaction(function()use($prepared,$now):array{$saved=[];foreach($prepared as$row)$saved[]=$this->createKnowledge($row['input'],$row['terms'],$now);return$saved;});
+    }
+    public function updateKnowledge(string $id,array $input,array $terms,string $now):array{$sha=hash('sha256',$input['content']);$statement=$this->db->prepare('UPDATE knowledge_documents SET title=:title,content=:content,content_sha256=:sha,lexical_terms=CAST(:terms AS text[]),provenance=CAST(:provenance AS jsonb),topic=:topic,aliases=:aliases,topic_desc_basic=:basic,knowledge_class=:advanced_class,knowledge_class_basic=:basic_class,tags=:tags,category=:category WHERE document_id=:id AND deleted_at IS NULL');$statement->execute(['id'=>$id,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');return$this->knowledge($id);}
     public function knowledge(string $id): array {$s=$this->db->prepare('SELECT * FROM knowledge_documents WHERE document_id=:id AND deleted_at IS NULL');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['id']=$r['document_id'];$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;}
-    public function deleteKnowledge(string $id,string $now):void{$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function knowledgeCandidates(array $scope):array{$sql='SELECT document_id AS id,title,content,content_sha256,lexical_terms,provenance FROM knowledge_documents WHERE installation_id=:installation AND deleted_at IS NULL AND (profile_id IS NULL OR profile_id=:profile) AND (playthrough_id IS NULL OR playthrough_id=:playthrough) ORDER BY created_at DESC LIMIT 500';$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function deleteKnowledge(string $id,string $now):void{$row=$this->knowledge($id);if(($row['provenance']['source']??null)==='factory-oghma')throw new \InvalidArgumentException('factory_knowledge_read_only');$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
+    public function knowledgeCandidates(array $scope):array{$sql='SELECT document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category FROM knowledge_documents WHERE installation_id=:installation AND deleted_at IS NULL AND (profile_id IS NULL OR profile_id=:profile) AND (playthrough_id IS NULL OR playthrough_id=:playthrough) ORDER BY created_at DESC,document_id LIMIT 500';$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
 
     public function recordRetrieval(string $domain,array $scope,string $query,array $rows,string $now):array
     {
@@ -1091,7 +1107,11 @@ final class ProductRepository
         }
         $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
         $memories=$memorySelection['rows'];
-        $knowledge=$this->knowledgeCandidates($scope);usort($knowledge,fn($a,$b)=>strcmp((string)$a['id'],(string)$b['id']));
+        $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
+        $knowledgeSelection=$this->selectPromptKnowledge($turn,$knowledgeScope,$this->knowledgeCandidates($knowledgeScope),
+            (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
+            (int)($effective['settings']['memory']['knowledge_limit']??5),$now);
+        $knowledge=$knowledgeSelection['rows'];
         $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $narratives=$this->narratives($scope);usort($narratives,fn($a,$b)=>strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
@@ -1163,8 +1183,68 @@ SQL);
             'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'memory_retrieval'=>$memorySelection['trace'],
-            'relationship'=>array_slice($relationships,0,10),'knowledge'=>array_slice($knowledge,0,10),
+            'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],
             'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+    }
+
+    /** Rank static Oghma topics, enforce CHIM access classes, and retain selected and rejected decisions. */
+    private function selectPromptKnowledge(array $turn,array $scope,array $rows,string $tagList,int $limit,string $now):array
+    {
+        $query=trim((string)($turn['payload']['input']['text']??''));
+        if($query==='')$query=trim((string)($turn['payload']['context']['location']??''));
+        $query=mb_strcut($query===''?'continue conversation':$query,0,4096,'UTF-8');
+        $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(20,$limit));$ranked=[];
+        foreach($rows as$row){$score=$this->knowledgeRelevance($query,$row);if($score<=0.0)continue;$row['_prompt_score']=$score;$ranked[]=$row;}
+        usort($ranked,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])
+            ?:strcmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
+        // A canonical topic or alias request is authoritative; weaker generic tag matches must not dilute it.
+        if(($ranked[0]['_prompt_score']??0.0)>=0.95)$ranked=array_values(array_filter($ranked,static fn(array$row):bool=>$row['_prompt_score']>=0.95));
+        $selected=[];$scores=[];$reasons=[];
+        foreach(array_slice($ranked,0,40)as$rank=>$row){$scores[$row['id']]=$row['_prompt_score'];$access=$this->knowledgeAccess($row,$knowledgeTags);
+            if($access===null){$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>false,'access_level'=>'none','score'=>$row['_prompt_score'],'reason'=>'knowledge classes not authorized'];continue;}
+            if(count($selected)>=$limit){$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>false,'access_level'=>$access,'score'=>$row['_prompt_score'],'reason'=>'knowledge result limit'];continue;}
+            $row['content']=$access==='advanced'?(string)$row['content']:(string)$row['topic_desc_basic'];$row['access_level']=$access;
+            unset($row['_prompt_score']);$selected[]=$row;$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>true,'access_level'=>$access,'score'=>$scores[$row['id']],'reason'=>$access.' knowledge class authorized'];}
+        return['rows'=>$selected,'trace'=>['domain'=>'knowledge','query'=>$query,'result_ids'=>array_column($selected,'id'),
+            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'oghma-topic-alias-access-v1','created_at'=>$now,
+            'prompt_section'=>'morrowind_context','scope'=>$scope,'effective_knowledge_tags'=>$knowledgeTags]];
+    }
+
+    private function knowledgeRelevance(string $query,array $row):float
+    {
+        $normalize=static fn(string$value):string=>trim((string)preg_replace('/\s+/u',' ',(string)preg_replace('/[^\p{L}\p{N}]+/u',' ',mb_strtolower(str_replace('_',' ',$value),'UTF-8'))));
+        $queryNormalized=$normalize($query);if($queryNormalized==='')return 0.0;
+        $labels=array_merge([(string)$row['topic'],(string)$row['title']],$this->knowledgeValues((string)$row['aliases']));
+        $score=0.0;foreach($labels as$label){$label=$normalize($label);if($label==='')continue;if($queryNormalized===$label)$score=max($score,1.0);elseif(str_contains(' '.$queryNormalized.' ',' '.$label.' '))$score=max($score,0.95);}
+        $queryTerms=array_values(array_diff(DeterministicRetrieval::terms($queryNormalized),[
+            'about','and','are','could','for','from','how','into','me','of','please','tell','that','the','their','there',
+            'these','they','this','what','when','where','which','who','with','would',
+        ]));
+        if($queryTerms===[])return$score;
+        $signals=implode(' ',array_merge($labels,$this->knowledgeValues((string)$row['tags'])));$signalTerms=DeterministicRetrieval::terms($normalize($signals));
+        $overlap=count(array_intersect($queryTerms,$signalTerms));if($overlap>0)$score=max($score,min(0.9,0.45+0.15*$overlap));
+        return round($score,8);
+    }
+
+    private function knowledgeAccess(array $row,array $knowledgeTags):?string
+    {
+        $normalized=array_map('strtolower',$knowledgeTags);
+        if(in_array('knowall',$normalized,true)||$this->knowledgeClassAllows((string)$row['knowledge_class'],$normalized))return'advanced';
+        return$this->knowledgeClassAllows((string)$row['knowledge_class_basic'],$normalized)?'basic':null;
+    }
+
+    private function knowledgeClassAllows(string $classes,array $knowledgeTags):bool
+    {
+        $classes=array_map('strtolower',$this->knowledgeValues($classes));if($classes===[])return true;
+        $denied=array_map(static fn(string$value):string=>substr($value,1),array_filter($classes,static fn(string$value):bool=>str_starts_with($value,'!')));
+        if(array_intersect($denied,$knowledgeTags)!==[])return false;
+        $allowed=array_filter($classes,static fn(string$value):bool=>!str_starts_with($value,'!'));
+        return array_intersect($allowed,$knowledgeTags)!==[];
+    }
+
+    private function knowledgeValues(string $value):array
+    {
+        $values=preg_split('/\s*[,|;]\s*/u',$value)?:[];$result=[];foreach($values as$item){$item=trim($item);if($item!==''&&!in_array($item,$result,true))$result[]=$item;}return$result;
     }
 
     /** Rank turn memories deterministically and persist why each prompt source was selected. */
@@ -1400,10 +1480,24 @@ SQL);
                 . 'VALUES (:trace,:section_order,:section_key,CAST(:source_refs AS jsonb),:reason,:occurred,:playthrough,'
                 . ':characters,:tokens,:preview,:sha) ON CONFLICT DO NOTHING')->execute([
                     'trace'=>$stored,'section_order'=>$section['section_order'],'section_key'=>$section['section_key'],
-                    'source_refs'=>$this->encode($section['source_refs']),'reason'=>$section['inclusion_reason'],
+                    'source_refs'=>json_encode($section['source_refs'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),'reason'=>$section['inclusion_reason'],
                     'occurred'=>$section['source_occurred_at'],'playthrough'=>$turn['playthrough_id'],
                     'characters'=>$section['source_characters'],'tokens'=>$section['estimated_tokens'],
                     'preview'=>$section['redacted_preview'],'sha'=>$section['source_sha256']]);}
+            foreach(['memory_retrieval'=>'memory','knowledge_retrieval'=>'knowledge']as$traceField=>$domain){
+                $retrieval=$trace[$traceField]??null;if(!is_array($retrieval)||array_is_list($retrieval))continue;
+                $retrievalScope=is_array($retrieval['scope']??null)?$retrieval['scope']:[];
+                $this->db->prepare('INSERT INTO retrieval_traces '
+                    .'(retrieval_trace_id,installation_id,profile_id,playthrough_id,domain,query,result_ids,scores,algorithm,created_at,'
+                    .'turn_id,prompt_section,reasons) VALUES (:id,:installation,:profile,:playthrough,:domain,:query,'
+                    .'CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:created,:turn,:section,CAST(:reasons AS jsonb))')
+                    ->execute(['id'=>Uuid::v4(),'installation'=>$turn['installation_id'],
+                        'profile'=>$retrievalScope['profile_id']??$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],
+                        'domain'=>$domain,'query'=>$retrieval['query'],'ids'=>$this->pgArray($retrieval['result_ids']),
+                        'scores'=>$this->encode($retrieval['scores']),'algorithm'=>$retrieval['algorithm'],
+                        'created'=>$retrieval['created_at'],'turn'=>$turn['turn_id'],'section'=>$retrieval['prompt_section'],
+                        'reasons'=>$this->encode($retrieval['reasons'])]);
+            }
             return$stored;
         });
     }

@@ -50,6 +50,7 @@ final class Repository
         $pairing->execute(['pairing' => Uuid::v4(), 'id' => $installationId, 'token' => $tokenHash]);
         if($macKey!==null){$update=$this->db->prepare('UPDATE pairing_tokens SET mac_key=:key WHERE installation_id=:id AND state=\'active\'');$update->bindValue(':key',$macKey,PDO::PARAM_LOB);$update->bindValue(':id',$installationId);$update->execute();}
         if ($created && $this->defaultConnectors !== null) $this->defaultConnectors->provision($installationId);
+        if($created)(new OghmaCatalogImporter($this->db))->provisionInstallation($installationId);
     }
 
     public function consumeRateLimit(string $key, int $limit, int $windowSeconds): bool
@@ -1016,16 +1017,20 @@ final class Repository
                 'occurred'=>$section['source_occurred_at'],'playthrough'=>$section['playthrough_id'],
                 'characters'=>$section['source_characters'],'tokens'=>$section['estimated_tokens'],
                 'preview'=>$section['redacted_preview'],'sha'=>$section['source_sha256']]);
-        $retrieval=$trace['memory_retrieval']??null;
+        foreach(['memory_retrieval'=>'memory','knowledge_retrieval'=>'knowledge']as$traceField=>$domain){
+        $retrieval=$trace[$traceField]??null;
         if(is_array($retrieval)&&!array_is_list($retrieval)){
             $this->db->prepare('INSERT INTO retrieval_traces '
                 . '(retrieval_trace_id,installation_id,profile_id,playthrough_id,domain,query,result_ids,scores,algorithm,created_at,'
-                . 'turn_id,prompt_section,reasons) VALUES (:id,:installation,:profile,:playthrough,\'memory\',:query,'
-                . 'CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:created,:turn,\'memory_context\',CAST(:reasons AS jsonb))')
-                ->execute(['id'=>Uuid::v4(),'installation'=>$turn['installation_id'],'profile'=>$turn['profile_id'],
+                . 'turn_id,prompt_section,reasons) VALUES (:id,:installation,:profile,:playthrough,:domain,:query,'
+                . 'CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:created,:turn,:section,CAST(:reasons AS jsonb))')
+                ->execute(['id'=>Uuid::v4(),'installation'=>$turn['installation_id'],
+                    'profile'=>$retrieval['scope']['profile_id']??$turn['profile_id'],
                     'playthrough'=>$turn['playthrough_id'],'query'=>$retrieval['query'],'ids'=>$this->pgArray($retrieval['result_ids']),
                     'scores'=>$this->encodeObject($retrieval['scores']),'algorithm'=>$retrieval['algorithm'],
-                    'created'=>$retrieval['created_at'],'turn'=>$turn['turn_id'],'reasons'=>$this->encodeObject($retrieval['reasons'])]);
+                    'created'=>$retrieval['created_at'],'turn'=>$turn['turn_id'],'domain'=>$domain,
+                    'section'=>$retrieval['prompt_section'],'reasons'=>$this->encodeObject($retrieval['reasons'])]);
+        }
         }
     }
 

@@ -205,6 +205,7 @@ $disabledNumberField = static function (string $section, string $field, string $
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Context &amp; Presentation</h3><div class="provider-card">
             <?php $numberField('memory', 'recent_turn_limit', 'Recent Turns', 'Maximum recent conversation turns in context.', 1, 100); ?>
             <?php $numberField('memory', 'knowledge_limit', 'Knowledge Results', 'Maximum scoped knowledge documents returned.', 0, 20); ?>
+            <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" maxlength="4096" value="<?php echo almsivi_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
             <?php $disabledSelectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Controlled by local OpenMW settings.', $overrides['presentation']['show_status_hud'] ?? null, 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>

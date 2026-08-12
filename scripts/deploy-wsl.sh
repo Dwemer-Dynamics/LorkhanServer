@@ -179,6 +179,7 @@ ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/migrate
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-connectors.php"
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-descriptions.php"
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-biographies.php"
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-oghma.php"
 
 ln -sfn "${release_dir}" /var/www/ALMSIVIserver/current.next
 mv -Tf /var/www/ALMSIVIserver/current.next /var/www/ALMSIVIserver/current
