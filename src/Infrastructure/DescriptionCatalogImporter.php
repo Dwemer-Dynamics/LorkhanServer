@@ -293,7 +293,7 @@ SQL);
         return [
             'rows' => $rows, 'errors' => array_slice(array_values(array_unique($errors)), 0, 100),
             'duplicate_count' => $duplicates, 'format_version' => $format, 'prompt_sha256' => $promptSha,
-            'model' => $model, 'csv_sha256' => hash('sha256', $csv),
+            'model' => $model, 'csv_sha256' => hash('sha256', str_replace(["\r\n", "\r"], "\n", $csv)),
             'manifest_sha256' => hash('sha256', $manifestRaw), 'official_content_sha256' => $contentHashes,
         ];
     }

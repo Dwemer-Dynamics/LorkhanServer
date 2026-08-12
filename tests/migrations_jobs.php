@@ -273,6 +273,11 @@ $factoryIdempotent=$catalogImporter->apply($factoryV1Csv,$factoryV1Manifest,'fix
 $check($factoryIdempotent['applied']===false&&$factoryIdempotent['idempotent']===true
     &&(int)$db->query("SELECT count(*) FROM description_catalogs WHERE catalog_version='fixture-v1'")->fetchColumn()===1,
     'factory description catalog repeat apply was not idempotent');
+$factoryV1Crlf=$catalogFixtureRoot.'/fixture-v1-crlf.csv';
+file_put_contents($factoryV1Crlf,str_replace("\n","\r\n",(string)file_get_contents($factoryV1Csv)));
+$factoryCrlfProvision=$catalogImporter->provision($factoryV1Crlf,$factoryV1Manifest,'fixture-v1');
+$check($factoryCrlfProvision['applied']===false&&$factoryCrlfProvision['idempotent']===true,
+    'factory description catalog checksum changed across LF and CRLF line endings');
 $effectiveAfterFactory=$uiDescriptions->descriptionCatalog($installation,['search'=>'Iron Dagger']);
 $check(count($effectiveAfterFactory['items'])===1&&$effectiveAfterFactory['items'][0]['source']==='custom'
     &&$effectiveAfterFactory['items'][0]['description']==='A custom iron blade.',

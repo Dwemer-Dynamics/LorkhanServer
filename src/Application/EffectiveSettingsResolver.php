@@ -94,7 +94,8 @@ final class EffectiveSettingsResolver
                 $routing[$key] = $value;
                 $sources['routing.' . $key] = $source;
             }
-            if ($source === 'npc' && is_string($content['oghma_knowledge_tags'] ?? null)) {
+            if ($source === 'npc' && is_string($content['oghma_knowledge_tags'] ?? null)
+                && trim($content['oghma_knowledge_tags']) !== '') {
                 $settings['memory']['oghma_knowledge_tags'] = trim($content['oghma_knowledge_tags']);
                 $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
             }

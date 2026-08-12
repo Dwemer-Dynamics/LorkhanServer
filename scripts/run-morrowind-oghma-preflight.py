@@ -20,6 +20,7 @@ import requests
 
 
 FORMAT_VERSION = "almsivi.morrowind-oghma-preflight.v1"
+GENERATION_RULESET = "morrowind-oghma-static-3e427-v2"
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 DEFAULT_MODEL = "z-ai/glm-5.1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -29,7 +30,7 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 RESOURCE_DIR = SCRIPT_DIR.parent / "resources" / "oghma" / "morrowind-official"
 DEFAULT_SEEDS = RESOURCE_DIR / "topic-seeds.json"
 DEFAULT_ONTOLOGY = RESOURCE_DIR / "ontology.json"
-RECORD_TYPES = {b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC"}
+RECORD_TYPES = {b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC", b"BOOK"}
 
 SYSTEM_PROMPT = """You write concise, source-grounded Morrowind encyclopedia entries for the CHIM Oghma Infinium system.
 
@@ -45,6 +46,9 @@ the supplied official identity and source evidence conservatively. Do not mentio
 records, form IDs, files, databases, wikis, UESP, prompts, language models, statistics, levels, mechanics, or source
 material. Do not reproduce book or dialogue passages. Do not invent disputed claims, secret motives, relationships,
 appearance, ownership, outcomes, or prophecy fulfillment. When accounts disagree, state the uncertainty briefly.
+If official dialogue is tied to an errand or dispute, extract only stable encyclopedic knowledge. Never narrate a
+one-time request, theft, commercial scheme, investigation, missing person, delivery, payment, current plan, or its
+ordinary participants. Do not name ordinary NPCs unless the locked subject itself is a reviewed major figure.
 
 The advanced article must explain the subject's identity, significance, and stable context in 55-150 words. The
 basic article must be a separately written 18-65 word account containing only broadly available knowledge; aim for
@@ -208,6 +212,64 @@ def extract_records(data_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str
         if position != len(raw):
             raise ValueError(f"TES3 file ended with an incomplete record header: {path}")
     return winners, hashes
+
+
+# Dialogue responses are first-party evidence for expansion topics that do not have a dedicated UESP page.
+def extract_dialogue_evidence(data_dir: Path) -> dict[str, dict[str, Any]]:
+    topics: dict[str, dict[str, Any]] = {}
+    winning_responses: dict[str, tuple[str, str, str]] = {}
+    for content_file in CONTENT_FILES:
+        raw = (data_dir / content_file).read_bytes()
+        position = 0
+        active_topic = ""
+        while position + 16 <= len(raw):
+            record_type = raw[position:position + 4]
+            size = struct.unpack_from("<I", raw, position + 4)[0]
+            start = position + 16
+            end = start + size
+            if end > len(raw):
+                raise ValueError(f"TES3 record in {content_file} extends past the file")
+            position = end
+            fields: dict[bytes, bytes] = {}
+            deleted = False
+            for kind, value in iter_subrecords(raw[start:end]):
+                fields.setdefault(kind, value)
+                deleted = deleted or kind == b"DELE"
+            if record_type == b"DIAL":
+                title = decode_text(fields.get(b"NAME", b""))
+                dialogue_type = fields.get(b"DATA", b"\xff")[:1]
+                active_topic = title if title and dialogue_type == b"\x00" else ""
+                if active_topic:
+                    key = re.sub(r"[^a-z0-9]+", "", active_topic.casefold())
+                    topics.setdefault(key, {"title": active_topic, "sources": set()})["sources"].add(content_file)
+                continue
+            if record_type != b"INFO" or not active_topic:
+                continue
+            response_id = decode_text(fields.get(b"INAM", b""))
+            if not response_id:
+                continue
+            winner_key = response_id.casefold()
+            if deleted:
+                winning_responses.pop(winner_key, None)
+                continue
+            response = decode_text(fields.get(b"NAME", b""))
+            if response:
+                winning_responses[winner_key] = (active_topic, content_file, response)
+    for active_topic, content_file, response in winning_responses.values():
+        key = re.sub(r"[^a-z0-9]+", "", active_topic.casefold())
+        row = topics.setdefault(key, {"title": active_topic, "sources": set()})
+        row["sources"].add(content_file)
+        row.setdefault("responses", []).append(response)
+    result: dict[str, dict[str, Any]] = {}
+    for key, row in topics.items():
+        responses = unique_strings(row.get("responses", []))
+        result[key] = {
+            "title": row["title"],
+            "sources": sorted(row["sources"], key=CONTENT_FILES.index),
+            "response_count": len(responses),
+            "responses": responses,
+        }
+    return result
 
 
 def slug(value: str) -> str:
@@ -413,7 +475,7 @@ def uesp_search(session: requests.Session, topic: dict[str, Any], cache_dir: Pat
     return result
 
 
-def build_evidence(topic: dict[str, Any], uesp: dict[str, Any]) -> str:
+def build_evidence(topic: dict[str, Any], uesp: dict[str, Any], dialogue: dict[str, Any] | None = None) -> str:
     lines = [
         f"canonical_topic: {topic['topic']}", f"title: {topic['title']}",
         f"required_category: {topic['category']}", f"access_profile: {topic['profile']}",
@@ -422,6 +484,11 @@ def build_evidence(topic: dict[str, Any], uesp: dict[str, Any]) -> str:
     ]
     for record in topic.get("resolved_records", []):
         lines.append("official_record: " + json.dumps(record, ensure_ascii=False, sort_keys=True))
+    if dialogue is not None:
+        lines.append("official_dialogue_sources: " + ", ".join(dialogue.get("sources", [])))
+        lines.append(f"official_dialogue_response_count: {dialogue.get('response_count', 0)}")
+        for response in dialogue.get("responses", [])[:16]:
+            lines.append("official_dialogue_response: " + str(response))
     if uesp.get("status") == "found":
         for page in uesp["pages"]:
             lines.extend([
@@ -479,10 +546,11 @@ def article_classes(topic: dict[str, Any], ontology: dict[str, Any], generated: 
 
 
 def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated: dict[str, Any]) -> dict[str, Any]:
-    # Aliases are inventory data, not prose: keep them curated and deterministic.
-    aliases = unique_strings(topic.get("aliases", []))
-    canonical_key = re.sub(r"[^a-z0-9]+", "", topic["topic"].casefold())
-    aliases = [value for value in aliases if re.sub(r"[^a-z0-9]+", "", value.casefold()) != canonical_key]
+    aliases = unique_strings([*topic.get("aliases", []), *generated.get("aliases", [])])
+    canonical_keys = {
+        re.sub(r"[^a-z0-9]+", "", str(topic[field]).casefold()) for field in ("topic", "title")
+    }
+    aliases = [value for value in aliases if re.sub(r"[^a-z0-9]+", "", value.casefold()) not in canonical_keys]
     return {
         "topic": topic["topic"], "title": topic["title"],
         "topic_desc": re.sub(r"\s+", " ", str(generated.get("topic_desc", ""))).strip(),
@@ -515,6 +583,8 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
         errors.append("basic article is too close to the advanced article")
     if article["category"] != topic["category"]:
         errors.append("category changed from locked inventory")
+    if len(article["aliases"]) > int(prose["max_aliases"]):
+        errors.append("alias count is outside the ontology bounds")
     allowed = set(ontology["knowledge_classes"])
     for field in ("knowledge_class", "knowledge_class_basic"):
         if not article[field] or any(value not in allowed for value in article[field]):
@@ -531,7 +601,8 @@ def record_dir(run_dir: Path, topic: str) -> Path:
 def valid_result(path: Path, topic: dict[str, Any], ontology: dict[str, Any]) -> tuple[bool, str]:
     try:
         document = read_json(path)
-        if document.get("status") != "complete" or document.get("topic") != topic["topic"]:
+        if (document.get("status") != "complete" or document.get("topic") != topic["topic"]
+                or document.get("generation_ruleset") != GENERATION_RULESET):
             return False, "status or topic mismatch"
         errors = validate_article(document["article"], topic, ontology)
         return (not errors), "; ".join(errors)
@@ -653,6 +724,7 @@ def main() -> int:
         seeds_raw = args.seeds.read_bytes()
         ontology = read_json(args.ontology)
         records, hashes = extract_records(args.data_dir)
+        dialogue_topics = extract_dialogue_evidence(args.data_dir)
         topics = validate_seed_document(read_json(args.seeds), ontology, records)
         excluded = excluded_topics(args.exclude_selection)
         available_topics = [topic for topic in topics if topic["topic"] not in excluded]
@@ -689,8 +761,10 @@ def main() -> int:
                 evidence = evidence_document["evidence"]
             else:
                 uesp = {"status": "skipped", "page": None, "evidence": ""} if args.skip_uesp else uesp_search(session, topic, args.cache_dir, args.refresh_uesp_cache)
-                evidence = build_evidence(topic, uesp)
-                evidence_document = {"format": FORMAT_VERSION, "topic": topic["topic"], "identity": topic, "uesp": uesp, "evidence": evidence, "evidence_sha256": hashlib.sha256(evidence.encode("utf-8")).hexdigest()}
+                dialogue_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
+                dialogue = dialogue_topics.get(dialogue_key)
+                evidence = build_evidence(topic, uesp, dialogue)
+                evidence_document = {"format": FORMAT_VERSION, "topic": topic["topic"], "identity": topic, "official_dialogue": dialogue, "uesp": uesp, "evidence": evidence, "evidence_sha256": hashlib.sha256(evidence.encode("utf-8")).hexdigest()}
                 atomic_json(evidence_path, evidence_document)
             print(f"[evidence] {index}/{len(selected)} {topic['topic']}: {uesp.get('status')}", flush=True)
             if args.evidence_only:
@@ -711,7 +785,7 @@ def main() -> int:
                     errors = validate_article(article, topic, ontology)
                     append_attempt(directory / "attempts.json", {"attempt": attempt, "created_at_utc": utc_timestamp(), "usage": usage, "errors": errors, "candidate": generated})
                     if not errors:
-                        atomic_json(result_path, {"format": FORMAT_VERSION, "status": "complete", "topic": topic["topic"], "article": article, "source": evidence_document, "model": args.model})
+                        atomic_json(result_path, {"format": FORMAT_VERSION, "generation_ruleset": GENERATION_RULESET, "status": "complete", "topic": topic["topic"], "article": article, "source": evidence_document, "model": args.model})
                         print(f"[complete] {topic['topic']}: advanced={word_count(article['topic_desc'])} basic={word_count(article['topic_desc_basic'])}", flush=True)
                         break
                 except Exception as error:

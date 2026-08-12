@@ -1,0 +1,319 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog-review.v2",
+  "catalog_version": "morrowind-official-3e427-v2",
+  "row_count": 522,
+  "articles_sha256": "52678c6854e851d9b41d87ac16a29a90f8ae3e2e60abf771dcbaf406ce336856",
+  "errors": [],
+  "category_counts": {
+    "alchemy": 1,
+    "artifacts": 63,
+    "creatures": 61,
+    "cultures": 29,
+    "diseases": 9,
+    "factions": 58,
+    "figures": 49,
+    "history": 29,
+    "locations": 61,
+    "lore": 16,
+    "magic": 23,
+    "races": 14,
+    "regions": 28,
+    "religion": 44,
+    "settlements": 37
+  },
+  "knowledge_class_counts": {
+    "alchemist": 1,
+    "argonian": 3,
+    "ascadian_isles": 3,
+    "ashlander": 27,
+    "ashlands": 2,
+    "azuras_coast": 2,
+    "bitter_coast": 2,
+    "blades": 2,
+    "camonna_tong": 2,
+    "common": 19,
+    "daedra": 18,
+    "dunmer": 35,
+    "dwemer": 16,
+    "east_empire_company": 3,
+    "esoteric": 72,
+    "fighters_guild": 1,
+    "grazelands": 1,
+    "guard": 1,
+    "healer": 3,
+    "house_dagoth": 9,
+    "house_hlaalu": 4,
+    "house_redoran": 3,
+    "house_telvanni": 4,
+    "hunter": 8,
+    "imperial": 16,
+    "imperial_cult": 2,
+    "imperial_legion": 2,
+    "khajiit": 3,
+    "mage": 22,
+    "mages_guild": 1,
+    "merchant": 4,
+    "molag_amur": 1,
+    "morag_tong": 2,
+    "mournhold": 8,
+    "nord": 4,
+    "priest": 58,
+    "raven_rock": 1,
+    "red_mountain": 4,
+    "scholar": 522,
+    "sheogorad": 1,
+    "skaal": 5,
+    "smith": 5,
+    "solstheim": 7,
+    "thief": 3,
+    "thieves_guild": 1,
+    "traveler": 149,
+    "tribunal_temple": 29,
+    "twin_lamps": 2,
+    "warrior": 7,
+    "west_gash": 4
+  },
+  "alias_key_count": 1170,
+  "dropped_alias_collisions": [
+    {
+      "topic": "geography_of_vvardenfell",
+      "alias": "Vvardenfell District",
+      "owner": "vvardenfell"
+    },
+    {
+      "topic": "daedra",
+      "alias": "Daedroth",
+      "owner": "daedroth"
+    },
+    {
+      "topic": "native_dunmer_culture",
+      "alias": "Dunmer Great Houses",
+      "owner": "great_houses"
+    },
+    {
+      "topic": "mehrunes_dagon",
+      "alias": "Four Corners of the House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "slavery",
+      "alias": "Twin Lamps",
+      "owner": "twin_lamps"
+    },
+    {
+      "topic": "nerevarine_cult",
+      "alias": "Nerevarine prophecies",
+      "owner": "nerevarine_prophecies"
+    },
+    {
+      "topic": "four_corners",
+      "alias": "House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "four_corners",
+      "alias": "Four Corners of the House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "kogoruhn",
+      "alias": "Lost Kogoruhn",
+      "owner": "lost_kogoruhn"
+    },
+    {
+      "topic": "initiation_rite",
+      "alias": "harrowing",
+      "owner": "harrowing"
+    },
+    {
+      "topic": "the_cleansing",
+      "alias": "End of Times",
+      "owner": "beliefs"
+    },
+    {
+      "topic": "dwemer_centurions",
+      "alias": "Dwemer constructs",
+      "owner": "dwemer_animunculi"
+    },
+    {
+      "topic": "daedra_cults",
+      "alias": "Daedra worship",
+      "owner": "daedra_worship"
+    },
+    {
+      "topic": "mystery_of_the_dwarves",
+      "alias": "Disappearance of the Dwemer",
+      "owner": "disappearance_of_the_dwemer"
+    },
+    {
+      "topic": "temple_compound",
+      "alias": "High Fane",
+      "owner": "high_fane"
+    },
+    {
+      "topic": "ordinators",
+      "alias": "Order of the Watch",
+      "owner": "order_of_the_watch"
+    },
+    {
+      "topic": "ordinators",
+      "alias": "High Ordinators",
+      "owner": "high_ordinators"
+    },
+    {
+      "topic": "enchanting_items",
+      "alias": "enchantment",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "enchanting_items",
+      "alias": "enchanting",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "pilgrimages",
+      "alias": "Seven Graces",
+      "owner": "seven_graces"
+    },
+    {
+      "topic": "saints",
+      "alias": "Temple saints",
+      "owner": "greater_saints"
+    },
+    {
+      "topic": "seven_graces",
+      "alias": "Pilgrimages of the Seven Graces",
+      "owner": "pilgrimages"
+    },
+    {
+      "topic": "enchantments",
+      "alias": "enchantment",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "enchantments",
+      "alias": "enchanting",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "egg_mining",
+      "alias": "egg mine",
+      "owner": "kwama"
+    },
+    {
+      "topic": "blight_diseases",
+      "alias": "blight",
+      "owner": "blight"
+    },
+    {
+      "topic": "atronachs",
+      "alias": "storm daedra",
+      "owner": "storm_atronach"
+    },
+    {
+      "topic": "daedric_sites",
+      "alias": "Daedric shrines",
+      "owner": "shrines"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "ancestral tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "family tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "Dunmer tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "flame_atronach",
+      "alias": "fire daedra",
+      "owner": "atronachs"
+    },
+    {
+      "topic": "frost_atronach",
+      "alias": "frost daedra",
+      "owner": "atronachs"
+    }
+  ],
+  "record_linked_count": 113,
+  "near_duplicate_flags": [],
+  "resolved_near_duplicates": [
+    {
+      "score": 0.923,
+      "left": "ashlanders",
+      "right": "ashlands",
+      "titles": [
+        "The Ashlanders",
+        "The Ashlands"
+      ],
+      "resolution": "Distinct culture and geographic region; similar titles are intentional."
+    }
+  ],
+  "quest_like_flags": [],
+  "source_evidence": {
+    "result_count": 418,
+    "official_dialogue": 418,
+    "uesp_found": 276,
+    "accepted_result_count": 410,
+    "accepted_official_dialogue": 410,
+    "accepted_uesp_found": 272,
+    "excluded_result_count": 8
+  },
+  "generation_cost": 1.3534805278000004,
+  "reviewed_row_count": 530,
+  "editorial_exclusions": [
+    {
+      "topic": "adamantium_ore",
+      "reason": "generic_resource",
+      "note": "Commodity and crafting material rather than durable world knowledge."
+    },
+    {
+      "topic": "boethiah_s_pillow_book",
+      "reason": "minor_quest_object",
+      "note": "Minor contraband book whose value is chiefly tied to a local quest."
+    },
+    {
+      "topic": "enchanted_weapons",
+      "reason": "generic_equipment",
+      "note": "Generic equipment class already covered by the retained enchantment articles."
+    },
+    {
+      "topic": "indrele_rathryon",
+      "reason": "ordinary_npc",
+      "note": "Local quest participant without sufficient historical or institutional significance."
+    },
+    {
+      "topic": "red_book_of_riddles",
+      "reason": "minor_book",
+      "note": "Circulating book rather than a major artifact or foundational lore text."
+    },
+    {
+      "topic": "shurdan_raplay",
+      "reason": "minor_quest_location",
+      "note": "Minor egg mine article was dominated by quest-stage repair instructions."
+    },
+    {
+      "topic": "stalhrim_armor",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    },
+    {
+      "topic": "stalhrim_weapons",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "karstangz_bcharn",
+      "reason": "classification_and_temporal_stability",
+      "note": "Treat the Weather Witch as a significant Dwemer artifact and remove quest-stage activation state."
+    }
+  ]
+}

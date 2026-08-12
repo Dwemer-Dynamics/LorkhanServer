@@ -1,0 +1,70 @@
+{
+  "format": "almsivi.morrowind-oghma-editorial-decisions.v1",
+  "catalog_version": "morrowind-official-3e427-v2",
+  "reviewed_additions": 418,
+  "reviewed_on": "2026-08-12",
+  "exclusions": [
+    {
+      "topic": "adamantium_ore",
+      "reason": "generic_resource",
+      "note": "Commodity and crafting material rather than durable world knowledge."
+    },
+    {
+      "topic": "boethiah_s_pillow_book",
+      "reason": "minor_quest_object",
+      "note": "Minor contraband book whose value is chiefly tied to a local quest."
+    },
+    {
+      "topic": "enchanted_weapons",
+      "reason": "generic_equipment",
+      "note": "Generic equipment class already covered by the retained enchantment articles."
+    },
+    {
+      "topic": "indrele_rathryon",
+      "reason": "ordinary_npc",
+      "note": "Local quest participant without sufficient historical or institutional significance."
+    },
+    {
+      "topic": "red_book_of_riddles",
+      "reason": "minor_book",
+      "note": "Circulating book rather than a major artifact or foundational lore text."
+    },
+    {
+      "topic": "shurdan_raplay",
+      "reason": "minor_quest_location",
+      "note": "Minor egg mine article was dominated by quest-stage repair instructions."
+    },
+    {
+      "topic": "stalhrim_armor",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    },
+    {
+      "topic": "stalhrim_weapons",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    }
+  ],
+  "overrides": [
+    {
+      "topic": "karstangz_bcharn",
+      "reason": "classification_and_temporal_stability",
+      "note": "Treat the Weather Witch as a significant Dwemer artifact and remove quest-stage activation state.",
+      "article": {
+        "topic_desc": "Karstangz-Bcharn, often rendered as the Weather Witch, is a Dwemer weather-control engine preserved in Bamz-Amschend beneath Mournhold. Dwemer artificers devised the machine to alter local weather, with rainmaking remembered as its intended use. Its mechanisms can instead direct violent ashstorms when configured for that purpose. The engine demonstrates that Dwemer tonal and mechanical arts extended beyond animunculi and architecture into deliberate control of the natural environment. Its survival also makes it an unusually important source for studying the practical reach of Dwemer engineering.",
+        "topic_desc_basic": "Karstangz-Bcharn, the Weather Witch, is an ancient Dwemer machine in Bamz-Amschend beneath Mournhold. It was designed to manipulate weather and is remembered chiefly as a rainmaking engine, though its mechanisms can also produce ashstorms.",
+        "tags": [
+          "Dwemer",
+          "Weather Witch",
+          "weather control",
+          "Bamz-Amschend",
+          "Mournhold",
+          "Dwemer engineering",
+          "ashstorms",
+          "rainmaking"
+        ],
+        "category": "artifacts"
+      }
+    }
+  ]
+}

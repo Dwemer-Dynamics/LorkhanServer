@@ -214,6 +214,14 @@ $check(str_contains($contextPrompt,'<world><location>Seyda Neen</location>')
     &&str_contains($contextPrompt,'<points_of_interest>')&&str_contains($contextPrompt,'<lock_level>20</lock_level>')
     &&!str_contains($contextPrompt,'&quot;position&quot;')&&!str_contains($contextPrompt,'&quot;x&quot;'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic CHIM XML');
+$knowledgeSelection=$promptSelection;
+$knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'auriel_s_bow','access_level'=>'basic',
+    'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.']];
+$knowledgePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$knowledgeSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($knowledgePrompt,'<knowledge><item>{&quot;access_level&quot;:&quot;basic&quot;')
+    &&str_contains($knowledgePrompt,'&quot;topic&quot;:&quot;auriel_s_bow&quot;')
+    &&str_contains($knowledgePrompt,'Auriel&apos;s Bow is an ancient artifact'),
+    'authorized Oghma knowledge is injected into the CHIM-style Morrowind prompt section');
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
@@ -448,12 +456,16 @@ $coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['kno
 $globalSettings['behavior']['auto_greeting']=true;
 $globalSettings['narrator']['welcome_events']=true;
 $coreLayer['settings_overrides']['behavior']['rechat_allow_actions']=true;
-$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true]],'routing'=>['llm_configuration_id'=>'']];
+$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true]],'routing'=>['llm_configuration_id'=>''],
+    'oghma_knowledge_tags'=>''];
 $effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
 $check($effective['settings']['behavior']['rechat']===false
     && $effective['settings']['memory']['knowledge_limit']===0
     && $effective['routing']['llm_configuration_id']==='',
     'Global to Core Profile to NPC resolution preserves explicit false, zero, and empty overrides');
+$check($effective['settings']['memory']['oghma_knowledge_tags']==='common'
+    &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='server_default',
+    'blank generated NPC knowledge tags inherit the installation default');
 $check($effective['settings']['behavior']['auto_greeting']===false
     && $effective['settings']['behavior']['rechat_allow_actions']===false
     && $effective['settings']['behavior']['combat_barks']===false

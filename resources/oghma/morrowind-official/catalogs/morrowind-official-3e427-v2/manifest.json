@@ -1,0 +1,302 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "catalog_version": "morrowind-official-3e427-v2",
+  "row_count": 522,
+  "articles_sha256": "52678c6854e851d9b41d87ac16a29a90f8ae3e2e60abf771dcbaf406ce336856",
+  "csv_sha256": "cae394fbf6f1830a2bbb01e46187087c638eb20e5494694ae6f48435b78eb979",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "fc0603397cd75a16ffed36cfa48c4571f5e587063d25818e9c1320a757a13ff0",
+  "editorial_decisions_sha256": "48818547b89ba245280a1bb0cefc1d1c5ad4ed860a617673f3855ea3ea0abf15",
+  "generator_sha256": "b892889a4b313f863103cac898ea9623e86eabf5c1d9b5482fe3196b1b9eb381",
+  "builder_sha256": "c479c5c5970fd666c22b8b92c0213d9bdb86eb8632531729f2d29c955a6bc748",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "category_counts": {
+    "alchemy": 1,
+    "artifacts": 63,
+    "creatures": 61,
+    "cultures": 29,
+    "diseases": 9,
+    "factions": 58,
+    "figures": 49,
+    "history": 29,
+    "locations": 61,
+    "lore": 16,
+    "magic": 23,
+    "races": 14,
+    "regions": 28,
+    "religion": 44,
+    "settlements": 37
+  },
+  "alias_key_count": 1170,
+  "dropped_alias_collisions": [
+    {
+      "topic": "geography_of_vvardenfell",
+      "alias": "Vvardenfell District",
+      "owner": "vvardenfell"
+    },
+    {
+      "topic": "daedra",
+      "alias": "Daedroth",
+      "owner": "daedroth"
+    },
+    {
+      "topic": "native_dunmer_culture",
+      "alias": "Dunmer Great Houses",
+      "owner": "great_houses"
+    },
+    {
+      "topic": "mehrunes_dagon",
+      "alias": "Four Corners of the House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "slavery",
+      "alias": "Twin Lamps",
+      "owner": "twin_lamps"
+    },
+    {
+      "topic": "nerevarine_cult",
+      "alias": "Nerevarine prophecies",
+      "owner": "nerevarine_prophecies"
+    },
+    {
+      "topic": "four_corners",
+      "alias": "House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "four_corners",
+      "alias": "Four Corners of the House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "kogoruhn",
+      "alias": "Lost Kogoruhn",
+      "owner": "lost_kogoruhn"
+    },
+    {
+      "topic": "initiation_rite",
+      "alias": "harrowing",
+      "owner": "harrowing"
+    },
+    {
+      "topic": "the_cleansing",
+      "alias": "End of Times",
+      "owner": "beliefs"
+    },
+    {
+      "topic": "dwemer_centurions",
+      "alias": "Dwemer constructs",
+      "owner": "dwemer_animunculi"
+    },
+    {
+      "topic": "daedra_cults",
+      "alias": "Daedra worship",
+      "owner": "daedra_worship"
+    },
+    {
+      "topic": "mystery_of_the_dwarves",
+      "alias": "Disappearance of the Dwemer",
+      "owner": "disappearance_of_the_dwemer"
+    },
+    {
+      "topic": "temple_compound",
+      "alias": "High Fane",
+      "owner": "high_fane"
+    },
+    {
+      "topic": "ordinators",
+      "alias": "Order of the Watch",
+      "owner": "order_of_the_watch"
+    },
+    {
+      "topic": "ordinators",
+      "alias": "High Ordinators",
+      "owner": "high_ordinators"
+    },
+    {
+      "topic": "enchanting_items",
+      "alias": "enchantment",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "enchanting_items",
+      "alias": "enchanting",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "pilgrimages",
+      "alias": "Seven Graces",
+      "owner": "seven_graces"
+    },
+    {
+      "topic": "saints",
+      "alias": "Temple saints",
+      "owner": "greater_saints"
+    },
+    {
+      "topic": "seven_graces",
+      "alias": "Pilgrimages of the Seven Graces",
+      "owner": "pilgrimages"
+    },
+    {
+      "topic": "enchantments",
+      "alias": "enchantment",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "enchantments",
+      "alias": "enchanting",
+      "owner": "enchanting"
+    },
+    {
+      "topic": "egg_mining",
+      "alias": "egg mine",
+      "owner": "kwama"
+    },
+    {
+      "topic": "blight_diseases",
+      "alias": "blight",
+      "owner": "blight"
+    },
+    {
+      "topic": "atronachs",
+      "alias": "storm daedra",
+      "owner": "storm_atronach"
+    },
+    {
+      "topic": "daedric_sites",
+      "alias": "Daedric shrines",
+      "owner": "shrines"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "ancestral tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "family tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "ancestral_burial_tombs",
+      "alias": "Dunmer tomb",
+      "owner": "ancestral_tomb"
+    },
+    {
+      "topic": "flame_atronach",
+      "alias": "fire daedra",
+      "owner": "atronachs"
+    },
+    {
+      "topic": "frost_atronach",
+      "alias": "frost daedra",
+      "owner": "atronachs"
+    }
+  ],
+  "source_runs": [
+    {
+      "articles_sha256": "13a9f5dd55bf6b17b97efc0079468b686aa6370cfee8e83476216de55292ac2a",
+      "manifest_sha256": "5a36762a2a62ee25ffb6e7f5297641f5821b79086f2e7dfe5e56101abb0d04ec",
+      "row_count": 112,
+      "model": null,
+      "cost": 0.0
+    },
+    {
+      "articles_sha256": "1f283d0c76d0dcd62d70d2d64bfb7d0a63803569d21ebb9b019659a64d0f251d",
+      "manifest_sha256": "2c05e61e1ad2a137fb8b0c94c0f643b7903974251c44cdfc0ae85e5f4ac3df7c",
+      "row_count": 105,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.31600404960000017
+    },
+    {
+      "articles_sha256": "cd243580b20c06612d829658a09655c453b2f9310c9efea37689bea8666fbbc4",
+      "manifest_sha256": "d0d1dd3fb28b98629bffb62ca7b781e81a387a3d02ac18733ab2dac94866a627",
+      "row_count": 105,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.35471168840000006
+    },
+    {
+      "articles_sha256": "c76df528f60ceb15423ecff9217aff3e87639a2544d391491031473608eeb189",
+      "manifest_sha256": "54641c3fa35aae6b88f4e13c51f28ed40a318e2396459230d4c298ba0f7b4fb3",
+      "row_count": 104,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.338305344
+    },
+    {
+      "articles_sha256": "13d476c2fc139c65ec5a3b929d3de2b059f6ee642b211d3a5419f18fe8e91426",
+      "manifest_sha256": "ae1291847361d4750c844b76ce98170ea73126ac9adf49e4b9d446e122b06537",
+      "row_count": 104,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.3444594458000001
+    }
+  ],
+  "reviewed_row_count": 530,
+  "editorial_exclusions": [
+    {
+      "topic": "adamantium_ore",
+      "reason": "generic_resource",
+      "note": "Commodity and crafting material rather than durable world knowledge."
+    },
+    {
+      "topic": "boethiah_s_pillow_book",
+      "reason": "minor_quest_object",
+      "note": "Minor contraband book whose value is chiefly tied to a local quest."
+    },
+    {
+      "topic": "enchanted_weapons",
+      "reason": "generic_equipment",
+      "note": "Generic equipment class already covered by the retained enchantment articles."
+    },
+    {
+      "topic": "indrele_rathryon",
+      "reason": "ordinary_npc",
+      "note": "Local quest participant without sufficient historical or institutional significance."
+    },
+    {
+      "topic": "red_book_of_riddles",
+      "reason": "minor_book",
+      "note": "Circulating book rather than a major artifact or foundational lore text."
+    },
+    {
+      "topic": "shurdan_raplay",
+      "reason": "minor_quest_location",
+      "note": "Minor egg mine article was dominated by quest-stage repair instructions."
+    },
+    {
+      "topic": "stalhrim_armor",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    },
+    {
+      "topic": "stalhrim_weapons",
+      "reason": "generic_equipment",
+      "note": "Equipment family is excluded; the significant Stalhrim material article remains."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "karstangz_bcharn",
+      "reason": "classification_and_temporal_stability",
+      "note": "Treat the Weather Witch as a significant Dwemer artifact and remove quest-stage activation state."
+    }
+  ],
+  "generation_cost": 1.3534805278000004,
+  "temporal_anchor": "3E 427",
+  "excluded": [
+    "ordinary_npcs",
+    "generic_equipment",
+    "consumables",
+    "routine_spells",
+    "minor_quest_objects",
+    "walkthroughs",
+    "player_outcomes",
+    "fourth_era",
+    "dynamic_oghma"
+  ]
+}

@@ -8,6 +8,33 @@ The locked inventory is intentionally curated. It covers stable lore, history, r
 
 Important figures and artifacts may carry an exact winning official ESM record link. The generator validates those links against `Morrowind.esm`, `Tribunal.esm`, and `Bloodmoon.esm`; display names are never treated as record identity.
 
+## Expansion coverage audit
+
+Before enlarging the curated inventory, audit all regular dialogue topics in the three official ESMs:
+
+```powershell
+python scripts/audit-morrowind-oghma-expansion.py `
+  --output-dir build/oghma-expansion-audit
+```
+
+The audit does not call a provider or change the active catalog. It compares topic names and aliases against the current seeds, counts official dialogue responses as a review signal, cross-references official actor, item, spell, faction, cell, and region names, and separates likely lore candidates from obvious conversation or mechanics noise. Its JSON, CSV, and Markdown files are review inputs rather than generator-ready seeds; major figures and significant artifacts must still be selected deliberately.
+
+Curate the audit into a resumable selection before generating prose:
+
+```powershell
+python scripts/curate-morrowind-oghma-expansion.py `
+  --run-dir build/oghma-v2-curation `
+  --resume `
+  --target-total 550 `
+  --minimum-total 500 `
+  --maximum-total 700 `
+  --max-cost 3
+```
+
+The curation runner records every provider attempt, enforces a hard cost gate, and produces combined v1+v2 seeds plus Markdown review. GLM produced 418 additions for editorial review. The final v2 catalog contains 522 topics: all 112 v1 topics and 410 accepted additions. Eight generated additions are rejected in `editorial-decisions.json` as ordinary NPC, generic equipment or resource, minor book, or minor quest-location material; one retained Dwemer machine receives a reviewed classification and temporally stable prose override.
+
+The checkpointed known provider cost is $0.882807 for curation plus $1.353481 for article generation, or $2.236287 total against the $20 goal budget. Review artifacts retain the attempt-level accounting and the conservative uncheckpointed reserve separately.
+
 ## Evidence-only inventory run
 
 ```powershell
@@ -19,6 +46,8 @@ python scripts/run-morrowind-oghma-preflight.py `
 ```
 
 This locks `selection.json`, hashes the official ESMs, ontology, and topic inventory, validates aliases and access classes, resolves official record links, and stores UESP page/revision evidence when found.
+
+Official dialogue responses from `Morrowind.esm`, `Tribunal.esm`, and `Bloodmoon.esm` are retained as first-party evidence for every expansion topic. UESP evidence is supplemental and revision-addressed when an exact page exists.
 
 ## GLM review generation
 
@@ -42,3 +71,43 @@ knowledge_class_basic, tags, category
 ```
 
 Advanced and basic articles are separately authored. Knowledge classes are restricted to `resources/oghma/morrowind-official/ontology.json`; aliases must remain collision-free; category and topic identity are locked before generation.
+
+## Versioned factory catalogs
+
+Reviewed factory packages live under `resources/oghma/morrowind-official/catalogs/<catalog-version>/`. The version named by `active-catalog-version.txt` is activated last. Provisioning imports v1 before v2 on a clean database, preserving `morrowind-official-3e427-v1` as an atomic rollback target.
+
+Preview or operate the bundled catalog against the configured PostgreSQL database:
+
+```powershell
+php scripts/provision-default-oghma.php --plan
+php scripts/provision-default-oghma.php --rollback=morrowind-official-3e427-v1
+php scripts/provision-default-oghma.php
+```
+
+The final command reapplies the catalog named by `active-catalog-version.txt` and is safe to rerun.
+
+Build and audit a candidate before copying it into the versioned resource tree:
+
+```powershell
+python scripts/build-morrowind-oghma-catalog.py `
+  --reviewed resources/oghma/morrowind-official/catalogs/morrowind-official-3e427-v1 `
+  --reviewed build/oghma-v2-generation-part-1 `
+  --reviewed build/oghma-v2-generation-part-2 `
+  --reviewed build/oghma-v2-generation-part-3 `
+  --reviewed build/oghma-v2-generation-part-4 `
+  --output build/oghma-v2-catalog-review `
+  --catalog-version morrowind-official-3e427-v2 `
+  --seeds resources/oghma/morrowind-official/topic-seeds.json
+
+python scripts/audit-morrowind-oghma-catalog.py `
+  --catalog build/oghma-v2-catalog-review `
+  --seeds resources/oghma/morrowind-official/topic-seeds.json `
+  --ontology resources/oghma/morrowind-official/ontology.json `
+  --reviewed build/oghma-v2-generation-part-1 `
+  --reviewed build/oghma-v2-generation-part-2 `
+  --reviewed build/oghma-v2-generation-part-3 `
+  --reviewed build/oghma-v2-generation-part-4 `
+  --output-dir build/oghma-v2-review
+```
+
+Catalog assembly reserves canonical topic keys first and removes ambiguous generated aliases deterministically. Every dropped alias is recorded in the catalog manifest. Review JSON, Markdown, and HTML are bundled under `resources/oghma/morrowind-official/reviews/morrowind-official-3e427-v2/` before activation.

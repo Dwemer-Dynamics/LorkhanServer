@@ -14,7 +14,7 @@ final class ManagementUiRepository
     public function oghmaCatalog(array $filters=[]):array
     {
         $search=mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8');$category=trim((string)($filters['category']??''));
-        $order=strtolower((string)($filters['order']??'asc'))==='desc'?'DESC':'ASC';$page=max(1,(int)($filters['page']??1));$pageSize=50;
+        $order=strtolower((string)($filters['order']??'asc'))==='desc'?'DESC':'ASC';$page=max(1,(int)($filters['page']??1));$pageSize=max(1,min(500,(int)($filters['page_size']??50)));
         $where=['d.deleted_at IS NULL'];$params=[];$installation=trim((string)($filters['installation_id']??''));
         if($installation!==''){$where[]='d.installation_id=:installation';$params['installation']=$installation;}
         if($search!==''){$where[]="to_tsvector('simple',concat_ws(' ',d.topic,d.title,d.aliases,d.content,d.topic_desc_basic,d.tags)) @@ plainto_tsquery('simple',:search)";$params['search']=$search;}
