@@ -33,6 +33,23 @@ The generator writes UTF-8 JSON, a UTF-8 BOM CSV with the CHIM header
 Per-record checkpoints and provider telemetry make interrupted runs resumable. Outputs are review
 artifacts and are not committed or imported automatically.
 
+## Validate and import a reviewed catalog
+
+The PostgreSQL importer requires the generated manifest, its prompt hash, and the exact CHIM CSV.
+It accepts only official content-file identities and validates UTF-8, package counts, unique
+canonical keys, and description style before reporting any database changes:
+
+```powershell
+php scripts/import-morrowind-item-descriptions.php dry-run `
+  --csv=C:\path\to\combined\descriptions.csv `
+  --manifest=C:\path\to\manifest.json `
+  --catalog-version=morrowind-official-2026-01
+```
+
+Replace `dry-run` with `apply` only after review. Apply is transactional and idempotent for the same
+version and package hashes. `rollback` restores the immediate prior factory catalog. Installation
+custom descriptions remain separate and continue to override factory rows.
+
 ## Run the preflight
 
 Collect and lock evidence without a provider call:

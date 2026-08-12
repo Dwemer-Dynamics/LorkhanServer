@@ -102,6 +102,8 @@ find "${target_root}/scripts" "${target_root}/deploy" -type f \
 
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/migrate.php" up
 ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-connectors.php"
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-descriptions.php"
+ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${target_root}/scripts/provision-default-biographies.php"
 
 gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
 if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then

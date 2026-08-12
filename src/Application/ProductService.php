@@ -74,9 +74,33 @@ final class ProductService
         return$this->repository->saveItemDescription($input,$this->clock->iso());
     }
 
-    public function deleteItemDescription(string $descriptionId): void
+    /** Validate and atomically store a bounded CHIM-format CSV batch as custom overrides. */
+    public function importItemDescriptions(string $installationId,array $rows): array
     {
-        $this->uuid($descriptionId);$this->repository->deleteItemDescription($descriptionId,$this->clock->iso());
+        $this->uuid($installationId);
+        if($rows===[]||count($rows)>5000)throw new InvalidArgumentException('invalid_description_batch');
+        $validated=[];$seen=[];
+        foreach($rows as$row){
+            if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_description_row');
+            $input=['installation_id'=>$installationId,'content_file'=>$row['plugin']??null,'record_id'=>$row['baseid']??null,
+                'display_name'=>$row['name']??null,'description'=>$row['description']??null];
+            foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,1,$limit);
+            $key=strtolower(trim((string)$input['content_file']))."\0".strtolower(trim((string)$input['record_id']));
+            if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_description_identity');
+            $seen[$key]=true;$validated[]=$input;
+        }
+        return$this->repository->saveItemDescriptions($validated,$this->clock->iso());
+    }
+
+    public function resetItemDescriptions(string $installationId): int
+    {
+        $this->uuid($installationId);return$this->repository->resetItemDescriptions($installationId,$this->clock->iso());
+    }
+
+    public function deleteItemDescription(string $descriptionId,string $installationId): void
+    {
+        $this->uuid($descriptionId);$this->uuid($installationId);
+        $this->repository->deleteItemDescription($descriptionId,$installationId,$this->clock->iso());
     }
 
     /** Soft-delete one versioned management resource without removing its audit revisions. */

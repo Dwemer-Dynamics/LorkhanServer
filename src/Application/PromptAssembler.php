@@ -328,6 +328,7 @@ final class PromptAssembler
             'skills' => ['skills'],
             'speech_style' => ['speech_style'],
             'goals' => ['goals'],
+            'relationships' => ['relationships'],
             'notes' => ['notes'],
             'race' => ['race'],
             'gender' => ['gender'],

@@ -12,10 +12,13 @@ use ALMSIVIserver\Application\Worker;
 use ALMSIVIserver\Http\ManagementRouter;
 use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
+use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
 use ALMSIVIserver\Infrastructure\Connection;
+use ALMSIVIserver\Infrastructure\DescriptionCatalogImporter;
 use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
+use ALMSIVIserver\Infrastructure\ManagementUiRepository;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
@@ -224,8 +227,128 @@ $descriptionTurn=['installation_id'=>$installation,'payload'=>['context'=>[
 ]]];
 $descriptionContext=$products->itemDescriptionsForTurn($descriptionTurn);
 $check(count($descriptionContext)===1&&$descriptionContext[0]['description']==='A serviceable iron blade.','turn context resolves an unambiguous managed record description');
-$service->deleteItemDescription($description['description_id']);
+$service->deleteItemDescription($description['description_id'],$installation);
 $check($products->itemDescriptionsForTurn($descriptionTurn)===[],'deleted record descriptions are excluded from prompts');
+$db->exec("INSERT INTO descriptions(plugin,baseid,name,description) VALUES('Morrowind.esm','iron_dagger','Iron Dagger','A factory iron blade.'),('Tribunal.esm','temple_book','Temple Book','A factory temple volume.')");
+$imported=$service->importItemDescriptions($installation,[
+    ['plugin'=>'Morrowind.esm','baseid'=>'iron_dagger','name'=>'Iron Dagger','description'=>'A custom iron blade.'],
+    ['plugin'=>'Custom.esp','baseid'=>'custom_item','name'=>'Custom Item','description'=>'A custom mod item.'],
+]);
+$check(count($imported)===2&&count($products->customItemDescriptions($installation))===2,'bounded description batch import failed');
+$uiDescriptions=new ManagementUiRepository($db);$descriptionPage=$uiDescriptions->descriptionCatalog($installation,['source'=>'all']);
+$sources=[];foreach($descriptionPage['items']as$row)$sources[strtolower($row['content_file']).'|'.strtolower($row['record_id'])]=$row['source'];
+$check(($sources['morrowind.esm|iron_dagger']??null)==='custom'&&($sources['tribunal.esm|temple_book']??null)==='default'
+    &&($sources['custom.esp|custom_item']??null)==='custom','effective description catalog precedence failed');
+$db->exec("INSERT INTO descriptions(plugin,baseid,name,description) SELECT 'Morrowind.esm','bulk_'||value,'Bulk Item '||lpad(value::text,3,'0'),'A bounded catalog test description.' FROM generate_series(1,120) value");
+$secondDescriptionPage=$uiDescriptions->descriptionCatalog($installation,['search'=>'Bulk Item','page'=>2]);
+$check($secondDescriptionPage['total']===120&&$secondDescriptionPage['pages']===3&&$secondDescriptionPage['page']===2
+    &&count($secondDescriptionPage['items'])===50,'description catalog server-side pagination failed');
+$catalogFixtureRoot=sys_get_temp_dir().'/almsivi-description-catalog-'.bin2hex(random_bytes(6));
+if(!mkdir($catalogFixtureRoot,0700,true)&&!is_dir($catalogFixtureRoot))throw new RuntimeException('description catalog fixture directory failed');
+$writeCatalogFixture=static function(string$version,array$rows)use($catalogFixtureRoot):array{
+    $csvPath=$catalogFixtureRoot.'/'.$version.'.csv';$manifestPath=$catalogFixtureRoot.'/'.$version.'.json';
+    $csv=fopen($csvPath,'wb');if($csv===false)throw new RuntimeException('description catalog fixture CSV failed');
+    fwrite($csv,"\xEF\xBB\xBF");fputcsv($csv,['plugin','baseid','name','description'],',','"','');
+    foreach($rows as$row)fputcsv($csv,$row,',','"','');fclose($csv);
+    $items=array_map(static fn(array$row):array=>['content_file'=>$row[0],'record_id'=>$row[1],'status'=>'complete','error'=>null],$rows);
+    $manifest=['format'=>'almsivi.morrowind-item-description-preflight.v1','model'=>'fixture/model',
+        'prompt_sha256'=>hash('sha256','fixture prompt'),'official_content_sha256'=>[
+            'Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],
+        'selected_count'=>count($rows),'completed_count'=>count($rows),'pending_count'=>0,'items'=>$items];
+    file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+    return[$csvPath,$manifestPath];
+};
+$factoryV1Rows=[
+    ['Morrowind.esm','iron_dagger','Iron Dagger','A narrow iron blade meets a plain leather grip beneath a small, undecorated crossguard.'],
+    ['Bloodmoon.esm','nordic_axe','Nordic Axe','A broad steel axe head rests on a sturdy wooden haft wrapped with dark hide.'],
+];
+[$factoryV1Csv,$factoryV1Manifest]=$writeCatalogFixture('fixture-v1',$factoryV1Rows);
+$catalogImporter=new DescriptionCatalogImporter($db);$factoryPlan=$catalogImporter->plan($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryPlan['valid']===true&&$factoryPlan['row_count']===2&&$factoryPlan['duplicate_count']===0,
+    'factory description catalog dry-run failed');
+$factoryApplied=$catalogImporter->apply($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryApplied['applied']===true&&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2,
+    'factory description catalog apply did not replace official defaults atomically');
+$factoryIdempotent=$catalogImporter->apply($factoryV1Csv,$factoryV1Manifest,'fixture-v1');
+$check($factoryIdempotent['applied']===false&&$factoryIdempotent['idempotent']===true
+    &&(int)$db->query("SELECT count(*) FROM description_catalogs WHERE catalog_version='fixture-v1'")->fetchColumn()===1,
+    'factory description catalog repeat apply was not idempotent');
+$effectiveAfterFactory=$uiDescriptions->descriptionCatalog($installation,['search'=>'Iron Dagger']);
+$check(count($effectiveAfterFactory['items'])===1&&$effectiveAfterFactory['items'][0]['source']==='custom'
+    &&$effectiveAfterFactory['items'][0]['description']==='A custom iron blade.',
+    'installation custom description did not override the active factory catalog');
+$factoryV2Rows=[
+    ['Tribunal.esm','temple_book','Temple Book','A slim parchment volume bears a simple cloth cover reinforced by neat stitching along its spine.'],
+];
+[$factoryV2Csv,$factoryV2Manifest]=$writeCatalogFixture('fixture-v2',$factoryV2Rows);
+$catalogImporter->apply($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$factoryRollback=$catalogImporter->rollback();
+$check($factoryRollback['rolled_back']===true&&$factoryRollback['catalog_version']==='fixture-v1'
+    &&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2
+    &&$db->query("SELECT description FROM descriptions WHERE plugin='Bloodmoon.esm' AND baseid='nordic_axe'")->fetchColumn()===$factoryV1Rows[1][3],
+    'factory description catalog rollback did not restore the prior catalog');
+$factoryProvisionAfterRollback=$catalogImporter->provision($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$check($factoryProvisionAfterRollback['applied']===false&&$factoryProvisionAfterRollback['idempotent']===true
+    &&$factoryProvisionAfterRollback['state']==='superseded'
+    &&$db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v1',
+    'routine factory provisioning overrode an explicit catalog rollback');
+$factoryReactivated=$catalogImporter->apply($factoryV2Csv,$factoryV2Manifest,'fixture-v2');
+$check($factoryReactivated['applied']===true&&$factoryReactivated['reactivated']===true
+    &&$db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v2',
+    'explicit factory catalog apply did not reactivate a reviewed prior version');
+$catalogImporter->rollback('fixture-v1');
+$duplicateRows=[$factoryV1Rows[0],['morrowind.esm','IRON_DAGGER','Iron Dagger Copy','A narrow iron blade carries a plain hide grip and a small crossguard without any ornament.']];
+[$duplicateCsv,$duplicateManifest]=$writeCatalogFixture('fixture-duplicate',$duplicateRows);
+$duplicatePlan=$catalogImporter->plan($duplicateCsv,$duplicateManifest,'fixture-duplicate');
+$check($duplicatePlan['valid']===false&&$duplicatePlan['duplicate_count']===1&&$duplicatePlan['invalid_count']>0,
+    'factory description catalog duplicate identity was not quarantined');
+try{$catalogImporter->apply($duplicateCsv,$duplicateManifest,'fixture-duplicate');throw new RuntimeException('invalid factory catalog applied');}
+catch(InvalidArgumentException$error){$check(str_starts_with($error->getMessage(),'invalid_catalog_package:'),'unexpected invalid factory catalog error');}
+$check($db->query("SELECT catalog_version FROM description_catalogs WHERE state='active'")->fetchColumn()==='fixture-v1'
+    &&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2,
+    'invalid factory catalog changed the active projection');
+foreach(glob($catalogFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($catalogFixtureRoot);
+$biographyFixtureRoot=sys_get_temp_dir().'/almsivi-biography-catalog-'.bin2hex(random_bytes(6));
+if(!mkdir($biographyFixtureRoot,0700,true)&&!is_dir($biographyFixtureRoot))throw new RuntimeException('biography catalog fixture directory failed');
+$writeBiographyFixture=static function(string$version,array$rows)use($biographyFixtureRoot):array{
+    $biographiesPath=$biographyFixtureRoot.'/'.$version.'.json';$manifestPath=$biographyFixtureRoot.'/'.$version.'-manifest.json';
+    file_put_contents($biographiesPath,json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+    $items=array_map(static fn(array$row):array=>['record_id'=>$row['refid'],'display_name'=>ucwords(str_replace('_',' ',$row['npc_name'])),
+        'content_file'=>'Morrowind.esm','generation_status'=>'complete'],$rows);
+    $manifest=['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>count($rows),'completed_count'=>count($rows),
+        'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture biography builder'),
+        'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],'items'=>$items];
+    file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));return[$biographiesPath,$manifestPath];
+};
+$biographyRow=static fn(string$name,string$record,string$bio):array=>['npc_name'=>$name,'oghma_knowledge_tags'=>'',
+    'core'=>ucwords(str_replace('_',' ',$name)).' is a resident of Vvardenfell with a clearly defined local role.',
+    'npc_static_bio'=>$bio,'appearance'=>'A practical traveler with weathered clothing and an attentive bearing.',
+    'personality'=>'Patient, observant, and direct when speaking with unfamiliar travelers.','relationships'=>'{}',
+    'occupation'=>'A local resident who performs useful work for the surrounding settlement.',
+    'skills'=>'* Navigating nearby roads\n* Recognizing local dangers\n* Speaking with visiting travelers',
+    'speechstyle'=>'Speaks in concise, practical phrases with a measured and cautious tone.',
+    'goals'=>'* Remain safe\n* Complete daily work\n* Protect the local community','voiceid'=>null,'gender'=>'male','race'=>'Dark Elf','refid'=>$record];
+$biographyV1Rows=[$biographyRow('fixture_dunmer','fixture_dunmer','The fixture Dunmer lives near Balmora and knows the roads leading through the surrounding hills.')];
+[$biographyV1Json,$biographyV1Manifest]=$writeBiographyFixture('biography-v1',$biographyV1Rows);
+$biographyImporter=new BiographyCatalogImporter($db);$biographyPlan=$biographyImporter->plan($biographyV1Json,$biographyV1Manifest,'biography-v1');
+$check($biographyPlan['valid']===true&&$biographyPlan['row_count']===1,'factory biography catalog dry-run failed');
+$biographyApplied=$biographyImporter->apply($biographyV1Json,$biographyV1Manifest,'biography-v1');
+$check($biographyApplied['applied']===true&&$db->query("SELECT npc_static_bio FROM bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()===$biographyV1Rows[0]['npc_static_bio'],
+    'factory biography catalog did not project into the CHIM table');
+$db->exec("INSERT INTO bio_templates_custom(npc_name,core,npc_static_bio,relationships,refid) VALUES('fixture_dunmer','Custom core','Custom biography','{}','fixture_dunmer')");
+$check($db->query("SELECT npc_static_bio FROM combined_bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()==='Custom biography',
+    'custom CHIM biography did not override the active factory catalog');
+$biographyV2Rows=[$biographyRow('fixture_argonian','fixture_argonian','The fixture Argonian works beside the river and watches for travelers approaching the nearby crossing.')];
+[$biographyV2Json,$biographyV2Manifest]=$writeBiographyFixture('biography-v2',$biographyV2Rows);$biographyImporter->apply($biographyV2Json,$biographyV2Manifest,'biography-v2');
+$biographyRollback=$biographyImporter->rollback();
+$check($biographyRollback['rolled_back']===true&&$biographyRollback['catalog_version']==='biography-v1'
+    &&(int)$db->query("SELECT count(*) FROM bio_templates WHERE npc_name='fixture_dunmer'")->fetchColumn()===1,
+    'factory biography catalog rollback did not restore the prior CHIM projection');
+$biographyProvisionAfterRollback=$biographyImporter->provision($biographyV2Json,$biographyV2Manifest,'biography-v2');
+$check($biographyProvisionAfterRollback['applied']===false&&$biographyProvisionAfterRollback['state']==='superseded',
+    'routine biography provisioning overrode an explicit rollback');
+foreach(glob($biographyFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($biographyFixtureRoot);
+$check($service->resetItemDescriptions($installation)===2&&$products->customItemDescriptions($installation)===[],'description override reset failed');
 $check($profile['current_revision'] === 1, 'profile creation failed');
 $profileRevised = $service->revise('profile', $profile['profile_id'], ['role'=>'hero'], 'refined');
 $check($profileRevised['current_revision'] === 2 && $profileRevised['content']['role'] === 'hero', 'profile revision failed');
@@ -345,6 +468,12 @@ $check($denied->status===401, 'management API accepted missing browser session')
 $signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
 $check($signed->status===303 && ($signed->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
 $csrf=$browser['csrf'];$cookie='almsivi_management='.$browser['session'].'; almsivi_csrf='.$csrf;
+$descriptionCsv=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
+$check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin,baseid,name,description')
+    &&($descriptionCsv->headers['Content-Type']??'')==='text/csv; charset=utf-8','description example CSV export failed');
+$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
+$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+    'description reset did not reject missing CSRF');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));

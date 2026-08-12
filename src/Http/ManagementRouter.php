@@ -78,6 +78,8 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/connectors/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportConnector($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
+            if($r->method==='GET'&&$path==='/exports/descriptions/example.csv')return$this->exampleDescriptionsCsv();
+            if($r->method==='GET'&&$path==='/exports/descriptions/custom.csv')return$this->exportDescriptionsCsv($this->queryUuid($r,'installation_id'));
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
             if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
@@ -162,6 +164,10 @@ final class ManagementRouter
         if($domain==='narrator-profile-create'&&$this->repository->narratorProfileForInstallation($scope['installation_id'])!==null){
             throw new InvalidArgumentException('narrator_profile_already_exists');
         }
+        if($domain==='description-import'){
+            $saved=$this->service->importItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->descriptionCsvRows($r));
+            return$this->redirect($this->descriptionPageLocation($scope['installation_id'],'imported',count($saved)));
+        }
         match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
@@ -211,7 +217,8 @@ final class ManagementRouter
             'connector-clone'=>$this->cloneConnector($v),
             'connector-import'=>$this->importConnector($v,$scope),
             'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
-            'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id')),
+            'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id'),$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id')),
+            'description-reset'=>$this->resetDescriptions($v,$scope),
             'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'prompt-clone'=>$this->clonePrompt($v),
             'prompt-import'=>$this->importPrompt($v,$scope),
@@ -241,7 +248,9 @@ final class ManagementRouter
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
+            $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -322,12 +331,72 @@ final class ManagementRouter
     private function area(string $n,string $l,string $value=''):string{$id='f-'.$n;return'<label for="'.$id.'">'.$this->e($l).'</label><textarea id="'.$id.'" name="'.$n.'" required>'.$this->e($value).'</textarea>';}
     private function select(string $n,string $l,array $values):string{$id='f-'.$n;$o='';foreach($values as$v)$o.='<option value="'.$this->e($v).'">'.$this->e(ucwords($v)).'</option>';return'<label for="'.$id.'">'.$this->e($l).'</label><select id="'.$id.'" name="'.$n.'">'.$o.'</select>';}
 
+    /** Parse one bounded UTF-8 CHIM-format CSV upload without partially importing malformed rows. */
+    private function descriptionCsvRows(Request $request):array
+    {
+        $file=$request->files['csv_file']??null;
+        if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('description_csv_missing');
+        $size=(int)($file['size']??0);if($size<1||$size>$this->maxJsonBytes)throw new InvalidArgumentException('description_csv_size');
+        if(strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='csv')throw new InvalidArgumentException('description_csv_type');
+        $handle=fopen((string)$file['tmp_name'],'rb');if($handle===false)throw new InvalidArgumentException('description_csv_unreadable');
+        try{
+            $header=fgetcsv($handle,65536,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('description_csv_header');
+            if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/', '',(string)$header[0])??(string)$header[0];
+            $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
+            if($header!==['plugin','baseid','name','description'])throw new InvalidArgumentException('description_csv_header');
+            $rows=[];
+            while(($values=fgetcsv($handle,65536,',','"','\\'))!==false){
+                if($values===[null]||count($values)===0)continue;if(count($values)!==4)throw new InvalidArgumentException('description_csv_columns');
+                if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('description_csv_encoding');
+                $rows[]=['plugin'=>(string)$values[0],'baseid'=>(string)$values[1],'name'=>(string)$values[2],'description'=>(string)$values[3]];
+                if(count($rows)>5000)throw new InvalidArgumentException('description_csv_rows');
+            }
+            return$rows;
+        }finally{fclose($handle);}
+    }
+
+    /** Download an exact CHIM-compatible example without exposing installation identifiers. */
+    private function exampleDescriptionsCsv():Response
+    {
+        return$this->csvResponse('example_descriptions.csv',[
+            ['plugin'=>'Morrowind.esm','baseid'=>'iron dagger','name'=>'Iron Dagger','description'=>'A short iron blade with a plain crossguard and a leather-wrapped grip.'],
+            ['plugin'=>'Morrowind.esm','baseid'=>'common_shirt_01','name'=>'Common Shirt','description'=>'A loose woven shirt with simple seams, muted cloth, and a narrow collar.'],
+        ]);
+    }
+
+    private function exportDescriptionsCsv(string $installationId):Response
+    {
+        return$this->csvResponse('custom_descriptions_export_'.gmdate('Y-m-d_H-i-s').'.csv',$this->repository->customItemDescriptions($installationId));
+    }
+
+    /** Encode spreadsheet-safe UTF-8 CSV with the established CHIM column order. */
+    private function csvResponse(string $filename,array $rows):Response
+    {
+        $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');
+        fwrite($stream,"\xEF\xBB\xBF");fputcsv($stream,['plugin','baseid','name','description'],',','"','\\');
+        foreach($rows as$row)fputcsv($stream,[(string)($row['plugin']??''),(string)($row['baseid']??''),(string)($row['name']??''),(string)($row['description']??'')],',','"','\\');
+        rewind($stream);$body=stream_get_contents($stream);fclose($stream);if(!is_string($body))throw new RuntimeException('csv_unavailable');
+        return new Response(200,$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    private function resetDescriptions(array $values,array $scope):int
+    {
+        if(!hash_equals('Reset',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+        return$this->service->resetItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'));
+    }
+
+    private function descriptionPageLocation(string $installationId,string $status,int $count=0):string
+    {
+        $query=['installation_id'=>$installationId,'status'=>$status];if($count>0)$query['count']=$count;
+        return$this->uiPath('descriptions').'?'.http_build_query($query);
+    }
+
     private function authenticatedSession(Request $r):?string{$t=BrowserSession::parse($r->header('Cookie'));return$t!==null&&$this->management->validate($t)?$t:null;}
     /** Start a local browser session transparently so the UI stays open while form writes remain CSRF-protected. */
     private function openBrowserSession(string $target):Response{$c=$this->management->createSession($this->sessionTtl);return$this->redirect($target,['Set-Cookie'=>[BrowserSession::cookie($c['session'],$this->sessionTtl,$this->webRoot()),BrowserSession::csrfCookie($c['csrf'],$this->sessionTtl,$this->webRoot())],'X-CSRF-Token'=>$c['csrf']]);}
     private function csrf(Request $r,string $session):void{$v=$this->form($r);$t=$r->header('X-CSRF-Token')??($v['_csrf']??null);if(!is_string($t)||!$this->management->validate($session,$t))throw new RuntimeException('unauthorized');}
     private function json(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');try{$v=json_decode($r->body,true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new InvalidArgumentException('invalid_json');}if(!is_array($v)||array_is_list($v))throw new InvalidArgumentException('invalid_json');return$v;}
-    private function form(Request $r):array{if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');parse_str($r->body,$v);return is_array($v)?$v:[];}
+    private function form(Request $r):array{if($r->form!==[])return$r->form;if(strlen($r->body)>$this->maxJsonBytes)throw new InvalidArgumentException('payload_too_large');parse_str($r->body,$v);return is_array($v)?$v:[];}
     private function scopeQuery(Request $r):array{return['installation_id'=>$this->queryUuid($r,'installation_id'),'profile_id'=>$this->queryUuid($r,'profile_id'),'playthrough_id'=>$this->queryUuid($r,'playthrough_id')];}
     private function scopeForm(array $v):array{$out=[];foreach(['installation_id','profile_id','playthrough_id']as$k)if(isset($v[$k])){$value=trim((string)$v[$k]);if($value==='')continue;$this->uuid($value,$k);$out[$k]=$value;}return$out;}
     private function queryUuid(Request $r,string $k):string{$v=(string)($r->query[$k]??'');$this->uuid($v,$k);return$v;}

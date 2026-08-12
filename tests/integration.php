@@ -18,6 +18,7 @@ use ALMSIVIserver\Http\Request;
 use ALMSIVIserver\Http\Router;
 use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
+use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
 use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
@@ -188,6 +189,34 @@ $products->selectConnector($installationId,'tts_provider',$profileTtsPreset['con
 $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Bosmer male biography template',
     'actor_identity'=>['kind'=>'template'],'content'=>['race'=>'Wood Elf','gender'=>'Male',
         'biography'=>'A Bosmer raised beneath the great graht-oaks.','personality'=>'Observant and quick-witted.']],$now);
+$factoryDirectory=sys_get_temp_dir().'/almsivi-biography-factory-'.bin2hex(random_bytes(4));
+mkdir($factoryDirectory,0700,true);$factoryBiographies=$factoryDirectory.'/biographies.json';$factoryManifest=$factoryDirectory.'/manifest.json';
+$factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Factory Bosmer keeps a careful watch over Seyda Neen.',
+    'npc_static_bio'=>'Factory Bosmer has lived beside the Bitter Coast for many years. He knows the paths around Seyda Neen.',
+    'appearance'=>'A slight Wood Elf with weathered travel clothes and an alert posture.','personality'=>'Watchful, patient, and quietly helpful to respectful travelers.',
+    'relationships'=>'{}','occupation'=>'A local pathfinder who guides travelers around the Bitter Coast.',
+    'skills'=>'* Navigating the Bitter Coast\n* Identifying safe wilderness paths\n* Watching for nearby danger',
+    'speechstyle'=>'He speaks in brief, practical observations with a cautious tone.',
+    'goals'=>'* Keep travelers safe\n* Protect the paths near Seyda Neen\n* Avoid needless conflict',
+    'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer'];
+file_put_contents($factoryBiographies,json_encode([$factoryRow],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+file_put_contents($factoryManifest,json_encode(['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>1,
+    'completed_count'=>1,'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture builder'),
+    'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],
+    'items'=>[['record_id'=>'factory_bosmer','display_name'=>'Factory Bosmer','content_file'=>'Morrowind.esm','generation_status'=>'complete']]],
+    JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
+(new BiographyCatalogImporter($db))->apply($factoryBiographies,$factoryManifest,'integration-fixture-v1');
+$factoryTarget=['kind'=>'npc','record_id'=>'factory_bosmer','refnum'=>['index'=>100,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Factory Bosmer'];
+$factoryVoice=$morrowindVoices->resolve($factoryTarget,['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]]);
+$factoryProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$factoryTarget]],$factoryVoice,$now);
+$factoryProfile=$products->getRevisioned('profile',$factoryProfileId);
+$assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_static_bio']
+    &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle'],
+    'exact OpenMW identity did not seed a typed profile from the active CHIM biography catalog');
+unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];
 $automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]];

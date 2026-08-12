@@ -97,7 +97,22 @@ status and aggregate provider telemetry, append-only `attempts.json` files prese
 `combined/` contains only currently validated rows. An OS-level run lock prevents multiple writers
 from processing the same run directory concurrently. Rejected candidates and their telemetry are
 retained in `rejected.json` for diagnosis.
-These files remain review artifacts and are not imported or deployed automatically.
+After the full review gate, package `combined/preflight-chim.json` as `biographies.json` beside the
+run `manifest.json` and a stable `catalog-version.txt` under
+`resources/biographies/morrowind-official/`. Validate it without changing PostgreSQL:
+
+```powershell
+php scripts/import-morrowind-biographies.php dry-run `
+  --biographies=resources/biographies/morrowind-official/biographies.json `
+  --manifest=resources/biographies/morrowind-official/manifest.json `
+  --catalog-version=morrowind-official-2026-08-biographies-v1
+```
+
+The versioned importer projects factory rows into CHIM's exact `bio_templates` contract while
+retaining canonical `content_file + record_id` identity in ALMSIVI's internal catalog. Custom and
+encountered NPC profiles stay in the revisioned typed repository. On first encounter, exact OpenMW
+identity copies the matching factory biography into the NPC profile used by prompts. Routine deploys
+provision a bundled catalog idempotently and do not override an explicit catalog rollback.
 
 For a full official-catalog run, use a new run directory, set `--size 3041`, and retain
 `--max-cost 30`. The runner records cumulative attempt cost and holds the configured budget reserve

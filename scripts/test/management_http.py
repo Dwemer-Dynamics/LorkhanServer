@@ -391,11 +391,20 @@ body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); as
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/ALMSIVIserver/ui/description_manager.php'))
 description_form=next(f for f in descriptions.forms if f['action'].endswith('/forms/description-save'))
+installation_id=description_form['fields']['installation_id']
+example=request('/ALMSIVIserver/manage/exports/descriptions/example.csv'); example_body=example.read().decode('utf-8-sig')
+assert example.status==200 and example_body.startswith('plugin,baseid,name,description')
+upload_csv=('plugin,baseid,name,description\nHTTP Test.esp,http_csv_item,HTTP CSV Item,"Imported through the batch description manager."\n').encode()
+r=multipart_request('/ALMSIVIserver/manage/forms/description-import',{'_csrf':csrf,'installation_id':installation_id},'csv_file','descriptions.csv','text/csv',upload_csv)
+body=r.read().decode(); assert r.status==200 and '1 custom descriptions imported.' in body and 'http_csv_item' in body,(r.status,r.geturl(),body)
+exported=request('/ALMSIVIserver/manage/exports/descriptions/custom.csv?installation_id='+installation_id).read().decode('utf-8-sig')
+assert 'http_csv_item' in exported and 'HTTP CSV Item' in exported,exported
 record_id='http_record_'+uuid.uuid4().hex
 values=dict(description_form['fields'],_csrf=csrf,content_file='HTTP Test.esp',record_id=record_id,display_name='HTTP Test Item',description='Created through the descriptions manager.')
-r=request(description_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/description_manager.php?status=saved') and record_id in body,(r.status,r.geturl())
+r=request(description_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'status=saved' in r.geturl() and record_id in body,(r.status,r.geturl())
 match=re.search(re.escape(record_id)+r'.*?name="description_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
-r=request('/ALMSIVIserver/manage/forms/description-delete','POST',{'_csrf':csrf,'description_id':match.group(1)}); assert r.status==200 and r.geturl().endswith('/ui/description_manager.php?status=saved')
+r=request('/ALMSIVIserver/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':installation_id,'description_id':match.group(1)}); assert r.status==200 and 'status=saved' in r.geturl()
+r=request('/ALMSIVIserver/manage/forms/description-reset','POST',{'_csrf':csrf,'installation_id':installation_id,'confirm':'Reset'}); body=r.read().decode(); assert r.status==200 and 'status=saved' in r.geturl() and 'http_csv_item' not in body
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected=runtime'))
 runtime_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-runtime-test'))
 r=request(runtime_test['action'],'POST',dict(runtime_test['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and 'Test completed: 1 valid utterance' in body,(r.status,r.geturl(),body)

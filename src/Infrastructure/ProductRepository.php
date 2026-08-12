@@ -644,6 +644,22 @@ final class ProductRepository
     /** Choose the most specific reusable biography template for a newly observed NPC. */
     private function matchingBiographyTemplate(string $installation,array $identity,array $voice):?array
     {
+        $recordId=trim((string)($identity['record_id']??''));$contentFile=trim((string)($identity['content_file']??''));
+        $exact=$this->db->prepare("SELECT r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND lower(COALESCE(p.actor_identity->>'record_id',''))=lower(:record) AND lower(COALESCE(p.actor_identity->>'content_file',''))=lower(:content_file) ORDER BY p.created_at,p.profile_id LIMIT 1");
+        $exact->execute(['installation'=>$installation,'record'=>$recordId,'content_file'=>$contentFile]);$exactValue=$exact->fetchColumn();
+        if($exactValue!==false)return['content'=>$this->json($exactValue)];
+        if($recordId!==''&&$contentFile!==''){
+            $factory=$this->db->prepare("SELECT entry.oghma_knowledge_tags,entry.core,entry.npc_static_bio,entry.appearance,entry.personality,entry.relationships,entry.occupation,entry.skills,entry.speechstyle,entry.goals,entry.voiceid,entry.gender,entry.race FROM biography_catalog_entries entry JOIN biography_catalogs catalog ON catalog.catalog_id=entry.catalog_id AND catalog.state='active' WHERE lower(entry.record_id)=lower(:record) AND lower(COALESCE(entry.content_file,''))=lower(:content_file) LIMIT 2");
+            $factory->execute(['record'=>$recordId,'content_file'=>$contentFile]);$rows=$factory->fetchAll();
+            if(count($rows)===1){$row=$rows[0];return['content'=>[
+                'oghma_knowledge_tags'=>(string)($row['oghma_knowledge_tags']??''),'core'=>(string)($row['core']??''),
+                'biography'=>(string)($row['npc_static_bio']??''),'appearance'=>(string)($row['appearance']??''),
+                'personality'=>(string)($row['personality']??''),'relationships'=>(string)($row['relationships']??'{}'),
+                'occupation'=>(string)($row['occupation']??''),'skills'=>(string)($row['skills']??''),
+                'speech_style'=>(string)($row['speechstyle']??''),'goals'=>(string)($row['goals']??''),
+                'gender'=>(string)($row['gender']??''),'race'=>(string)($row['race']??''),
+            ]];}
+        }
         $stmt=$this->db->prepare("SELECT r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND (COALESCE(p.actor_identity->>'record_id','')='' OR lower(p.actor_identity->>'record_id')=lower(:record)) AND (COALESCE(p.actor_identity->>'content_file','')='' OR lower(p.actor_identity->>'content_file')=lower(:content_file)) AND (COALESCE(r.content->>'race','')='' OR lower(r.content->>'race')=lower(:race)) AND (COALESCE(r.content->>'gender','')='' OR lower(r.content->>'gender')=lower(:gender)) ORDER BY (COALESCE(p.actor_identity->>'record_id','')<>'') DESC,(COALESCE(p.actor_identity->>'content_file','')<>'') DESC,(COALESCE(r.content->>'race','')<>'') DESC,(COALESCE(r.content->>'gender','')<>'') DESC,p.created_at,p.profile_id LIMIT 1");
         $stmt->execute(['installation'=>$installation,'record'=>(string)($identity['record_id']??''),'content_file'=>(string)($identity['content_file']??''),'race'=>(string)($voice['race']??''),'gender'=>(string)($voice['gender']??'')]);
         $value=$stmt->fetchColumn();return$value===false?null:['content'=>$this->json($value)];
@@ -1238,20 +1254,46 @@ SQL);
     /** Upsert one active description by installation, content file, and record ID. */
     public function saveItemDescription(array $input,string $now): array
     {
-        return$this->transaction(function()use($input,$now):array{
+        return $this->saveItemDescriptions([$input],$now)[0];
+    }
+
+    /** Atomically upsert one bounded batch of installation-scoped item-description overrides. */
+    public function saveItemDescriptions(array $inputs,string $now): array
+    {
+        return$this->transaction(function()use($inputs,$now):array{
+            $saved=[];
+            foreach($inputs as$input){
             $find=$this->db->prepare('SELECT description_id FROM item_descriptions WHERE installation_id=:installation AND lower(content_file)=lower(:content_file) AND lower(record_id)=lower(:record_id) AND deleted_at IS NULL');
             $find->execute(['installation'=>$input['installation_id'],'content_file'=>$input['content_file'],'record_id'=>$input['record_id']]);$id=$find->fetchColumn();
             if($id===false){$id=Uuid::v4();$statement=$this->db->prepare('INSERT INTO item_descriptions(description_id,installation_id,content_file,record_id,display_name,description,created_at,updated_at) VALUES(:id,:installation,:content_file,:record_id,:display_name,:description,:now,:now)');}
             else{$statement=$this->db->prepare('UPDATE item_descriptions SET content_file=:content_file,record_id=:record_id,display_name=:display_name,description=:description,updated_at=:now WHERE description_id=:id AND installation_id=:installation AND deleted_at IS NULL');}
             $statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'content_file'=>trim((string)$input['content_file']),'record_id'=>trim((string)$input['record_id']),'display_name'=>trim((string)$input['display_name']),'description'=>trim((string)$input['description']),'now'=>$now]);
-            return['description_id'=>(string)$id,'updated_at'=>$now];
+            $saved[]=['description_id'=>(string)$id,'updated_at'=>$now];
+            }
+            return$saved;
         });
     }
 
-    public function deleteItemDescription(string $descriptionId,string $now): void
+    public function deleteItemDescription(string $descriptionId,string $installationId,string $now): void
     {
-        $statement=$this->db->prepare('UPDATE item_descriptions SET deleted_at=:now,updated_at=:now WHERE description_id=:id AND deleted_at IS NULL');
-        $statement->execute(['id'=>$descriptionId,'now'=>$now]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');
+        $statement=$this->db->prepare('UPDATE item_descriptions SET deleted_at=:now,updated_at=:now WHERE description_id=:id AND installation_id=:installation AND deleted_at IS NULL');
+        $statement->execute(['id'=>$descriptionId,'installation'=>$installationId,'now'=>$now]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');
+    }
+
+    /** Return custom description overrides in the exact CHIM CSV field order. */
+    public function customItemDescriptions(string $installationId): array
+    {
+        $statement=$this->db->prepare('SELECT content_file AS plugin,record_id AS baseid,display_name AS name,description FROM item_descriptions WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY lower(content_file),lower(record_id)');
+        $statement->execute(['installation'=>$installationId]);return$statement->fetchAll();
+    }
+
+    /** Soft-delete every active override for one installation so factory defaults become effective again. */
+    public function resetItemDescriptions(string $installationId,string $now): int
+    {
+        return$this->transaction(function()use($installationId,$now):int{
+            $statement=$this->db->prepare('UPDATE item_descriptions SET deleted_at=:now,updated_at=:now WHERE installation_id=:installation AND deleted_at IS NULL');
+            $statement->execute(['installation'=>$installationId,'now'=>$now]);return$statement->rowCount();
+        });
     }
 
     /** Resolve custom then shipped descriptions for canonical item identities in the active OpenMW manifest. */

@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
 import csv
 import hashlib
 import html
@@ -477,6 +478,15 @@ def valid_result(path: Path, item: dict[str, Any]) -> tuple[bool, str]:
         return False, str(error)
 
 
+def regeneration_hint(record_dir: Path) -> str:
+    path = record_dir / "regeneration-hint.txt"
+    try:
+        hint = re.sub(r"\s+", " ", path.read_text(encoding="utf-8")).strip()
+        return hint[:1000]
+    except OSError:
+        return ""
+
+
 def aggregate(run_dir: Path, selection: list[dict[str, Any]], hashes: dict[str, str], model: str) -> dict[str, Any]:
     rows: list[dict[str, str]] = []
     items: list[dict[str, Any]] = []
@@ -505,6 +515,7 @@ def aggregate(run_dir: Path, selection: list[dict[str, Any]], hashes: dict[str, 
         })
     manifest = {
         "format": FORMAT_VERSION, "updated_at_utc": utc_timestamp(), "model": model,
+        "prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
         "official_content_sha256": hashes, "selected_count": len(selection), "completed_count": len(rows),
         "pending_count": len(selection) - len(rows), "usage": usage, "items": items,
     }
@@ -550,6 +561,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, default=Path.home() / ".cache" / "almsiviserver" / "uesp-morrowind-items")
     parser.add_argument("--timeout", type=float, default=90)
     parser.add_argument("--max-cost", type=float, default=5.0)
+    parser.add_argument("--workers", type=int, default=1)
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--evidence-only", action="store_true")
     parser.add_argument("--skip-uesp", action="store_true")
@@ -558,6 +570,8 @@ def parse_args() -> argparse.Namespace:
         parser.error(f"--size must be at least {len(ITEM_TYPES)}")
     if args.max_cost <= 0:
         parser.error("--max-cost must be greater than zero")
+    if not 1 <= args.workers <= 64:
+        parser.error("--workers must be between 1 and 64")
     return args
 
 
@@ -569,23 +583,21 @@ def main() -> int:
     args.run_dir.mkdir(parents=True, exist_ok=True)
     catalog, hashes = extract_items(args.data_dir)
     selection = load_or_create_selection(args.run_dir, catalog, hashes, args.size)
-    session = requests.Session()
-    session.headers.update({"User-Agent": "ALMSIVI item-description authoring tool/1.0 (https://dwemerdynamics.com)"})
     manifest = aggregate(args.run_dir, selection, hashes, args.model)
     spent = float(manifest["usage"].get("cost") or 0)
     failures = 0
-    for index, item in enumerate(selection, start=1):
+
+    def generate_item(index: int, item: dict[str, Any]) -> tuple[int, float]:
         path = result_path(args.run_dir, item)
         valid, _ = valid_result(path, item)
         if args.resume and valid:
             print(f"[skip] {index}/{len(selection)} {item['display_name']}: complete", flush=True)
-            continue
-        if spent >= args.max_cost:
-            print(f"[stop] provider cost cap reached: {spent:.6f} / {args.max_cost:.2f}", flush=True)
-            break
+            return 0, 0.0
         record_dir = path.parent
         record_dir.mkdir(parents=True, exist_ok=True)
         telemetry: dict[str, Any] = {}
+        session = requests.Session()
+        session.headers.update({"User-Agent": "ALMSIVI item-description authoring tool/1.0 (https://dwemerdynamics.com)"})
         try:
             if args.skip_uesp:
                 uesp = {"status": "skipped"}
@@ -595,11 +607,11 @@ def main() -> int:
             evidence = evidence_text(item, uesp)
             if args.evidence_only:
                 atomic_json(record_dir / "evidence.json", {"identity": item, "uesp": uesp, "evidence": evidence})
-                continue
+                return 0, 0.0
             candidate: dict[str, Any] = {}
             violations: list[str] = []
             for repair_attempt in range(3):
-                repair = ""
+                repair = regeneration_hint(record_dir) if repair_attempt == 0 else ""
                 if violations:
                     repair = "; ".join(violations) + f". Prior description: {candidate.get('description', '')}"
                 candidate = call_glm(session, api_key, args.model, evidence, args.timeout, telemetry, repair)
@@ -622,23 +634,42 @@ def main() -> int:
             append_attempt(record_dir, {
                 "finished_at_utc": utc_timestamp(), "status": "complete", "telemetry": telemetry,
             })
-            spent += float(telemetry.get("cost") or 0)
             print(
                 f"[complete] {item['record_id']}: words={word_count(candidate['description'])} "
                 f"calls={telemetry.get('logical_calls')} cost={float(telemetry.get('cost') or 0):.6f}", flush=True,
             )
+            return 0, float(telemetry.get("cost") or 0)
         except (OSError, ValueError, RuntimeError, requests.RequestException, json.JSONDecodeError) as error:
-            failures += 1
             append_attempt(record_dir, {
                 "finished_at_utc": utc_timestamp(), "status": "quarantined", "error": str(error),
                 "telemetry": telemetry,
             })
-            spent += float(telemetry.get("cost") or 0)
             atomic_json(record_dir / "rejected.json", {
                 "format": FORMAT_VERSION, "generated_at_utc": utc_timestamp(), "identity": item,
                 "error": str(error), "generation": {"model": args.model, "telemetry": telemetry},
             })
             print(f"[quarantine] {item['record_id']}: {error}", flush=True)
+            return 1, float(telemetry.get("cost") or 0)
+        finally:
+            session.close()
+
+    pending = [
+        (index, item) for index, item in enumerate(selection, start=1)
+        if not (args.resume and valid_result(result_path(args.run_dir, item), item)[0])
+    ]
+    for offset in range(0, len(pending), args.workers):
+        if spent >= args.max_cost:
+            print(f"[stop] provider cost cap reached: {spent:.6f} / {args.max_cost:.2f}", flush=True)
+            break
+        batch = pending[offset:offset + args.workers]
+        if args.workers == 1:
+            results = [generate_item(*entry) for entry in batch]
+        else:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as executor:
+                results = list(executor.map(lambda entry: generate_item(*entry), batch))
+        for item_failures, item_cost in results:
+            failures += item_failures
+            spent += item_cost
         manifest = aggregate(args.run_dir, selection, hashes, args.model)
     manifest = aggregate(args.run_dir, selection, hashes, args.model)
     print(

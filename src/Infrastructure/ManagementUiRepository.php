@@ -10,6 +10,101 @@ final class ManagementUiRepository
 {
     public function __construct(private readonly PDO $db) {}
 
+    /** Query the effective default/custom catalog with server-side filters and bounded pagination. */
+    public function descriptionCatalog(string $installationId,array $filters=[]): array
+    {
+        $search=trim((string)($filters['search']??''));if(strlen($search)>100)$search=substr($search,0,100);
+        $letter=strtoupper(trim((string)($filters['letter']??'')));if(preg_match('/^[A-Z]$/D',$letter)!==1)$letter='';
+        $source=strtolower(trim((string)($filters['source']??'all')));if(!in_array($source,['all','default','custom','missing'],true))$source='all';
+        $plugin=strtolower(trim((string)($filters['plugin']??'all')));if(!in_array($plugin,['all','active','inactive'],true))$plugin='all';
+        $page=max(1,(int)($filters['page']??1));$pageSize=50;
+        $cte=<<<'SQL'
+WITH parameters AS (
+    SELECT CAST(:installation AS uuid) AS installation_id,CAST(:search AS text) AS search,
+        CAST(:letter AS text) AS letter,CAST(:source AS text) AS source,CAST(:plugin AS text) AS plugin
+), custom AS (
+    SELECT description_id::text,content_file,record_id,display_name,description,'custom'::text AS source,updated_at
+    FROM item_descriptions,parameters WHERE item_descriptions.installation_id=parameters.installation_id AND deleted_at IS NULL
+), effective AS (
+    SELECT * FROM custom
+    UNION ALL
+    SELECT NULL::text,d.plugin,d.baseid,d.name,d.description,'default',NULL::timestamptz
+    FROM descriptions d WHERE NOT EXISTS (
+        SELECT 1 FROM custom c WHERE lower(c.content_file)=lower(d.plugin) AND lower(c.record_id)=lower(d.baseid)
+    )
+), catalog AS (
+    SELECT e.description_id,e.content_file,e.record_id,e.display_name,e.description,e.source,e.updated_at,
+        discovered.last_seen_at,manifest.active,manifest.load_order
+    FROM effective e
+    LEFT JOIN discovered_items discovered ON discovered.installation_id=(SELECT installation_id FROM parameters)
+        AND discovered.content_file=lower(e.content_file) AND discovered.record_id=lower(e.record_id)
+    LEFT JOIN content_manifest_files manifest ON manifest.installation_id=(SELECT installation_id FROM parameters)
+        AND manifest.content_file=lower(e.content_file)
+    UNION ALL
+    SELECT NULL,item.content_file,item.record_id,item.display_name,NULL,'missing',NULL,item.last_seen_at,
+        manifest.active,manifest.load_order
+    FROM discovered_items item
+    LEFT JOIN content_manifest_files manifest ON manifest.installation_id=item.installation_id
+        AND manifest.content_file=item.content_file
+    WHERE item.installation_id=(SELECT installation_id FROM parameters) AND NOT EXISTS (
+        SELECT 1 FROM effective e WHERE lower(e.content_file)=item.content_file AND lower(e.record_id)=item.record_id
+    )
+)
+SQL;
+        $where=['(parameters.search = \'\' OR lower(COALESCE(catalog.display_name,\'\')||\' \'||catalog.content_file||\' \'||catalog.record_id) LIKE \'%\'||lower(parameters.search)||\'%\')',
+            '(parameters.letter = \'\' OR upper(left(COALESCE(catalog.display_name,catalog.record_id),1))=parameters.letter)',
+            '(parameters.source = \'all\' OR catalog.source=parameters.source)',
+            "(parameters.plugin = 'all' OR (parameters.plugin = 'active' AND catalog.active IS TRUE) OR (parameters.plugin = 'inactive' AND catalog.active IS FALSE))"];
+        $parameters=['installation'=>$installationId,'search'=>$search,'letter'=>$letter,'source'=>$source,'plugin'=>$plugin];
+        $filter=' WHERE '.implode(' AND ',$where);
+        $count=$this->db->prepare($cte.' SELECT count(*) FROM catalog CROSS JOIN parameters'.$filter);$count->execute($parameters);$total=(int)$count->fetchColumn();
+        $pages=max(1,(int)ceil($total/$pageSize));$page=min($page,$pages);
+        $statement=$this->db->prepare($cte.' SELECT catalog.* FROM catalog CROSS JOIN parameters'.$filter
+            .' ORDER BY lower(COALESCE(display_name,record_id)),lower(content_file),lower(record_id) LIMIT :limit OFFSET :offset');
+        foreach($parameters as$key=>$value)$statement->bindValue($key,$value);$statement->bindValue('limit',$pageSize,PDO::PARAM_INT);
+        $statement->bindValue('offset',($page-1)*$pageSize,PDO::PARAM_INT);$statement->execute();
+        return['items'=>$statement->fetchAll(),'total'=>$total,'page'=>$page,'pages'=>$pages,'page_size'=>$pageSize,
+            'filters'=>['search'=>$search,'letter'=>$letter,'source'=>$source,'plugin'=>$plugin]];
+    }
+
+    /** Summarize effective descriptions and discovered gaps for the selected installation. */
+    public function descriptionSummary(string $installationId): array
+    {
+        $statement=$this->db->prepare(<<<'SQL'
+WITH parameters AS (SELECT CAST(:installation AS uuid) AS installation_id), custom AS (
+    SELECT content_file,record_id FROM item_descriptions,parameters WHERE item_descriptions.installation_id=parameters.installation_id AND deleted_at IS NULL
+), defaults AS (
+    SELECT d.plugin,d.baseid FROM descriptions d WHERE NOT EXISTS (
+        SELECT 1 FROM custom c WHERE lower(c.content_file)=lower(d.plugin) AND lower(c.record_id)=lower(d.baseid)
+    )
+)
+SELECT (SELECT count(*) FROM custom)::int AS custom_count,(SELECT count(*) FROM defaults)::int AS default_count,
+    (SELECT count(*) FROM discovered_items item WHERE item.installation_id=(SELECT installation_id FROM parameters) AND NOT EXISTS (
+        SELECT 1 FROM custom c WHERE lower(c.content_file)=item.content_file AND lower(c.record_id)=item.record_id
+    ) AND NOT EXISTS (
+        SELECT 1 FROM descriptions d WHERE lower(d.plugin)=item.content_file AND lower(d.baseid)=item.record_id
+    ))::int AS missing_count
+SQL);
+        $statement->execute(['installation'=>$installationId]);return$statement->fetch()?:['custom_count'=>0,'default_count'=>0,'missing_count'=>0];
+    }
+
+    /** Return recently discovered canonical items with their effective description source. */
+    public function discoveredDescriptionItems(string $installationId): array
+    {
+        $statement=$this->db->prepare(<<<'SQL'
+SELECT item.content_file,item.record_id,item.display_name,item.observed_sources,item.last_seen_at,manifest.active,
+    CASE WHEN custom.description_id IS NOT NULL THEN 'Custom'
+         WHEN defaults.baseid IS NOT NULL THEN 'Default' ELSE 'Missing' END AS description_source
+FROM discovered_items item
+LEFT JOIN content_manifest_files manifest ON manifest.installation_id=item.installation_id AND manifest.content_file=item.content_file
+LEFT JOIN item_descriptions custom ON custom.installation_id=item.installation_id
+    AND lower(custom.content_file)=item.content_file AND lower(custom.record_id)=item.record_id AND custom.deleted_at IS NULL
+LEFT JOIN descriptions defaults ON lower(defaults.plugin)=item.content_file AND lower(defaults.baseid)=item.record_id
+WHERE item.installation_id=:installation ORDER BY item.last_seen_at DESC,item.content_file,item.record_id LIMIT 100
+SQL);
+        $statement->execute(['installation'=>$installationId]);return$statement->fetchAll();
+    }
+
     /** Load the bounded datasets used by the server-style home dashboard. */
     public function dashboard(): array
     {
