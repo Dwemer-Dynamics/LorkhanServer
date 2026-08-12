@@ -1,0 +1,989 @@
+{
+  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "created_at_utc": "2026-08-12T05:13:52Z",
+  "selected_count": 50,
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "e1cd504d48f2856b3796ec8e3c736859795d2cc53cd92ffe26e585037505c6c0",
+  "selection": [
+    {
+      "topic": "alchemy",
+      "title": "Alchemy",
+      "category": "alchemy",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [
+        "alchemist",
+        "healer",
+        "mage"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "azuras_star",
+      "title": "Azura's Star",
+      "category": "artifacts",
+      "profile": "religious",
+      "aliases": [
+        "Star of Azura"
+      ],
+      "classes": [
+        "daedra",
+        "mage",
+        "priest"
+      ],
+      "record_links": [
+        {
+          "record_id": "misc_soulgem_azura",
+          "record_type": "MISC"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "MISC",
+          "record_id": "Misc_SoulGem_Azura",
+          "display_name": "Azura's Star"
+        }
+      ]
+    },
+    {
+      "topic": "ash_vampires",
+      "title": "Ash Vampires",
+      "category": "creatures",
+      "profile": "esoteric",
+      "aliases": [
+        "Dagoth Ash Vampires"
+      ],
+      "classes": [
+        "house_dagoth",
+        "red_mountain"
+      ],
+      "uesp_titles": [
+        "Morrowind:Ash Creatures"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "ashlanders",
+      "title": "The Ashlanders",
+      "category": "cultures",
+      "profile": "regional",
+      "aliases": [
+        "Ashland tribes",
+        "Velothi nomads"
+      ],
+      "classes": [
+        "ashlander",
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "blight",
+      "title": "The Blight",
+      "category": "diseases",
+      "profile": "specialist",
+      "aliases": [
+        "Blight disease",
+        "Blight storms"
+      ],
+      "classes": [
+        "healer",
+        "ashlander",
+        "red_mountain"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "blades",
+      "title": "The Blades",
+      "category": "factions",
+      "profile": "esoteric",
+      "aliases": [
+        "Imperial Intelligence"
+      ],
+      "classes": [
+        "blades",
+        "imperial"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "almalexia",
+      "title": "Almalexia",
+      "category": "figures",
+      "profile": "religious",
+      "aliases": [
+        "Lady Almalexia",
+        "Mother Morrowind",
+        "Ayem"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "dunmer",
+        "mournhold"
+      ],
+      "record_links": [
+        {
+          "record_id": "almalexia",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "almalexia_warrior",
+          "record_type": "CREA"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Tribunal.esm",
+          "record_type": "CREA",
+          "record_id": "almalexia",
+          "display_name": "Almalexia"
+        },
+        {
+          "content_file": "Tribunal.esm",
+          "record_type": "CREA",
+          "record_id": "Almalexia_warrior",
+          "display_name": "Almalexia"
+        }
+      ]
+    },
+    {
+      "topic": "battle_of_red_mountain",
+      "title": "The Battle of Red Mountain",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "War of the First Council"
+      ],
+      "classes": [
+        "dunmer",
+        "dwemer",
+        "ashlander"
+      ],
+      "uesp_titles": [
+        "Morrowind:The Battle of Red Mountain"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "clockwork_city",
+      "title": "The Clockwork City",
+      "category": "locations",
+      "profile": "esoteric",
+      "aliases": [
+        "Clockwork Realm"
+      ],
+      "classes": [
+        "mage",
+        "tribunal_temple",
+        "mournhold"
+      ],
+      "uesp_titles": [
+        "Tribunal:Sotha Sil (city)"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "heart_of_lorkhan",
+      "title": "The Heart of Lorkhan",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Heart of the World"
+      ],
+      "classes": [
+        "dwemer",
+        "house_dagoth",
+        "tribunal_temple",
+        "mage"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "propylon_chambers",
+      "title": "Propylon Chambers",
+      "category": "magic",
+      "profile": "esoteric",
+      "aliases": [
+        "Propylon Indexes",
+        "Dunmer stronghold travel"
+      ],
+      "classes": [
+        "mage",
+        "scholar",
+        "dunmer"
+      ],
+      "uesp_titles": [
+        "Morrowind:Propylon Indices",
+        "Morrowind:Master Index"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "dunmer",
+      "title": "The Dunmer",
+      "category": "races",
+      "profile": "common",
+      "aliases": [
+        "Dark Elves"
+      ],
+      "classes": [
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "morrowind",
+      "title": "Morrowind",
+      "category": "regions",
+      "profile": "common",
+      "aliases": [
+        "Province of Morrowind"
+      ],
+      "classes": [
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "tribunal",
+      "title": "The Tribunal",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "ALMSIVI",
+        "Living Gods"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "balmora",
+      "title": "Balmora",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [
+        "house_hlaalu",
+        "west_gash"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "vvardenfell",
+      "title": "Vvardenfell",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [
+        "Vvardenfell District"
+      ],
+      "classes": [
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "nerevarine",
+      "title": "The Nerevarine",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Nerevar Reborn",
+        "Incarnate"
+      ],
+      "classes": [
+        "ashlander",
+        "tribunal_temple"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "nerevarine_prophecies",
+      "title": "The Nerevarine Prophecies",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Seven Visions",
+        "Seven Trials"
+      ],
+      "classes": [
+        "ashlander",
+        "tribunal_temple"
+      ],
+      "uesp_titles": [
+        "Lore:Nerevarine"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "sixth_house",
+      "title": "The Sixth House",
+      "category": "factions",
+      "profile": "esoteric",
+      "aliases": [
+        "House Dagoth",
+        "Sixth House and the Tribe Unmourned"
+      ],
+      "classes": [
+        "house_dagoth",
+        "ashlander"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "red_mountain",
+      "title": "Red Mountain",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [
+        "Vvardenfell volcano"
+      ],
+      "classes": [
+        "red_mountain",
+        "ashlander"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "chimer",
+      "title": "The Chimer",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [
+        "Changed Ones",
+        "Velothi"
+      ],
+      "classes": [
+        "dunmer",
+        "priest"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "dwemer",
+      "title": "The Dwemer",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Deep Elves",
+        "Dwarves"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "smith"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "ghostfence",
+      "title": "The Ghostfence",
+      "category": "locations",
+      "profile": "common",
+      "aliases": [
+        "Ghost Fence"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "red_mountain"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "corprus",
+      "title": "Corprus",
+      "category": "diseases",
+      "profile": "esoteric",
+      "aliases": [
+        "Divine Disease"
+      ],
+      "classes": [
+        "healer",
+        "house_dagoth",
+        "tribunal_temple"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "vivec",
+      "title": "Vivec",
+      "category": "figures",
+      "profile": "religious",
+      "aliases": [
+        "Lord Vivec",
+        "Warrior-Poet",
+        "Vehk"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "dunmer"
+      ],
+      "record_links": [
+        {
+          "record_id": "vivec_god",
+          "record_type": "CREA"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "CREA",
+          "record_id": "vivec_god",
+          "display_name": "Vivec"
+        }
+      ]
+    },
+    {
+      "topic": "sotha_sil",
+      "title": "Sotha Sil",
+      "category": "figures",
+      "profile": "religious",
+      "aliases": [
+        "Lord Sotha Sil",
+        "Seht",
+        "Clockwork God"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "dunmer",
+        "mage"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "dagoth_ur",
+      "title": "Dagoth Ur",
+      "category": "figures",
+      "profile": "esoteric",
+      "aliases": [
+        "Voryn Dagoth",
+        "Sharmat"
+      ],
+      "classes": [
+        "house_dagoth",
+        "ashlander",
+        "tribunal_temple"
+      ],
+      "record_links": [
+        {
+          "record_id": "dagoth_ur_1",
+          "record_type": "CREA"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "CREA",
+          "record_id": "dagoth_ur_1",
+          "display_name": "Dagoth Ur"
+        }
+      ]
+    },
+    {
+      "topic": "indoril_nerevar",
+      "title": "Indoril Nerevar",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Lord Nerevar",
+        "Nerevar Moon-and-Star",
+        "Saint Nerevar"
+      ],
+      "classes": [
+        "dunmer",
+        "ashlander",
+        "tribunal_temple"
+      ],
+      "uesp_titles": [
+        "Lore:Nerevar"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "azura",
+      "title": "Azura",
+      "category": "figures",
+      "profile": "religious",
+      "aliases": [
+        "Queen of Dawn and Dusk",
+        "Lady of Twilight"
+      ],
+      "classes": [
+        "daedra",
+        "priest",
+        "ashlander"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "barenziah",
+      "title": "Barenziah",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Queen Barenziah"
+      ],
+      "classes": [
+        "dunmer",
+        "imperial",
+        "mournhold"
+      ],
+      "record_links": [
+        {
+          "record_id": "barenziah",
+          "record_type": "NPC_"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Tribunal.esm",
+          "record_type": "NPC_",
+          "record_id": "barenziah",
+          "display_name": "Barenziah"
+        }
+      ]
+    },
+    {
+      "topic": "divayth_fyr",
+      "title": "Divayth Fyr",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Lord Fyr"
+      ],
+      "classes": [
+        "house_telvanni",
+        "mage",
+        "scholar"
+      ],
+      "record_links": [
+        {
+          "record_id": "divayth fyr",
+          "record_type": "NPC_"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "NPC_",
+          "record_id": "divayth fyr",
+          "display_name": "Divayth Fyr"
+        }
+      ]
+    },
+    {
+      "topic": "yagrum_bagarn",
+      "title": "Yagrum Bagarn",
+      "category": "figures",
+      "profile": "esoteric",
+      "aliases": [
+        "Last Living Dwarf"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "scholar"
+      ],
+      "record_links": [
+        {
+          "record_id": "yagrum bagarn",
+          "record_type": "CREA"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "CREA",
+          "record_id": "yagrum bagarn",
+          "display_name": "Yagrum Bagarn"
+        }
+      ]
+    },
+    {
+      "topic": "caius_cosades",
+      "title": "Caius Cosades",
+      "category": "figures",
+      "profile": "faction",
+      "aliases": [
+        "Caius"
+      ],
+      "classes": [
+        "blades",
+        "imperial"
+      ],
+      "record_links": [
+        {
+          "record_id": "caius cosades",
+          "record_type": "NPC_"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "NPC_",
+          "record_id": "caius cosades",
+          "display_name": "Caius Cosades"
+        }
+      ]
+    },
+    {
+      "topic": "tribunal_temple",
+      "title": "The Tribunal Temple",
+      "category": "factions",
+      "profile": "religious",
+      "aliases": [
+        "Temple",
+        "Almsivi Temple"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "morag_tong",
+      "title": "The Morag Tong",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [
+        "Foresters Guild"
+      ],
+      "classes": [
+        "morag_tong",
+        "dunmer",
+        "thief"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "house_hlaalu",
+      "title": "Great House Hlaalu",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [
+        "House Hlaalu",
+        "Hlaalu"
+      ],
+      "classes": [
+        "house_hlaalu",
+        "dunmer",
+        "merchant"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "house_redoran",
+      "title": "Great House Redoran",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [
+        "House Redoran",
+        "Redoran"
+      ],
+      "classes": [
+        "house_redoran",
+        "dunmer",
+        "warrior"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "house_telvanni",
+      "title": "Great House Telvanni",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [
+        "House Telvanni",
+        "Telvanni"
+      ],
+      "classes": [
+        "house_telvanni",
+        "dunmer",
+        "mage"
+      ],
+      "uesp_titles": [
+        "Morrowind:House Telvanni"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "slavery_in_morrowind",
+      "title": "Slavery in Morrowind",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [
+        "Morrowind slavery"
+      ],
+      "classes": [
+        "dunmer",
+        "argonian",
+        "khajiit",
+        "twin_lamps"
+      ],
+      "uesp_titles": [
+        "Morrowind:Slaves"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "seyda_neen",
+      "title": "Seyda Neen",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [
+        "bitter_coast"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "vivec_city",
+      "title": "Vivec City",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [
+        "City of Vivec"
+      ],
+      "classes": [
+        "ascadian_isles",
+        "tribunal_temple"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "mournhold",
+      "title": "Mournhold",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [
+        "City of Light and Magic"
+      ],
+      "classes": [
+        "mournhold",
+        "tribunal_temple"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "solstheim",
+      "title": "Solstheim",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [
+        "solstheim",
+        "nord",
+        "skaal"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "skaal",
+      "title": "The Skaal",
+      "category": "cultures",
+      "profile": "regional",
+      "aliases": [
+        "Skaal Tribe"
+      ],
+      "classes": [
+        "skaal",
+        "nord",
+        "solstheim"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "scrib",
+      "title": "Scribs",
+      "category": "creatures",
+      "profile": "regional",
+      "aliases": [
+        "Scrib"
+      ],
+      "classes": [
+        "hunter",
+        "dunmer"
+      ],
+      "uesp_titles": [
+        "Morrowind:Kwama"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "silt_strider",
+      "title": "Silt Striders",
+      "category": "creatures",
+      "profile": "common",
+      "aliases": [
+        "Silt Strider"
+      ],
+      "classes": [
+        "traveler",
+        "dunmer"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "kagrenacs_tools",
+      "title": "Kagrenac's Tools",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Tools of Kagrenac",
+        "Kagrenac's profane tools"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "house_dagoth",
+        "tribunal_temple"
+      ],
+      "preflight": true,
+      "resolved_records": []
+    },
+    {
+      "topic": "keening",
+      "title": "Keening",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Kagrenac's dagger"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "house_dagoth"
+      ],
+      "record_links": [
+        {
+          "record_id": "keening",
+          "record_type": "WEAP"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "WEAP",
+          "record_id": "keening",
+          "display_name": "Keening"
+        }
+      ]
+    },
+    {
+      "topic": "sunder",
+      "title": "Sunder",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Kagrenac's hammer"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "house_dagoth"
+      ],
+      "record_links": [
+        {
+          "record_id": "sunder",
+          "record_type": "WEAP"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "WEAP",
+          "record_id": "sunder",
+          "display_name": "Sunder"
+        }
+      ]
+    },
+    {
+      "topic": "wraithguard",
+      "title": "Wraithguard",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Kagrenac's gauntlet"
+      ],
+      "classes": [
+        "dwemer",
+        "mage",
+        "house_dagoth",
+        "tribunal_temple"
+      ],
+      "record_links": [
+        {
+          "record_id": "wraithguard",
+          "record_type": "ARMO"
+        }
+      ],
+      "preflight": true,
+      "resolved_records": [
+        {
+          "content_file": "Morrowind.esm",
+          "record_type": "ARMO",
+          "record_id": "wraithguard",
+          "display_name": "Wraithguard"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,118 @@
+{
+  "format": "almsivi.morrowind-oghma-ontology.v1",
+  "scope": "Stable, lore-first knowledge for a new Morrowind playthrough. Ordinary NPCs, generic equipment, routine spells, consumables, quest outcomes, and dynamic knowledge are excluded.",
+  "categories": [
+    "lore",
+    "history",
+    "religion",
+    "factions",
+    "races",
+    "cultures",
+    "figures",
+    "regions",
+    "settlements",
+    "locations",
+    "creatures",
+    "diseases",
+    "magic",
+    "alchemy",
+    "artifacts"
+  ],
+  "knowledge_classes": [
+    "common",
+    "scholar",
+    "traveler",
+    "mage",
+    "alchemist",
+    "healer",
+    "priest",
+    "smith",
+    "hunter",
+    "merchant",
+    "sailor",
+    "guard",
+    "warrior",
+    "thief",
+    "dunmer",
+    "imperial",
+    "nord",
+    "argonian",
+    "khajiit",
+    "redguard",
+    "breton",
+    "bosmer",
+    "altmer",
+    "orc",
+    "ashlander",
+    "dwemer",
+    "daedra",
+    "tribunal_temple",
+    "imperial_cult",
+    "mages_guild",
+    "fighters_guild",
+    "thieves_guild",
+    "morag_tong",
+    "imperial_legion",
+    "east_empire_company",
+    "house_hlaalu",
+    "house_redoran",
+    "house_telvanni",
+    "house_dagoth",
+    "blades",
+    "camonna_tong",
+    "twin_lamps",
+    "skaal",
+    "raven_rock",
+    "bitter_coast",
+    "ascadian_isles",
+    "ashlands",
+    "grazelands",
+    "molag_amur",
+    "red_mountain",
+    "west_gash",
+    "azuras_coast",
+    "sheogorad",
+    "solstheim",
+    "mournhold",
+    "esoteric"
+  ],
+  "profiles": {
+    "common": {
+      "advanced": ["scholar", "traveler"],
+      "basic": ["common"]
+    },
+    "scholarly": {
+      "advanced": ["scholar"],
+      "basic": ["common", "traveler"]
+    },
+    "religious": {
+      "advanced": ["priest", "scholar"],
+      "basic": ["common"]
+    },
+    "faction": {
+      "advanced": ["scholar"],
+      "basic": ["common", "traveler"]
+    },
+    "regional": {
+      "advanced": ["traveler", "scholar"],
+      "basic": ["common"]
+    },
+    "specialist": {
+      "advanced": ["scholar"],
+      "basic": ["common"]
+    },
+    "esoteric": {
+      "advanced": ["scholar", "esoteric"],
+      "basic": ["esoteric"]
+    }
+  },
+  "prose": {
+    "advanced_min_words": 55,
+    "advanced_max_words": 150,
+    "basic_min_words": 18,
+    "basic_max_words": 65,
+    "max_aliases": 8,
+    "min_tags": 2,
+    "max_tags": 12
+  }
+}
