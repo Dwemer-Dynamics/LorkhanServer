@@ -203,12 +203,15 @@ def extract_records(data_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str
             if deleted:
                 winners.pop(key, None)
             else:
-                winners[key] = {
+                record = {
                     "content_file": content_file,
                     "record_type": record_type.decode("ascii"),
                     "record_id": record_id,
                     "display_name": decode_text(fields.get(b"FNAM", b"")) or record_id,
                 }
+                if record_type == b"BOOK":
+                    record["source_text"] = decode_text(fields.get(b"TEXT", b""))
+                winners[key] = record
         if position != len(raw):
             raise ValueError(f"TES3 file ended with an incomplete record header: {path}")
     return winners, hashes
@@ -301,7 +304,26 @@ def resolve_topic_links(topic: dict[str, Any], records: dict[str, dict[str, Any]
         record = records.get(key)
         if record is None:
             raise ValueError(f"{topic['topic']} record link was not found in official winning records: {key}")
-        resolved.append(record)
+        resolved.append({key: value for key, value in record.items() if key != "source_text"})
+    return resolved
+
+
+# Book sources are evidence links, not identities for the knowledge subject itself.
+def resolve_book_sources(topic: dict[str, Any], records: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    resolved: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for record_id in topic.get("book_sources", []):
+        key = f"BOOK|{record_id}".casefold()
+        record = records.get(key)
+        if record is None:
+            raise ValueError(f"{topic['topic']} book source was not found in official winning records: {record_id}")
+        if key in seen:
+            raise ValueError(f"{topic['topic']} repeats official book source: {record_id}")
+        seen.add(key)
+        source_text = str(record.get("source_text", "")).strip()
+        if not source_text:
+            raise ValueError(f"{topic['topic']} official book source has no text: {record_id}")
+        resolved.append(dict(record))
     return resolved
 
 
@@ -347,6 +369,7 @@ def validate_seed_document(document: Any, ontology: dict[str, Any], records: dic
         row["aliases"] = aliases
         row["classes"] = classes
         row["resolved_records"] = resolve_topic_links(row, records)
+        row["resolved_book_sources"] = resolve_book_sources(row, records)
         topics.append(row)
         seen_topics.add(topic)
     return topics
@@ -484,6 +507,26 @@ def build_evidence(topic: dict[str, Any], uesp: dict[str, Any], dialogue: dict[s
     ]
     for record in topic.get("resolved_records", []):
         lines.append("official_record: " + json.dumps(record, ensure_ascii=False, sort_keys=True))
+    book_budget = 24000
+    for book in topic.get("resolved_book_sources", []):
+        source_text = re.sub(r"<[^>]+>", " ", str(book.get("source_text", "")))
+        source_text = re.sub(r"\s+", " ", source_text).strip()
+        search_terms = unique_strings([topic["title"], *topic.get("aliases", [])])
+        positions = [source_text.casefold().find(term.casefold()) for term in search_terms if len(term) >= 3]
+        position = next((value for value in positions if value >= 0), 0)
+        allowance = min(12000, book_budget)
+        start = max(0, position - allowance // 3)
+        excerpt = source_text[start:start + allowance]
+        book_budget -= len(excerpt)
+        lines.extend([
+            "official_book: " + json.dumps({
+                key: value for key, value in book.items() if key != "source_text"
+            }, ensure_ascii=False, sort_keys=True),
+            "official_book_evidence:",
+            excerpt,
+        ])
+        if book_budget <= 0:
+            break
     if dialogue is not None:
         lines.append("official_dialogue_sources: " + ", ".join(dialogue.get("sources", [])))
         lines.append(f"official_dialogue_response_count: {dialogue.get('response_count', 0)}")

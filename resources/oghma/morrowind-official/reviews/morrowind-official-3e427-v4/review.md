@@ -1,0 +1,85 @@
+# Morrowind Oghma catalog review
+
+- Catalog: `morrowind-official-3e427-v4`
+- Rows: **700**
+- Articles SHA-256: `46877f395df8f42ae55d864f643f00da7dfaaa506fd3153e83ab025428f01997`
+- Validation errors: **0**
+- Unique topic/alias keys: **1627**
+- Exact official record-linked articles: **149**
+- Generated source results: **84**; accepted: **84**; excluded: **0**
+- Accepted additions with official ESM dialogue: **0**; official books: **84**; supplemental UESP match: **65**
+- Generation cost: **$0.624044**
+
+## Category counts
+
+- `alchemy`: 3
+- `artifacts`: 81
+- `creatures`: 74
+- `cultures`: 37
+- `diseases`: 26
+- `factions`: 65
+- `figures`: 72
+- `history`: 46
+- `locations`: 72
+- `lore`: 30
+- `magic`: 26
+- `races`: 28
+- `regions`: 35
+- `religion`: 62
+- `settlements`: 43
+
+## Validation errors
+
+- None.
+
+## Near-duplicate title flags
+
+- None.
+
+## Resolved near-duplicate titles
+
+- 0.923: `ashlanders` / `ashlands` — Distinct culture and geographic region; similar titles are intentional.
+- 0.933: `aldmeri` / `aldmeris` — Distinct people and mythical ancestral homeland; similar titles are intentional.
+
+## Quest-like prose flags
+
+- None.
+
+## Dropped alias collisions
+
+- `padomay` dropped `Sithis` (owned by `sithis`)
+- `ehlnofey` dropped `Old Ehlnofey` (owned by `aldmeris`)
+- `ehlnofey` dropped `Earthbones` (owned by `earthbones`)
+- `earthbones` dropped `Ehlnofey` (owned by `ehlnofey`)
+- `sithis` dropped `Padomay` (owned by `padomay`)
+- `sithis` dropped `Is-Not` (owned by `padomay`)
+- `red_mountain_accounts` dropped `Battle of Red Mountain` (owned by `battle_of_red_mountain`)
+- `red_mountain_accounts` dropped `Nerevar at Red Mountain` (owned by `nerevar_at_red_mountain`)
+- `wulfharth` dropped `Ysmir` (owned by `tiber_septim`)
+- `wulfharth` dropped `Dragon of the North` (owned by `tiber_septim`)
+- `underking` dropped `Ysmir Kingmaker` (owned by `wulfharth`)
+- `azurah` dropped `Azura` (owned by `azura`)
+- `nerevar_at_red_mountain` dropped `Apographa` (owned by `apographa`)
+
+## Editorial exclusions
+
+- `morvayn_manor` (quest_dominated_location): Preserve the v3 editorial exclusion: the generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge.
+- `robot_arena` (quest_dominated_location): Preserve the v3 editorial exclusion: the generated article chiefly described a mutable local incident at Ignatius Flaccus's residence.
+- `vassir_didanat_mine` (quest_dominated_location): Preserve the v3 editorial exclusion: the generated article chiefly described competing quest rewards and mutable ownership claims.
+
+## Editorial overrides
+
+- `children_of_the_sky` (correct_typography): Correct the generated spelling of Nordic without changing the article's official-book account.
+- `aevar_stone_singer` (remove_quest_derived_detail): Keep Aevar's account within the official Skaal tale and remove later artifact and Ritual of the Gifts details.
+- `akaviri_potentate` (remove_misattributed_institution): Remove a generated claim that wrongly attributed the Fighters and Mages Guilds' prominence to the Potentate.
+- `aldmeri_pantheon` (separate_altmer_and_bosmer_traditions): Restore Trinimac and remove Jone and Jode from the Altmeri list; they belong to the Bosmeri list in the source.
+- `tang_mo` (remove_unanchored_current_state): Present the reported Ka Po' Tun alliance as part of uncertain Akaviri accounts rather than mutable recent news.
+- `underking` (anchor_to_3e427): Remove the pre-Warp present-tense search for the Mantella and preserve the disputed identities and 3E 417 outcome.
+- `fall_of_the_snow_prince` (describe_linked_book): Correct a generated subject conflation that described the Snow Prince's equipment instead of the linked chronicle.
+- `snow_elves` (remove_fourth_era_revelation): Keep the article within knowledge available from Bloodmoon and remove the later Falmer-Dwemer revelation.
+- `tonal_architecture` (remove_later_era_specificity): Restrict the discipline to evidence in the official Morrowind texts and avoid presenting Kagrenac's disputed result as certain.
+- `mantella` (anchor_to_3e427): Include the 3E 417 resolution of the Mantella rather than leaving it hidden as an extant target.
+- `azurah` (correct_cultural_identity): Describe Azurah as the Khajiiti cultural understanding of Azura rather than a wholly separate entity.
+- `arcturian_heresy` (correct_authorship_claim): The Morrowind text has no named author; Ysmir Kingmaker appears as a heading, not a reliable attribution.
+- `wars_of_tiber_septim` (correct_heresy_summary): Correct the generated reversal of betrayal in the Arcturian Heresy.
+- `cephorus_septim` (correct_era_wording): Cephorus I lived in the early centuries of the Third Era, not its late period.

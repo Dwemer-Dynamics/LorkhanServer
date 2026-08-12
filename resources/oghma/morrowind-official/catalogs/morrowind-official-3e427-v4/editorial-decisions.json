@@ -1,0 +1,150 @@
+{
+  "format": "almsivi.morrowind-oghma-editorial-decisions.v1",
+  "catalog_version": "morrowind-official-3e427-v4",
+  "exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "overrides": [
+    {
+      "topic": "children_of_the_sky",
+      "reason": "correct_typography",
+      "note": "Correct the generated spelling of Nordic without changing the article's official-book account.",
+      "article": {
+        "topic_desc": "Children of the Sky is a treatise on the Nordic worldview and the martial power of the voice. The text describes the Nords as eternal outsiders born where the sky exhaled upon the land, regarding breath and voice as their vital essence. It details the Thu'um, a shout akin to the Akaviri kiai, wielded by elite warriors called Tongues who shatter gates and command minds. The most powerful must remain gagged, communicating only through sign and runes to avoid unintended destruction. Trophy tongues woven into rope are said to hold spoken enchantment, while the far northern wastes breed elemental folk who carry the wind with them."
+      }
+    },
+    {
+      "topic": "aevar_stone_singer",
+      "reason": "remove_quest_derived_detail",
+      "note": "Keep Aevar's account within the official Skaal tale and remove later artifact and Ritual of the Gifts details.",
+      "article": {
+        "topic_desc": "Aevar Stone-Singer is a legendary hero of Skaal tradition, central to the foundational myth of Solstheim's people. When the Adversary, manifesting as the Greedy Man, stole the gifts of the All-Maker, the young Aevar volunteered to reclaim them, arguing that his lack of standing meant he would not be missed. Guided by the All-Maker at each sacred stone, he restored Water, Earth, Beasts, Trees, Sun, and Winds through arduous trials. He used his mace to amplify the Song of the Earth in the Cave of the Hidden Music. His tale warns against complacency and teaches that the All-Maker's gifts must be defended and restored when threatened.",
+        "tags": ["Skaal", "All-Maker", "Solstheim", "Greedy Man", "Stone-Singer", "mythology", "hero", "Adversary", "Song of the Earth"]
+      }
+    },
+    {
+      "topic": "akaviri_potentate",
+      "reason": "remove_misattributed_institution",
+      "note": "Remove a generated claim that wrongly attributed the Fighters and Mages Guilds' prominence to the Potentate.",
+      "article": {
+        "topic_desc": "The Akaviri Potentate denotes the ruling period of the Second Empire following the assassination of Reman III and the extinction of the Reman Dynasty. Originally, the potentate served as chief adviser to the Reman Emperors. The Akaviri official Versidue-Shaie subsequently assumed sovereign authority and governed Tamriel for centuries during the late Second Era. The Potentate preserved Imperial administration after the Reman line ended, but its own violent collapse opened the long Interregnum that preceded Tiber Septim's rise."
+      }
+    },
+    {
+      "topic": "aldmeri_pantheon",
+      "reason": "separate_altmer_and_bosmer_traditions",
+      "note": "Restore Trinimac and remove Jone and Jode from the Altmeri list; they belong to the Bosmeri list in the source.",
+      "article": {
+        "topic_desc": "The Aldmeri pantheon venerated by the Altmer is headed by Auri-El, soul of Anui-El and chief of the elven gods. Trinimac, the warrior spirit later associated with Malacath's origin, follows him in importance. Other honored spirits include Magnus, Syrabane, Y'ffre, Xarxes, Mara, Stendarr, and Phynaster. Lorkhan also occupies a hostile place in Altmeri theology as the Missing God blamed for sundering the elves from the spirit world. Related Aldmeri peoples preserve distinct variants: Bosmeri worship, for example, gives an explicit place to the lunar spirits Jone and Jode.",
+        "topic_desc_basic": "The Altmeri pantheon is headed by Auri-El and includes Trinimac, Magnus, Syrabane, Y'ffre, Xarxes, Mara, Stendarr, and Phynaster. Lorkhan holds a hostile place as the Missing God blamed for separating elves from the spirit world. Related elven peoples preserve their own variants of this tradition."
+      }
+    },
+    {
+      "topic": "tang_mo",
+      "reason": "remove_unanchored_current_state",
+      "note": "Present the reported Ka Po' Tun alliance as part of uncertain Akaviri accounts rather than mutable recent news.",
+      "article": {
+        "topic_desc": "The Tang Mo are the monkey-folk of Akavir, inhabiting the region translated as the Thousand Monkey Isles. Numerous breeds are described as kind, brave, and simple, though often eccentric. Despite their peaceful reputation, they are formidable in conflict and repeatedly raise armies against invasion and enslavement by other Akaviri nations. Accounts claim that each summer the snow demons of Kamal thaw and attack Tang Mo, only to be driven back. The same uncertain reports describe an alliance with the tiger-folk of Ka Po' Tun and particular hatred for the Tsaesci. No reliable Tamrielic observer has documented them directly.",
+        "topic_desc_basic": "The Tang Mo are the monkey-folk of Akavir, dwelling in the Thousand Monkey Isles. Tamrielic accounts describe them as kind, brave, and frequently eccentric, yet formidable in war. They repeatedly repel Kamal invasions and are said to ally with Ka Po' Tun against the Tsaesci, though reliable knowledge of them is scarce."
+      }
+    },
+    {
+      "topic": "underking",
+      "reason": "anchor_to_3e427",
+      "note": "Remove the pre-Warp present-tense search for the Mantella and preserve the disputed identities and 3E 417 outcome.",
+      "article": {
+        "topic_desc": "The Underking is a disputed figure bound to Tiber Septim, Numidium, and the Mantella. Orthodox Imperial accounts identify him with Zurin Arctus, the Grand Battlemage whose life force was torn from him when Numidium was activated. The Arcturian Heresy instead names Ysmir Wulfharth, the ash-formed Nord king secretly used and betrayed by Septim. For centuries an undead power associated with the Underking sought the Mantella, described as his missing heart. During the Warp in the West of 3E 417, the Underking is said to have recovered it and finally died. Whether Arctus, Wulfharth, or some union of both stood behind the name remains unresolved.",
+        "topic_desc_basic": "The Underking is a mysterious figure associated with Tiber Septim, Numidium, and the Mantella. Some accounts identify him as the betrayed battlemage Zurin Arctus; others name the ancient Nord king Wulfharth. He is said to have recovered the Mantella during the Warp in the West and finally died, though his true identity remains disputed."
+      }
+    },
+    {
+      "topic": "fall_of_the_snow_prince",
+      "reason": "describe_linked_book",
+      "note": "Correct a generated subject conflation that described the Snow Prince's equipment instead of the linked chronicle.",
+      "article": {
+        "topic_desc": "Fall of the Snow Prince is a Nordic chronicle of the Battle of the Moesring on Solstheim. It tells how a radiant Snow Elf champion rallied his near-defeated people, slew renowned Nord warriors, and was unexpectedly killed when the young squire Finna hurled her dead mother's sword into his breast. The account praises the Snow Prince's courage despite calling his people enemies. It records that the victorious Nords broke with their custom of burning enemy dead and buried him in a royal barrow with his gleaming armor, spear, and worthy treasures, while reserving stalhrim burial for their own people.",
+        "topic_desc_basic": "Fall of the Snow Prince is a Nordic account of the Battle of the Moesring. It recounts the Snow Prince's rally of the Snow Elves, his death at the hand of the young Finna, and the honors granted to him by the victorious Nords, who buried their formidable enemy in a royal barrow.",
+        "aliases": ["Chronicle of the Snow Prince", "Moesring chronicle"],
+        "tags": ["book", "Snow Prince", "Solstheim", "Battle of the Moesring", "Snow Elves", "Nords", "Finna", "barrow", "chronicle"]
+      }
+    },
+    {
+      "topic": "snow_elves",
+      "reason": "remove_fourth_era_revelation",
+      "note": "Keep the article within knowledge available from Bloodmoon and remove the later Falmer-Dwemer revelation.",
+      "article": {
+        "topic_desc": "The Snow Elves were a Merish people who inhabited Skyrim and Solstheim before the Nordic conquests. Nordic tradition remembers them as the Elven foe driven from Skyrim by Ysgramor's people. Their final great stand on Solstheim came at the Battle of the Moesring, where the Snow Prince rallied their broken ranks and nearly reversed the battle before the young squire Finna killed him. The Nords honored the fallen champion with a noble barrow, but his death shattered the remaining Elven resistance. By 3E 427, the ultimate fate of any survivors is unknown.",
+        "topic_desc_basic": "The Snow Elves were an elven people driven from Skyrim by the Nords. Their last great stand on Solstheim ended when the Snow Prince fell at the Battle of the Moesring. His death shattered their resistance, and the fate of any surviving Snow Elves is unknown in 3E 427.",
+        "aliases": ["Snow Elves"],
+        "tags": ["elves", "Mer", "Nordic history", "Skyrim", "Solstheim", "Snow Prince", "Battle of the Moesring"]
+      }
+    },
+    {
+      "topic": "tonal_architecture",
+      "reason": "remove_later_era_specificity",
+      "note": "Restrict the discipline to evidence in the official Morrowind texts and avoid presenting Kagrenac's disputed result as certain.",
+      "article": {
+        "topic_desc": "Tonal Architecture is the Dwemer discipline of shaping reality through sound, vibration, and precisely ordered resonance. Its greatest known practitioner was Lord Kagrenac, High Priest and Tonal Architect of Vvardenfell. After the discovery of the Heart of Lorkhan, Kagrenac devised Wraithguard, Sunder, and Keening to study and manipulate the Heart's divine power. Dwemer accounts and later scholarship associate this work with an attempt to create a new god for the Dwemer. The entire race vanished during the Battle of Red Mountain when Kagrenac used his tools, but surviving accounts disagree over whether his experiment caused their disappearance or merely coincided with it.",
+        "topic_desc_basic": "Tonal Architecture is a Dwemer discipline that uses sound and resonance to alter reality. Lord Kagrenac applied it through Wraithguard, Sunder, and Keening to manipulate the Heart of Lorkhan. The Dwemer vanished when the tools were used at Red Mountain, though the exact cause remains disputed.",
+        "tags": ["Dwemer", "sound", "resonance", "Kagrenac", "Heart of Lorkhan", "Kagrenac's Tools", "Red Mountain", "magic"]
+      }
+    },
+    {
+      "topic": "mantella",
+      "reason": "anchor_to_3e427",
+      "note": "Include the 3E 417 resolution of the Mantella rather than leaving it hidden as an extant target.",
+      "article": {
+        "topic_desc": "The Mantella was a vast green soul gem, called a Crux of Transcendence, created to power the Dwemer construct Numidium. Accounts disagree whether it held the life force of Zurin Arctus, Ysmir Wulfharth, or the being remembered as the Underking. Tiber Septim used its power to activate Numidium during his conquest of Tamriel. After the construct's destruction, the gem was hidden in the Mantellan Crux, a plane of Aetherius. During the Warp in the West of 3E 417, the Underking is said to have reclaimed the Mantella and finally died, ending the artifact's long separation from its bound spirit.",
+        "topic_desc_basic": "The Mantella was a vast green soul gem used to power Numidium. It contained the life force associated with the Underking, though accounts dispute whether that spirit was Zurin Arctus or Wulfharth. The Underking is said to have recovered it during the Warp in the West of 3E 417 and finally died."
+      }
+    },
+    {
+      "topic": "azurah",
+      "reason": "correct_cultural_identity",
+      "note": "Describe Azurah as the Khajiiti cultural understanding of Azura rather than a wholly separate entity.",
+      "article": {
+        "topic_desc": "Azurah is the Khajiiti name and cultural understanding of the Daedric Prince Azura, revered as the spirit of dusk and dawn and the favored daughter of Fadomai. Khajiiti myth says Fadomai entrusted her greatest secrets to Azurah. Using them, Azurah shaped the forest people into the Khajiit, bound their many forms to the Lunar Lattice, and charged them with protecting the moons. These traditions emphasize roles and relationships distinct from Dunmeri teachings about Azura, while recognizing the same divine being through a Khajiiti cosmological lens.",
+        "topic_desc_basic": "Azurah is the Khajiiti name and understanding of Azura, the spirit of dusk and dawn. Khajiiti tradition says she received Fadomai's secrets, shaped the forest people into the Khajiit, and bound their many forms to the Lunar Lattice."
+      }
+    },
+    {
+      "topic": "arcturian_heresy",
+      "reason": "correct_authorship_claim",
+      "note": "The Morrowind text has no named author; Ysmir Kingmaker appears as a heading, not a reliable attribution.",
+      "article": {
+        "topic_desc": "The Arcturian Heresy is an anonymously presented and controversial account of Tiber Septim's rise and the Underking's nature. Its opening names 'The Underking, Ysmir Kingmaker,' but does not securely identify an author. The text claims the Nord hero Wulfharth survived Red Mountain as the ash-formed Underking, aided Hjalti Early-Beard at Old Hrol'dan, and secretly drove the conquest of Cyrodiil. It further alleges that Septim murdered Cuhlecain and later ambushed the Underking to capture the Mantella, framing Grand Battlemage Zurin Arctus as a traitor. These claims fundamentally contradict orthodox Imperial history.",
+        "tags": ["book", "Underking", "Tiber Septim", "Wulfharth", "Zurin Arctus", "Numidium", "Mantella", "Talos", "Cuhlecain", "Hjalti Early-Beard", "heresy"]
+      }
+    },
+    {
+      "topic": "wars_of_tiber_septim",
+      "reason": "correct_heresy_summary",
+      "note": "Correct the generated reversal of betrayal in the Arcturian Heresy.",
+      "article": {
+        "topic_desc": "The wars of Tiber Septim were the military campaigns that ended the Interregnum and unified Tamriel under the Third Empire. Beginning with the consolidation of Cyrodiil, the conflicts expanded through the human kingdoms and into Morrowind, Valenwood, Elsweyr, Black Marsh, and Summerset Isle. The conquest concluded in 2E 896 after Numidium forced the Altmer's submission. Orthodox Imperial histories portray these wars as the restoration of order. The Arcturian Heresy instead claims that Wulfharth secretly powered Septim's early victories, that Septim later betrayed and trapped him in the Mantella, and that Zurin Arctus was falsely blamed for the resulting deaths."
+      }
+    },
+    {
+      "topic": "cephorus_septim",
+      "reason": "correct_era_wording",
+      "note": "Cephorus I lived in the early centuries of the Third Era, not its late period.",
+      "article": {
+        "topic_desc": "Cephorus Septim was an Emperor of the Septim Dynasty, son of Pelagius II and brother to Antiochus, Potema, and Magnus. Raised in the Imperial City during the early Third Era, he became a principal claimant during the War of the Red Diamond. After defeating his nephew Uriel III at the Battle of Ichidag in Hammerfell in 3E 127, Cephorus was proclaimed Emperor Cephorus I. His reign was consumed by continued civil war against his sister Potema, who commanded Daedric and undead forces from Solitude. He outlasted her rebellion and maintained Imperial authority until her death in 3E 137."
+      }
+    }
+  ]
+}

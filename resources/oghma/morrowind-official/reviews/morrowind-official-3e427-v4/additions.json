@@ -1,0 +1,1497 @@
+{
+  "format": "almsivi.morrowind-oghma-v4-selection.v1",
+  "topics": [
+    {
+      "topic": "anu",
+      "title": "Anu",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Anu the Everything"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "padomay",
+      "title": "Padomay",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Padomay the Nothing"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "nir",
+      "title": "Nir",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Nir the world-parent"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "aurbis",
+      "title": "Aurbis",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "the Aurbis"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "mundus",
+      "title": "Mundus",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "the mortal plane",
+        "the Mundus"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "aetherius",
+      "title": "Aetherius",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "the immortal plane"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "ehlnofey",
+      "title": "Ehlnofey",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Old Ehlnofey",
+        "Wandering Ehlnofey"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "hist",
+      "title": "the Hist",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Hist trees"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "convention",
+      "title": "Convention",
+      "category": "history",
+      "profile": "esoteric",
+      "aliases": [
+        "the Convention"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "earthbones",
+      "title": "the Earthbones",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Earth Bones"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "lunar_lorkhan",
+      "title": "the Lunar Lorkhan",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Lorkhan's moons"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Alteration5"
+      ]
+    },
+    {
+      "topic": "dragon_break",
+      "title": "Dragon Break",
+      "category": "history",
+      "profile": "esoteric",
+      "aliases": [
+        "the Dragon Break"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Alteration2",
+        "bk_wherewereyoudragonbroke"
+      ]
+    },
+    {
+      "topic": "aedra",
+      "title": "Aedra",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "the Aedra"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AedraAndDaedra"
+      ]
+    },
+    {
+      "topic": "oblivion_realms",
+      "title": "realms of Oblivion",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Oblivion realms",
+        "planes of Oblivion"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_onoblivion",
+        "bk_WatersOfOblivion"
+      ]
+    },
+    {
+      "topic": "sithis",
+      "title": "Sithis",
+      "category": "religion",
+      "profile": "esoteric",
+      "aliases": [
+        "the Void"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Alteration3"
+      ]
+    },
+    {
+      "topic": "shezarr",
+      "title": "Shezarr",
+      "category": "religion",
+      "profile": "esoteric",
+      "aliases": [
+        "the Missing Sibling"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "velothi_exodus",
+      "title": "the Velothi exodus",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Veloth's exodus"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ChangedOnes"
+      ]
+    },
+    {
+      "topic": "dunmer_funerary_rites",
+      "title": "Dunmer funerary rites",
+      "category": "cultures",
+      "profile": "religious",
+      "aliases": [
+        "Dunmer burial customs"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AncestorsAndTheDunmer",
+        "bk_corpsepreperation1_c"
+      ]
+    },
+    {
+      "topic": "temple_canon",
+      "title": "Tribunal Temple canon",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Temple doctrine"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_fellowshiptemple",
+        "bk_progressoftruth"
+      ]
+    },
+    {
+      "topic": "dwemer_law",
+      "title": "Dwemer law",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [
+        "Dwarven law"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AntecedantsDwemerLaw"
+      ]
+    },
+    {
+      "topic": "dwemer_freeholds",
+      "title": "Dwemer freeholds",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Dwarven freeholds"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ChroniclesNchuleft"
+      ]
+    },
+    {
+      "topic": "tonal_architecture",
+      "title": "Tonal Architecture",
+      "category": "magic",
+      "profile": "esoteric",
+      "aliases": [
+        "Dwemer tonal architecture"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_kagrenac'stools"
+      ]
+    },
+    {
+      "topic": "red_mountain_accounts",
+      "title": "conflicting accounts of Red Mountain",
+      "category": "history",
+      "profile": "esoteric",
+      "aliases": [
+        "Red Mountain accounts",
+        "the Red Moment"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_vivec_murders",
+        "bk_vivec_no_murder"
+      ]
+    },
+    {
+      "topic": "alessian_empire",
+      "title": "Alessian Empire",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "First Empire of Cyrodiil"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "alessian_order",
+      "title": "Alessian Order",
+      "category": "religion",
+      "profile": "scholarly",
+      "aliases": [
+        "Alessian doctrines"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4",
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "marukh",
+      "title": "Marukh",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "the Prophet Marukh"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4",
+        "bk_manyfacesmissinggod"
+      ]
+    },
+    {
+      "topic": "reman_empire",
+      "title": "Reman Empire",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Second Empire of Cyrodiil"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "akaviri_potentate",
+      "title": "Akaviri Potentate",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "the Potentate"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "septim_dynasty",
+      "title": "Septim Dynasty",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "the Septim line"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "wars_of_tiber_septim",
+      "title": "wars of Tiber Septim",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Tiber Wars"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4",
+        "bk_ArcturianHeresy"
+      ]
+    },
+    {
+      "topic": "imperial_simulacrum",
+      "title": "Imperial Simulacrum",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Jagar Tharn's usurpation"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "war_of_the_red_diamond",
+      "title": "War of the Red Diamond",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Red Diamond War"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4",
+        "BookSkill_Speechcraft1",
+        "bookskill_security2",
+        "bookskill_hand to hand2",
+        "bookskill_illusion1",
+        "bookskill_mercantile2",
+        "bookskill_speechcraft2",
+        "bookskill_sneak1",
+        "bookskill_speechcraft4",
+        "BookSkill_Enchant2"
+      ]
+    },
+    {
+      "topic": "potema",
+      "title": "Potema",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "the Wolf Queen",
+        "Potema Septim"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Speechcraft1",
+        "bookskill_security2",
+        "bookskill_hand to hand2",
+        "bookskill_illusion1",
+        "bookskill_mercantile2",
+        "bookskill_speechcraft2",
+        "bookskill_sneak1",
+        "bookskill_speechcraft4",
+        "BookSkill_Enchant2"
+      ]
+    },
+    {
+      "topic": "cephorus_septim",
+      "title": "Cephorus Septim",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Speechcraft1",
+        "bookskill_security2",
+        "bookskill_hand to hand2",
+        "bookskill_illusion1",
+        "bookskill_mercantile2",
+        "bookskill_speechcraft2",
+        "bookskill_sneak1",
+        "bookskill_speechcraft4",
+        "BookSkill_Enchant2",
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "pelagius_iii",
+      "title": "Pelagius III",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Pelagius the Mad"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_madnessofpelagius",
+        "bk_BriefHistoryEmpire1",
+        "bk_BriefHistoryEmpire2",
+        "bk_BriefHistoryEmpire3",
+        "bk_BriefHistoryEmpire4"
+      ]
+    },
+    {
+      "topic": "symmachus",
+      "title": "Symmachus",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "General Symmachus"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BiographyBarenziah1",
+        "bk_BiographyBarenziah2",
+        "bk_BiographyBarenziah3"
+      ]
+    },
+    {
+      "topic": "zurin_arctus",
+      "title": "Zurin Arctus",
+      "category": "figures",
+      "profile": "esoteric",
+      "aliases": [
+        "the Imperial Battlemage"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy"
+      ]
+    },
+    {
+      "topic": "wulfharth",
+      "title": "Wulfharth",
+      "category": "figures",
+      "profile": "esoteric",
+      "aliases": [
+        "Ysmir",
+        "the Ash-King"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy",
+        "bk_fivesongsofkingwulfharth"
+      ]
+    },
+    {
+      "topic": "underking",
+      "title": "the Underking",
+      "category": "figures",
+      "profile": "esoteric",
+      "aliases": [
+        "Underking"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy"
+      ]
+    },
+    {
+      "topic": "mantella",
+      "title": "the Mantella",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Mantella"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy"
+      ]
+    },
+    {
+      "topic": "warp_in_the_west",
+      "title": "Warp in the West",
+      "category": "history",
+      "profile": "esoteric",
+      "aliases": [
+        "the Miracle of Peace"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy",
+        "bk_wherewereyoudragonbroke"
+      ]
+    },
+    {
+      "topic": "arcturian_heresy",
+      "title": "the Arcturian Heresy",
+      "category": "lore",
+      "profile": "esoteric",
+      "aliases": [
+        "Arcturian account"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ArcturianHeresy"
+      ]
+    },
+    {
+      "topic": "mages_guild_founding",
+      "title": "founding of the Mages Guild",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_OriginOfTheMagesGuild"
+      ]
+    },
+    {
+      "topic": "galerion",
+      "title": "Vanus Galerion",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Galerion the Mystic"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_OriginOfTheMagesGuild",
+        "bk_galerionthemystic"
+      ]
+    },
+    {
+      "topic": "psijic_order",
+      "title": "Psijic Order",
+      "category": "factions",
+      "profile": "esoteric",
+      "aliases": [
+        "the Psijics"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_OriginOfTheMagesGuild",
+        "bk_oldways"
+      ]
+    },
+    {
+      "topic": "artaeum",
+      "title": "Artaeum",
+      "category": "regions",
+      "profile": "esoteric",
+      "aliases": [
+        "the island of Artaeum"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_OriginOfTheMagesGuild",
+        "bk_fragmentonartaeum"
+      ]
+    },
+    {
+      "topic": "old_ways",
+      "title": "the Old Ways",
+      "category": "magic",
+      "profile": "esoteric",
+      "aliases": [
+        "Psijic Old Ways"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_oldways"
+      ]
+    },
+    {
+      "topic": "green_pact",
+      "title": "Green Pact",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [
+        "the Green Pact"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire",
+        "bookskill_medium armor1"
+      ]
+    },
+    {
+      "topic": "wild_hunt",
+      "title": "Wild Hunt",
+      "category": "cultures",
+      "profile": "esoteric",
+      "aliases": [
+        "the Wild Hunt"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire",
+        "bookskill_medium armor1"
+      ]
+    },
+    {
+      "topic": "orsinium",
+      "title": "Orsinium",
+      "category": "settlements",
+      "profile": "scholarly",
+      "aliases": [
+        "Nova Orsinium"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bookskill_heavy armor4",
+        "bk_truenatureoforcs"
+      ]
+    },
+    {
+      "topic": "snow_elves",
+      "title": "Snow Elves",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Falmer"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_snowprince"
+      ]
+    },
+    {
+      "topic": "battle_of_moesring",
+      "title": "Battle of Moesring",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [
+        "Battle of the Moesring"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_snowprince"
+      ]
+    },
+    {
+      "topic": "snow_prince",
+      "title": "the Snow Prince",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Snow Prince"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_snowprince"
+      ]
+    },
+    {
+      "topic": "atmora",
+      "title": "Atmora",
+      "category": "regions",
+      "profile": "scholarly",
+      "aliases": [
+        "the Elder Wood"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ChildrenOfTheSky"
+      ]
+    },
+    {
+      "topic": "mane",
+      "title": "the Mane",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [
+        "Mane of the Khajiit"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wordsclanmother",
+        "bookskill_medium armor1"
+      ]
+    },
+    {
+      "topic": "lunar_lattice",
+      "title": "Lunar Lattice",
+      "category": "religion",
+      "profile": "esoteric",
+      "aliases": [
+        "ja-Kha'jay",
+        "the ja-Kha'jay"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wordsclanmother",
+        "bookskill_medium armor1",
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "lorkhaj",
+      "title": "Lorkhaj",
+      "category": "religion",
+      "profile": "esoteric",
+      "aliases": [
+        "Moon Beast"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wordsclanmother",
+        "bookskill_medium armor1",
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "azurah",
+      "title": "Azurah",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Khajiiti Azura"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wordsclanmother",
+        "bookskill_medium armor1",
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "khajiit_furstocks",
+      "title": "Khajiit furstocks",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Khajiit forms"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wordsclanmother",
+        "bookskill_medium armor1",
+        "bookskill_restoration2"
+      ]
+    },
+    {
+      "topic": "akavir",
+      "title": "Akavir",
+      "category": "regions",
+      "profile": "scholarly",
+      "aliases": [
+        "the Dragon Land"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ]
+    },
+    {
+      "topic": "tsaesci",
+      "title": "Tsaesci",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "vampiric serpent-folk"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ]
+    },
+    {
+      "topic": "kamal",
+      "title": "Kamal",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Snow Demons of Kamal"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ]
+    },
+    {
+      "topic": "tang_mo",
+      "title": "Tang Mo",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Thousand Monkey Isles"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ]
+    },
+    {
+      "topic": "ka_po_tun",
+      "title": "Ka Po' Tun",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Po Tun",
+        "Tiger-Dragon Empire"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ]
+    },
+    {
+      "topic": "ayleids",
+      "title": "Ayleids",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Wild Elves",
+        "Heartland High Elves"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_wildelves"
+      ]
+    },
+    {
+      "topic": "direnni",
+      "title": "Direnni",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [
+        "Direnni clan"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bookskill_restoration2"
+      ]
+    },
+    {
+      "topic": "nedes",
+      "title": "Nedes",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Nedic peoples"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bookskill_restoration2",
+        "bk_AnnotatedAnuad"
+      ]
+    },
+    {
+      "topic": "skaal_standing_stones",
+      "title": "Skaal standing stones",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "All-Maker Stones",
+        "Standing Stones of the Skaal"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BM_Aevar"
+      ]
+    },
+    {
+      "topic": "aevar_stone_singer",
+      "title": "Aevar Stone-Singer",
+      "category": "figures",
+      "profile": "religious",
+      "aliases": [
+        "Aevar"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_BM_Aevar"
+      ]
+    },
+    {
+      "topic": "maormer",
+      "title": "Maormer",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "Sea Elves"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_provinces_of_tamriel"
+      ]
+    },
+    {
+      "topic": "sload",
+      "title": "Sload",
+      "category": "races",
+      "profile": "scholarly",
+      "aliases": [
+        "slug-folk of Thras"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_provinces_of_tamriel"
+      ]
+    },
+    {
+      "topic": "aldmeri_pantheon",
+      "title": "Aldmeri pantheon",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Altmeri pantheon"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "khajiiti_pantheon",
+      "title": "Khajiiti pantheon",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire",
+        "bk_wordsclanmother",
+        "bookskill_medium armor1"
+      ]
+    },
+    {
+      "topic": "redguard_pantheon",
+      "title": "Redguard pantheon",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Yokudan pantheon"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "nordic_pantheon",
+      "title": "Nordic pantheon",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Nord pantheon"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire"
+      ]
+    },
+    {
+      "topic": "the_monomyth",
+      "title": "The Monomyth",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "Monomyth"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_manyfacesmissinggod"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_manyfacesmissinggod"
+        }
+      ]
+    },
+    {
+      "topic": "the_annotated_anuad",
+      "title": "The Annotated Anuad",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [
+        "Annotated Anuad"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_AnnotatedAnuad"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_AnnotatedAnuad"
+        }
+      ]
+    },
+    {
+      "topic": "mysterious_akavir",
+      "title": "Mysterious Akavir",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_MysteriousAkavir"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_MysteriousAkavir"
+        }
+      ]
+    },
+    {
+      "topic": "varieties_of_faith",
+      "title": "Varieties of Faith in the Empire",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [
+        "Varieties of Faith"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_varietiesoffaithintheempire"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_varietiesoffaithintheempire"
+        }
+      ]
+    },
+    {
+      "topic": "thirty_six_lessons_of_vivec",
+      "title": "The 36 Lessons of Vivec",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [
+        "36 Lessons",
+        "Sermons of Vivec"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "BookSkill_Athletics3",
+        "BookSkill_Alchemy4",
+        "BookSkill_Blunt Weapon4",
+        "BookSkill_Mysticism3",
+        "BookSkill_Axe4",
+        "BookSkill_Armorer3",
+        "BookSkill_Block4",
+        "BookSkill_Athletics4",
+        "BookSkill_Blunt Weapon5",
+        "BookSkill_Short Blade4",
+        "bookskill_unarmored3",
+        "bookskill_heavy armor5",
+        "BookSkill_Alteration4",
+        "bookskill_spear3",
+        "bookskill_unarmored4",
+        "BookSkill_Axe5",
+        "bookskill_long blade3",
+        "BookSkill_Alchemy5",
+        "bookskill_enchant4",
+        "bookskill_long blade4",
+        "bookskill_light armor4",
+        "bookskill_medium armor4",
+        "bookskill_long blade5",
+        "bookskill_spear4",
+        "BookSkill_Armorer4",
+        "bookskill_sneak5",
+        "bookskill_speechcraft5",
+        "bookskill_light armor5",
+        "BookSkill_Armorer5",
+        "BookSkill_Short Blade5",
+        "BookSkill_Athletics5",
+        "BookSkill_Block5",
+        "bookskill_medium armor5",
+        "bookskill_unarmored5",
+        "bookskill_spear5",
+        "BookSkill_Mysticism4"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Athletics3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Alchemy4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Blunt Weapon4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Mysticism3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Axe4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Armorer3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Block4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Athletics4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Blunt Weapon5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Short Blade4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_unarmored3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_heavy armor5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Alteration4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_spear3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_unarmored4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Axe5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_long blade3"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Alchemy5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_enchant4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_long blade4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_light armor4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_medium armor4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_long blade5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_spear4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Armorer4"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_sneak5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_speechcraft5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_light armor5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Armorer5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Short Blade5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Athletics5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Block5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_medium armor5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_unarmored5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "bookskill_spear5"
+        },
+        {
+          "record_type": "BOOK",
+          "record_id": "BookSkill_Mysticism4"
+        }
+      ]
+    },
+    {
+      "topic": "nerevar_at_red_mountain",
+      "title": "Nerevar at Red Mountain",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_vivec_murders"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_vivec_murders"
+        }
+      ]
+    },
+    {
+      "topic": "five_songs_of_king_wulfharth",
+      "title": "Five Songs of King Wulfharth",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [
+        "Five Songs of Wulfharth"
+      ],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_fivesongsofkingwulfharth"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_fivesongsofkingwulfharth"
+        }
+      ]
+    },
+    {
+      "topic": "children_of_the_sky",
+      "title": "Children of the Sky",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_ChildrenOfTheSky"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_ChildrenOfTheSky"
+        }
+      ]
+    },
+    {
+      "topic": "fall_of_the_snow_prince",
+      "title": "Fall of the Snow Prince",
+      "category": "artifacts",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "book_sources": [
+        "bk_snowprince"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "bk_snowprince"
+        }
+      ]
+    }
+  ]
+}

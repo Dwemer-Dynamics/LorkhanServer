@@ -111,3 +111,15 @@ python scripts/audit-morrowind-oghma-catalog.py `
 ```
 
 Catalog assembly reserves canonical topic keys first and removes ambiguous generated aliases deterministically. Every dropped alias is recorded in the catalog manifest. Review JSON, Markdown, and HTML are bundled under `resources/oghma/morrowind-official/reviews/morrowind-official-3e427-v2/` before activation.
+
+## V4 official-book expansion
+
+The inactive `morrowind-official-3e427-v4` candidate adds 84 reviewed book-backed lore topics to the
+v3 catalog. `scripts/audit-morrowind-oghma-books.py` audits winning official BOOK records without
+copying their text into repository artifacts. `scripts/build-morrowind-oghma-v4-seeds.py` builds the
+curated v4 inventory with exact official BOOK evidence links. The preflight generator reads the
+official book text directly from the locally installed ESMs and may supplement it with
+revision-addressed UESP evidence.
+
+V4 contains 700 accepted articles, preserves v3's three editorial exclusions, and remains inactive
+until its bundled review is approved. The active catalog version is deliberately unchanged.

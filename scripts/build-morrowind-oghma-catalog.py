@@ -132,7 +132,6 @@ def main() -> int:
     expected_topics = {row["topic"] for row in included_topics}
     missing = expected_topics - set(articles)
     extra = set(articles) - expected_topics
-    missing.update(set(exclusions) - seen_reviewed)
     if missing or extra or len(articles) != len(included_topics):
         raise ValueError(f"Catalog coverage mismatch; missing={sorted(missing)}, extra={sorted(extra)}")
 

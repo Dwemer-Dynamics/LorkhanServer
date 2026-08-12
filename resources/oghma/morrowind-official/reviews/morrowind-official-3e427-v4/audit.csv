@@ -1,0 +1,636 @@
+﻿content_file,record_id,title,word_count,text_sha256,duplicate_text_of,covered_topic,substantial,review_score
+Morrowind.esm,BookSkill_Athletics3,"36 Lessons of Vivec, Sermon 1",528,506b761ecd0824d26d715c1a5ff637ac9559e18346041832491f2d6bf7287837,,,True,6
+Morrowind.esm,BookSkill_Short Blade4,"36 Lessons of Vivec, Sermon 10",431,af67daf6c05905ddae01f648167f7d096bbc43226d3e24f0419615891b515015,,,True,6
+Morrowind.esm,bookskill_unarmored3,"36 Lessons of Vivec, Sermon 11",576,4eabc41fa18d69c8ddcab2e4cef839f8c41e3f4ac76f70548743a8100944977c,,,True,6
+Morrowind.esm,bookskill_heavy armor5,"36 Lessons of Vivec, Sermon 12",512,81b52d35642ac6c296b125630cfda1850b68ca0c46ad1ead0cb7a38906130155,,,True,6
+Morrowind.esm,BookSkill_Alteration4,"36 Lessons of Vivec, Sermon 13",565,cdab904da01991399055e7e4b4d482347f2a7f220baa776562933c9428a61399,,,True,6
+Morrowind.esm,bookskill_spear3,"36 Lessons of Vivec, Sermon 14",556,8047f4d00173059d0a869f2057099c5e22144069e599ea9df85fb38dbc1d11be,,,True,6
+Morrowind.esm,bookskill_unarmored4,"36 Lessons of Vivec, Sermon 15",310,275068830d80671c325ffa9a2445357164d2313a60f3e93bbf1b64ca92cdf660,,,True,6
+Morrowind.esm,BookSkill_Axe5,"36 Lessons of Vivec, Sermon 16",547,75c9e297d40a7abbaae23719e04c691be5a460f76a86946f3d7fb66f9166a2a1,,,True,6
+Morrowind.esm,bookskill_long blade3,"36 Lessons of Vivec, Sermon 17",510,48f90c5991250c660d9eebed6ccb18fa55c8213e5615b8246194e84a2b441e49,,,True,6
+Morrowind.esm,BookSkill_Alchemy5,"36 Lessons of Vivec, Sermon 18",433,ba36894ba145c381ea4932a676b745edaedfb0ebd893220406ba4456d36bb01a,,,True,6
+Morrowind.esm,bookskill_enchant4,"36 Lessons of Vivec, Sermon 19",297,54080b44462b0822793edb72970d2ab8f2236ce7cb9972faee50264751273eea,,,True,6
+Morrowind.esm,BookSkill_Alchemy4,"36 Lessons of Vivec, Sermon 2",508,1e5ab66f7cb0a72d681c7ab17302de94ffc51244879a368c912f09a0d47759e5,,,True,6
+Morrowind.esm,bookskill_long blade4,"36 Lessons of Vivec, Sermon 20",556,3adaaa00b390872528340c164e2554b9f28c40e13184db81d701f9498bd52a17,,,True,6
+Morrowind.esm,bookskill_light armor4,"36 Lessons of Vivec, Sermon 21",282,3cdbff53285ebe641f48b1c8fcec630dc99125f3c06eb8b3254db75441b8c3ef,,,True,6
+Morrowind.esm,bookskill_medium armor4,"36 Lessons of Vivec, Sermon 22",491,f248157b7a0766b9346686718bc051e402d2edd8678742391dbd4d71de8e38a5,,,True,6
+Morrowind.esm,bookskill_long blade5,"36 Lessons of Vivec, Sermon 23",303,82b1dd112f99e2c42c6326038b4461489f9dcfe40b7a71629e7484e0ebf689a5,,,True,6
+Morrowind.esm,bookskill_spear4,"36 Lessons of Vivec, Sermon 24",508,c23febe4ad2f648adf1a1138013e2a3b01b6c719aa359a4dfb09db40570e8bdd,,,True,6
+Morrowind.esm,BookSkill_Armorer4,"36 Lessons of Vivec, Sermon 25",478,944b96ceea11c25b44b9d817873dc5efa5a5cbdccd4f73c89956822d7ac34a93,,,True,6
+Morrowind.esm,bookskill_sneak5,"36 Lessons of Vivec, Sermon 26",504,9ddf9271884692b1272b8e798ff97ceaa2d55287ead254fbf700df095b9b5139,,,True,6
+Morrowind.esm,bookskill_speechcraft5,"36 Lessons of Vivec, Sermon 27",299,f4da33b322cda19dfa5590fc0677254269268626b5565f170db1ea1e2c532047,,,True,6
+Morrowind.esm,bookskill_light armor5,"36 Lessons of Vivec, Sermon 28",550,78969552375981b937f9ce0522030a2b9fb9985fded33910d53f28f5e7997ade,,,True,6
+Morrowind.esm,BookSkill_Armorer5,"36 Lessons of Vivec, Sermon 29",255,0696f133e608be05e3809571f133a3065200f37d52133d91bae05aaf5fd713ba,,,True,6
+Morrowind.esm,BookSkill_Blunt Weapon4,"36 Lessons of Vivec, Sermon 3",471,621d8f86eb62e1ea7476cb607cae89fb17d0aedaa66688602b3927078778bad8,,,True,6
+Morrowind.esm,BookSkill_Short Blade5,"36 Lessons of Vivec, Sermon 30",535,bbfee05d61c6e046c9688ffeeaabb4964e187d2939e197ae4884f7d29940a01e,,,True,6
+Morrowind.esm,BookSkill_Athletics5,"36 Lessons of Vivec, Sermon 31",540,c17564ca9578952aec1d654128cee636fda3a220c27d59bad075372ca807fe11,,,True,6
+Morrowind.esm,BookSkill_Block5,"36 Lessons of Vivec, Sermon 32",279,e639748c48711893504daedf15f561fae7430fcaddf04ecea38e1191da8b5736,,,True,6
+Morrowind.esm,bookskill_medium armor5,"36 Lessons of Vivec, Sermon 33",552,a068e3774abbd23f95aa6f836598bf95e87b049aca54dedab5d33d5e9734c6d6,,,True,6
+Morrowind.esm,bookskill_unarmored5,"36 Lessons of Vivec, Sermon 34",432,e85eb0937fbb6c596cbb9fcdccece82f6dd240326f9203a8255ab6e4bed496a5,,,True,6
+Morrowind.esm,bookskill_spear5,"36 Lessons of Vivec, Sermon 35",613,3649f78cb93af625ac23aeb26575f3732ba21961e7fdae8e09945b5efe209bb8,,,True,6
+Morrowind.esm,BookSkill_Mysticism4,"36 Lessons of Vivec, Sermon 36",441,ad815431881f0f86d39216f5cd4052bc00de27ad858e0b004b183a71a16762e3,,,True,6
+Morrowind.esm,BookSkill_Mysticism3,"36 Lessons of Vivec, Sermon 4",519,43410ced40b09988131352a58c6175f504be818ff7fa794b3f405511b1331ca5,,,True,6
+Morrowind.esm,BookSkill_Axe4,"36 Lessons of Vivec, Sermon 5",509,d5977f99761ba06dec41f3a2654cc5a324c936d3f2f9960d3eaa57d294593fd9,,,True,6
+Morrowind.esm,BookSkill_Armorer3,"36 Lessons of Vivec, Sermon 6",438,dab359ce01b2b8bfd8bb0e116483186d9c8087ec78f7481f7044290f9ab0eab6,,,True,6
+Morrowind.esm,BookSkill_Block4,"36 Lessons of Vivec, Sermon 7",375,c378f69c0144aeefc7c889e76e213ec8eb6ecc67cd02ba6d6fe4484f007a236e,,,True,6
+Morrowind.esm,BookSkill_Athletics4,"36 Lessons of Vivec, Sermon 8",505,9a2e10a9923eb02f08171698ecd6b91c4727cdcba589770ea132cfe61e73cf48,,,True,6
+Morrowind.esm,BookSkill_Blunt Weapon5,"36 Lessons of Vivec, Sermon 9",449,f517e8430361312cac0d76229ef8a91a8e80609ae33dcc8028e8542fda75e5ea,,,True,6
+Morrowind.esm,bk_ShortHistoryMorrowind,A Short History of Morrowind,790,b90a6900bc7bdc958377fdfb9216799fe0f7bc277f9a36b79afa49062ff824e3,,,True,6
+Morrowind.esm,bk_AedraAndDaedra,Aedra and Daedra,146,71c0db8f8b241f699a83a172b72bcabca016e6e72707b4b012f33bb24a720cda,,,True,6
+Morrowind.esm,bk_AntecedantsDwemerLaw,Antecedants of Dwemer Law,349,952cf0768b61bd39dfdfdccebfa525d9d9e10ba23684091f99efda3334c6d8bb,,antecedents_of_dwemer_law,True,6
+Morrowind.esm,bk_BiographyBarenziah1,Biography of Barenziah v I,566,8b1d53e403c0b006f815733ac8d66c708084966f6df6c82e9839306a033c36b4,,,True,6
+Morrowind.esm,bk_BiographyBarenziah2,Biography of Barenziah v II,541,faa546c758b2a32ac80752620bfbb98554cfd368204696af7515b4e2632b9e4c,,,True,6
+Morrowind.esm,bk_BiographyBarenziah3,Biography of Barenziah v III,1036,bd5fc178d25b7a88730a358c06f74f9d7518da018112a0e4d6f97f0bc2916156,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire1,Brief History of the Empire v 1,861,bb414050fe90f05c29d360c1420d7a0176810bbf96fbbc0be47a6de4b0e2bb9a,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire2,Brief History of the Empire v 2,919,695894c6e76ad214ad0709a4261d41de2c027ea92f4737bf1ad2ba08a23ec4a1,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire3,Brief History of the Empire v 3,725,042c5233aa534cbec23b7248dd4c4665e0a2f1f5e77226f19cb9bf7301bc917e,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire4,Brief History of the Empire v 4,866,60feedd23824f3b97a9ed93e2e9f5137053d12f80d3c7267f8a4aefea4138b35,,,True,6
+Tribunal.esm,bk_Artifacts_Tamriel,Famed Artifacts of Tamriel,2690,1354f603bc37e4777de43c6dff3b28ef202877aa1c06ed0b46860a31d89d9e3e,,,True,6
+Morrowind.esm,bk_fellowshiptemple,Fellowship of the Temple,478,04a5573b01fae9989abb78cd255c5e97cddc43193dc82579d526fe8f289a976c,,,True,6
+Morrowind.esm,bk_fivesongsofkingwulfharth,Five Songs of King Wulfharth,1385,d54ff8486a030dd90a06820713c156a787952aff9f891f0e1e2b7c4d67a45ee4,,,True,6
+Morrowind.esm,bk_formygodsandemperor,For my Gods and Emperor,1215,4cbd74ce880a31a0fce975cf27abe165806635eeee7ae7fef0ff3bfb64a522a3,,,True,6
+Morrowind.esm,bk_great_houses,Great Houses of Morrowind,822,43b008ab8d14a543bfc3cda5335bad65f542f15262a9541e27a999bb094163de,,,True,6
+Morrowind.esm,bk_guide_to_vivec,Guide to Vivec,1013,4a27a7242b48158f61f05d2bc3bfb65f541a65cfc36ff2b12595c910161118a9,,,True,6
+Morrowind.esm,bk_guide_to_vvardenfell,Guide to Vvardenfell,2000,50e16bc7df81192a5007cb25cedb4b9a7cc94c4c117642be267203b5416c4421,,,True,6
+Morrowind.esm,bk_a1_v_vivecinformants,Mission to Vivec -- from Caius,242,5e4a67a9fa9e12377fe2f22ebc7aa21b415960d7660308e8c50af3c697c87a6b,,,True,6
+Tribunal.esm,bk_MysteriousAkavir,Mysterious Akavir,549,b0605cf615b52a494d8c9ad4ac7fd86378f0575ecaa77270b1d3e7f4e114c48e,,,True,6
+Morrowind.esm,bk_nchunaksfireandfaith,Nchunak's Fire and Faith,173,05ceca18d249d8834e2c6fa7239f31b114e67fa52031d78bc3661dd97ab39f80,,,True,6
+Morrowind.esm,bk_vivec_murders,Nerevar at Red Mountain,1358,3ccd4ce983be39a8d4b6e1018900fea23f83ba53286b7657c39ca450c18fd19c,,,True,6
+Morrowind.esm,bk_NerevarMoonandStar,Nerevar Moon-and-Star,208,83641cf534db24d190ed3f4e18f0c23e24751263f98875d4ac869e6ecedbcb6a,,indoril_nerevar,True,6
+Morrowind.esm,bk_BriefHistoryEmpire1_oh,Odral's History of the Empire 1,861,4b679abb21428c6f7cd250416af6d951d2a670ada17987f3eea083bc1f79b6dc,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire3_oh,Odral's History of the Empire 3,725,9e99db09a72563282e1699fe598eb4eac2c921f0fa3ce0d3f5c6884e823b768f,,,True,6
+Morrowind.esm,bk_BriefHistoryEmpire4_oh,Odral's History of the Empire 4,866,cbb8ca1f0829f963428ad47389beab3c1997b30e9390eb30efd6daef9c6b8be6,,,True,6
+Morrowind.esm,bk_OnMorrowind,On Morrowind,669,35ccbde36e40b2fcd3ae4fc335787d3e337237e4adcc5f34ad201e58031abf31,,,True,6
+Morrowind.esm,bk_onoblivion,On Oblivion,637,bcc5e1b53d1e2f2f1eca1df1ee691432a423fce615a69c7eefca5ddbdc75afd9,,,True,6
+Morrowind.esm,bk_OriginOfTheMagesGuild,Origin of the Mages Guild,673,f90d07fd5864a5cbc69ea4dd8305a77429f0479659522c2b862ee1ffb856530e,,,True,6
+Morrowind.esm,bk_OverviewOfGodsAndWorship,Overview of Gods and Worship,699,04e7371c25679bf88ef19271250d4a5bd4f1453162ce5eeced30079bb69b3ef4,,,True,6
+Morrowind.esm,bk_provinces_of_tamriel,Provinces of Tamriel,725,9cbc15de51172a9c2e5f80b649355a2b9ce7c87f4c05e1bea613bde251873a9c,,,True,6
+Morrowind.esm,bk_SaintNerevar,Saint Nerevar,127,6d1d23dd5a80caa0f374a574d2f4bb198e02ee0fe3910d3c5a443a4b7b25a72c,,indoril_nerevar,True,6
+Morrowind.esm,BookSkill_Alteration3,Sithis,262,3dce39c9d268750a2ac69505ea62c88982be3ade17542dd0c4de6cf22c83b9cb,,,True,6
+Morrowind.esm,bk_specialfloraoftamriel,Special Flora of Tamriel,615,5fca07a003575d44f69c15d387d55b4c52146078866c926d87dc372aefa1ca79,,,True,6
+Morrowind.esm,bk_spiritofnirn,"Spirit of Nirn, God of Mortals",163,32ff8254d46b30a6c1c6572deaa404f0f1de413b4a9db02b4cba82ec6b09df02,,,True,6
+Morrowind.esm,bk_SpiritOfTheDaedra,Spirit of the Daedra,369,8fd668ec5964b40b861ba21899590cb66f3421cb67390b20aa339f84383df7f0,,,True,6
+Tribunal.esm,bk_Yagrum's_Book,Tamrielic Lore,2686,b9fee2c191b4375f2f1ef355ce895dca9f12ee314ff7b1770865ca031b8f23db,,,True,6
+Tribunal.esm,bk_AnnotatedAnuad,The Annotated Anuad,702,26f46ba7764d65b7ad982c606a682c349aac136e60d156073219feec7d2f815f,,,True,6
+Tribunal.esm,bk_ArcturianHeresy,The Arcturian Heresy,1500,370aafdc658c9e4cbbb4be9492647501366c0729863095d510f1c655d5e1fbd2,,,True,6
+Tribunal.esm,bk_BookOfDaedra,The Book of Daedra,525,0150c5583ea00fe00235078368e44a8fb00364f67855239d456265b5e00ae235,,,True,6
+Morrowind.esm,bk_CantatasOfVivec,The Cantatas of Vivec,233,82df8f9dd3a59f4155b15d8aa113198465dd72b18e1633858d5bfc887a425a67,,,True,6
+Tribunal.esm,bk_ConsolationsOfPrayer,The Consolations of Prayer,364,b58d58e4a382d9491afd98779bc20f5a6bcc8c875e5e9f477c475438aadee40e,,,True,6
+Morrowind.esm,BookSkill_Alteration2,The Dragon Break Re-Examined,420,983afdd5383dda0695920dd8d0bc3cf1c3d5271a56006c585a92683d7af0efec,,,True,6
+Morrowind.esm,bk_RealBarenziah1,The Real Barenziah v I,3840,b598a4ab362de985e68c83e312c0b3ffe82bf3e0c79fae4a167825dfbc1f0a72,,,True,6
+Morrowind.esm,bk_realbarenziah2,The Real Barenziah v II,4205,90387c88aa7dea64c57af47fce82d26ebc2de74b053b314e8edad6694e1de015,,,True,6
+Morrowind.esm,bk_realbarenziah3,The Real Barenziah v III,3391,5e221a32054fc57e42548a8768b54bf789445f6e2d3e54317bbbe59133488b35,,,True,6
+Morrowind.esm,bk_realbarenziah4,The Real Barenziah v IV,4221,0036fca088cfc0e53e5cc15f879d30ef9ee9d54e76e99b7ca27dd44ba69c35c9,,,True,6
+Morrowind.esm,bk_RealBarenziah5,The Real Barenziah v V,6850,cdc2f7dabfab9cf8f15a5929f19132e110bb7e5870ff67c6435780d7eec11e34,,,True,6
+Morrowind.esm,bk_RealNerevar,The Real Nerevar,222,cc0ef6b0eec123fd3ae5e7d7cbc621791040dc1302a90b34459f7314bdb7ed14,,,True,6
+Morrowind.esm,bk_WatersOfOblivion,The Waters of Oblivion,159,c6e41cd086da9bd8533bb790e26732f02caaf6992332e0efdbc039b1383b4891,,,True,6
+Bloodmoon.esm,bk_ThirskHistory,"Thirsk, a History",1629,24b7f08a1b30519377f4da61bb2ae13e88be10764b747827c13bdfb5d233b880,,thirsk_a_history,True,6
+Bloodmoon.esm,bk_ThirskHistory_revised_f,"Thirsk, a History -- Revised",1939,d1db82d8c384f04cfe5b540dfe821d96f145c694ebd9a863a2c7273be17d9587,,,True,6
+Bloodmoon.esm,bk_ThirskHistory_revised_m,"Thirsk, a History -- Revised",1939,a6c34da767b1984375dae5125d9c8716ffee7f2ec6b162f8be2221457d7b5271,,,True,6
+Morrowind.esm,bk_vampiresofvvardenfell1,"Vampires of Vvardenfell, v I",304,8ca226904c95d288aca8cf5ab6ef050f24339fb1510cec270b1ba0e87a64e7fb,,,True,6
+Morrowind.esm,bk_vampiresofvvardenfell2,"Vampires of Vvardenfell, v II",309,eeb6b384d437b06ba9bcceaadaac36cb91005f643b5883fc94c4a7b27d54efda,,,True,6
+Morrowind.esm,bk_varietiesoffaithintheempire,Varieties of Faith...,4117,53f4032e13c2702d16112df5e06e87c8039b9126529f773f7803fca5d73e4ebf,,,True,6
+Morrowind.esm,bk_vivecandmephala,Vivec and Mephala,622,bef3638847ac17939bd503db58261ccbffd4735922aeb30fe8e5cfd9b80f3f60,,,True,6
+Morrowind.esm,bk_wherewereyoudragonbroke,Where Were You ... Dragon Broke,638,c37dd3a228bf8bc58df3a0d15f4503a808198c14479d22f75cfc179387638cab,,,True,6
+Morrowind.esm,BookSkill_Axe5_open,"36 Lessons of Vivec, Sermon 16",547,75c9e297d40a7abbaae23719e04c691be5a460f76a86946f3d7fb66f9166a2a1,BookSkill_Axe5,,True,4
+Morrowind.esm,bk_BriefHistoryEmpire2_oh,Odral's History of the Empire 2,919,695894c6e76ad214ad0709a4261d41de2c027ea92f4737bf1ad2ba08a23ec4a1,bk_BriefHistoryEmpire2,,True,4
+Morrowind.esm,bk_Aedra_Tarer_Unique,Tarer's Aedra and Daedra,146,71c0db8f8b241f699a83a172b72bcabca016e6e72707b4b012f33bb24a720cda,bk_AedraAndDaedra,,True,4
+Tribunal.esm,bk_ChildrensAnuad,The Annotated Anuad,702,26f46ba7764d65b7ad982c606a682c349aac136e60d156073219feec7d2f815f,bk_AnnotatedAnuad,,True,4
+Morrowind.esm,BookSkill_Short Blade3,"2920, Evening Star",1858,6104711f32946efdb5cee58fab84531ff3ebe67ad016f1934287c6dc3676f22c,,,True,3
+Morrowind.esm,BookSkill_Spear2,"2920, First Seed",1696,7737adf0a01b3e1530d572340b0e14dd2906254fb80a5659a25b7aa6e3fc5da5,,,True,3
+Morrowind.esm,BookSkill_Conjuration4,"2920, FrostFall",2217,153005b73c66a5e8d0c62989cceaf6087be9597cf8270bfa04e10aeec5f9e66a,,,True,3
+Morrowind.esm,BookSkill_Conjuration3,"2920, Hearth Fire",1954,7c83ef732b3ced988ba648a14a298e5e5d69e1a54aee36c173918375d04c2a8c,,,True,3
+Morrowind.esm,BookSkill_Sneak2,"2920, Last Seed",2108,d54d0450da60a038b316dc205d397c59bdc0b6001ed93a55cb5e3539b2c7e6c4,,,True,3
+Morrowind.esm,BookSkill_Heavy Armor2,"2920, MidYear",1555,8e7ec5baed65d3afb80f75d415519eb5fc836ed08fb198ca300952da11882e6e,,,True,3
+Morrowind.esm,BookSkill_Long Blade2,"2920, Morning Star",1519,953c751b4dd2aa223b04904d24aa5feb8bb9574c87a25f0cddd7bf6cadded5de,,,True,3
+Morrowind.esm,BookSkill_Restoration4,"2920, Rain's Hand",1376,f0e35ad9324faca5d0299932e6a4aba07d58dee258537da4a4738690be063243,,,True,3
+Morrowind.esm,BookSkill_Speechcraft3,"2920, Second Seed",1745,26fb4079f9e0500911a4019888d48e28ff55c751e21be334ef958d2399474be5,,,True,3
+Morrowind.esm,BookSkill_Mysticism2,"2920, Sun's Dawn",1565,b91a8cea14f0c832877ab96bae1a07b8e73f73c3bceec3856e83b22a1ca10c32,,,True,3
+Morrowind.esm,BookSkill_Short Blade2,"2920, Sun's Dusk",1907,5781701b7122864d8c9938fac26a951059eba0dcbc4bfa88eb91b7470488081c,,,True,3
+Morrowind.esm,BookSkill_Mercantile3,"2920, Sun's Height",1430,9c5b7a851e6fec823a461950ef1bf9df417550f76caf4628f6030fe178837b51,,,True,3
+Bloodmoon.esm,BookSkill_Acrobatics2,"A Dance in Fire, Chapter 1",1622,bdaa9dc60bab6e4884edefdbe61aa94afe4cf46be82170f23eb2c9409d9a2add,,,True,3
+Morrowind.esm,BookSkill_Block3,"A Dance in Fire, Chapter 2",2463,60844062f54585c29be77ad614b7c1fb2a3251c9479e3527214e431847ba2e1f,,,True,3
+Morrowind.esm,BookSkill_Athletics2,"A Dance in Fire, Chapter 3",2295,f3a8aed7217a4f4a551d1a0ac7f29d85d5b4d2dd99ee74b1e68930257b18447c,,,True,3
+Morrowind.esm,BookSkill_Acrobatics3,"A Dance in Fire, Chapter 4",2243,98870b963caafb4ba427c489ef841501ac02091eefa6a4a4ff332fb7efaf8f5a,,,True,3
+Morrowind.esm,BookSkill_Marksman2,"A Dance in Fire, Chapter 5",2434,405372f60fe6dd97c80fbd15c1ef6a19d43c72db05363137be90ab539567b929,,,True,3
+Morrowind.esm,bookskill_mercantile4,"A Dance in Fire, Chapter 6",2337,e626942a91eb23df0eb77678c1ba5baaaf7e0a43c3a363214db0d57bb4b2aede,,,True,3
+Morrowind.esm,bookskill_mercantile5,"A Dance in Fire, Chapter 7",2141,36cf1b78c13c186d54b978d577206bacef996ed367479fccad12596d8f3a07cc,,,True,3
+Morrowind.esm,sc_Indie,A dying man's last words,339,e1aa18b07b865c6e2efaa56d3c334af4efe647a9a00c627c47a241c18ecbf1ca,,,True,3
+Morrowind.esm,Cumanya's Notes,A Fair Warning,205,11aa3f420f033518feb3ce3c71bc1af35c28493be7a01b8546d07c94f4529561,,,True,3
+Tribunal.esm,BookSkill_Alchemy1,A Game at Dinner,2305,bda212ca7ccc1dd2d1e26c5d510d7d537455089554047813020da38dde63e884,,,True,3
+Morrowind.esm,bookskill_destruction3,A Hypothetical Treachery,1674,5499b7417f1189b13bddceac39977fd9be8dd9e75a20cfa90c3a79e2e516b7b2,,,True,3
+Morrowind.esm,bk_leaflet_false,A Leaflet,86,69f472e3f1fd88b8b495ca51589a52498c1ed14f5f99499ae9f476033874159d,,,True,3
+Morrowind.esm,bk_istunondescosmology,A Less Rude Song,271,92f6fee543f53bdb91dff6bc24dccaf139edd5b384fb69b74097d3c9c6ae11e7,,,True,3
+Morrowind.esm,sc_Malaki,A scroll written in blood,252,b658d28464f20a215d1eb15fb7050a1af6f953fd98623f7f97c56393ba7a8854,,,True,3
+Tribunal.esm,bk_AncestorsAndTheDunmer,Ancestors and the Dunmer,1350,554b9251fcbcca6ce4d347d7cf760dc422c073254803d6f0d3235a1ff60bdf0d,,,True,3
+Morrowind.esm,bk_ArcanaRestored,Arcana Restored,299,af582027f44fa6b9e41c22a021e8110be1bda4582e45f0d7c88d940f4ac78d1a,,,True,3
+Morrowind.esm,bk_ArkayTheEnemy,Arkay the Enemy,314,4acafa7c64719664baf7cbed1ffa5dfcbcd2bc278922e8070af53931705994e3,,,True,3
+Morrowind.esm,bk_AuraneFrernis1,Aurane Frernis' Recipies,93,98d9badd08ad67071aecf43002e172be6e10b255d1bb88784806a741c07df3d0,,,True,3
+Morrowind.esm,bk_auranefrernis2,Aurane Frernis' Recipies,121,db4bc6d4adc24905b0f94f5815272996106836c091ac5e4030b14382f8fd843b,,,True,3
+Morrowind.esm,bk_auranefrernis3,Aurane Frernis' Recipies,91,c6d829a847e48dd624fd030da39150d34377ffb63cf79cd554b266d20bde1e75,,,True,3
+Morrowind.esm,BookSkill_Sneak3,Azura and the Box,891,bd221437ab2a563391fa32b1c0f3f70095881757f97bc7d428adc8615d132aa5,,,True,3
+Morrowind.esm,BookSkill_Speechcraft1,Biography of the Wolf Queen,1265,03499bb503857e395cdef7416a3a2940c7893da363216df88240936b4e99a13e,,,True,3
+Bloodmoon.esm,bk_BlasphemousRevenants,Blasphemous Revenants,411,092b35a317f4de8fe002e98c29b6824568c037c7d87b1ba0e08f5b991a170d93,,,True,3
+Morrowind.esm,bk_Boethiah's Glory_unique,Boethiah's Glory,104,f77d457f79aa6ffaa134a7e827e17f29029025311f202fcac68f8e926a0bd519,,,True,3
+Morrowind.esm,BookSkill_Medium Armor2,"Bone, Part One",1466,d3a5f2727ac14a7552574af8fd9a669b5d8945cf3a46fa801414c708030ed970,,,True,3
+Morrowind.esm,BookSkill_Medium Armor3,"Bone, Part Two",1696,71020d611df73446c7381acbd3a811642ec2240f342696b94825bcdea30c6f73,,,True,3
+Morrowind.esm,bk_BookOfLifeAndService,Book of Life and Service,80,08adba4eb8c7211c3ad2bc8ab8eae1de2a9645a430da68deb3dbdae4482c838f,,,True,3
+Morrowind.esm,BookSkill_Alteration1,Breathing Water,1378,6a92cfc276c3715e8658c3b6ed26b1ed6ff825e816a9d11efeb28f27a28866eb,,,True,3
+Morrowind.esm,bk_BrownBook426,Brown Book of 3E 426,351,80d0ee6b0459c6efad1c80372d128d5e3e34175f1a20b72cb64b6af070b1ca81,,,True,3
+Morrowind.esm,bookskill_security4,Chance's Folly,1126,0cdcaea0a61a720fa0451e28e6bf5f897e1d67cea67347b69c76fd6f80971879,,,True,3
+Morrowind.esm,bookskill_unarmored2,"Charwich-Koniinge, Volume 1",1048,713c28a013c3928eae51bd3b8fd7bf1419eba49b8d4a2fe88ae71686357f72aa,,,True,3
+Morrowind.esm,bookskill_hand to hand3,"Charwich-Koniinge, Volume 2",1073,2014515f55ac4430062e453706704dd6ef86afc6674a490ffd334550a2d5f741,,,True,3
+Morrowind.esm,BookSkill_Mysticism5,"Charwich-Koniinge, Volume 3",992,5d3c3f86ad0b5c1b397cb853d2b7c6c90f781e64ec6e0e95bc23b0e6e9a3dc25,,,True,3
+Morrowind.esm,bookskill_hand to hand4,"Charwich-Koniinge, Volume 4",1282,6a585ab118b356dc3ac08b687410115250132513d1660fda6b5e3d5f7af14305,,,True,3
+Morrowind.esm,bookskill_medium armor1,Cherim's Heart of Anequina,847,da0bb770a28afa993e24b98f3f28cfb26658c7f56abd04e2d67ab0502d66955e,,,True,3
+Tribunal.esm,bk_ChildrenOfTheSky,Children of the Sky,306,89823a6856ae34003cd9b17e00894ad2c89da6be0beb75cea169d73f576cfabb,,,True,3
+Morrowind.esm,BookSkill_Heavy Armor3,Chimarvamidium,942,473736977be6cd9b0310940d6514c91e968e4a944c06c6a8429526bb538058b5,,chimarvamidium,True,3
+Tribunal.esm,bk_ChroniclesNchuleft,Chronicles of Nchuleft,403,8e0a902a10e9417f49ffb55d103aec17368543367f9327dbfffa75e9734d60fe,,chronicles_of_nchuleft,True,3
+Morrowind.esm,bk_Confessions,Confessions of a Skooma-Eater,505,278709036a3898e08e640036ef544a8801ccf285a57fa8918aecbb98899fec43,,,True,3
+Morrowind.esm,bk_corpsepreperation1_c,Corpse Preparation v I,947,57ab95087932a857fe0baaeceafc7859292f01156b153a92595d29c37b0477f1,,,True,3
+Morrowind.esm,bk_corpsepreperation2_c,Corpse Preparation v II,274,46f76ab3eb868419be1acf154b055c9dc712d400ec23ab5dab79c8d5b9e85fc9,,,True,3
+Morrowind.esm,bk_corpsepreperation3_c,Corpse Preparation v III,428,94cabcc66dadd8fa2c2fad11d1a2f529ce3d939cb49ef69ba7d9db74aaf6b87d,,,True,3
+Morrowind.esm,bk_Dagoth_Urs_Plans,Dagoth Ur's Plans,1408,1f86a2beec2ca029d4285c0eef85750c43438c148b5b47c1b6a156467ea72012,,,True,3
+Morrowind.esm,bk_darkestdarkness,Darkest Darkness,553,a4c69c7848e3bb69f04cd543a893a8587c9e51e8f366a3969323282b7978251a,,,True,3
+Morrowind.esm,BookSkill_Block1,Death Blow of Abernanit,933,98bc87473bc1eaf9007fbc99f1940f589af42bb08d15b89eef84f8aa300bd6ed,,,True,3
+Morrowind.esm,bk_a1_1_packagedecoded,decoded package,379,53d0308da1d8da80aeb668bd774a62b61dd42043d0f984adf6ee79a051a085b1,,,True,3
+Tribunal.esm,bk_diary_sailor,Diary of a Lost Sailor,528,adc834e5f6db8642a80f3a9d420ea53f9985b3db01ddc4d73e209d064491e9a9,,,True,3
+Morrowind.esm,bk_dwemermuseumwelcome,Dwemer Museum Welcome,61,83349ec17fa1cd7f49c29a74b191da1c135f7c77c150865893a55417817d283e,,,False,3
+Morrowind.esm,bk_eastempirecompanyledger,East Empire Company Ledger,16,9e30916f47059e8a13827089c6ae3ff68968e4359997248e5ef1d9efbeaaed5c,,,False,3
+Bloodmoon.esm,bk_BM_Stockcert,EEC Stock Certificate,172,74f632584ea907c51ec83fb83d941a4e21be08412db5bd1e2fb39356acfc48ca,,,True,3
+Morrowind.esm,bk_Ibardad_Elante_notes,Elante's Notes,426,9322e39b82caa9e6f62884915eca94e28bcd82f5e88391d77541c930739d0afe,,,True,3
+Bloodmoon.esm,bk_snowprince,Fall of the Snow Prince,1093,01c73c2218600a346b23bd22daf25b8c1f5e26e44d507b77377090e942673a1a,,,True,3
+Morrowind.esm,BookSkill_Enchant1,Feyfolken I,1432,db1e13eebd70e823cbee5745b33fb0197b46c0d07d577b3744f156da5f80ab75,,,True,3
+Morrowind.esm,BookSkill_Conjuration1,Feyfolken II,1626,70eac766624400fdcd517005314882cc33f4809cccf02fc760e7f660a356c9b7,,,True,3
+Morrowind.esm,BookSkill_Conjuration2,Feyfolken III,1730,119900b343664685585708fe4b1258a566def47bd0e4a52498a4c1157c1c7cff,,,True,3
+Morrowind.esm,bk_charterFG,Fighters Guild Charter,269,2a323d2b032af1f21244b70adfa7220ebb6ebd8b68ef8a8f9482f773e5baa34c,,,True,3
+Tribunal.esm,bk_suicidenote,"For Shara, on my death",127,2718a8b373b60caaee03d96a2e173418b65ef9918f36c4bfa6bc74fbd8bd2ec1,,,True,3
+Morrowind.esm,bk_fragmentonartaeum,Fragment: On Artaeum,582,a0343d6dd752c198fe13b5ce1bc18e2f1f4155bd2d8645c0133b43cf6365d1ab,,,True,3
+Morrowind.esm,bk_frontierconquestaccommodat,"Frontier, Conquest...",477,ae3f348f79d8c25d86b5c22bfbf3e4f706a38d9fb271c99653c450d02da89198,,,True,3
+Morrowind.esm,bk_galerionthemystic,Galerion The Mystic,393,8f6ba5239ea6caa0b4e61f6bf39bf69d1a2cac827a644fe242967c34e3040383,,,True,3
+Morrowind.esm,bk_galur_rithari's_papers,Galur Rithari's Papers,316,bf23b0de3d81172940236ef8a26735b2d654b5660a773e7950e0ef83d936d1a6,,galur_rithari_s_papers,True,3
+Morrowind.esm,bk_uleni's_papers,Ghost-Free Papers,130,8a1b0c2d3cff056c5059fa6a65dbdca5058a097586e527388a87e1148ae685bc,,,True,3
+Tribunal.esm,bk_graspingfortune,Grasping Fortune,443,f0c19488483632338958d38038f20219b9ddd5f6cb3b101d52afbb1a531d80c7,,,True,3
+Morrowind.esm,bk_guide_to_ald_ruhn,Guide to Ald'ruhn,568,950bb71a70f508daf4cc51fdba21d7d84f6b1bd27b136b441810222cb46d19c7,,,True,3
+Morrowind.esm,bk_guide_to_balmora,Guide to Balmora,465,30c07dffd1b553a8ca516b7395b2cd3430c0c22e3fd6dc998fa4b6c24ddd5b93,,,True,3
+Morrowind.esm,bk_guide_to_sadrithmora,Guide to Sadrith Mora,503,0331449d2ee5d222d3ba0cf02e7ef6354b0c29c8e019d52878fe14cd8900f5ec,,,True,3
+Morrowind.esm,bk_guylainesarchitecture,Guylaine's Architecture,246,22aaa6ddddb2361ea4c414371f80fde51dacfe5b5a4cd55f67b904dd15ec0992,,,True,3
+Morrowind.esm,bookskill_heavy armor1,Hallgerd's Tale,1130,4f87078415c7404f3b90630d90e347a9702bb13cd33f806d958d16aae8e2aad6,,,True,3
+Morrowind.esm,bk_hanginggardenswasten,Hanging Gardens...,157,72ca5a266160bd8afb01034e87f983b62199f4bb7665efea4da8d5aae160a012,,hanging_gardens,True,3
+Tribunal.esm,bk_bartendersguide,Hanin's Wake,210,adec5e5cb7e634cdbbc12b8e1f1db753d7853ea31e084d37e03fdde59637925b,,,True,3
+Morrowind.esm,bk_a1_2_antabolistocosades,Hasphat's notes for Cosades,134,b499d5c7960f7374bb12577440232ed9d31bf7c341fd0c90dd9f8dc7ba8b12df,,,True,3
+Morrowind.esm,bk_HomiliesOfBlessedAlmalexia,Homilies of Blessed Almalexia,592,de850184255edcc3f289337c54bc4d2622fa55584a767c928c77be0bf54946ea,,,True,3
+Morrowind.esm,bk_honorthieves,Honor Among Thieves,407,e306c8fb8a2755fee5559d27cba22ad380dfcc70171f0a34072cec8c142fb2c0,,,True,3
+Morrowind.esm,bk_hospitality_papers,Hospitality Papers,305,221165b723f54f3f4e0298e64377df7c405b7fb3f5b93f37ac2e829b7e7c564d,,,True,3
+Morrowind.esm,bookskill_heavy armor4,How Orsinium Passed to the Orcs,1229,cf9ca1ec06e05aa1b29898702d220dec660fb5c5c3bad46ca18b437f1ac9aa13,,,True,3
+Morrowind.esm,BookSkill_Light Armor2,Ice and Chiton,1512,39f95599dcfa4f13439dc28b5769c364e321a9a2657a4528293bdc82ff90b180,,,True,3
+Morrowind.esm,bookskill_illusion3,Incident in Necrom,1413,1526165aa5931fa8934c1585f6e0947cae8b5745a97dda7abfdbfa8a316e407a,,,True,3
+Morrowind.esm,bk_InvocationOfAzura,Invocation of Azura,674,f0e285e8fee2160bb7d468bc9abb781cd82cb2439f386f540d25f2c159e53c7b,,,True,3
+Morrowind.esm,bk_notes-kagouti mating habits,Kagouti Mating Habits,109,be4ff3a43de66b51daec341dfcff70f8519b354090dc45e37212bd09765fac00,,,True,3
+Morrowind.esm,bk_kagrenac'stools,Kagrenac's Tools,612,48b140f6215cd25fc2dac70807ee26f930301674490a74c06ec23293058d4e49,,kagrenacs_tools,True,3
+Morrowind.esm,BookSkill_Armorer2,Last Scabbard of Akrash,1748,6768346cc214497163b98befd4d5f7e422693995c92b199f99f29ca82a4cd987,,,True,3
+Tribunal.esm,bk_legionsofthedead,Legions of the Dead,388,e7b53e598fc53539f9bd8faec000b72707fe9b202cdfb7b8c69d4431f71e49b2,,,True,3
+Tribunal.esm,bk_LivesOfTheSaints,Lives of the Saints,583,0e94d334c283a2105f95d4d1ce44f39e4dc05e832649177f4d67fbdb6667d25c,,,True,3
+Morrowind.esm,bookskill_light armor3,Lord Jornibret's Last Dance,566,744fdbc0e244e2bd7b367e6259c7c1fcf00bb6ca5f0f740a3c57c039bea865fb,,,True,3
+Morrowind.esm,bk_charterMG,Mages Guild Charter,242,b7189444e9c2b829c0b0377205c2cd2bc34f432cbd14ddcf2935f54fa397c567,,,True,3
+Morrowind.esm,bookskill_hand to hand5,Master Zoaraym's Tale,1161,254fc0c885907d72fe999527550cf78f43006780576b64c031e519946bbb4bec,,,True,3
+Morrowind.esm,bk_a2_2_dagoth_message,Message from Dagoth Ur,230,d86093c6fa9cdaea8136b44e101e609cca3110d28a5af529b2199aaa796c7689,,,True,3
+Bloodmoon.esm,bk_MixedUnitTactics,Mixed Unit Tactics v1,725,2a4e6149388898963d766ec1b71d2e733e2b7d4f45a1754586b08676909992fb,,,True,3
+Morrowind.esm,BookSkill_Acrobatics5,"Mystery of Talara, Part 1",2082,5fd5b1942d5917e04f30084eb0974af88de25ed13389cd786aa53ef9f7869782,,,True,3
+Morrowind.esm,BookSkill_Restoration5,"Mystery of Talara, Part 2",1430,7ffa67b3f8f534901c3b3664ab281fcde42d607d3acff36e94d8597705130b85,,,True,3
+Morrowind.esm,BookSkill_Destruction5,"Mystery of Talara, Part 3",1788,5682b596c2c653ecae4cf6f60241407fca20107e702160ca789d898494d36f6b,,,True,3
+Morrowind.esm,bookskill_illusion5,"Mystery of Talara, Part 4",1820,8eb77e932642c22c22826aead042c028cd78d0ae64d8e64136b75077825fb071,,,True,3
+Morrowind.esm,bookskill_mystery5,"Mystery of Talara, Part 5",1584,00a6d88ebee5050854bad632102ad94d98c071a295ebbff3b073e3144b6e6b48,,,True,3
+Morrowind.esm,bk_Mysticism,Mysticism,441,41c818799a77aed92b134db306281f02da29390bf79108097201c1ebebdd5460,,mysticism,True,3
+Morrowind.esm,bk_NGastaKvataKvakis_c,N'Gasta! Kvata! Kvakis!,171,d640323bdb86e888dccbf9875c23d071660cd1fd59d614557363ce8069d708b6,,,True,3
+Morrowind.esm,bk_a1_4_sharnsnotes,Nerevarine cult notes,617,403935e3163f164bd02fc8d2b650c2029833ac509b5a7e770695849251b6f652,,,True,3
+Morrowind.esm,bookskill_blunt weapon3,Night Falls On Sentinel,1177,5c074d511290db9543b428fbf6cc22c08083f5c2d97a97938a0b1fd203eea425,,,True,3
+Morrowind.esm,bk_A1_7_HuleeyaInformant,Notes from Huleeya,604,e3d827b2d33275c22b3cdc05ed235c89e83df1ccc438fec7ce294f88142c7153,,,True,3
+Morrowind.esm,bookskill_restoration2,Notes on Racial Phylogeny,412,b060eef169600c2771458ed3d19e5e30d64f7e87831c2f10c8f7da767fb2fe84,,,True,3
+Tribunal.esm,book_dwe_boom00,Old Dwemer Book,25,fdebcc62b3de929e94f0f01ff5039c4c7aeef121b4b23c656911cae1eff34fe3,,,False,3
+Tribunal.esm,book_dwe_cogs00,Old Dwemer Book,25,3d515d6afd9bc7158c34b04be08ac6753309ed3ef360a25328c92c87a8aec905,,,False,3
+Tribunal.esm,book_dwe_mach00,Old Dwemer Book,23,f22dc000096782fde0d7dc4b6677de978074656ddd40960c2ca956d5b31d82bf,,,False,3
+Tribunal.esm,book_dwe_metal_fab00,Old Dwemer Book,24,97749c42561b2d283a6e5297685e426f40af6609290211d4f97fda8e61ebd602,,,False,3
+Tribunal.esm,book_dwe_pipe00,Old Dwemer Book,23,aea9aa0381bb154d18bbd6465ae78e5ec71e8b08de382f87477fecd7ce4ba9d5,,,False,3
+Tribunal.esm,book_dwe_power_con00,Old Dwemer Book,24,5a9a92116c040167fdcd0773ae28007d018f4372b4eb2df14ed644fa4cb76c7b,,,False,3
+Tribunal.esm,book_dwe_water00,Old Dwemer Book,25,db0c16eff6a8fda7ff66681c9b6fe789915df1026ebca27f8c06f7a2d8390d03,,,False,3
+Morrowind.esm,bk_ordolegionis,Ordo Legionis,284,4f40627115cae208874e4b34806cbb2489fcb4cd97b7a767498d87866e043f3f,,,True,3
+Morrowind.esm,bk_a1_1_caiuspackage,Package for Caius Cosades,617,ed782d6496c9fffa96f79703e0c3feaba7c2ad2fc99b60d31e5146dac625f9ca,,,True,3
+Morrowind.esm,bk_ILHermit_Page,Page from History of the Empire,14,5e726aa218000b710496ddf591735abac4f07a8d2471c751b80dd645ab06d6b8,,,False,3
+Morrowind.esm,bookskill_illusion4,"Palla, Book I",1856,8b63948c626dd8dd162e2420eaee8bd40e951c952ff89d1829c7b00e1f96e247,,,True,3
+Morrowind.esm,bookskill_enchant3,"Palla, Book II",2035,104578339f78854493162989e3694b5e1fa14ba204d567f48ae82d899c81d4c9,,,True,3
+Morrowind.esm,bk_6thhouseravings,Parchment with Scrawlings,134,6274ab8e3cacb6cdb580adbfa4b6483b041807e0f7fcce72793cb6cafae6da78,,,True,3
+Morrowind.esm,note_Peke_Utchoo,Peke Utchoo's last words,283,716794491163f45e43de83077872c49bea893ad77a456b7b06849e04fa355581,,,True,3
+Morrowind.esm,bk_vivecs_plan,Plan to Defeat Dagoth Ur,1672,7921d7a150a3c238c4d7956f745308e2627e720e25207cdce4aa130852ce8900,,,True,3
+Morrowind.esm,bk_poisonsong1,Poison Song I,2003,29bb998671adf9b0ddc0c8bec508e09c18e86dad77cb01d0cb0f6a03c17c38e7,,,True,3
+Morrowind.esm,bk_poisonsong2,Poison Song II,1245,2ae38d628ed2a87cb8c80b04b2d22bff8598c7b270f8e926a05381cf1b3474ac,,,True,3
+Morrowind.esm,bk_poisonsong3,Poison Song III,1558,f5f6bd674647a59f77b0f7b1818890734166fc077426e6dce20a09d191071962,,,True,3
+Morrowind.esm,bk_poisonsong4,Poison Song IV,1101,c3f3b3c0c37ca025789012f76655d58169dfd6ba1ec8044229bf1981e1e99cc1,,,True,3
+Morrowind.esm,bk_poisonsong5,Poison Song V,1862,6419faddbf3386c80fb2a3ae99b43c637acbfcbe5d20e37a613514fb372f8479,,,True,3
+Morrowind.esm,bk_poisonsong6,Poison Song VI,1335,b560f8784a7b68633116fcc9ca2daa1b43a62cc1be1df3a55a5d9869eab6b3db,,,True,3
+Morrowind.esm,bk_poisonsong7,Poison Song VII,1331,c63ae338866e78519d19d3c962a6c6d871c90a7e5210566c2a34b887b3561962,,,True,3
+Morrowind.esm,bk_progressoftruth,Progress of Truth,753,ff90de42aff5a972a1a71234daba0e087b3a1aabef22431a0a5540d13612cb5f,,progress_of_truth,True,3
+Morrowind.esm,bookskill_acrobatics1,Realizations of Acrobacy,1111,29a3b8d040bfbd63ee8acb88dbc78ac15bed8c0262e03308177420c1c76f729e,,,True,3
+Morrowind.esm,bk_redbook426,Red Book of 3E 426,350,e95340f72c467f58035ea7d6dc5ca300e4666e846805f236c9332367c42fd91c,,,True,3
+Morrowind.esm,bk_redorancookingsecrets,Redoran Cooking Secrets,172,fd731cf6bfe8b6fd9d22c2e57610fd74d77b14485fe6cbf1445c6f31ff8163d2,,,True,3
+Morrowind.esm,bk_reflectionsoncultworship...,Reflections on Cult Worship,407,df32b831e4f99a22df2159007128eeae30efb7b356740260ab2f38fc5425ad22,,,True,3
+Morrowind.esm,bookskill_destruction2,Response to Bero's Speech,832,ddb1e9ca8b60b54b0bd52a8802f398f7bb809b16486c4a178a5bd082640ebafe,,,True,3
+Tribunal.esm,bk_SaryonisSermons,Saryoni's Sermons,382,8da800afbc2aa462233b51cfdab2c06d6559e9df571f29115ec89e61d9097456,,saryoni_s_sermons,True,3
+Morrowind.esm,bk_saryonisermonsmanuscript,Saryoni's Sermons Manuscript,321,bd37ebd1c0ddd765b1e56f62ef6fc0560d42b197f5e8c95d4cd110d7a2dbe623,,,True,3
+Morrowind.esm,sc_summongoldensaint,Scroll of Summon Golden Saint,1,9268de44429ec8d8dda1df5dbc618aba441f7991090e0d9a658092e1b9befe83,,,False,3
+Morrowind.esm,sc_Tyronius,Scroll of Tyronius,381,ac38665df77e4d610b11ed24bcab0212daf066d2bbcbe38503d6e7479ed28d78,,,True,3
+Morrowind.esm,bk_SecretsDwemerAnimunculi,Secrets of Dwemer Animunculi,0,,,,False,3
+Morrowind.esm,bk_sharnslegionsofthedead,Sharn's Legions of the Dead,392,cee3c5bd232456cb41a22dfec859fb538743eb886ff4525c1f9b648d88f756aa,,,True,3
+Morrowind.esm,bookskill_illusion2,Silence,737,7648970c7f8d4e73a4b2fe2b8196ce351ff79fd1101e45f542e5ebf9607f8c91,,,True,3
+Morrowind.esm,bookskill_spear1,Smuggler's Island,936,49d442f4d10e99d01465c589246b596152ee65eaa20ebecf56ec313465d2b2ff,,,True,3
+Morrowind.esm,BookSkill_Alchemy3,Song of the Alchemists,462,6b7b00a2f7fa0b13bb30329377580e907eb25dfb4b520c8a8881845bda8dff99,,,True,3
+Bloodmoon.esm,bk_Sovngarde,"Sovngarde, a Reexamination",616,89f5669168f1baa8004d294703c9f03211ff3a4fa56351168d6b6f7cec6fe9bf,,sovngarde_a_reexamination,True,3
+Morrowind.esm,bookskill_security5,Surfeit of Thieves,1267,2058f03bb0b4dce44f10db60c14a64f885fc911952eba09f8ba6c9bd9ae9738f,,,True,3
+Morrowind.esm,bk_TalMarogKersResearches,Tal Marog Ker's Researches,545,0227cbeb94aa922b6c870fc470090f5a490c02edbecfd5e77cf95537c325667d,,,True,3
+Morrowind.esm,bk_AffairsOfWizards,The Affairs of Wizards,390,07512d2a872dd87a9fc917c460dcbcaf73f5a5e472117694f4b84d1885b8e904,,,True,3
+Tribunal.esm,bk_AlchemistsFormulary,The Alchemists Formulary,700,60668bb0c762cb18a429c1d917d3e8b7802967b3a3400ad9aa0ed1e0c68e07b6,,,True,3
+Tribunal.esm,bk_Anticipations,The Anticipations,466,4a6a5d578a07d0610f0fb6bbefda8b892e360e235c07dce82857923507ff2ff2,,,True,3
+Morrowind.esm,BookSkill_Armorer1,The Armorer's Challenge,1069,9f77e0da9d195e314967bd89cb9a16e8de98e8cb5ce1f28bbaebcd612898caf4,,,True,3
+Morrowind.esm,bookskill_destruction4,The Art of War Magic,670,66c84181bc7f618e594199059c8b0495b89d110b6e78dcb10a999c32bd3d5dd6,,,True,3
+Morrowind.esm,bookskill_axe2,The Axe Man,1057,2bd912416d3c5d35724a2b08f39ac7c76fba8d16d7e9c6ef24952009c18fdb47,,,True,3
+Morrowind.esm,bk_vivec_no_murder,The Battle of Red Mountain,1861,0b1984d95fee6dd190638dac4aa6e88f88938276033dbbf4411afeeba4e70a03,,battle_of_red_mountain,True,3
+Morrowind.esm,BookSkill_Acrobatics4,"The Black Arrow, Volume 1",1427,03ec76794866ff2cde1585105e01628924839af4a8e00f47fd18fc5f15cc9efb,,,True,3
+Morrowind.esm,bookskill_marksman5,"The Black Arrow, Volume II",1470,9323b101c1e6add7c00d8feca13628cffd3242660421ddcb45327edd3247714a,,,True,3
+Morrowind.esm,bk_BlackGlove,The Black Glove,208,5647d0bb17b2ac5c99a79208f72bac8653004c792f39d0739d11b13d104e4f53,,,True,3
+Tribunal.esm,bk_BookDawnAndDusk,The Book of Dawn and Dusk,332,59323350000e1201e5ff93777da5ac7638be334ae15d148f2c03ea77748fed2e,,,True,3
+Morrowind.esm,bk_BrothersOfDarkness,The Brothers of Darkness,731,129ded3ac1016a2e46b69835d0eacf9cc6d3cec8f4b19bcc4695b24a70915337,,,True,3
+Morrowind.esm,bookskill_mercantile1,The Buying Game,540,344eea092a74056a0990dbcc322161575a392cf3d9e800ccb2a26f0509434d8e,,,True,3
+Morrowind.esm,BookSkill_Alchemy2,The Cake and the Diamond,1174,fc4673d27113d0c960b48ea61d72cb6db0a00a09547d6f20bfb2c3b01a24c9f5,,,True,3
+Morrowind.esm,bk_ChangedOnes,The Changed Ones,205,d9728dbab0df2d9641361aa3a4e9f4f6885387b2cfa832ac74dc2a1a61298b2b,,,True,3
+Tribunal.esm,bk_commontongue,The Common Tongue,560,cc0b6db118a04cb0c36b3c7bcb82840fe523c57eb4c3fd30f5ad0f4759edb023,,the_common_tongue,True,3
+Tribunal.esm,bk_commontongue_irano,The Common Tongue: Irano's copy,588,b85f33aecf3841825fd2825fad20fed8d330dd5e7df9c1e4d3c1368568b2b817,,,True,3
+Morrowind.esm,bk_DoorsOfTheSpirit,The Doors of the Spirit,221,9ca24c012895a93e778b510320a92b9f3b92f1c1ae66aac627ad0c13d4d5b36c,,,True,3
+Morrowind.esm,BookSkill_Security3,The Dowry,1072,e0fa49c85bd9725333a17e7b44a2f51c37038c3c6812ef2767a36143d9f7ce78,,,True,3
+Tribunal.esm,bk_easternprovincesimpartial,The Eastern Provinces...,441,7bd3c05c2e01730f4c76269a7695fd4d391e8b814a1a54875387f3d2a2de497d,,,True,3
+Morrowind.esm,bookskill_enchant5,The Final Lesson,1115,74cd24e1cfff9a803d9db86adddcd1d3b7633b2ca773b1ae1df3910bdaedbd53,,,True,3
+Tribunal.esm,bk_firmament,The Firmament,614,4f947fc0165a7d3047bcdc4ccb85b121d2b690e4487b42d59bf2cc55813f864e,,,True,3
+Morrowind.esm,bookskill_mysticism1,The Firsthold Revolt,1786,dbd52ef3a274c50078742594041bd62ec5276092f09bf8366aaadc51e5878310,,,True,3
+Bloodmoon.esm,bk_five_far_stars,The Five Far Stars,131,de241c21fa9e3dd24011daf2612a81392dd1bebf24de5751150517b5be8d9696,,,True,3
+Morrowind.esm,bookskill_restoration3,The Four Suitors of Benitah,1690,710c81e0823d68d6439360cc2fe972775ee37223956f885293f2999b25839b8f,,,True,3
+Morrowind.esm,bookskill_marksman1,The Gold Ribbon of Merit,1060,91570466043b058b7623617125aae19485b6a1efab136b857cd2a1d01f1b544a,,,True,3
+Morrowind.esm,bookskill_blunt weapon1,The Hope of the Redoran,1025,673e067ddce2d33f8a032c03a8981701c3fdeff91038a3a274fb98d4ec1e333f,,,True,3
+Tribunal.esm,bk_playscript,The Horror of Castle Xyr,2242,4fb18931f2d3f4a4ec84c743c1908407e3d48d76741e481dfb875773b48cedd6,,,True,3
+Morrowind.esm,bookskill_destruction1,The Horror of Castle Xyr,2243,21396b041cf12a75b04d295b31caf0e70f9193c4009bb2d401c8dceae43deca1,,,True,3
+Bloodmoon.esm,bk_HouseOfTroubles_o,The House of Troubles,389,77985711ff641bd05cf54a98095e987c47f2347b2b9bd2ba54d60e2f821b5d7d,,house_of_troubles,True,3
+Morrowind.esm,BookSkill_Blunt Weapon2,The Importance of Where,859,d6d0209fe2b134fe451eac8c7e63dda2dd2941a456d86573687b83adde80070c,,,True,3
+Morrowind.esm,bk_LegendaryScourge,The Legendary Scourge,177,ea0c4ab48b9df4a98b537859ba29f0e5b65c7e11630212362c36ca5d7840d177,,,True,3
+Morrowind.esm,bookskill_security1,The Locked Room,1163,8e72da34325e12153ca368344b3141bd7192efab17f6d9d304a075ad82313727,,,True,3
+Morrowind.esm,bk_thelostprophecy,The Lost Prophecy,256,3384f8cf89592f027e7a2ea7b13580e8cb03107908b7d2c584daf9e87a8b973a,,the_lost_prophecy,True,3
+Morrowind.esm,BookSkill_Alteration5,The Lunar Lorkhan,253,725a525b659e7a2ec1d3b15e8ebc5f8e467654dff3a76c9b7db9024d885b4bc7,,,True,3
+Morrowind.esm,bk_lustyargonianmaid,The Lusty Argonian Maid,145,4dfc418e3309269d357c461d796067e31a25d056c0202512899c160af424468e,,,True,3
+Morrowind.esm,bk_madnessofpelagius,The Madness of Pelagius,1274,f69e1326e0c065e0eff184483196e91a941b39f913ff351cb88e73a8f32b02ce,,,True,3
+Morrowind.esm,bookskill_marksman4,The Marksmanship Lesson,1233,1691f1db61960aa75bc0de0a54ed38b05a3a82b32120b548f6cfb78d3aef29ad,,,True,3
+Morrowind.esm,bookskill_block2,The Mirror,1534,780cee3c56f0ac83059e78ecbfc57b165674550bcc59af0ee654f9c8f3cba657,,,True,3
+Morrowind.esm,bk_manyfacesmissinggod,The Monomyth,3055,9f90fa901cbdb721ea9dd22942dad4b1edc9a2872ab8d7897d0925fe4ef9d1d7,,,True,3
+Morrowind.esm,bk_oldways,The Old Ways,653,54c93fd6743e3fa9bbbf6f534bdd379e944be9e4eb7b265f8ac768919e243737,,,True,3
+Morrowind.esm,bk_PigChildren,The Pig Children,277,5758155cf4abbaff8dcd3ff3cde9f2428790343ca4907e3a7943a1f3c8df321b,,,True,3
+Morrowind.esm,bk_PilgrimsPath,The Pilgrim's Path,1177,21fb5acf0da83a9c6b7036cd260eab8203a6eb69da02e0f47ed0eee8d7102e6d,,,True,3
+Morrowind.esm,bk_PostingOfTheHunt,The Posting of the Hunt,777,87a3bf2979b817deb034f5a36deabac1d4fbf93c58ca8dcea1302e79e35a9cf2,,,True,3
+Morrowind.esm,bookskill_hand to hand1,The Prayers of Baranat,930,a3d31d1953850a904e2350d33a2864da4c82360e22dad583cc2a453e2053181a,,,True,3
+Morrowind.esm,BookSkill_Athletics1,The Ransom of Zarek,1483,d859e5f81bdcd2157b86e87a987cd4e7f95d6c2b4885930b283b6351e47833d2,,,True,3
+Morrowind.esm,BookSkill_Light Armor1,The Rear Guard,1354,f07b4319ec6b271d6fb575226a29ea8c6fbbf6e05a4ff1f8abe6c2bb9954c09a,,,True,3
+Morrowind.esm,bk_redbookofriddles,The Red Book of Riddles,180,35a36f79e0f5808224f70aa95c02d9c7ea97e28754416129669f931696a17b2e,,,True,3
+Tribunal.esm,bk_tamrielicreligions,The Ruins of Kemel-Ze,3064,13125235288b484ddd56a2e1bd05113711174485afa57aa1492541833fd8ff7e,,,True,3
+Morrowind.esm,BookSkill_Axe3,The Seed,1228,0f9e672eea810ade843a2ba46464b3fe8aae1bdd237460176f42b950820b3c77,,,True,3
+Morrowind.esm,bk_thesevencurses,The Seven Curses,250,9a045adffad4d8eb97b7de58735f1e096933cb81b3825201e40f18d3cbdeb4f7,,the_seven_curses,True,3
+Morrowind.esm,bk_a2_1_sevenvisions,The Seven Visions,173,df1bcfcabef3e424d040ce65ac466171d0980fde72baf80e333e00ec27776225,,the_seven_visions,True,3
+Bloodmoon.esm,sc_GrandfatherFrost,The Song of Grandfather Frost,117,503e2c1699945936f0a3936af29314834e4f4673f2d928a68f55252fc8e947ea,,,True,3
+Bloodmoon.esm,sc_unclesweetshare,The Song of Uncle Sweetshare,127,4df05684e54a1a70d3853293d079278205e1672900fbce34fbe8a99001e8cf5a,,,True,3
+Bloodmoon.esm,bk_BM_Aevar,The Story of Aevar Stone-Singer,2245,34c6fefdaab9e4b77078a232ef6e907b56e7fe7ace52b31b14611b4ddcc2bdab,,,True,3
+Morrowind.esm,bk_a2_1_thestranger,The Stranger,91,50fbb5e69807086487cb0e74eca9cd4a0ee152bc82517058db8d8471674cb9e6,,the_stranger,True,3
+Morrowind.esm,BookSkill_Axe1,The Third Door,409,f26737886c6a7453d95f096d082b6e560907a3c5556772ef3da6ed3aaa83a60d,,,True,3
+Morrowind.esm,bk_truenatureoforcs,The True Nature of Orcs,249,fd3e326697e9e87b196aaa9631e48ffb847213543f950ba49b0181603e753f1b,,,True,3
+Morrowind.esm,bk_truenoblescode,The True Noble's Code,422,287257bbf892a8cd1283e02e38a98c1edc902fbce7b21a2152c73f769144b6b7,,,True,3
+Morrowind.esm,bk_VagariesOfMagica,The Vagaries of Magicka,141,bb1379c3ea12c20e0b099dfc500e45838dc0fb04e78640f1086c25f479c24ca4,,,True,3
+Morrowind.esm,bk_WaroftheFirstCouncil,The War of the First Council,295,858865e960c84a7e40cfabdbb283cd2655572c2725c01ca363e6f782c537522e,,,True,3
+Morrowind.esm,bookskill_conjuration5,The Warrior's Charge,151,af8fd518805f9eb38428ac85e58e615d8dd6bb56223fe05a44e8c4d79cc498a7,,,True,3
+Morrowind.esm,bk_wildelves,The Wild Elves,334,183f25a92de00bc0293401e808a84aa22c980042904cb9d5726c17903aab78e2,,,True,3
+Morrowind.esm,bookskill_security2,"The Wolf Queen, Book I",2004,f9117b6d35b42b6583e36a319af4ed18acaf141e5229dfa2b550d96dc54ab7ca,,,True,3
+Morrowind.esm,bookskill_hand to hand2,"The Wolf Queen, Book II",1320,0695a81b3e60070424aff1499bee4af81432ccc37c63ce1d7113b616228b1a0a,,,True,3
+Morrowind.esm,bookskill_illusion1,"The Wolf Queen, Book III",1796,07253d074fb867ebfedad0aa1a13729259f01104da9090f344fd911996078e7b,,,True,3
+Morrowind.esm,bookskill_mercantile2,"The Wolf Queen, Book IV",1588,13ea6072a40cf78672de03f91e9b4bf416c37c2d5ed953ab677bbc89c1d103f3,,,True,3
+Tribunal.esm,bookskill_speechcraft2,"The Wolf Queen, Book V",1307,8483562b18b8af38d5bed8496b450f6496fd5c52b310b9b849bd5335f9cbf4f6,,,True,3
+Morrowind.esm,bookskill_sneak1,"The Wolf Queen, Book VI",1065,ad92751d1aa22cd79f7d9b6b47bfc8a977d9e1736e86f9655b83680e2dbc8dd3,,,True,3
+Morrowind.esm,bookskill_speechcraft4,"The Wolf Queen, Book VII",1354,2658091a8f46a7d3c566c76c1ca95867c36a9e6386e668ee8dfe098e828cd42b,,,True,3
+Morrowind.esm,BookSkill_Enchant2,"The Wolf Queen, Book VIII",1541,20b986cd2dae39e4018fbc7a318c03fadedf92081e24440787b398351bf1f285,,,True,3
+Morrowind.esm,bookskill_unarmored1,The Wraith's Wedding Dowry,1275,5c43e7057fada7671ea26e14415bc30f87f49fbc13dd7cbeb85ca7fadb98d585,,,True,3
+Morrowind.esm,bk_yellowbookofriddles,The Yellow Book of Riddles,202,5ebd2170be4f4dce2ec48c1d6011090aa2bbfbcbccc0c5ed2f388ee91637a2c1,,,True,3
+Morrowind.esm,bookskill_sneak4,Trap,1344,93cb16b8117823091dcf74debf7b0d4cbca1a07c52fad6df6c5535aec60d00b2,,,True,3
+Morrowind.esm,bookskill_short blade1,Unnamed Book,1591,15edbb43d3da3916d922d4b09d54254b9de9e11fa9be9224050ebb420a577cd2,,,True,3
+Morrowind.esm,bookskill_marksman3,Vernaccus and Bourlor,1576,42d523d1cbb3568147e9911b9a21296526c44d53953da884cf2115b08ec5c4a8,,,True,3
+Morrowind.esm,bookskill_restoration1,Withershins,1560,f2a490a10d6db811fae764ee82489592f4ec5143c8ce3743381f6da0a924bcd7,,withershins,True,3
+Morrowind.esm,BookSkill_Long Blade1,Words and Philosophy,1818,7236311eaaa873d90e4f3b436c56935adbe3bb4991615e7fd9cbd8e0dd01769b,,,True,3
+Morrowind.esm,bk_wordsclanmother,Words of Clan Mother Ahnissi,1215,f7c4817075457fd7e38ea7ff647781277cd54c2a3f6cf278081422aa7b4ff27e,,,True,3
+Morrowind.esm,bk_words_of_the_wind,Words of the Wind,122,e46aae9a4102f39f4410f3cabea5284d5ab51dc9948c46a90f4dd544254709ea,,,True,3
+Morrowind.esm,bk_yellowbook426,Yellow Book of 3E 426,288,c69e79f63dbdc6236494f933d700dbb466e2e988c45a8166b3b711673a9cc8e5,,,True,3
+Morrowind.esm,bk_a1_11_zainsubaninotes,Zainsubani's Notes,594,23e77753b19656e84345a058843c3b15d03e6beda02083df9e1b75aef46da2fc,,,True,3
+Morrowind.esm,bk_corpsepreperation1_o,Corpse Preparation v I,947,57ab95087932a857fe0baaeceafc7859292f01156b153a92595d29c37b0477f1,bk_corpsepreperation1_c,,True,1
+Morrowind.esm,bk_bartendersguide_01,Hanin's Wake,210,adec5e5cb7e634cdbbc12b8e1f1db753d7853ea31e084d37e03fdde59637925b,bk_bartendersguide,,True,1
+Morrowind.esm,BookSkill_Destruction5_open,"Mystery of Talara, Part 3",1788,5682b596c2c653ecae4cf6f60241407fca20107e702160ca789d898494d36f6b,BookSkill_Destruction5,,True,1
+Morrowind.esm,bk_NGastaKvataKvakis_o,N'Gasta! Kvata! Kvakis!,171,d640323bdb86e888dccbf9875c23d071660cd1fd59d614557363ce8069d708b6,bk_NGastaKvataKvakis_c,,True,1
+Morrowind.esm,sc_gamblersprayer,Scroll of The Gambler's Prayer,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,1
+Bloodmoon.esm,bk_HouseOfTroubles_c,The House of Troubles,389,77985711ff641bd05cf54a98095e987c47f2347b2b9bd2ba54d60e2f821b5d7d,bk_HouseOfTroubles_o,house_of_troubles,True,1
+Morrowind.esm,bk_ABCs,ABCs for Barbarians,13,859a22a46ddeb0f50f025646fc3bfbe0a0efb466f2c10f901b39b008d3bc4d24,,,False,0
+Morrowind.esm,bk_Ashland_Hymns,Ashland Hymns,64,571cdd0da15338dfb2f7e12658a3e4c9599d4b0b279568ce5843a2ed908e8a07,,,False,0
+Morrowind.esm,bk_BoethiahPillowBook,Boethiah's Pillow Book,13,ce3831462e82a9e88d42b8a9888b09bc948224a11699ffb6b63913a46f6eb035,,,False,0
+Morrowind.esm,bk_BookOfRestAndEndings,Book of Rest and Endings,44,129d3cb41d6b7a67f825961df69485e9446ae89f203e4f4f1aa0664880e014f1,,,False,0
+Morrowind.esm,bk_CalderaRecordBook1,Caldera Ledger,19,07133b6f04bd39d97ace75d0f2729bc4edef8aee27dc1ec956317342be11163a,,,False,0
+Morrowind.esm,bk_fishystick,Capn's Guide to the Fishy Stick,30,ae62b33ff583d4e6970245b3b02d241e702263f1b38c6ec8253479f309c97bfa,,,False,0
+Morrowind.esm,bk_dispelrecipe_tgca,Dispel Potion Formula,45,fd46ccd17ec1d395fe91f2ff6ef7782fd79d9bc89627ed61da74576f1a9f5492,,,False,0
+Morrowind.esm,bk_DivineMetaphysics,Divine Metaphysics...,0,,,divine_metaphysics,False,0
+Morrowind.esm,bk_gnisiseggmineledger,Gnisis Eggmine Ledger,12,b87380a221c30097242463ee39712b764495c131208a8363adec7cb27db71357,,,False,0
+Morrowind.esm,bk_Hlaalu_Vaults_Ledger,Hlaalu Vaults Ledger,26,b7bf23ba6480c00610d526b2340c95a215c348a2ec72b6ffc9fa51624c28157d,,,False,0
+Morrowind.esm,bk_impmuseumwelcome,Imperial Museum Welcome,46,b3d725c8334421657abeb29762339f07e55645176d54b0857d42eed604ca999e,,,False,0
+Morrowind.esm,bk_pillowinvoice,Invoice,23,e8b3dc6a08246f40e345e3ffab4e749c8715fcfd939602f2bee2bb6e1fc13d46,,,False,0
+Tribunal.esm,bk_Teran_invoice,Invoice,24,d1f06426edc2270dbc2b54a767ffa8795821408c6514a43cc9ccfb534aca8169,,,False,0
+Morrowind.esm,bk_itermerelsnotes,Itermerel's Notes,68,3e08380387dafa1c7651b20ff56715ea18a2032c0c7d3b9f883b342a85c3c098,,,False,0
+Bloodmoon.esm,sc_jeleen,Jeleen's Sad Farewell,41,dba80f099c360057e261b0cd2b1cc42a918385a0481f739cf3673dd23d001157,,,False,0
+Morrowind.esm,bk_kagrenac'splans_excl,Kagrenac's Planbook,42,f5bf0e6016395463595dd364337f264229352e234e86f56a609f4ce14b959f1a,,kagrenac_s_planbook,False,0
+Bloodmoon.esm,bk_BM_StoneMap,Locations of the Stones,0,,,,False,0
+Morrowind.esm,bk_red_mountain_map,Map of Red Mountain,23,a9a2a858918d22db56dff06bb2436812c2c1dce6be3e3705ea0f0e4125100269,,,False,0
+Morrowind.esm,bk_messagefrommasteraryon,Message from Master Aryon,13,75e61d9994a50d49613000f619263115e381121b45ff0f26b609858cfa64fc07,,,False,0
+Morrowind.esm,bk_BriefHistoryofWood,No-h's Picture Book of Wood,36,95f8c4266f21424fab598485c2db40ce411dee6324f2d25ac9c9246051107ca4,,,False,0
+Morrowind.esm,bk_notebyaryon,Notes by Aryon,16,950c2d8fa97d46dfce392781e9f2639070b19020c137b64fb3565a06468eb3c0,,,False,0
+Morrowind.esm,bk_notetocalderaguard,NoteToCalderaGuard,37,192440a2828ac4ae4c70e778a7e5c2a4e453c98c34173d8128dc4e0a443f9182,,,False,0
+Bloodmoon.esm,sc_rumornote_bm,Odd Rumor,27,a9040d67fb0f46d6ebdf5b7c18a6ccca28220d832fb84477d0aa1d1128dac42a,,,False,0
+Bloodmoon.esm,sc_paper plain,paper,0,,,,False,0
+Morrowind.esm,sc_paper_plain_01_canodia,paper,0,,,,False,0
+Morrowind.esm,bk_V_hlaaluprison,Prisoner Checklist,25,e16ed48180a18b950a3d5ba7054d3137955e5ad3948d693c3fa1d04e876fb3ee,,,False,0
+Tribunal.esm,bk_nermarcnotes,Private Notes -- DO NOT READ,19,04ec992c2738a8fac4f2debcf0b31214670284d59755db9845c5edd5cf0da95d,,,False,0
+Morrowind.esm,bk_propertyofjolda,Property of Jolda,8,be3c21e9ebbd25aa0fc245a7206858771d0235b8f669441d9a502002ca7fec9f,,,False,0
+Morrowind.esm,bk_ravilamemorial,Ravila Memorial,31,738ff55a3b1eab08ff23dc334285c86d7b3f79e2c837c13ed0b71d59f440e829,,,False,0
+Morrowind.esm,bk_Redoran_Vaults_Ledger,Redoran Vaults Ledger,27,39e1678892fb64afbe378e55e4e2288a98a7d420ca9dc526791dd1a01511f001,,,False,0
+Morrowind.esm,chargen statssheet,Release Identification,42,36d142f3f4eb05f7d844c672b62d9e1edf5545bc021f51da8de13206b9c05e08,,,False,0
+Morrowind.esm,bk_responsefromdivaythfyr,Response from Divayth Fyr,8,61027463cd57c50a2ceda724c507b8efeed4057ba38524d1004d8934d50d7eb5,,,False,0
+Morrowind.esm,text_paper_roll_01,Rolled Paper,0,,,,False,0
+Morrowind.esm,sc_alvusiaswarping,Scroll of Alvusia's Warping,9,b2c9a31f5bdc8cbee61f5a8352644d00b5edd093ef359dd1eb978478c96cbeef,,,False,0
+Morrowind.esm,sc_balefulsuffering,Scroll of Baleful Suffering,9,e335f25ad7c84ac6401e3ad3653f04dfbef465ebc8c782d981a0ee362041627a,,,False,0
+Morrowind.esm,sc_blackdeath,Scroll of Black Death,3,3304e1e9dfbe777b590a1c789fb5a264147ea10a243d345cb430929c3f99942c,,,False,0
+Morrowind.esm,sc_blackdespair,Scroll of Black Despair,9,6348d7d2bd69dbbc7d5c300a4ea935c6c712be47c57218a21be7ee452bcd461c,,,False,0
+Morrowind.esm,sc_blackfate,Scroll of Black Fate,4,7493c321b706f5fce8a5de254035efff2b64bfc6f800c58f4d18eba8cc590baf,,,False,0
+Morrowind.esm,sc_blackmind,Scroll of Black Mind,5,bc541ba5e0288b669802976bb47d4e7dac9797e59a389f2ca987144bb71e301f,,,False,0
+Morrowind.esm,sc_blackscorn,Scroll of Black Scorn,6,7933a648e5944155290d0a878dedf1faff96336435ee3e5749c3f095ee4b668f,,,False,0
+Morrowind.esm,sc_blacksloth,Scroll of Black Sloth,5,0c61e0fc15fc85e0c96cddbbea1ca104372d60569ac81aeb370e22985cfeb71b,,,False,0
+Morrowind.esm,sc_blackweakness,Scroll of Black Weakness,4,bffe5648ef8a7c84c36cd5d96a1465b01ad76874532cbba8489a85ab665416c9,,,False,0
+Morrowind.esm,sc_bloodfire,Scroll of Bloodfire,3,8d461aa10cccb42333cca7e7150b28790bbceaf907be6bfab2febf99176373a7,,,False,0
+Morrowind.esm,sc_brevasavertedeyes,Scroll of Breva's Averted Eyes,10,a64643016db61ca1c1c17a040ee93f7983a22c34a480f9083e32b767a02f31d1,,,False,0
+Morrowind.esm,sc_celerity,Scroll of Celerity,6,bc01b7deaf710dfc3241c9836d05cf612a567adb03fa7ca22b90ef1d3d485e21,,,False,0
+Tribunal.esm,sc_chridittepanacea,Scroll of Chriditte's Panacea,14,38eb7c22d19b54eaf7bf89836ac945f779491d6cc88439ce244536468074aa34,,,False,0
+Morrowind.esm,sc_cureblight_ranged,Scroll of Daerir's Blessing,45,6955eba25099850a711732ad658ed0b40dc0ea0816ce3b6f97a75b3734b98a18,,,False,0
+Morrowind.esm,sc_daerirsmiracle,Scroll of Daerir's Miracle,45,f942ac178e24cee6a040c326d60e8e2844d7f163189e632e904fd227aca6e378,,,False,0
+Morrowind.esm,sc_daydenespanacea,Scroll of Daydene's Panacea,12,f47ea36f4e5e60f9e8ec5ea9a7c6bc2df7d19e4b15ac82bc76d611d6de33c368,,,False,0
+Morrowind.esm,sc_dedresmasterfuleye,Scroll of Dedres' Masterful Eye,7,43f6c483816f6b5b69d109ae8e3dcaf7e4615026ff350e35dd77ad92cabeb003,,,False,0
+Morrowind.esm,sc_didalasknack,Scroll of Didala's Knack,6,32baaf86bdd26265a8783e19df007a919511387879fb53e1776f104b81af6f97,,,False,0
+Morrowind.esm,sc_drathissoulrot,Scroll of Drathis' Soulrot,10,64edd49d014bb304c01d38adcfd965d08b7228f15d4aa5a95e6b43abacc247ca,,,False,0
+Morrowind.esm,sc_drathiswinterguest,Scroll of Drathis' Winter Guest,5,144f16c05a6d070dbcf956ea1beb68faa07439a89eab91d784561ca2a79e54ec,,,False,0
+Morrowind.esm,sc_elementalburstfire,Scroll of Elemental Burst:Fire,78,a3d2c506e23d298f362cce86fd74160ab954dcea2f9677c7dc96b5c2b2ff6325,,,False,0
+Morrowind.esm,sc_elementalburstfrost,Scroll of Elemental Burst:Frost,3,9edbd37de1c3b5c85188fae7ecb62b512c848fe63b58bc9e53e2ceb0d2ac295a,,,False,0
+Morrowind.esm,sc_elementalburstshock,Scroll of Elemental Burst:Shock,4,558bc7f34c9746651c94668f89c884bf73688aa4df4a764a28f59108887044c4,,,False,0
+Morrowind.esm,sc_elevramssty,Scroll of Elevram's Sty,11,3ea4a051f35649142807986493d1305d0a44869f69b1ef129fb16af1865ebc87,,,False,0
+Morrowind.esm,sc_fadersleadenflesh,Scroll of Fader's Leaden Flesh,4,8f45b4e8837e91dd965d101027def9b842a99afe8224f6eb7e7d89308e38641a,,,False,0
+Morrowind.esm,sc_FiercelyRoastThyEnemy_unique,Scroll of Fiercely Roasting,10,1f29b3cbd9612f8c07fd4980c72511f33d27fcd91a692a0826a1031ac2e2b79e,,,False,0
+Morrowind.esm,sc_golnaraseyemaze,Scroll of Golnara's Eye-Maze,5,339940a48e11a773865e3ada5fe59dca93060ed4ca091ce0daef17784402f808,,,False,0
+Morrowind.esm,sc_hellfire,Scroll of Hellfire,5,94658e756ea7a3be4f747cf10aa7b19c2273732e9ab41eeb065e92eb8f8da2e6,,,False,0
+Morrowind.esm,sc_icarianflight,Scroll of Icarian Flight,8,8ee8413f1f9c681da996f6cf1fc79d054f6e39506d31f6c581c6f8053be7b9b8,,,False,0
+Morrowind.esm,sc_invisibility,Scroll of Invisibility,3,a6ea55545515b1826a85492737b5fd5c291e3480d5aaa6e49da72032198e1c36,,,False,0
+Morrowind.esm,sc_restoration,Scroll of Restoration,7,7c8e2154c53ed4641fe7619364896c47b34f295084aba3026a7e1aa3517e1a7a,,,False,0
+Morrowind.esm,sc_supremedomination,Scroll of Supreme Domination,5,1b66365810e5fe2baea9390ec370635a1b11a9a7caa257ce32c1b18db29ad6e9,,,False,0
+Morrowind.esm,sc_argentglow,Scroll of The Argent Glow,10,c4e6264f6dba1fc4cc9af80b3ee2fc86ceea8e669d54c1327f3ff8860784296a,,,False,0
+Morrowind.esm,sc_blackstorm,Scroll of The Black Storm,4,33e205e5b32b1f346dd551ed60d1511f9e667047e55b3ca2d56987ec3d70af74,,,False,0
+Morrowind.esm,sc_bloodthief,Scroll of The Blood Thief,7,db42bd060c8bb4bd70920cb3a43f9626df2d861e12b78dc38ae059d73db2c88c,,,False,0
+Morrowind.esm,sc_dawnsprite,Scroll of The Dawn Sprite,3,b429435fcec5d0dda4ffe5641f1a5f0f935926861e9c6f2cec370c34330dcced,,,False,0
+Morrowind.esm,sc_fifthbarrier,Scroll of The Fifth Barrier,4,cde82aa853c062d92ffb8f39d1a7266acdbfec10ebcf831c1d861d00fcb65473,,,False,0
+Morrowind.esm,sc_mindfeeder,Scroll of The Mind Feeder,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,,,False,0
+Morrowind.esm,sc_ninthbarrier,Scroll of The Ninth Barrier,5,0e0ac300f3a827ce5171b1878bad13bc9cbb4a2612f9bba2fac11ad1c006c9ea,,,False,0
+Bloodmoon.esm,sc_lycanthropycure,Scroll of the Wolf Ender,3,641f4e584fb8b8c344d8d314940636236c3969911049f315c00e60542fe26bcd,,,False,0
+Morrowind.esm,sc_vitality,Scroll of Vitality,25,7fe50969c5bff4246022d9a72f482e3527ffdb7ba5d51bd29e1e4826fa06f7f4,,,False,0
+Morrowind.esm,sc_warriorsblessing,Scroll of Warrior's Blessing,7,381297170c494497fe4a4fab25ff3ab70b4e63678575a62918a996d3dc5ac20f,,,False,0
+Morrowind.esm,bk_CalderaRecordBook2,Secret Caldera Ledger,41,d483f507dfee2fafed096df43bce5e585fac3584581251787126c42f3177f9e3,,,False,0
+Morrowind.esm,bk_sottildescodebook,Sottilde's Code Book,29,a8e1eb72fd20a67d1c024997e58494cebbfe60fcfaea87f5005477ba38e0dba4,,,False,0
+Morrowind.esm,bk_seydaneentaxrecord,Tax Record,71,6cd43df68702f8abeb5c4ebe3ec6116f45b9f5c40a85d08ec130dfdff11e0303,,,False,0
+Morrowind.esm,bk_Telvanni_Vault_Ledger,Telvanni Vault Ledger,26,78406327bf14a0b5e1ca3c8e8d590bab1b815baf294ffaa2b5f482e1bb099321,,,False,0
+Morrowind.esm,bk_BlueBookOfRiddles,The Blue Book of Riddles,67,2256f8de79f4aa6e973297fbd2f0d8505255239ed4e5808954976a1776b0e4bd,,,False,0
+Morrowind.esm,bk_EggOfTime,The Egg of Time,0,,,,False,0
+Morrowind.esm,bk_tiramgadarscredentials,Tiram Gadar's Credentials,42,b8c8ea56b9373ea7572155be7e9ed6bdda4e8dd9b159a7e87ef4725372dab03f,,,False,0
+Tribunal.esm,bk_Adren,WARNING!!!,31,19e29ae6a02a9dea5be7f4100b00eb56439e67ad67d6a9d9be64aa0aae70fb66,,,False,0
+Morrowind.esm,bk_ynglingledger,Yngling's Ledger,25,73117a1b1c2df08b8a9f3f99235058c6f82f57d3e7c7eaf80e21b17d7e6f663a,,,False,0
+Tribunal.esm,bk_dbcontract,A Dark Brotherhood Contract,81,e5e05ae5ddbf7d4091ec31024773bbcea87c50468124023aaa429819866e0e38,,,True,-1
+Morrowind.esm,sc_Vulpriss,A scrawled note,159,0b7dc312a81dee45f82534e8728ea00fa2ad40875f6d342237f64b4c96e638dc,,,True,-1
+Morrowind.esm,bk_note,A worn and weathered note,582,b0ccf4fef129583054a73ef756743377cbbb36146f80cc808293dc811be3264f,,,True,-1
+Bloodmoon.esm,bk_Airship_Captains_Journal,Airship Captain's Journal,571,6d5ccb0b2867964a6dca87e717580cf1fa520a603df33bffc583858c66cb43ef,,,True,-1
+Morrowind.esm,bk_Ajira2,Ajira's Flower Report,247,d51d8f9959d08801dc53b07f0878758de23be1d72281e955e789f30ac77b41d1,,,True,-1
+Morrowind.esm,bk_Ajira1,Ajira's Mushroom Report,253,762237ffd9dada3eb4092f525093651f4ee53b86b1d7863875115e2b2df6edb8,,,True,-1
+Morrowind.esm,bk_BeramJournal1,Beram Journal Entry 1,125,bdb3ab6ad58e45ca6c65ff7029b0d63ab2c91bb6e85ca50a486697e1d40d42ac,,,True,-1
+Morrowind.esm,bk_BeramJournal2,Beram Journal Entry 2,167,28c509b056ebfbbd5fc9796026d5cb048b829e156642b4ef1936903dd283691d,,,True,-1
+Morrowind.esm,bk_BeramJournal3,Beram Journal Entry 3,139,4cee739f86deb009898dbae1a9cf9c133ecb433f6d0c3b1a981978e98806a1af,,,True,-1
+Morrowind.esm,bk_BeramJournal4,Beram Journal Entry 4,113,2754d890b324492dcf4b321b71a9a3e0db0093a98587c5caad3e744a629c6fc2,,,True,-1
+Bloodmoon.esm,sc_fjellnote,Bloody Note,82,e4248fc83351ac89ce9b75f36af8ddf6f9f27b06a9c41d3daac0319987992bf0,,,True,-1
+Bloodmoon.esm,bk_colonyreport,Colony Status Report,83,ffb85261ad94a32dc85698355bf52f78db5b23d2b8d7c13d6055202e41b9695d,,,True,-1
+Morrowind.esm,bk_stronghold_c_hlaalu,Construction Contract,130,cb3d1626ff022b466fbdc3465e014e3fcf7e7c5f444108f1ade045e333f0a5e5,,,True,-1
+Tribunal.esm,bk_custom_armor,Custom Armor Price List,304,079676ce5f628f0fdf63e34bcd23de9ecd9461fc36bce72c1a77637fd5055167,,,True,-1
+Bloodmoon.esm,bk_fur_armor,Custom Fur Armor Price List,295,49c89cf854ccb00674790106a375e8fbbf3ecc2a815d934ad9748f1f6db33d43,,,True,-1
+Bloodmoon.esm,sc_fur_armor,Custom Fur Armor Price List,299,5a7f02db4f5e23f038c419dba29349324f22c3b321653103027ff4df1a66c610,,,True,-1
+Bloodmoon.esm,bk_a1_1_directionscaiuscosades,Directions to Caius Cosades,167,b161e7bca238f67d8f87547a9e614fd562ab5773bd1a8000c916f635bb97616d,,,True,-1
+Morrowind.esm,bk_drenblackmail,Dren's Note,105,70080067c3f1b6a650c87efb49589f987f207bb3192790c0a212922d5c810db9,,,True,-1
+Morrowind.esm,bk_a1_1_elone_to_Balmora,Elone's Directions to Balmora,175,8a9e63989836c1a9412bc23fea7c79bcab611ca9f526ca14861358822fe6bc74,,,True,-1
+Tribunal.esm,bk_Alen_note,handwritten letter,249,8cfc6040b8dec3c4dd9ebf713e8d238ae9aca59f25aae787a8868550a677b2f8,,,True,-1
+Morrowind.esm,bk_falljournal_unique,Journal of Tarhiel,144,f112db91ed5d9cc4bc31af00e93332a56e79b97f626a0385a586ff845d4b34cd,,,True,-1
+Morrowind.esm,bk_letterfromgadayn,Letter from Gadayn,124,9df689e8e86b180f6ddeceff74e4f182c73272b737abca7e40dbef1b98852c88,,,True,-1
+Bloodmoon.esm,bk_BMtrial_unique,Letter from Rigmor to Risi,94,9c56ac72b2e5dff70f5b4474dffd579b0132f0deb7dc1361f2badcb2d86a6833,,,True,-1
+Bloodmoon.esm,sc_witchnote,Note from a Glenmoril Witch,208,98e12b0969b4704148a7bc4dff8977be0278b100f1d5890f51dab6d30b4e7cb3,,,True,-1
+Morrowind.esm,bk_Nerano,Note from Bakarak,177,c78895e280bbd465116ba6b3f595bc63eaa5510e48a60f6640bb2e1b069239ba,,,True,-1
+Bloodmoon.esm,bk_carniusnote,Note from Carnius,127,79cad223ce5c2e7cf2d79a1fb51144d0a62ab0385bfd97ca6621c8220d11ab4d,,,True,-1
+Morrowind.esm,bk_saryoni_note,note from the Archcanon,574,d5a608ccaf89d1bdb7004c1e867718d55ca438dd7227bb0a990ca681ad97ea90,,,True,-1
+Morrowind.esm,bk_NoteToAmaya,Note to Amaya,157,8b2bc286e2ca16a0b727043a9244a80801197cda2d1cfd9cc025c96a7f49a413,,,True,-1
+Morrowind.esm,bk_Dren_Hlevala_note,Note to Hlevala,82,eedbd6f1cd131edad8971b1bc78c4d010518f6c3b1ee1b23c737daa9538f9358,,,True,-1
+Morrowind.esm,bk_orderfrommollismo,Order From Mollismo,86,e99708c8ab948dfa18d734f4f75af388cf68957a86ea41ab5c19811e7e679508,,,True,-1
+Morrowind.esm,bk_NerevarineNotice,Public notice,141,ec1bd04384e6ff3d5142de07496a8d84193d87869d08e66a5f92e74c30f2536f,,,True,-1
+Morrowind.esm,bk_shalitjournal_deal,Rels Tenim Journal Page,266,244494792f654b88b1c8efdf3175e3ed6e3385ef2e23b424eb2e316ff0d99a9c,,,True,-1
+Bloodmoon.esm,bk_necrojournal,Rogue Necromancer's Journal,126,7093860f5e7c1b916d3d9e3f0a755f9eea749b942027eeec0eec020360078398,,,True,-1
+Morrowind.esm,bk_seniliasreport,Senilius' Report,312,28ef66ade460c9f11a01684509eaf49ad69c2569eda2d79191ac3eee618903d8,,,True,-1
+Bloodmoon.esm,bk_leggejournal,Settler's Journal,117,d2bdd11690148b0592b59a779a81c038cd9772ae9bf23ef2cdc3bfa6a91ae67d,,,True,-1
+Morrowind.esm,bk_SamarStarloversJournal,Starlover's Log,228,728435b6d8c67ebc9b085da354ae8ace2c535d6921b3dde73ad05db0aceabdc4,,,True,-1
+Morrowind.esm,bk_arrilles_tradehouse,tradehouse notice,661,be714db6ba0e0e348b6aded74388b456506daab211d9e1f1efcb23259f321c51,,,True,-1
+Morrowind.esm,bk_contract_ralen,Weapons and Armor Contract,106,4ebc2d1d906ac5d315c6e922ef958f6d57d850d9de901e34e89f88f43efb0bd2,,,True,-1
+Morrowind.esm,bk_widowdeed,Widow Vabdas' Land Deed,103,1769c9b86381a1d51e2d56ada793d0921fe38b33ec88b71afa2c4cc4f4e4a9c8,,,True,-1
+Morrowind.esm,bk_ynglingletter,Yngling's Letter,120,f824850291b7c4ca8456ac71e5dfc0928a551d8dc6b45ecd8bdfa59c74708ea5,,,True,-1
+Morrowind.esm,sc_messengerscroll,Messenger Scroll,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_summondaedroth_hto,Milyn Faram's Scroll,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,bk_BriefHistoryofWood_01,No-h's Picture Book of Wood,36,95f8c4266f21424fab598485c2db40ce411dee6324f2d25ac9c9246051107ca4,bk_BriefHistoryofWood,,False,-2
+Morrowind.esm,sc_almsiviintervention,Scroll of Almsivi Intervention,4,7493c321b706f5fce8a5de254035efff2b64bfc6f800c58f4d18eba8cc590baf,sc_blackfate,,False,-2
+Bloodmoon.esm,sc_bodily_restoration,Scroll of Bodily Restoration,7,7c8e2154c53ed4641fe7619364896c47b34f295084aba3026a7e1aa3517e1a7a,sc_restoration,,False,-2
+Morrowind.esm,sc_corruptarcanix,Scroll of Corrupt Arcanix,4,7493c321b706f5fce8a5de254035efff2b64bfc6f800c58f4d18eba8cc590baf,sc_blackfate,,False,-2
+Morrowind.esm,sc_daynarsairybubble,Scroll of Daynar's Airy Bubble,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_divineintervention,Scroll of Divine Intervention,3,b429435fcec5d0dda4ffe5641f1a5f0f935926861e9c6f2cec370c34330dcced,sc_dawnsprite,,False,-2
+Morrowind.esm,sc_ekashslocksplitter,Scroll of Ekash's Lock Splitter,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_feldramstrepidation,Scroll of Feldram's Trepidation,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_flamebane,Scroll of Flamebane,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_flameguard,Scroll of Flameguard,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_fphyggisgemfeeder,Scroll of Fphyggi's Gem-Feeder,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_frostbane,Scroll of Frostbane,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_frostguard,Scroll of Frostguard,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_galmsesseal,Scroll of Galmes' Seal,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_gonarsgoad,Scroll of Gonar's Goad,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greaterdomination,Scroll of Greater Domination,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greydeath,Scroll of Grey Death,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greydespair,Scroll of Grey Despair,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greyfate,Scroll of Grey Fate,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greymind,Scroll of Grey Mind,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greyscorn,Scroll of Grey Scorn,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greysloth,Scroll of Grey Sloth,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_greyweakness,Scroll of Grey Weakness,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_healing,Scroll of Healing,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_heartwise,Scroll of Heartwise,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_illneasbreath,Scroll of Illnea's Breath,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_inaschastening,Scroll of Inas' Chastening,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_inasismysticfinger,Scroll of Inasi's Mystic Finger,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_insight,Scroll of Insight,6,32baaf86bdd26265a8783e19df007a919511387879fb53e1776f104b81af6f97,sc_didalasknack,,False,-2
+Morrowind.esm,sc_leaguestep,Scroll of Leaguestep,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_lesserdomination,Scroll of Lesser Domination,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_llirosglowingeye,Scroll of Lliros' Glowing Eye,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_lordmhasvengeance,Scroll of Lord Mhas' Vengeance,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_mageweal,Scroll of Mageweal,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_manarape,Scroll of Manarape,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_mark,Scroll of Mark,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_mondensinstigator,Scroll of Monden's Instigator,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_nerusislockjaw,Scroll of Nerusi's Lockjaw,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_ondusisunhinging,Scroll of Ondusi's Unhinging,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_princeovsbrightball,Scroll of Prince Ov's Brightbal,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_psychicprison,Scroll of Psychic Prison,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_purityofbody,Scroll of Purity of Body,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_radiyasicymask,Scroll of Radiya's Icy Mask,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_radrenesspellbreaker,Scroll of Radrene'sSpellBreaker,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_reddeath,Scroll of Red Death,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_reddespair,Scroll of Red Despair,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_redfate,Scroll of Red Fate,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_redmind,Scroll of Red Mind,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_redscorn,Scroll of Red Scorn,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_redsloth,Scroll of Red Sloth,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_redweakness,Scroll of Red Weakness,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_reynosbeastfinder,Scroll of Reynos' Beast Finder,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_reynosfins,Scroll of Reynos' Fins,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_salensvivication,Scroll of Salen's Vivication,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_savagemight,Scroll of Savage Might,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Bloodmoon.esm,sc_savagetyranny,Scroll of Savage Tyranny,8,8ee8413f1f9c681da996f6cf1fc79d054f6e39506d31f6c581c6f8053be7b9b8,sc_icarianflight,,False,-2
+Morrowind.esm,sc_selisfieryward,Scroll of Selis' Fiery Ward,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_selynsmistslippers,Scroll of Selyn's Mist Slippers,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_sertisesporphyry,Scroll of Sertises' Porphyry,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_shockbane,Scroll of Shockbane,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_shockguard,Scroll of Shockguard,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_stormward,Scroll of Stormward,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_summonflameatronach,Scroll of Summon Flame Atronach,1,9268de44429ec8d8dda1df5dbc618aba441f7991090e0d9a658092e1b9befe83,sc_summongoldensaint,,False,-2
+Morrowind.esm,sc_summonfrostatronach,Scroll of Summon Frost Atronach,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_summonskeletalservant,Scroll of Summon Skeleton,5,1b66365810e5fe2baea9390ec370635a1b11a9a7caa257ce32c1b18db29ad6e9,sc_supremedomination,,False,-2
+Morrowind.esm,sc_taldamsscorcher,Scroll of Taldam's Scorcher,5,1b66365810e5fe2baea9390ec370635a1b11a9a7caa257ce32c1b18db29ad6e9,sc_supremedomination,,False,-2
+Morrowind.esm,sc_telvinscourage,Scroll of Telvin's Courage,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tendilstrembling,Scroll of Tendil's Trembling,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tevilspeace,Scroll of Tevil's Peace,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tevralshawkshaw,Scroll of Tevral's Hawkshaw,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_firstbarrier,Scroll of The First Barrier,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_fourthbarrier,Scroll of The Fourth Barrier,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Bloodmoon.esm,sc_Chappy_sniper_test,Scroll of the Hidden killer,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Bloodmoon.esm,sc_hiddenkiller,Scroll of the Hidden Killer,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_mageseye,Scroll of The Mage's Eye,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_oathfast,Scroll of The Oathfast,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_secondbarrier,Scroll of The Second Barrier,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_sixthbarrier,Scroll of The Sixth Barrier,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_thirdbarrier,Scroll of The Third Barrier,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tinurshoptoad,Scroll of Tinur's Hoptoad,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_toususabidingbeast,Scroll of Tousu's Abiding Beast,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tranasasspellmire,Scroll of Tranasa's Spellmire,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tranasasspelltrap,Scroll of Tranasa's Spelltrap,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_tranasasspelltwist,Scroll of Tranasa's Spelltwist,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_ulmjuicedasfeather,Scroll of Ulm Juiceda's Feather,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_uthshandofheaven,Scroll of Uth's Hand of Heaven,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_vaerminaspromise,Scroll of Vaermina's Promise,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_vigor,Scroll of Vigor,3,8d461aa10cccb42333cca7e7150b28790bbceaf907be6bfab2febf99176373a7,sc_bloodfire,,False,-2
+Morrowind.esm,sc_windform,Scroll of Windform,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Morrowind.esm,sc_windwalker,Scroll of Windwalker,3,4b25284f5707ee57f01087a6b08e34b964d020bde0929e5180978d6321b9d61c,sc_mindfeeder,,False,-2
+Bloodmoon.esm,sc_bloodynote_s,A Blood-Stained Note,17,c26b75ab86bad27df41bae0dcd11eb3cf853ade47e764a5770c1f8559dce49ee,,,False,-4
+Morrowind.esm,bk_joldanote,A hastily scrawled note,25,fb4f03555a0086565044ca7f96c6f6a3f26b04dd338bd318378a5b00fadf2e55,,,False,-4
+Morrowind.esm,bk_landdeed_hhrd,Ascadian Isles Land Deed,63,801fd231d03e6310f5ba9aa0c41dcf3954d90f284a3b21ea467d4de09e41df27,,,False,-4
+Morrowind.esm,bk_BeramJournal5,Beram Journal Entry 5,3,c2bb7c5dd983e3a1cc2524f74bff4f17629b23d18732554343c3cf98c9c9e77e,,,False,-4
+Bloodmoon.esm,sc_frosselnote,Bloody Note,73,4bbaaad5261769a7bbe472c54c6ed4b6a8889a73e1285741ae188365deb69f0b,,,False,-4
+Morrowind.esm,bk_CalderaMiningContract,Caldera Mining Contract,15,352f9b1279cf8e49dbd73add6d86361b4a4fd3aec7c8243732ff3e13bfb9d04b,,,False,-4
+Morrowind.esm,bk_clientlist,Client List,42,884eee69f0fda5f08174b4cef39b42d02777eabd46f486ca7eb412ba482e99f5,,,False,-4
+Morrowind.esm,bk_BlightPotionNotice,Cure Blight Potion Notice,62,5186ba5d0e6f37c91121a1cd0a56b2f29ea4207797fd21ae3651864dfea41f74,,,False,-4
+Morrowind.esm,bk_indreledeed,Deed to Indrele's House,70,5cf9eb3a33a9016e7cd6a483dbd4fc9215bb478df34399e963193973694076af,,,False,-4
+Morrowind.esm,bk_Dren_shipping_log,Dren's shipping log,19,162bf601ccbb8a939707ed3f95d5056f3490cff77632da4a2986ca5b5467ff06,,,False,-4
+Bloodmoon.esm,sc_Erna,Erna's Note to Brandr,47,934fa6362479b5a6f3fcf13adc71a803b060f3f8684ca52327f136a744f9ba05,,,False,-4
+Bloodmoon.esm,sc_Erna01,Erna's Note to Erna,7,9a017fb9714ea2c7919c7e3aae107a17c02880fe7c0b9d3f3f67e45431fe4af5,,,False,-4
+Morrowind.esm,bk_fortpelagiadprisonerlog,Fort Pelagiad Prisoner Log,57,c34f961a12832b3453bb941411b471ad8b88edec7f95b389662402107f03ccdb,,,False,-4
+Morrowind.esm,bk_galtisguvronsnote,Galtis Guvron's Note,29,fa66e5db5c50b428879881a6a713093f82c26d87cc3674ca4a224967b34328ba,,,False,-4
+Morrowind.esm,bk_gnisiseggminepass,Gnisis Eggmine Pass,55,84fa7d2164fd392985f9257c7d957277d1d3e77ff1772de60982334806fc1cff,,,False,-4
+Tribunal.esm,bk_Irano_note,handwritten note,58,dd5f59754f6ba6fccc222dd6b8641170e0ec7561c5feb79720fdb5eb415dfc65,,,False,-4
+Morrowind.esm,writ_baladas,Honorable Writ of Execution,39,ca5b59653c70137d4a599c80918bf916b3c196535ec6bad848da671fbaeb4f96,,,False,-4
+Morrowind.esm,writ_belvayn,Honorable Writ of Execution,39,2d7800c7ea02e7f5630f5079aa4f62529a3c8acf94e324c0ca2f8d5e275c9292,,,False,-4
+Morrowind.esm,writ_bemis,Honorable Writ of Execution,39,a3266c93800538aadb38327da5907f3888c49a55066db31448b59b9dbb6bb431,,,False,-4
+Morrowind.esm,writ_bero,Honorable Writ of Execution,39,df35bf48760dcdc2b201782f553aad21b18cd04f85b8a77234b7e3157de0a716,,,False,-4
+Morrowind.esm,writ_brilnosu,Honorable Writ of Execution,39,50492375d53076b8076e03f8d508b2897ee4c2b2e56d14ca0d91b2cd11431462,,,False,-4
+Morrowind.esm,writ_galasa,Honorable Writ of Execution,39,0fa7f8d37540a8f2c67ff7bc4d79072b8afbe8f57104061a2312013e912fbe55,,,False,-4
+Morrowind.esm,writ_guril,Honorable Writ of Execution,39,40e9f68de2dc173599effd6a74394be81bed35045d949961d396132f3d6fd475,,,False,-4
+Morrowind.esm,writ_mavon,Honorable Writ of Execution,39,8adaef4925bf7efc0de9159d882e853ad7cba6cb6f8ebf97664f0618cc135d39,,,False,-4
+Morrowind.esm,writ_navil,Honorable Writ of Execution,40,b11e68c879574418eb91abd7e33af3a8cea7956ccca7f4ffdedae481f228580d,,,False,-4
+Morrowind.esm,writ_oran,Honorable Writ of Execution,39,480870bb9fd57410eb61e0d88cdbd616ec763dcfa2a9475ccba8e2f086725433,,,False,-4
+Morrowind.esm,writ_sadus,Honorable Writ of Execution,39,78a284aa551ec5f435ec3bdd489d4143bc9d6c0c925e80e54234470255ba809b,,,False,-4
+Morrowind.esm,writ_saren,Honorable Writ of Execution,39,2ffcf43fd1f77fcfc6d18da97cc0ff9eb2a002ec6fcca8bb3fab16ec78dd77fa,,,False,-4
+Morrowind.esm,writ_therana,Honorable Writ of Execution,39,564484b13ed1721c8d0cbccb8405155c41d930f53f510e865940cea9d635a999,,,False,-4
+Morrowind.esm,writ_varro,Honorable Writ of Execution,39,5e163a8178d3f35a4117a9e4004820dbb430a68bae78063d8ed93513f01282f8,,,False,-4
+Morrowind.esm,writ_vendu,Honorable Writ of Execution,40,4b3e47c6294407a136285d4e3bd98fdf8f20b51c4a1d50028dcbf5e65731ccf7,,,False,-4
+Morrowind.esm,writ_yasalmibaal,Honorable Writ of Execution,39,18a6cc65a60dcbf2fb89b3fd7020b2ea46a8f0779885866b7a37239aae959665,,,False,-4
+Bloodmoon.esm,bk_fryssajournal,Journal of Fryssa,39,4b8c29fa0b4cdaa846f07384459acd15183a2ff1508843c5187bcba0806f9246,,,False,-4
+Morrowind.esm,bk_kagrenac'sjournal_excl,Kagrenac's Journal,41,1e946a20915729d6ff50cf20db6b3e49c32404e5d96b237878a4fbe822f15809,,kagrenac_s_journals,False,-4
+Morrowind.esm,bk_letterfromjzhirr,Letter From J'Zhirr,39,82a57e99f1893713ee9d56601e83446eec4ee42f1e2b632d3fb71e3ef14104d5,,,False,-4
+Morrowind.esm,bk_letterfromllaalam,Letter From Llaalam Dredil,63,eb602f70c89d951c128b5961a0570c3ffded94d5c60997be2c0dc4772d4ecf3a,,,False,-4
+Morrowind.esm,bk_ocato_recommendation,Letter from Ocato,65,8e9e31865f3fb336d8175b4a2b6aeee98ca6a5b4b5d446bdf3dd58f243c5118b,,,False,-4
+Morrowind.esm,bk_miungei,Letter from Tsrazami,34,3bc9314fbc8b0716fd66a8da526a048c8392166d7a768570b1ccef554a577ad8,,,False,-4
+Morrowind.esm,bk_a1_2_introtocadiusus,Letter to Senilias Cadiusus,74,320deaadb590ef6f664e946ef17579750e86bf460283a65cd6b4005cbcfb4edc,,,False,-4
+Morrowind.esm,bk_nemindasorders,Neminda's Orders,46,a78a387cf0318649bf179c6e593a856c528e62c36a2718a87b41bd41adb60397,,,False,-4
+Morrowind.esm,bk_notefrombashuk,Note from Bashuk,34,c48e59c4e1c879ac00e9f962e259a830f8b3488a28568a9bd520f319fe793cd3,,,False,-4
+Morrowind.esm,bk_notefromberwen,Note from Berwen,68,a5bc37cd68e9832ce941e85ef02d6a82a3915d45eca1fa8ce0057992213607de,,,False,-4
+Morrowind.esm,bk_notefrombildren,Note From Bildren,4,73e14c14894427a8146261eaeb7fe05570b331f756c4ddfb17b6a9dd635e6ba6,,,False,-4
+Morrowind.esm,bk_notefrombugrol,Note from Bugrol,75,4f921dcf1a6ca168245524ee68cbb29333293c6d6f88afbe34b97eb7f9ea75b9,,,False,-4
+Morrowind.esm,bk_notefromernil,Note From Ernil,29,2ebf6e3adbb13f78da52be179c843347aeca4348286f5634c90db573152e9e1f,,,False,-4
+Morrowind.esm,bk_notefromferele,Note from Ferele,13,0d7be78fd38ce86f8aae0abdd9786585c6af50f317ebae2bc43314529ee1e853,,,False,-4
+Morrowind.esm,bk_notefromirgola,Note from Irgola,42,6c6ed25a31c018407e122700c5788dde821524a840797014d20777d67f43557d,,,False,-4
+Morrowind.esm,bk_NoteFromJ'Zhirr,Note from J'zhirr,15,1ce1fd1f05d3a4385c7e5609dba08730a1afde559de7e6a34536ae9f72990a9a,,,False,-4
+Morrowind.esm,bk_notefromnelos,Note from Nelos,65,b27898d1e58e95d891069aba7b2b86db0224ffa15c7066d699ff58cd9fcce4cf,,,False,-4
+Morrowind.esm,bk_talostreason,Note from Oritius Maro,62,63ba3ca605233fe9706b70f134292045b55c04eaf273af0ecc98e0aaac60b083,,,False,-4
+Morrowind.esm,bk_notefromradras,Note From Radras,18,3593e18e986865dbff1ae99e6d1f7b957048e7bc958ade028bd67f0ccef2f7cd,,,False,-4
+Morrowind.esm,bk_notefromsondaale,Note from Sondaale,9,fcbb7d0588f05c1541006fa43f207f4cc68340f5275d9d1127b655d36000d62e,,,False,-4
+Tribunal.esm,bk_ahnia,Note to Ahnia,62,9ad099a35502bfb0b52f81eb8bc475b6483395d841a6424c60aca406afe3c991,,,False,-4
+Morrowind.esm,bk_falanaamonote,Note to Falanaamo,63,64588b5b8bb6c504793c773c70162efec2e2639bd798f89c0ba1ca6f91b368cc,,,False,-4
+Morrowind.esm,bk_shalit_note,Note to Giden,58,0ec6f475d7c6918259972f0658e3d1b265138f92dc8f3d7ec51cdee72b5f5697,,,False,-4
+Morrowind.esm,note to hrisskar,Note to Hrisskar,19,74043baf1b4b03cc44030bcb4143bb1a1929a35c45bc04884760f7bb53e869dc,,,False,-4
+Morrowind.esm,bk_notetoinorra,Note to Inorra,41,1794076768fe17fb967b3666830647cb96db7cd05f85953f066453b6dee8c624,,,False,-4
+Morrowind.esm,bk_notetocalderamages,Note to Mages,51,3578043ab9b5a70aa7ba38e4531bfc705cfe90cf219356975c37d5a2e9dcdb02,,,False,-4
+Morrowind.esm,bk_notetomalsa,Note to Malsa Ules,34,6e511a12bc921d6b5d8ec5f99b1244bf7c1474b86b6c67d9946875cbb523afa8,,,False,-4
+Morrowind.esm,bk_notetomenus,Note to Menus,37,9ee9671a5a98f4161e94b8f34ae6e8d449f529e9534747e6f1c14a52c6a09904,,,False,-4
+Morrowind.esm,bk_enamor,Note to Salyn Sarethi,45,b227e8574236ffb71b7b1af8aa57cf410e9b29ac2f684d4056b2e9a783be261c,,,False,-4
+Morrowind.esm,bk_notetocalderaslaves,Note to Slaves,54,45534c795886db8cd698380f016a93d1e8e4f523a96390b4ed1427b7efa061db,,,False,-4
+Morrowind.esm,bk_notetotelvon,Note to Telvon,39,a9b7f255f850aee5f966e71d581104d77a0da48604cf177adb710fe636865608,,,False,-4
+Morrowind.esm,bk_notetovalvius,Note to Valvius,69,df3c6ad5e1bc0f168a66d972dab96b474dbc541df427f2e2e0dacc6cb18f1a90,,,False,-4
+Morrowind.esm,bk_storagenotice,Notice,3,fcc6d4c0253eb5a318dc1cf086b28dce2a762240b9927fc42220c5eadd1e9d02,,,False,-4
+Morrowind.esm,bk_landdeedfake_hhrd,Odral's Land Deed,73,79e59be9887dc6b39ed6d678bbf27ed0c1acb4e3fbb781164523afd185c4f0d0,,,False,-4
+Bloodmoon.esm,sc_fjaldingnote,"Old, Wet Note",70,cc4a64bfeae169f8a839c34135c89d03472fab2bbd9b07fcdbaab1f9bca4b2e4,,,False,-4
+Morrowind.esm,bk_eggorders,Order Manifest,14,c21e3b890c1465803d22ff220859eb1df5fa34b1ceb80fef6107a00c9dd6301e,,,False,-4
+Morrowind.esm,bk_ordersforbivaleteneran,Orders for Bivale Teneran,46,69343da5e0eab5f654afdd86bc0d5cd8aafed75c0a7803be93dcee65770053c4,,,False,-4
+Bloodmoon.esm,sc_piratetreasure,Pirate Captain's Note,29,12a9689e8f22f306e3baf1d37782fad49a7b8f9e79850e40ef4de7cf9ae2efcc,,,False,-4
+Morrowind.esm,bk_stronghold_ld_hlaalu,Rethan Manor Land Deed,60,b0491b58c39b25ee2f420d3990584188571804a387cdc651c594423f3c5307e4,,,False,-4
+Tribunal.esm,writ_Alen,Royal Writ of Execution,33,fcce6ccd28973c88e693e911d515dfc12d4cd7c4d835763dba8b77153a868284,,,False,-4
+Tribunal.esm,writ_Berano,Royal Writ of Execution,33,b67b0b20a752b57fcb39f878b40afb1a5739306eaf520d3c70877159aa922dfe,,,False,-4
+Tribunal.esm,writ_Hloggar,Royal Writ of Execution,34,89f3e96e9d8ecb713f6002f33e1da7e67568993fcb173a2580ac02c4ebc8ab33,,,False,-4
+Morrowind.esm,bk_varoorders,Shipping Notice,34,f05ae4ce1e9a11518c36c508f86951c231cc43df64eb120d616aaf6aa86f3692,,,False,-4
+Morrowind.esm,bk_shishireport,Shishi Report,43,3a28adc88c41bfa1bd1a6f2da117fc1103628435aa1d7b3c9972427fabd5bca1,,,False,-4
+Morrowind.esm,bk_notesoldout,Sold Out Notice,30,07a148f78d9c982a5e2f9776888156fdbfe1b0d6e96d382ec4f19bc36607eac8,,,False,-4
+Bloodmoon.esm,bk_colony_Toralf,Tattered Note,71,07942c5b746845d28bdc3551586863b2852af68f2c8d7abbb9c2a9fc7412ffde,,,False,-4
+Bloodmoon.esm,sc_sjobalnote,Thauraver's Orders,65,8d8210d111799dd7289e1f9254d17b990a09fc8e6f31886c7879dd39b0cb528d,,,False,-4
+Morrowind.esm,bk_treasuryorders,Treasury Orders,69,de20afc1cb2fd99472156a93b500e28967ce353c2563ac305d33d051cf37d2bb,,,False,-4
+Morrowind.esm,bk_treasuryreport,Treasury Report,37,9f7047d31856515332cc29f40ad845fc20d1662f126cc82f4001b4133261c1ac,,,False,-4
+Morrowind.esm,bk_Warehouse_log,Warehouse shipping log,17,d8090b4c529d1c198a5fee27f044c33281a407814c1061c1be9d34bfae546e32,,,False,-4
+Morrowind.esm,bk_letterfromllaalam2,Letter From Llaalam Dredil,63,eb602f70c89d951c128b5961a0570c3ffded94d5c60997be2c0dc4772d4ecf3a,bk_letterfromllaalam,,False,-6

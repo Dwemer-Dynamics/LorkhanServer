@@ -1,0 +1,533 @@
+{
+  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "updated_at_utc": "2026-08-12T20:36:03Z",
+  "model": "z-ai/glm-5.1",
+  "prompt_sha256": "08cd0837a69c72fe31b3e27b19d446cc94f25b46bffd704c65e9cfbb9dcc3724",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "b4b9dcfbf6b753a795d67c6fc1809544cea3acc5a9b2ddfd47e0ff03c7d17636",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "selected_count": 84,
+  "evidence_completed_count": 84,
+  "completed_count": 84,
+  "failed_count": 0,
+  "pending_count": 0,
+  "usage": {
+    "cost": 0.624043944
+  },
+  "budget": {
+    "limit": 5.0,
+    "reserve": 0.1,
+    "spent": 0.624043944,
+    "next_call_allowed": true
+  },
+  "items": [
+    {
+      "topic": "children_of_the_sky",
+      "title": "Children of the Sky",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "direnni",
+      "title": "Direnni",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "psijic_order",
+      "title": "Psijic Order",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "aevar_stone_singer",
+      "title": "Aevar Stone-Singer",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "akaviri_potentate",
+      "title": "Akaviri Potentate",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "aetherius",
+      "title": "Aetherius",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "old_ways",
+      "title": "the Old Ways",
+      "category": "magic",
+      "status": "complete"
+    },
+    {
+      "topic": "ayleids",
+      "title": "Ayleids",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "akavir",
+      "title": "Akavir",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "aedra",
+      "title": "Aedra",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "orsinium",
+      "title": "Orsinium",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "war_of_the_red_diamond",
+      "title": "War of the Red Diamond",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "padomay",
+      "title": "Padomay",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "alessian_empire",
+      "title": "Alessian Empire",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "mane",
+      "title": "the Mane",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "pelagius_iii",
+      "title": "Pelagius III",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "wild_hunt",
+      "title": "Wild Hunt",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "aurbis",
+      "title": "Aurbis",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "thirty_six_lessons_of_vivec",
+      "title": "The 36 Lessons of Vivec",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "galerion",
+      "title": "Vanus Galerion",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "aldmeri_pantheon",
+      "title": "Aldmeri pantheon",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "mysterious_akavir",
+      "title": "Mysterious Akavir",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "maormer",
+      "title": "Maormer",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "redguard_pantheon",
+      "title": "Redguard pantheon",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "convention",
+      "title": "Convention",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "varieties_of_faith",
+      "title": "Varieties of Faith in the Empire",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "alessian_order",
+      "title": "Alessian Order",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "mages_guild_founding",
+      "title": "founding of the Mages Guild",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "anu",
+      "title": "Anu",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "red_mountain_accounts",
+      "title": "conflicting accounts of Red Mountain",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "khajiit_furstocks",
+      "title": "Khajiit furstocks",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "khajiiti_pantheon",
+      "title": "Khajiiti pantheon",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "potema",
+      "title": "Potema",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "green_pact",
+      "title": "Green Pact",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "warp_in_the_west",
+      "title": "Warp in the West",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "wulfharth",
+      "title": "Wulfharth",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "tang_mo",
+      "title": "Tang Mo",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "mundus",
+      "title": "Mundus",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "zurin_arctus",
+      "title": "Zurin Arctus",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "marukh",
+      "title": "Marukh",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "nerevar_at_red_mountain",
+      "title": "Nerevar at Red Mountain",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "dwemer_freeholds",
+      "title": "Dwemer freeholds",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "hist",
+      "title": "the Hist",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "dunmer_funerary_rites",
+      "title": "Dunmer funerary rites",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "nedes",
+      "title": "Nedes",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "sload",
+      "title": "Sload",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "fall_of_the_snow_prince",
+      "title": "Fall of the Snow Prince",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "nir",
+      "title": "Nir",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "oblivion_realms",
+      "title": "realms of Oblivion",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "underking",
+      "title": "the Underking",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "the_monomyth",
+      "title": "The Monomyth",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "shezarr",
+      "title": "Shezarr",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "nordic_pantheon",
+      "title": "Nordic pantheon",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "lunar_lorkhan",
+      "title": "the Lunar Lorkhan",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "dragon_break",
+      "title": "Dragon Break",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "skaal_standing_stones",
+      "title": "Skaal standing stones",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "lunar_lattice",
+      "title": "Lunar Lattice",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "artaeum",
+      "title": "Artaeum",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "reman_empire",
+      "title": "Reman Empire",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "earthbones",
+      "title": "the Earthbones",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "lorkhaj",
+      "title": "Lorkhaj",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "snow_elves",
+      "title": "Snow Elves",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "symmachus",
+      "title": "Symmachus",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "azurah",
+      "title": "Azurah",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "septim_dynasty",
+      "title": "Septim Dynasty",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "atmora",
+      "title": "Atmora",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "the_annotated_anuad",
+      "title": "The Annotated Anuad",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "tonal_architecture",
+      "title": "Tonal Architecture",
+      "category": "magic",
+      "status": "complete"
+    },
+    {
+      "topic": "mantella",
+      "title": "the Mantella",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "velothi_exodus",
+      "title": "the Velothi exodus",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "five_songs_of_king_wulfharth",
+      "title": "Five Songs of King Wulfharth",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "cephorus_septim",
+      "title": "Cephorus Septim",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "imperial_simulacrum",
+      "title": "Imperial Simulacrum",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "sithis",
+      "title": "Sithis",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "wars_of_tiber_septim",
+      "title": "wars of Tiber Septim",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "snow_prince",
+      "title": "the Snow Prince",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "arcturian_heresy",
+      "title": "the Arcturian Heresy",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "ehlnofey",
+      "title": "Ehlnofey",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "tsaesci",
+      "title": "Tsaesci",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "dwemer_law",
+      "title": "Dwemer law",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "ka_po_tun",
+      "title": "Ka Po' Tun",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "kamal",
+      "title": "Kamal",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "temple_canon",
+      "title": "Tribunal Temple canon",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "battle_of_moesring",
+      "title": "Battle of Moesring",
+      "category": "history",
+      "status": "complete"
+    }
+  ]
+}
