@@ -313,6 +313,19 @@ def stable_selection(topics: list[dict[str, Any]], size: int) -> list[dict[str, 
     return list(selected.values())
 
 
+def excluded_topics(path: Path | None) -> set[str]:
+    if path is None:
+        return set()
+    document = read_json(path)
+    rows = document.get("selection") if isinstance(document, dict) else None
+    if not isinstance(rows, list):
+        raise ValueError("Excluded selection must contain a selection array")
+    topics = {str(row.get("topic", "")).strip() for row in rows if isinstance(row, dict)}
+    if "" in topics or len(topics) != len(rows):
+        raise ValueError("Excluded selection contains an invalid or duplicate topic")
+    return topics
+
+
 def selection_document(topics: list[dict[str, Any]], hashes: dict[str, str], ontology_sha: str, seeds_sha: str) -> dict[str, Any]:
     return {
         "format": FORMAT_VERSION,
@@ -613,6 +626,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
     parser.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS)
     parser.add_argument("--ontology", type=Path, default=DEFAULT_ONTOLOGY)
+    parser.add_argument("--exclude-selection", type=Path)
     parser.add_argument("--size", type=int, default=50)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
@@ -640,6 +654,11 @@ def main() -> int:
         ontology = read_json(args.ontology)
         records, hashes = extract_records(args.data_dir)
         topics = validate_seed_document(read_json(args.seeds), ontology, records)
+        excluded = excluded_topics(args.exclude_selection)
+        available_topics = [topic for topic in topics if topic["topic"] not in excluded]
+        unknown_exclusions = excluded - {topic["topic"] for topic in topics}
+        if unknown_exclusions:
+            raise ValueError("Excluded selection contains topics outside the current inventory: " + ", ".join(sorted(unknown_exclusions)))
         selection_path = args.run_dir / "selection.json"
         ontology_sha = hashlib.sha256(ontology_raw).hexdigest()
         seeds_sha = hashlib.sha256(seeds_raw).hexdigest()
@@ -651,9 +670,9 @@ def main() -> int:
             if not isinstance(selected, list) or len(selected) != args.size:
                 raise ValueError("Existing Oghma selection does not match --size")
         else:
-            selected = stable_selection(topics, args.size)
+            selected = stable_selection(available_topics, args.size)
             atomic_json(selection_path, selection_document(selected, hashes, ontology_sha, seeds_sha))
-        print(f"[inventory] curated={len(topics)} selected={len(selected)} official_records={len(records)}", flush=True)
+        print(f"[inventory] curated={len(topics)} excluded={len(excluded)} selected={len(selected)} official_records={len(records)}", flush=True)
         session = requests.Session()
         session.headers.update({"User-Agent": "ALMSIVI-Oghma-Generator/1.0 (https://dwemerdynamics.com/)"})
         api_key = os.environ.get(args.api_key_env, "").strip()
