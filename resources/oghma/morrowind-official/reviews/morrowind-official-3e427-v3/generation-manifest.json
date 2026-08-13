@@ -1,0 +1,611 @@
+{
+  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "updated_at_utc": "2026-08-12T19:38:13Z",
+  "model": "z-ai/glm-5.1",
+  "prompt_sha256": "08cd0837a69c72fe31b3e27b19d446cc94f25b46bffd704c65e9cfbb9dcc3724",
+  "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
+  "topic_seeds_sha256": "2f2a69e6c72c885f46345d8023b308dd8c3cbfff425b3ac93286ed33fe081a7e",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
+  },
+  "selected_count": 97,
+  "evidence_completed_count": 97,
+  "completed_count": 97,
+  "failed_count": 0,
+  "pending_count": 0,
+  "usage": {
+    "cost": 0.27271037699999995
+  },
+  "budget": {
+    "limit": 6.0,
+    "reserve": 0.1,
+    "spent": 0.27271037699999995,
+    "next_call_allowed": true
+  },
+  "items": [
+    {
+      "topic": "moon_sugar",
+      "title": "moon sugar",
+      "category": "alchemy",
+      "status": "complete"
+    },
+    {
+      "topic": "cleaver_of_st_felms",
+      "title": "Cleaver of St. Felms",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "berserkers",
+      "title": "berserkers",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "ashlander_challenges",
+      "title": "Ashlander challenges",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "ash_woe",
+      "title": "Ash woe",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "census_and_excise_agent",
+      "title": "Census and Excise agent",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "aesliip",
+      "title": "Aesliip",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "murder_nerevar",
+      "title": "murder Nerevar",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "ald_redaynia",
+      "title": "Ald Redaynia",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "birthsign",
+      "title": "birthsign",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "enchanters",
+      "title": "enchanters",
+      "category": "magic",
+      "status": "complete"
+    },
+    {
+      "topic": "argonian_neighbors",
+      "title": "Argonian neighbors",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "aldmeris",
+      "title": "Aldmeris",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "ash_statue",
+      "title": "ash statue",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "cantons",
+      "title": "cantons",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "tienius_delitian",
+      "title": "Tienius Delitian",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "gentleman_jim_stacey",
+      "title": "Gentleman Jim Stacey",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "serpiginous_dementia",
+      "title": "Serpiginous dementia",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "mudcrab",
+      "title": "Mudcrab",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "helljoint",
+      "title": "Helljoint",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "to_be_a_god",
+      "title": "to be a god",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "brown_rot",
+      "title": "Brown Rot",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "sovngarde",
+      "title": "Sovngarde",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "hanging_gardens",
+      "title": "Hanging Gardens",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "st_delyn_canton",
+      "title": "St. Delyn Canton",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "greater_bonewalker",
+      "title": "greater bonewalker",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "chanthrax",
+      "title": "Chanthrax",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "dragons",
+      "title": "dragons",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "darius",
+      "title": "Darius",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "wraith",
+      "title": "wraith",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "skeleton",
+      "title": "skeleton",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "mabrigash",
+      "title": "mabrigash",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "slaughterfish",
+      "title": "slaughterfish",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "magister",
+      "title": "Magister",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "darts_of_judgement",
+      "title": "Darts of Judgement",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "hlaren_ramoran",
+      "title": "Hlaren Ramoran",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "caldera_ebony_mines",
+      "title": "Caldera ebony mines",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "eydis_fire_eye",
+      "title": "Eydis Fire-Eye",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "the_power_of_the_skaal",
+      "title": "the power of the Skaal",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "yellow_tick",
+      "title": "Yellow Tick",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "chills",
+      "title": "Chills",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "jobasha",
+      "title": "Jobasha",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "robot_arena",
+      "title": "Robot Arena",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "forts",
+      "title": "Forts",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "tribunal_fight_dagoth_ur",
+      "title": "Tribunal fight Dagoth Ur",
+      "category": "history",
+      "status": "complete"
+    },
+    {
+      "topic": "mouth",
+      "title": "Mouth",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "tear",
+      "title": "Tear",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "collywobbles",
+      "title": "Collywobbles",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "korst_wind_eye",
+      "title": "Korst Wind-Eye",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "elven_ancestry",
+      "title": "Elven ancestry",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "crimson_plague",
+      "title": "Crimson Plague",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "skar",
+      "title": "Skar",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "ring_of_the_wind",
+      "title": "Ring of the Wind",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "karrod",
+      "title": "Karrod",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "morvayn_manor",
+      "title": "Morvayn Manor",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "dagger_of_symmachus",
+      "title": "Dagger of Symmachus",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "ebony",
+      "title": "ebony",
+      "category": "lore",
+      "status": "complete"
+    },
+    {
+      "topic": "reavers",
+      "title": "Reavers",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "ataxia",
+      "title": "Ataxia",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "maelkashishi",
+      "title": "Maelkashishi",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "kwama_warrior",
+      "title": "kwama warrior",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "ash_storm",
+      "title": "ash storm",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "kwama_forager",
+      "title": "kwama forager",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "crater_citadels",
+      "title": "crater citadels",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "kwama_worker",
+      "title": "kwama worker",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "humans",
+      "title": "Humans",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "imperial_neighbors",
+      "title": "Imperial neighbors",
+      "category": "cultures",
+      "status": "complete"
+    },
+    {
+      "topic": "venim_manor",
+      "title": "Venim Manor",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "tharsten_heart_fang",
+      "title": "Tharsten Heart-Fang",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "ihinipalit",
+      "title": "Ihinipalit",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "dampworm",
+      "title": "Dampworm",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "captain_carius",
+      "title": "Captain Carius",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "betmeri",
+      "title": "Betmeri",
+      "category": "races",
+      "status": "complete"
+    },
+    {
+      "topic": "assernerairan",
+      "title": "Assernerairan",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "vampirism_cure",
+      "title": "vampirism cure",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "title": "Vassir Didanat Mine",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "egg_of_time",
+      "title": "Egg of Time",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "sjoring_hard_heart",
+      "title": "Sjoring Hard-Heart",
+      "category": "factions",
+      "status": "complete"
+    },
+    {
+      "topic": "ring_of_equity",
+      "title": "Ring of Equity",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "witbane",
+      "title": "Witbane",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "varus_vantinius",
+      "title": "Varus Vantinius",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "breeding_netch",
+      "title": "breeding netch",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "wither",
+      "title": "Wither",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "skooma",
+      "title": "skooma",
+      "category": "alchemy",
+      "status": "complete"
+    },
+    {
+      "topic": "please_the_all_maker",
+      "title": "The All-Maker",
+      "category": "religion",
+      "status": "complete"
+    },
+    {
+      "topic": "bal_ur_region",
+      "title": "Bal Ur region",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "greenspore",
+      "title": "Greenspore",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "rust_chancre",
+      "title": "Rust Chancre",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "mortrag_glacier",
+      "title": "Mortrag Glacier",
+      "category": "regions",
+      "status": "complete"
+    },
+    {
+      "topic": "andasreth",
+      "title": "Andasreth",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "shoes_of_st_rilms",
+      "title": "Shoes of St. Rilms",
+      "category": "artifacts",
+      "status": "complete"
+    },
+    {
+      "topic": "koal_cave",
+      "title": "Koal Cave",
+      "category": "locations",
+      "status": "complete"
+    },
+    {
+      "topic": "st_olms_canton",
+      "title": "St. Olms Canton",
+      "category": "settlements",
+      "status": "complete"
+    },
+    {
+      "topic": "rattles",
+      "title": "Rattles",
+      "category": "diseases",
+      "status": "complete"
+    },
+    {
+      "topic": "garisa_llethri",
+      "title": "Garisa Llethri",
+      "category": "figures",
+      "status": "complete"
+    },
+    {
+      "topic": "tusked_bristleback",
+      "title": "Tusked Bristleback",
+      "category": "creatures",
+      "status": "complete"
+    },
+    {
+      "topic": "settlements_in_morrowind",
+      "title": "settlements in Morrowind",
+      "category": "settlements",
+      "status": "complete"
+    }
+  ]
+}

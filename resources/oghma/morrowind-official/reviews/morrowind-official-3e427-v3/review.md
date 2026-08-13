@@ -1,0 +1,74 @@
+# Morrowind Oghma catalog review
+
+- Catalog: `morrowind-official-3e427-v3`
+- Rows: **616**
+- Articles SHA-256: `3c89a3841bd482b121c7f565cb7aa9cf46a43818a9800eb3326477ccf6bcccb1`
+- Validation errors: **0**
+- Unique topic/alias keys: **1331**
+- Exact official record-linked articles: **140**
+- Generated source results: **97**; accepted: **94**; excluded: **3**
+- Accepted additions with official dialogue: **94**; supplemental UESP match: **44**
+- Generation cost: **$0.272710**
+
+## Category counts
+
+- `alchemy`: 3
+- `artifacts`: 71
+- `creatures`: 74
+- `cultures`: 32
+- `diseases`: 26
+- `factions`: 64
+- `figures`: 60
+- `history`: 31
+- `locations`: 72
+- `lore`: 18
+- `magic`: 24
+- `races`: 18
+- `regions`: 32
+- `religion`: 49
+- `settlements`: 42
+
+## Validation errors
+
+- None.
+
+## Near-duplicate title flags
+
+- None.
+
+## Resolved near-duplicate titles
+
+- 0.923: `ashlanders` / `ashlands` — Distinct culture and geographic region; similar titles are intentional.
+- 0.933: `aldmeri` / `aldmeris` — Distinct people and mythical ancestral homeland; similar titles are intentional.
+
+## Quest-like prose flags
+
+- None.
+
+## Dropped alias collisions
+
+- `the_power_of_the_skaal` dropped `Oneness` (owned by `oneness`)
+- `the_power_of_the_skaal` dropped `Ritual of the Gifts` (owned by `ritual_of_the_gifts`)
+
+## Editorial exclusions
+
+- `morvayn_manor` (quest_dominated_location): The generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge.
+- `robot_arena` (quest_dominated_location): The generated article chiefly described a mutable local incident at Ignatius Flaccus's residence.
+- `vassir_didanat_mine` (quest_dominated_location): The generated article chiefly described competing quest rewards and mutable ownership claims.
+
+## Editorial overrides
+
+- `birthsign` (generation_repair): GLM 5.1 produced a valid basic explanation but collapsed the advanced field after six attempts; the advanced article was repaired editorially from official dialogue evidence and revalidated.
+- `cleaver_of_st_felms` (remove_mutable_quest_state): Retain the relic's identity and history without asserting its recoverable location or custody.
+- `darts_of_judgement` (remove_mutable_quest_state): Remove present ownership and acquisition details while preserving the artifact's origin and significance.
+- `ring_of_the_wind` (remove_mutable_quest_state): Remove the ring's reported 3E 427 hiding place while retaining established artifact lore.
+- `shoes_of_st_rilms` (remove_mutable_quest_state): Describe the Temple relic without asserting a quest-stage location or recovery outcome.
+- `breeding_netch` (remove_mutable_quest_state): Retain stable netch behavior without describing one removable pair near Gnaar Mok.
+- `crimson_plague` (remove_mutable_quest_state): Describe the disease and its history without asserting a resolvable outbreak state in Mournhold.
+- `sjoring_hard_heart` (anchor_to_3e427): Replace an unstable current-state phrase with an explicit 3E 427 role description.
+- `darius` (anchor_to_3e427): Replace unstable recruitment wording with an explicit 3E 427 command description.
+- `ald_redaynia` (remove_mutable_occupancy): Describe the enduring site without presenting temporary occupancy as defining knowledge.
+- `andasreth` (remove_mutable_occupancy): Describe the stronghold and Propylon network without temporary bandit or expedition state.
+- `crater_citadels` (anchor_to_3e427): Frame Sixth House occupation as the 3E 427 baseline rather than an unqualified permanent state.
+- `ihinipalit` (remove_mutable_quest_state): Describe the enduring Daedric shrine without a removable cult occupation.
+- `tear` (anchor_to_3e427): Anchor the city's ruler to the catalog date instead of using an unstable current-state phrase.

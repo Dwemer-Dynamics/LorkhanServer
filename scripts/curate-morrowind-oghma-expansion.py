@@ -332,11 +332,11 @@ def portable_decision(row: dict[str, Any]) -> dict[str, Any]:
 
 def write_review(run_dir: Path, selected: list[dict[str, Any]], rejected: list[dict[str, Any]], manifest: dict[str, Any]) -> None:
     lines = [
-        "# Morrowind Oghma v2 curation review",
+        "# Morrowind Oghma curation review",
         "",
-        f"- Existing reviewed v1 topics preserved: **{manifest['existing_count']}**",
+        f"- Existing reviewed baseline topics preserved: **{manifest['existing_count']}**",
         f"- New GLM-curated topics selected: **{manifest['selected_new_count']}**",
-        f"- Proposed v2 total: **{manifest['proposed_total']}**",
+        f"- Proposed catalog total: **{manifest['proposed_total']}**",
         f"- Curation cost (including reserved prior attempts): **${manifest['usage']['cost']:.6f}** of the ${manifest['usage']['limit']:.2f} curation ceiling",
         "",
         "## Selected expansion topics",
@@ -372,6 +372,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--budget-reserve", type=float, default=0.10)
     parser.add_argument("--request-timeout", type=float, default=180.0)
     parser.add_argument("--resume", action="store_true")
+    parser.add_argument(
+        "--disable-reviewed-promotions",
+        action="store_true",
+        help="Do not reuse the original v2 borderline promotion set for an incremental catalog audit.",
+    )
     args = parser.parse_args()
     if args.batch_size < 1 or args.provider_chunk_size < 1 or args.minimum_total > args.target_total or args.target_total > args.maximum_total:
         parser.error("Invalid batch size or catalog total bounds")
@@ -474,8 +479,9 @@ def main() -> int:
         all_decisions.extend(decisions)
         print(f"[complete] batch {batch_number}: {len(decisions)} decisions; total cost ${current_cost(args.run_dir, args.prior_cost):.6f}", flush=True)
     decision_topics = {row["topic"] for row in all_decisions}
-    unknown_promotions = PROMOTED_BORDERLINE_TOPICS - decision_topics
-    invalid_promotions = [row["topic"] for row in all_decisions if row["topic"] in PROMOTED_BORDERLINE_TOPICS and int(row["quality_score"]) != 3]
+    active_promotions = set() if args.disable_reviewed_promotions else PROMOTED_BORDERLINE_TOPICS
+    unknown_promotions = active_promotions - decision_topics
+    invalid_promotions = [row["topic"] for row in all_decisions if row["topic"] in active_promotions and int(row["quality_score"]) != 3]
     if unknown_promotions or invalid_promotions:
         raise RuntimeError(f"Borderline promotion audit drifted: unknown={sorted(unknown_promotions)} invalid={sorted(invalid_promotions)}")
     for row in all_decisions:
@@ -485,7 +491,7 @@ def main() -> int:
             row["profile"] = PROFILE_BY_CATEGORY[override]
     included = [
         row for row in all_decisions
-        if (row["include"] or row["topic"] in PROMOTED_BORDERLINE_TOPICS)
+        if (row["include"] or row["topic"] in active_promotions)
         and row["topic"] not in EXCLUDED_REVIEWED_TOPICS
     ]
     included.sort(key=lambda row: (-int(row["quality_score"]), -int(row["score"]), -int(row["response_count"]), str(row["title"]).casefold()))
@@ -511,7 +517,7 @@ def main() -> int:
         "candidate_count": len(candidates),
         "strong_candidate_count": len(included),
         "strict_candidate_count": sum(1 for row in all_decisions if row["include"]),
-        "reviewed_borderline_promotions": len(PROMOTED_BORDERLINE_TOPICS),
+        "reviewed_borderline_promotions": len(active_promotions),
         "reviewed_exclusions": len(EXCLUDED_REVIEWED_TOPICS),
         "category_overrides": len(CATEGORY_OVERRIDES),
         "selected_new_count": len(selected),

@@ -1,0 +1,272 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog-review.v2",
+  "catalog_version": "morrowind-official-3e427-v4",
+  "row_count": 700,
+  "articles_sha256": "46877f395df8f42ae55d864f643f00da7dfaaa506fd3153e83ab025428f01997",
+  "errors": [],
+  "category_counts": {
+    "alchemy": 3,
+    "artifacts": 81,
+    "creatures": 74,
+    "cultures": 37,
+    "diseases": 26,
+    "factions": 65,
+    "figures": 72,
+    "history": 46,
+    "locations": 72,
+    "lore": 30,
+    "magic": 26,
+    "races": 28,
+    "regions": 35,
+    "religion": 62,
+    "settlements": 43
+  },
+  "knowledge_class_counts": {
+    "alchemist": 1,
+    "argonian": 3,
+    "ascadian_isles": 3,
+    "ashlander": 28,
+    "ashlands": 2,
+    "azuras_coast": 2,
+    "bitter_coast": 2,
+    "blades": 2,
+    "camonna_tong": 3,
+    "common": 26,
+    "daedra": 19,
+    "dunmer": 35,
+    "dwemer": 16,
+    "east_empire_company": 3,
+    "esoteric": 112,
+    "fighters_guild": 2,
+    "grazelands": 1,
+    "guard": 1,
+    "healer": 3,
+    "house_dagoth": 9,
+    "house_hlaalu": 4,
+    "house_redoran": 3,
+    "house_telvanni": 4,
+    "hunter": 8,
+    "imperial": 19,
+    "imperial_cult": 2,
+    "imperial_legion": 2,
+    "khajiit": 3,
+    "mage": 22,
+    "mages_guild": 1,
+    "merchant": 4,
+    "molag_amur": 1,
+    "morag_tong": 2,
+    "mournhold": 8,
+    "nord": 4,
+    "priest": 73,
+    "raven_rock": 1,
+    "red_mountain": 4,
+    "scholar": 700,
+    "sheogorad": 1,
+    "skaal": 5,
+    "smith": 5,
+    "solstheim": 8,
+    "thief": 3,
+    "thieves_guild": 2,
+    "traveler": 173,
+    "tribunal_temple": 29,
+    "twin_lamps": 2,
+    "warrior": 7,
+    "west_gash": 4
+  },
+  "alias_key_count": 1627,
+  "dropped_alias_collisions": [
+    {
+      "topic": "padomay",
+      "alias": "Sithis",
+      "owner": "sithis"
+    },
+    {
+      "topic": "ehlnofey",
+      "alias": "Old Ehlnofey",
+      "owner": "aldmeris"
+    },
+    {
+      "topic": "ehlnofey",
+      "alias": "Earthbones",
+      "owner": "earthbones"
+    },
+    {
+      "topic": "earthbones",
+      "alias": "Ehlnofey",
+      "owner": "ehlnofey"
+    },
+    {
+      "topic": "sithis",
+      "alias": "Padomay",
+      "owner": "padomay"
+    },
+    {
+      "topic": "sithis",
+      "alias": "Is-Not",
+      "owner": "padomay"
+    },
+    {
+      "topic": "red_mountain_accounts",
+      "alias": "Battle of Red Mountain",
+      "owner": "battle_of_red_mountain"
+    },
+    {
+      "topic": "red_mountain_accounts",
+      "alias": "Nerevar at Red Mountain",
+      "owner": "nerevar_at_red_mountain"
+    },
+    {
+      "topic": "wulfharth",
+      "alias": "Ysmir",
+      "owner": "tiber_septim"
+    },
+    {
+      "topic": "wulfharth",
+      "alias": "Dragon of the North",
+      "owner": "tiber_septim"
+    },
+    {
+      "topic": "underking",
+      "alias": "Ysmir Kingmaker",
+      "owner": "wulfharth"
+    },
+    {
+      "topic": "azurah",
+      "alias": "Azura",
+      "owner": "azura"
+    },
+    {
+      "topic": "nerevar_at_red_mountain",
+      "alias": "Apographa",
+      "owner": "apographa"
+    }
+  ],
+  "record_linked_count": 149,
+  "near_duplicate_flags": [],
+  "resolved_near_duplicates": [
+    {
+      "score": 0.923,
+      "left": "ashlanders",
+      "right": "ashlands",
+      "titles": [
+        "The Ashlanders",
+        "The Ashlands"
+      ],
+      "resolution": "Distinct culture and geographic region; similar titles are intentional."
+    },
+    {
+      "score": 0.933,
+      "left": "aldmeri",
+      "right": "aldmeris",
+      "titles": [
+        "Aldmeri",
+        "Aldmeris"
+      ],
+      "resolution": "Distinct people and mythical ancestral homeland; similar titles are intentional."
+    }
+  ],
+  "quest_like_flags": [],
+  "source_evidence": {
+    "result_count": 84,
+    "official_dialogue": 0,
+    "official_books": 84,
+    "uesp_found": 65,
+    "accepted_result_count": 84,
+    "accepted_official_dialogue": 0,
+    "accepted_official_books": 84,
+    "accepted_official_source": 84,
+    "accepted_uesp_found": 65,
+    "excluded_result_count": 0
+  },
+  "generation_cost": 0.624043944,
+  "reviewed_row_count": 700,
+  "editorial_exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "children_of_the_sky",
+      "reason": "correct_typography",
+      "note": "Correct the generated spelling of Nordic without changing the article's official-book account."
+    },
+    {
+      "topic": "aevar_stone_singer",
+      "reason": "remove_quest_derived_detail",
+      "note": "Keep Aevar's account within the official Skaal tale and remove later artifact and Ritual of the Gifts details."
+    },
+    {
+      "topic": "akaviri_potentate",
+      "reason": "remove_misattributed_institution",
+      "note": "Remove a generated claim that wrongly attributed the Fighters and Mages Guilds' prominence to the Potentate."
+    },
+    {
+      "topic": "aldmeri_pantheon",
+      "reason": "separate_altmer_and_bosmer_traditions",
+      "note": "Restore Trinimac and remove Jone and Jode from the Altmeri list; they belong to the Bosmeri list in the source."
+    },
+    {
+      "topic": "tang_mo",
+      "reason": "remove_unanchored_current_state",
+      "note": "Present the reported Ka Po' Tun alliance as part of uncertain Akaviri accounts rather than mutable recent news."
+    },
+    {
+      "topic": "underking",
+      "reason": "anchor_to_3e427",
+      "note": "Remove the pre-Warp present-tense search for the Mantella and preserve the disputed identities and 3E 417 outcome."
+    },
+    {
+      "topic": "fall_of_the_snow_prince",
+      "reason": "describe_linked_book",
+      "note": "Correct a generated subject conflation that described the Snow Prince's equipment instead of the linked chronicle."
+    },
+    {
+      "topic": "snow_elves",
+      "reason": "remove_fourth_era_revelation",
+      "note": "Keep the article within knowledge available from Bloodmoon and remove the later Falmer-Dwemer revelation."
+    },
+    {
+      "topic": "tonal_architecture",
+      "reason": "remove_later_era_specificity",
+      "note": "Restrict the discipline to evidence in the official Morrowind texts and avoid presenting Kagrenac's disputed result as certain."
+    },
+    {
+      "topic": "mantella",
+      "reason": "anchor_to_3e427",
+      "note": "Include the 3E 417 resolution of the Mantella rather than leaving it hidden as an extant target."
+    },
+    {
+      "topic": "azurah",
+      "reason": "correct_cultural_identity",
+      "note": "Describe Azurah as the Khajiiti cultural understanding of Azura rather than a wholly separate entity."
+    },
+    {
+      "topic": "arcturian_heresy",
+      "reason": "correct_authorship_claim",
+      "note": "The Morrowind text has no named author; Ysmir Kingmaker appears as a heading, not a reliable attribution."
+    },
+    {
+      "topic": "wars_of_tiber_septim",
+      "reason": "correct_heresy_summary",
+      "note": "Correct the generated reversal of betrayal in the Arcturian Heresy."
+    },
+    {
+      "topic": "cephorus_septim",
+      "reason": "correct_era_wording",
+      "note": "Cephorus I lived in the early centuries of the Third Era, not its late period."
+    }
+  ]
+}

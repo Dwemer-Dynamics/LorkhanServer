@@ -18,13 +18,14 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official"
 QUEST_LIKE = re.compile(
-    r"\b(?:asked to|asks? [^.!?]{0,50} to|commissioned to|current assignment|has tasked|"
+    r"\b(?:asked to|asks? (?:the adventurer|a traveler|someone) [^.!?]{0,50} to|commissioned to|current assignment|has tasked|"
     r"must (?:find|retrieve|deliver|steal|kill|report)|seeks? to (?:acquire|recover|steal)|"
     r"was sent to|were sent to|your task|the adventurer|the player)\b",
     re.IGNORECASE,
 )
 NEAR_DUPLICATE_RESOLUTIONS = {
     frozenset(("ashlanders", "ashlands")): "Distinct culture and geographic region; similar titles are intentional.",
+    frozenset(("aldmeri", "aldmeris")): "Distinct people and mythical ancestral homeland; similar titles are intentional.",
 }
 
 
@@ -135,15 +136,22 @@ def main() -> int:
                 evidence_by_topic[topic] = source
             evidence["result_count"] += 1
             evidence["official_dialogue"] += bool(source.get("official_dialogue"))
+            evidence["official_books"] += bool((source.get("identity") or {}).get("resolved_book_sources"))
             evidence["uesp_found"] += (source.get("uesp") or {}).get("status") == "found"
     catalog_topics = {str(row.get("topic", "")) for row in articles}
     accepted_generated = set(evidence_by_topic) & catalog_topics
     evidence["accepted_result_count"] = len(accepted_generated)
     evidence["accepted_official_dialogue"] = sum(bool(evidence_by_topic[topic].get("official_dialogue")) for topic in accepted_generated)
+    evidence["accepted_official_books"] = sum(bool((evidence_by_topic[topic].get("identity") or {}).get("resolved_book_sources")) for topic in accepted_generated)
+    evidence["accepted_official_source"] = sum(
+        bool(evidence_by_topic[topic].get("official_dialogue"))
+        or bool((evidence_by_topic[topic].get("identity") or {}).get("resolved_book_sources"))
+        for topic in accepted_generated
+    )
     evidence["accepted_uesp_found"] = sum((evidence_by_topic[topic].get("uesp") or {}).get("status") == "found" for topic in accepted_generated)
     evidence["excluded_result_count"] = len(set(evidence_by_topic) - catalog_topics)
-    if evidence["accepted_result_count"] != evidence["accepted_official_dialogue"]:
-        errors.append("one or more accepted generated articles lack official dialogue evidence")
+    if evidence["accepted_result_count"] != evidence["accepted_official_source"]:
+        errors.append("one or more accepted generated articles lack official ESM evidence")
     report = {
         "format": "almsivi.morrowind-oghma-catalog-review.v2",
         "catalog_version": manifest.get("catalog_version"),
@@ -167,13 +175,13 @@ def main() -> int:
     args.output_dir.mkdir(parents=True, exist_ok=True)
     write_json(args.output_dir / "review.json", report)
     lines = [
-        "# Morrowind Oghma v2 catalog review", "",
+        "# Morrowind Oghma catalog review", "",
         f"- Catalog: `{report['catalog_version']}`", f"- Rows: **{report['row_count']}**",
         f"- Articles SHA-256: `{report['articles_sha256']}`", f"- Validation errors: **{len(report['errors'])}**",
         f"- Unique topic/alias keys: **{report['alias_key_count']}**",
         f"- Exact official record-linked articles: **{report['record_linked_count']}**",
         f"- Generated source results: **{evidence['result_count']}**; accepted: **{evidence['accepted_result_count']}**; excluded: **{evidence['excluded_result_count']}**",
-        f"- Accepted additions with official dialogue: **{evidence['accepted_official_dialogue']}**; supplemental UESP match: **{evidence['accepted_uesp_found']}**",
+        f"- Accepted additions with official ESM dialogue: **{evidence['accepted_official_dialogue']}**; official books: **{evidence['accepted_official_books']}**; supplemental UESP match: **{evidence['accepted_uesp_found']}**",
         f"- Generation cost: **${generation_cost:.6f}**", "", "## Category counts", "",
     ]
     lines.extend(f"- `{category}`: {count}" for category, count in report["category_counts"].items())
@@ -194,7 +202,7 @@ def main() -> int:
     markdown = "\n".join(lines) + "\n"
     (args.output_dir / "review.md").write_text(markdown, encoding="utf-8", newline="\n")
     (args.output_dir / "review.html").write_text(
-        "<!doctype html><meta charset='utf-8'><title>Morrowind Oghma v2 review</title><style>body{font:15px sans-serif;max-width:1100px;margin:30px auto;background:#151515;color:#eee;line-height:1.5}code{color:#f27c11}pre{white-space:pre-wrap}</style><pre>" + html.escape(markdown) + "</pre>",
+        "<!doctype html><meta charset='utf-8'><title>Morrowind Oghma review</title><style>body{font:15px sans-serif;max-width:1100px;margin:30px auto;background:#151515;color:#eee;line-height:1.5}code{color:#f27c11}pre{white-space:pre-wrap}</style><pre>" + html.escape(markdown) + "</pre>",
         encoding="utf-8", newline="\n",
     )
     print(json.dumps({key: report[key] for key in ["catalog_version", "row_count", "errors", "alias_key_count", "record_linked_count", "source_evidence", "generation_cost"]}, indent=2))

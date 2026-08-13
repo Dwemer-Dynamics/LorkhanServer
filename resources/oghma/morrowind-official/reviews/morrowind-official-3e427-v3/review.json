@@ -1,0 +1,214 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog-review.v2",
+  "catalog_version": "morrowind-official-3e427-v3",
+  "row_count": 616,
+  "articles_sha256": "3c89a3841bd482b121c7f565cb7aa9cf46a43818a9800eb3326477ccf6bcccb1",
+  "errors": [],
+  "category_counts": {
+    "alchemy": 3,
+    "artifacts": 71,
+    "creatures": 74,
+    "cultures": 32,
+    "diseases": 26,
+    "factions": 64,
+    "figures": 60,
+    "history": 31,
+    "locations": 72,
+    "lore": 18,
+    "magic": 24,
+    "races": 18,
+    "regions": 32,
+    "religion": 49,
+    "settlements": 42
+  },
+  "knowledge_class_counts": {
+    "alchemist": 1,
+    "argonian": 3,
+    "ascadian_isles": 3,
+    "ashlander": 28,
+    "ashlands": 2,
+    "azuras_coast": 2,
+    "bitter_coast": 2,
+    "blades": 2,
+    "camonna_tong": 3,
+    "common": 25,
+    "daedra": 19,
+    "dunmer": 35,
+    "dwemer": 16,
+    "east_empire_company": 3,
+    "esoteric": 80,
+    "fighters_guild": 2,
+    "grazelands": 1,
+    "guard": 1,
+    "healer": 3,
+    "house_dagoth": 9,
+    "house_hlaalu": 4,
+    "house_redoran": 3,
+    "house_telvanni": 4,
+    "hunter": 8,
+    "imperial": 17,
+    "imperial_cult": 2,
+    "imperial_legion": 2,
+    "khajiit": 3,
+    "mage": 22,
+    "mages_guild": 1,
+    "merchant": 4,
+    "molag_amur": 1,
+    "morag_tong": 2,
+    "mournhold": 8,
+    "nord": 4,
+    "priest": 63,
+    "raven_rock": 1,
+    "red_mountain": 4,
+    "scholar": 616,
+    "sheogorad": 1,
+    "skaal": 5,
+    "smith": 5,
+    "solstheim": 8,
+    "thief": 3,
+    "thieves_guild": 2,
+    "traveler": 173,
+    "tribunal_temple": 29,
+    "twin_lamps": 2,
+    "warrior": 7,
+    "west_gash": 4
+  },
+  "alias_key_count": 1331,
+  "dropped_alias_collisions": [
+    {
+      "topic": "the_power_of_the_skaal",
+      "alias": "Oneness",
+      "owner": "oneness"
+    },
+    {
+      "topic": "the_power_of_the_skaal",
+      "alias": "Ritual of the Gifts",
+      "owner": "ritual_of_the_gifts"
+    }
+  ],
+  "record_linked_count": 140,
+  "near_duplicate_flags": [],
+  "resolved_near_duplicates": [
+    {
+      "score": 0.923,
+      "left": "ashlanders",
+      "right": "ashlands",
+      "titles": [
+        "The Ashlanders",
+        "The Ashlands"
+      ],
+      "resolution": "Distinct culture and geographic region; similar titles are intentional."
+    },
+    {
+      "score": 0.933,
+      "left": "aldmeri",
+      "right": "aldmeris",
+      "titles": [
+        "Aldmeri",
+        "Aldmeris"
+      ],
+      "resolution": "Distinct people and mythical ancestral homeland; similar titles are intentional."
+    }
+  ],
+  "quest_like_flags": [],
+  "source_evidence": {
+    "result_count": 97,
+    "official_dialogue": 97,
+    "uesp_found": 46,
+    "accepted_result_count": 94,
+    "accepted_official_dialogue": 94,
+    "accepted_uesp_found": 44,
+    "excluded_result_count": 3
+  },
+  "generation_cost": 0.27271037699999995,
+  "reviewed_row_count": 619,
+  "editorial_exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "The generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "The generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "birthsign",
+      "reason": "generation_repair",
+      "note": "GLM 5.1 produced a valid basic explanation but collapsed the advanced field after six attempts; the advanced article was repaired editorially from official dialogue evidence and revalidated."
+    },
+    {
+      "topic": "cleaver_of_st_felms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain the relic's identity and history without asserting its recoverable location or custody."
+    },
+    {
+      "topic": "darts_of_judgement",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove present ownership and acquisition details while preserving the artifact's origin and significance."
+    },
+    {
+      "topic": "ring_of_the_wind",
+      "reason": "remove_mutable_quest_state",
+      "note": "Remove the ring's reported 3E 427 hiding place while retaining established artifact lore."
+    },
+    {
+      "topic": "shoes_of_st_rilms",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the Temple relic without asserting a quest-stage location or recovery outcome."
+    },
+    {
+      "topic": "breeding_netch",
+      "reason": "remove_mutable_quest_state",
+      "note": "Retain stable netch behavior without describing one removable pair near Gnaar Mok."
+    },
+    {
+      "topic": "crimson_plague",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the disease and its history without asserting a resolvable outbreak state in Mournhold."
+    },
+    {
+      "topic": "sjoring_hard_heart",
+      "reason": "anchor_to_3e427",
+      "note": "Replace an unstable current-state phrase with an explicit 3E 427 role description."
+    },
+    {
+      "topic": "darius",
+      "reason": "anchor_to_3e427",
+      "note": "Replace unstable recruitment wording with an explicit 3E 427 command description."
+    },
+    {
+      "topic": "ald_redaynia",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the enduring site without presenting temporary occupancy as defining knowledge."
+    },
+    {
+      "topic": "andasreth",
+      "reason": "remove_mutable_occupancy",
+      "note": "Describe the stronghold and Propylon network without temporary bandit or expedition state."
+    },
+    {
+      "topic": "crater_citadels",
+      "reason": "anchor_to_3e427",
+      "note": "Frame Sixth House occupation as the 3E 427 baseline rather than an unqualified permanent state."
+    },
+    {
+      "topic": "ihinipalit",
+      "reason": "remove_mutable_quest_state",
+      "note": "Describe the enduring Daedric shrine without a removable cult occupation."
+    },
+    {
+      "topic": "tear",
+      "reason": "anchor_to_3e427",
+      "note": "Anchor the city's ruler to the catalog date instead of using an unstable current-state phrase."
+    }
+  ]
+}
