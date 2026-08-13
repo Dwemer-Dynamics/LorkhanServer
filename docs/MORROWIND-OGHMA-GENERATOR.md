@@ -114,12 +114,13 @@ Catalog assembly reserves canonical topic keys first and removes ambiguous gener
 
 ## V4 official-book expansion
 
-The inactive `morrowind-official-3e427-v4` candidate adds 84 reviewed book-backed lore topics to the
-v3 catalog. `scripts/audit-morrowind-oghma-books.py` audits winning official BOOK records without
+The active `morrowind-official-3e427-v4` catalog adds 84 reviewed book-backed lore topics to the v3
+catalog. `scripts/audit-morrowind-oghma-books.py` audits winning official BOOK records without
 copying their text into repository artifacts. `scripts/build-morrowind-oghma-v4-seeds.py` builds the
 curated v4 inventory with exact official BOOK evidence links. The preflight generator reads the
 official book text directly from the locally installed ESMs and may supplement it with
 revision-addressed UESP evidence.
 
-V4 contains 700 accepted articles, preserves v3's three editorial exclusions, and remains inactive
-until its bundled review is approved. The active catalog version is deliberately unchanged.
+V4 contains 700 accepted articles, preserves v3's three editorial exclusions, and is the bundled
+factory catalog selected by `active-catalog-version.txt`. Provisioning retains v1 through v3 as
+superseded rollback targets and activates v4 last.
