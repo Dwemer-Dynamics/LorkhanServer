@@ -1473,7 +1473,7 @@ SQL);
         $topics=[];if($active)foreach(($extraction['topics']??[])as$topic)if(is_string($topic)&&trim($topic)!==''&&mb_strlen(trim($topic),'UTF-8')<=128)$topics[]=trim($topic);
         $topics=array_slice(array_values(array_unique($topics)),0,$topicCount);$conversation=$topics;
         $signals=$active?$this->forcedKnowledgeSignals($turn,$profile,$settings):['race'=>[],'location'=>[]];
-        $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(20,$limit));
+        $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(5,$limit));
         $selected=[];$selectedIds=[];$scores=[];$reasons=[];$rank=0;
         foreach([['conversation',$conversation,0.01],['location',$signals['location'],0.95],['race',$signals['race'],0.95]]as[$source,$sourceSignals,$minimum]){
             if(count($selected)>=$limit)break;
@@ -1513,7 +1513,7 @@ SQL);
     /** Extract canonical race names and stable named locations already present in trusted turn context. */
     private function forcedKnowledgeSignals(array $turn,array $profile,array $settings):array
     {
-        $races=[];$locations=[];$add=static function(array&$values,mixed$value):void{
+        $races=[];$locations=[];$regions=[];$add=static function(array&$values,mixed$value):void{
             if(!is_string($value))return;$value=trim($value);if($value!==''&&mb_strlen($value,'UTF-8')<=256&&!in_array($value,$values,true))$values[]=$value;};
         if(($settings['racial_context_enabled']??false)===true){
             $content=is_array($profile['content']??null)?$profile['content']:[];$target=$turn['payload']['target']??[];$context=$turn['payload']['context']??[];
@@ -1527,13 +1527,13 @@ SQL);
         }
         if(($settings['location_context_enabled']??false)===true){$context=$turn['payload']['context']??[];
             if(is_array($context)&&!array_is_list($context)){
-                $world=$context['world']??[];if(is_array($world)){foreach(['cell','region','location']as$key)$add($locations,$world[$key]??null);}
-                $location=$context['location']??null;if(is_array($location))foreach(['name','cell','region']as$key)$add($locations,$location[$key]??null);else$add($locations,$location);
+                $world=$context['world']??[];if(is_array($world)){$add($locations,$world['cell']??null);$add($locations,$world['location']??null);$add($regions,$world['region']??null);}
+                $location=$context['location']??null;if(is_array($location)){$add($locations,$location['name']??null);$add($locations,$location['cell']??null);$add($regions,$location['region']??null);}else$add($locations,$location);
                 $targetState=$context['targetState']??[];if(is_array($targetState)){$cell=$targetState['cell']??($targetState['identity']['cell']??null);if(is_array($cell))$add($locations,$cell['name']??null);else$add($locations,$cell);}
             }
             $target=$turn['payload']['target']??[];if(is_array($target)){ $cell=$target['cell']??null;if(is_array($cell))$add($locations,$cell['name']??null);}
         }
-        return['race'=>$races,'location'=>$locations];
+        return['race'=>$races,'location'=>array_values(array_unique(array_merge($locations,$regions)))];
     }
 
     private function canonicalRace(mixed $race):?string

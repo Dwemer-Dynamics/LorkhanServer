@@ -443,6 +443,7 @@ $savedOghmaSettings=$products->oghmaSettings($installation);
 $oghmaRows=[];foreach([
     ['00000000-0000-4000-8000-000000000301','Dunmer'],['00000000-0000-4000-8000-000000000302','Balmora'],
     ['00000000-0000-4000-8000-000000000303','Vivec'],['00000000-0000-4000-8000-000000000304','Tribunal'],
+    ['00000000-0000-4000-8000-000000000319','Ascadian Isles'],
     ]as[$id,$topic])$oghmaRows[]=['id'=>$id,'topic'=>$topic,'title'=>$topic,'aliases'=>'','content'=>$topic.' advanced lore.',
         'topic_desc_basic'=>$topic.' basic lore.','knowledge_class'=>'','knowledge_class_basic'=>'',
         'tags'=>$topic==='Vivec'?'warrior poet god':'','category'=>'Lore'];
@@ -483,12 +484,19 @@ $selectOghma=new ReflectionMethod($products,'selectPromptKnowledge');
 $oghmaSelection=$selectOghma->invoke($products,
     ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
         'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
-        'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
+        'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
     $savedOghmaSettings,['status'=>'fallback_succeeded','request_eligible'=>true,'topics'=>['Vivec','Tribunal'],'configuration_id'=>'00000000-0000-4000-8000-000000000305'],$clock->iso());
-$check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balmora','Dunmer']
+$check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balmora','Ascadian Isles']
         &&$oghmaSelection['trace']['algorithm']==='oghma-parity-v1'
     &&$oghmaSelection['trace']['reasons']['_context']['extracted_topics']===['Vivec','Tribunal'],
-        'multi-topic Oghma retrieval did not prioritize conversation before location and race context');
+        'multi-topic Oghma retrieval did not prioritize conversation, exact location, and region context');
+    $boundedLimitSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',20,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
+    $check(($boundedLimitSelection['trace']['reasons']['_context']['knowledge_limit']??null)===5,
+        'Oghma selection did not enforce the shared five-result maximum');
     $conversationBudgetSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
             'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
