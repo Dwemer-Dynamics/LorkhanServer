@@ -571,19 +571,19 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs WHERE catalog_version='oghma-fixture-v1')")->fetchColumn()===1,
         'factory Oghma v1 did not preserve installation-authored knowledge');
     $oghmaImporter->apply($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
-    $oghmaRollback=$oghmaImporter->rollback();
-    $check($oghmaRollback['rolled_back']===true&&$oghmaRollback['catalog_version']==='oghma-fixture-v1'
-        &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.'
-        &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v1 preserves Vvardenfell’s reviewed lore.',
-        'factory Oghma rollback did not restore v1 while preserving custom knowledge');
-    $oghmaProvisionAfterRollback=$oghmaImporter->provision($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
-    $check($oghmaProvisionAfterRollback['applied']===false&&$oghmaProvisionAfterRollback['state']==='superseded'
-        &&$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn()==='oghma-fixture-v1',
-        'routine Oghma provisioning overrode an explicit rollback');
-    $oghmaImporter->apply($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
-    $check((int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs WHERE state='active')")->fetchColumn()===2
+    $oghmaCatalog=$db->query("SELECT catalog_version,state,previous_catalog_id FROM oghma_catalogs")->fetch();
+    $check((int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1
+        &&($oghmaCatalog['catalog_version']??null)==='oghma-fixture-v2'
+        &&($oghmaCatalog['state']??null)==='active'
+        &&($oghmaCatalog['previous_catalog_id']??null)===null
+        &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs)")->fetchColumn()===2
+        &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v2 updates Vvardenfell’s reviewed lore.'
         &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.',
-        'explicit Oghma catalog reactivation lost factory rows or custom knowledge');
+        'current Oghma sync did not replace v1 while preserving custom knowledge');
+    $oghmaProvision=$oghmaImporter->provision($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $check($oghmaProvision['applied']===false&&$oghmaProvision['idempotent']===true
+        &&(int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1,
+        'current Oghma provisioning was not idempotent');
     foreach(glob($oghmaFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($oghmaFixtureRoot);
 $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],

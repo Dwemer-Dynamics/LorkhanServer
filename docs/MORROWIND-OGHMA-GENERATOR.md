@@ -72,19 +72,18 @@ knowledge_class_basic, tags, category
 
 Advanced and basic articles are separately authored. Knowledge classes are restricted to `resources/oghma/morrowind-official/ontology.json`; aliases must remain collision-free; category and topic identity are locked before generation.
 
-## Versioned factory catalogs
+## Current factory dataset
 
-Reviewed factory packages live under `resources/oghma/morrowind-official/catalogs/<catalog-version>/`. The version named by `active-catalog-version.txt` is activated last. Provisioning imports v1 before v2 on a clean database, preserving `morrowind-official-3e427-v1` as an atomic rollback target.
+The reviewed factory dataset lives under `resources/oghma/morrowind-official/catalogs/<catalog-version>/`. `active-catalog-version.txt` identifies the one checked-in dataset used by the server. Synchronization validates it first, then transactionally replaces only factory rows and current integrity metadata. Custom articles are preserved. Git revert plus redeploy is the rollback path.
 
 Preview or operate the bundled catalog against the configured PostgreSQL database:
 
 ```powershell
 php scripts/provision-default-oghma.php --plan
-php scripts/provision-default-oghma.php --rollback=morrowind-official-3e427-v1
 php scripts/provision-default-oghma.php
 ```
 
-The final command reapplies the catalog named by `active-catalog-version.txt` and is safe to rerun.
+The final command synchronizes the dataset named by `active-catalog-version.txt` and is safe to rerun.
 
 Build and audit a candidate before copying it into the versioned resource tree:
 

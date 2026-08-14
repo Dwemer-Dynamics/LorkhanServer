@@ -96,8 +96,9 @@ signals, access decisions, denied topics, result IDs, scores, settings sources, 
 
 ## Catalog and exclusions
 
-Factory catalogs remain immutable, versioned, checksum-verified, atomically activated, and
-rollback-capable. Installation custom articles remain separate and override-safe. Dynamic Oghma,
+The checked-in factory dataset is checksum verified before writes and synchronized atomically as
+the only current factory projection. Installation custom articles remain separate and override-safe.
+Git revert plus redeploy is the rollback path. Dynamic Oghma,
 timer autonomy, Background Life, and ITT are outside this contract and remain excluded.
 
 The separate retrieval harness validates the frozen 550-case Morrowind suite plus 69 parity fixtures.
