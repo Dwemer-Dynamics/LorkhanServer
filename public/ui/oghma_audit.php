@@ -26,9 +26,25 @@ $accessLabel=static function(string$access)use($accessLabels,$titleCase):string{
     $access=strtolower(trim($access));
     return $access===''?'Shared':($accessLabels[$access]??($titleCase($access)?:'Shared'));
 };
+/* Summary tiles are derived from the rows already fetched for this page; no extra query is issued,
+   so every count except the filtered total is explicitly labelled as page-scoped. */
+$pageRequests=count($audit['rows']);$pageShared=0;$pageArticles=0;$pageConnector=0;
+foreach($audit['rows']as$summaryRow){
+    $summaryContext=is_array($summaryRow['reasons']['_context']??null)?$summaryRow['reasons']['_context']:[];
+    $summaryCount=(int)$summaryRow['result_count'];
+    if($summaryCount>0)$pageShared++;
+    $pageArticles+=$summaryCount;
+    if((string)($summaryContext['extractor_status']??'')==='fallback_succeeded')$pageConnector++;
+}
 ?>
 <main class="oghma-runtime-page">
     <header class="runtime-header"><div><h1>Oghma Audit</h1><p>See which topics Oghma found in each conversation and what knowledge it gave the NPC.</p></div><span class="runtime-count"><?php echo almsivi_ui_h($audit['total']); ?> records</span></header>
+    <section class="runtime-metrics" aria-label="Oghma audit summary">
+        <div class="metric-panel"><span class="metric"><?php echo almsivi_ui_h($audit['total']); ?></span><span class="metric-label">Audited requests</span><span class="metric-note">matching these filters</span></div>
+        <div class="metric-panel"><span class="metric"><?php echo $pageShared; ?></span><span class="metric-label">Gave the NPC knowledge</span><span class="metric-note">of <?php echo $pageRequests; ?> on this page</span></div>
+        <div class="metric-panel"><span class="metric"><?php echo $pageArticles; ?></span><span class="metric-label">Articles shared</span><span class="metric-note">on this page</span></div>
+        <div class="metric-panel"><span class="metric"><?php echo $pageConnector; ?></span><span class="metric-label">Matched with connector help</span><span class="metric-note">on this page</span></div>
+    </section>
     <form class="runtime-filters" method="get">
         <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
         <label>Installation<select name="installation_id"><option value="">All installations</option><?php foreach($installations as$row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $filters['installation_id']===$row['installation_id']?' selected':''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label>

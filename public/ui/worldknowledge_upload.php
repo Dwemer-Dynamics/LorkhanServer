@@ -94,14 +94,6 @@ $modalFields = static function (string $prefix, array $row = []): void {
         <div id="header-content">
             <div id="oghma-header-content">
                 <p class="oghma-summary">Oghma matches conversation topics to articles. NPCs receive the most detailed version they are allowed to know; if no version matches, they know nothing about the topic.</p>
-                <details class="oghma-tips">
-                    <summary>Article editing tips</summary>
-                    <ul>
-                        <li>Write topic titles in lowercase and replace spaces with underscores &mdash; "House Redoran" becomes <code>house_redoran</code>.</li>
-                        <li>Use <code>common</code> only as an article marker for public basic knowledge. Do not assign it to NPCs.</li>
-                        <li>Access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
-                    </ul>
-                </details>
             </div>
         </div>
     </div>
@@ -135,6 +127,15 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     </div>
                 </form>
                 <p>Uploaded topics are validated as UTF-8 CHIM-format CSV and scoped to this ALMSIVI installation. Existing user topics with the same key are revised safely.</p>
+
+                <details class="oghma-tips">
+                    <summary>Article editing tips</summary>
+                    <ul>
+                        <li>Write topic titles in lowercase and replace spaces with underscores &mdash; "House Redoran" becomes <code>house_redoran</code>.</li>
+                        <li>Use <code>common</code> only as an article marker for public basic knowledge. Do not assign it to NPCs.</li>
+                        <li>Access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
+                    </ul>
+                </details>
             </div>
 
             <div class="content-section">
