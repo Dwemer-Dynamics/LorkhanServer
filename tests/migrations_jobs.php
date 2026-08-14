@@ -468,8 +468,13 @@ $fallbackSelection=$products->groundedOghmaExtraction(array_replace_recursive($g
         'unresolved explicit lore request did not become eligible for one connector fallback');
     $tagSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
         ['payload'=>['input'=>['text'=>'We encountered a warrior poet god during the journey.']]]));
-    $check($tagSelection['topics']===['Vivec']&&($tagSelection['matches'][0]['source']??null)==='exact unique tag fallback',
-        'database-backed Oghma extraction did not load and apply guarded catalog tags');
+    $check($tagSelection['topics']===[]&&$tagSelection['fallback_eligible']===false,
+        'ordinary descriptive tags unexpectedly created an Oghma topic');
+    $rankedTagSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['input'=>['text'=>'Tell me about Vivec, the warrior poet god.']]]));
+    $check($rankedTagSelection['topics']===['Vivec']
+        &&in_array('warrior poet god',$rankedTagSelection['matches'][0]['relational_tag_phrases']??[],true),
+        'descriptive tags did not strengthen an already grounded Oghma topic');
     $ineligibleSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
         ['payload'=>['ui_source'=>'almsivi_autonomy']]));
     $check($ineligibleSelection['status']==='ineligible'&&$ineligibleSelection['topics']===[],

@@ -244,7 +244,7 @@ final class OghmaGroundedRetriever
             }
         }
 
-        $selected = array_values($byTopic);
+        $selected = $this->applyRelationalTagSupport($text, $index, array_values($byTopic));
         usort($selected, static function (array $a, array $b): int {
             $mentions = $b['mention_count'] <=> $a['mention_count'];
             if ($mentions !== 0) return $mentions;
@@ -254,19 +254,11 @@ final class OghmaGroundedRetriever
         });
         $selected = array_slice($selected, 0, $limit);
 
-        $tagDecisions = [];
-        if ($selected === []) {
-            $tagFallback = $this->tagFallback($text, $index, $limit, $requestScore);
-            $selected = $tagFallback['matches'];
-            $rejected = array_merge($rejected, $tagFallback['rejected']);
-            $tagDecisions = $tagFallback['decisions'];
-        }
-
         return [
             'topics'=>array_values(array_column($selected, 'topic')),
             'matches'=>$selected,
             'rejected'=>$rejected,
-            'tag_decisions'=>$tagDecisions,
+            'tag_decisions'=>[],
             'fallback_eligible'=>$selected === [] && $this->isExplicitKnowledgeRequest($text),
         ];
     }
@@ -291,10 +283,7 @@ final class OghmaGroundedRetriever
             }
             foreach ($this->values((string)($row['tags'] ?? '')) as $tag) {
                 $phrase = $this->normalize($tag);
-                if ($phrase !== '') {
-                    $tagPhrases[$phrase]['owners'][$topic] = true;
-                    $tagPhrases[$phrase]['categories'][$topic] = $category;
-                }
+                if ($phrase !== '') $tagPhrases[$phrase]['owners'][$topic] = true;
             }
         }
 
@@ -321,130 +310,39 @@ final class OghmaGroundedRetriever
             $entries[] = $entry;
             $byCompact[$entry['compact']][] = $entry;
         }
-        $tagEntries = [];
-        $maximumTagTokens = 2;
+        $relationalTagEntries = [];
         foreach ($tagPhrases as $phrase => $owners) {
-            $phrase = (string)$phrase;
-            $tokens = count(preg_split('/\s+/u', $phrase) ?: []);
-            if ($tokens < 2 || isset($phrases[$phrase])) continue;
-            $ownerTopics = array_keys($owners['owners'] ?? []);
-            $tagEntries[$phrase] = [
-                'phrase'=>$phrase, 'owners'=>$ownerTopics, 'owner_count'=>count($ownerTopics), 'token_count'=>$tokens,
-                'categories'=>$owners['categories'] ?? [],
+            if (count(preg_split('/\s+/u', (string)$phrase) ?: []) < 2 || isset($phrases[$phrase])) continue;
+            $relationalTagEntries[$phrase] = [
+                'phrase'=>(string)$phrase,
+                'owners'=>array_keys($owners['owners'] ?? []),
             ];
-            $maximumTagTokens = max($maximumTagTokens, $tokens);
         }
         return ['entries'=>$entries, 'by_compact'=>$byCompact, 'phrase_owners'=>$phraseOwners,
-            'tag_phrase_entries'=>$tagEntries, 'maximum_tag_tokens'=>$maximumTagTokens];
+            'relational_tag_entries'=>$relationalTagEntries];
     }
 
-    /** Resolve exact, low-frequency multiword tag combinations only after entity extraction abstains. */
-    private function tagFallback(string $text, array $index, int $limit, float $requestScore): array
+    /** Let descriptive tags strengthen an identified topic without selecting one. */
+    private function applyRelationalTagSupport(string $text, array $index, array $entities): array
     {
-        $entries = $index['tag_phrase_entries'] ?? [];
-        $normalized = $this->normalize($text);
-        preg_match_all('/[\p{L}\p{N}]+/u', $normalized, $matches, PREG_OFFSET_CAPTURE);
-        $tokens = $matches[0] ?? [];
-        if ($entries === [] || count($tokens) < 2) return ['matches'=>[], 'rejected'=>[], 'decisions'=>[]];
-
-        $speakerLabel = $this->speakerLabel($text, $index);
-        $speakerLabelEnd = $speakerLabel === '' ? 0 : mb_strlen($speakerLabel, 'UTF-8');
-        $maximum = max(2, (int)($index['maximum_tag_tokens'] ?? 2));
-        $matched = [];
-        for ($start = 0, $count = count($tokens); $start < $count; $start++) {
-            for ($length = 2; $length <= min($maximum, $count - $start); $length++) {
-                $phrase = implode(' ', array_column(array_slice($tokens, $start, $length), 0));
-                if (!isset($entries[$phrase])) continue;
-                $position = $this->characterOffset($normalized, (int)$tokens[$start][1]);
-                $last = $tokens[$start + $length - 1];
-                $end = $this->characterOffset($normalized, (int)$last[1] + strlen((string)$last[0]));
-                if (!isset($matched[$phrase]) || $position < $matched[$phrase]['start']) {
-                    $matched[$phrase] = ['entry'=>$entries[$phrase], 'start'=>$position, 'end'=>$end];
-                }
+        if ($entities === [] || ($index['relational_tag_entries'] ?? []) === []) return $entities;
+        $normalized = ' ' . $this->normalize($text) . ' ';
+        foreach ($entities as &$entity) {
+            $topic = (string)($entity['topic'] ?? '');
+            $matched = [];
+            foreach ($index['relational_tag_entries'] as $phrase => $entry) {
+                if (str_contains($normalized, ' ' . $phrase . ' ')
+                    && in_array($topic, $entry['owners'] ?? [], true)) $matched[] = $phrase;
+            }
+            if ($matched !== []) {
+                $entity['relational_tag_phrases'] = array_values(array_unique($matched));
+                $bonus = min(0.08, count($entity['relational_tag_phrases']) * 0.04);
+                $entity['score'] = (float)($entity['score'] ?? 0.0) + $bonus;
+                $entity['context_score'] = (float)($entity['context_score'] ?? 0.0) + $bonus;
             }
         }
-
-        $ordered = array_values($matched);
-        usort($ordered, static fn(array $a, array $b): int => (($b['end'] - $b['start']) <=> ($a['end'] - $a['start']))
-            ?: ($a['start'] <=> $b['start']));
-        $nonOverlapping = [];
-        foreach ($ordered as $match) {
-            $overlap = false;
-            foreach ($nonOverlapping as $selected) {
-                if ($match['start'] < $selected['end'] && $selected['start'] < $match['end']) {$overlap = true; break;}
-            }
-            if (!$overlap) $nonOverlapping[] = $match;
-        }
-
-        $byTopic = [];
-        $rejected = [];
-        $decisions = [];
-        foreach ($nonOverlapping as $match) {
-            $entry = $match['entry'];
-            $phrase = (string)$entry['phrase'];
-            $owners = array_values($entry['owners'] ?? []);
-            $ownerCount = (int)($entry['owner_count'] ?? count($owners));
-            if ($speakerLabelEnd > 0 && $match['start'] < $speakerLabelEnd) {
-                $decision = ['phrase'=>$phrase, 'reason'=>'tag_speaker_label', 'source'=>'tag', 'start'=>$match['start'],
-                    'owner_count'=>$ownerCount, 'topics'=>$owners];
-                $rejected[] = $decision;$decisions[] = $decision;continue;
-            }
-            if ($ownerCount > 3) {
-                $decision = ['phrase'=>$phrase, 'reason'=>'tag_too_many_owners', 'source'=>'tag', 'start'=>$match['start'],
-                    'owner_count'=>$ownerCount, 'topics'=>$owners];
-                $rejected[] = $decision;$decisions[] = $decision;continue;
-            }
-            foreach ($owners as $topic) {
-                $key = $this->normalize((string)$topic);
-                if (!isset($byTopic[$key])) {
-                    $byTopic[$key] = ['topic'=>(string)$topic, 'phrases'=>[], 'categories'=>[], 'start'=>$match['start']];
-                }
-                $byTopic[$key]['phrases'][$phrase] = $ownerCount;
-                $category = (string)($entry['categories'][$topic] ?? '');
-                if ($category !== '') $byTopic[$key]['categories'][$category] = true;
-                $byTopic[$key]['start'] = min($byTopic[$key]['start'], $match['start']);
-            }
-        }
-
-        $candidates = [];
-        foreach ($byTopic as $candidate) {
-            $ownerCounts = array_values($candidate['phrases']);
-            $unique = count($ownerCounts) === 1 && $ownerCounts[0] === 1;
-            $support = count($ownerCounts);
-            if ($requestScore < 0.5 && count($candidate['categories']) === 1
-                && isset($candidate['categories']['books'])) {
-                $decision = ['topic'=>$candidate['topic'], 'phrase'=>(string)array_key_first($candidate['phrases']),
-                    'reason'=>'tag_requires_explicit_request', 'source'=>'tag', 'start'=>$candidate['start'], 'support_count'=>$support];
-                $rejected[] = $decision;$decisions[] = $decision;continue;
-            }
-            if (!$unique && $support < 2) {
-                $decision = ['topic'=>$candidate['topic'], 'phrase'=>(string)array_key_first($candidate['phrases']),
-                    'reason'=>'tag_insufficient_support', 'source'=>'tag', 'start'=>$candidate['start'], 'support_count'=>$support];
-                $rejected[] = $decision;$decisions[] = $decision;continue;
-            }
-            if (!$unique && $requestScore < 0.5) {
-                $decision = ['topic'=>$candidate['topic'], 'phrase'=>(string)array_key_first($candidate['phrases']),
-                    'reason'=>'tag_requires_explicit_request', 'source'=>'tag', 'start'=>$candidate['start'], 'support_count'=>$support];
-                $rejected[] = $decision;$decisions[] = $decision;continue;
-            }
-            $score = ($unique ? 0.72 : 0.66 + min(0.12, ($support - 2) * 0.06)) + ($requestScore >= 0.5 ? 0.10 : 0.0);
-            $phrase = (string)array_key_first($candidate['phrases']);
-            $match = [
-                'topic'=>$candidate['topic'], 'phrase'=>$phrase, 'entity_phrase'=>$phrase,
-                'source'=>$unique ? 'exact unique tag fallback' : 'corroborated tag fallback',
-                'start'=>$candidate['start'], 'end'=>$candidate['start'] + mb_strlen($phrase, 'UTF-8'),
-                'score'=>$score, 'context_score'=>$score, 'mention_count'=>1,
-                'tag_phrases'=>array_keys($candidate['phrases']), 'tag_owner_counts'=>$ownerCounts,
-            ];
-            $candidates[] = $match;
-        }
-        usort($candidates, static fn(array $a, array $b): int => ($b['score'] <=> $a['score']) ?: ($a['start'] <=> $b['start']));
-        $candidates = array_slice($candidates, 0, max(1, $limit));
-        foreach ($candidates as $candidate) $decisions[] = [
-            'topic'=>$candidate['topic'], 'phrase'=>$candidate['phrase'], 'reason'=>'tag_selected',
-            'source'=>$candidate['source'], 'start'=>$candidate['start'], 'support_count'=>count($candidate['tag_phrases']),
-        ];
-        return ['matches'=>$candidates, 'rejected'=>$rejected, 'decisions'=>$decisions];
+        unset($entity);
+        return $entities;
     }
 
     private function indexFor(array $catalog): array
@@ -611,7 +509,7 @@ final class OghmaGroundedRetriever
         if ($label === '' || count(preg_split('/\s+/u', $label) ?: []) > 12) return '';
         if (isset($index['phrase_owners'][$label])) return $label;
         if (preg_match('/\b(?:era|volume|book|chapter|part|act)\b/u', $label)) return '';
-        return isset($index['tag_phrase_entries'][$label]) ? $label : '';
+        return '';
     }
 
     private function isExplicitKnowledgeRequest(string $text): bool

@@ -23,21 +23,17 @@ from the product repository.
 5. Apply bounded phonetic/edit-distance recovery only with sufficient transcript or conversational evidence.
 6. Reject speaker labels, weak single-word senses, background mentions, ambiguous neighbors, and wrong-sense homonyms.
 7. Rank repeated salient mentions, then preserve conversational mention order up to one to three topics.
-8. Only when all entity grounding abstains, evaluate exact multiword tags.
-9. Only when local grounding still abstains and the player made an explicit knowledge request, allow one bounded inherited connector fallback. Suggestions must resolve to one canonical topic or unambiguous alias/compact identity. Tags are not connector identities.
+8. Only when local grounding abstains and the player made an explicit knowledge request, allow one bounded inherited connector fallback. Suggestions must resolve to one canonical topic or unambiguous alias/compact identity. Tags are not connector identities.
 
-Canonical and alias grounding always takes precedence over tag fallback. Tags are never added to the
-topic/alias identity lexicon and are never fuzzily matched.
+Tags never create a topic. They may strengthen an article only after a canonical topic or alias has
+already grounded it, matching the shared CHIM and Dialectic retrieval boundary.
 
-## Guarded tag fallback
+## Tag ranking boundary
 
-- Ignore one-word tags and tags identical to canonical topics or aliases.
-- Prefer longer overlapping exact tag phrases, including when the longer phrase is rejected.
-- A unique multiword tag owned by exactly one article may select that article.
-- A tag owned by two or three articles cannot select an article by itself.
-- Two distinct shared tag phrases that corroborate the same article may select it only during an explicit knowledge request.
-- Tags owned by more than three articles, corrupted tags, ambiguous support, and tag-only speaker labels abstain.
-- Every evaluated tag selection or rejection is retained in the retrieval trace.
+- Canonical topics and aliases are the only deterministic article identities.
+- Natural descriptive tags remain catalog metadata for bounded ranking of already grounded articles.
+- Ordinary conversational tag phrases cannot independently pull an unrelated article.
+- Connector suggestions must resolve to a canonical topic or unambiguous alias, never a tag.
 
 ## Settings and routing
 
