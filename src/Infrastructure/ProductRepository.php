@@ -1475,7 +1475,8 @@ SQL);
         $signals=$active?$this->forcedKnowledgeSignals($turn,$profile,$settings):['race'=>[],'location'=>[]];
         $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(20,$limit));
         $selected=[];$selectedIds=[];$scores=[];$reasons=[];$rank=0;
-        foreach([['race',$signals['race'],0.95],['location',$signals['location'],0.95],['conversation',$conversation,0.01]]as[$source,$sourceSignals,$minimum]){
+        foreach([['conversation',$conversation,0.01],['location',$signals['location'],0.95],['race',$signals['race'],0.95]]as[$source,$sourceSignals,$minimum]){
+            if(count($selected)>=$limit)break;
             foreach($sourceSignals as$signal){$ranked=[];foreach($rows as$row){$score=$this->knowledgeRelevance($signal,$row);if($score<$minimum)continue;$row['_prompt_score']=$score;$ranked[]=$row;}
                 usort($ranked,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])?:strcmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
                 if(($ranked[0]['_prompt_score']??0.0)>=0.95)$ranked=array_values(array_filter($ranked,static fn(array$row):bool=>$row['_prompt_score']>=0.95));
@@ -1491,7 +1492,7 @@ SQL);
                 }
             }
         }
-        $query=mb_strcut(implode(' | ',array_merge($conversation,$signals['race'],$signals['location'])),0,4096,'UTF-8');
+        $query=mb_strcut(implode(' | ',array_merge($conversation,$signals['location'],$signals['race'])),0,4096,'UTF-8');
         $deniedTopics=[];foreach($selected as$row)if(($row['access_level']??null)==='denied')$deniedTopics[]=(string)$row['topic'];
         $reasons['_context']=['algorithm_version'=>OghmaGroundedRetriever::VERSION,'master_enabled'=>($settings['enabled']??true)===true,
             'request_eligible'=>($extraction['request_eligible']??false)===true,'topic_count'=>$topicCount,'knowledge_limit'=>$limit,

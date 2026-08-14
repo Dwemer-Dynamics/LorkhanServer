@@ -485,10 +485,25 @@ $oghmaSelection=$selectOghma->invoke($products,
         'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
         'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
     $savedOghmaSettings,['status'=>'fallback_succeeded','request_eligible'=>true,'topics'=>['Vivec','Tribunal'],'configuration_id'=>'00000000-0000-4000-8000-000000000305'],$clock->iso());
-$check(array_column($oghmaSelection['rows'],'topic')===['Dunmer','Balmora','Vivec','Tribunal']
+$check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balmora','Dunmer']
         &&$oghmaSelection['trace']['algorithm']==='oghma-parity-v1'
     &&$oghmaSelection['trace']['reasons']['_context']['extracted_topics']===['Vivec','Tribunal'],
-        'multi-topic Oghma retrieval did not preserve forced race/location injection and extractor audit context');
+        'multi-topic Oghma retrieval did not prioritize conversation before location and race context');
+    $conversationBudgetSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',2,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
+    $check(array_column($conversationBudgetSelection['rows'],'topic')===['Vivec','Tribunal'],
+        'conversation topics did not consume the shared result budget before forced context');
+    $deduplicatedSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Balmora.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',3,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Balmora']],$clock->iso());
+    $check(array_column($deduplicatedSelection['rows'],'topic')===['Balmora','Dunmer']
+        &&($deduplicatedSelection['rows'][0]['source']??null)==='conversation',
+        'conversation ownership was not retained when forced location matched the same article');
     $deniedRow=['id'=>'00000000-0000-4000-8000-000000000306','topic'=>'Forbidden Lore','title'=>'Forbidden Lore',
         'aliases'=>'','content'=>'Forbidden advanced lore.','topic_desc_basic'=>'Forbidden basic lore.',
         'knowledge_class'=>'secret','knowledge_class_basic'=>'initiate','tags'=>'','category'=>'Lore'];
