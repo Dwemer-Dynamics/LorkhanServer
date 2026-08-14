@@ -55,6 +55,26 @@ final class ProviderFactory
         return self::dialogue($configured);
     }
 
+    /** Build the profile-routed extractor without exposing connector credentials or dialogue contracts. */
+    public static function oghmaTopicExtractorForSlot(array $config,array $slot,?int $timeoutMs=null):OghmaTopicExtractor
+    {
+        $keys=array_keys($slot);sort($keys);
+        if($keys!==['configuration_id','content','revision']||!is_string($slot['configuration_id'])
+            ||preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$slot['configuration_id'])!==1
+            ||!is_int($slot['revision'])||$slot['revision']<1||!is_array($slot['content'])||array_is_list($slot['content']))
+            throw new RuntimeException('Provider slot snapshot is invalid.');
+        $content=$slot['content'];$driver=$content['driver']??null;$model=$content['model']??null;
+        if(!is_string($driver)||!in_array($driver,['configured','mock'],true)||!is_string($model)||$model===''||strlen($model)>256)
+            throw new RuntimeException('Provider slot content is invalid.');
+        if($driver==='mock')return new MockOghmaTopicExtractor();
+        $keys=array_keys($content);sort($keys);if($keys!==['driver','model'])throw new RuntimeException('Configured provider slot content is invalid.');
+        $provider=self::section($config,'provider');$timeout=$timeoutMs===null
+            ?max(1000,min(15_000,(int)($provider['timeout_ms']??15_000)))
+            :max(250,min(3000,$timeoutMs));
+        return new OpenAiCompatibleOghmaTopicExtractor((string)($provider['endpoint']??''),self::hosts($provider),$model,
+            self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false));
+    }
+
     /** Build the task-specific profile generator from the same server-owned LLM configuration. */
     public static function profileGeneration(array $config):ProfileGenerationProvider
     {

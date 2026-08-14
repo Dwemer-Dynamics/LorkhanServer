@@ -9,6 +9,16 @@ use InvalidArgumentException;
 /** Resolve typed settings without collapsing explicit false, zero, or empty-string overrides. */
 final class EffectiveSettingsResolver
 {
+    private const OGHMA_DEFAULTS = [
+        'enabled' => true,
+        'topic_count' => 1,
+        'result_limit' => 3,
+        'racial_context_enabled' => true,
+        'location_context_enabled' => true,
+        'extractor_fallback_enabled' => false,
+        'extractor_timeout_ms' => 1500,
+    ];
+
     private const DEFAULT_SETTINGS = [
         'schema' => 'almsivi.client-settings.v1',
         'behavior' => [
@@ -49,6 +59,7 @@ final class EffectiveSettingsResolver
         'llm_powerful_configuration_id' => 'uuid_or_empty',
         'llm_experimental_configuration_id' => 'uuid_or_empty',
         'llm_fallback_configuration_id' => 'uuid_or_empty',
+        'oghma_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
@@ -66,7 +77,7 @@ final class EffectiveSettingsResolver
      * @param array<string,mixed> $npcProfileContent
      * @return array{document:array<string,mixed>,settings:array<string,mixed>,routing:array<string,mixed>,sources:array<string,string>,sha256:string}
      */
-    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent): array
+    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = []): array
     {
         $settings = self::DEFAULT_SETTINGS;
         $sources = [];
@@ -78,15 +89,23 @@ final class EffectiveSettingsResolver
             $sources = [];
             $this->markLeaves($settings, 'global', 'settings', $sources);
         }
-        $settings['memory']['oghma_knowledge_tags'] = 'common';
+        $settings['memory']['oghma_knowledge_tags'] = '';
         $sources['settings.memory.oghma_knowledge_tags'] = 'server_default';
+        self::validateOghmaSettings($oghmaGlobal, true);
+        $settings['oghma'] = array_replace(self::OGHMA_DEFAULTS, $oghmaGlobal);
+        foreach ($settings['oghma'] as $field => $_) {
+            $sources['settings.oghma.' . $field] = array_key_exists($field, $oghmaGlobal) ? 'global' : 'default';
+        }
 
         $routing = [];
         foreach ([['core_profile', $coreProfileContent], ['npc', $npcProfileContent]] as [$source, $content]) {
             if (!is_array($content) || ($content !== [] && array_is_list($content))) throw new InvalidArgumentException('invalid_settings_layer');
             $overrides = $content['settings_overrides'] ?? [];
             self::validateSettingsOverrides($overrides);
+            $oghmaOverrides = is_array($overrides['oghma'] ?? null) ? $overrides['oghma'] : [];
+            unset($overrides['oghma']);
             $this->mergeSettings($settings, $overrides, $source, 'settings', $sources);
+            $this->mergeSettings($settings, $oghmaOverrides === [] ? [] : ['oghma'=>$oghmaOverrides], $source, 'settings', $sources);
 
             $route = $content['routing'] ?? [];
             self::validateRouting($route);
@@ -170,8 +189,35 @@ final class EffectiveSettingsResolver
             if(!is_string($value)||strlen($value)>4096||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_settings_overrides');
             unset($validation['memory']['oghma_knowledge_tags']);if($validation['memory']===[])unset($validation['memory']);
         }
+        if (array_key_exists('oghma', $validation)) {
+            self::validateOghmaSettings($validation['oghma'], true);
+            unset($validation['oghma']);
+        }
         self::validateSettingsShape($validation, self::DEFAULT_SETTINGS, true);
         return $overrides;
+    }
+
+    private static function validateOghmaSettings(mixed $settings, bool $partial): void
+    {
+        if (!is_array($settings) || ($settings !== [] && array_is_list($settings))
+            || array_diff(array_keys($settings), array_keys(self::OGHMA_DEFAULTS)) !== []) {
+            throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
+        }
+        foreach ($settings as $field => $value) {
+            if (get_debug_type($value) !== get_debug_type(self::OGHMA_DEFAULTS[$field])) {
+                throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
+            }
+            $valid = match ($field) {
+                'topic_count' => $value >= 1 && $value <= 3,
+                'result_limit' => $value >= 1 && $value <= 5,
+                'extractor_timeout_ms' => $value >= 250 && $value <= 3000,
+                default => true,
+            };
+            if (!$valid) throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
+        }
+        if (!$partial && count($settings) !== count(self::OGHMA_DEFAULTS)) {
+            throw new InvalidArgumentException('invalid_global_settings');
+        }
     }
 
     /** @param mixed $routing */

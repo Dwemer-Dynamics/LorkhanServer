@@ -51,6 +51,7 @@ final class DefaultConnectorProvisioner
                     $aliases,
                 );
             }
+            $routes['oghma_configuration_id'] = $routes['llm_fast_configuration_id'];
 
             $defaultPrompt = 'Respond in character as the selected Morrowind actor. Use only the scoped profile, '
                 . 'conversation history, memories, relationships, world knowledge, narrative context, and current '

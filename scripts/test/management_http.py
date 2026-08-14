@@ -106,6 +106,7 @@ narratives_page,text=parse(request('/ALMSIVIserver/ui/narrative_manager.php')); 
 cache,text=parse(request('/ALMSIVIserver/ui/cache_browser.php')); assert cache.current==1 and '<h1>Cache Browser</h1>' in text and 'private audio files' in text
 queue,text=parse(request('/ALMSIVIserver/ui/response_queue.php')); assert queue.current==1 and '<h1>Response Queue</h1>' in text and 'dialogue delivery states' in text
 oghma,text=parse(request('/ALMSIVIserver/ui/oghma_audit.php')); assert oghma.current==1 and '<h1>Oghma Audit</h1>' in text and 'retrieval traces' in text
+assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
 usage,text=parse(request('/ALMSIVIserver/ui/provider_usage.php')); assert usage.current==1 and '<h1>Provider Usage</h1>' in text and 'does not fabricate currency costs' in text
 server_logs,text=parse(request('/ALMSIVIserver/ui/server_logs.php')); assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded, redacted output' in text
 database,text=parse(request('/ALMSIVIserver/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
@@ -139,9 +140,13 @@ keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.cur
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
+global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
+assert global_settings_form['fields'].get('oghma_enabled')=='1' and 'oghma_extractor_enabled' not in global_settings_form['fields'] and global_settings_form['fields'].get('oghma_topic_count')=='1' and global_settings_form['fields'].get('oghma_result_limit')=='3' and global_settings_form['fields'].get('oghma_extractor_timeout_ms')=='1500',global_settings_form['fields']
 assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
-biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php')); assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
+biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
+assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
+assert any(f['action'].endswith('/forms/biography-template-revise') for f in biographies.forms),'factory biography templates are not editable'
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 assert request('/ALMSIVIserver/ui/server_plugins.php').status==404
 assert request('/ALMSIVIserver/manage/server-plugins').status==404
@@ -356,12 +361,12 @@ playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))
 restore=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthrough-import'))
 values=dict(restore['fields'],_csrf=csrf,profile_id=profile_id,playthrough_id=playthrough_id,playthrough_json=json.dumps(backup))
 r=request(restore['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/playthrough_manager.php?status=saved'),(r.status,r.geturl(),values,backup['scope'],body)
-biographies,body=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
-bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise'))
+characters,body=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
+bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
-values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from the dedicated biography page.',change_reason='HTTP biography test')
-r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_biographies.php?status=saved'),(r.status,r.geturl())
-body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from the dedicated biography page.' in body and 'Preserved personality field.' in body
+values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test')
+r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
+body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
 database,body=parse(request('/ALMSIVIserver/ui/database_manager.php'))
 backup_ids_before=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body))
 create_backup=next(f for f in database.forms if f['action'].endswith('/forms/configuration-backup'))
@@ -376,8 +381,8 @@ assert backup_response.status==200 and configuration_backup['schema']=='almsivi.
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
 assert all(row['core_profile_id'] in core_ids for row in configuration_backup['data']['profiles']),configuration_backup['data']['profiles']
 assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and 'api_key' not in json.dumps(configuration_backup).lower()
-biographies,_=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
-bio_form=next(f for f in biographies.forms if f['action'].endswith('/forms/profile-biography-revise'))
+characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
+bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
 values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Changed after the configuration backup.',change_reason='HTTP pre-restore mutation')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Changed after the configuration backup.' in body
@@ -387,7 +392,7 @@ values=dict(restore_configuration['fields'],_csrf=csrf,installation_id=valid['in
 r=request(restore_configuration['action'],'POST',values); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
 values['confirm']='Restore'; r=request(restore_configuration['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'restored ·' in body,(r.status,r.geturl(),body)
-body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from the dedicated biography page.' in body and 'Changed after the configuration backup.' not in body
+body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Changed after the configuration backup.' not in body
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/ALMSIVIserver/ui/description_manager.php'))
 description_form=next(f for f in descriptions.forms if f['action'].endswith('/forms/description-save'))

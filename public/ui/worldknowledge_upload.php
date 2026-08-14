@@ -21,7 +21,6 @@ $filters = [
 $catalog = $uiRepository->oghmaCatalog($filters);
 $rows = $catalog['rows'];
 $categories = $uiRepository->oghmaCategories();
-$catalogStatus = $uiRepository->oghmaCatalogStatus();
 $additionalStylesheets = ['herika-oghma.css?v=' . (string) filemtime(__DIR__ . '/css/herika-oghma.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) {
@@ -61,7 +60,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <textarea name="content" id="<?php echo $prefix; ?>-content" rows="8" required><?php echo $field('content'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-knowledge-class">Knowledge Class:</label>
-    <small>Who should have access to this advanced knowledge. Separate tags with commas.</small>
+    <small>Who should have access to this advanced knowledge. Separate tags with commas. Do not use common here &mdash; it only marks public basic access.</small>
     <input type="text" name="knowledge_class" id="<?php echo $prefix; ?>-knowledge-class" value="<?php echo $field('knowledge_class'); ?>">
 
     <label for="<?php echo $prefix; ?>-basic">Topic Description (Basic):</label>
@@ -69,7 +68,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <textarea name="topic_desc_basic" id="<?php echo $prefix; ?>-basic" rows="8"><?php echo $field('topic_desc_basic'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-basic-class">Knowledge Class (Basic):</label>
-    <small>Who should have access to the basic article. Leave empty to allow all NPCs to know this.</small>
+    <small>Who should have access to the basic article. Use common to mark this article public basic knowledge for every NPC. Leave empty to allow all NPCs to know this.</small>
     <input type="text" name="knowledge_class_basic" id="<?php echo $prefix; ?>-basic-class" value="<?php echo $field('knowledge_class_basic'); ?>">
 
     <label for="<?php echo $prefix; ?>-tags">Tags:</label>
@@ -89,36 +88,28 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <div class="page-header">
         <h1 id="page-title">
-            <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="Oghma Infinium" width="32" height="32">
+            <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="" aria-hidden="true" width="32" height="32">
             <span id="title-text">Oghma Infinium</span>
         </h1>
         <div id="header-content">
             <div id="oghma-header-content">
-                <p>The <b>Oghma Infinium</b> is a "Morrowind Encyclopedia" that AI NPCs use to help them roleplay.</p>
-                <p>This is done by detecting topics during conversations and injecting the appropriate information into the AI prompt.</p>
-                <h3><strong>Ensure all topic titles are lowercase and spaces are replaced with underscores (_).</strong></h3>
-                <h4>Example: "House Redoran" becomes "house_redoran"</h4>
-                <p>Knowledge access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</p>
-                <?php if ($catalogStatus !== null): ?>
-                    <p class="factory-catalog-status"><strong>Factory catalog:</strong> <?php echo almsivi_ui_h((string) $catalogStatus['catalog_version']); ?> &middot; <?php echo almsivi_ui_h((string) $catalogStatus['row_count']); ?> reviewed articles &middot; 3E 427</p>
-                <?php endif; ?>
-                <div class="logic-section">
-                    <h3 class="logic-title">&#x1F50D; Article Search Logic</h3>
-                    <div class="logic-steps">
-                        <div class="logic-step"><div class="step-number">1</div><div class="step-content"><strong>Keyword Search</strong><p>NPC searches for an Oghma article using the most relevant topic or alias in the conversation.</p></div></div>
-                        <div class="logic-step"><div class="step-number">2</div><div class="step-content"><strong>Advanced Access Check</strong><p>Check <code>knowledge_class</code> for access to the advanced article (<code>topic_desc</code>).</p></div></div>
-                        <div class="logic-step"><div class="step-number">3</div><div class="step-content"><strong>Basic Access Check</strong><p>Check <code>knowledge_class_basic</code> for access to the basic article (<code>topic_desc_basic</code>).</p></div></div>
-                        <div class="logic-step"><div class="step-number">4</div><div class="step-content"><strong>Fallback Response</strong><p>If all checks fail, send <em>"You do not know about X"</em> to the prompt.</p></div></div>
-                    </div>
-                </div>
+                <p class="oghma-summary">Oghma matches conversation topics to articles. NPCs receive the most detailed version they are allowed to know; if no version matches, they know nothing about the topic.</p>
+                <details class="oghma-tips">
+                    <summary>Article editing tips</summary>
+                    <ul>
+                        <li>Write topic titles in lowercase and replace spaces with underscores &mdash; "House Redoran" becomes <code>house_redoran</code>.</li>
+                        <li>Use <code>common</code> only as an article marker for public basic knowledge. Do not assign it to NPCs.</li>
+                        <li>Access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
+                    </ul>
+                </details>
             </div>
         </div>
     </div>
 
     <div class="tab-navigation" role="tablist" aria-label="Oghma pages">
-        <button type="button" class="tab-button active" role="tab" aria-selected="true">&#x1F4DA; Oghma Infinium</button>
+        <button type="button" class="tab-button active" role="tab" aria-selected="true"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
         <span class="oghma-tab-placeholder">
-            <button type="button" class="tab-button" role="tab" disabled aria-disabled="true">&#x26A1; Dynamic Oghma</button>
+            <button type="button" class="tab-button" role="tab" disabled aria-disabled="true"><span aria-hidden="true">&#x26A1;</span>&#160;Dynamic Oghma</button>
             <?php echo almsivi_ui_feature_badge('config.oghma.dynamic', true); ?>
         </span>
     </div>
@@ -159,7 +150,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
         </div>
 
         <div class="full-width-section">
-            <h2 id="entries">&#x1F4CB; Oghma Infinium Entries</h2>
+            <h2 id="entries"><span aria-hidden="true">&#x1F4CB;</span>&#160;Oghma Infinium Entries</h2>
             <div class="action-container">
                 <button type="button" class="action-button add-new" data-oghma-new-open>Add New Entry</button>
                 <form class="search-container" method="get" action="#entries">
@@ -185,8 +176,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <div>
                     <strong>Sort Order:</strong><br>
                     <div class="sort-buttons">
-                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'asc'])); ?>">&#x1F53C; Ascending</a>
-                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'desc'])); ?>">&#x1F53D; Descending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'asc'])); ?>"><span aria-hidden="true">&#x1F53C;</span>&#160;Ascending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'desc'])); ?>"><span aria-hidden="true">&#x1F53D;</span>&#160;Descending</a>
                     </div>
                 </div>
             </div>

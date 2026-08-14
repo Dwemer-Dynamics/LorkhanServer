@@ -20,6 +20,7 @@ use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\ManagementUiRepository;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
+use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
 use ALMSIVIserver\Infrastructure\Uuid;
@@ -430,6 +431,132 @@ $check($knowledgeSearch['results'][0]['id'] === $knowledge['document_id'], 'know
 $knowledgeProjection=$db->prepare('SELECT oghma.topic_desc FROM oghma_metadata metadata JOIN public.oghma oghma ON oghma.topic=metadata.topic WHERE metadata.document_id=:document');
 $knowledgeProjection->execute(['document'=>$knowledge['document_id']]);
 $check($knowledgeProjection->fetchColumn()==='Nalcarya operates an alchemy shop.','knowledge did not project into the Herika Oghma contract');
+    $products->setOghmaSettings($installation,['enabled'=>true,'knowledge_tags'=>'common','racial_context_enabled'=>true,
+        'location_context_enabled'=>true,'topic_count'=>2,'result_limit'=>4,'extractor_enabled'=>true,
+        'extractor_timeout_ms'=>900],$clock->iso());
+$savedOghmaSettings=$products->oghmaSettings($installation);
+    $check($savedOghmaSettings['enabled']===true&&$savedOghmaSettings['topic_count']===2&&$savedOghmaSettings['extractor_enabled']===true
+    &&$savedOghmaSettings['result_limit']===4&&$savedOghmaSettings['extractor_timeout_ms']===900
+    &&$savedOghmaSettings['knowledge_tags']===''
+    &&$savedOghmaSettings['racial_context_enabled']===true&&$savedOghmaSettings['location_context_enabled']===true,
+    'installation-global Oghma runtime controls were not persisted');
+$oghmaRows=[];foreach([
+    ['00000000-0000-4000-8000-000000000301','Dunmer'],['00000000-0000-4000-8000-000000000302','Balmora'],
+    ['00000000-0000-4000-8000-000000000303','Vivec'],['00000000-0000-4000-8000-000000000304','Tribunal'],
+    ]as[$id,$topic])$oghmaRows[]=['id'=>$id,'topic'=>$topic,'title'=>$topic,'aliases'=>'','content'=>$topic.' advanced lore.',
+        'topic_desc_basic'=>$topic.' basic lore.','knowledge_class'=>'','knowledge_class_basic'=>'',
+        'tags'=>$topic==='Vivec'?'warrior poet god':'','category'=>'Lore'];
+foreach($oghmaRows as$row)$products->createKnowledge([
+    'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,'title'=>$row['title'],'content'=>$row['content'],
+    'provenance'=>['source'=>'authored-test'],'topic'=>$row['topic'],'aliases'=>$row['aliases'],
+    'topic_desc_basic'=>$row['topic_desc_basic'],'knowledge_class'=>$row['knowledge_class'],
+    'knowledge_class_basic'=>$row['knowledge_class_basic'],'tags'=>$row['tags'],'category'=>$row['category'],
+],[(string)$row['topic']],$clock->iso());
+    $groundedTurn=$scope+['turn_id'=>'20000000-0000-4000-8000-000000000098','payload'=>[
+        'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Vivec and the Tribunal.'],'ui_source'=>'almsivi_text',
+        'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]];
+$groundedSelection=$products->groundedOghmaExtraction($groundedTurn);
+$check($groundedSelection['status']==='grounded'&&$groundedSelection['topics']===['Vivec','Tribunal']
+    &&$groundedSelection['fallback_eligible']===false,'database-backed grounded Oghma extraction did not preserve topic order');
+$noMatchSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+    ['payload'=>['input'=>['text'=>'We should leave before sunset.']]]));
+$check($noMatchSelection['topics']===[]&&$noMatchSelection['fallback_eligible']===false,
+    'ordinary dialogue unexpectedly selected Oghma knowledge or connector fallback');
+$fallbackSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+    ['payload'=>['input'=>['text'=>'Tell me about an unknown forgotten island.']]]));
+    $check($fallbackSelection['topics']===[]&&$fallbackSelection['fallback_eligible']===true,
+        'unresolved explicit lore request did not become eligible for one connector fallback');
+    $tagSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['input'=>['text'=>'We encountered a warrior poet god during the journey.']]]));
+    $check($tagSelection['topics']===['Vivec']&&($tagSelection['matches'][0]['source']??null)==='exact unique tag fallback',
+        'database-backed Oghma extraction did not load and apply guarded catalog tags');
+    $ineligibleSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['ui_source'=>'almsivi_autonomy']]));
+    $check($ineligibleSelection['status']==='ineligible'&&$ineligibleSelection['topics']===[],
+        'Oghma request allowlist accepted an autonomy source');
+$selectOghma=new ReflectionMethod($products,'selectPromptKnowledge');
+$oghmaSelection=$selectOghma->invoke($products,
+    ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+        'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+        'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
+    $savedOghmaSettings,['status'=>'fallback_succeeded','request_eligible'=>true,'topics'=>['Vivec','Tribunal'],'configuration_id'=>'00000000-0000-4000-8000-000000000305'],$clock->iso());
+$check(array_column($oghmaSelection['rows'],'topic')===['Dunmer','Balmora','Vivec','Tribunal']
+        &&$oghmaSelection['trace']['algorithm']==='oghma-parity-v1'
+    &&$oghmaSelection['trace']['reasons']['_context']['extracted_topics']===['Vivec','Tribunal'],
+        'multi-topic Oghma retrieval did not preserve forced race/location injection and extractor audit context');
+    $deniedRow=['id'=>'00000000-0000-4000-8000-000000000306','topic'=>'Forbidden Lore','title'=>'Forbidden Lore',
+        'aliases'=>'','content'=>'Forbidden advanced lore.','topic_desc_basic'=>'Forbidden basic lore.',
+        'knowledge_class'=>'secret','knowledge_class_basic'=>'initiate','tags'=>'','category'=>'Lore'];
+    $deniedSettings=array_merge($savedOghmaSettings,['racial_context_enabled'=>false,'location_context_enabled'=>false]);
+    $deniedSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Forbidden Lore.'],'ui_source'=>'almsivi_text',
+            'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],'context'=>[]]],
+        ['content'=>[]],$scope,[$deniedRow],'',4,$deniedSettings,
+        ['status'=>'grounded','request_eligible'=>true,'topics'=>['Forbidden Lore']],$clock->iso());
+    $check(($deniedSelection['rows'][0]['access_level']??null)==='denied'
+        &&($deniedSelection['rows'][0]['content']??null)===''
+        &&($deniedSelection['trace']['reasons']['_context']['denied_topics']??[])===['Forbidden Lore'],
+        'recognized unauthorized Oghma topic was not preserved as structured denied prompt context');
+    $products->setOghmaSettings($installation,array_merge($savedOghmaSettings,['enabled'=>false]),$clock->iso());
+    $disabledSelection=$products->groundedOghmaExtraction($groundedTurn);
+    $check($disabledSelection['status']==='disabled'&&$disabledSelection['topics']===[]
+        &&$disabledSelection['fallback_eligible']===false,'Oghma master switch did not disable all retrieval');
+    $products->setOghmaSettings($installation,$savedOghmaSettings,$clock->iso());
+    $oghmaFixtureRoot=sys_get_temp_dir().'/almsivi-oghma-catalog-'.bin2hex(random_bytes(6));
+    if(!mkdir($oghmaFixtureRoot,0700,true)&&!is_dir($oghmaFixtureRoot))throw new RuntimeException('Oghma catalog fixture directory failed');
+    $writeOghmaCatalogFixture=static function(string$version,array$rows)use($oghmaFixtureRoot):array{
+        $articlesPath=$oghmaFixtureRoot.'/'.$version.'.articles.json';$manifestPath=$oghmaFixtureRoot.'/'.$version.'.manifest.json';
+        $articles=json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        file_put_contents($articlesPath,$articles);
+        $manifest=['format'=>'almsivi.morrowind-oghma-catalog.v1','catalog_version'=>$version,
+            'row_count'=>count($rows),'articles_sha256'=>hash('sha256',$articles),'ontology_sha256'=>str_repeat('1',64),
+            'topic_seeds_sha256'=>str_repeat('2',64),'generator_sha256'=>str_repeat('3',64),
+            'builder_sha256'=>str_repeat('4',64),'official_content_sha256'=>['Morrowind.esm'=>str_repeat('5',64)]];
+        file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return[$articlesPath,$manifestPath];
+    };
+    $oghmaV1Rows=[['topic'=>'fixture_lore','title'=>'Fixture Lore','aliases'=>['fixture legend'],
+        'topic_desc'=>'Factory v1 preserves Vvardenfell’s reviewed lore.','knowledge_class'=>['scholar'],
+        'topic_desc_basic'=>'Factory v1 basic lore.','knowledge_class_basic'=>['common'],
+        'tags'=>['reviewed fixture lore'],'category'=>'lore']];
+    $oghmaV2Rows=[['topic'=>'fixture_lore','title'=>'Fixture Lore','aliases'=>['fixture legend'],
+        'topic_desc'=>'Factory v2 updates Vvardenfell’s reviewed lore.','knowledge_class'=>['scholar'],
+        'topic_desc_basic'=>'Factory v2 basic lore.','knowledge_class_basic'=>['common'],
+        'tags'=>['reviewed fixture lore'],'category'=>'lore'],
+        ['topic'=>'fixture_place','title'=>'Fixture Place','aliases'=>[],
+            'topic_desc'=>'Factory v2 adds one reviewed location.','knowledge_class'=>['scholar'],
+            'topic_desc_basic'=>'Factory v2 location basics.','knowledge_class_basic'=>['common'],
+            'tags'=>['reviewed fixture location'],'category'=>'locations']];
+    [$oghmaV1Articles,$oghmaV1Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v1',$oghmaV1Rows);
+    [$oghmaV2Articles,$oghmaV2Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v2',$oghmaV2Rows);
+    $customOghma=$products->createKnowledge(['installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
+        'title'=>'Fixture Lore Custom','content'=>'Installation-authored Oghma knowledge must survive factory changes.',
+        'provenance'=>['source'=>'authored-test'],'topic'=>'fixture_lore','aliases'=>'custom fixture',
+        'topic_desc_basic'=>'Custom fixture basics.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+        'tags'=>'custom fixture knowledge','category'=>'lore'],['fixture','custom'],$clock->iso());
+    $oghmaImporter=new OghmaCatalogImporter($db);$oghmaPlan=$oghmaImporter->plan($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
+    $check($oghmaPlan['valid']===true&&$oghmaPlan['row_count']===1,'factory Oghma catalog dry-run failed');
+    $oghmaImporter->apply($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
+    $customOghmaId=(string)$customOghma['document_id'];
+    $check($db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.'
+        &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs WHERE catalog_version='oghma-fixture-v1')")->fetchColumn()===1,
+        'factory Oghma v1 did not preserve installation-authored knowledge');
+    $oghmaImporter->apply($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $oghmaRollback=$oghmaImporter->rollback();
+    $check($oghmaRollback['rolled_back']===true&&$oghmaRollback['catalog_version']==='oghma-fixture-v1'
+        &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.'
+        &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v1 preserves Vvardenfell’s reviewed lore.',
+        'factory Oghma rollback did not restore v1 while preserving custom knowledge');
+    $oghmaProvisionAfterRollback=$oghmaImporter->provision($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $check($oghmaProvisionAfterRollback['applied']===false&&$oghmaProvisionAfterRollback['state']==='superseded'
+        &&$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn()==='oghma-fixture-v1',
+        'routine Oghma provisioning overrode an explicit rollback');
+    $oghmaImporter->apply($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $check((int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs WHERE state='active')")->fetchColumn()===2
+        &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.',
+        'explicit Oghma catalog reactivation lost factory rows or custom knowledge');
+    foreach(glob($oghmaFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($oghmaFixtureRoot);
 $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
     'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);

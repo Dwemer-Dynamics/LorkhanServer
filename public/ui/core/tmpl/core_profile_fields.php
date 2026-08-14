@@ -170,6 +170,7 @@ $disabledNumberField = static function (string $section, string $field, string $
                 <?php $routeSelect('tts_configuration_id', 'TTS Connector', '&#x1F50A;', 'Voice synthesis connector used for spoken output.', $tts); ?>
                 <?php $routeSelect('prompt_configuration_id', 'Dialogue Prompt', '&#x1F4AC;', 'Prompt template inherited by NPCs using this profile.', $prompts); ?>
                 <?php $routeSelect('llm_fallback_configuration_id', 'Fallback LLM', '&#x1F504;', 'Backup connector used when primary requests fail.', $llm); ?>
+                <?php $routeSelect('oghma_configuration_id', 'Oghma Extractor', '&#x1F4DA;', 'Fallback connector used only when local catalog grounding cannot resolve an explicit lore request.', $llm); ?>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F4D3;</span><span>Diary LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.diary-llm', true); ?></div><div class="setting-desc">Connector used for diary generation.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Active narrative pipeline</option></select></div></div>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>
@@ -206,6 +207,13 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $numberField('memory', 'recent_turn_limit', 'Recent Turns', 'Maximum recent conversation turns in context.', 1, 100); ?>
             <?php $numberField('memory', 'knowledge_limit', 'Knowledge Results', 'Maximum scoped knowledge documents returned.', 0, 20); ?>
             <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" maxlength="4096" value="<?php echo almsivi_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
+            <?php $selectSetting('setting_oghma_enabled', 'Oghma Enabled', 'Override catalog grounding and prompt injection for this profile.', $overrides['oghma']['enabled'] ?? null); ?>
+            <?php $numberField('oghma', 'topic_count', 'Oghma Topics', 'Maximum conversational topics extracted.', 1, 3); ?>
+            <?php $numberField('oghma', 'result_limit', 'Oghma Results', 'Maximum Oghma articles or denials injected.', 1, 5); ?>
+            <?php $selectSetting('setting_oghma_racial_context_enabled', 'Racial Context', 'Override race-topic injection.', $overrides['oghma']['racial_context_enabled'] ?? null); ?>
+            <?php $selectSetting('setting_oghma_location_context_enabled', 'Location Context', 'Override location-topic injection.', $overrides['oghma']['location_context_enabled'] ?? null); ?>
+            <?php $selectSetting('setting_oghma_extractor_fallback_enabled', 'Extractor Fallback', 'Override the one-call connector fallback.', $overrides['oghma']['extractor_fallback_enabled'] ?? null); ?>
+            <?php $numberField('oghma', 'extractor_timeout_ms', 'Extractor Timeout', 'Connector fallback timeout in milliseconds.', 250, 3000); ?>
             <?php $disabledSelectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Controlled by local OpenMW settings.', $overrides['presentation']['show_status_hud'] ?? null, 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>

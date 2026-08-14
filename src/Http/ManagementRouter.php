@@ -201,6 +201,7 @@ final class ManagementRouter
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
+            'biography-template-revise'=>$this->repository->saveBiographyTemplate($v),
             'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
             'profile-delete'=>$this->service->deleteRevisioned('profile',$this->need($v,'profile_id')),
             'profile-generate'=>$this->repository->enqueueProfileGeneration($this->need($v,'profile_id')),
@@ -259,7 +260,7 @@ final class ManagementRouter
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -873,7 +874,16 @@ final class ManagementRouter
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
-        $this->repository->setOghmaKnowledgeTags($installation,trim((string)($values['oghma_knowledge_tags']??'common')),gmdate('Y-m-d\TH:i:s\Z'));
+        $this->repository->setOghmaSettings($installation,[
+            'enabled'=>isset($values['oghma_enabled']),
+            'knowledge_tags'=>$this->npcKnowledgeTags($values['oghma_knowledge_tags']??''),
+            'racial_context_enabled'=>isset($values['oghma_racial_context_enabled']),
+            'location_context_enabled'=>isset($values['oghma_location_context_enabled']),
+            'topic_count'=>$values['oghma_topic_count']??1,
+            'result_limit'=>$values['oghma_result_limit']??3,
+            'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
+            'extractor_timeout_ms'=>$values['oghma_extractor_timeout_ms']??1500,
+        ],gmdate('Y-m-d\TH:i:s\Z'));
         $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
@@ -913,7 +923,7 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
         foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
@@ -927,6 +937,7 @@ final class ManagementRouter
             'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
             'narrator'=>['enabled','context_visibility'],
             'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+            'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled'],
         ];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$value=(string)($values[$key]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$key);
@@ -934,11 +945,12 @@ final class ManagementRouter
         $integerFields=[
             'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
             'memory'=>['recent_turn_limit','knowledge_limit'],
+            'oghma'=>['topic_count','result_limit','extractor_timeout_ms'],
         ];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
             if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
             $overrides[$section][$field]=(int)$value;}
-        $oghmaTags=trim((string)($values['setting_memory_oghma_knowledge_tags']??''));
+        $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
         if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
@@ -984,7 +996,7 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id'];
         if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
             ||array_key_exists('prompt_configuration_id',$values)||isset($values['llm_routing_fields'])){
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
@@ -1002,6 +1014,7 @@ final class ManagementRouter
         if(array_filter(array_keys($values),static fn(string$key):bool=>str_starts_with($key,'setting_'))!==[]){
             $overrides=$this->profileSettingsOverrides($values);if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
         }
+        if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
         return$content;
@@ -1011,20 +1024,30 @@ final class ManagementRouter
     private function profileSettingsOverrides(array $values):array
     {
         $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures']];
+            'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+            'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled']];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
         $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit']];
+            'memory'=>['recent_turn_limit','knowledge_limit'],'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
-        $oghmaTags=trim((string)($values['setting_memory_oghma_knowledge_tags']??''));
+        $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
         if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
         return$overrides;
+    }
+
+    /** Remove article-only markers before management forms write NPC access permissions. */
+    private function npcKnowledgeTags(mixed $value):string
+    {
+        $tags=[];foreach(preg_split('/\s*[,|;]\s*/u',trim((string)$value))?:[]as$tag){$tag=trim($tag);
+            if($tag===''||in_array(mb_strtolower($tag,'UTF-8'),['common','esoteric'],true)||in_array($tag,$tags,true))continue;
+            $tags[]=$tag;}
+        return implode(', ',$tags);
     }
 
     /** Apply the installation auto-lock preference when an NPC is created through management. */

@@ -11,6 +11,7 @@ use JsonException;
 final class PromptAssembler
 {
     private const ALGORITHM = 'chim-roleplay-prompt-v1';
+    private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
     private const SECTION_ORDER = [
@@ -48,6 +49,15 @@ final class PromptAssembler
             || $maxSourceBytes < 128 || $maxSourceBytes > 32_768) {
             throw new InvalidArgumentException('invalid_prompt_limits');
         }
+    }
+
+    /** Expose the frozen Oghma fragment as a narrow cross-server conformance test seam. */
+    public function oghmaKnowledgeFragment(array $rows, string $status = 'grounded'): string
+    {
+        $items = $this->knowledgeItemsXml($rows);
+        if ($items === '') return '';
+        return '<oghma contract="' . self::OGHMA_CONTRACT . '" status="' . $this->oghmaXmlValue($status) . '">' . "\n"
+            . $items . "\n</oghma>";
     }
 
     /**
@@ -249,8 +259,8 @@ final class PromptAssembler
         if ($narrator !== '') $playerNarrator .= '<narrator>' . $narrator . '</narrator>';
         $descriptions = $this->recordDescriptionsXml($turn['_item_descriptions'] ?? []);
         if ($descriptions !== '') $morrowind .= '<record_descriptions>' . $descriptions . '</record_descriptions>';
-        $knowledgeXml = $this->sourceItemsXml($knowledge, 'knowledge');
-        if ($knowledgeXml !== '') $morrowind .= '<knowledge>' . $knowledgeXml . '</knowledge>';
+        $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
+        $morrowind .= $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus);
         $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
 
@@ -793,6 +803,36 @@ final class PromptAssembler
             $items[] = ['content' => $this->sourceContent($kind, $row)];
         }
         return $this->itemsXml($items, 'item');
+    }
+
+    /** Render the shared Oghma parity fragment with explicit authorized articles and denied topics. */
+    private function knowledgeItemsXml(array $rows): string
+    {
+        $lines = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || array_is_list($row)) continue;
+            $topic = trim((string)($row['topic'] ?? $row['title'] ?? ''));
+            if ($topic === '') continue;
+            $source = trim((string)($row['source'] ?? 'conversation')) ?: 'conversation';
+            $access = trim((string)($row['access_level'] ?? $row['access'] ?? 'denied')) ?: 'denied';
+            $lines[] = '  <article topic="' . $this->oghmaXmlValue($topic) . '" source="'
+                . $this->oghmaXmlValue($source) . '" access="' . $this->oghmaXmlValue($access) . '">';
+            if ($access === 'denied') {
+                $reason = trim((string)($row['reason'] ?? $row['access_reason'] ?? 'knowledge_classes_not_authorized'));
+                $lines[] = '    <denial reason="' . $this->oghmaXmlValue($reason) . '" />';
+                $lines[] = '  </article>';
+                continue;
+            }
+            $lines[] = '    <content>' . $this->oghmaXmlValue((string)($row['content'] ?? '')) . '</content>';
+            $lines[] = '  </article>';
+        }
+        return implode("\n", $lines);
+    }
+
+    private function oghmaXmlValue(string $value): string
+    {
+        $value = preg_replace('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/u', "\u{FFFD}", $value) ?? '';
+        return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1, 'UTF-8');
     }
 
     private function recordDescriptionsXml(mixed $rows): string

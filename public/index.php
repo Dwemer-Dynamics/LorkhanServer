@@ -112,6 +112,7 @@ try {
         new PromptAssembler((int) ($config['max_context_bytes'] ?? 131_072)),
         MorrowindVoiceCatalog::bundled(),
         new RechatCoordinator($repository, $products),
+        providerConfig: $config,
     );
     $request = Request::fromGlobals();
     if (str_starts_with($request->path, (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'))) {

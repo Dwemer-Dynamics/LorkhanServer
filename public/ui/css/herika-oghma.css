@@ -7,20 +7,13 @@ body.oghma-page-shell > main.oghma-page { width:100%; max-width:none; margin:0; 
 .oghma-page .page-header h1 { margin:0 0 10px; color:rgb(242,124,17); font:normal 2em/1.2 MagicCards,serif; word-spacing:8px; text-shadow:2px 2px 4px rgba(0,0,0,.5); }
 .oghma-page .page-header h1 img { vertical-align:bottom; object-fit:contain; }
 .oghma-page .page-header p { margin:8px 0; color:#aaa; font-size:.95em; line-height:1.5; }
-.oghma-page .page-header h3 { margin:20px 0 8px; color:rgb(242,124,17); font-size:1.1em; }
-.oghma-page .page-header h4 { margin:0 0 12px; color:#ccc; font-size:1em; }
-
-.oghma-page .logic-section { margin:25px 0; padding:22px; background:linear-gradient(135deg,rgba(26,26,26,.95),rgba(20,20,20,.98)); border:1px solid rgba(242,124,17,.3); border-radius:10px; box-shadow:0 4px 12px rgba(0,0,0,.3),inset 0 1px rgba(242,124,17,.05); }
-.oghma-page .logic-title { margin:0 0 20px; color:rgb(242,124,17); font:700 1.25em/1.2 MagicCards,serif; word-spacing:6px; text-align:center; text-shadow:1px 1px 2px rgba(0,0,0,.5); }
-.oghma-page .logic-steps { display:grid; gap:12px; }
-.oghma-page .logic-step { display:flex; align-items:flex-start; gap:15px; padding:16px; background:rgba(42,42,42,.8); border-left:4px solid rgb(242,124,17); border-radius:8px; box-shadow:0 2px 4px rgba(0,0,0,.2); transition:all .2s ease; }
-.oghma-page .logic-step:hover { transform:translateX(4px); box-shadow:0 4px 12px rgba(242,124,17,.25),0 2px 8px rgba(0,0,0,.3); }
-.oghma-page .step-number { display:flex; width:32px; height:32px; flex:0 0 32px; align-items:center; justify-content:center; color:#000; background:linear-gradient(135deg,rgb(242,124,17),rgb(212,94,0)); border-radius:50%; font-size:15px; font-weight:700; box-shadow:0 2px 6px rgba(242,124,17,.4),inset 0 1px rgba(255,255,255,.3); }
-.oghma-page .step-content { flex:1; }
-.oghma-page .step-content strong { display:block; margin-bottom:6px; color:rgb(242,124,17); font-size:1.05em; }
-.oghma-page .step-content p { margin:0; color:#d0d0d0; line-height:1.5; }
-.oghma-page .step-content code { padding:3px 7px; color:#ffeb3b; background:rgba(74,74,74,.8); border:1px solid rgba(255,235,59,.2); border-radius:4px; font:normal .9em/1.2 "Courier New",monospace; }
-.oghma-page .step-content em { color:#81c784; }
+.oghma-page .oghma-summary { max-width:78ch; margin:8px auto 0; }
+.oghma-page .oghma-tips { max-width:78ch; margin:14px auto 0; padding:10px 14px; background:rgba(26,26,26,.8); border:1px solid #3a3a3a; border-radius:6px; text-align:left; }
+.oghma-page .oghma-tips > summary { color:rgb(242,124,17); cursor:pointer; font-size:.95em; font-weight:600; }
+.oghma-page .oghma-tips > summary:focus-visible { outline:2px solid rgba(242,124,17,.6); outline-offset:2px; }
+.oghma-page .oghma-tips ul { margin:10px 0 2px; padding-left:20px; }
+.oghma-page .oghma-tips li { margin:6px 0; color:#c0c0c0; font-size:.92em; line-height:1.5; overflow-wrap:break-word; }
+.oghma-page .oghma-tips code { padding:2px 6px; color:#ffeb3b; background:rgba(74,74,74,.8); border-radius:3px; font:normal .9em/1.2 "Courier New",monospace; }
 
 .oghma-page .tab-navigation { display:flex; margin-bottom:28px; background:linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98)); border:1px solid #3a3a3a; border-bottom:0; border-radius:10px 10px 0 0; box-shadow:0 2px 4px rgba(0,0,0,.15); }
 .oghma-page .tab-button { position:relative; flex:1; padding:16px 20px; color:rgb(242,124,17); background:transparent; border:0; border-radius:10px 10px 0 0; cursor:pointer; font:700 17px/1.2 MagicCards,serif; word-spacing:8px; text-shadow:1px 1px 2px rgba(0,0,0,.5); transition:all .3s ease; }
@@ -115,16 +108,11 @@ body.oghma-modal-open { overflow:hidden; }
     .oghma-page .search-container { min-width:200px; }
     .oghma-page .action-container { flex-direction:column; align-items:stretch; }
     .oghma-page .page-header,.oghma-page .content-section { padding:15px; }
-    .oghma-page .logic-section { margin:15px 0; padding:15px; }
-    .oghma-page .logic-step { gap:12px; padding:12px; }
-    .oghma-page .step-number { width:25px; height:25px; flex-basis:25px; font-size:12px; }
 }
 @media(max-width:480px) {
     body.oghma-page-shell > main.oghma-page { padding-right:2%; padding-left:2%; }
     .oghma-page .page-header h1 { font-size:1.5em; }
     .oghma-page .tab-button { padding:10px 12px; font-size:15px; }
-    .oghma-page .logic-section { margin:10px 0; padding:10px; }
-    .oghma-page .logic-step { flex-direction:column; gap:10px; padding:10px; text-align:center; }
-    .oghma-page .step-number { align-self:center; }
+    .oghma-page .oghma-tips { padding:10px; }
     .oghma-page .search-container { flex-direction:column; min-width:0; }
 }
