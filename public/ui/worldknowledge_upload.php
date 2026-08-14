@@ -146,7 +146,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
                     <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Factory Reset Database</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
                 </div>
-                <p>Factory Oghma entries are versioned and read-only. User-created entries remain editable and soft-deletable.</p>
+                <p>The shipped factory Oghma dataset is the current source of truth and is read-only. User-created entries remain editable and soft-deletable.</p>
             </div>
         </div>
 
