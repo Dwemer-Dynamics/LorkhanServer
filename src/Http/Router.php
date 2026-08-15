@@ -197,13 +197,15 @@ final class Router
         $grounded=$this->products->groundedOghmaExtraction($turn);
         if(($grounded['topics']??[])!==[])return[
             'status'=>'grounded','topics'=>$grounded['topics'],'matches'=>$grounded['matches']??[],
-            'rejected'=>$grounded['rejected']??[],'tag_decisions'=>$grounded['tag_decisions']??[],
-            'request_eligible'=>($grounded['request_eligible']??false)===true,'fallback_eligible'=>false,
+             'rejected'=>$grounded['rejected']??[],'tag_decisions'=>$grounded['tag_decisions']??[],
+            'context_fallback'=>$grounded['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
+             'request_eligible'=>($grounded['request_eligible']??false)===true,'fallback_eligible'=>false,
         ];
         $runtime=$grounded['runtime']??$this->products->oghmaRuntime($turn);$connector=$runtime['connector']??null;
         $groundedStatus=(string)($grounded['status']??'no_match');
         $base=['status'=>$groundedStatus,'topics'=>[],'matches'=>[],'rejected'=>$grounded['rejected']??[],
-            'tag_decisions'=>$grounded['tag_decisions']??[],'request_eligible'=>($grounded['request_eligible']??false)===true,
+             'tag_decisions'=>$grounded['tag_decisions']??[],'request_eligible'=>($grounded['request_eligible']??false)===true,
+            'context_fallback'=>$grounded['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
             'fallback_eligible'=>($grounded['fallback_eligible']??false)===true];
         if(in_array($groundedStatus,['disabled','ineligible','unavailable'],true))return$base;
         if(!$base['fallback_eligible'])return$base;

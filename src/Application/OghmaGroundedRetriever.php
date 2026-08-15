@@ -30,6 +30,18 @@ final class OghmaGroundedRetriever
         ], true);
     }
 
+    /** Limit history carry-over to short, explicitly referential follow-up lines. */
+    public static function shouldUsePreviousExchange(string $text): bool
+    {
+        $normalized = self::normalizeText($text);
+        if ($normalized === '' || mb_strlen($normalized, 'UTF-8') > 240) return false;
+        if (preg_match('/^(?:ok(?:ay)?|thanks?|thank you|sure|right|fine|good|got it|i see|never mind|nevermind|forget it|lets go|let us go)$/u', $normalized) === 1) return false;
+        if (preg_match('/\b(?:tell me more|go on|what else|anything else|what happened next|why is that|how so)\b/u', $normalized) === 1) return true;
+        $reference = preg_match('/\b(?:it|its|they|them|their|theirs|he|him|his|she|her|hers|this|that|these|those|there|former|latter)\b/u', $normalized) === 1;
+        $cue = preg_match('/\b(?:who|what|where|when|why|how|which|leader|leaders|founder|founders|origin|origins|history|story|purpose|member|members|enemy|enemies|ally|allies|located|happened|mean|means|more|else|dangerous|safe|powerful|important)\b/u', $normalized) === 1;
+        return $reference && $cue;
+    }
+
     /** Resolve the shared advanced, basic, or denied Oghma access decision. */
     public static function accessDecision(array $row, array $knowledgeTags): array
     {
@@ -578,11 +590,16 @@ final class OghmaGroundedRetriever
         ], static fn(mixed $value): bool => $value !== null);
     }
 
-    private function normalize(string $value): string
+    private static function normalizeText(string $value): string
     {
         $value = mb_strtolower(trim(str_replace('_', ' ', $value)), 'UTF-8');
         $value = preg_replace('/[^\p{L}\p{N}]+/u', ' ', $value) ?? $value;
         return trim(preg_replace('/\s+/u', ' ', $value) ?? $value);
+    }
+
+    private function normalize(string $value): string
+    {
+        return self::normalizeText($value);
     }
 
     private function compact(string $value): string

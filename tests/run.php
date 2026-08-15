@@ -138,6 +138,13 @@ $check($groundedTopics===['sixth_house','vivec'],'grounded Oghma preserves canon
     .json_encode($groundedResult['matches'],JSON_UNESCAPED_UNICODE));
 $check($groundedOghma->extract('Vivec: We should leave now.',$groundedCatalog,1)['topics']===[],
     'grounded Oghma does not treat a catalog-shaped speaker label as conversation lore');
+$followUpPolicy=array_map([OghmaGroundedRetriever::class,'shouldUsePreviousExchange'],[
+    'What about their leader?','Tell me more about it.','What happened there?','Thanks.','What are we doing now?','It started raining.']);
+$followUpCurrent=$groundedOghma->extract('What about their leader?',$groundedCatalog,3);
+$followUpPrevious=$groundedOghma->extract('We were discussing House Dagoth.',$groundedCatalog,1);
+$check($followUpPolicy===[true,true,true,false,false,false]&&$followUpCurrent['topics']===[]
+    &&$followUpPrevious['topics']===['sixth_house'],
+    'grounded Oghma carries one topic only for an unresolved referential follow-up');
 $check($groundedOghma->resolveSuggestions(['House Dagoth','invented topic'],$groundedCatalog,2)===['sixth_house'],
     'Oghma fallback suggestions resolve only to exact unambiguous catalog entities');
 $unicodeCatalog=[['topic'=>'maesa_áran','aliases'=>'Máesa Aran','category'=>'figures']];
@@ -263,11 +270,12 @@ $check(str_contains($contextPrompt,'<world><location>Seyda Neen</location>')
     &&!str_contains($contextPrompt,'&quot;position&quot;')&&!str_contains($contextPrompt,'&quot;x&quot;'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic CHIM XML');
 $knowledgeSelection=$promptSelection;
+$knowledgeSelection['knowledge_retrieval']=['status'=>'fallback_grounded'];
 $knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'auriel_s_bow','access_level'=>'basic',
     'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.'],
     ['document_id'=>'oghma-sixth-house','topic'=>'sixth_house','access_level'=>'denied','content'=>'']];
 $knowledgePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$knowledgeSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($knowledgePrompt,'<oghma contract="oghma-parity-v1" status="grounded">')
+$check(str_contains($knowledgePrompt,'<oghma_context><oghma contract="oghma-parity-v1" status="fallback_grounded">')
     &&str_contains($knowledgePrompt,'<article topic="auriel_s_bow" source="conversation" access="basic">')
     &&str_contains($knowledgePrompt,'Auriel&apos;s Bow is an ancient artifact')
     &&str_contains($knowledgePrompt,'<article topic="sixth_house" source="conversation" access="denied">')
@@ -289,9 +297,9 @@ try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outl
     'provider rejected malformed utterances with the wrong terminal code');}
 $check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0])
     &&str_contains($assembled['trace']['sources'][0]['redacted_preview'],'content redacted')
-    &&array_column($assembled['trace']['sections'],'section_order')===range(1,10)
+    &&array_column($assembled['trace']['sections'],'section_order')===range(1,11)
     &&array_column($assembled['trace']['sections'],'section_key')===['output_contract','npc_context','player_narrator_context',
-        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'morrowind_context','oghma_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
         'negotiated_actions','current_turn'], 'prompt trace is bounded, redacted, and records all ordered sections');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
 $historySelection=$promptSelection;$historySelection['memory']=[];$historySelection['recent_action_results']=[];
@@ -303,9 +311,9 @@ $historySelection['history']=[
 $budgetedHistory=(new PromptAssembler(512,256))->assemble($promptTurn,$historySelection);
 $recentHistorySource=array_values(array_filter($budgetedHistory['trace']['sources'],
     static fn(array$source):bool=>$source['source_id']==='recent-history'));
-$check(str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RECENT HISTORY SENTINEL')
-    &&count($recentHistorySource)===1&&$recentHistorySource[0]['included'],
-    'prompt history budget did not preserve the newest chronological source');
+$check(!str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RECENT HISTORY SENTINEL')
+    &&count($recentHistorySource)===1&&!$recentHistorySource[0]['included'],
+    'compact history yields to the current turn when the prompt budget is exhausted');
 $largeContextTurn=$promptTurn;$largeContextTurn['payload']['context']=['inventory'=>str_repeat('X',2048)];
 $currentTurnSelection=$promptSelection;$currentTurnSelection['memory']=[];$currentTurnSelection['recent_action_results']=[];
 $budgetedTurn=(new PromptAssembler(2048,1024))->assemble($largeContextTurn,$currentTurnSelection);
@@ -319,26 +327,37 @@ $roleHistory['history']=[
     ['history_id'=>'guard-line','content'=>['kind'=>'speech','text'=>'Move along.','speaker'=>'Guard','speaker_identity'=>['record_id'=>'guard','display_name'=>'Guard']]],
     ['history_id'=>'smoke-line','content'=>['kind'=>'event','type'=>'turn.requested','turn_id'=>'smoke-turn','input'=>['text'=>'Automated ALMSIVI smoke test.'],'speaker'=>['display_name'=>'RANGROO']]],
 ];
-$roleMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input']['_messages'];
-$check(array_column($roleMessages,'role')===['system','user','assistant','user','user']
-    &&$roleMessages[1]['content']==='RANGROO: Where is my ring?'
-    &&$roleMessages[2]['content']==='I have not seen it.'
-    &&$roleMessages[3]['content']==='Guard: Move along.'
+$rolePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input'];
+$roleMessages=$rolePrompt['_messages'];
+$check(array_column($roleMessages,'role')===['system','user']
+    &&str_contains($roleMessages[0]['content'],'<message>RANGROO: Where is my ring?</message>')
+    &&str_contains($roleMessages[0]['content'],'<message>Fargoth: I have not seen it.</message>')
+    &&str_contains($roleMessages[0]['content'],'<message>Guard: Move along.</message>')
+    &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
-    'CHIM history projection preserves speaker roles and filters control noise');
+    'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
 $semanticHistory['history']=[
     ['history_id'=>'location-event','content'=>['kind'=>'event','type'=>'location','details'=>['location'=>'Seyda Neen']]],
     ['history_id'=>'weather-event','content'=>['kind'=>'event','type'=>'weather','details'=>['weather'=>'Cloudy']]],
     ['history_id'=>'journal-event','content'=>['kind'=>'event','type'=>'quest','details'=>['text'=>'Report to Caius Cosades.']]],
 ];
-$semanticMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$semanticHistory)['provider_input']['_messages'];
-$semanticText=json_encode($semanticMessages,JSON_THROW_ON_ERROR);
+$semanticText=(new PromptAssembler(8192,1024))->assemble($promptTurn,$semanticHistory)['provider_input']['_assembled_prompt'];
 $check(str_contains($semanticText,'[Location] The player entered Seyda Neen.')
     &&str_contains($semanticText,'[Weather] The weather changed to Cloudy.')
     &&str_contains($semanticText,'[Journal] Report to Caius Cosades.')
     &&!str_contains($semanticText,'\\"details\\"'),
     'world and journal history is semantic text rather than raw event JSON');
+
+$largeWorldTurn=$promptTurn;
+$largeWorldTurn['payload']['context']=['world'=>['cell'=>'WORLD CONTEXT SENTINEL '.str_repeat('W',6000)]];
+$protectedKnowledge=(new PromptAssembler(4096,1024))->assemble($largeWorldTurn,$knowledgeSelection);
+$protectedSections=array_column($protectedKnowledge['trace']['sections'],'inclusion_reason','section_key');
+$check(!str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'WORLD CONTEXT SENTINEL')
+    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'<oghma_context><oghma')
+    &&($protectedSections['morrowind_context']??null)==='byte_limit'
+    &&($protectedSections['oghma_context']??null)==='included',
+    'Oghma remains in its protected section when lower-priority Morrowind context is trimmed');
 
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',

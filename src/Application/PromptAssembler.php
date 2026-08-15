@@ -7,10 +7,10 @@ namespace ALMSIVIserver\Application;
 use InvalidArgumentException;
 use JsonException;
 
-/** Builds CHIM-style XML system context and role-separated chat messages for one turn. */
+/** Builds CHIM-style XML with compact system-owned chat history for one turn. */
 final class PromptAssembler
 {
-    private const ALGORITHM = 'chim-roleplay-prompt-v1';
+    private const ALGORITHM = 'chim-compact-roleplay-prompt-v2';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -19,12 +19,13 @@ final class PromptAssembler
         'npc_context' => 2,
         'player_narrator_context' => 3,
         'morrowind_context' => 4,
-        'relationships_factions' => 5,
-        'memory_context' => 6,
-        'conversation_context' => 7,
-        'audience_speaker_rules' => 8,
-        'negotiated_actions' => 9,
-        'current_turn' => 10,
+        'oghma_context' => 5,
+        'relationships_factions' => 6,
+        'memory_context' => 7,
+        'conversation_context' => 8,
+        'audience_speaker_rules' => 9,
+        'negotiated_actions' => 10,
+        'current_turn' => 11,
     ];
 
     /** @var array<string,array{limit:int,bytes:int}> */
@@ -96,20 +97,18 @@ final class PromptAssembler
         $playerName = $this->playerName($turn);
         $final = $this->currentTurnMessage($turn, $actorName, $playerName);
         $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName);
-
-        $historyReserve = 0;
-        foreach ($historyMessages as $message) $historyReserve += strlen($message['content']) + 16;
-        $historyReserve = min(self::SECTIONS['history']['bytes'], $historyReserve);
-        $systemBudget = max(192, $this->maxInputBytes - strlen($final) - $historyReserve - 256);
+        $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
+        $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
         $system = $this->systemPrompt(
             $turn,
             $profile,
             $coreProfile,
             $prompt,
-            $history,
+            $historyMessages,
             $memory,
             $relationships,
             $knowledge,
+            $knowledgeStatus,
             $narrative,
             $actions,
             $actorName,
@@ -118,18 +117,13 @@ final class PromptAssembler
         );
 
         $messages = [['role' => 'system', 'content' => $system]];
-        foreach ($historyMessages as $message) {
-            $messages[] = ['role' => $message['role'], 'content' => $message['content'], '_source_id' => $message['_source_id']];
-        }
         $messages[] = ['role' => 'user', 'content' => $final];
         $messages = $this->fitMessages($messages, $turn, $actorName, $playerName);
 
         $includedHistory = [];
-        foreach ($messages as $message) {
-            if (is_string($message['_source_id'] ?? null)) $includedHistory[$message['_source_id']] = true;
+        if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $system) === 1) {
+            foreach ($historyMessages as $message) $includedHistory[$message['_source_id']] = true;
         }
-        foreach ($messages as &$message) unset($message['_source_id']);
-        unset($message);
 
         $assembled = $this->readableMessages($messages);
         if ($assembled === '' || strlen($assembled) > $this->maxInputBytes) {
@@ -202,7 +196,7 @@ final class PromptAssembler
     /**
      * Construct the same broad XML families CHIM uses while keeping ALMSIVI's typed response contract.
      * @param list<array<string,mixed>> $memory
-     * @param list<array<string,mixed>> $history
+     * @param list<array{role:string,content:string,_source_id:string}> $historyMessages
      * @param list<array<string,mixed>> $relationships
      * @param list<array<string,mixed>> $knowledge
      * @param list<array<string,mixed>> $narrative
@@ -213,10 +207,11 @@ final class PromptAssembler
         array $profile,
         ?array $coreProfile,
         array $prompt,
-        array $history,
+        array $historyMessages,
         array $memory,
         array $relationships,
         array $knowledge,
+        string $knowledgeStatus,
         array $narrative,
         array $actions,
         string $actorName,
@@ -259,14 +254,16 @@ final class PromptAssembler
         if ($narrator !== '') $playerNarrator .= '<narrator>' . $narrator . '</narrator>';
         $descriptions = $this->recordDescriptionsXml($turn['_item_descriptions'] ?? []);
         if ($descriptions !== '') $morrowind .= '<record_descriptions>' . $descriptions . '</record_descriptions>';
-        $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
-        $morrowind .= $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus);
+        $oghma = $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus);
         $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
 
         $conversation = '';
-        foreach ($this->historyMessages($history, $turn, $actorName, $playerName) as $message) {
-            $conversation .= $this->xmlTag('message', strtoupper($message['role']) . ': ' . $message['content']);
+        foreach ($historyMessages as $message) {
+            $line = $message['role'] === 'assistant'
+                ? $actorName . ': ' . $message['content']
+                : $message['content'];
+            $conversation .= $this->xmlTag('message', $line);
         }
         $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
         $memoryXml = $this->sourceItemsXml($memory, 'memory');
@@ -287,6 +284,7 @@ final class PromptAssembler
             'npc_context' => $npc,
             'player_narrator_context' => $playerNarrator,
             'morrowind_context' => $morrowind,
+            'oghma_context' => $oghma,
             'relationships_factions' => $relationshipXml,
             'memory_context' => $memoryXml,
             'conversation_context' => $conversation,
@@ -600,6 +598,7 @@ final class PromptAssembler
         }
         $messages = [];
         $semanticEvents = [];
+        $messageIndexes = [];
         foreach ($rows as $row) {
             $id = $this->sourceId('history', $row);
             $content = $row['content'] ?? null;
@@ -611,11 +610,13 @@ final class PromptAssembler
                 if (isset($semanticEvents[$semanticKey])) continue;
                 $semanticEvents[$semanticKey] = true;
             }
-            $previous = $messages[array_key_last($messages)] ?? null;
-            if ($previous !== null && $previous['role'] === $message['role'] && $previous['content'] === $message['content']) continue;
+            $normalized = mb_strtolower(preg_replace('/\s+/u', ' ', trim($message['content'])) ?? $message['content'], 'UTF-8');
+            $messageKey = $message['role'] . '|' . $normalized;
+            if (isset($messageIndexes[$messageKey])) unset($messages[$messageIndexes[$messageKey]]);
             $messages[] = $message + ['_source_id' => $id];
+            $messageIndexes[$messageKey] = array_key_last($messages);
         }
-        return array_slice($messages, -32);
+        return array_slice(array_values($messages), -32);
     }
 
     /** @return array{role:string,content:string}|null */
@@ -986,7 +987,8 @@ final class PromptAssembler
     {
         return match ($kind) {
             'profile', 'core_profile', 'prompt' => 'npc_context',
-            'knowledge', 'narrative' => 'morrowind_context',
+            'knowledge' => 'oghma_context',
+            'narrative' => 'morrowind_context',
             'relationship' => 'relationships_factions',
             'memory' => 'memory_context',
             'history' => 'conversation_context',

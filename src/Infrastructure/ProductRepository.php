@@ -1296,7 +1296,8 @@ final class ProductRepository
         if(is_string($origin)&&trim($origin)!=='')$parts[]='Conversation origin: '.trim($origin);
         $history=$this->db->prepare("SELECT e.type,e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND m.turn_id IS DISTINCT FROM :turn AND e.type IN ('inputtext','chat','rechat') ORDER BY e.rowid DESC LIMIT 8");
         $history->execute(['installation'=>$installation,'playthrough'=>$turn['playthrough_id'],'turn'=>$turn['turn_id']??null]);
-        foreach(array_reverse($history->fetchAll())as$row){$text=trim((string)$row['data']);if($text!=='')$parts[]=(string)$row['type'].': '.$text;}
+        $historyRows=$history->fetchAll();
+        foreach(array_reverse($historyRows)as$row){$text=trim((string)$row['data']);if($text!=='')$parts[]=(string)$row['type'].': '.$text;}
         $context=implode("\n",$parts);if(strlen($context)>16_384)$context=mb_strcut($context,0,16_384,'UTF-8');
         $groundingText=$input!==''?$input:(is_string($origin)?trim($origin):'');
         $result=['settings'=>$settings,'connector'=>null,'context'=>$context,'grounding_text'=>$groundingText,
@@ -1320,10 +1321,42 @@ final class ProductRepository
             'tag_decisions'=>[],'fallback_eligible'=>false,'request_eligible'=>false,'runtime'=>$runtime];
         if(!OghmaGroundedRetriever::isEligibleTurn($turn))return['status'=>'ineligible','topics'=>[],'matches'=>[],'rejected'=>[],
             'tag_decisions'=>[],'fallback_eligible'=>false,'request_eligible'=>false,'runtime'=>$runtime];
-        $catalog=$this->oghmaCatalogForTurn($turn);
-        $result=(new OghmaGroundedRetriever($catalog))->extract((string)($runtime['grounding_text']??''),[],
-            (int)($runtime['settings']['topic_count']??1));
-        return array_merge($result,['status'=>$result['topics']===[]?'no_match':'grounded','request_eligible'=>true,'runtime'=>$runtime]);
+        $catalog=$this->oghmaCatalogForTurn($turn);$retriever=new OghmaGroundedRetriever($catalog);
+        $groundingText=(string)($runtime['grounding_text']??'');
+        $result=$retriever->extract($groundingText,[],(int)($runtime['settings']['topic_count']??1));
+        $contextFallback=['eligible'=>$result['topics']===[]&&OghmaGroundedRetriever::shouldUsePreviousExchange($groundingText),
+            'attempted'=>false,'used'=>false];
+        $previousExchange=$contextFallback['eligible']?$this->previousOghmaExchange($turn):'';
+        if($contextFallback['eligible']&&$previousExchange!==''){$contextFallback['attempted']=true;
+            $previousResult=$retriever->extract($previousExchange,[],1);
+            if($previousResult['topics']!==[]){foreach($previousResult['matches']as&$match)$match['context_source']='previous_exchange';unset($match);
+                $result=$previousResult;$contextFallback['used']=true;}}
+        return array_merge($result,['status'=>$result['topics']===[]?'no_match':'grounded','request_eligible'=>true,
+            'context_fallback'=>$contextFallback,'runtime'=>$runtime]);
+    }
+
+    /** Return the previous two dialogue lines only when they belong to the current actor. */
+    private function previousOghmaExchange(array $turn):string
+    {
+        $actor=$turn['payload']['target']??null;if(!is_array($actor)||array_is_list($actor))return'';
+        $actorKey=[];foreach(['kind','record_id','content_file']as$field){if(is_string($actor[$field]??null)&&$actor[$field]!=='')$actorKey[$field]=$actor[$field];}
+        if(is_array($actor['refnum']??null)&&!array_is_list($actor['refnum'])){$refnum=[];
+            foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
+            if($refnum!==[])$actorKey['refnum']=$refnum;}
+        if(!isset($actorKey['record_id'],$actorKey['content_file']))return'';
+        $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
+        $statement=$this->db->prepare("SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid "
+            ."WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL "
+            ."AND m.turn_id IS DISTINCT FROM :turn AND e.type IN ('inputtext','chat','rechat') "
+            ."AND (m.speaker @> CAST(:actor AS jsonb) OR m.target @> CAST(:actor AS jsonb) OR m.audience @> CAST(:audience AS jsonb)) "
+            ."ORDER BY e.rowid DESC LIMIT 6");
+        $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'turn'=>$turn['turn_id']??null,'actor'=>$actorJson,'audience'=>$audienceJson]);
+        $parts=[];$seen=[];$currentText=trim((string)($turn['payload']['input']['text']??''));
+        $current=mb_strtolower(preg_replace('/\s+/u',' ',$currentText)??$currentText,'UTF-8');
+        foreach($statement->fetchAll()as$row){$text=trim((string)$row['data']);$key=mb_strtolower(preg_replace('/\s+/u',' ',$text)??$text,'UTF-8');
+            if($text===''||$key===$current||isset($seen[$key]))continue;$seen[$key]=true;$parts[]=$text;if(count($parts)>=2)break;}
+        return mb_strcut(implode("\n",array_reverse($parts)),0,4096,'UTF-8');
     }
 
     /** Resolve fallback connector output against the exact catalog visible to the current NPC. */
@@ -1511,13 +1544,14 @@ SQL);
             'extractor_configuration_id'=>$extraction['configuration_id']??null,'conversation_signals'=>$conversation,
             'grounded_matches'=>$extraction['matches']??[],'grounded_rejections'=>$extraction['rejected']??[],
             'tag_decisions'=>$extraction['tag_decisions']??[],
+            'context_fallback'=>$extraction['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
             'fallback_eligible'=>($extraction['fallback_eligible']??false)===true,'suggested_topics'=>$extraction['suggested_topics']??[],
             'race_signals'=>$signals['race'],'location_signals'=>$signals['location'],
             'racial_context_enabled'=>($settings['racial_context_enabled']??false)===true,'location_context_enabled'=>($settings['location_context_enabled']??false)===true];
         $promptStatus=$selected===[]?$status:($status==='fallback_succeeded'?'fallback_succeeded':'grounded');
         return['rows'=>$selected,'trace'=>['domain'=>'knowledge','status'=>$promptStatus,'query'=>$query,'result_ids'=>array_column($selected,'id'),
             'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>OghmaGroundedRetriever::VERSION,'created_at'=>$now,
-            'prompt_section'=>'morrowind_context','scope'=>$scope,'effective_knowledge_tags'=>$knowledgeTags]];
+            'prompt_section'=>'oghma_context','scope'=>$scope,'effective_knowledge_tags'=>$knowledgeTags]];
     }
 
     /** Extract canonical race names and stable named locations already present in trusted turn context. */
@@ -1778,11 +1812,11 @@ SQL);
             $find->execute(['turn'=>$turn['turn_id']]);$stored=(string)$find->fetchColumn();
             foreach($trace['sources'] as $source){
                 $kind=(string)$source['source_kind'];
-                $section=match($kind){'profile','core_profile','prompt'=>'npc_context','knowledge','narrative'=>'morrowind_context',
+                $section=match($kind){'profile','core_profile','prompt'=>'npc_context','knowledge'=>'oghma_context','narrative'=>'morrowind_context',
                     'relationship'=>'relationships_factions','memory'=>'memory_context','history'=>'conversation_context',
                     'action_result','action_catalog'=>'negotiated_actions',default=>'current_turn'};
-                $sectionOrder=['npc_context'=>2,'morrowind_context'=>4,'relationships_factions'=>5,'memory_context'=>6,
-                    'conversation_context'=>7,'negotiated_actions'=>9,'current_turn'=>10][$section];
+                $sectionOrder=['npc_context'=>2,'morrowind_context'=>4,'oghma_context'=>5,'relationships_factions'=>6,'memory_context'=>7,
+                    'conversation_context'=>8,'negotiated_actions'=>10,'current_turn'=>11][$section];
                 $table=match($kind){'profile'=>'profile_revisions','core_profile'=>'core_profile_revisions','prompt'=>'configuration_revisions',
                     'history'=>'eventlog','memory'=>'memory_records','relationship'=>'relationship_records','knowledge'=>'knowledge_documents',
                     'narrative'=>'narrative_records','action_result'=>'action_results','action_catalog'=>'action_catalog',default=>'turns'};

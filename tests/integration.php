@@ -472,11 +472,11 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&(int)($layerTrace['core_profile_revision']??0)===(int)$coreProfile['current_revision']
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($layerTrace['effective_settings_sha256']??''))===1
     &&($traceSources['settings.behavior.rechat']??null)==='core_profile'
-    &&array_column($promptSections,'section_order')===range(1,10)
+    &&array_column($promptSections,'section_order')===range(1,11)
     &&array_column($promptSections,'section_key')===['output_contract','npc_context','player_narrator_context',
-        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'morrowind_context','oghma_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
         'negotiated_actions','current_turn']
-    &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===10
+    &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===11
     &&($memoryRetrieval['prompt_section']??null)==='memory_context'
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
@@ -964,12 +964,15 @@ $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatActionCount=(int)$rechatActions->fetchColumn();
     $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
     $rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
+    preg_match('#<conversation_context>(.*?)</conversation_context>#s',$assembledRechatPrompt,$rechatConversationMatch);
+    $rechatConversation=(string)($rechatConversationMatch[1]??'');
     $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
-    &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)>=3
+    &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)===2
     &&($rechatMessages[0]['role']??null)==='system'
+    &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
-    &&str_contains($assembledRechatPrompt,'Please follow me.')
+    &&substr_count($rechatConversation,'Please follow me.')===1
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
