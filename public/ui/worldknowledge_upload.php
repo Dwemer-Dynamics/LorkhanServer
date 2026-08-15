@@ -10,16 +10,22 @@ require __DIR__ . '/ui_bootstrap.php';
 
 $installations = $uiRepository->rows('installations');
 $selectedInstallation = (string) ($_GET['installation_id'] ?? ($installations[0]['installation_id'] ?? ''));
+$catalogPageSize = 500;
 $filters = [
     'search' => (string) ($_GET['search'] ?? ''),
     'category' => (string) ($_GET['category'] ?? ''),
     'order' => (string) ($_GET['order'] ?? 'asc'),
-    'page' => 1,
-    'page_size' => 500,
+    'page' => max(1, (int) ($_GET['page'] ?? 1)),
+    'page_size' => $catalogPageSize,
     'installation_id' => $selectedInstallation,
 ];
 $catalog = $uiRepository->oghmaCatalog($filters);
 $rows = $catalog['rows'];
+$catalogTotal = (int) $catalog['total'];
+$catalogPages = max(1, (int) $catalog['pages']);
+$catalogPage = min(max(1, (int) $catalog['page']), $catalogPages);
+$catalogFirst = $rows === [] ? 0 : (($catalogPage - 1) * $catalogPageSize) + 1;
+$catalogLast = $rows === [] ? 0 : $catalogFirst + count($rows) - 1;
 $categories = $uiRepository->oghmaCategories();
 $additionalStylesheets = ['herika-oghma.css?v=' . (string) filemtime(__DIR__ . '/css/herika-oghma.css')];
 include __DIR__ . '/tmpl/head.html';
@@ -27,9 +33,10 @@ if (!$embedded) {
     include __DIR__ . '/tmpl/navbar.php';
 }
 
+// Filter changes drop back to page 1; only explicit page links carry a page number.
 $query = static function (array $replace = []) use ($filters, $embedded): string {
-    $values = array_merge($filters, ['embed' => $embedded ? '1' : '0'], $replace);
-    unset($values['page'], $values['page_size']);
+    $values = array_merge($filters, ['embed' => $embedded ? '1' : '0', 'page' => 1], $replace);
+    unset($values['page_size']);
     return '?' . http_build_query($values) . '#entries';
 };
 
@@ -238,6 +245,55 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     </tbody>
                 </table>
             </div>
+
+            <nav class="oghma-pagination" aria-label="Oghma catalog pagination">
+                <div class="oghma-pagination-summary">
+                    <p class="oghma-pagination-range">
+                        <?php if ($catalogTotal === 0): ?>
+                            Showing 0 of 0 articles
+                        <?php else: ?>
+                            Showing <?php echo number_format($catalogFirst); ?>&#8211;<?php echo number_format($catalogLast); ?> of <?php echo number_format($catalogTotal); ?> article<?php echo $catalogTotal === 1 ? '' : 's'; ?>
+                        <?php endif; ?>
+                    </p>
+                    <p class="oghma-pagination-page">Page <?php echo number_format($catalogPage); ?> of <?php echo number_format($catalogPages); ?></p>
+                </div>
+                <?php if ($catalogPages > 1):
+                    $pageNumbers = $catalogPages <= 10
+                        ? range(1, $catalogPages)
+                        : array_values(array_unique(array_merge([1], range(max(2, $catalogPage - 2), min($catalogPages - 1, $catalogPage + 2)), [$catalogPages])));
+                    $previousNumber = 0;
+                ?>
+                    <ul class="oghma-pagination-list">
+                        <li>
+                            <?php if ($catalogPage > 1): ?>
+                                <a class="oghma-page-link" rel="prev" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage - 1])); ?>">Previous</a>
+                            <?php else: ?>
+                                <span class="oghma-page-link disabled" aria-disabled="true">Previous</span>
+                            <?php endif; ?>
+                        </li>
+                        <?php foreach ($pageNumbers as $pageNumber): ?>
+                            <?php if ($previousNumber !== 0 && $pageNumber > $previousNumber + 1): ?>
+                                <li class="oghma-pagination-gap" aria-hidden="true">&hellip;</li>
+                            <?php endif; ?>
+                            <li>
+                                <?php if ($pageNumber === $catalogPage): ?>
+                                    <span class="oghma-page-link current" aria-current="page"><?php echo number_format($pageNumber); ?></span>
+                                <?php else: ?>
+                                    <a class="oghma-page-link" href="<?php echo almsivi_ui_h($query(['page' => $pageNumber])); ?>" aria-label="Page <?php echo number_format($pageNumber); ?>"><?php echo number_format($pageNumber); ?></a>
+                                <?php endif; ?>
+                            </li>
+                            <?php $previousNumber = $pageNumber; ?>
+                        <?php endforeach; ?>
+                        <li>
+                            <?php if ($catalogPage < $catalogPages): ?>
+                                <a class="oghma-page-link" rel="next" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage + 1])); ?>">Next</a>
+                            <?php else: ?>
+                                <span class="oghma-page-link disabled" aria-disabled="true">Next</span>
+                            <?php endif; ?>
+                        </li>
+                    </ul>
+                <?php endif; ?>
+            </nav>
         </div>
     </div>
 </main>

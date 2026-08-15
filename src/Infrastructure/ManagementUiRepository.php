@@ -27,9 +27,10 @@ final class ManagementUiRepository
             .' FROM knowledge_documents d WHERE '.implode(' AND ',$scope)
             ." ORDER BY d.installation_id,lower(d.topic),(d.provenance->>'source' IS DISTINCT FROM 'factory-oghma') DESC,d.created_at DESC,d.document_id DESC) ";
         $base=' FROM effective d'.($where===[]?'':' WHERE '.implode(' AND ',$where));$count=$this->db->prepare($effective.'SELECT count(*)'.$base);$count->execute($params);$total=(int)$count->fetchColumn();
+        $pages=max(1,(int)ceil($total/$pageSize));$page=min($page,$pages);
         $statement=$this->db->prepare($effective.'SELECT '.$columns.$base.' ORDER BY lower(d.topic) '.$order.',d.document_id LIMIT '.$pageSize.' OFFSET '.(($page-1)*$pageSize));$statement->execute($params);$rows=$statement->fetchAll();
         foreach($rows as&$row)$row['provenance']=json_decode((string)$row['provenance'],true,16,JSON_THROW_ON_ERROR);unset($row);
-        return['rows'=>$rows,'total'=>$total,'page'=>$page,'pages'=>max(1,(int)ceil($total/$pageSize))];
+        return['rows'=>$rows,'total'=>$total,'page'=>$page,'pages'=>$pages,'page_size'=>$pageSize];
     }
 
     public function oghmaCategories():array{return$this->db->query("SELECT DISTINCT category FROM knowledge_documents WHERE deleted_at IS NULL AND category<>'' ORDER BY category")->fetchAll(PDO::FETCH_COLUMN);}

@@ -626,6 +626,29 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
                'coverage_topic_'||sequence,'','Coverage basics '||sequence,'','common','','lore'
         FROM generate_series(1,1300) AS sequence");
     $coverageInsert->execute(['installation'=>$installation,'created_at'=>$clock->iso()]);
+    $coverageCatalogPages=[];
+    foreach([1,2,3]as$coveragePage){
+        $coverageCatalogPages[]=$uiDescriptions->oghmaCatalog([
+            'installation_id'=>$installation,'search'=>'coverage topic','page'=>$coveragePage,'page_size'=>999,
+        ]);
+    }
+    $coverageCatalogIds=array_merge(...array_map(
+        static fn(array$page):array=>array_column($page['rows'],'document_id'),
+        $coverageCatalogPages
+    ));
+    $coveragePastEnd=$uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'search'=>'coverage topic','page'=>999,'page_size'=>999,
+    ]);
+    $check(
+        array_map(static fn(array$page):int=>count($page['rows']),$coverageCatalogPages)===[500,500,300]
+        &&array_map(static fn(array$page):int=>(int)$page['page_size'],$coverageCatalogPages)===[500,500,500]
+        &&count(array_unique($coverageCatalogIds))===1300
+        &&(int)$coverageCatalogPages[0]['total']===1300
+        &&(int)$coverageCatalogPages[0]['pages']===3
+        &&(int)$coveragePastEnd['page']===3
+        &&count($coveragePastEnd['rows'])===300,
+        'Oghma catalog pagination did not enforce the 500-article cap or expose every matching article'
+    );
     $coverageCandidates=$products->knowledgeCandidates([
         'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
     ]);

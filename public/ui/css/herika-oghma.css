@@ -87,6 +87,19 @@ body.oghma-page-shell > main.oghma-page { width:100%; max-width:none; margin:0; 
 .oghma-page .factory-label { display:block; margin-top:5px; color:#888; font-size:11px; }
 .oghma-page .empty-table { padding:30px !important; text-align:center; }
 
+/* Catalog pager: flat panel matching the filter bar, wrapping into rows when space runs out. */
+.oghma-page .oghma-pagination { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:12px 20px; margin-top:16px; padding:14px 16px; background:linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98)); border:1px solid #3a3a3a; border-radius:10px; box-shadow:0 2px 8px rgba(0,0,0,.15),inset 0 1px rgba(255,255,255,.03); }
+.oghma-page .oghma-pagination-summary { min-width:0; }
+.oghma-page .oghma-pagination-range,.oghma-page .oghma-pagination-page { margin:0; color:#aaa; font-size:.95em; line-height:1.5; }
+.oghma-page .oghma-pagination-page { color:rgb(242,124,17); }
+.oghma-page .oghma-pagination-list { display:flex; flex-wrap:wrap; align-items:center; gap:6px; margin:0; padding:0; list-style:none; }
+.oghma-page .oghma-page-link { display:inline-flex; min-width:36px; min-height:32px; align-items:center; justify-content:center; padding:6px 11px; color:#f8f9fa; background:#393939; border:1px solid #555; border-radius:5px; font:600 13px/1.2 Arial,sans-serif; text-decoration:none; }
+.oghma-page a.oghma-page-link:hover { color:rgb(255,140,30); background:#4a4a4a; border-color:rgba(242,124,17,.5); }
+.oghma-page a.oghma-page-link:focus-visible { outline:2px solid rgb(242,124,17); outline-offset:2px; }
+.oghma-page .oghma-page-link.current { color:#fff; background:#0056b3; border-color:#2777c9; }
+.oghma-page .oghma-page-link.disabled { opacity:.62; cursor:not-allowed; }
+.oghma-page .oghma-pagination-gap { padding:0 2px; color:#888; }
+
 .modal-backdrop[hidden] { display:none !important; }
 .modal-backdrop { position:fixed; inset:0; z-index:10000; display:block; padding:20px 0; overflow-y:auto; background:rgba(0,0,0,.75); }
 .modal-backdrop .modal-container { position:relative; width:90%; max-width:800px; margin:80px auto 40px; background:linear-gradient(180deg,rgba(42,42,42,.98),rgba(34,34,34,.98)); border:1px solid #3a3a3a; border-radius:12px; box-shadow:0 8px 32px rgba(0,0,0,.4); }
@@ -114,6 +127,8 @@ body.oghma-modal-open { overflow:hidden; }
     .oghma-page .action-container { flex-direction:column; align-items:stretch; }
     .oghma-page .page-header,.oghma-page .content-section { padding:15px; }
     .oghma-page .oghma-tips { padding:8px 10px; }
+    .oghma-page .oghma-pagination { flex-direction:column; align-items:stretch; }
+    .oghma-page .oghma-pagination-list { justify-content:center; }
 }
 @media(max-width:480px) {
     body.oghma-page-shell > main.oghma-page { padding-right:2%; padding-left:2%; }
@@ -121,4 +136,6 @@ body.oghma-modal-open { overflow:hidden; }
     .oghma-page .tab-button { padding:10px 12px; font-size:15px; }
     .oghma-page .oghma-tips { margin-top:10px; padding:8px; }
     .oghma-page .search-container { flex-direction:column; min-width:0; }
+    .oghma-page .oghma-pagination { padding:12px 10px; }
+    .oghma-page .oghma-page-link { min-width:32px; padding:6px 9px; }
 }
