@@ -13,12 +13,14 @@ use Throwable;
 final class OghmaCatalogImporter
 {
     private const FORMAT = 'almsivi.morrowind-oghma-catalog.v1';
-    private const MAX_ARTICLES_BYTES = 2_097_152;
+    private const MAX_ARTICLES_BYTES = 4_194_304;
     private const MAX_MANIFEST_BYTES = 262_144;
-    private const MAX_ROWS = 1_000;
+    private const MAX_ROWS = 2_000;
     private const LOCK_ID = 4_684_566_698_006_905;
-    private const CATEGORIES = ['alchemy','artifacts','creatures','cultures','diseases','factions','figures','history',
-        'locations','lore','magic','races','regions','religion','settlements'];
+    private const CATEGORIES = ['alchemy','artifacts','books','creatures','cultures','diseases','equipment','factions',
+        'figures','history','ingredients','locations','lore','magic','races','regions','religion','settlements',
+        'ascadian_isles','ashlands','azuras_coast','bitter_coast','grazelands','molag_amur','mournhold',
+        'red_mountain','sheogorad','solstheim','west_gash','locationother'];
     private const FIELDS = ['topic','title','aliases','topic_desc','knowledge_class','topic_desc_basic',
         'knowledge_class_basic','tags','category'];
 
@@ -45,7 +47,7 @@ final class OghmaCatalogImporter
             'invalid_count'=>count($package['errors']),'errors'=>$package['errors']];
     }
 
-    /** Activate a catalog and atomically refresh only tracked factory documents. */
+    /** Synchronize the checked-in dataset and atomically replace only tracked factory documents. */
     public function apply(string $articlesPath,string $manifestPath,string $catalogVersion):array
     {
         $package=$this->loadPackage($articlesPath,$manifestPath,$catalogVersion);
@@ -53,49 +55,35 @@ final class OghmaCatalogImporter
         $plan=$this->plan($articlesPath,$manifestPath,$catalogVersion);
         return$this->transaction(function()use($package,$catalogVersion,$plan):array{
             $this->db->exec('SELECT pg_advisory_xact_lock('.self::LOCK_ID.')');
-            $existing=$this->catalogByVersion($catalogVersion);
-            if($existing!==null){
-                if(!hash_equals((string)$existing['articles_sha256'],$package['articles_sha256'])
-                    ||!hash_equals((string)$existing['manifest_sha256'],$package['manifest_sha256']))throw new RuntimeException('oghma_catalog_version_conflict');
-                if($existing['state']==='active'){
-                    $projected=$this->projectAllInstallations((string)$existing['catalog_id']);
-                    return$plan+['applied'=>false,'idempotent'=>true,'catalog_id'=>$existing['catalog_id'],'projected_installations'=>$projected];
-                }
-                $this->activate((string)$existing['catalog_id']);
-                $projected=$this->projectAllInstallations((string)$existing['catalog_id']);
-                return$plan+['applied'=>true,'idempotent'=>false,'reactivated'=>true,'catalog_id'=>$existing['catalog_id'],'projected_installations'=>$projected];
+            $current=$this->activeCatalog();
+            $catalogCount=(int)$this->db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn();
+            if($current!==null&&$catalogCount===1&&$current['catalog_version']===$catalogVersion
+                &&hash_equals((string)$current['articles_sha256'],$package['articles_sha256'])
+                &&hash_equals((string)$current['manifest_sha256'],$package['manifest_sha256'])){
+                $projected=$this->projectAllInstallations((string)$current['catalog_id']);
+                return$plan+['applied'=>false,'idempotent'=>true,'catalog_id'=>$current['catalog_id'],'projected_installations'=>$projected];
             }
-            $active=$this->activeCatalog();$catalogId=Uuid::v4();$now=gmdate('Y-m-d\TH:i:s\Z');
+            $this->db->exec('DELETE FROM knowledge_documents d USING oghma_factory_documents f WHERE f.document_id=d.document_id');
+            $this->db->exec('DELETE FROM oghma_catalogs');
+            $catalogId=Uuid::v4();$now=gmdate('Y-m-d\TH:i:s\Z');
             $m=$package['manifest'];
-            $statement=$this->db->prepare("INSERT INTO oghma_catalogs(catalog_id,catalog_version,format_version,articles_sha256,manifest_sha256,ontology_sha256,topic_seeds_sha256,generator_sha256,builder_sha256,official_content_sha256,row_count,state,previous_catalog_id,imported_at,activated_at) VALUES(:id,:version,:format,:articles,:manifest,:ontology,:seeds,:generator,:builder,CAST(:official AS jsonb),:rows,'superseded',:previous,:now,:now)");
+            $statement=$this->db->prepare("INSERT INTO oghma_catalogs(catalog_id,catalog_version,format_version,articles_sha256,manifest_sha256,ontology_sha256,topic_seeds_sha256,generator_sha256,builder_sha256,official_content_sha256,row_count,state,previous_catalog_id,imported_at,activated_at) VALUES(:id,:version,:format,:articles,:manifest,:ontology,:seeds,:generator,:builder,CAST(:official AS jsonb),:rows,'active',NULL,:now,:now)");
             $statement->execute(['id'=>$catalogId,'version'=>$catalogVersion,'format'=>$m['format'],'articles'=>$package['articles_sha256'],
                 'manifest'=>$package['manifest_sha256'],'ontology'=>$m['ontology_sha256'],'seeds'=>$m['topic_seeds_sha256'],
                 'generator'=>$m['generator_sha256'],'builder'=>$m['builder_sha256'],
                 'official'=>json_encode($m['official_content_sha256'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),
-                'rows'=>count($package['rows']),'previous'=>$active['catalog_id']??null,'now'=>$now]);
+                'rows'=>count($package['rows']),'now'=>$now]);
             $insert=$this->db->prepare('INSERT INTO oghma_catalog_entries(catalog_id,topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category) VALUES(:catalog,:topic,:title,:aliases,:topic_desc,:knowledge_class,:topic_desc_basic,:knowledge_class_basic,:tags,:category)');
             foreach($package['rows']as$row)$insert->execute(['catalog'=>$catalogId]+$row);
-            $this->activate($catalogId);
             $projected=$this->projectAllInstallations($catalogId);
             return$plan+['applied'=>true,'idempotent'=>false,'catalog_id'=>$catalogId,'projected_installations'=>$projected];
         });
     }
 
-    /** Install a bundled catalog once, then repair missing installation projections idempotently. */
+    /** Synchronize the bundled current dataset and repair installation projections idempotently. */
     public function provision(string $articlesPath,string $manifestPath,string $catalogVersion):array
     {
-        $package=$this->loadPackage($articlesPath,$manifestPath,$catalogVersion);
-        if($package['errors']!==[])throw new InvalidArgumentException('invalid_oghma_catalog: '.implode('; ',$package['errors']));
-        $existing=$this->catalogByVersion($catalogVersion);
-        if($existing===null)return$this->apply($articlesPath,$manifestPath,$catalogVersion);
-        if(!hash_equals((string)$existing['articles_sha256'],$package['articles_sha256'])
-            ||!hash_equals((string)$existing['manifest_sha256'],$package['manifest_sha256']))throw new RuntimeException('oghma_catalog_version_conflict');
-        $projected=$existing['state']==='active'?$this->transaction(
-            fn():int=>$this->projectAllInstallations((string)$existing['catalog_id'])
-        ):0;
-        return['schema'=>'almsivi.oghma-catalog-provision.v1','applied'=>false,'idempotent'=>true,
-            'catalog_id'=>$existing['catalog_id'],'catalog_version'=>$existing['catalog_version'],
-            'state'=>$existing['state'],'projected_installations'=>$projected];
+        return$this->apply($articlesPath,$manifestPath,$catalogVersion);
     }
 
     /** Attach the active catalog to one newly-created installation without bundled-file access. */
@@ -111,34 +99,10 @@ final class OghmaCatalogImporter
         });
     }
 
-    public function rollback(?string $catalogVersion=null):array
-    {
-        return$this->transaction(function()use($catalogVersion):array{
-            $this->db->exec('SELECT pg_advisory_xact_lock('.self::LOCK_ID.')');
-            $active=$this->activeCatalog()??throw new RuntimeException('no_active_oghma_catalog');
-            $target=$catalogVersion===null?($active['previous_catalog_id']===null?null:$this->catalogById((string)$active['previous_catalog_id'])):$this->catalogByVersion($this->validateVersion($catalogVersion));
-            if($target===null&&$catalogVersion!==null)throw new RuntimeException('oghma_catalog_rollback_target_missing');
-            if($target===null){
-                $now=gmdate('Y-m-d\TH:i:s\Z');
-                $this->db->prepare("UPDATE oghma_catalogs SET state='superseded',superseded_at=:now WHERE catalog_id=:id")
-                    ->execute(['now'=>$now,'id'=>$active['catalog_id']]);
-                $count=(int)$this->db->query('SELECT count(*) FROM oghma_factory_documents')->fetchColumn();
-                $this->db->exec('DELETE FROM knowledge_documents d USING oghma_factory_documents f WHERE f.document_id=d.document_id');
-                return['schema'=>'almsivi.oghma-catalog-rollback.v1','rolled_back'=>true,'catalog_id'=>null,
-                    'catalog_version'=>null,'row_count'=>0,'removed_factory_documents'=>$count];
-            }
-            if($target['catalog_id']===$active['catalog_id'])return['schema'=>'almsivi.oghma-catalog-rollback.v1','rolled_back'=>false,'catalog_version'=>$target['catalog_version']];
-            $this->activate((string)$target['catalog_id']);$projected=$this->projectAllInstallations((string)$target['catalog_id']);
-            return['schema'=>'almsivi.oghma-catalog-rollback.v1','rolled_back'=>true,'catalog_id'=>$target['catalog_id'],
-                'catalog_version'=>$target['catalog_version'],'row_count'=>(int)$target['row_count'],'projected_installations'=>$projected];
-        });
-    }
-
     public function status():array
     {
-        $rows=$this->db->query("SELECT catalog_id,catalog_version,format_version,articles_sha256,manifest_sha256,row_count,state,previous_catalog_id,imported_at,activated_at,superseded_at FROM oghma_catalogs ORDER BY activated_at DESC,catalog_id")->fetchAll();
-        foreach($rows as&$row)$row['row_count']=(int)$row['row_count'];unset($row);
-        return['schema'=>'almsivi.oghma-catalog-status.v1','catalogs'=>$rows];
+        $current=$this->activeCatalog();if($current!==null)$current['row_count']=(int)$current['row_count'];
+        return['schema'=>'almsivi.oghma-current-dataset-status.v1','current_dataset'=>$current];
     }
 
     private function loadPackage(string $articlesPath,string $manifestPath,string $catalogVersion):array
@@ -168,7 +132,7 @@ final class OghmaCatalogImporter
             if($title===''||strlen($title)>256||!in_array($category,self::CATEGORIES,true))$errors[]="article {$topic} title or category is invalid";
             foreach(['topic_desc','topic_desc_basic']as$field){$text=trim((string)$row[$field]);if($text===''||strlen($text)>131072||!mb_check_encoding($text,'UTF-8'))$errors[]="article {$topic} {$field} is invalid";}
             $topics[mb_strtolower($topic,'UTF-8')]=true;
-            $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode(',',$values);}
+            $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if($field==='aliases')$value=self::serializeAliasName($value);if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode($field==='aliases'?', ':',',$values);}
             foreach([$topic,...$row['aliases']]as$alias){$aliasKey=preg_replace('/[^a-z0-9]+/','',mb_strtolower((string)$alias,'UTF-8'));if($aliasKey==='')continue;$owner=$aliasOwners[$aliasKey]??null;if($owner!==null&&$owner!==$topic)$errors[]="alias {$alias} collides between {$owner} and {$topic}";$aliasOwners[$aliasKey]=$topic;}
             $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>trim((string)$row['topic_desc']),
                 'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>trim((string)$row['topic_desc_basic']),
@@ -199,20 +163,14 @@ final class OghmaCatalogImporter
         return count($entries);
     }
 
-    private function activate(string $catalogId):void
-    {
-        $now=gmdate('Y-m-d\TH:i:s\Z');$active=$this->activeCatalog();
-        if($active!==null&&$active['catalog_id']!==$catalogId)$this->db->prepare("UPDATE oghma_catalogs SET state='superseded',superseded_at=:now WHERE catalog_id=:id")->execute(['now'=>$now,'id'=>$active['catalog_id']]);
-        $this->db->prepare("UPDATE oghma_catalogs SET state='active',activated_at=:now,superseded_at=NULL WHERE catalog_id=:id")->execute(['now'=>$now,'id'=>$catalogId]);
-    }
-
     private function entries(string $catalogId):array
     {
         $s=$this->db->prepare('SELECT topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category FROM oghma_catalog_entries WHERE catalog_id=:id ORDER BY topic');$s->execute(['id'=>$catalogId]);$out=[];foreach($s->fetchAll()as$row)$out[$row['topic']]=$row;return$out;
     }
     private function activeCatalog():?array{$r=$this->db->query("SELECT * FROM oghma_catalogs WHERE state='active'")->fetch();return$r===false?null:$r;}
-    private function catalogByVersion(string $version):?array{$s=$this->db->prepare('SELECT * FROM oghma_catalogs WHERE catalog_version=:version');$s->execute(['version'=>$version]);$r=$s->fetch();return$r===false?null:$r;}
     private function catalogById(string $id):?array{$s=$this->db->prepare('SELECT * FROM oghma_catalogs WHERE catalog_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();return$r===false?null:$r;}
+    /** Protect commas inside one alias before joining the comma-separated storage field. */
+    private static function serializeAliasName(string $value):string{return preg_replace('/\s*,\s*/u','_',$value)??$value;}
     private function readUtf8File(string $path,int $maxBytes,string $label):string{if(!is_file($path)||!is_readable($path))throw new InvalidArgumentException("{$label} file is unavailable");$size=filesize($path);if($size===false||$size<1||$size>$maxBytes)throw new InvalidArgumentException("{$label} file size is invalid");$value=file_get_contents($path);if($value===false||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException("{$label} must be valid UTF-8");return str_starts_with($value,"\xEF\xBB\xBF")?substr($value,3):$value;}
     private function validateVersion(string $version):string{$version=trim($version);if(preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/D',$version)!==1)throw new InvalidArgumentException('invalid_oghma_catalog_version');return$version;}
     private function pgArray(array $values):string{return'{'.implode(',',array_map(static fn(string$v):string=>'"'.str_replace(['\\','"'],['\\\\','\\"'],$v).'"',$values)).'}';}

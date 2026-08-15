@@ -13,6 +13,9 @@ use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
 use ALMSIVIserver\Application\CanonicalResponseNormalizer;
 use ALMSIVIserver\Application\MockSpeechProvider;
 use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
+use ALMSIVIserver\Application\MockOghmaTopicExtractor;
+use ALMSIVIserver\Application\MorrowindGeographyCatalog;
+use ALMSIVIserver\Application\OghmaGroundedRetriever;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\OpenAiCompatibleProvider;
 use ALMSIVIserver\Application\StreamingDialogueText;
@@ -52,6 +55,22 @@ $check(PairingToken::verifyAuthorization('Bearer ' . $token, $hash), 'pairing to
 $check(!PairingToken::verifyAuthorization('Bearer wrong', $hash), 'wrong token rejected');
 $check(Redactor::value(['authorization' => 'Bearer ' . $token])['authorization'] === '[REDACTED]', 'authorization redacted');
 $check(!str_contains((string) Redactor::value('Bearer ' . $token), $token), 'embedded bearer token redacted');
+$geography=MorrowindGeographyCatalog::bundled();
+$fargoth=['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>128964,'content_file'=>0],
+    'cell'=>['kind'=>'interior','name'=>'Balmora, Guild of Mages']];
+$resolvedLocality=$geography->resolve($fargoth,'Morrowind.esm');
+$check(($resolvedLocality['tags']??null)===['bitter_coast']&&($resolvedLocality['source']??null)==='official_refnum',
+    'Morrowind geography prefers immutable official RefNum locality over the actor current cell');
+$cellLocality=$geography->resolve([...$fargoth,'refnum'=>['index'=>999999,'content_file'=>0]],'Morrowind.esm');
+$check(($cellLocality['tags']??null)===['west_gash']&&($cellLocality['source']??null)==='current_cell_fallback',
+    'Morrowind geography falls back to the first observed official cell for unlisted references');
+$ravenRock=$geography->resolve(['kind'=>'npc','record_id'=>'Baro Egnatius','content_file'=>'Bloodmoon.esm',
+    'refnum'=>['index'=>10134,'content_file'=>2],'cell'=>['kind'=>'exterior','grid_x'=>0,'grid_y'=>0]],'Bloodmoon.esm');
+$check(($ravenRock['tags']??null)===['solstheim','raven_rock'],
+    'Morrowind geography preserves the reviewed Raven Rock supplemental locality');
+$check($geography->resolve([...$fargoth,'cell'=>['kind'=>'interior','name'=>'Unknown Cell']],null)===null,
+    'Morrowind geography abstains when neither RefNum nor current cell is recognized');
 $key=random_bytes(32);$installation='00000000-0000-4000-8000-000000000001';$timestamp=gmdate('Y-m-d\\TH:i:s\\Z');$nonce=bin2hex(random_bytes(16));
 $unsigned=new Request('POST','/ALMSIVIserver/api/v1/turns',['Content-Type'=>'application/json; charset=utf-8'],[],'{}');$digest=RequestMac::bodyDigest($unsigned->body);$signature=RequestMac::sign($key,$unsigned,$installation,$timestamp,$nonce,'application/json; charset=utf-8',$digest);
 $signed=new Request($unsigned->method,$unsigned->path,$unsigned->headers+['X-ALMSIVI-Auth'=>RequestMac::ALGORITHM,'X-ALMSIVI-Installation-Id'=>$installation,'X-ALMSIVI-Timestamp'=>$timestamp,'X-ALMSIVI-Nonce'=>$nonce,'X-ALMSIVI-Content-SHA256'=>$digest,'X-ALMSIVI-Signature'=>$signature],[],$unsigned->body);
@@ -102,6 +121,42 @@ $check(ProviderFactory::dialogue([]) instanceof \ALMSIVIserver\Application\MockP
     && ProviderFactory::speech([]) instanceof MockSpeechProvider
     && ProviderFactory::speechToText([]) instanceof \ALMSIVIserver\Application\MockSpeechToTextProvider,
     'shared provider factory gives HTTP and worker the same safe defaults');
+$mockExtractor=new MockOghmaTopicExtractor();
+$check($mockExtractor->extract('Recent line [oghma: House Redoran, Vivec, Dagoth Ur, ignored]',3,new NeverCancelledToken())
+    ===['House Redoran','Vivec','Dagoth Ur'],'Oghma extractor returns distinct bounded UTF-8 topics');
+$check(ProviderFactory::oghmaTopicExtractorForSlot([],['configuration_id'=>'00000000-0000-4000-8000-000000000123',
+    'revision'=>1,'content'=>['driver'=>'mock','model'=>'deterministic-mock-v1']])instanceof MockOghmaTopicExtractor,
+    'profile-routed mock connector builds the dedicated Oghma extractor contract');
+$groundedOghma=new OghmaGroundedRetriever();
+$groundedCatalog=[
+    ['topic'=>'sixth_house','aliases'=>'House Dagoth','category'=>'factions'],
+    ['topic'=>'dagoth_ur','aliases'=>'Voryn Dagoth','category'=>'figures'],
+    ['topic'=>'vivec','aliases'=>'Warrior-Poet','category'=>'figures'],
+];
+$groundedResult=$groundedOghma->extract('Tell me about House Dagoth and Vivec.',$groundedCatalog,2);$groundedTopics=$groundedResult['topics'];
+$check($groundedTopics===['sixth_house','vivec'],'grounded Oghma preserves canonical alias and multi-topic mention order: '
+    .json_encode($groundedResult['matches'],JSON_UNESCAPED_UNICODE));
+$check($groundedOghma->extract('Vivec: We should leave now.',$groundedCatalog,1)['topics']===[],
+    'grounded Oghma does not treat a catalog-shaped speaker label as conversation lore');
+$followUpPolicy=array_map([OghmaGroundedRetriever::class,'shouldUsePreviousExchange'],[
+    'What about their leader?','Tell me more about it.','What happened there?','Thanks.','What are we doing now?','It started raining.']);
+$followUpCurrent=$groundedOghma->extract('What about their leader?',$groundedCatalog,3);
+$followUpPrevious=$groundedOghma->extract('We were discussing House Dagoth.',$groundedCatalog,1);
+$check($followUpPolicy===[true,true,true,false,false,false]&&$followUpCurrent['topics']===[]
+    &&$followUpPrevious['topics']===['sixth_house'],
+    'grounded Oghma carries one topic only for an unresolved referential follow-up');
+$check($groundedOghma->resolveSuggestions(['House Dagoth','invented topic'],$groundedCatalog,2)===['sixth_house'],
+    'Oghma fallback suggestions resolve only to exact unambiguous catalog entities');
+$unicodeCatalog=[['topic'=>'maesa_áran','aliases'=>'Máesa Aran','category'=>'figures']];
+$check($groundedOghma->extract('Tell me about Máesa Aran.',$unicodeCatalog,1)['topics']===['maesa_áran'],
+    'grounded Oghma preserves UTF-8 canonical topics and aliases');
+$ambiguousCatalog=[
+    ['topic'=>'first_subject','aliases'=>'Shared Lore','category'=>'history'],
+    ['topic'=>'second_subject','aliases'=>'Shared Lore','category'=>'history'],
+];
+$check($groundedOghma->extract('Tell me about Shared Lore.',$ambiguousCatalog,1)['topics']===[]
+    &&$groundedOghma->resolveSuggestions(['Shared Lore'],$ambiguousCatalog,1)===[],
+    'grounded Oghma abstains from ambiguous catalog aliases in local and fallback extraction');
 $mockActionProvider=new \ALMSIVIserver\Application\MockProvider();
 foreach ([
     ['Check your inventory.','action.inventory.inspect','inventory.inspect',[]],
@@ -215,13 +270,17 @@ $check(str_contains($contextPrompt,'<world><location>Seyda Neen</location>')
     &&!str_contains($contextPrompt,'&quot;position&quot;')&&!str_contains($contextPrompt,'&quot;x&quot;'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic CHIM XML');
 $knowledgeSelection=$promptSelection;
+$knowledgeSelection['knowledge_retrieval']=['status'=>'fallback_grounded'];
 $knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'auriel_s_bow','access_level'=>'basic',
-    'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.']];
+    'content'=>'Auriel\'s Bow is an ancient artifact associated with the elven god Auri-El.'],
+    ['document_id'=>'oghma-sixth-house','topic'=>'sixth_house','access_level'=>'denied','content'=>'']];
 $knowledgePrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$knowledgeSelection)['provider_input']['_assembled_prompt'];
-$check(str_contains($knowledgePrompt,'<knowledge><item>{&quot;access_level&quot;:&quot;basic&quot;')
-    &&str_contains($knowledgePrompt,'&quot;topic&quot;:&quot;auriel_s_bow&quot;')
-    &&str_contains($knowledgePrompt,'Auriel&apos;s Bow is an ancient artifact'),
-    'authorized Oghma knowledge is injected into the CHIM-style Morrowind prompt section');
+$check(str_contains($knowledgePrompt,'<oghma_context><oghma contract="oghma-parity-v1" status="fallback_grounded">')
+    &&str_contains($knowledgePrompt,'<article topic="auriel_s_bow" source="conversation" access="basic">')
+    &&str_contains($knowledgePrompt,'Auriel&apos;s Bow is an ancient artifact')
+    &&str_contains($knowledgePrompt,'<article topic="sixth_house" source="conversation" access="denied">')
+    &&str_contains($knowledgePrompt,'<denial reason="knowledge_classes_not_authorized" />'),
+    'authorized and denied Oghma knowledge use the parity XML prompt section');
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
@@ -238,9 +297,9 @@ try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outl
     'provider rejected malformed utterances with the wrong terminal code');}
 $check($assembled['trace']['input_bytes']<=4096 && !array_key_exists('content',$assembled['trace']['sources'][0])
     &&str_contains($assembled['trace']['sources'][0]['redacted_preview'],'content redacted')
-    &&array_column($assembled['trace']['sections'],'section_order')===range(1,10)
+    &&array_column($assembled['trace']['sections'],'section_order')===range(1,11)
     &&array_column($assembled['trace']['sections'],'section_key')===['output_contract','npc_context','player_narrator_context',
-        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'morrowind_context','oghma_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
         'negotiated_actions','current_turn'], 'prompt trace is bounded, redacted, and records all ordered sections');
 $check($assembled['trace']['sources'][2]['source_kind']==='memory' && $assembled['trace']['sources'][3]['source_kind']==='action_result', 'prompt source order is stable');
 $historySelection=$promptSelection;$historySelection['memory']=[];$historySelection['recent_action_results']=[];
@@ -252,9 +311,9 @@ $historySelection['history']=[
 $budgetedHistory=(new PromptAssembler(512,256))->assemble($promptTurn,$historySelection);
 $recentHistorySource=array_values(array_filter($budgetedHistory['trace']['sources'],
     static fn(array$source):bool=>$source['source_id']==='recent-history'));
-$check(str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RECENT HISTORY SENTINEL')
-    &&count($recentHistorySource)===1&&$recentHistorySource[0]['included'],
-    'prompt history budget did not preserve the newest chronological source');
+$check(!str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RECENT HISTORY SENTINEL')
+    &&count($recentHistorySource)===1&&!$recentHistorySource[0]['included'],
+    'compact history yields to the current turn when the prompt budget is exhausted');
 $largeContextTurn=$promptTurn;$largeContextTurn['payload']['context']=['inventory'=>str_repeat('X',2048)];
 $currentTurnSelection=$promptSelection;$currentTurnSelection['memory']=[];$currentTurnSelection['recent_action_results']=[];
 $budgetedTurn=(new PromptAssembler(2048,1024))->assemble($largeContextTurn,$currentTurnSelection);
@@ -268,26 +327,37 @@ $roleHistory['history']=[
     ['history_id'=>'guard-line','content'=>['kind'=>'speech','text'=>'Move along.','speaker'=>'Guard','speaker_identity'=>['record_id'=>'guard','display_name'=>'Guard']]],
     ['history_id'=>'smoke-line','content'=>['kind'=>'event','type'=>'turn.requested','turn_id'=>'smoke-turn','input'=>['text'=>'Automated ALMSIVI smoke test.'],'speaker'=>['display_name'=>'RANGROO']]],
 ];
-$roleMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input']['_messages'];
-$check(array_column($roleMessages,'role')===['system','user','assistant','user','user']
-    &&$roleMessages[1]['content']==='RANGROO: Where is my ring?'
-    &&$roleMessages[2]['content']==='I have not seen it.'
-    &&$roleMessages[3]['content']==='Guard: Move along.'
+$rolePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$roleHistory)['provider_input'];
+$roleMessages=$rolePrompt['_messages'];
+$check(array_column($roleMessages,'role')===['system','user']
+    &&str_contains($roleMessages[0]['content'],'<message>RANGROO: Where is my ring?</message>')
+    &&str_contains($roleMessages[0]['content'],'<message>Fargoth: I have not seen it.</message>')
+    &&str_contains($roleMessages[0]['content'],'<message>Guard: Move along.</message>')
+    &&substr_count($rolePrompt['_assembled_prompt'],'Where is my ring?')===1
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
-    'CHIM history projection preserves speaker roles and filters control noise');
+    'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
 $semanticHistory['history']=[
     ['history_id'=>'location-event','content'=>['kind'=>'event','type'=>'location','details'=>['location'=>'Seyda Neen']]],
     ['history_id'=>'weather-event','content'=>['kind'=>'event','type'=>'weather','details'=>['weather'=>'Cloudy']]],
     ['history_id'=>'journal-event','content'=>['kind'=>'event','type'=>'quest','details'=>['text'=>'Report to Caius Cosades.']]],
 ];
-$semanticMessages=(new PromptAssembler(8192,1024))->assemble($promptTurn,$semanticHistory)['provider_input']['_messages'];
-$semanticText=json_encode($semanticMessages,JSON_THROW_ON_ERROR);
+$semanticText=(new PromptAssembler(8192,1024))->assemble($promptTurn,$semanticHistory)['provider_input']['_assembled_prompt'];
 $check(str_contains($semanticText,'[Location] The player entered Seyda Neen.')
     &&str_contains($semanticText,'[Weather] The weather changed to Cloudy.')
     &&str_contains($semanticText,'[Journal] Report to Caius Cosades.')
     &&!str_contains($semanticText,'\\"details\\"'),
     'world and journal history is semantic text rather than raw event JSON');
+
+$largeWorldTurn=$promptTurn;
+$largeWorldTurn['payload']['context']=['world'=>['cell'=>'WORLD CONTEXT SENTINEL '.str_repeat('W',6000)]];
+$protectedKnowledge=(new PromptAssembler(4096,1024))->assemble($largeWorldTurn,$knowledgeSelection);
+$protectedSections=array_column($protectedKnowledge['trace']['sections'],'inclusion_reason','section_key');
+$check(!str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'WORLD CONTEXT SENTINEL')
+    &&str_contains($protectedKnowledge['provider_input']['_assembled_prompt'],'<oghma_context><oghma')
+    &&($protectedSections['morrowind_context']??null)==='byte_limit'
+    &&($protectedSections['oghma_context']??null)==='included',
+    'Oghma remains in its protected section when lower-priority Morrowind context is trimmed');
 
 $identity=static fn(string$kind,string$id,int$index,string$name):array=>['kind'=>$kind,'record_id'=>$id,
     'refnum'=>['index'=>$index,'content_file'=>0],'content_file'=>'Morrowind.esm',
@@ -451,21 +521,31 @@ rmdir($temporary);
 $globalSettings=EffectiveSettingsResolver::defaults();
 $globalSettings['behavior']['rechat']=true;
 $globalSettings['memory']['knowledge_limit']=5;
-$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['knowledge_limit'=>0]],
-    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111']];
+$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['knowledge_limit'=>0],
+    'oghma'=>['topic_count'=>2,'racial_context_enabled'=>false]],
+    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111','oghma_configuration_id'=>'00000000-0000-4000-8000-000000000222']];
 $globalSettings['behavior']['auto_greeting']=true;
 $globalSettings['narrator']['welcome_events']=true;
 $coreLayer['settings_overrides']['behavior']['rechat_allow_actions']=true;
-$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true]],'routing'=>['llm_configuration_id'=>''],
+$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true],'oghma'=>['topic_count'=>3]],'routing'=>['llm_configuration_id'=>''],
     'oghma_knowledge_tags'=>''];
-$effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
+$effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[
+    'enabled'=>true,'topic_count'=>1,'result_limit'=>3,'racial_context_enabled'=>true,
+    'location_context_enabled'=>true,'extractor_fallback_enabled'=>false,'extractor_timeout_ms'=>1500]);
 $check($effective['settings']['behavior']['rechat']===false
     && $effective['settings']['memory']['knowledge_limit']===0
-    && $effective['routing']['llm_configuration_id']==='',
+    && $effective['routing']['llm_configuration_id']===''
+    && $effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222',
     'Global to Core Profile to NPC resolution preserves explicit false, zero, and empty overrides');
-$check($effective['settings']['memory']['oghma_knowledge_tags']==='common'
+$check($effective['settings']['oghma']['topic_count']===3
+    &&$effective['settings']['oghma']['racial_context_enabled']===false
+    &&($effective['sources']['settings.oghma.topic_count']??null)==='npc'
+    &&($effective['sources']['settings.oghma.racial_context_enabled']??null)==='core_profile'
+    &&($effective['sources']['settings.oghma.result_limit']??null)==='global',
+    'Oghma controls use Global to Core Profile to NPC inheritance with per-field sources');
+$check($effective['settings']['memory']['oghma_knowledge_tags']===''
     &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='server_default',
-    'blank generated NPC knowledge tags inherit the installation default');
+    'blank generated NPC knowledge tags inherit the empty installation default');
 $check($effective['settings']['behavior']['auto_greeting']===false
     && $effective['settings']['behavior']['rechat_allow_actions']===false
     && $effective['settings']['behavior']['combat_barks']===false

@@ -5,14 +5,18 @@ declare(strict_types=1);
 namespace ALMSIVIserver\Infrastructure;
 
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
+use ALMSIVIserver\Application\MorrowindGeographyCatalog;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\DeterministicRetrieval;
+use ALMSIVIserver\Application\OghmaGroundedRetriever;
 use PDO;
 use RuntimeException;
 use Throwable;
 
 final class ProductRepository
 {
+    private ?MorrowindGeographyCatalog $morrowindGeography=null;
+
     public function __construct(private readonly PDO $db) {}
 
     /** @param array<string,mixed> $input */
@@ -370,8 +374,46 @@ final class ProductRepository
         $statement->execute(['installation'=>$installationId,'enabled'=>$enabled?'true':'false','now'=>$now]);
     }
 
-    public function oghmaKnowledgeTags(string $installationId):string{$statement=$this->db->prepare('SELECT knowledge_tags FROM oghma_installation_settings WHERE installation_id=:installation');$statement->execute(['installation'=>$installationId]);$value=$statement->fetchColumn();return$value===false?'common':(string)$value;}
-    public function setOghmaKnowledgeTags(string $installationId,string $tags,string $now):void{$tags=trim($tags);if(strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new \InvalidArgumentException('invalid_oghma_knowledge_tags');$this->db->prepare('INSERT INTO oghma_installation_settings(installation_id,knowledge_tags,updated_at) VALUES(:installation,:tags,:now) ON CONFLICT(installation_id) DO UPDATE SET knowledge_tags=EXCLUDED.knowledge_tags,updated_at=EXCLUDED.updated_at')->execute(['installation'=>$installationId,'tags'=>$tags,'now'=>$now]);}
+    /** Return installation-global Oghma retrieval controls with stable first-run defaults. */
+    public function oghmaSettings(string $installationId):array
+    {
+        $statement=$this->db->prepare('SELECT enabled,knowledge_tags,racial_context_enabled,location_context_enabled,topic_count,result_limit,extractor_enabled,extractor_timeout_ms FROM oghma_installation_settings WHERE installation_id=:installation');
+        $statement->execute(['installation'=>$installationId]);$row=$statement->fetch();
+        if(!$row)return['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>true,'location_context_enabled'=>true,'topic_count'=>1,'result_limit'=>3,'extractor_enabled'=>false,'extractor_timeout_ms'=>1500];
+        return['enabled'=>filter_var($row['enabled'],FILTER_VALIDATE_BOOL),'knowledge_tags'=>(string)$row['knowledge_tags'],
+            'racial_context_enabled'=>filter_var($row['racial_context_enabled'],FILTER_VALIDATE_BOOL),
+            'location_context_enabled'=>filter_var($row['location_context_enabled'],FILTER_VALIDATE_BOOL),
+            'topic_count'=>(int)$row['topic_count'],'result_limit'=>(int)$row['result_limit'],
+            'extractor_enabled'=>filter_var($row['extractor_enabled'],FILTER_VALIDATE_BOOL),'extractor_timeout_ms'=>(int)$row['extractor_timeout_ms']];
+    }
+
+    public function oghmaKnowledgeTags(string $installationId):string{return(string)$this->oghmaSettings($installationId)['knowledge_tags'];}
+
+    /** Persist all installation-global Oghma controls in one validated write. */
+    public function setOghmaSettings(string $installationId,array $settings,string $now):void
+    {
+        $tags=$this->npcKnowledgeTags($settings['knowledge_tags']??'');$topicCount=filter_var($settings['topic_count']??1,FILTER_VALIDATE_INT);
+        $resultLimit=filter_var($settings['result_limit']??3,FILTER_VALIDATE_INT);$timeout=filter_var($settings['extractor_timeout_ms']??1500,FILTER_VALIDATE_INT);
+        if(strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new \InvalidArgumentException('invalid_oghma_knowledge_tags');
+        if($topicCount===false||$topicCount<1||$topicCount>3)throw new \InvalidArgumentException('invalid_oghma_topic_count');
+        if($resultLimit===false||$resultLimit<1||$resultLimit>5)throw new \InvalidArgumentException('invalid_oghma_result_limit');
+        if($timeout===false||$timeout<250||$timeout>3000)throw new \InvalidArgumentException('invalid_oghma_extractor_timeout');
+        $statement=$this->db->prepare('INSERT INTO oghma_installation_settings '
+            .'(installation_id,enabled,knowledge_tags,racial_context_enabled,location_context_enabled,topic_count,result_limit,extractor_enabled,extractor_timeout_ms,updated_at) '
+            .'VALUES(:installation,:enabled,:tags,:racial,:location,:count,:result_limit,:extractor,:timeout,:now) ON CONFLICT(installation_id) DO UPDATE SET '
+            .'enabled=EXCLUDED.enabled,knowledge_tags=EXCLUDED.knowledge_tags,racial_context_enabled=EXCLUDED.racial_context_enabled,'
+            .'location_context_enabled=EXCLUDED.location_context_enabled,topic_count=EXCLUDED.topic_count,result_limit=EXCLUDED.result_limit,'
+            .'extractor_enabled=EXCLUDED.extractor_enabled,extractor_timeout_ms=EXCLUDED.extractor_timeout_ms,updated_at=EXCLUDED.updated_at');
+        $statement->execute(['installation'=>$installationId,'enabled'=>($settings['enabled']??true)?'true':'false','tags'=>$tags,
+            'racial'=>($settings['racial_context_enabled']??false)?'true':'false',
+            'location'=>($settings['location_context_enabled']??false)?'true':'false',
+            'count'=>$topicCount,'result_limit'=>$resultLimit,'extractor'=>($settings['extractor_enabled']??false)?'true':'false','timeout'=>$timeout,'now'=>$now]);
+    }
+
+    public function setOghmaKnowledgeTags(string $installationId,string $tags,string $now):void
+    {
+        $settings=$this->oghmaSettings($installationId);$settings['knowledge_tags']=$tags;$this->setOghmaSettings($installationId,$settings,$now);
+    }
 
     /** Soft-delete only unlocked NPC profiles in one installation and clear their actor bindings. */
     public function bulkDeleteUnlockedNpcProfiles(string $installationId,string $now):int
@@ -428,9 +470,9 @@ final class ProductRepository
             if($kind==='provider'){
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id) LIMIT 1");
+                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id) LIMIT 1");
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
                 $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
             }
             if($kind==='prompt'){
@@ -485,7 +527,7 @@ final class ProductRepository
         if(!in_array($kind,['provider','tts_provider'],true))throw new RuntimeException('invalid_connector_kind');
         $routing=$this->routingForActor($installationId,$playthroughId,$identity);
         $allowed=$kind==='provider'?['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id']:['tts_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id']:['tts_configuration_id'];
         $field=$routingField??$allowed[0];if(!in_array($field,$allowed,true))throw new RuntimeException('invalid_connector_route');
         $configurationId=trim((string)($routing[$field]??''));
         if($configurationId==='')return null;
@@ -520,12 +562,22 @@ final class ProductRepository
             if($core){$core['revision']=(int)$core['revision'];$core['content']=$this->json($core['content']);}
         }
         if(!$core)$core=$this->defaultCoreProfileForInstallation($installationId);
+        $installationOghma=$this->oghmaSettings($installationId);
         $resolved=(new EffectiveSettingsResolver())->resolve(
             is_array($global['content']??null)?$global['content']:[],
             is_array($core['content']??null)?$core['content']:[],
             is_array($profile['content']??null)?$profile['content']:[],
+            [
+                'enabled'=>$installationOghma['enabled'],
+                'topic_count'=>$installationOghma['topic_count'],
+                'result_limit'=>$installationOghma['result_limit'],
+                'racial_context_enabled'=>$installationOghma['racial_context_enabled'],
+                'location_context_enabled'=>$installationOghma['location_context_enabled'],
+                'extractor_fallback_enabled'=>$installationOghma['extractor_enabled'],
+                'extractor_timeout_ms'=>$installationOghma['extractor_timeout_ms'],
+            ],
         );
-        $globalTags=$this->oghmaKnowledgeTags($installationId);
+        $globalTags=(string)$installationOghma['knowledge_tags'];
         if(($resolved['sources']['settings.memory.oghma_knowledge_tags']??'')==='server_default'){
             $resolved['settings']['memory']['oghma_knowledge_tags']=$globalTags;
             $resolved['document']['settings']['memory']['oghma_knowledge_tags']=$globalTags;
@@ -608,22 +660,33 @@ final class ProductRepository
             $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>$key]);
             $profileId=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target);
             if($profileId===null){
+                $refnum=is_array($target['refnum']??null)?$target['refnum']:[];
                 $existing=$this->db->prepare("SELECT profile_id FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL "
                     ."AND lower(actor_identity->>'record_id')=lower(:record) AND lower(COALESCE(actor_identity->>'content_file',''))=lower(:content) "
+                    ."AND actor_identity->'refnum'->>'index'=:ref_index AND actor_identity->'refnum'->>'content_file'=:ref_content "
                     ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY created_at,profile_id LIMIT 2");
                 $existing->execute(['installation'=>$turn['installation_id'],'record'=>$target['record_id']??'',
-                    'content'=>$target['content_file']??'']);$matches=$existing->fetchAll();
+                    'content'=>$target['content_file']??'','ref_index'=>(string)($refnum['index']??''),
+                    'ref_content'=>(string)($refnum['content_file']??'')]);$matches=$existing->fetchAll();
                 if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
                 else{$template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$resolvedVoice);
                     $seed=is_array($template['content']??null)?$template['content']:[];unset($seed['management'],$seed['portrait']);
                     $seed['gender']=$resolvedVoice['gender'];$seed['race']=$resolvedVoice['race'];$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
+                    $seed=$this->morrowindLocalityContent($seed,$target,(string)$turn['installation_id']);
                     $seed['management']=['locked'=>false,'favorite'=>false];
+                    $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
+                    $name=$name===''?'Morrowind NPC':mb_substr($name,0,256);
+                    $nameExists=$this->db->prepare('SELECT 1 FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL');
+                    $nameExists->execute(['installation'=>$turn['installation_id'],'name'=>$name]);
+                    if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
+                        $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
                     $created=$this->createRevisioned('profile',['installation_id'=>$turn['installation_id'],
-                    'name'=>(string)($target['display_name']??$target['record_id']??'Morrowind NPC'),'actor_identity'=>$target,
+                    'name'=>$name,'actor_identity'=>$target,
                     'content'=>$seed,
                     'change_reason'=>'automatic Morrowind actor discovery'],$now);$profileId=(string)$created['profile_id'];}
                 $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],
                     $target,$profileId,$now);
+                $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
             }
             $this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
             return$profileId;
@@ -651,6 +714,43 @@ final class ProductRepository
         return$fallback;
     }
 
+    /** Save a complete custom override while retaining the immutable factory biography underneath. */
+    public function saveBiographyTemplate(array $input):array
+    {
+        return$this->transaction(function()use($input):array{
+            $name=trim((string)($input['npc_name']??''));
+            if($name===''||strlen($name)>128||str_contains($name,"\0"))throw new RuntimeException('invalid_biography_template_name');
+            $exists=$this->db->prepare('SELECT 1 FROM public.combined_bio_templates WHERE npc_name=:name');
+            $exists->execute(['name'=>$name]);
+            if($exists->fetchColumn()===false)throw new RuntimeException('biography_template_not_found');
+            $relationships=trim((string)($input['relationships']??''));
+            if($relationships==='')$relationships='{}';
+            if(strlen($relationships)>16384||str_contains($relationships,"\0"))throw new RuntimeException('invalid_biography_relationships');
+            try{$relationshipObject=json_decode($relationships,false,64,JSON_THROW_ON_ERROR);}
+            catch(Throwable){throw new RuntimeException('invalid_biography_relationships');}
+            if(!$relationshipObject instanceof \stdClass||count(get_object_vars($relationshipObject))>16)throw new RuntimeException('invalid_biography_relationships');
+            $relationships=json_encode($relationshipObject,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+            $values=['npc_name'=>$name,'relationships'=>$relationships];
+            foreach(['oghma_knowledge_tags'=>4096,'core'=>16384,'npc_static_bio'=>16384,'appearance'=>16384,
+                'personality'=>16384,'occupation'=>16384,'skills'=>16384,'speechstyle'=>16384,'goals'=>16384,
+                'voiceid'=>256,'gender'=>256,'race'=>256,'refid'=>256]as$field=>$limit){
+                $value=trim((string)($input[$field]??''));
+                if(strlen($value)>$limit||str_contains($value,"\0"))throw new RuntimeException('invalid_biography_template_field');
+                $values[$field]=$value===''?null:$value;
+            }
+            $values['oghma_knowledge_tags']=$this->npcKnowledgeTags($values['oghma_knowledge_tags']??'');
+            if($values['core']===null)throw new RuntimeException('invalid_biography_template_core');
+            $this->db->prepare('INSERT INTO public.bio_templates_custom '
+                .'(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid) '
+                .'VALUES(:npc_name,:oghma_knowledge_tags,:core,:npc_static_bio,:appearance,:personality,:relationships,:occupation,:skills,:speechstyle,:goals,:voiceid,:gender,:race,:refid) '
+                .'ON CONFLICT(npc_name) DO UPDATE SET oghma_knowledge_tags=EXCLUDED.oghma_knowledge_tags,core=EXCLUDED.core,npc_static_bio=EXCLUDED.npc_static_bio,'
+                .'appearance=EXCLUDED.appearance,personality=EXCLUDED.personality,relationships=EXCLUDED.relationships,occupation=EXCLUDED.occupation,skills=EXCLUDED.skills,'
+                .'speechstyle=EXCLUDED.speechstyle,goals=EXCLUDED.goals,voiceid=EXCLUDED.voiceid,gender=EXCLUDED.gender,race=EXCLUDED.race,refid=EXCLUDED.refid')
+                ->execute($values);
+            return['npc_name'=>$name,'source'=>'custom'];
+        });
+    }
+
     /** Choose the most specific reusable biography template for a newly observed NPC. */
     private function matchingBiographyTemplate(string $installation,array $identity,array $voice):?array
     {
@@ -659,7 +759,23 @@ final class ProductRepository
         $exact->execute(['installation'=>$installation,'record'=>$recordId,'content_file'=>$contentFile]);$exactValue=$exact->fetchColumn();
         if($exactValue!==false)return['content'=>$this->json($exactValue)];
         if($recordId!==''&&$contentFile!==''){
-            $factory=$this->db->prepare("SELECT entry.oghma_knowledge_tags,entry.core,entry.npc_static_bio,entry.appearance,entry.personality,entry.relationships,entry.occupation,entry.skills,entry.speechstyle,entry.goals,entry.voiceid,entry.gender,entry.race FROM biography_catalog_entries entry JOIN biography_catalogs catalog ON catalog.catalog_id=entry.catalog_id AND catalog.state='active' WHERE lower(entry.record_id)=lower(:record) AND lower(COALESCE(entry.content_file,''))=lower(:content_file) LIMIT 2");
+            $factory=$this->db->prepare("SELECT "
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.oghma_knowledge_tags ELSE custom.oghma_knowledge_tags END AS oghma_knowledge_tags,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.core ELSE custom.core END AS core,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.npc_static_bio ELSE custom.npc_static_bio END AS npc_static_bio,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.appearance ELSE custom.appearance END AS appearance,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.personality ELSE custom.personality END AS personality,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.relationships ELSE custom.relationships END AS relationships,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.occupation ELSE custom.occupation END AS occupation,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.skills ELSE custom.skills END AS skills,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.speechstyle ELSE custom.speechstyle END AS speechstyle,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.goals ELSE custom.goals END AS goals,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.voiceid ELSE custom.voiceid END AS voiceid,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.gender ELSE custom.gender END AS gender,"
+                ."CASE WHEN custom.npc_name IS NULL THEN entry.race ELSE custom.race END AS race "
+                ."FROM biography_catalog_entries entry JOIN biography_catalogs catalog ON catalog.catalog_id=entry.catalog_id AND catalog.state='active' "
+                ."LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=entry.npc_name "
+                ."WHERE lower(entry.record_id)=lower(:record) AND lower(COALESCE(entry.content_file,''))=lower(:content_file) LIMIT 2");
             $factory->execute(['record'=>$recordId,'content_file'=>$contentFile]);$rows=$factory->fetchAll();
             if(count($rows)===1){$row=$rows[0];return['content'=>[
                 'oghma_knowledge_tags'=>(string)($row['oghma_knowledge_tags']??''),'core'=>(string)($row['core']??''),
@@ -689,6 +805,77 @@ final class ProductRepository
             $voice=$this->preferExactProviderActorVoice((string)$row['installation_id'],$identity,$voice);$resolved++;
             if($this->applyMorrowindCatalogVoice((string)$row['profile_id'],$identity,$voice,$now,true))$updated++;}
         return['resolved'=>$resolved,'updated'=>$updated];
+    }
+
+    /** Add deterministic home locality only to unlocked automatically managed Morrowind actor profiles. */
+    public function backfillMorrowindCatalogLocalities(string $now):array
+    {
+        $rows=$this->db->query("SELECT profile_id,installation_id,actor_identity FROM profiles WHERE deleted_at IS NULL "
+            ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY profile_id")->fetchAll();
+        $updated=0;
+        foreach($rows as$row){$identity=$this->json($row['actor_identity']);
+            if($this->applyMorrowindCatalogLocality((string)$row['profile_id'],$identity,
+                (string)$row['installation_id'],$now))$updated++;}
+        return['examined'=>count($rows),'updated'=>$updated];
+    }
+
+    private function applyMorrowindCatalogLocality(string $profileId,array $identity,string $installationId,string $now):bool
+    {
+        $select=$this->db->prepare('SELECT p.current_revision,r.content,r.change_reason FROM profiles p JOIN profile_revisions r '
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+        $select->execute(['profile'=>$profileId]);$row=$select->fetch();if(!$row)return false;
+        $content=$this->json($row['content']);
+        if((bool)($content['management']['locked']??false)||isset($content['oghma_locality'])
+            ||!str_starts_with((string)$row['change_reason'],'automatic Morrowind'))return false;
+        $revised=$this->morrowindLocalityContent($content,$identity,$installationId);
+        if($revised===$content)return false;
+        $revision=(int)$row['current_revision']+1;
+        $this->revision('profile_revisions','profile_id',$profileId,$revision,$revised,
+            'automatic Morrowind geography catalog',$now);
+        $this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:profile')
+            ->execute(['revision'=>$revision,'profile'=>$profileId]);
+        return true;
+    }
+
+    private function morrowindLocalityContent(array $content,array $identity,string $installationId):array
+    {
+        if(isset($content['oghma_locality']))return$content;
+        $referenceContentFile=$this->referenceContentFile($installationId,$identity);
+        $resolved=$this->morrowindGeography()->resolve($identity,$referenceContentFile);
+        if($resolved===null)return$content;
+        $raw=trim((string)($content['oghma_knowledge_tags']??''));
+        $tags=$raw===''?[]:array_values(array_filter(preg_split('/\s*[,|;]\s*/',$raw)?:[],
+            static fn(string $tag):bool=>!in_array(mb_strtolower(trim($tag),'UTF-8'),['common','esoteric'],true)));
+        $localityClasses=$this->morrowindGeography()->localityClasses();
+        $tags=array_values(array_filter($tags,static fn(string $tag):bool=>!in_array($tag,$localityClasses,true)));
+        foreach($resolved['tags']as$tag)if(!in_array($tag,$tags,true))$tags[]=$tag;
+        $content['oghma_knowledge_tags']=implode(', ',$tags);
+        $content['oghma_locality']=['source'=>$resolved['source'],'region'=>$resolved['region'],'tags'=>$resolved['tags']];
+        return$content;
+    }
+
+    private function referenceContentFile(string $installationId,array $identity):?string
+    {
+        $refnum=is_array($identity['refnum']??null)?$identity['refnum']:[];
+        if(!is_int($refnum['content_file']??null))return null;
+        $statement=$this->db->prepare('SELECT content_file FROM content_manifest_files '
+            .'WHERE installation_id=:installation AND load_order=:load_order AND active LIMIT 1');
+        $statement->execute(['installation'=>$installationId,'load_order'=>$refnum['content_file']]);
+        $value=$statement->fetchColumn();return$value===false?null:(string)$value;
+    }
+
+    private function morrowindGeography():MorrowindGeographyCatalog
+    {
+        return$this->morrowindGeography??=MorrowindGeographyCatalog::bundled();
+    }
+
+    /** Remove article-only markers before access permissions are stored on an installation or NPC. */
+    private function npcKnowledgeTags(mixed $value):string
+    {
+        $tags=[];foreach(preg_split('/\s*[,|;]\s*/u',trim((string)$value))?:[]as$tag){$tag=trim($tag);
+            if($tag===''||in_array(mb_strtolower($tag,'UTF-8'),['common','esoteric'],true)||in_array($tag,$tags,true))continue;
+            $tags[]=$tag;}
+        return implode(', ',$tags);
     }
 
     private function applyMorrowindCatalogVoice(string $profileId,array $identity,array $voice,string $now,bool $allowLegacyLocked):bool
@@ -764,7 +951,7 @@ final class ProductRepository
 
     public function createKnowledge(array $input,array $terms,string $now): array
     {
-        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$this->db->prepare('INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)')->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);return $this->knowledge($id);
+        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$statement=$this->db->prepare("INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category) ON CONFLICT (installation_id,(COALESCE(profile_id,'00000000-0000-0000-0000-000000000000'::uuid)),(COALESCE(playthrough_id,'00000000-0000-0000-0000-000000000000'::uuid)),(lower(topic))) WHERE deleted_at IS NULL AND provenance->>'source' IS DISTINCT FROM 'factory-oghma' DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,content_sha256=EXCLUDED.content_sha256,lexical_terms=EXCLUDED.lexical_terms,provenance=EXCLUDED.provenance,created_at=EXCLUDED.created_at,aliases=EXCLUDED.aliases,topic_desc_basic=EXCLUDED.topic_desc_basic,knowledge_class=EXCLUDED.knowledge_class,knowledge_class_basic=EXCLUDED.knowledge_class_basic,tags=EXCLUDED.tags,category=EXCLUDED.category RETURNING document_id");$statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);$savedId=$statement->fetchColumn();if(!is_string($savedId)||$savedId==='')throw new RuntimeException('knowledge_save_failed');return $this->knowledge($savedId);
     }
     /** Insert a fully validated Oghma import as one transaction. */
     public function createKnowledgeBatch(array $prepared,string $now):array
@@ -774,7 +961,32 @@ final class ProductRepository
     public function updateKnowledge(string $id,array $input,array $terms,string $now):array{$sha=hash('sha256',$input['content']);$statement=$this->db->prepare('UPDATE knowledge_documents SET title=:title,content=:content,content_sha256=:sha,lexical_terms=CAST(:terms AS text[]),provenance=CAST(:provenance AS jsonb),topic=:topic,aliases=:aliases,topic_desc_basic=:basic,knowledge_class=:advanced_class,knowledge_class_basic=:basic_class,tags=:tags,category=:category WHERE document_id=:id AND deleted_at IS NULL');$statement->execute(['id'=>$id,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');return$this->knowledge($id);}
     public function knowledge(string $id): array {$s=$this->db->prepare('SELECT * FROM knowledge_documents WHERE document_id=:id AND deleted_at IS NULL');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['id']=$r['document_id'];$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;}
     public function deleteKnowledge(string $id,string $now):void{$row=$this->knowledge($id);if(($row['provenance']['source']??null)==='factory-oghma')throw new \InvalidArgumentException('factory_knowledge_read_only');$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function knowledgeCandidates(array $scope):array{$sql='SELECT document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category FROM knowledge_documents WHERE installation_id=:installation AND deleted_at IS NULL AND (profile_id IS NULL OR profile_id=:profile) AND (playthrough_id IS NULL OR playthrough_id=:playthrough) ORDER BY created_at DESC,document_id LIMIT 1000';$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function knowledgeCandidates(array $scope):array{$sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category');$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+
+    /** Return the complete effective Oghma catalog visible to one NPC profile. */
+    public function oghmaKnowledgeForProfile(string $installationId,string $profileId,array $filters=[]):array
+    {
+        $profileStatement=$this->db->prepare('SELECT p.name,p.actor_identity FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
+        $profileStatement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$profileStatement->fetch();if(!$profile)throw new RuntimeException('not_found');
+        $effective=$this->effectiveSettingsForProfile($installationId,$profileId);$tags=$this->knowledgeValues((string)($effective['settings']['memory']['oghma_knowledge_tags']??''));
+        $search=mb_strtolower(mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8'),'UTF-8');$category=trim((string)($filters['category']??''));
+        $accessFilter=strtolower(trim((string)($filters['access']??'all')));if(!in_array($accessFilter,['all','advanced','basic'],true))$accessFilter='all';
+        $items=[];$counts=['advanced'=>0,'basic'=>0,'denied'=>0];$categories=[];
+        foreach($this->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null])as$row){
+            $decision=OghmaGroundedRetriever::accessDecision($row,$tags);$access=$decision['level'];if($access==='denied'){$counts['denied']++;continue;}$counts[$access]++;
+            $row['access_level']=$access;$row['effective_content']=$access==='advanced'?(string)$row['content']:(string)$row['topic_desc_basic'];
+            $categories[(string)$row['category']]=true;if($category!==''&&!hash_equals((string)$row['category'],$category))continue;
+            if($accessFilter!=='all'&&$access!==$accessFilter)continue;
+            if($search!==''&&!str_contains(mb_strtolower(implode(' ',[(string)$row['topic'],(string)$row['title'],(string)$row['aliases'],(string)$row['tags']]),'UTF-8'),$search))continue;
+            $items[]=$row;
+        }
+        usort($items,static fn(array$a,array$b):int=>strnatcasecmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
+        $page=max(1,(int)($filters['page']??1));$pageSize=50;$total=count($items);$pages=max(1,(int)ceil($total/$pageSize));$page=min($page,$pages);
+        $profile['actor_identity']=$this->json($profile['actor_identity']);$categoryList=array_keys($categories);natcasesort($categoryList);
+        return['profile'=>$profile+['profile_id'=>$profileId],'items'=>array_slice($items,($page-1)*$pageSize,$pageSize),'total'=>$total,
+            'page'=>$page,'pages'=>$pages,'counts'=>$counts,'knowledge_tags'=>$tags,'categories'=>array_values($categoryList),
+            'filters'=>['search'=>$search,'category'=>$category,'access'=>$accessFilter]];
+    }
 
     public function recordRetrieval(string $domain,array $scope,string $query,array $rows,string $now):array
     {
@@ -1071,7 +1283,112 @@ final class ProductRepository
         return$fallback!==null&&($fallback['configuration_id']??null)!==$primaryConfigurationId?$fallback:null;
     }
 
-    public function promptContext(array $turn, string $now): array
+    /** Resolve installation controls, inherited extractor route, and bounded conversation input for one turn. */
+    public function oghmaRuntime(array $turn):array
+    {
+        $installation=(string)$turn['installation_id'];$target=$turn['payload']['target']??null;
+        $effective=is_array($target)&&!array_is_list($target)
+            ?$this->effectiveSettingsForActor($installation,(string)$turn['playthrough_id'],$target)
+            :$this->effectiveSettingsForProfile($installation,null);
+        $settings=(array)($effective['settings']['oghma']??[]);
+        $parts=[];$input=trim((string)($turn['payload']['input']['text']??''));if($input!=='')$parts[]='Current player input: '.$input;
+        $origin=$turn['payload']['rechat']['origin_line']??$turn['payload']['origin_line']??null;
+        if(is_string($origin)&&trim($origin)!=='')$parts[]='Conversation origin: '.trim($origin);
+        $history=$this->db->prepare("SELECT e.type,e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND m.turn_id IS DISTINCT FROM :turn AND e.type IN ('inputtext','chat','rechat') ORDER BY e.rowid DESC LIMIT 8");
+        $history->execute(['installation'=>$installation,'playthrough'=>$turn['playthrough_id'],'turn'=>$turn['turn_id']??null]);
+        $historyRows=$history->fetchAll();
+        foreach(array_reverse($historyRows)as$row){$text=trim((string)$row['data']);if($text!=='')$parts[]=(string)$row['type'].': '.$text;}
+        $context=implode("\n",$parts);if(strlen($context)>16_384)$context=mb_strcut($context,0,16_384,'UTF-8');
+        $groundingText=$input!==''?$input:(is_string($origin)?trim($origin):'');
+        $result=['settings'=>$settings,'connector'=>null,'context'=>$context,'grounding_text'=>$groundingText,
+            'status'=>($settings['extractor_fallback_enabled']??false)?'unconfigured':'disabled'];
+        if(!$settings['enabled'])return array_merge($result,['status'=>'disabled']);
+        if(!($settings['extractor_fallback_enabled']??false))return$result;
+        if(!is_array($target)||array_is_list($target))return$result;
+        $routing=$effective['routing'];
+        $field=array_key_exists('oghma_configuration_id',$routing)?'oghma_configuration_id':'llm_fast_configuration_id';
+        if(trim((string)($routing[$field]??''))==='')return$result;
+        $connector=$this->connectorForActor($installation,(string)$turn['playthrough_id'],$target,'provider',$field);
+        if($connector===null)return$result;
+        return array_merge($result,['connector'=>$connector,'status'=>'ready']);
+    }
+
+    /** Ground the current turn locally before any optional Oghma provider fallback is considered. */
+    public function groundedOghmaExtraction(array $turn):array
+    {
+        $runtime=$this->oghmaRuntime($turn);
+        if(!($runtime['settings']['enabled']??true))return['status'=>'disabled','topics'=>[],'matches'=>[],'rejected'=>[],
+            'tag_decisions'=>[],'fallback_eligible'=>false,'request_eligible'=>false,'runtime'=>$runtime];
+        if(!OghmaGroundedRetriever::isEligibleTurn($turn))return['status'=>'ineligible','topics'=>[],'matches'=>[],'rejected'=>[],
+            'tag_decisions'=>[],'fallback_eligible'=>false,'request_eligible'=>false,'runtime'=>$runtime];
+        $catalog=$this->oghmaCatalogForTurn($turn);$retriever=new OghmaGroundedRetriever($catalog);
+        $groundingText=(string)($runtime['grounding_text']??'');
+        $result=$retriever->extract($groundingText,[],(int)($runtime['settings']['topic_count']??1));
+        $contextFallback=['eligible'=>$result['topics']===[]&&OghmaGroundedRetriever::shouldUsePreviousExchange($groundingText),
+            'attempted'=>false,'used'=>false];
+        $previousExchange=$contextFallback['eligible']?$this->previousOghmaExchange($turn):'';
+        if($contextFallback['eligible']&&$previousExchange!==''){$contextFallback['attempted']=true;
+            $previousResult=$retriever->extract($previousExchange,[],1);
+            if($previousResult['topics']!==[]){foreach($previousResult['matches']as&$match)$match['context_source']='previous_exchange';unset($match);
+                $result=$previousResult;$contextFallback['used']=true;}}
+        return array_merge($result,['status'=>$result['topics']===[]?'no_match':'grounded','request_eligible'=>true,
+            'context_fallback'=>$contextFallback,'runtime'=>$runtime]);
+    }
+
+    /** Return the previous two dialogue lines only when they belong to the current actor. */
+    private function previousOghmaExchange(array $turn):string
+    {
+        $actor=$turn['payload']['target']??null;if(!is_array($actor)||array_is_list($actor))return'';
+        $actorKey=[];foreach(['kind','record_id','content_file']as$field){if(is_string($actor[$field]??null)&&$actor[$field]!=='')$actorKey[$field]=$actor[$field];}
+        if(is_array($actor['refnum']??null)&&!array_is_list($actor['refnum'])){$refnum=[];
+            foreach(['index','content_file']as$field)if(is_int($actor['refnum'][$field]??null))$refnum[$field]=$actor['refnum'][$field];
+            if($refnum!==[])$actorKey['refnum']=$refnum;}
+        if(!isset($actorKey['record_id'],$actorKey['content_file']))return'';
+        $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
+        $statement=$this->db->prepare("SELECT e.data FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid "
+            ."WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL "
+            ."AND m.turn_id IS DISTINCT FROM :turn AND e.type IN ('inputtext','chat','rechat') "
+            ."AND (m.speaker @> CAST(:actor AS jsonb) OR m.target @> CAST(:actor AS jsonb) OR m.audience @> CAST(:audience AS jsonb)) "
+            ."ORDER BY e.rowid DESC LIMIT 6");
+        $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'turn'=>$turn['turn_id']??null,'actor'=>$actorJson,'audience'=>$audienceJson]);
+        $parts=[];$seen=[];$currentText=trim((string)($turn['payload']['input']['text']??''));
+        $current=mb_strtolower(preg_replace('/\s+/u',' ',$currentText)??$currentText,'UTF-8');
+        foreach($statement->fetchAll()as$row){$text=trim((string)$row['data']);$key=mb_strtolower(preg_replace('/\s+/u',' ',$text)??$text,'UTF-8');
+            if($text===''||$key===$current||isset($seen[$key]))continue;$seen[$key]=true;$parts[]=$text;if(count($parts)>=2)break;}
+        return mb_strcut(implode("\n",array_reverse($parts)),0,4096,'UTF-8');
+    }
+
+    /** Resolve fallback connector output against the exact catalog visible to the current NPC. */
+    public function resolveOghmaSuggestions(array $turn,array $suggestions,int $limit):array
+    {
+        return(new OghmaGroundedRetriever($this->oghmaCatalogForTurn($turn)))->resolveSuggestions($suggestions,[],$limit);
+    }
+
+    /** Return the effective catalog rows visible to the actor selected for this turn. */
+    private function oghmaCatalogForTurn(array $turn):array
+    {
+        $selected=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],
+            (array)($turn['payload']['target']??[]));
+        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category'));
+        $statement->execute(['installation'=>(string)$turn['installation_id'],
+            'profile'=>$selected??(string)$turn['profile_id'],'playthrough'=>(string)$turn['playthrough_id']]);
+        return$statement->fetchAll();
+    }
+
+    /** Select one effective row per canonical topic, preferring the most specific custom override. */
+    private function effectiveKnowledgeSql(string $columns):string
+    {
+        return'SELECT '.$columns.' FROM (SELECT d.*,ROW_NUMBER() OVER (PARTITION BY lower(d.topic) ORDER BY '
+            ."CASE WHEN d.provenance->>'source'='factory-oghma' THEN 0 ELSE 1 END DESC,"
+            .'CASE WHEN d.playthrough_id IS NULL THEN 0 ELSE 1 END DESC,'
+            .'CASE WHEN d.profile_id IS NULL THEN 0 ELSE 1 END DESC,d.created_at DESC,d.document_id DESC) AS effective_rank '
+            .'FROM knowledge_documents d WHERE d.installation_id=:installation AND d.deleted_at IS NULL '
+            .'AND (d.profile_id IS NULL OR d.profile_id=:profile) AND (d.playthrough_id IS NULL OR d.playthrough_id=:playthrough)) effective '
+            .'WHERE effective_rank=1 ORDER BY created_at DESC,document_id';
+    }
+
+    public function promptContext(array $turn,string $now,array $oghmaExtraction=[]): array
     {
         $scope = ['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
         $selectedProfileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
@@ -1108,9 +1425,12 @@ final class ProductRepository
         $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
         $memories=$memorySelection['rows'];
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
-        $knowledgeSelection=$this->selectPromptKnowledge($turn,$knowledgeScope,$this->knowledgeCandidates($knowledgeScope),
+        $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,$this->knowledgeCandidates($knowledgeScope),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
-            (int)($effective['settings']['memory']['knowledge_limit']??5),$now);
+            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now);
+        $knowledgeSelection['trace']['settings']=$effective['settings']['oghma']??[];
+        $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
+            str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
         $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $narratives=$this->narratives($scope);usort($narratives,fn($a,$b)=>strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
@@ -1187,27 +1507,83 @@ SQL);
             'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
 
-    /** Rank static Oghma topics, enforce CHIM access classes, and retain selected and rejected decisions. */
-    private function selectPromptKnowledge(array $turn,array $scope,array $rows,string $tagList,int $limit,string $now):array
+    /** Rank extracted and forced Oghma topics, enforce access classes, and retain every bounded decision. */
+    private function selectPromptKnowledge(array $turn,array $profile,array $scope,array $rows,string $tagList,int $limit,array $settings,array $extraction,string $now):array
     {
-        $query=trim((string)($turn['payload']['input']['text']??''));
-        if($query==='')$query=trim((string)($turn['payload']['context']['location']??''));
-        $query=mb_strcut($query===''?'continue conversation':$query,0,4096,'UTF-8');
-        $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(20,$limit));$ranked=[];
-        foreach($rows as$row){$score=$this->knowledgeRelevance($query,$row);if($score<=0.0)continue;$row['_prompt_score']=$score;$ranked[]=$row;}
-        usort($ranked,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])
-            ?:strcmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
-        // A canonical topic or alias request is authoritative; weaker generic tag matches must not dilute it.
-        if(($ranked[0]['_prompt_score']??0.0)>=0.95)$ranked=array_values(array_filter($ranked,static fn(array$row):bool=>$row['_prompt_score']>=0.95));
-        $selected=[];$scores=[];$reasons=[];
-        foreach(array_slice($ranked,0,40)as$rank=>$row){$scores[$row['id']]=$row['_prompt_score'];$access=$this->knowledgeAccess($row,$knowledgeTags);
-            if($access===null){$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>false,'access_level'=>'none','score'=>$row['_prompt_score'],'reason'=>'knowledge classes not authorized'];continue;}
-            if(count($selected)>=$limit){$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>false,'access_level'=>$access,'score'=>$row['_prompt_score'],'reason'=>'knowledge result limit'];continue;}
-            $row['content']=$access==='advanced'?(string)$row['content']:(string)$row['topic_desc_basic'];$row['access_level']=$access;
-            unset($row['_prompt_score']);$selected[]=$row;$reasons[$row['id']]=['rank'=>$rank+1,'topic'=>$row['topic'],'selected'=>true,'access_level'=>$access,'score'=>$scores[$row['id']],'reason'=>$access.' knowledge class authorized'];}
-        return['rows'=>$selected,'trace'=>['domain'=>'knowledge','query'=>$query,'result_ids'=>array_column($selected,'id'),
-            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'oghma-topic-alias-access-v1','created_at'=>$now,
-            'prompt_section'=>'morrowind_context','scope'=>$scope,'effective_knowledge_tags'=>$knowledgeTags]];
+        $topicCount=max(1,min(3,(int)($settings['topic_count']??1)));
+        $status=(string)($extraction['status']??'not_run');
+        $active=($settings['enabled']??true)===true&&!in_array($status,['disabled','ineligible','unavailable'],true);
+        $topics=[];if($active)foreach(($extraction['topics']??[])as$topic)if(is_string($topic)&&trim($topic)!==''&&mb_strlen(trim($topic),'UTF-8')<=128)$topics[]=trim($topic);
+        $topics=array_slice(array_values(array_unique($topics)),0,$topicCount);$conversation=$topics;
+        $signals=$active?$this->forcedKnowledgeSignals($turn,$profile,$settings):['race'=>[],'location'=>[]];
+        $knowledgeTags=$this->knowledgeValues($tagList);$limit=max(0,min(5,$limit));
+        $selected=[];$selectedIds=[];$scores=[];$reasons=[];$rank=0;
+        foreach([['conversation',$conversation,0.01],['location',$signals['location'],0.95],['race',$signals['race'],0.95]]as[$source,$sourceSignals,$minimum]){
+            if(count($selected)>=$limit)break;
+            foreach($sourceSignals as$signal){$ranked=[];foreach($rows as$row){$score=$this->knowledgeRelevance($signal,$row);if($score<$minimum)continue;$row['_prompt_score']=$score;$ranked[]=$row;}
+                usort($ranked,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])?:strcmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
+                if(($ranked[0]['_prompt_score']??0.0)>=0.95)$ranked=array_values(array_filter($ranked,static fn(array$row):bool=>$row['_prompt_score']>=0.95));
+                foreach(array_slice($ranked,0,10)as$row){$id=(string)$row['id'];$score=(float)$row['_prompt_score'];$scores[$id]=max((float)($scores[$id]??0),$score);$accessDecision=OghmaGroundedRetriever::accessDecision($row,$knowledgeTags);$access=$accessDecision['level'];$rank++;
+                    if(isset($selectedIds[$id])){$reasons[$id]['additional_signals'][]=['signal'=>$signal,'source'=>$source,'score'=>$score];continue;}
+                    if($access==='denied'){$reasons[$id]=['rank'=>$rank,'topic'=>$row['topic'],'signal'=>$signal,'source'=>$source,'selected'=>false,'access_level'=>'denied','score'=>$scores[$id],'reason'=>$accessDecision['reason']];
+                        if(count($selected)<$limit){$row['content']='';$row['access_level']='denied';$row['source']=$source;$row['access_reason']=$accessDecision['reason'];unset($row['_prompt_score']);
+                            $selected[]=$row;$selectedIds[$id]='denied';$reasons[$id]['selected']=true;$reasons[$id]['reason']='denied topic included as structured prompt context';break;}
+                        continue;}
+                    if(count($selected)>=$limit){$reasons[$id]=['rank'=>$rank,'topic'=>$row['topic'],'signal'=>$signal,'source'=>$source,'selected'=>false,'access_level'=>$access,'score'=>$scores[$id],'reason'=>'knowledge result limit'];break;}
+                    $row['content']=$access==='advanced'?(string)$row['content']:(string)$row['topic_desc_basic'];$row['access_level']=$access;$row['source']=$source;$row['access_reason']=$accessDecision['reason'];unset($row['_prompt_score']);
+                    $selected[]=$row;$selectedIds[$id]=$access;$reasons[$id]=['rank'=>$rank,'topic'=>$row['topic'],'signal'=>$signal,'source'=>$source,'selected'=>true,'access_level'=>$access,'score'=>$scores[$id],'reason'=>$access.' knowledge class authorized'];break;
+                }
+            }
+        }
+        $query=mb_strcut(implode(' | ',array_merge($conversation,$signals['location'],$signals['race'])),0,4096,'UTF-8');
+        $deniedTopics=[];foreach($selected as$row)if(($row['access_level']??null)==='denied')$deniedTopics[]=(string)$row['topic'];
+        $reasons['_context']=['algorithm_version'=>OghmaGroundedRetriever::VERSION,'master_enabled'=>($settings['enabled']??true)===true,
+            'request_eligible'=>($extraction['request_eligible']??false)===true,'topic_count'=>$topicCount,'knowledge_limit'=>$limit,
+            'extracted_topics'=>$topics,'denied_topics'=>$deniedTopics,
+            'extractor_status'=>(string)($extraction['status']??(($settings['extractor_fallback_enabled']??false)?'not_run':'disabled')),
+            'extractor_configuration_id'=>$extraction['configuration_id']??null,'conversation_signals'=>$conversation,
+            'grounded_matches'=>$extraction['matches']??[],'grounded_rejections'=>$extraction['rejected']??[],
+            'tag_decisions'=>$extraction['tag_decisions']??[],
+            'context_fallback'=>$extraction['context_fallback']??['eligible'=>false,'attempted'=>false,'used'=>false],
+            'fallback_eligible'=>($extraction['fallback_eligible']??false)===true,'suggested_topics'=>$extraction['suggested_topics']??[],
+            'race_signals'=>$signals['race'],'location_signals'=>$signals['location'],
+            'racial_context_enabled'=>($settings['racial_context_enabled']??false)===true,'location_context_enabled'=>($settings['location_context_enabled']??false)===true];
+        $promptStatus=$selected===[]?$status:($status==='fallback_succeeded'?'fallback_succeeded':'grounded');
+        return['rows'=>$selected,'trace'=>['domain'=>'knowledge','status'=>$promptStatus,'query'=>$query,'result_ids'=>array_column($selected,'id'),
+            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>OghmaGroundedRetriever::VERSION,'created_at'=>$now,
+            'prompt_section'=>'oghma_context','scope'=>$scope,'effective_knowledge_tags'=>$knowledgeTags]];
+    }
+
+    /** Extract canonical race names and stable named locations already present in trusted turn context. */
+    private function forcedKnowledgeSignals(array $turn,array $profile,array $settings):array
+    {
+        $races=[];$locations=[];$regions=[];$add=static function(array&$values,mixed$value):void{
+            if(!is_string($value))return;$value=trim($value);if($value!==''&&mb_strlen($value,'UTF-8')<=256&&!in_array($value,$values,true))$values[]=$value;};
+        if(($settings['racial_context_enabled']??false)===true){
+            $content=is_array($profile['content']??null)?$profile['content']:[];$target=$turn['payload']['target']??[];$context=$turn['payload']['context']??[];
+            $race=$content['race']??(is_array($target)?($target['race']??null):null);$add($races,$this->canonicalRace($race));
+            if(is_array($context)&&!array_is_list($context)){
+                $targetState=$context['targetState']??[];if(is_array($targetState))$add($races,$this->canonicalRace($targetState['race']??($targetState['identity']['race']??null)));
+                $nearby=$context['nearbyActors']??[];if(is_array($nearby)&&!array_is_list($nearby))$nearby=$nearby['items']??[];
+                if(is_array($nearby))foreach(array_slice($nearby,0,12)as$actor)if(is_array($actor))$add($races,$this->canonicalRace($actor['race']??($actor['identity']['race']??null)));
+            }
+            foreach($this->nearbyActorProfilesForTurn($turn)as$nearbyProfile){$nearbyContent=$nearbyProfile['content']??[];if(is_array($nearbyContent))$add($races,$this->canonicalRace($nearbyContent['race']??null));}
+        }
+        if(($settings['location_context_enabled']??false)===true){$context=$turn['payload']['context']??[];
+            if(is_array($context)&&!array_is_list($context)){
+                $world=$context['world']??[];if(is_array($world)){$add($locations,$world['cell']??null);$add($locations,$world['location']??null);$add($regions,$world['region']??null);}
+                $location=$context['location']??null;if(is_array($location)){$add($locations,$location['name']??null);$add($locations,$location['cell']??null);$add($regions,$location['region']??null);}else$add($locations,$location);
+                $targetState=$context['targetState']??[];if(is_array($targetState)){$cell=$targetState['cell']??($targetState['identity']['cell']??null);if(is_array($cell))$add($locations,$cell['name']??null);else$add($locations,$cell);}
+            }
+            $target=$turn['payload']['target']??[];if(is_array($target)){ $cell=$target['cell']??null;if(is_array($cell))$add($locations,$cell['name']??null);}
+        }
+        return['race'=>$races,'location'=>array_values(array_unique(array_merge($locations,$regions)))];
+    }
+
+    private function canonicalRace(mixed $race):?string
+    {
+        if(!is_string($race)||trim($race)==='')return null;$value=trim($race);$key=mb_strtolower($value,'UTF-8');
+        return['dark elf'=>'Dunmer','high elf'=>'Altmer','wood elf'=>'Bosmer','orc'=>'Orsimer'][$key]??$value;
     }
 
     private function knowledgeRelevance(string $query,array $row):float
@@ -1226,25 +1602,9 @@ SQL);
         return round($score,8);
     }
 
-    private function knowledgeAccess(array $row,array $knowledgeTags):?string
-    {
-        $normalized=array_map('strtolower',$knowledgeTags);
-        if(in_array('knowall',$normalized,true)||$this->knowledgeClassAllows((string)$row['knowledge_class'],$normalized))return'advanced';
-        return$this->knowledgeClassAllows((string)$row['knowledge_class_basic'],$normalized)?'basic':null;
-    }
-
-    private function knowledgeClassAllows(string $classes,array $knowledgeTags):bool
-    {
-        $classes=array_map('strtolower',$this->knowledgeValues($classes));if($classes===[])return true;
-        $denied=array_map(static fn(string$value):string=>substr($value,1),array_filter($classes,static fn(string$value):bool=>str_starts_with($value,'!')));
-        if(array_intersect($denied,$knowledgeTags)!==[])return false;
-        $allowed=array_filter($classes,static fn(string$value):bool=>!str_starts_with($value,'!'));
-        return array_intersect($allowed,$knowledgeTags)!==[];
-    }
-
     private function knowledgeValues(string $value):array
     {
-        $values=preg_split('/\s*[,|;]\s*/u',$value)?:[];$result=[];foreach($values as$item){$item=trim($item);if($item!==''&&!in_array($item,$result,true))$result[]=$item;}return$result;
+        $separator=str_contains($value,'|')?'/\s*\|\s*/u':'/\s*[,;]\s*/u';$values=preg_split($separator,$value)?:[];$result=[];foreach($values as$item){$item=trim($item);if($item!==''&&!in_array($item,$result,true))$result[]=$item;}return$result;
     }
 
     /** Rank turn memories deterministically and persist why each prompt source was selected. */
@@ -1452,11 +1812,11 @@ SQL);
             $find->execute(['turn'=>$turn['turn_id']]);$stored=(string)$find->fetchColumn();
             foreach($trace['sources'] as $source){
                 $kind=(string)$source['source_kind'];
-                $section=match($kind){'profile','core_profile','prompt'=>'npc_context','knowledge','narrative'=>'morrowind_context',
+                $section=match($kind){'profile','core_profile','prompt'=>'npc_context','knowledge'=>'oghma_context','narrative'=>'morrowind_context',
                     'relationship'=>'relationships_factions','memory'=>'memory_context','history'=>'conversation_context',
                     'action_result','action_catalog'=>'negotiated_actions',default=>'current_turn'};
-                $sectionOrder=['npc_context'=>2,'morrowind_context'=>4,'relationships_factions'=>5,'memory_context'=>6,
-                    'conversation_context'=>7,'negotiated_actions'=>9,'current_turn'=>10][$section];
+                $sectionOrder=['npc_context'=>2,'morrowind_context'=>4,'oghma_context'=>5,'relationships_factions'=>6,'memory_context'=>7,
+                    'conversation_context'=>8,'negotiated_actions'=>10,'current_turn'=>11][$section];
                 $table=match($kind){'profile'=>'profile_revisions','core_profile'=>'core_profile_revisions','prompt'=>'configuration_revisions',
                     'history'=>'eventlog','memory'=>'memory_records','relationship'=>'relationship_records','knowledge'=>'knowledge_documents',
                     'narrative'=>'narrative_records','action_result'=>'action_results','action_catalog'=>'action_catalog',default=>'turns'};

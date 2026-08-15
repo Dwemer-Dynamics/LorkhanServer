@@ -121,12 +121,13 @@ Failure, cancellation, stale generation, partial provider output, missing media,
 2. NPC identity, biography, boundaries, and speech style;
 3. player/narrator identity;
 4. Morrowind world/Journal/environment context;
-5. relationships/factions;
-6. selected memory tiers;
-7. delivered conversation and bounded vanilla dialogue;
-8. audience/speaker rules;
-9. negotiated action policy;
-10. current turn or rechat continuation.
+5. protected Oghma knowledge;
+6. relationships/factions;
+7. selected memory tiers;
+8. compact delivered conversation and bounded vanilla dialogue;
+9. audience/speaker rules;
+10. negotiated action policy;
+11. current turn or rechat continuation.
 
 For every section, persist:
 

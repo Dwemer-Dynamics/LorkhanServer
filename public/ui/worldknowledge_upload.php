@@ -10,27 +10,33 @@ require __DIR__ . '/ui_bootstrap.php';
 
 $installations = $uiRepository->rows('installations');
 $selectedInstallation = (string) ($_GET['installation_id'] ?? ($installations[0]['installation_id'] ?? ''));
+$catalogPageSize = 500;
 $filters = [
     'search' => (string) ($_GET['search'] ?? ''),
     'category' => (string) ($_GET['category'] ?? ''),
     'order' => (string) ($_GET['order'] ?? 'asc'),
-    'page' => 1,
-    'page_size' => 500,
+    'page' => max(1, (int) ($_GET['page'] ?? 1)),
+    'page_size' => $catalogPageSize,
     'installation_id' => $selectedInstallation,
 ];
 $catalog = $uiRepository->oghmaCatalog($filters);
 $rows = $catalog['rows'];
+$catalogTotal = (int) $catalog['total'];
+$catalogPages = max(1, (int) $catalog['pages']);
+$catalogPage = min(max(1, (int) $catalog['page']), $catalogPages);
+$catalogFirst = $rows === [] ? 0 : (($catalogPage - 1) * $catalogPageSize) + 1;
+$catalogLast = $rows === [] ? 0 : $catalogFirst + count($rows) - 1;
 $categories = $uiRepository->oghmaCategories();
-$catalogStatus = $uiRepository->oghmaCatalogStatus();
 $additionalStylesheets = ['herika-oghma.css?v=' . (string) filemtime(__DIR__ . '/css/herika-oghma.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) {
     include __DIR__ . '/tmpl/navbar.php';
 }
 
+// Filter changes drop back to page 1; only explicit page links carry a page number.
 $query = static function (array $replace = []) use ($filters, $embedded): string {
-    $values = array_merge($filters, ['embed' => $embedded ? '1' : '0'], $replace);
-    unset($values['page'], $values['page_size']);
+    $values = array_merge($filters, ['embed' => $embedded ? '1' : '0', 'page' => 1], $replace);
+    unset($values['page_size']);
     return '?' . http_build_query($values) . '#entries';
 };
 
@@ -61,7 +67,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <textarea name="content" id="<?php echo $prefix; ?>-content" rows="8" required><?php echo $field('content'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-knowledge-class">Knowledge Class:</label>
-    <small>Who should have access to this advanced knowledge. Separate tags with commas.</small>
+    <small>Who should have access to this advanced knowledge. Separate tags with commas. Do not use common here &mdash; it only marks public basic access.</small>
     <input type="text" name="knowledge_class" id="<?php echo $prefix; ?>-knowledge-class" value="<?php echo $field('knowledge_class'); ?>">
 
     <label for="<?php echo $prefix; ?>-basic">Topic Description (Basic):</label>
@@ -69,7 +75,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <textarea name="topic_desc_basic" id="<?php echo $prefix; ?>-basic" rows="8"><?php echo $field('topic_desc_basic'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-basic-class">Knowledge Class (Basic):</label>
-    <small>Who should have access to the basic article. Leave empty to allow all NPCs to know this.</small>
+    <small>Who should have access to the basic article. Use common to mark this article public basic knowledge for every NPC. Leave empty to allow all NPCs to know this.</small>
     <input type="text" name="knowledge_class_basic" id="<?php echo $prefix; ?>-basic-class" value="<?php echo $field('knowledge_class_basic'); ?>">
 
     <label for="<?php echo $prefix; ?>-tags">Tags:</label>
@@ -89,42 +95,36 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <div class="page-header">
         <h1 id="page-title">
-            <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="Oghma Infinium" width="32" height="32">
+            <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="" aria-hidden="true" width="32" height="32">
             <span id="title-text">Oghma Infinium</span>
         </h1>
         <div id="header-content">
             <div id="oghma-header-content">
-                <p>The <b>Oghma Infinium</b> is a "Morrowind Encyclopedia" that AI NPCs use to help them roleplay.</p>
-                <p>This is done by detecting topics during conversations and injecting the appropriate information into the AI prompt.</p>
-                <h3><strong>Ensure all topic titles are lowercase and spaces are replaced with underscores (_).</strong></h3>
-                <h4>Example: "House Redoran" becomes "house_redoran"</h4>
-                <p>Knowledge access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</p>
-                <?php if ($catalogStatus !== null): ?>
-                    <p class="factory-catalog-status"><strong>Factory catalog:</strong> <?php echo almsivi_ui_h((string) $catalogStatus['catalog_version']); ?> &middot; <?php echo almsivi_ui_h((string) $catalogStatus['row_count']); ?> reviewed articles &middot; 3E 427</p>
-                <?php endif; ?>
-                <div class="logic-section">
-                    <h3 class="logic-title">&#x1F50D; Article Search Logic</h3>
-                    <div class="logic-steps">
-                        <div class="logic-step"><div class="step-number">1</div><div class="step-content"><strong>Keyword Search</strong><p>NPC searches for an Oghma article using the most relevant topic or alias in the conversation.</p></div></div>
-                        <div class="logic-step"><div class="step-number">2</div><div class="step-content"><strong>Advanced Access Check</strong><p>Check <code>knowledge_class</code> for access to the advanced article (<code>topic_desc</code>).</p></div></div>
-                        <div class="logic-step"><div class="step-number">3</div><div class="step-content"><strong>Basic Access Check</strong><p>Check <code>knowledge_class_basic</code> for access to the basic article (<code>topic_desc_basic</code>).</p></div></div>
-                        <div class="logic-step"><div class="step-number">4</div><div class="step-content"><strong>Fallback Response</strong><p>If all checks fail, send <em>"You do not know about X"</em> to the prompt.</p></div></div>
-                    </div>
-                </div>
+                <p class="oghma-summary">Oghma matches conversation topics to articles. NPCs receive the most detailed version they are allowed to know; if no version matches, they know nothing about the topic.</p>
             </div>
         </div>
     </div>
 
     <div class="tab-navigation" role="tablist" aria-label="Oghma pages">
-        <button type="button" class="tab-button active" role="tab" aria-selected="true">&#x1F4DA; Oghma Infinium</button>
+        <button type="button" class="tab-button active" role="tab" aria-selected="true"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
         <span class="oghma-tab-placeholder">
-            <button type="button" class="tab-button" role="tab" disabled aria-disabled="true">&#x26A1; Dynamic Oghma</button>
+            <button type="button" class="tab-button" role="tab" disabled aria-disabled="true"><span aria-hidden="true">&#x26A1;</span>&#160;Dynamic Oghma</button>
             <?php echo almsivi_ui_feature_badge('config.oghma.dynamic', true); ?>
         </span>
     </div>
 
-    <?php if (isset($_GET['status'])): ?>
-        <div class="oghma-notice" role="status"><?php echo almsivi_ui_h($_GET['status'] === 'imported' ? 'CSV validated and imported.' : 'Knowledge record saved.'); ?></div>
+    <?php if (isset($_GET['status'])):
+        $status = is_string($_GET['status']) ? $_GET['status'] : '';
+        $noticeCount = (int) (is_string($_GET['count'] ?? null) ? $_GET['count'] : 0);
+        $notice = match ($status) {
+            'imported' => 'CSV validated and imported.',
+            'factory-synced' => 'Factory catalog synced. '
+                . ($noticeCount > 0 ? $noticeCount . ' factory ' . ($noticeCount === 1 ? 'article was' : 'articles were') . ' refreshed' : 'Factory articles were refreshed')
+                . ' and your own articles were kept.',
+            default => 'Knowledge record saved.',
+        };
+    ?>
+        <div class="oghma-notice" role="status"><?php echo almsivi_ui_h($notice); ?></div>
     <?php endif; ?>
 
     <div id="oghma-tab" class="tab-content active">
@@ -144,22 +144,40 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     </div>
                 </form>
                 <p>Uploaded topics are validated as UTF-8 CHIM-format CSV and scoped to this ALMSIVI installation. Existing user topics with the same key are revised safely.</p>
+
+                <details class="oghma-tips">
+                    <summary>Article editing tips</summary>
+                    <ul>
+                        <li>Write topic titles in lowercase and replace spaces with underscores &mdash; "House Redoran" becomes <code>house_redoran</code>.</li>
+                        <li>Use <code>common</code> only as an article marker for public basic knowledge. Do not assign it to NPCs.</li>
+                        <li>Access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
+                    </ul>
+                </details>
             </div>
 
             <div class="content-section">
                 <h2>Database Management</h2>
                 <p>Verify imports:<br><b>Control Panel &rarr; Database Manager &rarr; knowledge_documents</b></p>
                 <p>View conversation usage:<br><b>Control Panel &rarr; Oghma Audit</b></p>
+                <h3 class="factory-sync-heading">Factory Catalog</h3>
+                <p id="factory-sync-help">Oghma ships with a factory catalog of articles that stay read-only here. Syncing checks that shipped catalog and refreshes every factory article across this server in a single step, so the catalog is never left half-updated.</p>
+                <p>Your own articles &mdash; uploaded by CSV or added by hand &mdash; are preserved through a sync and stay editable and deletable. Use this after updating ALMSIVI, or if a factory article looks wrong or missing.</p>
+                <form class="factory-sync-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
+                    <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
+                    <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
+                    <div class="button-group">
+                        <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Your custom articles are kept.">Sync Factory Catalog</button>
+                    </div>
+                </form>
                 <div class="button-group destructive-controls">
                     <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
-                    <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Factory Reset Database</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
                 </div>
-                <p>Factory Oghma entries are versioned and read-only. User-created entries remain editable and soft-deletable.</p>
             </div>
         </div>
 
         <div class="full-width-section">
-            <h2 id="entries">&#x1F4CB; Oghma Infinium Entries</h2>
+            <h2 id="entries"><span aria-hidden="true">&#x1F4CB;</span>&#160;Oghma Infinium Entries</h2>
             <div class="action-container">
                 <button type="button" class="action-button add-new" data-oghma-new-open>Add New Entry</button>
                 <form class="search-container" method="get" action="#entries">
@@ -185,8 +203,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <div>
                     <strong>Sort Order:</strong><br>
                     <div class="sort-buttons">
-                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'asc'])); ?>">&#x1F53C; Ascending</a>
-                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'desc'])); ?>">&#x1F53D; Descending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'asc'])); ?>"><span aria-hidden="true">&#x1F53C;</span>&#160;Ascending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'desc'])); ?>"><span aria-hidden="true">&#x1F53D;</span>&#160;Descending</a>
                     </div>
                 </div>
             </div>
@@ -201,7 +219,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                             'document_id' => $row['document_id'], 'topic' => $row['topic'], 'title' => $row['title'],
                             'aliases' => $row['aliases'], 'content' => $row['content'], 'knowledge_class' => $row['knowledge_class'],
                             'topic_desc_basic' => $row['topic_desc_basic'], 'knowledge_class_basic' => $row['knowledge_class_basic'],
-                            'tags' => $row['tags'], 'category' => $row['category'],
+                            'tags' => $row['tags'], 'category' => $row['category'], 'factory' => $factory,
                         ];
                     ?>
                         <tr>
@@ -214,12 +232,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                             <td><?php echo trim((string) $row['tags']) !== '' ? nl2br(almsivi_ui_h($row['tags'])) : '<span class="empty-value">None</span>'; ?></td>
                             <td><?php echo almsivi_ui_h($row['category']); ?></td>
                             <td class="action-cell">
-                                <?php if ($factory): ?>
-                                    <button type="button" class="action-button edit" disabled aria-disabled="true" title="Factory catalog entries are source-controlled and read-only.">Edit</button>
-                                    <span class="factory-label">Factory</span>
-                                <?php else: ?>
-                                    <button type="button" class="action-button edit" data-oghma-edit='<?php echo almsivi_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
-                                <?php endif; ?>
+                                <button type="button" class="action-button edit"<?php echo $factory ? ' title="Editing a factory article saves your changes as a custom article. The factory article stays unchanged."' : ''; ?> data-oghma-edit='<?php echo almsivi_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
+                                <?php if ($factory): ?><span class="factory-label">Factory</span><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -227,21 +241,73 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     </tbody>
                 </table>
             </div>
+
+            <nav class="oghma-pagination" aria-label="Oghma catalog pagination">
+                <div class="oghma-pagination-summary">
+                    <p class="oghma-pagination-range">
+                        <?php if ($catalogTotal === 0): ?>
+                            Showing 0 of 0 articles
+                        <?php else: ?>
+                            Showing <?php echo number_format($catalogFirst); ?>&#8211;<?php echo number_format($catalogLast); ?> of <?php echo number_format($catalogTotal); ?> article<?php echo $catalogTotal === 1 ? '' : 's'; ?>
+                        <?php endif; ?>
+                    </p>
+                    <p class="oghma-pagination-page">Page <?php echo number_format($catalogPage); ?> of <?php echo number_format($catalogPages); ?></p>
+                </div>
+                <?php if ($catalogPages > 1):
+                    $pageNumbers = $catalogPages <= 10
+                        ? range(1, $catalogPages)
+                        : array_values(array_unique(array_merge([1], range(max(2, $catalogPage - 2), min($catalogPages - 1, $catalogPage + 2)), [$catalogPages])));
+                    $previousNumber = 0;
+                ?>
+                    <ul class="oghma-pagination-list">
+                        <li>
+                            <?php if ($catalogPage > 1): ?>
+                                <a class="oghma-page-link" rel="prev" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage - 1])); ?>">Previous</a>
+                            <?php else: ?>
+                                <span class="oghma-page-link disabled" aria-disabled="true">Previous</span>
+                            <?php endif; ?>
+                        </li>
+                        <?php foreach ($pageNumbers as $pageNumber): ?>
+                            <?php if ($previousNumber !== 0 && $pageNumber > $previousNumber + 1): ?>
+                                <li class="oghma-pagination-gap" aria-hidden="true">&hellip;</li>
+                            <?php endif; ?>
+                            <li>
+                                <?php if ($pageNumber === $catalogPage): ?>
+                                    <span class="oghma-page-link current" aria-current="page"><?php echo number_format($pageNumber); ?></span>
+                                <?php else: ?>
+                                    <a class="oghma-page-link" href="<?php echo almsivi_ui_h($query(['page' => $pageNumber])); ?>" aria-label="Page <?php echo number_format($pageNumber); ?>"><?php echo number_format($pageNumber); ?></a>
+                                <?php endif; ?>
+                            </li>
+                            <?php $previousNumber = $pageNumber; ?>
+                        <?php endforeach; ?>
+                        <li>
+                            <?php if ($catalogPage < $catalogPages): ?>
+                                <a class="oghma-page-link" rel="next" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage + 1])); ?>">Next</a>
+                            <?php else: ?>
+                                <span class="oghma-page-link disabled" aria-disabled="true">Next</span>
+                            <?php endif; ?>
+                        </li>
+                    </ul>
+                <?php endif; ?>
+            </nav>
         </div>
     </div>
 </main>
 
 <div id="editModal" class="modal-backdrop" hidden aria-hidden="true">
     <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
-        <div class="modal-header"><h2 class="modal-title" id="edit-modal-title">Edit Oghma Entry</h2></div>
+        <div class="modal-header">
+            <h2 class="modal-title" id="edit-modal-title">Edit Oghma Entry</h2>
+        </div>
         <div class="modal-body">
+            <p class="factory-edit-note" id="edit-factory-note" hidden>This is a factory article, so it is never changed here. Saving creates a custom article for this server that replaces it in the catalog. Delete that custom article later to bring the factory version back.</p>
             <form id="oghma-edit-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge-revise">
                 <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
                 <input type="hidden" name="document_id" id="edit-document-id">
                 <?php $modalFields('edit'); ?>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-save">Save Changes</button>
-                    <button type="submit" class="btn-danger" form="oghma-delete-form" data-confirm="Delete this Oghma entry?">Delete</button>
+                    <button type="submit" class="btn-save" id="edit-save-button">Save Changes</button>
+                    <button type="submit" class="btn-danger" id="edit-delete-button" form="oghma-delete-form" data-confirm="Delete this Oghma entry?">Delete</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
             </form>

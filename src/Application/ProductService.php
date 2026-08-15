@@ -173,14 +173,25 @@ final class ProductService
         return$this->repository->createKnowledgeBatch($prepared,$this->clock->iso());
     }
 
-    /** Replace one user-authored Oghma document while retaining its installation scope. */
+    /** Replace one user-authored Oghma document, or save a factory edit as a custom override, keeping installation scope. */
     public function updateKnowledge(string $documentId,array $input):array
     {
         $this->uuid($documentId);$current=$this->repository->knowledge($documentId);
-        if(($current['provenance']['source']??null)==='factory-oghma')throw new InvalidArgumentException('factory_knowledge_read_only');
         $input=$this->knowledgeInput($input);$input['provenance']=$this->provenance($input);
+        if(($current['provenance']['source']??null)!=='factory-oghma'){
+            $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
+            return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
+        }
+        // Factory rows stay read-only: the edit creates or updates the custom override that shadows them. Scope comes
+        // from the stored factory document alone, so a browser-supplied scope can never redirect the write elsewhere.
+        $input['topic']=(string)$current['topic'];
+        $input['installation_id']=(string)$current['installation_id'];
+        foreach(['profile_id','playthrough_id']as$field)
+            $input[$field]=($current[$field]??null)===null?null:(string)$current[$field];
+        $this->requireUuid($input,'installation_id');
+        foreach(['profile_id','playthrough_id']as$field)if($input[$field]!==null)$this->uuid($input[$field]);
         $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
-        return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
+        return$this->repository->createKnowledge($input,$terms,$this->clock->iso());
     }
 
     /** @param array<string,mixed> $scope */
@@ -284,9 +295,11 @@ final class ProductService
         $input['topic_desc_basic']=trim((string)($input['topic_desc_basic']??$input['content']));
         foreach(['topic'=>256,'title'=>256,'content'=>131072,'topic_desc_basic'=>131072]as$field=>$max)$this->boundedString($input,$field,1,$max);
         foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$value=$input[$field]??'';
-            if(is_array($value)){if(!array_is_list($value))throw new InvalidArgumentException('invalid_'.$field);$value=implode(',',array_map(static fn(mixed$item):string=>trim((string)$item),$value));}
+            if(is_array($value)){if(!array_is_list($value))throw new InvalidArgumentException('invalid_'.$field);$items=array_map(static fn(mixed$item):string=>trim((string)$item),$value);if($field==='aliases')$items=array_map(static fn(string$item):string=>preg_replace('/\s*,\s*/u','_',$item)??$item,$items);$value=implode($field==='aliases'?', ':',',$items);}
+            elseif($field==='aliases'&&is_string($value))$value=preg_replace('/\s*[|;]\s*/u',', ',$value)??$value;
             if(!is_string($value)||strlen($value)>8192||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_'.$field);$input[$field]=trim($value);}
-        $input['knowledge_class']=$input['knowledge_class']===''?'common':$input['knowledge_class'];
+        if(in_array('common',array_map(static fn(string$value):string=>mb_strtolower(trim($value),'UTF-8'),
+            preg_split('/\s*[,|;]\s*/u',$input['knowledge_class'])?:[]),true))throw new InvalidArgumentException('invalid_knowledge_class');
         $input['knowledge_class_basic']=$input['knowledge_class_basic']===''?'common':$input['knowledge_class_basic'];
         $input['category']=trim((string)($input['category']??($input['provenance']['category']??'ALMSIVI')));
         if($input['category']===''||strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');

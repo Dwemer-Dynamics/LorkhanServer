@@ -1,6 +1,6 @@
 {
   "format": "almsivi.morrowind-oghma-ontology.v1",
-  "scope": "Stable, lore-first knowledge for a new Morrowind playthrough. Ordinary NPCs, generic equipment, routine spells, consumables, quest outcomes, and dynamic knowledge are excluded.",
+  "scope": "Stable, source-grounded knowledge for a new Morrowind playthrough. It includes reviewed places, substantial books, equipment families, ingredients, and lore while excluding ordinary NPCs, trivial item variants, minor notes, routine spells, quest outcomes, and dynamic knowledge.",
   "categories": [
     "lore",
     "history",
@@ -16,17 +16,21 @@
     "diseases",
     "magic",
     "alchemy",
-    "artifacts"
+    "artifacts",
+    "books",
+    "equipment",
+    "ingredients"
   ],
   "knowledge_classes": [
     "common",
+    "blocked",
     "scholar",
     "traveler",
     "mage",
     "alchemist",
     "healer",
     "priest",
-    "smith",
+    "blacksmith",
     "hunter",
     "merchant",
     "sailor",
@@ -51,6 +55,7 @@
     "mages_guild",
     "fighters_guild",
     "thieves_guild",
+    "dark_brotherhood",
     "morag_tong",
     "imperial_legion",
     "east_empire_company",
@@ -76,9 +81,22 @@
     "mournhold",
     "esoteric"
   ],
+  "profile_governed_advanced_classes": ["scholar"],
+  "classification_policy": {
+    "advanced_removed_classes": ["common"],
+    "basic_exclusive_priority": ["esoteric", "common"],
+    "topic_advanced_classes": {
+      "altmer": ["altmer"],
+      "bosmer": ["bosmer"],
+      "breton": ["breton"],
+      "orc": ["orc"],
+      "redguard": ["redguard"]
+    }
+  },
+  "canonical_vocabulary": "../canonical-knowledge-vocabulary-v1.json",
   "profiles": {
     "common": {
-      "advanced": ["scholar", "traveler"],
+      "advanced": ["traveler"],
       "basic": ["common"]
     },
     "scholarly": {
@@ -94,16 +112,23 @@
       "basic": ["common", "traveler"]
     },
     "regional": {
-      "advanced": ["traveler", "scholar"],
+      "advanced": ["traveler"],
       "basic": ["common"]
     },
     "specialist": {
-      "advanced": ["scholar"],
+      "advanced": [],
       "basic": ["common"]
     },
     "esoteric": {
       "advanced": ["scholar", "esoteric"],
       "basic": ["esoteric"]
+    }
+  },
+  "profile_category_advanced": {
+    "specialist": {
+      "alchemy": ["alchemist"],
+      "creatures": ["hunter"],
+      "diseases": ["healer"]
     }
   },
   "prose": {

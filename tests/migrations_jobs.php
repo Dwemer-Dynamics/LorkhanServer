@@ -20,6 +20,7 @@ use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\ManagementUiRepository;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
+use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
 use ALMSIVIserver\Infrastructure\Uuid;
@@ -430,6 +431,263 @@ $check($knowledgeSearch['results'][0]['id'] === $knowledge['document_id'], 'know
 $knowledgeProjection=$db->prepare('SELECT oghma.topic_desc FROM oghma_metadata metadata JOIN public.oghma oghma ON oghma.topic=metadata.topic WHERE metadata.document_id=:document');
 $knowledgeProjection->execute(['document'=>$knowledge['document_id']]);
 $check($knowledgeProjection->fetchColumn()==='Nalcarya operates an alchemy shop.','knowledge did not project into the Herika Oghma contract');
+    $products->setOghmaSettings($installation,['enabled'=>true,'knowledge_tags'=>'common','racial_context_enabled'=>true,
+        'location_context_enabled'=>true,'topic_count'=>2,'result_limit'=>4,'extractor_enabled'=>true,
+        'extractor_timeout_ms'=>900],$clock->iso());
+$savedOghmaSettings=$products->oghmaSettings($installation);
+    $check($savedOghmaSettings['enabled']===true&&$savedOghmaSettings['topic_count']===2&&$savedOghmaSettings['extractor_enabled']===true
+    &&$savedOghmaSettings['result_limit']===4&&$savedOghmaSettings['extractor_timeout_ms']===900
+    &&$savedOghmaSettings['knowledge_tags']===''
+    &&$savedOghmaSettings['racial_context_enabled']===true&&$savedOghmaSettings['location_context_enabled']===true,
+    'installation-global Oghma runtime controls were not persisted');
+$oghmaRows=[];foreach([
+    ['00000000-0000-4000-8000-000000000301','Dunmer'],['00000000-0000-4000-8000-000000000302','Balmora'],
+    ['00000000-0000-4000-8000-000000000303','Vivec'],['00000000-0000-4000-8000-000000000304','Tribunal'],
+    ['00000000-0000-4000-8000-000000000319','Ascadian Isles'],
+    ]as[$id,$topic])$oghmaRows[]=['id'=>$id,'topic'=>$topic,'title'=>$topic,'aliases'=>'','content'=>$topic.' advanced lore.',
+        'topic_desc_basic'=>$topic.' basic lore.','knowledge_class'=>'','knowledge_class_basic'=>'',
+        'tags'=>$topic==='Vivec'?'warrior poet god':'','category'=>'Lore'];
+foreach($oghmaRows as$row)$products->createKnowledge([
+    'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,'title'=>$row['title'],'content'=>$row['content'],
+    'provenance'=>['source'=>'authored-test'],'topic'=>$row['topic'],'aliases'=>$row['aliases'],
+    'topic_desc_basic'=>$row['topic_desc_basic'],'knowledge_class'=>$row['knowledge_class'],
+    'knowledge_class_basic'=>$row['knowledge_class_basic'],'tags'=>$row['tags'],'category'=>$row['category'],
+],[(string)$row['topic']],$clock->iso());
+    $groundedTurn=$scope+['turn_id'=>'20000000-0000-4000-8000-000000000098','payload'=>[
+        'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Vivec and the Tribunal.'],'ui_source'=>'almsivi_text',
+        'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]];
+$groundedSelection=$products->groundedOghmaExtraction($groundedTurn);
+$check($groundedSelection['status']==='grounded'&&$groundedSelection['topics']===['Vivec','Tribunal']
+    &&$groundedSelection['fallback_eligible']===false,'database-backed grounded Oghma extraction did not preserve topic order');
+$noMatchSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+    ['payload'=>['input'=>['text'=>'We should leave before sunset.']]]));
+$check($noMatchSelection['topics']===[]&&$noMatchSelection['fallback_eligible']===false,
+    'ordinary dialogue unexpectedly selected Oghma knowledge or connector fallback');
+$fallbackSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+    ['payload'=>['input'=>['text'=>'Tell me about an unknown forgotten island.']]]));
+    $check($fallbackSelection['topics']===[]&&$fallbackSelection['fallback_eligible']===true,
+        'unresolved explicit lore request did not become eligible for one connector fallback');
+    $tagSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['input'=>['text'=>'We encountered a warrior poet god during the journey.']]]));
+    $check($tagSelection['topics']===[]&&$tagSelection['fallback_eligible']===false,
+        'ordinary descriptive tags unexpectedly created an Oghma topic');
+    $rankedTagSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['input'=>['text'=>'Tell me about Vivec, the warrior poet god.']]]));
+    $check($rankedTagSelection['topics']===['Vivec']
+        &&in_array('warrior poet god',$rankedTagSelection['matches'][0]['relational_tag_phrases']??[],true),
+        'descriptive tags did not strengthen an already grounded Oghma topic');
+    $ineligibleSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
+        ['payload'=>['ui_source'=>'almsivi_autonomy']]));
+    $check($ineligibleSelection['status']==='ineligible'&&$ineligibleSelection['topics']===[],
+        'Oghma request allowlist accepted an autonomy source');
+$selectOghma=new ReflectionMethod($products,'selectPromptKnowledge');
+$oghmaSelection=$selectOghma->invoke($products,
+    ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+        'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+        'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',4,
+    $savedOghmaSettings,['status'=>'fallback_succeeded','request_eligible'=>true,'topics'=>['Vivec','Tribunal'],'configuration_id'=>'00000000-0000-4000-8000-000000000305'],$clock->iso());
+$check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balmora','Ascadian Isles']
+        &&$oghmaSelection['trace']['algorithm']==='oghma-parity-v1'
+    &&$oghmaSelection['trace']['reasons']['_context']['extracted_topics']===['Vivec','Tribunal'],
+        'multi-topic Oghma retrieval did not prioritize conversation, exact location, and region context');
+    $boundedLimitSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['world'=>['cell'=>'Balmora','region'=>'Ascadian Isles']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',20,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
+    $check(($boundedLimitSelection['trace']['reasons']['_context']['knowledge_limit']??null)===5,
+        'Oghma selection did not enforce the shared five-result maximum');
+    $conversationBudgetSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Vivec and the Tribunal.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',2,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Vivec','Tribunal']],$clock->iso());
+    $check(array_column($conversationBudgetSelection['rows'],'topic')===['Vivec','Tribunal'],
+        'conversation topics did not consume the shared result budget before forced context');
+    $deduplicatedSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['text'=>'Tell me about Balmora.'],'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],
+            'context'=>['location'=>['name'=>'Balmora']]]],['content'=>['race'=>'Dark Elf']],$scope,$oghmaRows,'',3,
+        $savedOghmaSettings,['status'=>'grounded','request_eligible'=>true,'topics'=>['Balmora']],$clock->iso());
+    $check(array_column($deduplicatedSelection['rows'],'topic')===['Balmora','Dunmer']
+        &&($deduplicatedSelection['rows'][0]['source']??null)==='conversation',
+        'conversation ownership was not retained when forced location matched the same article');
+    $deniedRow=['id'=>'00000000-0000-4000-8000-000000000306','topic'=>'Forbidden Lore','title'=>'Forbidden Lore',
+        'aliases'=>'','content'=>'Forbidden advanced lore.','topic_desc_basic'=>'Forbidden basic lore.',
+        'knowledge_class'=>'secret','knowledge_class_basic'=>'initiate','tags'=>'','category'=>'Lore'];
+    $deniedSettings=array_merge($savedOghmaSettings,['racial_context_enabled'=>false,'location_context_enabled'=>false]);
+    $deniedSelection=$selectOghma->invoke($products,
+        ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
+            'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Forbidden Lore.'],'ui_source'=>'almsivi_text',
+            'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],'context'=>[]]],
+        ['content'=>[]],$scope,[$deniedRow],'',4,$deniedSettings,
+        ['status'=>'grounded','request_eligible'=>true,'topics'=>['Forbidden Lore']],$clock->iso());
+    $check(($deniedSelection['rows'][0]['access_level']??null)==='denied'
+        &&($deniedSelection['rows'][0]['content']??null)===''
+        &&($deniedSelection['trace']['reasons']['_context']['denied_topics']??[])===['Forbidden Lore'],
+        'recognized unauthorized Oghma topic was not preserved as structured denied prompt context');
+    $products->setOghmaSettings($installation,array_merge($savedOghmaSettings,['enabled'=>false]),$clock->iso());
+    $disabledSelection=$products->groundedOghmaExtraction($groundedTurn);
+    $check($disabledSelection['status']==='disabled'&&$disabledSelection['topics']===[]
+        &&$disabledSelection['fallback_eligible']===false,'Oghma master switch did not disable all retrieval');
+    $products->setOghmaSettings($installation,$savedOghmaSettings,$clock->iso());
+    $oghmaFixtureRoot=sys_get_temp_dir().'/almsivi-oghma-catalog-'.bin2hex(random_bytes(6));
+    if(!mkdir($oghmaFixtureRoot,0700,true)&&!is_dir($oghmaFixtureRoot))throw new RuntimeException('Oghma catalog fixture directory failed');
+    $writeOghmaCatalogFixture=static function(string$version,array$rows)use($oghmaFixtureRoot):array{
+        $articlesPath=$oghmaFixtureRoot.'/'.$version.'.articles.json';$manifestPath=$oghmaFixtureRoot.'/'.$version.'.manifest.json';
+        $articles=json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+        file_put_contents($articlesPath,$articles);
+        $manifest=['format'=>'almsivi.morrowind-oghma-catalog.v1','catalog_version'=>$version,
+            'row_count'=>count($rows),'articles_sha256'=>hash('sha256',$articles),'ontology_sha256'=>str_repeat('1',64),
+            'topic_seeds_sha256'=>str_repeat('2',64),'generator_sha256'=>str_repeat('3',64),
+            'builder_sha256'=>str_repeat('4',64),'official_content_sha256'=>['Morrowind.esm'=>str_repeat('5',64)]];
+        file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+        return[$articlesPath,$manifestPath];
+    };
+    $oghmaV1Rows=[['topic'=>'fixture_lore','title'=>'Fixture Lore','aliases'=>['fixture legend'],
+        'topic_desc'=>'Factory v1 preserves Vvardenfell’s reviewed lore.','knowledge_class'=>['scholar'],
+        'topic_desc_basic'=>'Factory v1 basic lore.','knowledge_class_basic'=>['common'],
+        'tags'=>['reviewed fixture lore'],'category'=>'lore']];
+    $oghmaV2Rows=[['topic'=>'fixture_lore','title'=>'Fixture Lore','aliases'=>['fixture legend'],
+        'topic_desc'=>'Factory v2 updates Vvardenfell’s reviewed lore.','knowledge_class'=>['scholar'],
+        'topic_desc_basic'=>'Factory v2 basic lore.','knowledge_class_basic'=>['common'],
+        'tags'=>['reviewed fixture lore'],'category'=>'lore'],
+        ['topic'=>'fixture_place','title'=>'Fixture Place','aliases'=>[],
+            'topic_desc'=>'Factory v2 adds one reviewed location.','knowledge_class'=>['scholar'],
+            'topic_desc_basic'=>'Factory v2 location basics.','knowledge_class_basic'=>['common'],
+            'tags'=>['reviewed fixture location'],'category'=>'locations']];
+    [$oghmaV1Articles,$oghmaV1Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v1',$oghmaV1Rows);
+    [$oghmaV2Articles,$oghmaV2Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v2',$oghmaV2Rows);
+    $customOghma=$products->createKnowledge(['installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
+        'title'=>'Fixture Lore Custom','content'=>'Installation-authored Oghma knowledge must survive factory changes.',
+        'provenance'=>['source'=>'authored-test'],'topic'=>'fixture_lore','aliases'=>'custom fixture',
+        'topic_desc_basic'=>'Custom fixture basics.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+        'tags'=>'custom fixture knowledge','category'=>'lore'],['fixture','custom'],$clock->iso());
+    $oghmaImporter=new OghmaCatalogImporter($db);$oghmaPlan=$oghmaImporter->plan($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
+    $check($oghmaPlan['valid']===true&&$oghmaPlan['row_count']===1,'factory Oghma catalog dry-run failed');
+    $oghmaImporter->apply($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
+    $customOghmaId=(string)$customOghma['document_id'];
+    $check($db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.'
+        &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs WHERE catalog_version='oghma-fixture-v1')")->fetchColumn()===1,
+        'factory Oghma v1 did not preserve installation-authored knowledge');
+    $oghmaImporter->apply($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $oghmaCatalog=$db->query("SELECT catalog_version,state,previous_catalog_id FROM oghma_catalogs")->fetch();
+    $check((int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1
+        &&($oghmaCatalog['catalog_version']??null)==='oghma-fixture-v2'
+        &&($oghmaCatalog['state']??null)==='active'
+        &&($oghmaCatalog['previous_catalog_id']??null)===null
+        &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs)")->fetchColumn()===2
+        &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v2 updates Vvardenfell’s reviewed lore.'
+        &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.',
+        'current Oghma sync did not replace v1 while preserving custom knowledge');
+    $clock->advance(1);$revisedCustomOghma=$products->createKnowledge([
+        'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
+        'title'=>'Fixture Lore Revised','content'=>'Revised installation-authored Oghma knowledge overrides the factory article.',
+        'provenance'=>['source'=>'management-csv'],'topic'=>'FIXTURE_LORE','aliases'=>'revised custom fixture',
+        'topic_desc_basic'=>'Revised custom fixture basics.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+        'tags'=>'revised custom fixture knowledge','category'=>'lore'],['fixture','revised','custom'],$clock->iso());
+    $check(($revisedCustomOghma['document_id']??null)===$customOghmaId,
+        'saving the same custom Oghma topic created a duplicate instead of updating the override');
+    $effectiveFixtureRows=array_values(array_filter($products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]),static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($effectiveFixtureRows)===1
+        &&($effectiveFixtureRows[0]['id']??null)===$customOghmaId
+        &&($effectiveFixtureRows[0]['content']??null)==='Revised installation-authored Oghma knowledge overrides the factory article.',
+        'custom Oghma article did not override the matching factory topic');
+    $uiFixtureRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiFixtureRows)===1&&($uiFixtureRows[0]['document_id']??null)===$customOghmaId,
+        'Oghma editor did not display the effective custom article');
+    $oghmaProvision=$oghmaImporter->provision($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
+    $check($oghmaProvision['applied']===false&&$oghmaProvision['idempotent']===true
+        &&(int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1,
+        'current Oghma provisioning was not idempotent');
+    $products->deleteKnowledge($customOghmaId,$clock->iso());
+    $restoredFixtureRows=array_values(array_filter($products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]),static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($restoredFixtureRows)===1
+        &&($restoredFixtureRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'deleting a custom Oghma override did not reveal the factory topic');
+    $uiRestoredFixtureRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiRestoredFixtureRows)===1
+        &&($uiRestoredFixtureRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'Oghma editor did not reveal the factory article after deleting its custom override');
+    $factoryFixtureId=(string)$db->query("SELECT f.document_id FROM oghma_factory_documents f WHERE f.topic='fixture_lore' AND f.installation_id='{$installation}'")->fetchColumn();
+    $factoryFixtureBefore=$db->query("SELECT topic,title,content,knowledge_class,provenance->>'source' AS source FROM knowledge_documents WHERE document_id='{$factoryFixtureId}'")->fetch();
+    $clock->advance(1);$factoryOverride=$service->updateKnowledge($factoryFixtureId,[
+        'topic'=>'renamed_fixture_lore','title'=>'Fixture Lore Override','aliases'=>'overridden fixture',
+        'content'=>'Editing the factory article saved a custom override instead.','knowledge_class'=>'scholar',
+        'topic_desc_basic'=>'Overridden fixture basics.','knowledge_class_basic'=>'common',
+        'tags'=>'overridden fixture knowledge','category'=>'lore','provenance'=>['source'=>'management']]);
+    $factoryOverrideId=(string)$factoryOverride['document_id'];
+    $factoryFixtureAfter=$db->query("SELECT topic,title,content,knowledge_class,provenance->>'source' AS source FROM knowledge_documents WHERE document_id='{$factoryFixtureId}' AND deleted_at IS NULL")->fetch();
+    $uiOverrideRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check($factoryOverrideId!==$factoryFixtureId
+        &&($factoryOverride['installation_id']??null)===$installation
+        &&($factoryOverride['topic']??null)==='fixture_lore'
+        &&($factoryOverride['profile_id']??null)===null&&($factoryOverride['playthrough_id']??null)===null
+        &&($factoryOverride['provenance']['source']??null)==='management'
+        &&$factoryFixtureAfter===$factoryFixtureBefore
+        &&count($uiOverrideRows)===1&&($uiOverrideRows[0]['document_id']??null)===$factoryOverrideId
+        &&($uiOverrideRows[0]['content']??null)==='Editing the factory article saved a custom override instead.',
+        'editing a factory Oghma article did not create a custom override that leaves the factory row unchanged');
+    $products->deleteKnowledge($factoryOverrideId,$clock->iso());
+    $uiOverrideDeletedRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiOverrideDeletedRows)===1
+        &&($uiOverrideDeletedRows[0]['document_id']??null)===$factoryFixtureId
+        &&($uiOverrideDeletedRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'deleting the override saved from a factory edit did not reveal the factory article');
+    $coverageInsert=$db->prepare("INSERT INTO knowledge_documents
+        (document_id,installation_id,title,content,content_sha256,lexical_terms,provenance,created_at,
+         topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category)
+        SELECT ('10000000-0000-4000-8000-'||lpad(sequence::text,12,'0'))::uuid,:installation,
+               'Coverage Topic '||sequence,'Coverage article '||sequence,repeat('a',64),
+               ARRAY['coverage','topic',sequence::text],'{\"source\":\"coverage-test\"}'::jsonb,:created_at,
+               'coverage_topic_'||sequence,'','Coverage basics '||sequence,'','common','','lore'
+        FROM generate_series(1,1300) AS sequence");
+    $coverageInsert->execute(['installation'=>$installation,'created_at'=>$clock->iso()]);
+    $coverageCatalogPages=[];
+    foreach([1,2,3]as$coveragePage){
+        $coverageCatalogPages[]=$uiDescriptions->oghmaCatalog([
+            'installation_id'=>$installation,'search'=>'coverage topic','page'=>$coveragePage,'page_size'=>999,
+        ]);
+    }
+    $coverageCatalogIds=array_merge(...array_map(
+        static fn(array$page):array=>array_column($page['rows'],'document_id'),
+        $coverageCatalogPages
+    ));
+    $coveragePastEnd=$uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'search'=>'coverage topic','page'=>999,'page_size'=>999,
+    ]);
+    $check(
+        array_map(static fn(array$page):int=>count($page['rows']),$coverageCatalogPages)===[500,500,300]
+        &&array_map(static fn(array$page):int=>(int)$page['page_size'],$coverageCatalogPages)===[500,500,500]
+        &&count(array_unique($coverageCatalogIds))===1300
+        &&(int)$coverageCatalogPages[0]['total']===1300
+        &&(int)$coverageCatalogPages[0]['pages']===3
+        &&(int)$coveragePastEnd['page']===3
+        &&count($coveragePastEnd['rows'])===300,
+        'Oghma catalog pagination did not enforce the 500-article cap or expose every matching article'
+    );
+    $coverageCandidates=$products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]);
+    $coverageTopics=array_filter(array_column($coverageCandidates,'topic'),static fn(string$topic):bool=>str_starts_with($topic,'coverage_topic_'));
+    $coverageTurn=$groundedTurn;$coverageTurn['payload']['input']['text']='Tell me about coverage topic 1300.';
+    $coverageExtraction=$products->groundedOghmaExtraction($coverageTurn);
+    $check(count($coverageTopics)===1300&&in_array('coverage_topic_1300',$coverageExtraction['topics'],true),
+        'Oghma retrieval did not scan the complete catalog beyond 1,000 articles');
+    $db->exec("DELETE FROM knowledge_documents WHERE provenance->>'source'='coverage-test'");
+    foreach(glob($oghmaFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($oghmaFixtureRoot);
 $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
     'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
@@ -467,7 +725,13 @@ $firstCursorIds=array_column($firstCursorPage['data'],'rowid');$nextCursor=max($
 $secondCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$nextCursor,'limit'=>10]);
 $check(count($firstCursorIds)===10&&$nextCursor===$baseEventRow+10&&count($secondCursorPage['data'])===2,
     'eventlog live cursor skipped or duplicated a burst window');
-$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs);
+$clock->advance(1);$syncCustom=$products->createKnowledge([
+    'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,'title'=>'Factory Sync Custom',
+    'content'=>'A user-authored article that must survive the management factory sync control.',
+    'provenance'=>['source'=>'management-csv'],'topic'=>'factory_sync_custom','aliases'=>'',
+    'topic_desc_basic'=>'User-authored factory sync fixture.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+    'tags'=>'factory sync fixture','category'=>'lore'],['factory','sync','custom'],$clock->iso());
+$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs,oghmaCatalogImporter:$oghmaImporter);
 $denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
 $signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
@@ -479,6 +743,18 @@ $check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin
 $descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
 $check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
     'description reset did not reject missing CSRF');
+$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
+$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+    'Oghma factory sync did not reject missing CSRF');
+$factorySync=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
+    '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
+$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=1300&installation_id='.$installation.'&embed=1';
+$factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
+$factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
+$factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
+$check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
+    &&$factorySyncVersion==='morrowind-official-3e427-v5.14'&&$factorySyncRows===1300&&$factorySyncCustomRows===1,
+    'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));

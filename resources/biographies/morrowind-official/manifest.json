@@ -1,6 +1,6 @@
 {
   "format": "almsivi.morrowind-biography-preflight.v1",
-  "updated_at_utc": "2026-08-11T21:13:41Z",
+  "updated_at_utc": "2026-08-14T00:00:00Z",
   "catalog_count": 3041,
   "selected_count": 3041,
   "completed_count": 3041,
@@ -136921,5 +136921,12 @@
         "request_seconds": 6.703
       }
     }
-  ]
+  ],
+  "catalog_version": "morrowind-official-2026-08-biographies-v4",
+  "biographies_sha256": "14826d7e1bbf647275172f18b79d33893ec58e71b08957cebabe124ec6a6f7c3",
+  "knowledge_tag_evidence_sha256": "1038fb83f93b63a3158cce721b2d6c6b89bf8807f41c0ea31e2a9866c05ffaa0",
+  "geography_sha256": "b16565d1f4422ad3ee3c4436fd13a0b02d91acf5eac679811b9d32835d2dab0d",
+  "geography_policy_sha256": "20323ab3a1308ac2c1fb60ef54b5c3829f8ee33b38679485429df01797dd4bf0",
+  "geography_builder_sha256": "9201fffc3a5aba51f74e4c57eec757028cec0ef31c04dcef609d294d1b7ce076",
+  "geography_ruleset": "official-cell-door-reference-v1"
 }

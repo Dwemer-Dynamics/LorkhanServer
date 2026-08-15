@@ -20,6 +20,7 @@ use ALMSIVIserver\Infrastructure\Connection;
 use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
 use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
 use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
+use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\MigrationRunner;
@@ -88,7 +89,8 @@ $defaultRouting=$defaultCore['content']['routing']??[];
 $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):bool=>str_starts_with($key,'llm_')
     &&str_ends_with($key,'_configuration_id'),ARRAY_FILTER_USE_BOTH))===4
     &&!array_key_exists('llm_fallback_configuration_id',$defaultRouting)
-    &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id']),
+    &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id'])
+    &&($defaultRouting['oghma_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null),
     'new installation Core Profile routing did not match CHIM slots');
 $defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
 $defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();
@@ -237,8 +239,46 @@ $automaticProfile=$products->getRevisioned('profile',$automaticProfileId);
 $assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
     &&($automaticProfile['content']['voice']['source']??null)==='morrowind_race_gender_catalog'
     &&($automaticProfile['content']['biography']??null)==='A Bosmer raised beneath the great graht-oaks.'
-    &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.',
-    'first-seen NPC profile did not retain its catalog voice and matching biography template');
+    &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.'
+    &&str_contains((string)($automaticProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
+    &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback',
+    'first-seen NPC profile did not retain its voice, biography template, and deterministic home locality');
+$secondPlacement=$automaticTarget;$secondPlacement['refnum']['index']=103;
+$secondPlacement['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$secondPlacementProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$secondPlacement]],$automaticVoice,$now);
+$secondPlacementProfile=$products->getRevisioned('profile',$secondPlacementProfileId);
+$assert($secondPlacementProfileId!==$automaticProfileId
+    &&str_contains((string)($secondPlacementProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
+    'generic NPC bases at different RefNums did not receive independent regional profiles');
+$movedTarget=$automaticTarget;$movedTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$movedProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$movedTarget]],$automaticVoice,$now);
+$movedProfile=$products->getRevisioned('profile',$movedProfileId);
+$assert($movedProfileId===$automaticProfileId
+    &&str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
+    &&!str_contains((string)($movedProfile['content']['oghma_knowledge_tags']??''),'west_gash'),
+    'walking into another region rewrote an NPC immutable home locality');
+$legacyLocalityTarget=$automaticTarget;$legacyLocalityTarget['record_id']='legacy_locality_bosmer';
+$legacyLocalityTarget['refnum']['index']=104;$legacyLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$legacyLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Legacy Locality Bosmer',
+    'actor_identity'=>$legacyLocalityTarget,'content'=>['oghma_knowledge_tags'=>'common','management'=>['locked'=>false]],
+    'change_reason'=>'automatic Morrowind actor discovery'],$now);
+$lockedLocalityTarget=$automaticTarget;$lockedLocalityTarget['record_id']='locked_locality_bosmer';
+$lockedLocalityTarget['refnum']['index']=105;$lockedLocalityTarget['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
+$lockedLocality=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Locked Locality Bosmer',
+    'actor_identity'=>$lockedLocalityTarget,'content'=>['oghma_knowledge_tags'=>'custom','management'=>['locked'=>true]],
+    'change_reason'=>'automatic Morrowind actor discovery'],$now);
+$localityBackfill=$products->backfillMorrowindCatalogLocalities($now);
+$legacyLocality=$products->getRevisioned('profile',$legacyLocality['profile_id']);
+$lockedLocality=$products->getRevisioned('profile',$lockedLocality['profile_id']);
+$assert($localityBackfill['updated']>=1
+    &&str_contains((string)($legacyLocality['content']['oghma_knowledge_tags']??''),'west_gash')
+    &&!str_contains((string)($legacyLocality['content']['oghma_knowledge_tags']??''),'common')
+    &&($lockedLocality['content']['oghma_knowledge_tags']??null)==='custom',
+    'locality backfill did not update automatic profiles while preserving locked custom profiles');
 $rediscoveredTarget=$automaticTarget;$rediscoveredTarget['record_id']='rediscovered_bosmer';
 $rediscoveredTarget['refnum']['index']=102;$rediscoveredTarget['display_name']='Rediscovered Bosmer';
 $deletedProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Rediscovered Bosmer',
@@ -432,11 +472,11 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&(int)($layerTrace['core_profile_revision']??0)===(int)$coreProfile['current_revision']
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($layerTrace['effective_settings_sha256']??''))===1
     &&($traceSources['settings.behavior.rechat']??null)==='core_profile'
-    &&array_column($promptSections,'section_order')===range(1,10)
+    &&array_column($promptSections,'section_order')===range(1,11)
     &&array_column($promptSections,'section_key')===['output_contract','npc_context','player_narrator_context',
-        'morrowind_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
+        'morrowind_context','oghma_context','relationships_factions','memory_context','conversation_context','audience_speaker_rules',
         'negotiated_actions','current_turn']
-    &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===10
+    &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===11
     &&($memoryRetrieval['prompt_section']??null)==='memory_context'
     &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
@@ -924,12 +964,15 @@ $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatActionCount=(int)$rechatActions->fetchColumn();
     $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
     $rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
+    preg_match('#<conversation_context>(.*?)</conversation_context>#s',$assembledRechatPrompt,$rechatConversationMatch);
+    $rechatConversation=(string)($rechatConversationMatch[1]??'');
     $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
-    &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)>=3
+    &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)===2
     &&($rechatMessages[0]['role']??null)==='system'
+    &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
-    &&str_contains($assembledRechatPrompt,'Please follow me.')
+    &&substr_count($rechatConversation,'Please follow me.')===1
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
@@ -965,6 +1008,72 @@ $cooldownRechat['payload']['context']['rechat']['chain_id']=$newUuid(839);
 [$status,$cooldownError]=$call($router,'POST',$base.'/turns',$headers($cooldownRechat['message_id']),[],$cooldownRechat);
 $assert($status===409&&($cooldownError['code']??null)==='rechat_cooldown',
     'closed rechat chain did not enforce the Herika end-conversation cooldown');
+
+$oghmaActorProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$oghmaActorContent=is_array($oghmaActorProfile['content']??null)?$oghmaActorProfile['content']:[];
+$oghmaActorContent['settings_overrides']['memory']['knowledge_limit']=6;
+$products->revise('profile',$actorProfile['profile_id'],$oghmaActorContent,'enable Oghma integration knowledge budget',$now);
+foreach([
+    ['topic'=>'sixth_house','aliases'=>'House Dagoth','content'=>'The Sixth House is the hidden House Dagoth.'],
+    ['topic'=>'vivec','aliases'=>'Warrior-Poet','content'=>'Vivec is one of the living gods of the Tribunal.'],
+]as$oghmaRow)$products->createKnowledge([
+    'installation_id'=>$installationId,'profile_id'=>null,'playthrough_id'=>null,'title'=>$oghmaRow['topic'],
+    'content'=>$oghmaRow['content'],'provenance'=>['source'=>'authored-test'],'topic'=>$oghmaRow['topic'],
+    'aliases'=>$oghmaRow['aliases'],'topic_desc_basic'=>$oghmaRow['content'],'knowledge_class'=>'',
+    'knowledge_class_basic'=>'','tags'=>'','category'=>'lore',
+],preg_split('/[^a-z0-9]+/',strtolower($oghmaRow['topic']))?:[],$now);
+$products->setOghmaSettings($installationId,['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>false,
+    'location_context_enabled'=>false,'topic_count'=>2,'extractor_enabled'=>true],$now);
+$oghmaTurn=$turn;$oghmaTurn['message_id']=$newUuid(840);$oghmaTurn['request_id']=$newUuid(841);$oghmaTurn['turn_id']=$newUuid(842);
+$oghmaTurn['payload']['input']['text']='Tell me about House Dagoth and Vivec.';
+[$status,$oghmaAccepted]=$call($router,'POST',$base.'/turns',$headers($oghmaTurn['message_id']),[],$oghmaTurn);
+$oghmaSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$oghmaSnapshotStatement->execute(['turn'=>$oghmaTurn['turn_id']]);
+$oghmaSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$oghmaTraceStatement=$db->prepare("SELECT result_ids,algorithm,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='knowledge'");
+$oghmaTraceStatement->execute(['turn'=>$oghmaTurn['turn_id']]);$oghmaTrace=$oghmaTraceStatement->fetch();
+$oghmaReasons=$oghmaTrace?json_decode((string)$oghmaTrace['reasons'],true,64,JSON_THROW_ON_ERROR):[];
+$preWorkerAttempts=$db->prepare('SELECT count(*) FROM provider_attempts WHERE turn_id=:turn');
+$preWorkerAttempts->execute(['turn'=>$oghmaTurn['turn_id']]);$preWorkerAttemptCount=(int)$preWorkerAttempts->fetchColumn();
+$oghmaPrompt=(string)($oghmaSnapshot['message']['_prompt']['_assembled_prompt']??'');
+$assert($status===202&&$oghmaAccepted['turn_id']===$oghmaTurn['turn_id']&&$preWorkerAttemptCount===0
+    &&($oghmaTrace['algorithm']??null)==='oghma-parity-v1'
+    &&($oghmaReasons['_context']['extractor_status']??null)==='grounded'
+    &&($oghmaReasons['_context']['extracted_topics']??[])===['sixth_house','vivec']
+    &&str_contains($oghmaPrompt,'The Sixth House is the hidden House Dagoth.')
+    &&str_contains($oghmaPrompt,'Vivec is one of the living gods of the Tribunal.'),
+    'grounded Oghma turn did not avoid connector extraction and inject exact ordered catalog articles: '.json_encode([
+        'status'=>$status,'attempts'=>$preWorkerAttemptCount,'trace'=>$oghmaTrace,'reasons'=>$oghmaReasons],JSON_UNESCAPED_SLASHES));
+$oghmaWorker=$runTurnWorker(new MockProvider());
+$assert($oghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
+    'grounded Oghma turn did not complete through the normal response pipeline');
+
+$historySourceId=$newUuid(843);$historyRequestId=$newUuid(844);$historyTurnId=$newUuid(845);
+$historyPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
+    'input'=>['text'=>'[oghma: Vivec]'],'context'=>$turn['payload']['context']];
+$historySource=$db->prepare('INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,7,\'turn.requested\',:now,\'almsivi.turn.v1\',:request,:turn,CAST(:payload AS jsonb))');
+$historySource->execute(['source'=>$historySourceId,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,
+    'request'=>$historyRequestId,'turn'=>$historyTurnId,'payload'=>json_encode($historyPayload,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
+(new EventLogRepository($db))->projectSource($historySourceId,$installationId,$sessionId,'turn.requested',$now,
+    $historyRequestId,$historyTurnId,null,$historyPayload);
+$fallbackOghmaTurn=$turn;$fallbackOghmaTurn['message_id']=$newUuid(846);$fallbackOghmaTurn['request_id']=$newUuid(847);
+$fallbackOghmaTurn['turn_id']=$newUuid(848);$fallbackOghmaTurn['payload']['input']['text']='Tell me about an unknown forgotten island.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($fallbackOghmaTurn['message_id']),[],$fallbackOghmaTurn);
+$fallbackAttempt=$db->prepare("SELECT state,operation FROM provider_attempts WHERE turn_id=:turn ORDER BY started_at");
+$fallbackAttempt->execute(['turn'=>$fallbackOghmaTurn['turn_id']]);$fallbackAttemptRows=$fallbackAttempt->fetchAll();
+$fallbackTraceStatement=$db->prepare("SELECT algorithm,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='knowledge'");
+$fallbackTraceStatement->execute(['turn'=>$fallbackOghmaTurn['turn_id']]);$fallbackOghmaTrace=$fallbackTraceStatement->fetch();
+$fallbackOghmaReasons=$fallbackOghmaTrace?json_decode((string)$fallbackOghmaTrace['reasons'],true,64,JSON_THROW_ON_ERROR):[];
+$assert($status===202&&$fallbackAttemptRows===[['state'=>'succeeded','operation'=>'extract_oghma_topics']]
+    &&($fallbackOghmaTrace['algorithm']??null)==='oghma-parity-v1'
+    &&($fallbackOghmaReasons['_context']['extractor_status']??null)==='fallback_succeeded'
+    &&($fallbackOghmaReasons['_context']['suggested_topics']??[])===['Vivec']
+    &&($fallbackOghmaReasons['_context']['extracted_topics']??[])===['vivec'],
+    'explicit unresolved Oghma request did not make exactly one catalog-constrained connector fallback: '.json_encode([
+        'status'=>$status,'attempts'=>$fallbackAttemptRows,'trace'=>$fallbackOghmaTrace,'reasons'=>$fallbackOghmaReasons],JSON_UNESCAPED_SLASHES));
+$fallbackOghmaWorker=$runTurnWorker(new MockProvider());
+$assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
+    'fallback-grounded Oghma turn did not complete through the normal response pipeline');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);
