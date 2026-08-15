@@ -12,6 +12,7 @@ use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\EventLogRepository;
+use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\Uuid;
 use ALMSIVIserver\Security\BrowserSession;
@@ -62,7 +63,8 @@ final class ManagementRouter
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
         private readonly ProductService $service,private readonly string $basePath='/ALMSIVIserver/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
-        private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null){ }
+        private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
+        private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
 
     public function dispatch(Request $r):Response
     {
@@ -175,6 +177,12 @@ final class ManagementRouter
             foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
             $saved=$this->service->importKnowledge($inputs);
             return$this->redirect($this->uiPath('knowledge').'&status=imported&count='.count($saved));
+        }
+        if($domain==='oghma-factory-sync'){
+            $result=$this->syncBundledOghmaCatalog();$query=['status'=>'factory-synced','count'=>(int)($result['row_count']??0)];
+            if(isset($scope['installation_id']))$query['installation_id']=$scope['installation_id'];
+            if(($v['embed']??'')==='1')$query['embed']='1';
+            return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query($query));
         }
         match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
@@ -1211,6 +1219,18 @@ final class ManagementRouter
     private function redirect(string $to,array $headers=[]):Response{return new Response(303,'',$headers+['Location'=>$to,'Content-Type'=>'text/plain; charset=utf-8']);}
     /** Resolve legacy management slugs to the canonical sibling-style PHP page. */
     private function uiPath(string $slug):string{return$this->webRoot().(self::UI_PAGES[$slug]??self::UI_PAGES['quickstart']);}
+
+    /** Validate and synchronize the one checked-in Oghma factory dataset. */
+    private function syncBundledOghmaCatalog():array
+    {
+        $importer=$this->oghmaCatalogImporter??throw new RuntimeException('not_found');
+        $base=dirname(__DIR__,2).'/resources/oghma/morrowind-official';$versionFile=$base.'/active-catalog-version.txt';
+        $version=is_file($versionFile)?trim((string)file_get_contents($versionFile)):'';
+        if(preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/D',$version)!==1)throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
+        $directory=$base.'/catalogs/'.$version;$articles=$directory.'/articles.json';$manifest=$directory.'/manifest.json';
+        if(!is_file($articles)||!is_file($manifest))throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
+        return$importer->apply($articles,$manifest,$version);
+    }
     private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/ALMSIVIserver';}
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}

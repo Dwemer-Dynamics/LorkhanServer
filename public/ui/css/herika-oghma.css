@@ -46,6 +46,10 @@ body.oghma-page-shell > main.oghma-page { width:100%; max-width:none; margin:0; 
 .oghma-page .action-button.upload-csv { background:#28794e; border-color:#339d66; }
 .oghma-page .action-button.download-csv { background:#3d627f; border-color:#4d7899; }
 .oghma-page .btn-danger { background:#9c3a4c; border-color:#c34d62; }
+.oghma-page .factory-sync-form .action-button.sync-factory { background:#a8560d !important; border-color:rgb(242,124,17) !important; }
+.oghma-page .factory-sync-form .action-button.sync-factory:focus-visible { outline:2px solid rgb(242,124,17); outline-offset:2px; }
+.oghma-page .factory-sync-heading { margin:20px 0 0; color:rgb(242,124,17); font:normal 1.05em/1.3 MagicCards,serif; word-spacing:4px; }
+.oghma-page .factory-sync-form { margin:0; }
 .oghma-page button:disabled { cursor:not-allowed; opacity:.62; filter:none; }
 .oghma-page .status-control { position:relative; display:inline-flex; }
 .oghma-page .status-control .feature-state-badge { position:absolute; top:-8px; right:-8px; z-index:2; transform:scale(.72); transform-origin:top right; }

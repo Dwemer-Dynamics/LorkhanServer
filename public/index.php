@@ -23,6 +23,7 @@ use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\JobRepository;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
+use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
 use ALMSIVIserver\Infrastructure\ProductRepository;
 use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
 use ALMSIVIserver\Infrastructure\Repository;
@@ -120,7 +121,7 @@ try {
             new ProductService($products, new DeterministicClock()),
             (string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'),
             (int) ($config['max_json_bytes'] ?? 2_097_152), (int) ($config['browser_session_ttl_seconds'] ?? 3600), $config,
-            new EventLogRepository($database));
+            new EventLogRepository($database),new OghmaCatalogImporter($database));
         $management->dispatch($request)->emit();
     } else {
         $response=$router->dispatch($request);$response->emit();

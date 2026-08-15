@@ -673,7 +673,13 @@ $firstCursorIds=array_column($firstCursorPage['data'],'rowid');$nextCursor=max($
 $secondCursorPage=$eventLogs->page(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'since_rowid'=>$nextCursor,'limit'=>10]);
 $check(count($firstCursorIds)===10&&$nextCursor===$baseEventRow+10&&count($secondCursorPage['data'])===2,
     'eventlog live cursor skipped or duplicated a burst window');
-$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs);
+$clock->advance(1);$syncCustom=$products->createKnowledge([
+    'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,'title'=>'Factory Sync Custom',
+    'content'=>'A user-authored article that must survive the management factory sync control.',
+    'provenance'=>['source'=>'management-csv'],'topic'=>'factory_sync_custom','aliases'=>'',
+    'topic_desc_basic'=>'User-authored factory sync fixture.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+    'tags'=>'factory sync fixture','category'=>'lore'],['factory','sync','custom'],$clock->iso());
+$managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs,oghmaCatalogImporter:$oghmaImporter);
 $denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
 $signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
@@ -685,6 +691,18 @@ $check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin
 $descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
 $check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
     'description reset did not reject missing CSRF');
+$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
+$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+    'Oghma factory sync did not reject missing CSRF');
+$factorySync=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
+    '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
+$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=1300&installation_id='.$installation.'&embed=1';
+$factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
+$factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
+$factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
+$check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
+    &&$factorySyncVersion==='morrowind-official-3e427-v5.14'&&$factorySyncRows===1300&&$factorySyncCustomRows===1,
+    'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));

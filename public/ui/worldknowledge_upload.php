@@ -106,8 +106,18 @@ $modalFields = static function (string $prefix, array $row = []): void {
         </span>
     </div>
 
-    <?php if (isset($_GET['status'])): ?>
-        <div class="oghma-notice" role="status"><?php echo almsivi_ui_h($_GET['status'] === 'imported' ? 'CSV validated and imported.' : 'Knowledge record saved.'); ?></div>
+    <?php if (isset($_GET['status'])):
+        $status = is_string($_GET['status']) ? $_GET['status'] : '';
+        $noticeCount = (int) (is_string($_GET['count'] ?? null) ? $_GET['count'] : 0);
+        $notice = match ($status) {
+            'imported' => 'CSV validated and imported.',
+            'factory-synced' => 'Factory catalog synced. '
+                . ($noticeCount > 0 ? $noticeCount . ' factory ' . ($noticeCount === 1 ? 'article was' : 'articles were') . ' refreshed' : 'Factory articles were refreshed')
+                . ' and your own articles were kept.',
+            default => 'Knowledge record saved.',
+        };
+    ?>
+        <div class="oghma-notice" role="status"><?php echo almsivi_ui_h($notice); ?></div>
     <?php endif; ?>
 
     <div id="oghma-tab" class="tab-content active">
@@ -142,11 +152,20 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <h2>Database Management</h2>
                 <p>Verify imports:<br><b>Control Panel &rarr; Database Manager &rarr; knowledge_documents</b></p>
                 <p>View conversation usage:<br><b>Control Panel &rarr; Oghma Audit</b></p>
+                <h3 class="factory-sync-heading">Factory Catalog</h3>
+                <p id="factory-sync-help">Oghma ships with a factory catalog of articles that stay read-only here. Syncing checks that shipped catalog and refreshes every factory article across this server in a single step, so the catalog is never left half-updated.</p>
+                <p>Your own articles &mdash; uploaded by CSV or added by hand &mdash; are preserved through a sync and stay editable and deletable. Use this after updating ALMSIVI, or if a factory article looks wrong or missing.</p>
+                <form class="factory-sync-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
+                    <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
+                    <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
+                    <div class="button-group">
+                        <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Your custom articles are kept.">Sync Factory Catalog</button>
+                    </div>
+                </form>
                 <div class="button-group destructive-controls">
                     <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
-                    <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Factory Reset Database</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
                 </div>
-                <p>The shipped factory Oghma dataset is the current source of truth and is read-only. User-created entries remain editable and soft-deletable.</p>
             </div>
         </div>
 
