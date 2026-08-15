@@ -951,7 +951,7 @@ final class ProductRepository
 
     public function createKnowledge(array $input,array $terms,string $now): array
     {
-        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$this->db->prepare('INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)')->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);return $this->knowledge($id);
+        $id=Uuid::v4();$sha=hash('sha256',$input['content']);$statement=$this->db->prepare("INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category) ON CONFLICT (installation_id,(COALESCE(profile_id,'00000000-0000-0000-0000-000000000000'::uuid)),(COALESCE(playthrough_id,'00000000-0000-0000-0000-000000000000'::uuid)),(lower(topic))) WHERE deleted_at IS NULL AND provenance->>'source' IS DISTINCT FROM 'factory-oghma' DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,content_sha256=EXCLUDED.content_sha256,lexical_terms=EXCLUDED.lexical_terms,provenance=EXCLUDED.provenance,created_at=EXCLUDED.created_at,aliases=EXCLUDED.aliases,topic_desc_basic=EXCLUDED.topic_desc_basic,knowledge_class=EXCLUDED.knowledge_class,knowledge_class_basic=EXCLUDED.knowledge_class_basic,tags=EXCLUDED.tags,category=EXCLUDED.category RETURNING document_id");$statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);$savedId=$statement->fetchColumn();if(!is_string($savedId)||$savedId==='')throw new RuntimeException('knowledge_save_failed');return $this->knowledge($savedId);
     }
     /** Insert a fully validated Oghma import as one transaction. */
     public function createKnowledgeBatch(array $prepared,string $now):array
@@ -961,9 +961,9 @@ final class ProductRepository
     public function updateKnowledge(string $id,array $input,array $terms,string $now):array{$sha=hash('sha256',$input['content']);$statement=$this->db->prepare('UPDATE knowledge_documents SET title=:title,content=:content,content_sha256=:sha,lexical_terms=CAST(:terms AS text[]),provenance=CAST(:provenance AS jsonb),topic=:topic,aliases=:aliases,topic_desc_basic=:basic,knowledge_class=:advanced_class,knowledge_class_basic=:basic_class,tags=:tags,category=:category WHERE document_id=:id AND deleted_at IS NULL');$statement->execute(['id'=>$id,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');return$this->knowledge($id);}
     public function knowledge(string $id): array {$s=$this->db->prepare('SELECT * FROM knowledge_documents WHERE document_id=:id AND deleted_at IS NULL');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['id']=$r['document_id'];$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;}
     public function deleteKnowledge(string $id,string $now):void{$row=$this->knowledge($id);if(($row['provenance']['source']??null)==='factory-oghma')throw new \InvalidArgumentException('factory_knowledge_read_only');$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function knowledgeCandidates(array $scope):array{$sql='SELECT document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category FROM knowledge_documents WHERE installation_id=:installation AND deleted_at IS NULL AND (profile_id IS NULL OR profile_id=:profile) AND (playthrough_id IS NULL OR playthrough_id=:playthrough) ORDER BY created_at DESC,document_id LIMIT 1000';$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function knowledgeCandidates(array $scope):array{$sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category');$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
 
-    /** Return the bounded effective Oghma catalog visible to one NPC profile. */
+    /** Return the complete effective Oghma catalog visible to one NPC profile. */
     public function oghmaKnowledgeForProfile(string $installationId,string $profileId,array $filters=[]):array
     {
         $profileStatement=$this->db->prepare('SELECT p.name,p.actor_identity FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
@@ -1337,12 +1337,22 @@ final class ProductRepository
     {
         $selected=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],
             (array)($turn['payload']['target']??[]));
-        $statement=$this->db->prepare('SELECT topic,aliases,tags,category FROM knowledge_documents '
-            .'WHERE installation_id=:installation AND deleted_at IS NULL AND (profile_id IS NULL OR profile_id=:profile) '
-            .'AND (playthrough_id IS NULL OR playthrough_id=:playthrough) ORDER BY created_at DESC,document_id LIMIT 1000');
+        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category'));
         $statement->execute(['installation'=>(string)$turn['installation_id'],
             'profile'=>$selected??(string)$turn['profile_id'],'playthrough'=>(string)$turn['playthrough_id']]);
         return$statement->fetchAll();
+    }
+
+    /** Select one effective row per canonical topic, preferring the most specific custom override. */
+    private function effectiveKnowledgeSql(string $columns):string
+    {
+        return'SELECT '.$columns.' FROM (SELECT d.*,ROW_NUMBER() OVER (PARTITION BY lower(d.topic) ORDER BY '
+            ."CASE WHEN d.provenance->>'source'='factory-oghma' THEN 0 ELSE 1 END DESC,"
+            .'CASE WHEN d.playthrough_id IS NULL THEN 0 ELSE 1 END DESC,'
+            .'CASE WHEN d.profile_id IS NULL THEN 0 ELSE 1 END DESC,d.created_at DESC,d.document_id DESC) AS effective_rank '
+            .'FROM knowledge_documents d WHERE d.installation_id=:installation AND d.deleted_at IS NULL '
+            .'AND (d.profile_id IS NULL OR d.profile_id=:profile) AND (d.playthrough_id IS NULL OR d.playthrough_id=:playthrough)) effective '
+            .'WHERE effective_rank=1 ORDER BY created_at DESC,document_id';
     }
 
     public function promptContext(array $turn,string $now,array $oghmaExtraction=[]): array

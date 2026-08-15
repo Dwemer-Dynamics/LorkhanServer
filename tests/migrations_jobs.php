@@ -580,10 +580,61 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v2 updates Vvardenfell’s reviewed lore.'
         &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.',
         'current Oghma sync did not replace v1 while preserving custom knowledge');
+    $clock->advance(1);$revisedCustomOghma=$products->createKnowledge([
+        'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
+        'title'=>'Fixture Lore Revised','content'=>'Revised installation-authored Oghma knowledge overrides the factory article.',
+        'provenance'=>['source'=>'management-csv'],'topic'=>'FIXTURE_LORE','aliases'=>'revised custom fixture',
+        'topic_desc_basic'=>'Revised custom fixture basics.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
+        'tags'=>'revised custom fixture knowledge','category'=>'lore'],['fixture','revised','custom'],$clock->iso());
+    $check(($revisedCustomOghma['document_id']??null)===$customOghmaId,
+        'saving the same custom Oghma topic created a duplicate instead of updating the override');
+    $effectiveFixtureRows=array_values(array_filter($products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]),static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($effectiveFixtureRows)===1
+        &&($effectiveFixtureRows[0]['id']??null)===$customOghmaId
+        &&($effectiveFixtureRows[0]['content']??null)==='Revised installation-authored Oghma knowledge overrides the factory article.',
+        'custom Oghma article did not override the matching factory topic');
+    $uiFixtureRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiFixtureRows)===1&&($uiFixtureRows[0]['document_id']??null)===$customOghmaId,
+        'Oghma editor did not display the effective custom article');
     $oghmaProvision=$oghmaImporter->provision($oghmaV2Articles,$oghmaV2Manifest,'oghma-fixture-v2');
     $check($oghmaProvision['applied']===false&&$oghmaProvision['idempotent']===true
         &&(int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1,
         'current Oghma provisioning was not idempotent');
+    $products->deleteKnowledge($customOghmaId,$clock->iso());
+    $restoredFixtureRows=array_values(array_filter($products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]),static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($restoredFixtureRows)===1
+        &&($restoredFixtureRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'deleting a custom Oghma override did not reveal the factory topic');
+    $uiRestoredFixtureRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiRestoredFixtureRows)===1
+        &&($uiRestoredFixtureRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'Oghma editor did not reveal the factory article after deleting its custom override');
+    $coverageInsert=$db->prepare("INSERT INTO knowledge_documents
+        (document_id,installation_id,title,content,content_sha256,lexical_terms,provenance,created_at,
+         topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category)
+        SELECT ('10000000-0000-4000-8000-'||lpad(sequence::text,12,'0'))::uuid,:installation,
+               'Coverage Topic '||sequence,'Coverage article '||sequence,repeat('a',64),
+               ARRAY['coverage','topic',sequence::text],'{\"source\":\"coverage-test\"}'::jsonb,:created_at,
+               'coverage_topic_'||sequence,'','Coverage basics '||sequence,'','common','','lore'
+        FROM generate_series(1,1300) AS sequence");
+    $coverageInsert->execute(['installation'=>$installation,'created_at'=>$clock->iso()]);
+    $coverageCandidates=$products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ]);
+    $coverageTopics=array_filter(array_column($coverageCandidates,'topic'),static fn(string$topic):bool=>str_starts_with($topic,'coverage_topic_'));
+    $coverageTurn=$groundedTurn;$coverageTurn['payload']['input']['text']='Tell me about coverage topic 1300.';
+    $coverageExtraction=$products->groundedOghmaExtraction($coverageTurn);
+    $check(count($coverageTopics)===1300&&in_array('coverage_topic_1300',$coverageExtraction['topics'],true),
+        'Oghma retrieval did not scan the complete catalog beyond 1,000 articles');
+    $db->exec("DELETE FROM knowledge_documents WHERE provenance->>'source'='coverage-test'");
     foreach(glob($oghmaFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($oghmaFixtureRoot);
 $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Nalcarya',
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],

@@ -10,17 +10,24 @@ final class ManagementUiRepository
 {
     public function __construct(private readonly PDO $db) {}
 
-    /** Return the static Oghma catalog with bounded server-side search, category, order, and pagination. */
+    /** Return the effective Oghma catalog with bounded server-side search, category, order, and pagination. */
     public function oghmaCatalog(array $filters=[]):array
     {
         $search=mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8');$category=trim((string)($filters['category']??''));
         $order=strtolower((string)($filters['order']??'asc'))==='desc'?'DESC':'ASC';$page=max(1,(int)($filters['page']??1));$pageSize=max(1,min(500,(int)($filters['page_size']??50)));
-        $where=['d.deleted_at IS NULL'];$params=[];$installation=trim((string)($filters['installation_id']??''));
-        if($installation!==''){$where[]='d.installation_id=:installation';$params['installation']=$installation;}
+        $scope=['d.deleted_at IS NULL','d.profile_id IS NULL','d.playthrough_id IS NULL'];$where=[];$params=[];$installation=trim((string)($filters['installation_id']??''));
+        if($installation!==''){$scope[]='d.installation_id=:installation';$params['installation']=$installation;}
         if($search!==''){$where[]="to_tsvector('simple',concat_ws(' ',d.topic,d.title,d.aliases,d.content,d.topic_desc_basic,d.tags)) @@ plainto_tsquery('simple',:search)";$params['search']=$search;}
         if($category!==''){$where[]='d.category=:category';$params['category']=$category;}
-        $base=' FROM knowledge_documents d WHERE '.implode(' AND ',$where);$count=$this->db->prepare('SELECT count(*)'.$base);$count->execute($params);$total=(int)$count->fetchColumn();
-        $statement=$this->db->prepare('SELECT d.document_id,d.installation_id,d.profile_id,d.playthrough_id,d.topic,d.title,d.aliases,d.content,d.knowledge_class,d.topic_desc_basic,d.knowledge_class_basic,d.tags,d.category,d.provenance,d.created_at'.$base.' ORDER BY lower(d.topic) '.$order.',d.document_id LIMIT '.$pageSize.' OFFSET '.(($page-1)*$pageSize));$statement->execute($params);$rows=$statement->fetchAll();
+        $columns='d.document_id,d.installation_id,d.profile_id,d.playthrough_id,d.topic,d.title,d.aliases,d.content,d.knowledge_class,d.topic_desc_basic,d.knowledge_class_basic,d.tags,d.category,d.provenance,d.created_at';
+        // Custom articles override the factory catalog for the same canonical topic, newest custom row first,
+        // so soft-deleting the override reveals the factory article again. Search and category run on the
+        // resolved rows so an overridden factory article never resurfaces through a filter.
+        $effective='WITH effective AS (SELECT DISTINCT ON (d.installation_id,lower(d.topic)) '.$columns
+            .' FROM knowledge_documents d WHERE '.implode(' AND ',$scope)
+            ." ORDER BY d.installation_id,lower(d.topic),(d.provenance->>'source' IS DISTINCT FROM 'factory-oghma') DESC,d.created_at DESC,d.document_id DESC) ";
+        $base=' FROM effective d'.($where===[]?'':' WHERE '.implode(' AND ',$where));$count=$this->db->prepare($effective.'SELECT count(*)'.$base);$count->execute($params);$total=(int)$count->fetchColumn();
+        $statement=$this->db->prepare($effective.'SELECT '.$columns.$base.' ORDER BY lower(d.topic) '.$order.',d.document_id LIMIT '.$pageSize.' OFFSET '.(($page-1)*$pageSize));$statement->execute($params);$rows=$statement->fetchAll();
         foreach($rows as&$row)$row['provenance']=json_decode((string)$row['provenance'],true,16,JSON_THROW_ON_ERROR);unset($row);
         return['rows'=>$rows,'total'=>$total,'page'=>$page,'pages'=>max(1,(int)ceil($total/$pageSize))];
     }
