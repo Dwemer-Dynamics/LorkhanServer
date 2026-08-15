@@ -173,14 +173,25 @@ final class ProductService
         return$this->repository->createKnowledgeBatch($prepared,$this->clock->iso());
     }
 
-    /** Replace one user-authored Oghma document while retaining its installation scope. */
+    /** Replace one user-authored Oghma document, or save a factory edit as a custom override, keeping installation scope. */
     public function updateKnowledge(string $documentId,array $input):array
     {
         $this->uuid($documentId);$current=$this->repository->knowledge($documentId);
-        if(($current['provenance']['source']??null)==='factory-oghma')throw new InvalidArgumentException('factory_knowledge_read_only');
         $input=$this->knowledgeInput($input);$input['provenance']=$this->provenance($input);
+        if(($current['provenance']['source']??null)!=='factory-oghma'){
+            $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
+            return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
+        }
+        // Factory rows stay read-only: the edit creates or updates the custom override that shadows them. Scope comes
+        // from the stored factory document alone, so a browser-supplied scope can never redirect the write elsewhere.
+        $input['topic']=(string)$current['topic'];
+        $input['installation_id']=(string)$current['installation_id'];
+        foreach(['profile_id','playthrough_id']as$field)
+            $input[$field]=($current[$field]??null)===null?null:(string)$current[$field];
+        $this->requireUuid($input,'installation_id');
+        foreach(['profile_id','playthrough_id']as$field)if($input[$field]!==null)$this->uuid($input[$field]);
         $terms=DeterministicRetrieval::terms(implode(' ',[$input['topic'],$input['title'],$input['aliases'],$input['content'],$input['topic_desc_basic'],$input['tags']]));
-        return$this->repository->updateKnowledge($documentId,$input,$terms,$this->clock->iso());
+        return$this->repository->createKnowledge($input,$terms,$this->clock->iso());
     }
 
     /** @param array<string,mixed> $scope */

@@ -617,6 +617,35 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $check(count($uiRestoredFixtureRows)===1
         &&($uiRestoredFixtureRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
         'Oghma editor did not reveal the factory article after deleting its custom override');
+    $factoryFixtureId=(string)$db->query("SELECT f.document_id FROM oghma_factory_documents f WHERE f.topic='fixture_lore' AND f.installation_id='{$installation}'")->fetchColumn();
+    $factoryFixtureBefore=$db->query("SELECT topic,title,content,knowledge_class,provenance->>'source' AS source FROM knowledge_documents WHERE document_id='{$factoryFixtureId}'")->fetch();
+    $clock->advance(1);$factoryOverride=$service->updateKnowledge($factoryFixtureId,[
+        'topic'=>'renamed_fixture_lore','title'=>'Fixture Lore Override','aliases'=>'overridden fixture',
+        'content'=>'Editing the factory article saved a custom override instead.','knowledge_class'=>'scholar',
+        'topic_desc_basic'=>'Overridden fixture basics.','knowledge_class_basic'=>'common',
+        'tags'=>'overridden fixture knowledge','category'=>'lore','provenance'=>['source'=>'management']]);
+    $factoryOverrideId=(string)$factoryOverride['document_id'];
+    $factoryFixtureAfter=$db->query("SELECT topic,title,content,knowledge_class,provenance->>'source' AS source FROM knowledge_documents WHERE document_id='{$factoryFixtureId}' AND deleted_at IS NULL")->fetch();
+    $uiOverrideRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check($factoryOverrideId!==$factoryFixtureId
+        &&($factoryOverride['installation_id']??null)===$installation
+        &&($factoryOverride['topic']??null)==='fixture_lore'
+        &&($factoryOverride['profile_id']??null)===null&&($factoryOverride['playthrough_id']??null)===null
+        &&($factoryOverride['provenance']['source']??null)==='management'
+        &&$factoryFixtureAfter===$factoryFixtureBefore
+        &&count($uiOverrideRows)===1&&($uiOverrideRows[0]['document_id']??null)===$factoryOverrideId
+        &&($uiOverrideRows[0]['content']??null)==='Editing the factory article saved a custom override instead.',
+        'editing a factory Oghma article did not create a custom override that leaves the factory row unchanged');
+    $products->deleteKnowledge($factoryOverrideId,$clock->iso());
+    $uiOverrideDeletedRows=array_values(array_filter($uiDescriptions->oghmaCatalog([
+        'installation_id'=>$installation,'page_size'=>500,
+    ])['rows'],static fn(array$row):bool=>strtolower((string)$row['topic'])==='fixture_lore'));
+    $check(count($uiOverrideDeletedRows)===1
+        &&($uiOverrideDeletedRows[0]['document_id']??null)===$factoryFixtureId
+        &&($uiOverrideDeletedRows[0]['content']??null)==='Factory v2 updates Vvardenfell’s reviewed lore.',
+        'deleting the override saved from a factory edit did not reveal the factory article');
     $coverageInsert=$db->prepare("INSERT INTO knowledge_documents
         (document_id,installation_id,title,content,content_sha256,lexical_terms,provenance,created_at,
          topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category)

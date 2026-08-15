@@ -219,7 +219,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                             'document_id' => $row['document_id'], 'topic' => $row['topic'], 'title' => $row['title'],
                             'aliases' => $row['aliases'], 'content' => $row['content'], 'knowledge_class' => $row['knowledge_class'],
                             'topic_desc_basic' => $row['topic_desc_basic'], 'knowledge_class_basic' => $row['knowledge_class_basic'],
-                            'tags' => $row['tags'], 'category' => $row['category'],
+                            'tags' => $row['tags'], 'category' => $row['category'], 'factory' => $factory,
                         ];
                     ?>
                         <tr>
@@ -232,12 +232,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                             <td><?php echo trim((string) $row['tags']) !== '' ? nl2br(almsivi_ui_h($row['tags'])) : '<span class="empty-value">None</span>'; ?></td>
                             <td><?php echo almsivi_ui_h($row['category']); ?></td>
                             <td class="action-cell">
-                                <?php if ($factory): ?>
-                                    <button type="button" class="action-button edit" disabled aria-disabled="true" title="Factory catalog entries are source-controlled and read-only.">Edit</button>
-                                    <span class="factory-label">Factory</span>
-                                <?php else: ?>
-                                    <button type="button" class="action-button edit" data-oghma-edit='<?php echo almsivi_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
-                                <?php endif; ?>
+                                <button type="button" class="action-button edit"<?php echo $factory ? ' title="Editing a factory article saves your changes as a custom article. The factory article stays unchanged."' : ''; ?> data-oghma-edit='<?php echo almsivi_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
+                                <?php if ($factory): ?><span class="factory-label">Factory</span><?php endif; ?>
                             </td>
                         </tr>
                     <?php endforeach; ?>
@@ -300,15 +296,18 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
 <div id="editModal" class="modal-backdrop" hidden aria-hidden="true">
     <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="edit-modal-title">
-        <div class="modal-header"><h2 class="modal-title" id="edit-modal-title">Edit Oghma Entry</h2></div>
+        <div class="modal-header">
+            <h2 class="modal-title" id="edit-modal-title">Edit Oghma Entry</h2>
+        </div>
         <div class="modal-body">
+            <p class="factory-edit-note" id="edit-factory-note" hidden>This is a factory article, so it is never changed here. Saving creates a custom article for this server that replaces it in the catalog. Delete that custom article later to bring the factory version back.</p>
             <form id="oghma-edit-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge-revise">
                 <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
                 <input type="hidden" name="document_id" id="edit-document-id">
                 <?php $modalFields('edit'); ?>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-save">Save Changes</button>
-                    <button type="submit" class="btn-danger" form="oghma-delete-form" data-confirm="Delete this Oghma entry?">Delete</button>
+                    <button type="submit" class="btn-save" id="edit-save-button">Save Changes</button>
+                    <button type="submit" class="btn-danger" id="edit-delete-button" form="oghma-delete-form" data-confirm="Delete this Oghma entry?">Delete</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
             </form>
