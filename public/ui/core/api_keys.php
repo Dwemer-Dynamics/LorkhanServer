@@ -68,9 +68,9 @@ include dirname(__DIR__) . '/tmpl/head.html';
 if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="api-keys-page">
-    <header class="page-header">
-        <h1 class="api-title">API Keys</h1>
-        <p class="page-subtitle">Manage API keys for LLM, TTS, and other service connectors</p>
+    <header class="page-header almsivi-page-head">
+        <h1 class="api-title almsivi-page-head-title">API Keys</h1>
+        <p class="page-subtitle almsivi-page-head-note">Manage API keys for LLM, TTS, and other service connectors</p>
     </header>
 
     <?php if ($notice !== ''): ?><div class="keys-notice" role="status"><?php echo almsivi_ui_h($notice); ?></div><?php endif; ?>

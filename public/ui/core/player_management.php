@@ -68,10 +68,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="player-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-container">
-        <div class="page-header">
-            <h1>&#x1F464; Player Management</h1>
-            <p>Manage your character's information and view in game statistics</p>
-            <p>Changes made here will be used by AI NPCs to understand your character better</p>
+        <div class="page-header almsivi-page-head">
+            <h1 class="almsivi-page-head-title">&#x1F464; Player Management</h1>
+            <div class="almsivi-page-head-note">
+                <p>Manage your character's information and view in game statistics</p>
+                <p>Changes made here will be used by AI NPCs to understand your character better</p>
+            </div>
         </div>
 
         <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Player profile saved.</div><?php endif; ?>

@@ -6,25 +6,17 @@ body.api-keys-page-shell > main.api-keys-page {
     width: 100%;
     max-width: none;
     margin: 0;
-    padding: 40px 10%;
+    /* Compact responsive gutter instead of a fixed 10% on every viewport. */
+    padding: 10px clamp(10px, 2.5vw, 34px) 24px;
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-.api-keys-page .page-header {
-    margin: 0 0 30px;
-    padding: 20px;
-    border: 1px solid #3a3a3a;
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .15), inset 0 1px rgba(255, 255, 255, .03);
-    text-align: center;
-}
-
-.api-keys-page .page-header h1.api-title { margin: 0 0 8px; color: #f5f1e8; font: 400 2.2em/1.2 MagicCards, serif; letter-spacing: .7px; word-spacing: 8px; text-shadow: 2px 2px 4px rgba(0, 0, 0, .5); }
-.api-keys-page .page-subtitle { margin: 0; color: #bbb; font-size: 1.1em; }
+/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+.api-keys-page .page-header h1.api-title { color: #f5f1e8; font-family: MagicCards, serif; font-weight: 400; word-spacing: 8px; }
+.api-keys-page .page-subtitle { color: #bbb; }
 .api-keys-page .keys-notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(65, 170, 100, .4); border-radius: 8px; background: rgba(42, 42, 42, .95); color: #a9e5bd; }
 .api-keys-page .keys-notice.error { border-color: rgba(220, 80, 90, .5); color: #ffb0b7; }
-.api-keys-page .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
+.api-keys-page .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
 
 .api-keys-page .content-section {
     padding: 25px;

@@ -54,9 +54,9 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="tts-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-shell">
-        <div class="page-header">
-            <h1 class="api-title">TTS Connectors</h1>
-            <p class="page-subtitle">Text-to-Speech Setup Options.</p>
+        <div class="page-header almsivi-page-head">
+            <h1 class="api-title almsivi-page-head-title">TTS Connectors</h1>
+            <p class="page-subtitle almsivi-page-head-note">Text-to-Speech Setup Options.</p>
         </div>
 
         <?php if (isset($_GET['status'])): ?>

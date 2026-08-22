@@ -14,16 +14,16 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <main class="prompts-page">
-    <header class="page-header"><div><h1>Prompts Manager</h1><p>Manage system and custom prompts used throughout ALMSIVI</p></div><button type="button" class="prompt-button primary" data-prompt-create>Create Prompt</button></header>
+    <header class="page-header almsivi-page-head"><h1 class="almsivi-page-head-title">Prompts Manager</h1><p class="almsivi-page-head-note">Manage system and custom prompts used throughout ALMSIVI</p><div class="almsivi-page-head-actions"><button type="button" class="prompt-button primary" data-prompt-create>Create Prompt</button></div></header>
     <?php if (isset($_GET['status'])): ?><div class="prompt-notice">Prompt saved.</div><?php endif; ?>
-    <section class="prompt-help">
-        <p><strong>Note:</strong> Recommended for advanced users only. Changing prompts can cause unexpected behavior that may worsen the roleplay experience.</p>
-        <p><strong>Default Prompt:</strong> System-maintained baseline that updates with ALMSIVI. <strong>Custom Prompt:</strong> Your versioned override that takes precedence when assigned through Global Settings, a Core Profile, or an NPC.</p>
-        <p>Click <strong>Edit</strong> to view and modify prompts. Use <strong>Revision history</strong> to restore an earlier typed version.</p>
-    </section>
     <div class="transfer-grid">
         <section><h2>&#x1F4E4; Export Custom Prompts</h2><p>Download all custom prompts as a CSV file to share with others.</p><span class="status-control"><button type="button" class="prompt-button" disabled>&#x2B07;&#xFE0F; Export Custom Prompts</button><?php echo almsivi_ui_feature_badge('config.prompts.csv', true); ?></span></section>
         <section><h2>&#x1F4E5; Import Custom Prompts</h2><p>Upload a CSV file to import custom prompts shared by others.</p><div class="transfer-actions"><span class="status-control"><button type="button" class="prompt-button" disabled>&#x1F4C1; Choose CSV File</button><?php echo almsivi_ui_feature_badge('config.prompts.csv', true); ?></span><span class="status-control"><button type="button" class="prompt-button" disabled>&#x2B06;&#xFE0F; Import Custom Prompts</button><?php echo almsivi_ui_feature_badge('config.prompts.csv', true); ?></span><button type="button" class="prompt-button" data-prompt-import>Import ALMSIVI JSON</button></div></section>
+        <aside class="prompt-help">
+            <p><strong>Note:</strong> Recommended for advanced users only. Changing prompts can cause unexpected behavior that may worsen the roleplay experience.</p>
+            <p><strong>Default Prompt:</strong> System-maintained baseline that updates with ALMSIVI. <strong>Custom Prompt:</strong> Your versioned override that takes precedence when assigned through Global Settings, a Core Profile, or an NPC.</p>
+            <p>Click <strong>Edit</strong> to view and modify prompts. Use <strong>Revision history</strong> to restore an earlier typed version.</p>
+        </aside>
     </div>
 
     <section class="prompt-panel" data-prompt-create-panel hidden><div class="panel-heading"><h2>Create prompt</h2><button type="button" class="prompt-close" data-prompt-create-close>&times;</button></div><form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/prompts"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><div class="prompt-form-grid"><label>Installation<select name="installation_id"><?php foreach ($installations as $row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label><label>Name<input name="name" required maxlength="128"></label><label class="wide">Prompt document JSON<textarea name="content_json" required>{"instruction":"Respond in character using only scoped Morrowind context."}</textarea></label></div><button type="submit" class="prompt-button primary">Create Prompt</button></form></section>

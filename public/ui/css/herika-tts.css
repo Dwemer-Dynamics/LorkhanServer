@@ -16,32 +16,19 @@ body.tts-page-shell > main.tts-page {
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-body.tts-page-shell > main.tts-page.embedded { padding-top: 20px; }
+body.tts-page-shell > main.tts-page.embedded { padding-top: 10px; }
 
 .tts-page .page-shell { max-width: 1450px; margin: 0 auto; }
 
-.tts-page .page-header {
-    margin: 0 0 30px;
-    padding: 20px;
-    border: 1px solid #3a3a3a;
-    border-radius: 10px;
-    background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
-    box-shadow: 0 2px 8px rgba(0, 0, 0, .15), inset 0 1px rgba(255, 255, 255, .03);
-    text-align: center;
-}
-
+/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
 .tts-page .page-header h1.api-title {
-    margin: 0 0 8px;
     color: #f5f1e8;
     font-family: MagicCards, serif;
-    font-size: 2.2em;
     font-weight: 400;
-    letter-spacing: .7px;
     word-spacing: 8px;
-    text-shadow: 2px 2px 4px rgba(0, 0, 0, .5);
 }
 
-.tts-page .page-subtitle { margin: 0; color: #bbb; font-size: 1.1em; }
+.tts-page .page-subtitle { color: #bbb; }
 .tts-page .notice { margin-bottom: 14px; padding: 10px 12px; border: 1px solid rgba(242, 124, 17, .25); border-radius: 8px; background: rgba(42, 42, 42, .9); color: #e7cfac; }
 
 .tts-page .layout {

@@ -83,9 +83,9 @@ include dirname(__DIR__) . '/tmpl/head.html';
 if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="d-flex flex-column llm-page<?php echo $embedded ? ' embedded' : ''; ?>">
-    <div class="page-header">
-        <h1 class="api-title">LLM Connectors</h1>
-        <p class="page-subtitle">Configure Language Model connectors for AI dialogue generation</p>
+    <div class="page-header almsivi-page-head">
+        <h1 class="api-title almsivi-page-head-title">LLM Connectors</h1>
+        <p class="page-subtitle almsivi-page-head-note">Configure Language Model connectors for AI dialogue generation</p>
     </div>
 
     <div id="toast" class="toast-notification llm-toast-spacer<?php echo isset($_GET['status']) ? ' show' : ''; ?>" role="status" aria-live="polite">
