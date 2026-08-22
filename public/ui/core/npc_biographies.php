@@ -37,7 +37,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="biography-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-header almsivi-page-head">
-        <h1 class="almsivi-page-head-title">NPC Biography Management</h1>
+        <h1>NPC Biography Management</h1>
         <p class="page-subtitle almsivi-page-head-note">Review the installed biography templates used to initialize AI NPC profiles</p>
     </div>
     <p class="almsivi-status" id="biography-load-error" role="alert" hidden></p>
