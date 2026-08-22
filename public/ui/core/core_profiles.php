@@ -73,9 +73,9 @@ include dirname(__DIR__) . '/tmpl/head.html';
 if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="profiles-page<?php echo $embedded ? ' embedded' : ''; ?>">
-    <div class="page-header">
-        <h1 class="api-title">ALMSIVI Profiles</h1>
-        <p class="page-subtitle">Manage NPC profiles with LLM and TTS connectors</p>
+    <div class="page-header almsivi-page-head">
+        <h1 class="api-title almsivi-page-head-title">ALMSIVI Profiles</h1>
+        <p class="page-subtitle almsivi-page-head-note">Manage NPC profiles with LLM and TTS connectors</p>
     </div>
 
     <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Core Profile change saved.</div><?php endif; ?>

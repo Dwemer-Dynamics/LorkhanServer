@@ -26,7 +26,7 @@ $policyFields = static function (array $content, array $actions): void { ?>
 ?>
 <main class="action-editor-page">
     <div id="toast" class="toast-notification" role="status" aria-live="polite"><span class="message"></span></div>
-    <header class="page-header"><h1>Action Editor</h1><p>Configure available actions exposed to AI prompting and execution</p></header>
+    <header class="page-header almsivi-page-head"><h1 class="almsivi-page-head-title">Action Editor</h1><p class="almsivi-page-head-note">Configure available actions exposed to AI prompting and execution</p></header>
     <?php if (isset($_GET['status'])): ?><div class="action-notice">Action policy saved.</div><?php endif; ?>
 
     <section class="summary-section">

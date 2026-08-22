@@ -51,7 +51,7 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <main class="descriptions-page">
-    <header class="page-header"><h1>Description Manager</h1><p class="page-subtitle">Create custom descriptions for Morrowind items and equipment that enhance NPC context</p></header>
+    <header class="page-header almsivi-page-head"><h1 class="almsivi-page-head-title">Description Manager</h1><p class="page-subtitle almsivi-page-head-note">Create custom descriptions for Morrowind items and equipment that enhance NPC context</p></header>
     <?php if ($statusText !== ''): ?><div class="description-notice" role="status"><?php echo almsivi_ui_h($statusText); ?></div><?php endif; ?>
     <?php if ($installations === []): ?><div class="description-notice warning">Connect OpenMW once before managing installation-scoped descriptions.</div><?php else: ?>
     <form class="installation-selector" method="get" action="<?php echo almsivi_ui_h($webRoot . '/ui/description_manager.php'); ?>">

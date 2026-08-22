@@ -1,5 +1,5 @@
 /* Pinned HerikaServer hub composition with only CSP-safe extraction from page-local styles. */
-.herika-hub-page{height:100vh;padding:80px 10px 10px;overflow:hidden}
+.herika-hub-page{height:calc(100vh - var(--hub-navbar-offset));padding:0 10px 8px;overflow:hidden}
 .herika-hub-page .top-area{flex:0 0 auto}
 .herika-hub-page .content-area{min-height:0}
 .herika-hub-page .tab-content{display:none;width:100%;background:linear-gradient(135deg,rgba(42,42,42,.95),rgba(34,34,34,.98));border:1px solid #3a3a3a;border-radius:8px 8px 8px 8px;box-shadow:0 2px 8px rgba(0,0,0,.15),inset 0 1px rgba(255,255,255,.03)}
@@ -9,7 +9,7 @@
 .herika-hub-page .tab-button>span:last-child{display:inline-flex;align-items:center}
 @media(max-height:800px){.herika-hub-page .embed-wrap{min-height:420px}}
 @media(max-width:780px){
-    .herika-hub-page{height:auto;min-height:100vh;padding:72px 6px 6px;overflow:visible}
+    .herika-hub-page{height:auto;min-height:calc(100vh - var(--hub-navbar-offset));padding:0 6px 6px;overflow:visible}
     .herika-hub-page .config-navigation{overflow:visible}
     .herika-hub-page .tab-groups{min-width:0}
     .herika-hub-page .content-area{flex:0 0 520px;min-height:520px;overflow:visible!important}

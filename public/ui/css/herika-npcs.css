@@ -6,7 +6,7 @@ body.view-characters {
 }
 
 body.configuration-resource.view-characters main.management-page {
-    padding: 40px 0;
+    padding: 10px 0 24px;
     background: transparent;
     font-family: inherit;
 }
@@ -391,7 +391,7 @@ body.view-characters .npc-modal-body {
 
 @media (max-width: 700px) {
     body.view-characters .management-page {
-        padding: 40px 0;
+        padding: 10px 0 24px;
     }
 
     .npc-editor-tabs {
