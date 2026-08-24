@@ -12,9 +12,8 @@ use Throwable;
 final class BiographyCatalogImporter
 {
     private const FORMAT = 'almsivi.morrowind-biography-preflight.v1';
-    private const MAX_ROWS = 5000;
-    private const MAX_BIOGRAPHIES_BYTES = 16_777_216;
-    private const OFFICIAL_PLUGINS = ['Morrowind.esm', 'Tribunal.esm', 'Bloodmoon.esm'];
+    private const MAX_ROWS = 10000;
+    private const MAX_BIOGRAPHIES_BYTES = 33_554_432;
     private const LOCK_ID = 4_701_950_050;
     private const CHIM_FIELDS = [
         'npc_name', 'oghma_knowledge_tags', 'core', 'npc_static_bio', 'appearance', 'personality',
@@ -182,16 +181,23 @@ SQL);
         if ($model === '' || strlen($model) > 256) $errors[] = 'manifest model is invalid';
         if ($generatorSha !== '' && preg_match('/^[0-9a-f]{64}$/D', $generatorSha) !== 1) $errors[] = 'manifest builder_sha256 is invalid';
         $contentHashes = $manifest['official_content_sha256'] ?? null;
-        if (!is_array($contentHashes) || array_is_list($contentHashes)
-            || array_diff(array_keys($contentHashes), self::OFFICIAL_PLUGINS) !== []
-            || array_diff(self::OFFICIAL_PLUGINS, array_keys($contentHashes)) !== []) {
+        $contentFiles = [];
+        if (!is_array($contentHashes) || array_is_list($contentHashes) || $contentHashes === [] || count($contentHashes) > 64) {
             $errors[] = 'manifest official_content_sha256 keys are invalid';
             $contentHashes = [];
         } else {
             foreach ($contentHashes as $plugin => $hash) {
-                if (!is_string($hash) || preg_match('/^[0-9a-f]{64}$/D', $hash) !== 1) $errors[] = "manifest hash for {$plugin} is invalid";
+                $originalPlugin = (string) $plugin;
+                $plugin = trim($originalPlugin);
+                $key = mb_strtolower($plugin, 'UTF-8');
+                if (preg_match('/^[^\/\\\x00]{1,256}\.(?:esm|esp|omwaddon)$/iD', $plugin) !== 1
+                    || $plugin !== $originalPlugin || !is_string($hash)
+                    || preg_match('/^[0-9a-f]{64}$/D', $hash) !== 1 || isset($contentFiles[$key])) {
+                    $errors[] = "manifest hash for {$plugin} is invalid";
+                    continue;
+                }
+                $contentFiles[$key] = $plugin;
             }
-            $contentHashes = array_replace(array_fill_keys(self::OFFICIAL_PLUGINS, ''), $contentHashes);
         }
         $selected = $manifest['selected_count'] ?? null;
         $completed = $manifest['completed_count'] ?? null;
@@ -215,11 +221,13 @@ SQL);
             $contentFile = trim((string) ($item['content_file'] ?? ''));
             $displayName = trim((string) ($item['display_name'] ?? ''));
             $key = $this->key($contentFile, $recordId);
-            if ($recordId === '' || $displayName === '' || !in_array($contentFile, self::OFFICIAL_PLUGINS, true)) {
+            $contentKey = mb_strtolower($contentFile, 'UTF-8');
+            if ($recordId === '' || $displayName === '' || !isset($contentFiles[$contentKey])) {
                 $errors[] = 'manifest item ' . ($index + 1) . ' has invalid identity';
             } elseif (isset($identities[$key])) {
                 $errors[] = 'manifest contains duplicate canonical identity';
             } else {
+                $contentFile = $contentFiles[$contentKey];
                 $identities[$key] = compact('contentFile', 'recordId', 'displayName');
             }
         }

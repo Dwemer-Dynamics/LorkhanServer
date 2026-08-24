@@ -171,10 +171,12 @@ def iter_subrecords(body: bytes) -> Iterable[tuple[bytes, bytes]]:
         raise ValueError("TES3 record ended with an incomplete subrecord header")
 
 
-def extract_records(data_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+def extract_records(
+    data_dir: Path, content_files: tuple[str, ...] = CONTENT_FILES,
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
     winners: dict[str, dict[str, Any]] = {}
     hashes: dict[str, str] = {}
-    for content_file in CONTENT_FILES:
+    for content_file in content_files:
         path = data_dir / content_file
         if not path.is_file():
             raise FileNotFoundError(f"Required official content file is missing: {path}")
@@ -218,10 +220,12 @@ def extract_records(data_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str
 
 
 # Dialogue responses are first-party evidence for expansion topics that do not have a dedicated UESP page.
-def extract_dialogue_evidence(data_dir: Path) -> dict[str, dict[str, Any]]:
+def extract_dialogue_evidence(
+    data_dir: Path, content_files: tuple[str, ...] = CONTENT_FILES,
+) -> dict[str, dict[str, Any]]:
     topics: dict[str, dict[str, Any]] = {}
     winning_responses: dict[str, tuple[str, str, str]] = {}
-    for content_file in CONTENT_FILES:
+    for content_file in content_files:
         raw = (data_dir / content_file).read_bytes()
         position = 0
         active_topic = ""
@@ -268,7 +272,7 @@ def extract_dialogue_evidence(data_dir: Path) -> dict[str, dict[str, Any]]:
         responses = unique_strings(row.get("responses", []))
         result[key] = {
             "title": row["title"],
-            "sources": sorted(row["sources"], key=CONTENT_FILES.index),
+            "sources": sorted(row["sources"], key=content_files.index),
             "response_count": len(responses),
             "responses": responses,
         }
@@ -366,6 +370,10 @@ def validate_seed_document(document: Any, ontology: dict[str, Any], records: dic
                 raise ValueError(f"Alias {alias!r} for {topic} collides with {owner}")
             alias_owner[key] = topic
         row = dict(raw)
+        mod_source = str(raw.get("mod_source", "")).strip()
+        if mod_source and not re.fullmatch(r"[^/\\\x00]{1,256}\.(?:esm|esp|omwaddon)", mod_source, re.IGNORECASE):
+            raise ValueError(f"Topic {topic} has an invalid mod_source")
+        row["mod_source"] = mod_source or None
         row["aliases"] = aliases
         row["classes"] = classes
         row["resolved_records"] = resolve_topic_links(row, records)
@@ -594,7 +602,7 @@ def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated
         re.sub(r"[^a-z0-9]+", "", str(topic[field]).casefold()) for field in ("topic", "title")
     }
     aliases = [value for value in aliases if re.sub(r"[^a-z0-9]+", "", value.casefold()) not in canonical_keys]
-    return {
+    article = {
         "topic": topic["topic"], "title": topic["title"],
         "topic_desc": re.sub(r"\s+", " ", str(generated.get("topic_desc", ""))).strip(),
         "knowledge_class": article_classes(topic, ontology, generated, "knowledge_class"),
@@ -604,6 +612,9 @@ def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated
         "aliases": aliases[: int(ontology["prose"]["max_aliases"])],
         "record_links": topic.get("resolved_records", []),
     }
+    if topic.get("mod_source"):
+        article["mod_source"] = topic["mod_source"]
+    return article
 
 
 def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: dict[str, Any]) -> list[str]:
@@ -626,6 +637,8 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
         errors.append("basic article is too close to the advanced article")
     if article["category"] != topic["category"]:
         errors.append("category changed from locked inventory")
+    if article.get("mod_source") != topic.get("mod_source"):
+        errors.append("mod_source changed from locked inventory")
     if len(article["aliases"]) > int(prose["max_aliases"]):
         errors.append("alias count is outside the ontology bounds")
     allowed = set(ontology["knowledge_classes"])
@@ -682,7 +695,7 @@ def write_combined(run_dir: Path, selected: list[dict[str, Any]], manifest: dict
                 rows.append(document["article"])
     combined = run_dir / "combined"
     atomic_json(combined / "articles.json", rows)
-    columns = ["topic", "aliases", "topic_desc", "knowledge_class", "topic_desc_basic", "knowledge_class_basic", "tags", "category"]
+    columns = ["topic", "aliases", "topic_desc", "knowledge_class", "topic_desc_basic", "knowledge_class_basic", "tags", "category", "mod_source"]
     csv_path = combined / "oghma.csv.tmp"
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
@@ -719,7 +732,8 @@ def build_manifest(run_dir: Path, selected: list[dict[str, Any]], hashes: dict[s
                 complete += 1
             else:
                 failed += 1
-        items.append({"topic": topic["topic"], "title": topic["title"], "category": topic["category"], "status": status})
+        items.append({"topic": topic["topic"], "title": topic["title"], "category": topic["category"],
+                      "mod_source": topic.get("mod_source"), "status": status})
     spent = attempt_cost(run_dir)
     return {
         "format": FORMAT_VERSION, "updated_at_utc": utc_timestamp(), "model": model,
@@ -738,6 +752,8 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument("--content-file", action="append", default=[],
+                        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
     parser.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS)
     parser.add_argument("--ontology", type=Path, default=DEFAULT_ONTOLOGY)
     parser.add_argument("--exclude-selection", type=Path)
@@ -746,7 +762,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
     parser.add_argument("--cache-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ALMSIVI" / "oghma-uesp-cache")
     parser.add_argument("--refresh-uesp-cache", action="store_true")
-    parser.add_argument("--skip-uesp", action="store_true")
+    parser.add_argument("--skip-uesp", action="store_true",
+                        help="Retained for command compatibility; remote wiki acquisition is always disabled.")
     parser.add_argument("--evidence-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--request-timeout", type=float, default=120.0)
@@ -756,6 +773,10 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.max_cost is not None and args.budget_reserve >= args.max_cost:
         parser.error("--budget-reserve must be lower than --max-cost")
+    content_files = tuple(args.content_file or CONTENT_FILES)
+    if len({value.casefold() for value in content_files}) != len(content_files):
+        parser.error("--content-file values must be unique")
+    args.content_files = content_files
     return args
 
 
@@ -766,8 +787,8 @@ def main() -> int:
         ontology_raw = args.ontology.read_bytes()
         seeds_raw = args.seeds.read_bytes()
         ontology = read_json(args.ontology)
-        records, hashes = extract_records(args.data_dir)
-        dialogue_topics = extract_dialogue_evidence(args.data_dir)
+        records, hashes = extract_records(args.data_dir, args.content_files)
+        dialogue_topics = extract_dialogue_evidence(args.data_dir, args.content_files)
         topics = validate_seed_document(read_json(args.seeds), ontology, records)
         excluded = excluded_topics(args.exclude_selection)
         available_topics = [topic for topic in topics if topic["topic"] not in excluded]
@@ -803,7 +824,7 @@ def main() -> int:
                 uesp = evidence_document["uesp"]
                 evidence = evidence_document["evidence"]
             else:
-                uesp = {"status": "skipped", "page": None, "evidence": ""} if args.skip_uesp else uesp_search(session, topic, args.cache_dir, args.refresh_uesp_cache)
+                uesp = {"status": "skipped", "page": None, "evidence": ""}
                 dialogue_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
                 dialogue = dialogue_topics.get(dialogue_key)
                 evidence = build_evidence(topic, uesp, dialogue)

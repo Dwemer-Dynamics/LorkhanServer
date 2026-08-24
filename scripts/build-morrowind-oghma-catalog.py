@@ -54,6 +54,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--output", type=Path, default=DEFAULT_BASE / "catalog")
     parser.add_argument("--catalog-version", required=True)
     parser.add_argument("--data-dir", type=Path)
+    parser.add_argument("--content-file", action="append", default=[],
+                        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
     parser.add_argument("--seeds", type=Path, default=DEFAULT_BASE / "topic-seeds.json")
     parser.add_argument("--ontology", type=Path, default=DEFAULT_BASE / "ontology.json")
     parser.add_argument("--editorial-decisions", type=Path, default=DEFAULT_BASE / "editorial-decisions.json")
@@ -72,7 +74,10 @@ def main() -> int:
         raise ValueError("Unsupported Oghma editorial decision format")
     if decisions.get("catalog_version") != args.catalog_version:
         raise ValueError("Editorial decisions target a different catalog version")
-    records, official_hashes = generator.extract_records(args.data_dir or generator.DEFAULT_DATA_DIR)
+    content_files = tuple(args.content_file or generator.CONTENT_FILES)
+    if len({value.casefold() for value in content_files}) != len(content_files):
+        raise ValueError("--content-file values must be unique")
+    records, official_hashes = generator.extract_records(args.data_dir or generator.DEFAULT_DATA_DIR, content_files)
     topics = generator.validate_seed_document(read_json(seeds_path), ontology, records)
     by_topic = {row["topic"]: row for row in topics}
     exclusions = {str(row.get("topic", "")): row for row in decisions.get("exclusions", [])}
@@ -155,12 +160,12 @@ def main() -> int:
     write_json(articles_path, ordered)
     csv_path = args.output / "oghma.csv"
     columns = ["topic", "aliases", "topic_desc", "knowledge_class", "topic_desc_basic",
-               "knowledge_class_basic", "tags", "category"]
+               "knowledge_class_basic", "tags", "category", "mod_source"]
     with csv_path.open("w", encoding="utf-8-sig", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=columns, lineterminator="\n")
         writer.writeheader()
         for row in ordered:
-            writer.writerow({column: ", ".join(row[column]) if isinstance(row[column], list) else row[column]
+            writer.writerow({column: ", ".join(row.get(column, [])) if isinstance(row.get(column), list) else row.get(column, "")
                              for column in columns})
     manifest = {
         "format": "almsivi.morrowind-oghma-catalog.v1",

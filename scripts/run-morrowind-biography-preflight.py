@@ -154,9 +154,9 @@ def stratified_selection(catalog: list[dict[str, Any]], size: int) -> list[dict[
 
 
 def load_or_create_selection(
-    builder: Any, run_dir: Path, data_dir: Path, size: int,
+    builder: Any, run_dir: Path, data_dir: Path, size: int, content_files: tuple[str, ...],
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dict[str, str], int]:
-    catalog, actor_aliases, hashes = builder.extract_npcs(data_dir)
+    catalog, actor_aliases, hashes = builder.extract_npcs(data_dir, content_files)
     selection_path = run_dir / "selection.json"
     if selection_path.is_file():
         document = json.loads(selection_path.read_text(encoding="utf-8"))
@@ -199,6 +199,8 @@ def child_command(
         "--delay", "0",
         "--force",
     ]
+    for content_file in args.content_files:
+        command.extend(["--content-file", content_file])
     if evidence_only:
         command.extend(["--dry-run", "--output", str(record_dir / "evidence.json")])
     else:
@@ -450,6 +452,8 @@ def parse_args(builder: Any) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Run a durable stratified Morrowind biography preflight.")
     parser.add_argument("--run-dir", type=Path, required=True)
     parser.add_argument("--data-dir", type=Path, default=builder.DEFAULT_DATA_DIR)
+    parser.add_argument("--content-file", action="append", default=[],
+                        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
     parser.add_argument("--cache-dir", type=Path, default=builder.default_cache_dir())
     parser.add_argument("--size", type=int, default=50)
     parser.add_argument("--model", default=builder.DEFAULT_MODEL)
@@ -482,6 +486,10 @@ def parse_args(builder: Any) -> argparse.Namespace:
         parser.error("--budget-reserve cannot be negative")
     if args.max_cost is not None and args.budget_reserve >= args.max_cost:
         parser.error("--budget-reserve must be less than --max-cost")
+    content_files = tuple(args.content_file or builder.CONTENT_FILES)
+    if len({value.casefold() for value in content_files}) != len(content_files):
+        parser.error("--content-file values must be unique")
+    args.content_files = content_files
     return args
 
 
@@ -489,7 +497,7 @@ def run_preflight(builder: Any, args: argparse.Namespace) -> int:
     if not args.evidence_only and not os.getenv(args.api_key_env, "").strip():
         raise RuntimeError(f"Generation requires the {args.api_key_env} environment variable")
     selected, actor_aliases, hashes, catalog_count = load_or_create_selection(
-        builder, args.run_dir, args.data_dir, args.size,
+        builder, args.run_dir, args.data_dir, args.size, args.content_files,
     )
     failures = 0
     budget_exhausted = False

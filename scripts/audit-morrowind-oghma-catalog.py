@@ -62,6 +62,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--ontology", type=Path, required=True)
     parser.add_argument("--editorial-decisions", type=Path, default=DEFAULT_BASE / "editorial-decisions.json")
     parser.add_argument("--reviewed", type=Path, action="append", default=[])
+    parser.add_argument("--content-file", action="append", default=[],
+                        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args()
 
@@ -78,7 +80,10 @@ def main() -> int:
     if decisions.get("format") != "almsivi.morrowind-oghma-editorial-decisions.v1":
         raise ValueError("Unsupported Oghma editorial decision format")
     exclusions = {str(row.get("topic", "")) for row in decisions.get("exclusions", [])}
-    records, _ = generator.extract_records(generator.DEFAULT_DATA_DIR)
+    content_files = tuple(args.content_file or generator.CONTENT_FILES)
+    if len({value.casefold() for value in content_files}) != len(content_files):
+        raise ValueError("--content-file values must be unique")
+    records, _ = generator.extract_records(generator.DEFAULT_DATA_DIR, content_files)
     seeds = [row for row in generator.validate_seed_document(read_json(args.seeds), ontology, records) if row["topic"] not in exclusions]
     by_topic = {row["topic"]: row for row in seeds}
     errors: list[str] = []

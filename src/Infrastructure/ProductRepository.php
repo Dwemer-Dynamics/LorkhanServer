@@ -961,7 +961,16 @@ final class ProductRepository
     public function updateKnowledge(string $id,array $input,array $terms,string $now):array{$sha=hash('sha256',$input['content']);$statement=$this->db->prepare('UPDATE knowledge_documents SET title=:title,content=:content,content_sha256=:sha,lexical_terms=CAST(:terms AS text[]),provenance=CAST(:provenance AS jsonb),topic=:topic,aliases=:aliases,topic_desc_basic=:basic,knowledge_class=:advanced_class,knowledge_class_basic=:basic_class,tags=:tags,category=:category WHERE document_id=:id AND deleted_at IS NULL');$statement->execute(['id'=>$id,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');return$this->knowledge($id);}
     public function knowledge(string $id): array {$s=$this->db->prepare('SELECT * FROM knowledge_documents WHERE document_id=:id AND deleted_at IS NULL');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['id']=$r['document_id'];$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;}
     public function deleteKnowledge(string $id,string $now):void{$row=$this->knowledge($id);if(($row['provenance']['source']??null)==='factory-oghma')throw new \InvalidArgumentException('factory_knowledge_read_only');$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function knowledgeCandidates(array $scope):array{$sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category');$s=$this->db->prepare($sql);$s->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null]);return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function knowledgeCandidates(array $scope,?array $loadedContentFiles=null):array
+    {
+        $sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category',$loadedContentFiles!==null);
+        $parameters=['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null];
+        if($loadedContentFiles!==null){$normalized=[];foreach(array_slice($loadedContentFiles,0,256)as$file){
+            if(!is_string($file))continue;$file=strtolower(trim($file));if($file!=='')$normalized[$file]=true;
+        }$parameters['loaded_content_files']=$this->pgArray(array_keys($normalized));}
+        $s=$this->db->prepare($sql);$s->execute($parameters);
+        return array_map(function($r){$r['lexical_terms']=$this->parsePgArray($r['lexical_terms']);$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());
+    }
 
     /** Return the complete effective Oghma catalog visible to one NPC profile. */
     public function oghmaKnowledgeForProfile(string $installationId,string $profileId,array $filters=[]):array
@@ -1370,21 +1379,26 @@ final class ProductRepository
     {
         $selected=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],
             (array)($turn['payload']['target']??[]));
-        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category'));
+        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category',true));
         $statement->execute(['installation'=>(string)$turn['installation_id'],
-            'profile'=>$selected??(string)$turn['profile_id'],'playthrough'=>(string)$turn['playthrough_id']]);
+            'profile'=>$selected??(string)$turn['profile_id'],'playthrough'=>(string)$turn['playthrough_id'],
+            'loaded_content_files'=>$this->pgArray(array_keys($this->contentFilesForTurn($turn)))]);
         return$statement->fetchAll();
     }
 
     /** Select one effective row per canonical topic, preferring the most specific custom override. */
-    private function effectiveKnowledgeSql(string $columns):string
+    private function effectiveKnowledgeSql(string $columns,bool $filterModSources=false):string
     {
+        $modFilter=$filterModSources
+            ?" AND (d.provenance->>'source' IS DISTINCT FROM 'factory-oghma' OR COALESCE(d.provenance->>'mod_source','')='' OR lower(d.provenance->>'mod_source')=ANY(CAST(:loaded_content_files AS text[])))"
+            :'';
         return'SELECT '.$columns.' FROM (SELECT d.*,ROW_NUMBER() OVER (PARTITION BY lower(d.topic) ORDER BY '
             ."CASE WHEN d.provenance->>'source'='factory-oghma' THEN 0 ELSE 1 END DESC,"
             .'CASE WHEN d.playthrough_id IS NULL THEN 0 ELSE 1 END DESC,'
             .'CASE WHEN d.profile_id IS NULL THEN 0 ELSE 1 END DESC,d.created_at DESC,d.document_id DESC) AS effective_rank '
             .'FROM knowledge_documents d WHERE d.installation_id=:installation AND d.deleted_at IS NULL '
-            .'AND (d.profile_id IS NULL OR d.profile_id=:profile) AND (d.playthrough_id IS NULL OR d.playthrough_id=:playthrough)) effective '
+            .'AND (d.profile_id IS NULL OR d.profile_id=:profile) AND (d.playthrough_id IS NULL OR d.playthrough_id=:playthrough)'
+            .$modFilter.') effective '
             .'WHERE effective_rank=1 ORDER BY created_at DESC,document_id';
     }
 
@@ -1425,7 +1439,8 @@ final class ProductRepository
         $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
         $memories=$memorySelection['rows'];
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
-        $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,$this->knowledgeCandidates($knowledgeScope),
+        $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
+            $this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
             (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now);
         $knowledgeSelection['trace']['settings']=$effective['settings']['oghma']??[];
@@ -1740,8 +1755,7 @@ SQL);
     public function itemDescriptionsForTurn(array $turn): array
     {
         $context=$turn['payload']['context']??[];if(!is_array($context)||array_is_list($context))return[];
-        $active=[];$files=$context['contentFiles']??[];if(is_array($files)&&!array_is_list($files))$files=$files['items']??[];
-        if(is_array($files))foreach(array_slice($files,0,256)as$order=>$file)if(is_string($file)&&trim($file)!=='')$active[strtolower(trim($file))]=(int)$order;
+        $active=$this->contentFilesForTurn($turn);
         $wanted=[];foreach($this->turnItemRows($context)as$item){$record=strtolower(trim((string)($item['record_id']??'')));
             if($record===''||strlen($record)>256)continue;$content=strtolower(trim((string)($item['content_file']??'')));
             if(strlen($content)>256)continue;$wanted[$record][$content]=true;}
@@ -1774,6 +1788,17 @@ SQL);
                     'name'=>(string)$selected['display_name'],'description'=>(string)$selected['description']];
                 if(count($result)>=64)break 2;}}
         return$result;
+    }
+
+    /** Normalize the bounded OpenMW load order supplied with the current turn. */
+    private function contentFilesForTurn(array $turn):array
+    {
+        $context=$turn['payload']['context']??[];if(!is_array($context)||array_is_list($context))return[];
+        $files=$context['contentFiles']??[];if(is_array($files)&&!array_is_list($files))$files=$files['items']??[];
+        $active=[];if(is_array($files))foreach(array_slice($files,0,256)as$order=>$file){
+            if(!is_string($file))continue;$file=strtolower(trim($file));if($file==='')continue;$active[$file]=(int)$order;
+        }
+        return$active;
     }
 
     /** Flatten every bounded item-bearing context lane without treating display names as identity. */
