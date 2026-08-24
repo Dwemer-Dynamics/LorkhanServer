@@ -74,9 +74,9 @@ Advanced and basic articles are separately authored. Knowledge classes are restr
 
 `mod_source` is omitted for the existing base catalog. A mod-only article uses the exact content
 filename that makes it available, such as `TR_Mainland.esm`. The server keeps one combined factory
-catalog and filters mod-sourced rows against the current turn's OpenMW content list. Tamriel Rebuilt
-targets 700 reviewed articles, bringing the combined catalog from 1,300 to the existing 2,000-row
-ceiling. Ordinary NPCs, walkthroughs, quest stages, and player-dependent outcomes remain excluded.
+catalog and filters mod-sourced rows against the current turn's OpenMW content list. Tamriel Rebuilt's
+article count is determined by the reviewed topic inventory rather than a storage allocation.
+Ordinary NPCs, walkthroughs, quest stages, and player-dependent outcomes remain excluded.
 
 ## Current factory dataset
 

@@ -13,9 +13,8 @@ use Throwable;
 final class OghmaCatalogImporter
 {
     private const FORMAT = 'almsivi.morrowind-oghma-catalog.v1';
-    private const MAX_ARTICLES_BYTES = 4_194_304;
+    private const MAX_ARTICLES_BYTES = 33_554_432;
     private const MAX_MANIFEST_BYTES = 262_144;
-    private const MAX_ROWS = 2_000;
     private const LOCK_ID = 4_684_566_698_006_905;
     private const CATEGORIES = ['alchemy','artifacts','books','creatures','cultures','diseases','equipment','factions',
         'figures','history','ingredients','locations','lore','magic','races','regions','religion','settlements',
@@ -125,7 +124,7 @@ final class OghmaCatalogImporter
             if(preg_match('/^[^\/\\\x00]{1,256}\.(?:esm|esp|omwaddon)$/iD',$file)!==1
                 ||$file!==$originalFile||preg_match('/^[0-9a-f]{64}$/D',(string)$sha)!==1||isset($contentFiles[$key]))$errors[]='official content hashes are invalid';
             else$contentFiles[$key]=$file;}
-        if(count($rows)<1||count($rows)>self::MAX_ROWS)$errors[]='article count is outside bounds';
+        if(count($rows)<1)$errors[]='article catalog is empty';
         $normalized=[];$topics=[];$aliasOwners=[];
         foreach($rows as$index=>$row){
             if(!is_array($row)||array_is_list($row)){$errors[]="article {$index} is not an object";continue;}

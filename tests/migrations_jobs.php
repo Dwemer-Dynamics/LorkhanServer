@@ -50,6 +50,10 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$oghmaRowConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+    ."WHERE conrelid='almsivi_internal.oghma_catalogs'::regclass AND conname='oghma_catalogs_row_count_check'")->fetchColumn();
+$check(str_contains($oghmaRowConstraint,'row_count >= 1')&&!str_contains($oghmaRowConstraint,'2000'),
+    'fresh schema retained the fixed Oghma catalog row ceiling');
 $canonicalTurnColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
     . "AND table_name='turns' AND column_name IN ('runtime_generation','response_id','response_payload','response_created_at') ORDER BY column_name")
     ->fetchAll(PDO::FETCH_COLUMN);
@@ -567,6 +571,16 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         'tags'=>'custom fixture knowledge','category'=>'lore'],['fixture','custom'],$clock->iso());
     $oghmaImporter=new OghmaCatalogImporter($db);$oghmaPlan=$oghmaImporter->plan($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
     $check($oghmaPlan['valid']===true&&$oghmaPlan['row_count']===1,'factory Oghma catalog dry-run failed');
+    $largeOghmaRows=[];for($index=1;$index<=2001;++$index)$largeOghmaRows[]=[
+        'topic'=>'capacity_fixture_'.$index,'title'=>'Capacity Fixture '.$index,'aliases'=>[],
+        'topic_desc'=>'Reviewed knowledge remains valid beyond the former fixed catalog allocation.',
+        'knowledge_class'=>['scholar'],'topic_desc_basic'=>'Reviewed capacity fixture basics.',
+        'knowledge_class_basic'=>['common'],'tags'=>['reviewed capacity fixture'],'category'=>'lore'];
+    [$largeOghmaArticles,$largeOghmaManifest]=$writeOghmaCatalogFixture('oghma-capacity-fixture',$largeOghmaRows);
+    $largeOghmaPlan=$oghmaImporter->plan($largeOghmaArticles,$largeOghmaManifest,'oghma-capacity-fixture');
+    $check($largeOghmaPlan['valid']===true&&$largeOghmaPlan['row_count']===2001,
+        'factory Oghma importer retained the former 2,000-row ceiling');
+    unset($largeOghmaRows);
     $oghmaImporter->apply($oghmaV1Articles,$oghmaV1Manifest,'oghma-fixture-v1');
     $customOghmaId=(string)$customOghma['document_id'];
     $check($db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.'
