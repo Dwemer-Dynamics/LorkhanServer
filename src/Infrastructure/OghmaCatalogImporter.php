@@ -73,7 +73,7 @@ final class OghmaCatalogImporter
                 'generator'=>$m['generator_sha256'],'builder'=>$m['builder_sha256'],
                 'official'=>json_encode($m['official_content_sha256'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES),
                 'rows'=>count($package['rows']),'now'=>$now]);
-            $insert=$this->db->prepare('INSERT INTO oghma_catalog_entries(catalog_id,topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category) VALUES(:catalog,:topic,:title,:aliases,:topic_desc,:knowledge_class,:topic_desc_basic,:knowledge_class_basic,:tags,:category)');
+            $insert=$this->db->prepare('INSERT INTO oghma_catalog_entries(catalog_id,topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,mod_source) VALUES(:catalog,:topic,:title,:aliases,:topic_desc,:knowledge_class,:topic_desc_basic,:knowledge_class_basic,:tags,:category,:mod_source)');
             foreach($package['rows']as$row)$insert->execute(['catalog'=>$catalogId]+$row);
             $projected=$this->projectAllInstallations($catalogId);
             return$plan+['applied'=>true,'idempotent'=>false,'catalog_id'=>$catalogId,'projected_installations'=>$projected];
@@ -119,14 +119,23 @@ final class OghmaCatalogImporter
         if(!hash_equals((string)($manifest['articles_sha256']??''),$articlesSha))$errors[]='articles sha256 does not match manifest';
         if(($manifest['row_count']??null)!==count($rows))$errors[]='manifest row_count does not match articles';
         foreach(['ontology_sha256','topic_seeds_sha256','generator_sha256','builder_sha256']as$field)if(preg_match('/^[0-9a-f]{64}$/D',(string)($manifest[$field]??''))!==1)$errors[]="manifest {$field} is invalid";
-        if(!is_array($manifest['official_content_sha256']??null)||array_is_list($manifest['official_content_sha256']))$errors[]='official content hashes are invalid';
-        else foreach($manifest['official_content_sha256']as$file=>$sha)if(!is_string($file)||preg_match('/^[0-9a-f]{64}$/D',(string)$sha)!==1)$errors[]='official content hashes are invalid';
+        $contentFiles=[];$contentHashes=$manifest['official_content_sha256']??null;
+        if(!is_array($contentHashes)||array_is_list($contentHashes)||$contentHashes===[]||count($contentHashes)>64)$errors[]='official content hashes are invalid';
+        else foreach($contentHashes as$file=>$sha){$originalFile=(string)$file;$file=trim($originalFile);$key=mb_strtolower($file,'UTF-8');
+            if(preg_match('/^[^\/\\\x00]{1,256}\.(?:esm|esp|omwaddon)$/iD',$file)!==1
+                ||$file!==$originalFile||preg_match('/^[0-9a-f]{64}$/D',(string)$sha)!==1||isset($contentFiles[$key]))$errors[]='official content hashes are invalid';
+            else$contentFiles[$key]=$file;}
         if(count($rows)<1||count($rows)>self::MAX_ROWS)$errors[]='article count is outside bounds';
         $normalized=[];$topics=[];$aliasOwners=[];
         foreach($rows as$index=>$row){
             if(!is_array($row)||array_is_list($row)){$errors[]="article {$index} is not an object";continue;}
             if(array_diff(self::FIELDS,array_keys($row))!==[]){$errors[]="article {$index} is missing required fields";continue;}
             $topic=trim((string)$row['topic']);$title=trim((string)$row['title']);$category=trim((string)$row['category']);
+            $modSource=array_key_exists('mod_source',$row)?trim((string)$row['mod_source']):'';
+            $normalizedModSource=null;$modSourceKey=mb_strtolower($modSource,'UTF-8');
+            if($modSource!==''&&preg_match('/^[^\/\\\x00]{1,256}\.(?:esm|esp|omwaddon)$/iD',$modSource)!==1)$errors[]="article {$topic} mod_source is invalid";
+            elseif($modSource!==''&&!isset($contentFiles[$modSourceKey]))$errors[]="article {$topic} mod_source is absent from official content hashes";
+            elseif($modSource!=='')$normalizedModSource=$contentFiles[$modSourceKey];
             foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field)if(!is_array($row[$field])||!array_is_list($row[$field]))$errors[]="article {$topic} {$field} must be an array";
             if($topic===''||strlen($topic)>256||isset($topics[mb_strtolower($topic,'UTF-8')]))$errors[]="article {$index} topic is invalid or duplicate";
             if($title===''||strlen($title)>256||!in_array($category,self::CATEGORIES,true))$errors[]="article {$topic} title or category is invalid";
@@ -136,7 +145,8 @@ final class OghmaCatalogImporter
             foreach([$topic,...$row['aliases']]as$alias){$aliasKey=preg_replace('/[^a-z0-9]+/','',mb_strtolower((string)$alias,'UTF-8'));if($aliasKey==='')continue;$owner=$aliasOwners[$aliasKey]??null;if($owner!==null&&$owner!==$topic)$errors[]="alias {$alias} collides between {$owner} and {$topic}";$aliasOwners[$aliasKey]=$topic;}
             $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>trim((string)$row['topic_desc']),
                 'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>trim((string)$row['topic_desc_basic']),
-                'knowledge_class_basic'=>$flat['knowledge_class_basic'],'tags'=>$flat['tags'],'category'=>$category];
+                'knowledge_class_basic'=>$flat['knowledge_class_basic'],'tags'=>$flat['tags'],'category'=>$category,
+                'mod_source'=>$normalizedModSource];
         }
         return['rows'=>$normalized,'manifest'=>$manifest,'articles_sha256'=>$articlesSha,'manifest_sha256'=>$manifestSha,
             'errors'=>array_slice(array_values(array_unique($errors)),0,100)];
@@ -155,7 +165,10 @@ final class OghmaCatalogImporter
         $entries=$this->entries($catalogId);$insertDocument=$this->db->prepare("INSERT INTO knowledge_documents(document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES(:id,:installation,NULL,NULL,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)");
         $insertOwner=$this->db->prepare('INSERT INTO oghma_factory_documents(installation_id,topic,document_id,catalog_id) VALUES(:installation,:topic,:document,:catalog)');$now=gmdate('Y-m-d\TH:i:s\Z');
         $catalog=$this->catalogById($catalogId)??throw new RuntimeException('oghma_catalog_missing');
-        foreach($entries as$row){$id=Uuid::v4();$search=implode(' ',[$row['topic'],$row['title'],$row['aliases'],$row['topic_desc'],$row['topic_desc_basic'],$row['tags']]);$provenance=json_encode(['source'=>'factory-oghma','catalog_id'=>$catalogId,'catalog_version'=>$catalog['catalog_version'],'category'=>$row['category'],'temporal_anchor'=>'3E 427'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+        foreach($entries as$row){$id=Uuid::v4();$search=implode(' ',[$row['topic'],$row['title'],$row['aliases'],$row['topic_desc'],$row['topic_desc_basic'],$row['tags']]);
+            $provenance=['source'=>'factory-oghma','catalog_id'=>$catalogId,'catalog_version'=>$catalog['catalog_version'],'category'=>$row['category'],'temporal_anchor'=>'3E 427'];
+            if($row['mod_source']!==null)$provenance['mod_source']=$row['mod_source'];
+            $provenance=json_encode($provenance,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
             $insertDocument->execute(['id'=>$id,'installation'=>$installationId,'title'=>$row['title'],'content'=>$row['topic_desc'],'sha'=>hash('sha256',$row['topic_desc']),
                 'terms'=>$this->pgArray(DeterministicRetrieval::terms($search)),'provenance'=>$provenance,'now'=>$now,'topic'=>$row['topic'],'aliases'=>$row['aliases'],
                 'basic'=>$row['topic_desc_basic'],'advanced_class'=>$row['knowledge_class'],'basic_class'=>$row['knowledge_class_basic'],'tags'=>$row['tags'],'category'=>$row['category']]);
@@ -165,7 +178,7 @@ final class OghmaCatalogImporter
 
     private function entries(string $catalogId):array
     {
-        $s=$this->db->prepare('SELECT topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category FROM oghma_catalog_entries WHERE catalog_id=:id ORDER BY topic');$s->execute(['id'=>$catalogId]);$out=[];foreach($s->fetchAll()as$row)$out[$row['topic']]=$row;return$out;
+        $s=$this->db->prepare('SELECT topic,title,aliases,topic_desc,knowledge_class,topic_desc_basic,knowledge_class_basic,tags,category,mod_source FROM oghma_catalog_entries WHERE catalog_id=:id ORDER BY topic');$s->execute(['id'=>$catalogId]);$out=[];foreach($s->fetchAll()as$row)$out[$row['topic']]=$row;return$out;
     }
     private function activeCatalog():?array{$r=$this->db->query("SELECT * FROM oghma_catalogs WHERE state='active'")->fetch();return$r===false?null:$r;}
     private function catalogById(string $id):?array{$s=$this->db->prepare('SELECT * FROM oghma_catalogs WHERE catalog_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();return$r===false?null:$r;}

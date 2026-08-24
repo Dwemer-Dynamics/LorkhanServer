@@ -537,10 +537,12 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         $articlesPath=$oghmaFixtureRoot.'/'.$version.'.articles.json';$manifestPath=$oghmaFixtureRoot.'/'.$version.'.manifest.json';
         $articles=json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
         file_put_contents($articlesPath,$articles);
+        $contentHashes=['Morrowind.esm'=>str_repeat('5',64)];
+        foreach($rows as$row)if(is_string($row['mod_source']??null)&&trim($row['mod_source'])!=='')$contentHashes[trim($row['mod_source'])]=str_repeat('6',64);
         $manifest=['format'=>'almsivi.morrowind-oghma-catalog.v1','catalog_version'=>$version,
             'row_count'=>count($rows),'articles_sha256'=>hash('sha256',$articles),'ontology_sha256'=>str_repeat('1',64),
             'topic_seeds_sha256'=>str_repeat('2',64),'generator_sha256'=>str_repeat('3',64),
-            'builder_sha256'=>str_repeat('4',64),'official_content_sha256'=>['Morrowind.esm'=>str_repeat('5',64)]];
+            'builder_sha256'=>str_repeat('4',64),'official_content_sha256'=>$contentHashes];
         file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
         return[$articlesPath,$manifestPath];
     };
@@ -555,7 +557,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         ['topic'=>'fixture_place','title'=>'Fixture Place','aliases'=>[],
             'topic_desc'=>'Factory v2 adds one reviewed location.','knowledge_class'=>['scholar'],
             'topic_desc_basic'=>'Factory v2 location basics.','knowledge_class_basic'=>['common'],
-            'tags'=>['reviewed fixture location'],'category'=>'locations']];
+            'tags'=>['reviewed fixture location'],'category'=>'locations','mod_source'=>'TR_Mainland.esm']];
     [$oghmaV1Articles,$oghmaV1Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v1',$oghmaV1Rows);
     [$oghmaV2Articles,$oghmaV2Manifest]=$writeOghmaCatalogFixture('oghma-fixture-v2',$oghmaV2Rows);
     $customOghma=$products->createKnowledge(['installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
@@ -578,8 +580,27 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         &&($oghmaCatalog['previous_catalog_id']??null)===null
         &&(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}' AND catalog_id=(SELECT catalog_id FROM oghma_catalogs)")->fetchColumn()===2
         &&$db->query("SELECT content FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_lore'")->fetchColumn()==='Factory v2 updates Vvardenfell’s reviewed lore.'
+        &&$db->query("SELECT d.provenance->>'mod_source' FROM knowledge_documents d JOIN oghma_factory_documents f ON f.document_id=d.document_id WHERE f.topic='fixture_place'")->fetchColumn()==='TR_Mainland.esm'
         &&$db->query("SELECT content FROM knowledge_documents WHERE document_id='{$customOghmaId}'")->fetchColumn()==='Installation-authored Oghma knowledge must survive factory changes.',
         'current Oghma sync did not replace v1 while preserving custom knowledge');
+    $vanillaFiles=['morrowind.esm'];$tamrielRebuiltFiles=['morrowind.esm','tamriel_data.esm','tr_mainland.esm'];
+    $vanillaCandidates=$products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ],$vanillaFiles);
+    $tamrielRebuiltCandidates=$products->knowledgeCandidates([
+        'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+    ],$tamrielRebuiltFiles);
+    $vanillaTopics=array_map('strtolower',array_column($vanillaCandidates,'topic'));
+    $tamrielRebuiltTopics=array_map('strtolower',array_column($tamrielRebuiltCandidates,'topic'));
+    $check(!in_array('fixture_place',$vanillaTopics,true)&&in_array('fixture_place',$tamrielRebuiltTopics,true)
+        &&in_array('fixture_lore',$vanillaTopics,true),'factory Oghma mod sources were not scoped to the current OpenMW content list');
+    $hiddenModTurn=array_replace_recursive($groundedTurn,['payload'=>[
+        'input'=>['text'=>'Tell me about Fixture Place.'],'context'=>['contentFiles'=>['items'=>['Morrowind.esm']]]]]);
+    $loadedModTurn=array_replace_recursive($hiddenModTurn,['payload'=>[
+        'context'=>['contentFiles'=>['items'=>['Morrowind.esm','Tamriel_Data.esm','TR_Mainland.esm']]]]]);
+    $check($products->groundedOghmaExtraction($hiddenModTurn)['topics']===[]
+        &&$products->groundedOghmaExtraction($loadedModTurn)['topics']===['fixture_place'],
+        'first-turn Oghma grounding did not use the current request content list');
     $clock->advance(1);$revisedCustomOghma=$products->createKnowledge([
         'installation_id'=>$installation,'profile_id'=>null,'playthrough_id'=>null,
         'title'=>'Fixture Lore Revised','content'=>'Revised installation-authored Oghma knowledge overrides the factory article.',
@@ -604,6 +625,11 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $check($oghmaProvision['applied']===false&&$oghmaProvision['idempotent']===true
         &&(int)$db->query('SELECT count(*) FROM oghma_catalogs')->fetchColumn()===1,
         'current Oghma provisioning was not idempotent');
+    $invalidModRows=[$oghmaV1Rows[0]+['mod_source'=>'../TR_Mainland.esm']];
+    [$invalidModArticles,$invalidModManifest]=$writeOghmaCatalogFixture('oghma-invalid-mod-source',$invalidModRows);
+    $invalidModPlan=$oghmaImporter->plan($invalidModArticles,$invalidModManifest,'oghma-invalid-mod-source');
+    $check($invalidModPlan['valid']===false&&in_array('article fixture_lore mod_source is invalid',$invalidModPlan['errors'],true),
+        'Oghma catalog accepted a path-shaped mod source');
     $products->deleteKnowledge($customOghmaId,$clock->iso());
     $restoredFixtureRows=array_values(array_filter($products->knowledgeCandidates([
         'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],

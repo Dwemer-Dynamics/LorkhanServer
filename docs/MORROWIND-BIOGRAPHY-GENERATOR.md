@@ -6,13 +6,13 @@ does not run in Apache, a worker, OpenMW, or the in-game conversation path.
 
 ## Sources and identity
 
-The installed `Morrowind.esm`, `Tribunal.esm`, and `Bloodmoon.esm` files are read in official load
-order. Their winning `NPC_` records supply record ID, display name, content file, race, class,
+The installed content files are read in the load order supplied through repeatable `--content-file`
+arguments, defaulting to `Morrowind.esm`, `Tribunal.esm`, and `Bloodmoon.esm`. Their winning `NPC_`
+records supply record ID, display name, content file, race, class,
 faction, gender, and flags. The script reads those files but never copies them into an output.
 
-UESP is optional supporting evidence. A page is accepted only when the record ID printed by its NPC
-infobox exactly matches the official ESM record ID. The output stores the accepted source URL, page
-ID, revision ID, and license label. Raw page caches stay under the user's cache directory.
+Remote wiki acquisition is disabled. The generator uses locally installed content evidence; any
+separately approved wiki export must be reviewed and imported through a future offline source path.
 
 Display names are not keys. Generated `npc_name` values derive from the exact TES3 record ID, and the
 review manifest retains the authoritative content file separately.
@@ -34,7 +34,7 @@ python scripts/build-morrowind-biographies.py `
   --limit 5
 ```
 
-The default limit is five. `--dry-run` performs ESM and UESP matching without contacting OpenRouter.
+The default limit is five. `--dry-run` extracts local content evidence without contacting OpenRouter.
 Existing outputs are never replaced unless `--force` is supplied. Each completed NPC is checkpointed;
 `--resume` reuses rows present in both output files after an interruption only when they still pass
 the generator's current formatting and content rules. Add
@@ -119,3 +119,10 @@ For a full official-catalog run, use a new run directory, set `--size 3041`, and
 before launching another bounded child. Per-record files remain immediately resumable while aggregate
 outputs are rebuilt every 25 processed records by default. Collect the full evidence-only stage first, review its exact,
 not-found, mismatch, and error counts, and then resume the same locked selection for generation.
+
+## Additional content
+
+Tamriel Rebuilt biographies remain in the same combined catalog. Supply the exact OpenMW order,
+including `Tamriel_Data.esm` and `TR_Mainland.esm`, to both the preflight and child generator. The
+manifest records every input hash, and each biography keeps its winning `content_file`; the runtime
+already matches factory profiles by `content_file + record_id`.

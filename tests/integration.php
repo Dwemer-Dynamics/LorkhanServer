@@ -204,12 +204,12 @@ $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Fa
 file_put_contents($factoryBiographies,json_encode([$factoryRow],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
 file_put_contents($factoryManifest,json_encode(['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>1,
     'completed_count'=>1,'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture builder'),
-    'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],
-    'items'=>[['record_id'=>'factory_bosmer','display_name'=>'Factory Bosmer','content_file'=>'Morrowind.esm','generation_status'=>'complete']]],
+    'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64),'TR_Mainland.esm'=>str_repeat('d',64)],
+    'items'=>[['record_id'=>'factory_bosmer','display_name'=>'Factory Bosmer','content_file'=>'TR_Mainland.esm','generation_status'=>'complete']]],
     JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
 (new BiographyCatalogImporter($db))->apply($factoryBiographies,$factoryManifest,'integration-fixture-v1');
 $factoryTarget=['kind'=>'npc','record_id'=>'factory_bosmer','refnum'=>['index'=>100,'content_file'=>0],
-    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Factory Bosmer'];
+    'content_file'=>'TR_Mainland.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Factory Bosmer'];
 $factoryVoice=$morrowindVoices->resolve($factoryTarget,['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]]);
 $factoryProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
@@ -217,7 +217,7 @@ $factoryProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$session
 $factoryProfile=$products->getRevisioned('profile',$factoryProfileId);
 $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_static_bio']
     &&($factoryProfile['content']['speech_style']??null)===$factoryRow['speechstyle'],
-    'exact OpenMW identity did not seed a typed profile from the active CHIM biography catalog');
+    'exact mod-source identity did not seed a typed profile from the active CHIM biography catalog');
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];

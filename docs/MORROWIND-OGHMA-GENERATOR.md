@@ -45,9 +45,9 @@ python scripts/run-morrowind-oghma-preflight.py `
   --resume
 ```
 
-This locks `selection.json`, hashes the official ESMs, ontology, and topic inventory, validates aliases and access classes, resolves official record links, and stores UESP page/revision evidence when found.
+This locks `selection.json`, hashes the supplied ESMs, ontology, and topic inventory, validates aliases and access classes, and resolves official record links.
 
-Official dialogue responses from `Morrowind.esm`, `Tribunal.esm`, and `Bloodmoon.esm` are retained as first-party evidence for every expansion topic. UESP evidence is supplemental and revision-addressed when an exact page exists.
+Official dialogue responses from the supplied content files are retained as first-party evidence for every expansion topic. Remote wiki acquisition is disabled; an approved wiki export requires a separate offline import path.
 
 ## GLM review generation
 
@@ -67,10 +67,16 @@ The output columns are:
 
 ```text
 topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
-knowledge_class_basic, tags, category
+knowledge_class_basic, tags, category, mod_source
 ```
 
 Advanced and basic articles are separately authored. Knowledge classes are restricted to `resources/oghma/morrowind-official/ontology.json`; aliases must remain collision-free; category and topic identity are locked before generation.
+
+`mod_source` is omitted for the existing base catalog. A mod-only article uses the exact content
+filename that makes it available, such as `TR_Mainland.esm`. The server keeps one combined factory
+catalog and filters mod-sourced rows against the current turn's OpenMW content list. Tamriel Rebuilt
+targets 700 reviewed articles, bringing the combined catalog from 1,300 to the existing 2,000-row
+ceiling. Ordinary NPCs, walkthroughs, quest stages, and player-dependent outcomes remain excluded.
 
 ## Current factory dataset
 

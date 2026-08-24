@@ -224,12 +224,12 @@ def actor_alias_index(actors: dict[str, str]) -> dict[str, dict[str, str]]:
 
 
 def extract_npcs(
-    data_dir: Path,
+    data_dir: Path, content_files: tuple[str, ...] = CONTENT_FILES,
 ) -> tuple[list[dict[str, Any]], dict[str, dict[str, str]], dict[str, str]]:
     winners: dict[str, dict[str, Any]] = {}
     actor_winners: dict[str, str] = {}
     hashes: dict[str, str] = {}
-    for content_file in CONTENT_FILES:
+    for content_file in content_files:
         path = data_dir / content_file
         if not path.is_file():
             raise FileNotFoundError(f"Required official content file is missing: {path}")
@@ -810,6 +810,8 @@ def review_manifest(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Generate CHIM-formatted Morrowind NPC biographies with GLM.")
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument("--content-file", action="append", default=[],
+                        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
     parser.add_argument("--npc", action="append", default=[], help="Record ID or unique display name; repeatable.")
     parser.add_argument("--record-id", action="append", default=[], help="Exact record ID; repeatable and unambiguous.")
     parser.add_argument("--limit", type=int, default=5, help="Maximum selected NPCs. Defaults to five for safe review.")
@@ -819,7 +821,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--delay", type=float, default=0.5)
     parser.add_argument("--cache-dir", type=Path, default=default_cache_dir())
     parser.add_argument("--refresh-uesp-cache", action="store_true")
-    parser.add_argument("--skip-uesp", action="store_true")
+    parser.add_argument("--skip-uesp", action="store_true",
+                        help="Retained for command compatibility; remote wiki acquisition is always disabled.")
     parser.add_argument("--dry-run", action="store_true", help="Extract identities and evidence without calling GLM.")
     output_dir = Path(__file__).resolve().parent / "output"
     parser.add_argument("--output", type=Path, default=output_dir / "morrowind-biographies.json")
@@ -841,6 +844,10 @@ def parse_args() -> argparse.Namespace:
     args = parser.parse_args()
     if args.limit < 1:
         parser.error("--limit must be at least 1")
+    content_files = tuple(args.content_file or CONTENT_FILES)
+    if len({value.casefold() for value in content_files}) != len(content_files):
+        parser.error("--content-file values must be unique")
+    args.content_files = content_files
     return args
 
 
@@ -849,7 +856,7 @@ def main() -> int:
     api_key = os.getenv(args.api_key_env, "").strip()
     if not args.dry_run and not api_key:
         raise RuntimeError(f"Live GLM generation requires the {args.api_key_env} environment variable")
-    catalog, actor_aliases, hashes = extract_npcs(args.data_dir)
+    catalog, actor_aliases, hashes = extract_npcs(args.data_dir, args.content_files)
     selected = select_npcs(catalog, args.npc, args.limit, args.record_id)
     print(f"[esm] {len(catalog)} winning official NPC records; selected {len(selected)}")
 
@@ -877,11 +884,7 @@ def main() -> int:
             chim_rows.append(resume_chim[resume_key])
             print(f"[skip] {index}/{len(selected)} {npc['display_name']}: checkpointed")
             continue
-        uesp = (
-            {"status": "skipped", "paragraphs": [], "infobox": {}}
-            if args.skip_uesp
-            else find_uesp_evidence(session, npc, args.cache_dir, args.timeout, args.refresh_uesp_cache)
-        )
+        uesp = {"status": "skipped", "paragraphs": [], "infobox": {}}
         evidence = compact_evidence(npc, uesp)
         print(f"[source] {index}/{len(selected)} {npc['display_name']} ({npc['record_id']}): UESP {uesp['status']}")
         generated: dict[str, str] | None = None
