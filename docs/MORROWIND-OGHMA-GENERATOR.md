@@ -47,7 +47,7 @@ python scripts/run-morrowind-oghma-preflight.py `
 
 This locks `selection.json`, hashes the supplied ESMs, ontology, and topic inventory, validates aliases and access classes, and resolves official record links.
 
-Official dialogue responses from the supplied content files are retained as first-party evidence for every expansion topic. Remote wiki acquisition is disabled; an approved wiki export requires a separate offline import path.
+Official dialogue responses from the supplied content files are retained as first-party evidence for every expansion topic. Seeds may also name exact UESP pages and revision IDs. The generator then acquires only those locked revisions, records them with the run evidence, and fails review if the returned revision differs.
 
 ## GLM review generation
 
@@ -78,12 +78,56 @@ catalog and filters mod-sourced rows against the current turn's OpenMW content l
 article count is determined by the reviewed topic inventory rather than a storage allocation.
 Ordinary NPCs, walkthroughs, quest stages, and player-dependent outcomes remain excluded.
 
-Tamriel Rebuilt expansion audits begin with regular dialogue subjects and may add separately reviewed
-record-backed topics. They do not imply exhaustive coverage of every `CELL`, `BOOK`, creature, item,
-or other record in `TR_Mainland.esm`; many such records are interiors, variants, ordinary objects, or
-other subjects that do not warrant a standalone encyclopedia article. Basic prose is optional for mod
-articles and should remain empty unless the facts are broadly known. Advanced and basic access-class
-lists must not overlap.
+Tamriel Rebuilt subject expansions remain review-scoped by content type. The location expansion is
+exhaustive for released, unique places documented by UESP's recursive Tamriel Rebuilt place categories
+and public location indexes. It is not a raw one-article-per-`CELL` export: duplicate interiors,
+redirects, deprecated or testing pages, indexes, and unreleased subjects are excluded with recorded
+reasons. Other record types, including books, creatures, and items, require their own inventories.
+
+For major settlements, regions, and other publicly recognizable places, `topic_desc_basic` contains a
+short factual description available to `common`. For an obscure place whose whereabouts are not public
+knowledge, the basic article is exactly `You do not know where <title> is.` Advanced and basic
+access-class lists must not overlap. Mod articles use in-world prose only; coordinates, implementation
+details, and references to Tamriel Rebuilt as a mod are rejected.
+
+Build the locked location inventory, generate it resumably, assemble the candidate, and audit the exact
+merged output:
+
+```powershell
+python scripts/build-tamriel-rebuilt-location-seeds.py `
+  --data-dir C:\path\to\morrowind-masters `
+  --output-dir build\tamriel-rebuilt-locations
+
+python scripts/run-morrowind-oghma-preflight.py `
+  --run-dir build\tamriel-rebuilt-location-generation `
+  --data-dir C:\path\to\morrowind-masters `
+  --content-file Morrowind.esm `
+  --content-file Tribunal.esm `
+  --content-file Bloodmoon.esm `
+  --content-file TR_Mainland.esm `
+  --seeds build\tamriel-rebuilt-locations\location-seeds.json `
+  --workers 8 `
+  --max-output-tokens 8192 `
+  --resume
+
+python scripts/assemble-tamriel-rebuilt-oghma.py `
+  --reviewed build\tamriel-rebuilt-location-generation `
+  --seeds build\tamriel-rebuilt-locations\location-seeds.json `
+  --coverage build\tamriel-rebuilt-locations\coverage.json `
+  --curation resources\oghma\morrowind-official\reviews\morrowind-official-3e427-v5.16\location-curation.json `
+  --output build\morrowind-official-3e427-v5.16 `
+  --catalog-version morrowind-official-3e427-v5.16
+
+python scripts/audit-tamriel-rebuilt-location-catalog.py `
+  --base resources\oghma\morrowind-official\catalogs\morrowind-official-3e427-v5.15 `
+  --catalog build\morrowind-official-3e427-v5.16 `
+  --reviewed build\tamriel-rebuilt-location-generation `
+  --seeds build\tamriel-rebuilt-locations\location-seeds.json `
+  --coverage build\tamriel-rebuilt-locations\coverage.json `
+  --curation resources\oghma\morrowind-official\reviews\morrowind-official-3e427-v5.16\location-curation.json `
+  --ontology resources\oghma\morrowind-official\ontology.json `
+  --output-dir build\morrowind-official-3e427-v5.16-review
+```
 
 ## Current factory dataset
 
@@ -133,6 +177,19 @@ curated v4 inventory with exact official BOOK evidence links. The preflight gene
 official book text directly from the locally installed ESMs and may supplement it with
 revision-addressed UESP evidence.
 
-V4 contains 700 accepted articles, preserves v3's three editorial exclusions, and is the bundled
-factory catalog selected by `active-catalog-version.txt`. Provisioning retains v1 through v3 as
-superseded rollback targets and activates v4 last.
+V4 contains 700 accepted articles and preserves v3's three editorial exclusions. It remains checked in
+as a superseded rollback target; the currently selected factory catalog is documented below.
+
+## V5.16 Tamriel Rebuilt location expansion
+
+The active `morrowind-official-3e427-v5.16` catalog contains 2,566 articles. Its reviewed location run
+covers 1,160 released, unique Tamriel Rebuilt places: 1,053 locations, 71 settlements, and 36 regions.
+It emits 1,157 location rows, adds 1,130 topics, and safely replaces 27 earlier `TR_Mainland.esm`
+location rows, bringing the catalog to 1,266 mod-sourced rows in total. Necrom, the Padomaic Ocean,
+and the Sea of Ghosts reuse their existing canonical base articles instead of creating unreachable
+duplicates. All 1,160 source subjects retain revision-locked UESP evidence; 131 generated articles have
+factual common basics and 1,029 use the exact ignorance fallback.
+
+The generation manifest records $3.404739 of provider cost. Cost accounting is explicitly incomplete
+because 344 earlier provider responses returned usage before a JSON parse failure, while the old runner
+discarded that usage. The recorded amount must not be presented as the exact total cost.

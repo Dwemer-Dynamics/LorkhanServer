@@ -1,0 +1,51 @@
+{
+  "format": "almsivi.tamriel-rebuilt-location-curation.v1",
+  "manual_prose_overrides": [
+    {
+      "topic": "gilnyth_ancestral_tomb",
+      "uesp_revision_id": 3111524,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM prompt-identifier output with concise prose limited to the locked tomb summary."
+    },
+    {
+      "topic": "num_ittu_mine",
+      "uesp_revision_id": 3401460,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM prompt-identifier output with concise prose limited to the locked mine summary."
+    },
+    {
+      "topic": "riverbed_shipwreck",
+      "uesp_revision_id": 3081168,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM title-only output with concise prose limited to the locked shipwreck summary."
+    }
+  ],
+  "validator_corrections": [
+    {
+      "topic": "saekim_sur_grotto",
+      "uesp_revision_id": 3082850,
+      "reason": "allow_in_world_profession",
+      "note": "Treat lute player as an in-world profession rather than meta-game player language."
+    }
+  ],
+  "existing_catalog_coverage": [
+    {
+      "topic": "tr_necrom",
+      "existing_topic": "necrom",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Necrom article."
+    },
+    {
+      "topic": "tr_padomaic_ocean",
+      "existing_topic": "padomaic_ocean",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Padomaic Ocean article."
+    },
+    {
+      "topic": "tr_sea_of_ghosts",
+      "existing_topic": "sea_of_ghosts",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Sea of Ghosts article."
+    }
+  ]
+}
