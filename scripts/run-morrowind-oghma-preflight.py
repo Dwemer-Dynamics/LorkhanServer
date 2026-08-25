@@ -20,7 +20,7 @@ import requests
 
 
 FORMAT_VERSION = "almsivi.morrowind-oghma-preflight.v1"
-GENERATION_RULESET = "morrowind-oghma-static-3e427-v2"
+GENERATION_RULESET = "morrowind-oghma-static-3e427-v5"
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 DEFAULT_MODEL = "z-ai/glm-5.1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -46,19 +46,26 @@ the supplied official identity and source evidence conservatively. Do not mentio
 records, form IDs, files, databases, wikis, UESP, prompts, language models, statistics, levels, mechanics, or source
 material. Do not reproduce book or dialogue passages. Do not invent disputed claims, secret motives, relationships,
 appearance, ownership, outcomes, or prophecy fulfillment. When accounts disagree, state the uncertainty briefly.
+Use only affirmative facts present in the supplied evidence. Do not extrapolate titles, political status, exact rules,
+numeric ranges, named people, landmarks, history, or social customs that the evidence does not directly establish.
 If official dialogue is tied to an errand or dispute, extract only stable encyclopedic knowledge. Never narrate a
 one-time request, theft, commercial scheme, investigation, missing person, delivery, payment, current plan, or its
 ordinary participants. Do not name ordinary NPCs unless the locked subject itself is a reviewed major figure.
 
-The advanced article must explain the subject's identity, significance, and stable context in 55-150 words. The
-basic article must be a separately written 18-65 word account containing only broadly available knowledge; aim for
-35-55 words so it remains safely inside that hard limit. It must
-not be a clipped copy of the advanced article. Return useful search aliases only when supported. Return 2-12 concise
+The advanced article must explain the subject's identity, significance, and stable context in no more than 150 words.
+The basic article is optional and should usually be empty. Write one only when ordinary people would broadly know
+useful facts about the subject without specialist, faction, regional, religious, scholarly, or professional knowledge.
+When present, it must be a separately written account of no more than 65 words. Never move restricted facts into it
+merely to fill the field. Short, complete advanced articles are valid when evidence is sparse; never pad either field.
+The basic article must not be a clipped copy of the advanced article. If it is empty, return an empty basic class list.
+No access class may appear in both the advanced and basic class lists. Return useful search aliases only when supported. Return 2-12 concise
 search tags. Select knowledge access classes only from the supplied allowlist, keeping the seed classes unless the
 evidence clearly supports an additional class. Select exactly the supplied category.
 
-Always return full prose in both description fields, including on a repair. Never return null, None, a refusal,
-an apology, or a placeholder. Avoid every forbidden out-of-world word literally, including the word game.
+Always return full advanced prose, including on a repair. Return the basic description as an empty string when the
+subject is not common knowledge. Never return null, None, a refusal,
+an apology, or a placeholder. Avoid forbidden out-of-world phrases; an in-world subject name containing an otherwise
+ordinary word remains valid.
 """
 
 ARTICLE_SCHEMA = {
@@ -513,6 +520,14 @@ def build_evidence(topic: dict[str, Any], uesp: dict[str, Any], dialogue: dict[s
         "seed_aliases: " + ", ".join(topic.get("aliases", [])),
         "seed_classes: " + ", ".join(topic.get("classes", [])),
     ]
+    if topic.get("domain_instructions"):
+        lines.append("domain_instructions: " + str(topic["domain_instructions"]))
+    for fact in topic.get("evidence_facts", []):
+        lines.append("locked_evidence_fact: " + str(fact))
+    if topic.get("required_phrases"):
+        lines.append("required_advanced_phrases: " + " | ".join(str(value) for value in topic["required_phrases"]))
+    if topic.get("forbidden_phrases"):
+        lines.append("unsupported_phrases_forbidden_in_prose: " + " | ".join(str(value) for value in topic["forbidden_phrases"]))
     for record in topic.get("resolved_records", []):
         lines.append("official_record: " + json.dumps(record, ensure_ascii=False, sort_keys=True))
     book_budget = 24000
@@ -602,12 +617,21 @@ def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated
         re.sub(r"[^a-z0-9]+", "", str(topic[field]).casefold()) for field in ("topic", "title")
     }
     aliases = [value for value in aliases if re.sub(r"[^a-z0-9]+", "", value.casefold()) not in canonical_keys]
+    advanced_classes = article_classes(topic, ontology, generated, "knowledge_class")
+    if not advanced_classes:
+        advanced_classes = [{
+            "alchemy": "alchemist", "creatures": "hunter", "diseases": "healer",
+            "equipment": "blacksmith", "ingredients": "alchemist",
+        }.get(topic["category"], "scholar")]
+    basic_desc = re.sub(r"\s+", " ", str(generated.get("topic_desc_basic", ""))).strip()
+    basic_classes = article_classes(topic, ontology, generated, "knowledge_class_basic") if basic_desc else []
+    basic_classes = [value for value in basic_classes if value not in set(advanced_classes)]
     article = {
         "topic": topic["topic"], "title": topic["title"],
         "topic_desc": re.sub(r"\s+", " ", str(generated.get("topic_desc", ""))).strip(),
-        "knowledge_class": article_classes(topic, ontology, generated, "knowledge_class"),
-        "topic_desc_basic": re.sub(r"\s+", " ", str(generated.get("topic_desc_basic", ""))).strip(),
-        "knowledge_class_basic": article_classes(topic, ontology, generated, "knowledge_class_basic"),
+        "knowledge_class": advanced_classes,
+        "topic_desc_basic": basic_desc,
+        "knowledge_class_basic": basic_classes,
         "tags": unique_strings(generated.get("tags", [])), "category": topic["category"],
         "aliases": aliases[: int(ontology["prose"]["max_aliases"])],
         "record_links": topic.get("resolved_records", []),
@@ -622,11 +646,17 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
     prose = ontology["prose"]
     advanced_words = word_count(article["topic_desc"])
     basic_words = word_count(article["topic_desc_basic"])
-    if not prose["advanced_min_words"] <= advanced_words <= prose["advanced_max_words"]:
+    if advanced_words < 1 or advanced_words > prose["advanced_max_words"]:
         errors.append(f"advanced article has {advanced_words} words")
-    if not prose["basic_min_words"] <= basic_words <= prose["basic_max_words"]:
+    prose_key = re.sub(r"[^a-z0-9]+", "", article["topic_desc"].casefold())
+    title_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
+    if prose_key == title_key:
+        errors.append("advanced article only repeats the title")
+    if basic_words > prose["basic_max_words"]:
         errors.append(f"basic article has {basic_words} words")
     for field in ("topic_desc", "topic_desc_basic"):
+        if "\ufffd" in article[field]:
+            errors.append(f"{field} contains a replacement character")
         if FORBIDDEN.search(article[field]):
             errors.append(f"{field} contains forbidden out-of-world language")
         if POST_GAME.search(article[field]):
@@ -642,11 +672,25 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
     if len(article["aliases"]) > int(prose["max_aliases"]):
         errors.append("alias count is outside the ontology bounds")
     allowed = set(ontology["knowledge_classes"])
-    for field in ("knowledge_class", "knowledge_class_basic"):
-        if not article[field] or any(value not in allowed for value in article[field]):
-            errors.append(f"{field} is empty or outside the ontology")
+    if not article["knowledge_class"] or any(value not in allowed for value in article["knowledge_class"]):
+        errors.append("knowledge_class is empty or outside the ontology")
+    if any(value not in allowed for value in article["knowledge_class_basic"]):
+        errors.append("knowledge_class_basic is outside the ontology")
+    if bool(article["topic_desc_basic"]) != bool(article["knowledge_class_basic"]):
+        errors.append("basic prose and basic classes must either both be present or both be empty")
+    overlap = set(article["knowledge_class"]) & set(article["knowledge_class_basic"])
+    if overlap:
+        errors.append("advanced and basic classes overlap: " + ", ".join(sorted(overlap)))
     if not prose["min_tags"] <= len(article["tags"]) <= prose["max_tags"]:
         errors.append("tag count is outside the ontology bounds")
+    advanced_folded = article["topic_desc"].casefold()
+    for phrase in topic.get("required_phrases", []):
+        if str(phrase).casefold() not in advanced_folded:
+            errors.append(f"advanced article is missing required phrase: {phrase}")
+    all_prose = f"{article['topic_desc']} {article['topic_desc_basic']}".casefold()
+    for phrase in topic.get("forbidden_phrases", []):
+        if str(phrase).casefold() in all_prose:
+            errors.append(f"article contains unsupported phrase: {phrase}")
     return errors
 
 
@@ -826,7 +870,7 @@ def main() -> int:
             else:
                 uesp = {"status": "skipped", "page": None, "evidence": ""}
                 dialogue_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
-                dialogue = dialogue_topics.get(dialogue_key)
+                dialogue = None if topic.get("include_dialogue_evidence") is False else dialogue_topics.get(dialogue_key)
                 evidence = build_evidence(topic, uesp, dialogue)
                 evidence_document = {"format": FORMAT_VERSION, "topic": topic["topic"], "identity": topic, "official_dialogue": dialogue, "uesp": uesp, "evidence": evidence, "evidence_sha256": hashlib.sha256(evidence.encode("utf-8")).hexdigest()}
                 atomic_json(evidence_path, evidence_document)

@@ -78,6 +78,13 @@ catalog and filters mod-sourced rows against the current turn's OpenMW content l
 article count is determined by the reviewed topic inventory rather than a storage allocation.
 Ordinary NPCs, walkthroughs, quest stages, and player-dependent outcomes remain excluded.
 
+Tamriel Rebuilt expansion audits begin with regular dialogue subjects and may add separately reviewed
+record-backed topics. They do not imply exhaustive coverage of every `CELL`, `BOOK`, creature, item,
+or other record in `TR_Mainland.esm`; many such records are interiors, variants, ordinary objects, or
+other subjects that do not warrant a standalone encyclopedia article. Basic prose is optional for mod
+articles and should remain empty unless the facts are broadly known. Advanced and basic access-class
+lists must not overlap.
+
 ## Current factory dataset
 
 The reviewed factory dataset lives under `resources/oghma/morrowind-official/catalogs/<catalog-version>/`. `active-catalog-version.txt` identifies the one checked-in dataset used by the server. Synchronization validates it first, then transactionally replaces only factory rows and current integrity metadata. Custom articles are preserved. Git revert plus redeploy is the rollback path.

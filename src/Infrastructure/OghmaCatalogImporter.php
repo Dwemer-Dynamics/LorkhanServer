@@ -138,12 +138,21 @@ final class OghmaCatalogImporter
             foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field)if(!is_array($row[$field])||!array_is_list($row[$field]))$errors[]="article {$topic} {$field} must be an array";
             if($topic===''||strlen($topic)>256||isset($topics[mb_strtolower($topic,'UTF-8')]))$errors[]="article {$index} topic is invalid or duplicate";
             if($title===''||strlen($title)>256||!in_array($category,self::CATEGORIES,true))$errors[]="article {$topic} title or category is invalid";
-            foreach(['topic_desc','topic_desc_basic']as$field){$text=trim((string)$row[$field]);if($text===''||strlen($text)>131072||!mb_check_encoding($text,'UTF-8'))$errors[]="article {$topic} {$field} is invalid";}
+            $advancedText=trim((string)$row['topic_desc']);$basicText=trim((string)$row['topic_desc_basic']);
+            if($advancedText===''||strlen($advancedText)>131072||!mb_check_encoding($advancedText,'UTF-8'))$errors[]="article {$topic} topic_desc is invalid";
+            if(strlen($basicText)>131072||!mb_check_encoding($basicText,'UTF-8'))$errors[]="article {$topic} topic_desc_basic is invalid";
+            if(is_array($row['knowledge_class'])&&is_array($row['knowledge_class_basic'])){
+                if(count($row['knowledge_class'])!==count(array_unique($row['knowledge_class'])))$errors[]="article {$topic} knowledge_class contains duplicates";
+                if(count($row['knowledge_class_basic'])!==count(array_unique($row['knowledge_class_basic'])))$errors[]="article {$topic} knowledge_class_basic contains duplicates";
+                $overlap=array_values(array_intersect($row['knowledge_class'],$row['knowledge_class_basic']));
+                if($overlap!==[])$errors[]="article {$topic} advanced and basic classes overlap";
+                if(($basicText==='')!==($row['knowledge_class_basic']===[]))$errors[]="article {$topic} basic prose and classes must both be empty or populated";
+            }
             $topics[mb_strtolower($topic,'UTF-8')]=true;
             $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if($field==='aliases')$value=self::serializeAliasName($value);if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode($field==='aliases'?', ':',',$values);}
             foreach([$topic,...$row['aliases']]as$alias){$aliasKey=preg_replace('/[^a-z0-9]+/','',mb_strtolower((string)$alias,'UTF-8'));if($aliasKey==='')continue;$owner=$aliasOwners[$aliasKey]??null;if($owner!==null&&$owner!==$topic)$errors[]="alias {$alias} collides between {$owner} and {$topic}";$aliasOwners[$aliasKey]=$topic;}
-            $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>trim((string)$row['topic_desc']),
-                'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>trim((string)$row['topic_desc_basic']),
+            $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>$advancedText,
+                'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>$basicText,
                 'knowledge_class_basic'=>$flat['knowledge_class_basic'],'tags'=>$flat['tags'],'category'=>$category,
                 'mod_source'=>$normalizedModSource];
         }
