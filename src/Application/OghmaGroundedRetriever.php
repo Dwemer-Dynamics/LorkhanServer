@@ -696,7 +696,8 @@ final class OghmaGroundedRetriever
     private function values(string $value): array
     {
         $result = [];
-        foreach (preg_split('/\s*,\s*/u', $value) ?: [] as $item) {
+        $separator = str_contains($value, '|') ? '/\s*\|\s*/u' : '/\s*[,;]\s*/u';
+        foreach (preg_split($separator, $value) ?: [] as $item) {
             $item = trim($item);
             if ($item !== '' && !in_array($item, $result, true)) $result[] = $item;
         }

@@ -357,6 +357,11 @@ $check($biographyRollback['rolled_back']===true&&$biographyRollback['catalog_ver
 $biographyProvisionAfterRollback=$biographyImporter->provision($biographyV2Json,$biographyV2Manifest,'biography-v2');
 $check($biographyProvisionAfterRollback['applied']===false&&$biographyProvisionAfterRollback['state']==='superseded',
     'routine biography provisioning overrode an explicit rollback');
+$factoryBiographyRoot=dirname(__DIR__).'/resources/biographies/morrowind-official';
+$factoryBiographyVersion=trim((string)file_get_contents($factoryBiographyRoot.'/catalog-version.txt'));
+$factoryBiographyPlan=$biographyImporter->plan($factoryBiographyRoot.'/biographies.json',$factoryBiographyRoot.'/manifest.json',$factoryBiographyVersion);
+$check($factoryBiographyPlan['valid']===true&&$factoryBiographyPlan['row_count']===12674&&$factoryBiographyPlan['duplicate_count']===0,
+    'combined vanilla and Tamriel Rebuilt biography catalog validation failed: '.json_encode($factoryBiographyPlan['errors']));
 foreach(glob($biographyFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($biographyFixtureRoot);
 $check($service->resetItemDescriptions($installation)===2&&$products->customItemDescriptions($installation)===[],'description override reset failed');
 $check($profile['current_revision'] === 1, 'profile creation failed');
@@ -803,7 +808,7 @@ $factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE
 $factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
 $factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
 $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
-    &&$factorySyncVersion==='morrowind-official-3e427-v5.17'&&$factorySyncRows===3743&&$factorySyncCustomRows===1,
+    &&$factorySyncVersion==='morrowind-official-3e427-v5.20'&&$factorySyncRows===3743&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');

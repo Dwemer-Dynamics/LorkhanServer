@@ -172,16 +172,16 @@ def transcluded_place_links(client: UespClient) -> dict[str, set[str]]:
 
 def field_values(wikitext: str, field: str) -> list[str]:
     values = []
-    pattern = rf"^\|\s*{re.escape(field)}(?:\d+)?\s*=\s*(.+?)\s*$"
+    pattern = rf"^\|[^\S\r\n]*{re.escape(field)}(?:\d+)?[^\S\r\n]*=[^\S\r\n]*([^\r\n]+?)[^\S\r\n]*$"
     for value in re.findall(pattern, wikitext, flags=re.IGNORECASE | re.MULTILINE):
         value = re.sub(r"<!--.*?-->", "", value)
         value = re.sub(r"\[\[(?:[^]|]+\|)?([^]]+)]]", r"\1", value)
         value = re.sub(r"\{\{[^{}]+}}", "", value)
-        value = re.sub(r"<br\s*/?>", ";", value, flags=re.IGNORECASE)
+        value = re.sub(r"</?br\s*/?>", ";", value, flags=re.IGNORECASE)
         quoted = re.findall(r'"([^"\r\n]+)"', value)
         fragments = quoted or re.split(r"\s*;\s*", value)
         for fragment in fragments:
-            fragment = clean_title(fragment.strip().strip('"\''))
+            fragment = clean_title(fragment.strip(" \"',"))
             if fragment and len(fragment.encode("utf-8")) <= 256:
                 values.append(fragment)
     return values
