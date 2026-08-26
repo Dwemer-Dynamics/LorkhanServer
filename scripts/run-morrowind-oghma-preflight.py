@@ -33,7 +33,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 RESOURCE_DIR = SCRIPT_DIR.parent / "resources" / "oghma" / "morrowind-official"
 DEFAULT_SEEDS = RESOURCE_DIR / "topic-seeds.json"
 DEFAULT_ONTOLOGY = RESOURCE_DIR / "ontology.json"
-RECORD_TYPES = {b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC", b"BOOK", b"CELL", b"REGN"}
+RECORD_TYPES = {
+    b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC", b"BOOK", b"CELL", b"REGN",
+    b"INGR", b"SPEL", b"RACE", b"FACT",
+}
 
 SYSTEM_PROMPT = """You write concise, source-grounded Morrowind encyclopedia entries for the CHIM Oghma Infinium system.
 
@@ -697,6 +700,9 @@ def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated
         }.get(topic["category"], "scholar")]
     basic_desc = re.sub(r"\s+", " ", str(generated.get("topic_desc_basic", ""))).strip()
     basic_classes = article_classes(topic, ontology, generated, "knowledge_class_basic") if basic_desc else []
+    if topic.get("basic_mode") == "common" and basic_desc:
+        # Common-mode access is a formatter contract, not a profile-specific choice.
+        basic_classes = ["common"]
     if topic.get("basic_mode") == "unknown" and "common" not in advanced_classes:
         basic_desc = f"You do not know where {topic['title']} is."
         basic_classes = ["common"]

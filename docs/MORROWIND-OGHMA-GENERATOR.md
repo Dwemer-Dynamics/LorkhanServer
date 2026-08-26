@@ -180,9 +180,25 @@ revision-addressed UESP evidence.
 V4 contains 700 accepted articles and preserves v3's three editorial exclusions. It remains checked in
 as a superseded rollback target; the currently selected factory catalog is documented below.
 
+## V5.17 Tamriel Rebuilt full catalog
+
+The active `morrowind-official-3e427-v5.17` catalog contains 3,743 articles, including 2,443 scoped to
+`TR_Mainland.esm`. This pass adds 1,177 reviewed Tamriel Rebuilt subjects: 530 books, 491 ingredients,
+69 artifacts, 23 creatures, 19 diseases, 15 factions, 12 cultures, 11 races, three magic subjects,
+two history subjects, one lore subject, and one religion subject. It also fills the 106 basic-knowledge
+gaps left in the v5.16 Tamriel Rebuilt rows.
+
+Every catalog article now has a non-empty basic description and a non-empty basic class. New and
+backfilled entries use `common` only for basic access, with no class repeated between advanced and
+basic knowledge. Book basics identify the work and its core subject in a short, self-contained form;
+creatures and all other accepted categories also carry common knowledge. The run preserves in-world
+prose, excludes coordinates and mod or quest language, resolves new record links against the locked
+five-master source set, and records $6.918051891 in fully accounted GLM 5.1 provider cost, including
+the approved pilot and rejected attempts.
+
 ## V5.16 Tamriel Rebuilt location expansion
 
-The active `morrowind-official-3e427-v5.16` catalog contains 2,566 articles. Its reviewed location run
+The superseded `morrowind-official-3e427-v5.16` catalog contains 2,566 articles. Its reviewed location run
 covers 1,160 released, unique Tamriel Rebuilt places: 1,053 locations, 71 settlements, and 36 regions.
 It emits 1,157 location rows, adds 1,130 topics, and safely replaces 27 earlier `TR_Mainland.esm`
 location rows, bringing the catalog to 1,266 mod-sourced rows in total. Necrom, the Padomaic Ocean,

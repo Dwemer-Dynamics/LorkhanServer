@@ -1,0 +1,150 @@
+{
+  "catalog_version": "morrowind-official-3e427-v5.17",
+  "base_rows": 2566,
+  "backfilled_rows": 106,
+  "new_rows": 1177,
+  "final_rows": 3743,
+  "tamriel_rebuilt_rows": 2443,
+  "all_basic_populated": true,
+  "new_and_backfilled_basic_classes_common_only": true,
+  "existing_field_preservation_verified": true,
+  "backfill_advanced_common_removed": [
+    "ohmes_raht",
+    "ayleid"
+  ],
+  "generation_cost_usd": 6.918051891,
+  "staging_articles_sha256": "bcdb529ef1f625a0258e1e65595e24529652cecb011d1682d864cb941a89bf6d",
+  "catalog_articles_sha256": "f39832e30ba1ec7377767e23e2273b0d27316547a4f0596b3ec2a1866f681836",
+  "alias_key_count": 6365,
+  "dropped_alias_collisions": 1,
+  "generation_runs": [
+    {
+      "run": "backfill",
+      "selected": 106,
+      "completed": 100,
+      "failed": 6,
+      "recorded_cost": 0.5246955016000001,
+      "accounting_complete": true
+    },
+    {
+      "run": "nonbook",
+      "selected": 138,
+      "completed": 128,
+      "failed": 10,
+      "recorded_cost": 0.5070219703999999,
+      "accounting_complete": true
+    },
+    {
+      "run": "books",
+      "selected": 528,
+      "completed": 117,
+      "failed": 9,
+      "recorded_cost": 0.8401311992000006,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients",
+      "selected": 489,
+      "completed": 145,
+      "failed": 10,
+      "recorded_cost": 0.45387489519999996,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-1",
+      "selected": 103,
+      "completed": 98,
+      "failed": 5,
+      "recorded_cost": 0.6555066324000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-2",
+      "selected": 103,
+      "completed": 90,
+      "failed": 13,
+      "recorded_cost": 0.7123951627999996,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-3",
+      "selected": 103,
+      "completed": 96,
+      "failed": 7,
+      "recorded_cost": 0.6573086984000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-4",
+      "selected": 102,
+      "completed": 91,
+      "failed": 11,
+      "recorded_cost": 0.7342114960000002,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-1",
+      "selected": 86,
+      "completed": 72,
+      "failed": 14,
+      "recorded_cost": 0.3587499772000002,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-2",
+      "selected": 86,
+      "completed": 73,
+      "failed": 13,
+      "recorded_cost": 0.20473509400000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-3",
+      "selected": 86,
+      "completed": 81,
+      "failed": 5,
+      "recorded_cost": 0.18823122839999995,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-4",
+      "selected": 86,
+      "completed": 80,
+      "failed": 6,
+      "recorded_cost": 0.18604614079999998,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-1",
+      "selected": 90,
+      "completed": 76,
+      "failed": 14,
+      "recorded_cost": 0.4934051804000004,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-2",
+      "selected": 14,
+      "completed": 10,
+      "failed": 4,
+      "recorded_cost": 0.07507816560000001,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-3",
+      "selected": 4,
+      "completed": 4,
+      "failed": 0,
+      "recorded_cost": 0.017648764400000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "assembly-repair",
+      "selected": 2,
+      "completed": 2,
+      "failed": 0,
+      "recorded_cost": 0.009040784,
+      "accounting_complete": true
+    }
+  ]
+}

@@ -140,13 +140,13 @@ final class OghmaCatalogImporter
             if($title===''||strlen($title)>256||!in_array($category,self::CATEGORIES,true))$errors[]="article {$topic} title or category is invalid";
             $advancedText=trim((string)$row['topic_desc']);$basicText=trim((string)$row['topic_desc_basic']);
             if($advancedText===''||strlen($advancedText)>131072||!mb_check_encoding($advancedText,'UTF-8'))$errors[]="article {$topic} topic_desc is invalid";
-            if(strlen($basicText)>131072||!mb_check_encoding($basicText,'UTF-8'))$errors[]="article {$topic} topic_desc_basic is invalid";
+            if($basicText===''||strlen($basicText)>131072||!mb_check_encoding($basicText,'UTF-8'))$errors[]="article {$topic} topic_desc_basic is invalid";
             if(is_array($row['knowledge_class'])&&is_array($row['knowledge_class_basic'])){
                 if(count($row['knowledge_class'])!==count(array_unique($row['knowledge_class'])))$errors[]="article {$topic} knowledge_class contains duplicates";
                 if(count($row['knowledge_class_basic'])!==count(array_unique($row['knowledge_class_basic'])))$errors[]="article {$topic} knowledge_class_basic contains duplicates";
                 $overlap=array_values(array_intersect($row['knowledge_class'],$row['knowledge_class_basic']));
                 if($overlap!==[])$errors[]="article {$topic} advanced and basic classes overlap";
-                if(($basicText==='')!==($row['knowledge_class_basic']===[]))$errors[]="article {$topic} basic prose and classes must both be empty or populated";
+                if($row['knowledge_class_basic']===[])$errors[]="article {$topic} knowledge_class_basic is empty";
             }
             $topics[mb_strtolower($topic,'UTF-8')]=true;
             $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if($field==='aliases')$value=self::serializeAliasName($value);if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode($field==='aliases'?', ':',',$values);}
