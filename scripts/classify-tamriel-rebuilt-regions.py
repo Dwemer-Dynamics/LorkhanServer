@@ -642,7 +642,7 @@ def main() -> int:
     parser.add_argument("--model", default="z-ai/glm-5.1")
     parser.add_argument("--max-glm-cost", type=float, default=1.0)
     parser.add_argument("--catalog-package-dir", type=Path)
-    parser.add_argument("--catalog-version", default="morrowind-official-3e427-v5.20")
+    parser.add_argument("--catalog-version", default="morrowind-official-3e427-v5.21")
     parser.add_argument("--base-catalog-manifest", type=Path, default=Path(__file__).resolve().parents[1] /
                         "resources" / "oghma" / "morrowind-official" / "catalogs" /
                         "morrowind-official-3e427-v5.17" / "manifest.json")

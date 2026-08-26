@@ -803,12 +803,12 @@ $check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location'
     'Oghma factory sync did not reject missing CSRF');
 $factorySync=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
     '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
-$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=3743&installation_id='.$installation.'&embed=1';
+$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
 $factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
 $factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
 $factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
 $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
-    &&$factorySyncVersion==='morrowind-official-3e427-v5.20'&&$factorySyncRows===3743&&$factorySyncCustomRows===1,
+    &&$factorySyncVersion==='morrowind-official-3e427-v5.21'&&$factorySyncRows===3741&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
