@@ -110,6 +110,13 @@ foreach([null,[],"bad\0note",str_repeat('x',2001)] as $badNote){
     try{\ALMSIVIserver\Application\RelationshipCustomInfo::validate($badNote);$check(false,'invalid custom info accepted');}
     catch(InvalidArgumentException){$check(true,'invalid custom info rejected');}
 }
+$legacyRelationshipIdentity=['record_id'=>'legacy_actor','display_name'=>'Legacy actor'];
+$check(\ALMSIVIserver\Application\RelationshipIdentity::validate($legacyRelationshipIdentity,true)===$legacyRelationshipIdentity,
+    'restore accepts a bounded legacy relationship identity');
+foreach([[$legacyRelationshipIdentity,false],[['kind'=>'invented','record_id'=>'bad'],true]]as[$badIdentity,$allowLegacy]){
+    try{\ALMSIVIserver\Application\RelationshipIdentity::validate($badIdentity,$allowLegacy);$check(false,'invalid relationship identity accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid relationship identity rejected');}
+}
 $check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
     'history build accepts bounded absolute scores');
 foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],

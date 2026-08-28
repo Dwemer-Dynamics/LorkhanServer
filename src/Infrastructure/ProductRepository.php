@@ -1254,8 +1254,65 @@ SQL);
     {
         return$this->transaction(function()use($document,$now):array{$counts=['memories'=>0,'relationships'=>0,'narratives'=>0];$scope=$document['scope'];$key=hash('sha256',$this->encode($document));
             foreach($document['data']['memories'] as$i=>$r){$id=$this->deterministicUuid('restore:memory:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM memory_records WHERE memory_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn()){$this->db->prepare('INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'tier'=>$r['tier'],'content'=>$r['content'],'terms'=>$this->pgArray($r['lexical_terms']),'vector'=>$this->encode(\ALMSIVIserver\Application\DeterministicRetrieval::fakeVector($r['content'])),'source'=>$r['source_event_id']??null,'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'occurred'=>$r['occurred_at'],'expires'=>$r['expires_at']??null,'now'=>$now]);}$counts['memories']++;}
-            foreach($document['data']['relationships'] as$i=>$r){$id=$this->deterministicUuid('restore:relationship:'.$key.':'.$i);$this->db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode,source_event_id,custom_info,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),:disposition,:affinity,:mode,:source,:custom,:now) ON CONFLICT(relationship_id) DO NOTHING')->execute($this->scopeParams($scope)+['id'=>$id,'identity'=>$this->encode($r['actor_identity']),'disposition'=>(int)$r['disposition'],'affinity'=>(int)$r['affinity'],'mode'=>$r['source_mode']??'manual','custom'=>\ALMSIVIserver\Application\RelationshipCustomInfo::validate(array_key_exists('custom_info',$r)?$r['custom_info']:''),'source'=>$r['source_event_id']??null,'now'=>$now]);$counts['relationships']++;}
+            $relationships=$document['data']['relationships'];
+            usort($relationships,fn(array$a,array$b):int=>$this->restoreRelationshipKey($a)<=>$this->restoreRelationshipKey($b));
+            $previous=null;foreach($relationships as$r){
+                $restoreKey=$this->restoreRelationshipKey($r);
+                if($restoreKey===$previous)throw new RuntimeException('relationship_restore_conflict');
+                $this->restoreRelationship($scope,$r,$now);$counts['relationships']++;$previous=$restoreKey;
+            }
             foreach($document['data']['narratives'] as$i=>$r){$id=$this->deterministicUuid('restore:narrative:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM narrative_records WHERE narrative_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn())$this->db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'kind'=>$r['kind'],'title'=>$r['title'],'content'=>$r['content'],'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'now'=>$now]);$counts['narratives']++;}return$counts;});
+    }
+
+    private function restoreRelationshipKey(array $row):string
+    {
+        $identity=$row['actor_identity'];
+        return isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum'])
+            ?'stable:'.$this->actorKey($identity):'legacy:'.$row['relationship_id'];
+    }
+
+    /** Reconcile one imported relationship without overwriting a local edit or resurrecting a deletion. */
+    private function restoreRelationship(array $scope,array $row,string $now):void
+    {
+        $identity=$row['actor_identity'];$identityJson=$this->encode($identity);
+        $custom=array_key_exists('custom_info',$row)
+            ?\ALMSIVIserver\Application\RelationshipCustomInfo::validate($row['custom_info']):null;
+        $stable=isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum']);
+        $existing=[];
+        if($stable){
+            $id=Uuid::v4();$lockKey='relationship:'.implode(':',$this->scopeParams($scope)).':'.$this->actorKey($identity);
+            $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');$lock->execute(['key'=>$lockKey]);
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,custom_info,deleted_at FROM relationship_records '
+                .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
+                .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
+                .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
+                .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
+            $query->execute($this->scopeParams($scope)+['identity'=>$identityJson,'exact_identity'=>$identityJson]);
+            $existing=$query->fetchAll();
+        }else{
+            $id=$this->deterministicUuid('restore:relationship:'.implode(':',$this->scopeParams($scope)).':'.$row['relationship_id']);
+            $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
+            $lock->execute(['key'=>'restore-relationship:'.$id]);
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,custom_info,deleted_at FROM relationship_records '
+                .'WHERE relationship_id=:id FOR UPDATE');$query->execute(['id'=>$id]);$existing=$query->fetchAll();
+        }
+        $active=array_values(array_filter($existing,static fn(array$value):bool=>$value['deleted_at']===null));
+        if(count($active)>1||($existing!==[]&&$active===[]))throw new RuntimeException('relationship_restore_conflict');
+        if($active!==[]){
+            $saved=$active[0];
+            if((int)$saved['disposition']!==(int)$row['disposition']||(int)$saved['affinity']!==(int)$row['affinity']
+                ||($custom!==null&&(string)$saved['custom_info']!==$custom))throw new RuntimeException('relationship_restore_conflict');
+            return;
+        }
+        $this->db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
+            .'disposition,affinity,source_mode,custom_info,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+            .':disposition,:affinity,\'manual\',:custom,:now)')->execute($this->scopeParams($scope)+[
+                'id'=>$id,'identity'=>$identityJson,'disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'custom'=>$custom??'','now'=>$now]);
+        $after=['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'revision'=>1];
+        if($custom!==null&&$custom!=='')$after['custom_info_changed']=true;
+        $this->db->prepare('INSERT INTO relationship_audit(audit_id,relationship_id,mode,before_value,after_value,reason,created_at) '
+            .'VALUES(:audit,:id,\'manual\',\'{}\'::jsonb,CAST(:after AS jsonb),\'Manual backup restore\',:now)')->execute([
+                'audit'=>Uuid::v4(),'id'=>$id,'after'=>$this->encode($after),'now'=>$now]);
     }
 
     /** Return only safe, displayable in-game controls for this active session and actor. */

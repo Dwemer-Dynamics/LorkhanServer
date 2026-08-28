@@ -417,11 +417,18 @@ assert request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csr
 private_relationship_note='\nKeep <&> 古\nTrailing spaces  '
 r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info=private_relationship_note.replace('\n','\r\n'))); relationship_page,body=parse(r)
 assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note
-exported_relationships=json.loads(request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json').read())['data']['relationships']
+private_relationship_backup=json.loads(request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json').read())
+exported_relationships=private_relationship_backup['data']['relationships']
 assert next(row for row in exported_relationships if row['relationship_id']==relationship_id)['custom_info']==private_relationship_note
 latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
 r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info='')); relationship_page,body=parse(r)
 assert re.search(custom_info_pattern,body,re.S)[1]==''
+try:
+    opener.open(urllib.request.Request(base+'/ALMSIVIserver/manage/api/v1/playthrough-restore',
+        data=json.dumps(private_relationship_backup).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':csrf}),timeout=5)
+    raise AssertionError('conflicting relationship restore was accepted')
+except urllib.error.HTTPError as error:
+    assert error.code==409 and json.loads(error.read())['error']=='relationship_restore_conflict'
 r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,disposition='99',affinity='6',custom_info='Stale overwrite',reason='Stale edit')); body=r.read().decode()
 assert r.status==200 and 'relationship_revision_conflict' in r.geturl() and 'Unsaved edits were not kept' in body
 assert re.search(custom_info_pattern,body,re.S)[1]==''

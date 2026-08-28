@@ -853,11 +853,38 @@ $db->exec('SAVEPOINT custom_info_restore');
 $memoryService->restorePlaythrough($privateExport);$memoryService->restorePlaythrough($privateExport);
 $restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
 $assert(count($restoredPrivate)===1&&$restoredPrivate[0]['custom_info']===$privateNote,'explicit restore lost or duplicated Custom Info');
+$restoredMemoryCount=(int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn();
+$olderPrivateExport=$privateExport;unset($olderPrivateExport['data']['relationships'][0]['custom_info']);
+$memoryService->restorePlaythrough($olderPrivateExport);
+$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']===$privateNote,
+    'older relationship backup cleared newer Custom Info');
+$duplicateExport=$privateExport;$duplicateExport['data']['relationships'][]=$duplicateExport['data']['relationships'][0];
+try{$memoryService->restorePlaythrough($duplicateExport);throw new RuntimeException('duplicate relationship restore was accepted');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','duplicate relationship restore had wrong result');}
+$conflictingExport=$privateExport;$conflictingExport['data']['relationships'][0]['disposition']=-99;
+try{$memoryService->restorePlaythrough($conflictingExport);throw new RuntimeException('relationship restore overwrote local state');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','unexpected relationship restore conflict');}
+$assert((int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn()===$restoredMemoryCount
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['disposition']===$restoredPrivate[0]['disposition'],
+    'relationship restore conflict committed partial data');
+$products->deleteRelationship($restoredPrivate[0]['relationship_id'],$memoryNow,1);
+try{$memoryService->restorePlaythrough($privateExport);throw new RuntimeException('relationship restore resurrected a deleted record');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','deleted relationship restore had wrong result');}
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 unset($privateExport['data']['relationships'][0]['custom_info']);
 $memoryService->restorePlaythrough($privateExport);
 $assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']==='',
     'legacy export without Custom Info did not restore the empty default');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+$legacyRestore=$privateExport;$legacyRestore['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
+$legacyRestore['data']=['memories'=>[],'narratives'=>[],'relationships'=>[[
+    'relationship_id'=>$newUuid(5810),'actor_identity'=>['record_id'=>'legacy_restore','display_name'=>'Legacy restore'],
+    'disposition'=>7,'affinity'=>8,'custom_info'=>'legacy private note',
+]]];
+$memoryService->restorePlaythrough($legacyRestore);$memoryService->restorePlaythrough($legacyRestore);
+$legacyRows=$products->exportScope($legacyRestore['scope'])['relationships'];
+$assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']==='legacy_restore'
+    &&$legacyRows[0]['custom_info']==='legacy private note','legacy relationship restore was not stable and idempotent');
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
     static fn(array$row):bool=>$row['source_kind']==='relationship'));

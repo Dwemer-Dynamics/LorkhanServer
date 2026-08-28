@@ -91,6 +91,8 @@ final class ManagementRouter
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
         catch(RuntimeException $e){
+            if($e->getMessage()==='relationship_restore_conflict')
+                return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),409):Response::json(409,['error'=>$e->getMessage()]);
             if(in_array($e->getMessage(),['relationship_revision_conflict','relationship_already_exists'],true)){
                 if($this->htmlRequest($r))return $this->redirect($this->relationshipPageLocation($this->form($r),$e->getMessage()));
                 return Response::json(409,['error'=>$e->getMessage()]);

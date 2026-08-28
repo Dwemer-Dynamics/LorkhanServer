@@ -220,14 +220,7 @@ final class ProductService
             if (!is_int($input['expected_revision'] ?? null) || $input['expected_revision'] < 1) throw new InvalidArgumentException('invalid_relationship_revision');
             if (isset($input['actor_identity']) && (!is_array($input['actor_identity']) || array_is_list($input['actor_identity']))) throw new InvalidArgumentException('invalid_actor_identity');
         } else {
-            $identity=$input['actor_identity']??null;
-            if (!is_array($identity) || array_is_list($identity) || array_diff(array_keys($identity),['kind','record_id','content_file','display_name','refnum','cell'])!==[]
-                || !in_array($identity['kind']??null,['npc','creature','player'],true)) throw new InvalidArgumentException('invalid_actor_identity');
-            foreach (['record_id','content_file','display_name'] as $field) $this->boundedString($identity,$field,1,256);
-            $refnum=$identity['refnum']??null;
-            if (!is_array($refnum) || count($refnum)!==2 || !is_int($refnum['index']??null) || !is_int($refnum['content_file']??null)
-                || $refnum['index']<0 || $refnum['index']>4294967295 || $refnum['content_file']<0 || $refnum['content_file']>2147483647
-                || strlen(json_encode($identity,JSON_THROW_ON_ERROR))>4096) throw new InvalidArgumentException('invalid_actor_identity');
+            $input['actor_identity']=RelationshipIdentity::validate($input['actor_identity']??null);
         }
         foreach (['disposition', 'affinity'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < -100 || $input[$field] > 100) throw new InvalidArgumentException('invalid_relationship_value');
         if (!in_array($input['source_mode'] ?? null, ['derived', 'manual'], true)) throw new InvalidArgumentException('invalid_source_mode');
@@ -292,7 +285,17 @@ final class ProductService
         $dataKeys=array_keys($document['data']);sort($dataKeys);if($dataKeys!==['memories','narratives','relationships'])throw new InvalidArgumentException('invalid_restore');
         foreach($document['data'] as$rows)if(!is_array($rows)||!array_is_list($rows))throw new InvalidArgumentException('invalid_restore');
         foreach($document['data']['memories'] as$r)if(!is_array($r)||!in_array($r['tier']??null,['recent','mid','long'],true)||!is_string($r['content']??null)||!is_array($r['lexical_terms']??null)||!is_string($r['occurred_at']??null))throw new InvalidArgumentException('invalid_restore');
-        foreach($document['data']['relationships'] as$r)if(!is_array($r)||!is_array($r['actor_identity']??null)||!is_numeric($r['disposition']??null)||!is_numeric($r['affinity']??null))throw new InvalidArgumentException('invalid_restore');
+        foreach($document['data']['relationships'] as$r){
+            if(!is_array($r)||!is_int($r['disposition']??null)||!is_int($r['affinity']??null)
+                ||$r['disposition']<-100||$r['disposition']>100||$r['affinity']<-100||$r['affinity']>100)
+                throw new InvalidArgumentException('invalid_restore');
+            RelationshipIdentity::validate($r['actor_identity']??null,true);
+            RelationshipCustomInfo::validate(array_key_exists('custom_info',$r)?$r['custom_info']:'');
+            if(!isset($r['actor_identity']['refnum'])){
+                if(!is_string($r['relationship_id']??null))throw new InvalidArgumentException('invalid_restore');
+                $this->uuid($r['relationship_id']);
+            }
+        }
         foreach($document['data']['narratives'] as$r)if(!is_array($r)||!is_string($r['kind']??null)||!is_string($r['title']??null)||!is_string($r['content']??null))throw new InvalidArgumentException('invalid_restore');
         $this->scope($document['scope']);
         return $this->repository->restoreScope($document, $this->clock->iso());
