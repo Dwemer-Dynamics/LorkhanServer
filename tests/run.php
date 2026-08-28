@@ -103,6 +103,13 @@ foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reas
     catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
 }
 $buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
+$check(\ALMSIVIserver\Application\RelationshipCustomInfo::validate('')===''
+    &&\ALMSIVIserver\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
+    'private relationship text is optional and Unicode bounded');
+foreach([null,[],"bad\0note",str_repeat('x',2001)] as $badNote){
+    try{\ALMSIVIserver\Application\RelationshipCustomInfo::validate($badNote);$check(false,'invalid custom info accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid custom info rejected');}
+}
 $check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
     'history build accepts bounded absolute scores');
 foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],

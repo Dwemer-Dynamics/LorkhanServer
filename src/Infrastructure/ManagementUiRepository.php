@@ -255,7 +255,7 @@ SQL);
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
             'relationships' => "SELECT r.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,r.actor_identity,"
                 . "COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown actor') AS actor,"
-                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.source_mode,r.revision,r.updated_at "
+                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.custom_info,r.source_mode,r.revision,r.updated_at "
                 . "FROM relationship_records r JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "
                 . "WHERE r.deleted_at IS NULL".$relationshipFilter." ORDER BY r.updated_at DESC,r.relationship_id LIMIT 100",
             'relationship_logs' => "SELECT a.audit_id,a.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,"
@@ -390,6 +390,7 @@ SQL);
     private function redactRow(array $row): array
     {
         foreach ($row as $key => $value) {
+            if ($key === 'custom_info') continue; // Player text is not a JSON document, even when it looks like one.
             if (!is_string($value) || ($value === '' || ($value[0] !== '{' && $value[0] !== '['))) continue;
             try {
                 $decoded = json_decode($value, true, 32, JSON_THROW_ON_ERROR);

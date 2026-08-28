@@ -677,11 +677,17 @@ $historyDialogue=$db->query("SELECT dialogue_message_id,speaker FROM dialogue_ut
 $historyDelivery=$delivery;$historyDelivery['message_id']=$newUuid(5703);$historyDelivery['request_id']=$historyTurn['request_id'];
 $historyDelivery['turn_id']=$historyTurn['turn_id'];$historyDelivery['dialogue_message_id']=$historyDialogue['dialogue_message_id'];
 $historyDelivery['speaker']=json_decode($historyDialogue['speaker'],true,32,JSON_THROW_ON_ERROR);
-[$historyStatus]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
-$assert($historyStatus===200,'second historical delivery failed');
+[$historyStatus,$historyAck]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
+$assert($historyStatus===200,'second historical delivery failed: '.json_encode([$historyStatus,$historyAck]));
 $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
 $builds=new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($db);
 $buildScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id']];
+$privateBuildNote='PLAYER-ONLY CUSTOM INFO';
+$products->setRelationship($buildScope+['actor_identity'=>$turn['payload']['speaker'],
+    'disposition'=>0,'affinity'=>0,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
+$omittedIdentity=$speechTarget;$omittedIdentity['refnum']['index']+=321;
+$products->setRelationship($buildScope+['actor_identity'=>$omittedIdentity,
+    'disposition'=>11,'affinity'=>12,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
 $buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest);
 $assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
 try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
@@ -691,6 +697,7 @@ $buildProvider=new class implements \ALMSIVIserver\Application\ProfileGeneration
     public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2)throw new RuntimeException('history was reduced to one exchange or target');
+        if(str_contains(json_encode($input,JSON_THROW_ON_ERROR),'PLAYER-ONLY CUSTOM INFO'))throw new RuntimeException('private relationship text reached AI');
         if($this->during!==null)($this->during)();
         $result=['relationships'=>array_map(static fn(array $target):array=>['target_key'=>$target['target_key'],
             'disposition'=>35,'affinity'=>20,'reason'=>'A pattern of kept promises.'],$input['interlocutors'])];
@@ -706,6 +713,9 @@ $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
 $buildReceipt=$db->query('SELECT source_count,target_count,changed_count FROM relationship_build_results')->fetch();
 $assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2], 'history build did not atomically update both known targets');
+$privateRows=$products->exportScope($buildScope)['relationships'];
+$assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2,
+    'history build changed Custom Info on a selected or omitted relationship');
 $buildStatus=$builds->recentJobs($buildScope);
 $assert(count($buildStatus)===1&&$buildStatus[0]['outcome']==='succeeded'&&(int)$buildStatus[0]['changed_count']===2
     &&$builds->recentJobs(array_replace($buildScope,['profile_id'=>$newUuid(5706)]))===[], 'history build status escaped its scope');
@@ -759,12 +769,23 @@ $bystander=$turn['payload']['target'];$bystander['refnum']['index']+=100;
 $bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
 $relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
     'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
-$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id']]);
+$privateNote="PLAYER PRIVATE RELATIONSHIP NOTE\nKeep verbatim <&> 古";
+$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id'],'custom_info'=>$privateNote]);
 $db->exec('SAVEPOINT relationship_edits');
 $relationshipEdit=$relationshipInput+['profile_id'=>$actorProfile['profile_id'],'relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1];
 $relationshipEdit['disposition']=31;unset($relationshipEdit['actor_identity']);
 $editedRelationship=$memoryService->setRelationship($relationshipEdit);
 $assert($editedRelationship['revision']===2&&$editedRelationship['disposition']===31,'relationship edit lost its revision fence');
+$db->exec('SAVEPOINT custom_info_edits');
+$privateScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
+$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===$privateNote,'older score-only edit cleared Custom Info');
+$derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mode'=>'derived','custom_info'=>'AI overwrite']);
+$derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
+$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===$privateNote,'derived writer replaced player text');
+$cleared=$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>$derivedSaved['revision'],'custom_info'=>'']));
+$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===''&&$cleared['custom_info_changed'],
+    'explicit manual clear did not persist');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_edits');
 foreach([
     [['expected_revision'=>0],'invalid_relationship_revision'],
     [['installation_id'=>$newUuid(3981)],'invalid_relationship_scope'],
@@ -802,6 +823,13 @@ $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRel
     &&in_array($otherRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true),
     'relationship manager collapsed legacy identities or retained a deleted record');
 $historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
+$assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
+    'private relationship text was copied into audit history');
+$db->exec('SAVEPOINT custom_info_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/066_relationship_custom_info.down.sql'));
+    throw new RuntimeException('downgrade discarded deleted relationship notes');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
+    'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
 $assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
     &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31,
     'relationship history must retain ordered create, edit and delete audit records');
@@ -813,6 +841,22 @@ $assert(array_column($relationshipSelection['relationship'],'relationship_id')==
     'relationships must belong to the selected NPC, not the session profile or an unbound same-name actor');
 $relationshipProbe=$memoryProbe;$relationshipProbe['_selected_profile_id']=$actorProfile['profile_id'];
 $relationshipPrompt=(new PromptAssembler())->assemble($relationshipProbe,$relationshipSelection);
+$assert(!str_contains(json_encode([$relationshipSelection,$relationshipPrompt],JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
+    'Custom Info leaked through prompt selection, text or trace');
+$privateExport=$memoryService->exportPlaythrough($privateScope);
+$restorePlaythrough=$products->createRevisioned('playthrough',['installation_id'=>$installationId,
+    'profile_id'=>$actorProfile['profile_id'],'name'=>'Private note restore','content'=>[]],$memoryNow);
+$privateExport['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
+$db->exec('SAVEPOINT custom_info_restore');
+$memoryService->restorePlaythrough($privateExport);$memoryService->restorePlaythrough($privateExport);
+$restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
+$assert(count($restoredPrivate)===1&&$restoredPrivate[0]['custom_info']===$privateNote,'explicit restore lost or duplicated Custom Info');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+unset($privateExport['data']['relationships'][0]['custom_info']);
+$memoryService->restorePlaythrough($privateExport);
+$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']==='',
+    'legacy export without Custom Info did not restore the empty default');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
     static fn(array$row):bool=>$row['source_kind']==='relationship'));
 $assert(array_column($relationshipSources,'source_id')===[$ownedRelationship['relationship_id']],

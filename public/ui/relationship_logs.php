@@ -39,7 +39,7 @@ $notice=match($buildStatus){
     'relationship_build_ambiguous_owner'=>'This profile covers more than one actor in the selected history. Choose fewer conversations or review its bindings.',
     'relationship_build_ambiguous_records'=>'More than one saved record matches a participant. Review the current records before building.',
     'relationship_build_request_conflict'=>'That request was already used with different settings. Reload the page and try again.',
-    'relationship_revision_conflict'=>'This record changed. The latest values are shown; review them before saving again.',
+    'relationship_revision_conflict'=>'This record changed. The latest values are shown, including Custom Info. Unsaved edits were not kept; review the saved values before trying again.',
     'relationship_already_exists'=>'This actor already has a relationship in that profile and playthrough. Edit the existing record.',
     default=>'',
 };
@@ -59,7 +59,8 @@ function almsivi_relationship_state(mixed $value):string
     if(!is_array($value)||$value===[])return 'No previous state';
     if(($value['deleted']??false)===true)return 'Deleted';
     return 'Disposition '.($value['disposition']??'—').'; affinity '.($value['affinity']??'—')
-        .(isset($value['revision'])?' (r'.$value['revision'].')':'');
+        .(isset($value['revision'])?' (r'.$value['revision'].')':'')
+        .(($value['custom_info_changed']??false)===true?'; Custom Info updated':'');
 }
 
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
@@ -122,6 +123,9 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <label for="relationship-disposition">Disposition</label><input id="relationship-disposition" name="disposition" type="number" min="-100" max="100" value="0" required>
             <label for="relationship-affinity">Affinity</label><input id="relationship-affinity" name="affinity" type="number" min="-100" max="100" value="0" required>
             <label for="relationship-reason">Reason</label><input id="relationship-reason" name="reason" maxlength="1024" value="Manual relationship" required>
+            <label for="relationship-custom-info">Custom Info (optional)</label>
+            <textarea id="relationship-custom-info" name="custom_info" rows="3" maxlength="2000" aria-describedby="relationship-custom-info-help"></textarea>
+            <small id="relationship-custom-info-help" class="relationship-custom-info-help">Your private notes, up to 2,000 characters. Never sent to AI or changed by AI builds. Exports include this text.</small>
             <button class="btn-base btn-primary" type="submit">Add relationship</button>
         </form>
         <?php endif; ?>
@@ -135,7 +139,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <p>Disposition: <?php echo (int)$row['disposition']; ?> · Affinity: <?php echo (int)$row['affinity']; ?></p>
             <details><summary>Actor identity</summary><pre><?php echo almsivi_ui_h(json_encode($row['actor_identity'],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)); ?></pre></details>
             <details><summary>Edit relationship</summary>
-                <form class="management-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/relationships'); ?>">
+                <form class="management-form" aria-label="Edit relationship with <?php echo almsivi_ui_h($row['actor'].' · '.$row['owner'].' · '.$row['playthrough']); ?>" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/relationships'); ?>">
                     <?php foreach(['installation_id','profile_id','playthrough_id','relationship_id'] as $field): ?>
                     <input type="hidden" name="<?php echo $field; ?>" value="<?php echo almsivi_ui_h($row[$field]); ?>">
                     <?php endforeach; ?>
@@ -145,6 +149,10 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                     <label for="disposition-<?php echo almsivi_ui_h($id); ?>">Disposition</label><input id="disposition-<?php echo almsivi_ui_h($id); ?>" name="disposition" type="number" min="-100" max="100" value="<?php echo (int)$row['disposition']; ?>" required>
                     <label for="affinity-<?php echo almsivi_ui_h($id); ?>">Affinity</label><input id="affinity-<?php echo almsivi_ui_h($id); ?>" name="affinity" type="number" min="-100" max="100" value="<?php echo (int)$row['affinity']; ?>" required>
                     <label for="reason-<?php echo almsivi_ui_h($id); ?>">Reason</label><input id="reason-<?php echo almsivi_ui_h($id); ?>" name="reason" maxlength="1024" value="Manual edit" required>
+                    <label for="custom-info-<?php echo almsivi_ui_h($id); ?>">Custom Info (optional)</label>
+                    <?php // HTML strips one initial newline; prefix one so player-authored leading blank lines survive. ?>
+                    <textarea id="custom-info-<?php echo almsivi_ui_h($id); ?>" name="custom_info" rows="3" maxlength="2000" aria-describedby="custom-info-help-<?php echo almsivi_ui_h($id); ?>"><?php echo "\n".almsivi_ui_h($row['custom_info']??''); ?></textarea>
+                    <small id="custom-info-help-<?php echo almsivi_ui_h($id); ?>" class="relationship-custom-info-help">Your private notes, up to 2,000 characters. Never sent to AI or changed by AI builds. Clear the box and save to remove it. Exports include this text.</small>
                     <button class="btn-base btn-primary" type="submit">Save relationship</button>
                 </form>
             </details>

@@ -904,6 +904,13 @@ body.hub-page > main {
     min-height: 120px;
 }
 
+.management-form textarea[name="custom_info"] { resize: vertical; }
+.management-form textarea[name="custom_info"]:focus-visible {
+    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline-offset: 2px;
+}
+.management-form .relationship-custom-info-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
+
 .management-form button {
     justify-self: start;
 }

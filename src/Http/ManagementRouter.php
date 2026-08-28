@@ -1262,6 +1262,10 @@ final class ManagementRouter
     private function saveRelationship(array $values,array $scope,array $identity):array
     {
         $input=$scope+['source_mode'=>'manual','reason'=>$values['reason']??'management'];
+        if(array_key_exists('custom_info',$values)){
+            $input['custom_info']=$values['custom_info'];
+            if(is_string($input['custom_info']))$input['custom_info']=str_replace("\r\n","\n",$input['custom_info']);
+        }
         foreach(['disposition','affinity'] as $field){
             $number=filter_var($values[$field]??null,FILTER_VALIDATE_INT);
             if($number===false)throw new InvalidArgumentException('invalid_relationship_value');
