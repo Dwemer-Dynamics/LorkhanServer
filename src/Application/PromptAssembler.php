@@ -33,7 +33,7 @@ final class PromptAssembler
         'profile' => ['limit' => 1, 'bytes' => 12_288],
         'core_profile' => ['limit' => 1, 'bytes' => 65_536],
         'prompt' => ['limit' => 1, 'bytes' => 24_576],
-        'history' => ['limit' => 40, 'bytes' => 32_768],
+        'history' => ['limit' => 500, 'bytes' => 32_768],
         'memory' => ['limit' => 10, 'bytes' => 16_384],
         'relationship' => ['limit' => 10, 'bytes' => 8_192],
         'knowledge' => ['limit' => 10, 'bytes' => 24_576],
@@ -616,7 +616,16 @@ final class PromptAssembler
             $messages[] = $message + ['_source_id' => $id];
             $messageIndexes[$messageKey] = array_key_last($messages);
         }
-        return array_slice(array_values($messages), -32);
+        // The repository already applies the profile's turn limit. Retain its newest messages
+        // within the existing byte budget instead of silently applying another fixed row cap.
+        $bounded=[];$bytes=0;
+        foreach(array_reverse(array_values($messages))as$message){
+            $line=$message['role']==='assistant'?$actorName.': '.$message['content']:$message['content'];
+            $size=strlen($this->xmlTag('message',$line));
+            if($bytes+$size>self::SECTIONS['history']['bytes'])break;
+            $bounded[]=$message;$bytes+=$size;
+        }
+        return array_reverse($bounded);
     }
 
     /** @return array{role:string,content:string}|null */

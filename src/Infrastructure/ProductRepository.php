@@ -1533,8 +1533,10 @@ SQL);
         $memorySelection=$this->selectPromptMemories($turn,$scope,
             $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now),$now);
         $memories=$memorySelection['rows'];
+        $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $historyStatement=$this->db->prepare(<<<'SQL'
 SELECT 'event:'||e.rowid::text AS id,
+       m.turn_id,
        COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
        m.created_at AS sort_created_at,CASE WHEN e.type='chat' THEN 1 ELSE 0 END AS source_rank,e.rowid AS sort_id,
        CASE WHEN e.type='chat' THEN
@@ -1572,16 +1574,25 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
-LIMIT 40
+LIMIT :candidate_limit
 SQL);
         $historyStatement->execute([
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
+            'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
-        $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
-            'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],
-            'created_at'=>(string)$row['sort_created_at'],'content'=>$this->json($row['content'])];
+        // Count conversation turns, not individual input, response, and world-event rows.
+        $history=[];$historyTurns=[];
+        foreach($historyStatement->fetchAll()as$row){
+            $turnKey=(string)($row['turn_id']??$row['id']);
+            if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
+            $historyTurns[$turnKey]=true;
+            $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],
+                'playthrough_id'=>$turn['playthrough_id'],'created_at'=>(string)$row['sort_created_at'],
+                'content'=>$this->json($row['content'])];
+        }
+        $history=array_reverse($history);
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),

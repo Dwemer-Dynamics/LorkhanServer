@@ -570,7 +570,7 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
-$memoryNow=gmdate('Y-m-d\TH:i:s\Z');
+$memoryNow=(new \DateTimeImmutable('now'))->modify('+1 minute')->format('Y-m-d\TH:i:sP');
 $memoryService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($memoryNow)));
 $memoryProbe=$turn;$memoryProbe['turn_id']=$newUuid(3900);
 $bystander=$turn['payload']['target'];$bystander['refnum']['index']+=100;
@@ -588,7 +588,8 @@ $sessionMemory=$memoryService->createMemory(['installation_id'=>$installationId,
     'provenance'=>['source'=>'manual']]);
 $sharedSource=$newUuid(3901);$sharedTurn=$newUuid(3902);
 $sharedPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
-    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL'],'context'=>[]];
+    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL'],
+    'context'=>['world'=>['cell'=>'History limit test cell']]];
 $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
     . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'almsivi.turn.v1',:turn,CAST(:payload AS jsonb))")
     ->execute(['id'=>$sharedSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$memoryNow,
@@ -621,6 +622,13 @@ $rechatHistoryText=json_encode(array_column($rechatHistory,'content'),JSON_THROW
 $assert(str_contains($rechatHistoryText,'SHARED CONVERSATION SENTINEL')
     &&!str_contains($rechatHistoryText,'Please follow me.'),
     'rechat history bypassed the original conversation audience');
+$limitedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$limitedContent=$limitedProfile['content'];$limitedContent['settings_overrides']['memory']['recent_turn_limit']=1;
+$products->revise('profile',$actorProfile['profile_id'],$limitedContent,'test recent-turn limit',$memoryNow);
+$limitedHistory=$products->promptContext($memoryProbe,$memoryNow)['history'];
+$limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
+$assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
+    'profile recent-turn limit must count one conversation turn with both input and world context');
 $db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE source_event_id=:source AND projection_kind='turn'")
     ->execute(['source'=>$sharedSource]);
 $hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');

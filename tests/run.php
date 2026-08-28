@@ -337,6 +337,21 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
+$extendedHistory=$roleHistory;$extendedHistory['history']=[];
+foreach(range(1,45)as$index)$extendedHistory['history'][]=['id'=>'history-limit-'.$index,
+    'content'=>['kind'=>'speech','text'=>'Distinct history line '.$index,'speaker'=>'Fargoth',
+        'speaker_identity'=>$promptTurn['payload']['target']]];
+$extendedPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
+$check(substr_count($extendedPrompt,'<message>')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
+    'profile-selected history above 32 messages was silently capped by the assembler');
+foreach($extendedHistory['history']as&$entry)$entry['content']['text'].=' '.str_repeat('&',300);
+unset($entry);
+$boundedPrompt=(new PromptAssembler())->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
+preg_match('#<conversation_context>(.*?)</conversation_context>#s',$boundedPrompt,$boundedHistory);
+$check(strlen($boundedHistory[1]??'')<=32768
+    &&str_contains($boundedHistory[1]??'','Distinct history line 45')
+    &&!str_contains($boundedHistory[1]??'','Distinct history line 1 '),
+    'expanded history must keep the newest lines within the escaped XML byte budget');
 $semanticHistory['history']=[
     ['history_id'=>'location-event','content'=>['kind'=>'event','type'=>'location','details'=>['location'=>'Seyda Neen']]],
     ['history_id'=>'weather-event','content'=>['kind'=>'event','type'=>'weather','details'=>['weather'=>'Cloudy']]],
