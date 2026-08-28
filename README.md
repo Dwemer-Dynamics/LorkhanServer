@@ -56,6 +56,19 @@ Explicit direct connections bypass environment proxies and pin validated DNS ans
 runtime connections retain the operator's proxy configuration. Neither Save nor Import calls a provider.
 Test and subsequent use of an assigned connector can incur provider charges.
 
+### Profile generation routing
+
+Core Profiles can select a **Profile Generation LLM** for requested NPC/narrator generation and
+player speech-style analysis. Individual profiles can inherit that choice, select another connector,
+or choose **Use server runtime**. Leaving the Core Profile choice unset retains the existing runtime
+provider. This does not enable automatic generation or schedule additional requests.
+
+New jobs keep the selected connector ID and immutable revision; later connector edits do not change
+those jobs. Credentials remain server-held and are resolved when the worker runs. Pending jobs prevent
+connector deletion. Existing queued jobs without a selected connector retain runtime behavior.
+Profile locks, stale-edit checks, cancellation, and strict generated-content validation still apply.
+Saving routing settings makes no provider call; requesting generation can incur provider charges.
+
 ## Local deployment
 
 The normal developer deploy mirrors the active source to `/var/www/html/ALMSIVIserver`, keeps

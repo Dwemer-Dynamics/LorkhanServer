@@ -60,6 +60,7 @@ final class EffectiveSettingsResolver
         'llm_experimental_configuration_id' => 'uuid_or_empty',
         'llm_fallback_configuration_id' => 'uuid_or_empty',
         'oghma_configuration_id' => 'uuid_or_empty',
+        'profile_generation_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',

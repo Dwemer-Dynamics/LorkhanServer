@@ -932,6 +932,64 @@ $check($products->bulkDeleteUnlockedNpcProfiles($installation,$clock->iso())===1
     &&(int)$db->query("SELECT count(*) FROM actor_profile_bindings WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn()===0,
     'bulk delete did not remove only the unlocked NPC profile and its binding');
 $check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk unlock did not revise the locked NPC profile');
+
+// Route an existing manual generation job without changing later connector choices or using runtime credentials.
+$generationConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Generation connector',
+    'content'=>['driver'=>'mock','model'=>'generation-v1']]);
+$generationCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Generation core',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],
+        'routing'=>['profile_generation_configuration_id'=>$generationConnector['configuration_id']]]]);
+$generationProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Routed generation NPC',
+    'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm'],
+    'content'=>['biography'=>'Unchanged until generation finishes.']]);
+$generationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$generationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$generationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$check($generationPayload==['profile_id'=>$generationProfile['profile_id'],'base_revision'=>1,
+    'provider_configuration_id'=>$generationConnector['configuration_id'],'provider_revision'=>1],
+    'generation job did not freeze only the inherited connector identity and revision');
+$service->revise('provider',$generationConnector['configuration_id'],['driver'=>'mock','model'=>'generation-v2'],'new connector revision');
+$sameGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$check($sameGenerationJob['job_id']===$generationJob['job_id'],'requeue replaced the frozen generation job');
+$service->revise('core_profile',$generationCore['core_profile_id'],array_replace($generationCore['content'],['routing'=>[]]),'use runtime for future jobs');
+try{$service->deleteRevisioned('provider',$generationConnector['configuration_id']);throw new RuntimeException('queued generation connector deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued generation deletion guard failed');}
+$generationRows=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('llm');
+$generationRow=array_values(array_filter($generationRows,static fn(array$row):bool=>$row['configuration_id']===$generationConnector['configuration_id']))[0];
+$check((int)$generationRow['queued_job_usage']===1,'queued generation use was not visible to connector management');
+$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+    $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
+$generationStats=(new Worker($jobs,$generationRegistry,'profile-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$generationAttempt=$db->query("SELECT model,config_revision,metadata FROM provider_attempts WHERE job_id='{$generationJob['job_id']}'")->fetch();
+$check($generationStats['succeeded']===1&&$generationAttempt['model']==='generation-v1'&&$generationAttempt['config_revision']==='1',
+    'generation ignored the queued revision or used the unrelated runtime');
+$generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
+$check((int)$generationCurrent['current_revision']===2&&str_contains($generationCurrent['content']['notes'],'Deterministic mock generation'),
+    'routed provider did not produce the profile revision');
+$service->revise('core_profile',$generationCore['core_profile_id'],$generationCore['content'],'restore inherited generator');
+$service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content']+['routing'=>['profile_generation_configuration_id'=>'']],'explicit runtime override');
+$runtimeGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$runtimeGenerationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$runtimeGenerationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$check(!array_key_exists('provider_configuration_id',$runtimeGenerationPayload),'explicit runtime override did not bypass the Core Profile generator');
+$runtimeGenerationStats=(new Worker($jobs,$firstPartyRegistry,'profile-runtime-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$check($runtimeGenerationStats['succeeded']===1,'runtime generation compatibility failed');
+$foreignGenerator=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Foreign generator',
+    'content'=>['driver'=>'mock','model'=>'foreign-model']]);
+$generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
+$generationCurrent['content']['routing']=['profile_generation_configuration_id'=>$foreignGenerator['configuration_id']];
+$service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content'],'invalid foreign route');
+try{$products->enqueueProfileGeneration($generationProfile['profile_id']);throw new RuntimeException('foreign generation connector accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','generation ownership check failed');}
+try{$products->providerRevisionForInstallation($installation,$foreignGenerator['configuration_id'],1);throw new RuntimeException('foreign generation revision loaded');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','worker revision ownership check failed');}
+foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$narratorProfile['profile_id'],'enqueueNarratorProfileGeneration']]as[$routedProfileId,$enqueueMethod]){
+    $routedProfile=$products->getRevisioned('profile',$routedProfileId);$routedContent=$routedProfile['content'];
+    $routedContent['routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
+    $service->revise('profile',$routedProfileId,$routedContent,'route existing generation mode');
+    $products->$enqueueMethod($routedProfileId);
+}
+$modeRouteStats=(new Worker($jobs,$generationRegistry,'profile-modes-route-test',5,2,2,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$check($modeRouteStats['succeeded']===2,'narrator or player speech-style generation ignored its routed connector');
+
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';
 $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
     'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,

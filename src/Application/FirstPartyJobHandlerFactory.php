@@ -19,8 +19,8 @@ final class FirstPartyJobHandlerFactory
         $clock ??= new DeterministicClock();
         $repository = new FirstPartyJobRepository($db);
         $products = new \ALMSIVIserver\Infrastructure\ProductRepository($db);
-        $handlers = [new ProfileGenerateJobHandler($products,ProviderFactory::profileGeneration($providerConfig),
-            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),(int)($providerConfig['provider']['timeout_ms']??30_000))];
+        $handlers = [new ProfileGenerateJobHandler($products,null,
+            new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),(int)($providerConfig['provider']['timeout_ms']??30_000),$providerConfig)];
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db,256,
                 new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider,

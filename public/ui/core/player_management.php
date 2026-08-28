@@ -20,6 +20,14 @@ $installationId = $requested !== '' && array_filter(
 ) ? $requested : (string) ($installations[0]['installation_id'] ?? '');
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
+$routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
+$generationId = (string) ($routing['profile_generation_configuration_id'] ?? '');
+$generationValue = array_key_exists('profile_generation_configuration_id', $routing) && $generationId === '' ? '__disabled__' : $generationId;
+$generationOptions = ['' => 'Inherit Core Profile', '__disabled__' => 'Use server runtime'];
+foreach ($uiRepository->rows('llm') as $connector) {
+    if ((string) ($connector['installation_id'] ?? '') === $installationId) $generationOptions[(string) $connector['configuration_id']] = (string) $connector['name'];
+}
+if ($generationId !== '' && !isset($generationOptions[$generationId])) $generationOptions[$generationId] = 'Unavailable connector';
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
 
 /** Normalize PostgreSQL JSON values used by the latest typed OpenMW context. */
@@ -148,6 +156,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <label for="player-speech-style">Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo almsivi_ui_h($content['speech_style'] ?? ''); ?></textarea>
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>
+                        <label for="player-generation-llm">Profile Generation LLM</label>
+                        <select id="player-generation-llm" name="profile_generation_configuration_id" aria-describedby="player-generation-help">
+                            <?php foreach ($generationOptions as $id => $label): ?>
+                                <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo $id === $generationValue ? ' selected' : ''; ?>><?php echo almsivi_ui_h($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="hint" id="player-generation-help">Applies to newly queued speech-style jobs. Queued jobs keep their frozen connector revision; saving never calls a provider.</span>
                         <div class="speech-style-tools">
                             <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
                                 <button type="submit" form="player-speech-ai-form" class="btn-ai-generate">AI Generate From Last 200 Inputs</button>

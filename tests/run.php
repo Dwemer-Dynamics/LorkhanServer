@@ -104,8 +104,9 @@ $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
     'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
 $directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
 $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
-    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleOghmaTopicExtractor,
-    'dialogue and Oghma resolve the explicit connector without inheriting runtime credentials');
+    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleOghmaTopicExtractor
+    &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleProfileGenerationProvider,
+    'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
 $pinned=\ALMSIVIserver\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
 $check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
     'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');

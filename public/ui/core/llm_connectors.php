@@ -202,7 +202,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <?php foreach ($rows as $row):
                     $content = is_array($row['content'] ?? null) ? $row['content'] : [];
                     $active = $selected !== null && $selected['configuration_id'] === $row['configuration_id'];
-                    $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0;
+                    $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0 || (int) ($row['queued_job_usage'] ?? 0) > 0;
                     $rowDriver = (string) ($content['driver'] ?? 'configured');
                 ?>
                 <div class="conn-li<?php echo $active ? ' active' : ''; ?>" data-configuration-id="<?php echo almsivi_ui_h($row['configuration_id']); ?>">
@@ -279,7 +279,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <span class="llm-toolbar-placeholder"><button class="btn-save feature-placeholder-control" type="button" disabled aria-disabled="true">Export</button><?php echo almsivi_ui_feature_badge('config.llm.saved-only', true); ?></span>
                         <?php endif; ?>
                         <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
-                        <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
+                        <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                     </div>
 
                     <div class="two-col-llm">

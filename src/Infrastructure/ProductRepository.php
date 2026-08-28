@@ -256,14 +256,14 @@ final class ProductRepository
     public function enqueueProfileGeneration(string $profileId):array
     {
         return$this->transaction(function()use($profileId):array{
-            $select=$this->db->prepare('SELECT p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)throw new \InvalidArgumentException('profile_locked');
             $revision=(int)$row['current_revision'];$key='profile:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision];
         });
@@ -291,14 +291,14 @@ final class ProductRepository
     public function enqueueNarratorProfileGeneration(string $profileId):array
     {
         return$this->transaction(function()use($profileId):array{
-            $select=$this->db->prepare('SELECT p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(($identity['kind']??null)!=='narrator')throw new \InvalidArgumentException('profile_not_narrator');
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)throw new \InvalidArgumentException('profile_locked');
             $revision=(int)$row['current_revision'];$key='narrator-profile:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'narrator_profile'])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'narrator_profile'))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'narrator_profile'];
         });
@@ -314,10 +314,36 @@ final class ProductRepository
             if($this->recentPlayerInputs((string)$row['installation_id'],1)===[])throw new \InvalidArgumentException('player_inputs_unavailable');
             $revision=(int)$row['current_revision'];$key='player-speech-style:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'player_speech_style'])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'player_speech_style'))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'player_speech_style'];
         });
+    }
+
+    /** Freeze the inherited generation route as IDs only; no endpoint or key material enters a job payload. */
+    private function profileGenerationPayload(string $installationId,string $profileId,int $revision,?string $mode=null):array
+    {
+        $payload=['profile_id'=>$profileId,'base_revision'=>$revision];if($mode!==null)$payload['mode']=$mode;
+        $routing=$this->effectiveSettingsForProfile($installationId,$profileId)['routing'];
+        $configurationId=(string)($routing['profile_generation_configuration_id']??'');
+        if($configurationId==='')return$payload;
+        $statement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets "
+            ."WHERE configuration_id=:configuration AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
+        $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId]);$connector=$statement->fetch();
+        if(!$connector)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
+        return$payload+['provider_configuration_id'=>(string)$connector['configuration_id'],'provider_revision'=>(int)$connector['current_revision']];
+    }
+
+    /** Load the exact revision queued for a task while enforcing installation and live-connector ownership. */
+    public function providerRevisionForInstallation(string $installationId,string $configurationId,int $revision):array
+    {
+        $statement=$this->db->prepare("SELECT c.configuration_id,r.revision,r.content FROM configuration_sets c "
+            ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=:revision "
+            ."WHERE c.configuration_id=:configuration AND c.installation_id=:installation AND c.kind='provider' AND c.deleted_at IS NULL");
+        $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId,'revision'=>$revision]);$row=$statement->fetch();
+        if(!$row)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
+        return['configuration_id'=>(string)$row['configuration_id'],'revision'=>(int)$row['revision'],
+            'content'=>\ALMSIVIserver\Application\LlmConnector::validate($this->json($row['content']))];
     }
 
     /** Queue generation only for the profile currently bound to this active session target. */
@@ -468,11 +494,15 @@ final class ProductRepository
                 if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0)throw new \InvalidArgumentException('core_profile_in_use');
             }
             if($kind==='provider'){
+                $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
+                $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='profile.generate' AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
+                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id) LIMIT 1");
                 $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
             }
             if($kind==='prompt'){

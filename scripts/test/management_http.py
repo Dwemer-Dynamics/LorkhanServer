@@ -440,13 +440,14 @@ routing_profile_name='HTTP routed profile '+uuid.uuid4().hex
 values=dict(routing_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=routing_profile_name,
     biography='Exercises CHIM-style model routing.',voice_language='en',llm_configuration_id=slot_id,
     llm_fast_configuration_id=slot_id,llm_powerful_configuration_id=slot_id,llm_experimental_configuration_id=slot_id,
-    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1')
+    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1',profile_generation_configuration_id=slot_id)
 r=request(routing_form['action'],'POST',values); body=r.read().decode()
 routing_match=re.search(re.escape(routing_profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert routing_match,body
 routing_profile_id=routing_match.group(1)
 routing_page=Page(); routing_page.feed(body)
 saved_routing=next(f for f in routing_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
 saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); saved_routing_values=saved_routing_content.get('routing',{})
+assert saved_routing_values.get('profile_generation_configuration_id')==slot_id and 'Use server runtime' in body
 assert r.status==200 and saved_routing_values.get('llm_configuration_id')==slot_id and saved_routing_values.get('llm_fallback_configuration_id')==slot_id and saved_routing_values.get('llm_randomizer_enabled') is True and saved_routing_values.get('llm_fallback_enabled') is True,(r.status,r.geturl(),saved_routing)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body
@@ -454,10 +455,17 @@ r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'co
 assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php?selected='+routing_profile_id))
 clear_routing=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+assert 'profile_generation_configuration_id' in {control[2] for control in profiles_page.controls},'live NPC editor has no generation route'
+runtime_route=dict(clear_routing['fields'],_csrf=csrf,profile_generation_configuration_id='__disabled__',change_reason='Use runtime generator')
+r=request(clear_routing['action'],'POST',runtime_route); assert r.status==200
+runtime_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
+assert runtime_content['routing']['profile_generation_configuration_id']=='',runtime_content['routing']
 values=dict(clear_routing['fields'],_csrf=csrf,llm_configuration_id='',llm_fast_configuration_id='',
-    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',change_reason='Clear routing')
+    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',profile_generation_configuration_id='',change_reason='Clear routing')
 values.pop('llm_randomizer_enabled',None); values.pop('llm_fallback_enabled',None)
 r=request(clear_routing['action'],'POST',values); assert r.status==200
+inherited_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
+assert 'profile_generation_configuration_id' not in inherited_content.get('routing',{}),inherited_content.get('routing')
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':routing_profile_id}); assert r.status==200
 provider_export_response=request('/ALMSIVIserver/manage/exports/providers/'+slot_id+'.json'); provider_export=json.loads(provider_export_response.read().decode())
 assert provider_export_response.status==200 and provider_export['schema']=='almsivi.provider-export.v1' and 'installation_id' not in provider_export and 'endpoint' not in provider_export and 'api_key' not in json.dumps(provider_export).lower()
@@ -566,6 +574,7 @@ saved_policy=next(f for f in revised_actions.forms if f['action'].endswith('/for
 assert r.status==200 and saved_policy['fields'].get('max_tier')=='0' and saved_policy['fields'].get('allowed_actions[]')=='inspect.report',(r.status,r.geturl(),saved_policy)
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'
 create_player=next((f for f in player.forms if f['action'].endswith('/forms/player-profile-create')),None)
 if create_player is not None:
     player_name='HTTP player '+uuid.uuid4().hex
@@ -586,6 +595,7 @@ if create_player is not None:
 else:
     assert any(f['action'].endswith('/forms/player-profile-revise') for f in player.forms),'existing player profile is not editable'
 narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
+assert 'profile_generation_configuration_id' in {control[2] for control in narrator_page.controls},'live narrator editor has no generation route'
 create_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-create')),None)
 if create_narrator is not None:
     narrator_name='HTTP narrator '+uuid.uuid4().hex

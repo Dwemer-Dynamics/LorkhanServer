@@ -8,17 +8,23 @@ $profileMeta = is_array($profileMeta ?? null) ? $profileMeta : [];
 $creatingProfile = ($coreProfileMode ?? 'edit') === 'create';
 $profileIsDefault = filter_var($profileMeta['default_npc'] ?? false, FILTER_VALIDATE_BOOL);
 
-$routeSelect = static function (string $name, string $label, string $icon, string $description, array $rows) use ($routing): void {
+$routeSelect = static function (string $name, string $label, string $icon, string $description, array $rows, ?string $blankLabel = null, string $help = '') use ($routing): void {
+    $labelId = $blankLabel === null && $help === '' ? '' : $name . '-label';
+    $helpId = $help === '' ? '' : $name . '-help';
+    // Retain an unavailable generation route until the user explicitly chooses its replacement.
+    if ($blankLabel !== null && ($routing[$name] ?? '') !== '' && !in_array($routing[$name], array_column($rows, 'configuration_id'), true)) {
+        $rows[] = ['configuration_id' => $routing[$name], 'name' => 'Unavailable connector'];
+    }
     ?>
     <div class="connector-option-card">
-        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span></div>
+        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span<?php echo $labelId === '' ? '' : ' id="' . almsivi_ui_h($labelId) . '"'; ?>><?php echo almsivi_ui_h($label); ?></span></div>
         <div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div>
-        <div class="setting-control"><select name="<?php echo almsivi_ui_h($name); ?>">
-            <option value="">None / inherit</option>
+        <div class="setting-control"><select name="<?php echo almsivi_ui_h($name); ?>"<?php echo $labelId === '' ? '' : ' aria-labelledby="' . almsivi_ui_h($labelId) . '"'; ?><?php echo $helpId === '' ? '' : ' aria-describedby="' . almsivi_ui_h($helpId) . '"'; ?>>
+            <option value=""><?php echo almsivi_ui_h($blankLabel ?? 'None / inherit'); ?></option>
             <?php foreach ($rows as $row): $id = (string) $row['configuration_id']; ?>
                 <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo ($routing[$name] ?? null) === $id ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['name']); ?></option>
             <?php endforeach; ?>
-        </select></div>
+        </select><?php if ($helpId !== ''): ?><small class="hint" id="<?php echo almsivi_ui_h($helpId); ?>"><?php echo almsivi_ui_h($help); ?></small><?php endif; ?></div>
     </div>
     <?php
 };
@@ -165,12 +171,13 @@ $disabledNumberField = static function (string $section, string $field, string $
         </section>
         <section class="connector-group-card">
             <h3 class="connector-group-title">Other Connectors</h3>
-            <div class="connector-group-subtitle">Voice, prompt, fallback, diary, and formatting services.</div>
+            <div class="connector-group-subtitle">Voice, prompt, fallback, generation, diary, and formatting services.</div>
             <div class="connector-group-fields">
                 <?php $routeSelect('tts_configuration_id', 'TTS Connector', '&#x1F50A;', 'Voice synthesis connector used for spoken output.', $tts); ?>
                 <?php $routeSelect('prompt_configuration_id', 'Dialogue Prompt', '&#x1F4AC;', 'Prompt template inherited by NPCs using this profile.', $prompts); ?>
                 <?php $routeSelect('llm_fallback_configuration_id', 'Fallback LLM', '&#x1F504;', 'Backup connector used when primary requests fail.', $llm); ?>
                 <?php $routeSelect('oghma_configuration_id', 'Oghma Extractor', '&#x1F4DA;', 'Fallback connector used only when local catalog grounding cannot resolve an explicit lore request.', $llm); ?>
+                <?php $routeSelect('profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'Connector for requested NPC and narrator profile generation and player speech-style analysis.', $llm, 'Use server runtime', 'Applies to newly queued generation jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F4D3;</span><span>Diary LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.diary-llm', true); ?></div><div class="setting-desc">Connector used for diary generation.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Active narrative pipeline</option></select></div></div>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>

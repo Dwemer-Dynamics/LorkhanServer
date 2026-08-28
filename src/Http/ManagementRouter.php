@@ -955,7 +955,7 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
         foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
@@ -1028,9 +1028,9 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id'];
         if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
-            ||array_key_exists('prompt_configuration_id',$values)||isset($values['llm_routing_fields'])){
+            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)||isset($values['llm_routing_fields'])){
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
             foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
                 if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));

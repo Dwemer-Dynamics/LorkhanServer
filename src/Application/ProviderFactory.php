@@ -72,6 +72,13 @@ final class ProviderFactory
             (array)($provider['options']??[]),(bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false));
     }
 
+    /** Apply one frozen connector revision to the strict profile-generation adapter. */
+    public static function profileGenerationForSlot(array $config, array $slot): ProfileGenerationProvider
+    {
+        $config['provider'] = self::slotSection($config, $slot);
+        return self::profileGeneration($config);
+    }
+
     /** Build the task-specific profile generator from the same server-owned LLM configuration. */
     public static function profileGeneration(array $config):ProfileGenerationProvider
     {

@@ -55,11 +55,11 @@ $configurationLabels = [];
 foreach (array_merge($llm, $tts, $prompts) as $configuration) {
     $configurationLabels[(string) ($configuration['configuration_id'] ?? '')] = (string) ($configuration['name'] ?? '');
 }
-$profileRouteLabel = static function (array $profile, string $field) use ($configurationLabels): string {
+$profileRouteLabel = static function (array $profile, string $field, string $emptyLabel = 'Inherited') use ($configurationLabels): string {
     $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
     $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
     $id = trim((string) ($routing[$field] ?? ''));
-    return $id !== '' ? ($configurationLabels[$id] ?? 'Missing connector') : 'Inherited';
+    return $id !== '' ? ($configurationLabels[$id] ?? 'Missing connector') : $emptyLabel;
 };
 $usedProfileSlots = [];
 foreach ($profiles as $profile) {
@@ -121,6 +121,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <span class="pf-line"><span class="pf-icon">&#x1F9EA;</span><span class="pf-key">Experimental LLM</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'llm_experimental_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F504;</span><span class="pf-key">Fallback LLM</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'llm_fallback_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F4AC;</span><span class="pf-key">Dialogue Prompt</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'prompt_configuration_id')); ?></span></span>
+                                    <span class="pf-line"><span class="pf-icon">&#x1F58B;&#xFE0F;</span><span class="pf-key">Profile Generation</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'profile_generation_configuration_id', 'Server runtime')); ?></span></span>
                                 </span>
                             </a>
                             <div class="actions profile-card-actions">
