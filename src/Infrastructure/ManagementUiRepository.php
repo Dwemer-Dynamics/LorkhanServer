@@ -219,8 +219,10 @@ SQL);
     }
 
     /** Return one of the allowlisted bounded datasets used by embedded management pages. */
-    public function rows(string $view): array
+    public function rows(string $view,?string $relationshipInstallationId=null): array
     {
+        $relationshipScoped=in_array($view,['relationships','relationship_logs','relationship_profiles'],true)&&$relationshipInstallationId!==null;
+        $relationshipFilter=$relationshipScoped?' AND r.installation_id=:relationship_installation':'';
         $sql = match ($view) {
             'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN almsivi_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
             'request_logs' => "SELECT trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.truncated,"
@@ -251,7 +253,18 @@ SQL);
                 . "LEFT JOIN almsivi_internal.source_events event ON event.source_event_id=source.source_event_id "
                 . "LEFT JOIN almsivi_internal.dialogue_delivery_results delivery ON delivery.source_event_id=source.source_event_id "
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
-            'relationships', 'relationship_logs' => "SELECT COALESCE(source.relationship_id::text,metadata.source_profile_id::text||':'||rel.key) AS relationship_id,metadata.installation_id,metadata.source_profile_id AS profile_id,source.playthrough_id,COALESCE(source.actor_identity,jsonb_build_object('record_id',rel.key,'display_name',rel.value->>'name')) AS actor_identity,COALESCE(rel.value->>'name',rel.key) AS actor,rel.value->>'disposition' AS disposition,rel.value->>'affinity' AS affinity,COALESCE(rel.value->>'source',source.source_mode) AS source_mode,source.updated_at FROM public.core_npc_master npc JOIN almsivi_internal.npc_metadata metadata ON metadata.npc_id=npc.id CROSS JOIN LATERAL jsonb_each(COALESCE(npc.extended_data->'relationships','{}'::jsonb)) rel LEFT JOIN almsivi_internal.relationship_records source ON source.profile_id=metadata.source_profile_id AND source.deleted_at IS NULL AND lower(COALESCE(source.actor_identity->>'record_id',source.actor_identity->>'display_name',''))=lower(rel.key) ORDER BY source.updated_at DESC NULLS LAST,npc.id,rel.key LIMIT 100",
+            'relationships' => "SELECT r.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,r.actor_identity,"
+                . "COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown actor') AS actor,"
+                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.source_mode,r.revision,r.updated_at "
+                . "FROM relationship_records r JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "
+                . "WHERE r.deleted_at IS NULL".$relationshipFilter." ORDER BY r.updated_at DESC,r.relationship_id LIMIT 100",
+            'relationship_logs' => "SELECT a.audit_id,a.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,"
+                . "p.name AS owner,t.name AS playthrough,r.actor_identity,a.mode AS source_mode,a.before_value,a.after_value,a.reason,a.source_event_id,a.created_at "
+                . "FROM relationship_audit a JOIN relationship_records r ON r.relationship_id=a.relationship_id "
+                . "JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "
+                . "WHERE true".$relationshipFilter." ORDER BY a.created_at DESC,a.audit_sequence DESC LIMIT 100",
+            'relationship_profiles' => "SELECT r.profile_id,r.name,r.actor_identity FROM profiles r "
+                . "WHERE r.deleted_at IS NULL".$relationshipFilter." ORDER BY r.name,r.profile_id LIMIT 500",
             'narratives' => "SELECT metadata.narrative_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,d.tags AS kind,d.topic AS title,d.content,jsonb_build_object('location',d.location,'people',d.people,'tags',d.tags) AS provenance,to_timestamp(d.localts) AS created_at FROM public.diarylog d JOIN almsivi_internal.diarylog_metadata metadata ON metadata.rowid=d.rowid ORDER BY d.localts DESC,d.rowid DESC LIMIT 100",
             'knowledge', 'worldknowledge' => "SELECT document_id,installation_id,profile_id,playthrough_id,topic,title,aliases,left(content,4000) AS content,knowledge_class,left(topic_desc_basic,4000) AS topic_desc_basic,knowledge_class_basic,tags,category,provenance,created_at FROM knowledge_documents WHERE deleted_at IS NULL ORDER BY lower(topic),document_id LIMIT 100",
             'journal' => "SELECT metadata.installation_id,session.profile_id,metadata.playthrough_id,q.id_quest AS quest_id,COALESCE(NULLIF(q.briefing2,''),NULLIF(q.briefing,''),q.data) AS journal_entry,NULL::text AS game_day,NULL::text AS game_month,NULL::text AS day_of_month,to_timestamp(q.localts) AS last_synced_at FROM public.questlog q JOIN almsivi_internal.questlog_metadata metadata ON metadata.rowid=q.rowid LEFT JOIN almsivi_internal.sessions session ON session.session_id=metadata.session_id ORDER BY q.localts DESC,q.rowid DESC LIMIT 100",
@@ -332,7 +345,7 @@ SQL);
             if ($view === 'llm') $row['content'] = \ALMSIVIserver\Application\LlmConnector::validate(
                 json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
             return $this->redactRow($row);
-        }, $this->all($sql));
+        }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:[]));
     }
 
     /** Return one effective factory-or-custom biography template for on-demand details and editing. */
@@ -368,8 +381,9 @@ SQL);
         return $row === false ? null : $this->redactRow($row);
     }
 
-    private function all(string $sql): array
+    private function all(string $sql,array $parameters=[]): array
     {
+        if($parameters!==[]){$statement=$this->db->prepare($sql);$statement->execute($parameters);return $statement->fetchAll();}
         return $this->db->query($sql)->fetchAll();
     }
 

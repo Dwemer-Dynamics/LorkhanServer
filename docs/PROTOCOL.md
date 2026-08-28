@@ -158,6 +158,23 @@ source response remain auditable after bytes expire according to retention polic
 
 ## Local management operations
 
+Relationship management uses native source records scoped to installation, owning profile and
+playthrough. New records require an actor kind, record ID, content file and runtime RefNum; display
+names and current cells are not identity keys. Concurrent creates for the same scope and stable
+identity are serialized and return `relationship_already_exists` instead of silently updating a row.
+Edits must supply `relationship_id` and positive integer `expected_revision`; deletions require the
+same revision fence. A stale write returns HTTP 409 to management API callers. Browser forms return
+to the same page or embedded frame with the latest values and a conflict notice. An ID-based edit
+preserves the stored identity, including incomplete legacy identities, without guessing replacements.
+
+Migration 063 preserves existing duplicate/legacy records and audit entries. It starts revisions at
+1 and advances them for every database update. Rollback is refused after any record has been edited.
+The Relationship Audit page reads actual before/after history, including soft-deleted relationships,
+and shows at most 100 current records and 100 recent changes for the selected installation. New audit
+sequence values order same-timestamp writes; historical timestamp ties cannot recover an unknown
+original order. The compatibility NPC projection is not authoritative relationship storage. This
+foundation adds no automatic evaluation, provider calls or relationship-specific lock policy.
+
 The CHIM-style Control Panel uses ALMSIVI-native data rather than the Herika/Dialectic database
 manager. Server Logs reads only fixed ALMSIVI worker and Apache files, caps each tail at 256 KiB and
 200 lines, and redacts common credential forms before rendering. Database Manager exposes applied

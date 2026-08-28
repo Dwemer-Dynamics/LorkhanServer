@@ -592,6 +592,52 @@ $bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
 $relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
     'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
 $ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id']]);
+$db->exec('SAVEPOINT relationship_edits');
+$relationshipEdit=$relationshipInput+['profile_id'=>$actorProfile['profile_id'],'relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1];
+$relationshipEdit['disposition']=31;unset($relationshipEdit['actor_identity']);
+$editedRelationship=$memoryService->setRelationship($relationshipEdit);
+$assert($editedRelationship['revision']===2&&$editedRelationship['disposition']===31,'relationship edit lost its revision fence');
+foreach([
+    [['expected_revision'=>0],'invalid_relationship_revision'],
+    [['installation_id'=>$newUuid(3981)],'invalid_relationship_scope'],
+    [['source_event_id'=>$newUuid(3982)],'invalid_relationship_source'],
+    [['actor_identity'=>['record_id'=>'replacement_actor']],'relationship_identity_immutable'],
+] as [$changes,$expectedError]){
+    try{$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>2],$changes));throw new RuntimeException('invalid relationship edit accepted');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()===$expectedError,'wrong relationship validation failure');}
+}
+foreach(['edit','delete'] as $operation){
+    try{if($operation==='edit')$memoryService->setRelationship($relationshipEdit);else$memoryService->deleteRelationship($ownedRelationship['relationship_id'],1);
+        throw new RuntimeException('stale relationship edit was accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='relationship_revision_conflict','wrong stale relationship failure');}
+}
+$renamedRelationship=$relationshipInput+['profile_id'=>$actorProfile['profile_id']];
+$renamedRelationship['actor_identity']['display_name']='Renamed speaker';
+$renamedRelationship['actor_identity']['cell']=['kind'=>'interior','name'=>'A different cell'];
+try{$memoryService->setRelationship($renamedRelationship);throw new RuntimeException('renaming a relationship created a duplicate');}
+catch(RuntimeException $error){$assert($error->getMessage()==='relationship_already_exists','wrong duplicate relationship failure');}
+$renamedRelationship['actor_identity']['refnum']['index']+=200;
+$otherRelationship=$memoryService->setRelationship($renamedRelationship);
+$assert($otherRelationship['relationship_id']!==$ownedRelationship['relationship_id'],'distinct runtime actors collapsed into one relationship');
+$legacyId=$newUuid(3980);
+$db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) '
+    .'VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),-10,0,\'manual\')')->execute([
+        'id'=>$legacyId,'installation'=>$installationId,'profile'=>$actorProfile['profile_id'],'playthrough'=>$turn['playthrough_id'],
+        'identity'=>json_encode(['record_id'=>'legacy_actor','display_name'=>'Legacy actor'],JSON_THROW_ON_ERROR)]);
+$legacyEdit=$relationshipEdit;$legacyEdit['relationship_id']=$legacyId;
+$assert($memoryService->setRelationship($legacyEdit)['revision']===2,'legacy identity could not be edited by explicit record ID');
+$memoryService->deleteRelationship($ownedRelationship['relationship_id'],2);
+$relationshipUi=new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db);
+$currentRelationships=$relationshipUi->rows('relationships');
+$assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true)
+    &&in_array($legacyId,array_column($currentRelationships,'relationship_id'),true)
+    &&in_array($otherRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true),
+    'relationship manager collapsed legacy identities or retained a deleted record');
+$historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
+$assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
+    &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31,
+    'relationship history must retain ordered create, edit and delete audit records');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_edits');
 $memoryService->setRelationship($relationshipInput+['profile_id'=>$turn['profile_id']]);
 $relationshipSelection=$products->promptContext($memoryProbe,$memoryNow);
 $assert(array_column($relationshipSelection['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]

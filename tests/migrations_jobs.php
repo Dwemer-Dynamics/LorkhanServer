@@ -132,6 +132,27 @@ $check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply 
 $check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
+// Upgrade relationship data without merging ambiguous identities or losing existing audit entries.
+$db->beginTransaction();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+$legacyRelationship=Uuid::v4();$legacyDuplicate=Uuid::v4();
+$legacyInsert=$db->prepare("INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) "
+    ."VALUES(:id,:installation,:profile,:playthrough,'{\"record_id\":\"legacy_duplicate\",\"display_name\":\"Legacy actor\"}',17,-3,'manual')");
+foreach([$legacyRelationship,$legacyDuplicate] as $id)$legacyInsert->execute(['id'=>$id,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough]);
+$db->exec("INSERT INTO relationship_audit(audit_id,relationship_id,mode,after_value,reason) VALUES('".Uuid::v4()."','{$legacyRelationship}','manual','{\"disposition\":17,\"affinity\":-3}','Legacy reason')");
+$legacyRows=$db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.up.sql'));
+$check($db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll()===$legacyRows
+    &&(int)$db->query('SELECT count(*) FROM relationship_records WHERE revision=1')->fetchColumn()===2
+    &&$db->query("SELECT reason FROM relationship_audit WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()==='Legacy reason',
+    'relationship upgrade changed legacy rows or history');
+$db->exec("UPDATE relationship_records SET disposition=18 WHERE relationship_id='{$legacyRelationship}'");
+$check((int)$db->query("SELECT revision FROM relationship_records WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()===2,'direct relationship writes bypass revision protection');
+$db->exec('SAVEPOINT relationship_rollback_guard');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+    throw new RuntimeException('edited relationship lost revision protection');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship revision protection'),'unexpected relationship rollback failure');$db->exec('ROLLBACK TO SAVEPOINT relationship_rollback_guard');}
+$db->rollBack();
 $journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
 $journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
 $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','journal projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:00Z')")
@@ -747,7 +768,7 @@ $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installati
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
     'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
 $npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
-$relationship=$service->setRelationship($npcScope+['actor_identity'=>['record_id'=>'player','display_name'=>'Nerevarine'],'disposition'=>20,'affinity'=>5,
+$relationship=$service->setRelationship($npcScope+['actor_identity'=>['kind'=>'player','record_id'=>'player','display_name'=>'Nerevarine','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0]],'disposition'=>20,'affinity'=>5,
     'source_mode'=>'manual','reason'=>'test']);
 $check($relationship['disposition'] === 20 && count($products->relationships($npcScope)) === 1, 'relationship audit foundation failed');
 $relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");

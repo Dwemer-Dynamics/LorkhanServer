@@ -1140,19 +1140,79 @@ SQL);
         $id=Uuid::v4();$ids=array_column($rows,'id');$scores=[];foreach($rows as $r)$scores[$r['id']]=$r['score'];$this->db->prepare('INSERT INTO retrieval_traces (retrieval_trace_id,installation_id,profile_id,playthrough_id,domain,query,result_ids,scores,algorithm,created_at) VALUES (:id,:installation,:profile,:playthrough,:domain,:query,CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:now)')->execute(['id'=>$id,'installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null,'domain'=>$domain,'query'=>$query,'ids'=>$this->pgArray($ids),'scores'=>$this->encode($scores),'algorithm'=>'lexical-0.75+fake-vector-0.25-v1','now'=>$now]);return ['trace_id'=>$id,'algorithm'=>'lexical-0.75+fake-vector-0.25-v1','results'=>$rows];
     }
 
+    /** Create once by stable identity; updates address a specific row and its observed revision. */
     public function setRelationship(array $input,string $now):array
     {
-        $identity=$this->encode($input['actor_identity']);return $this->transaction(function()use($input,$now,$identity){$find=$this->db->prepare('SELECT * FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND actor_identity=CAST(:identity AS jsonb) AND deleted_at IS NULL FOR UPDATE');$find->execute($this->scopeParams($input)+['identity'=>$identity]);$before=$find->fetch();$id=$before['relationship_id']??Uuid::v4();if($before){$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,source_mode=:mode,source_event_id=:source,updated_at=:now WHERE relationship_id=:id')->execute(['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'mode'=>$input['source_mode'],'source'=>$input['source_event_id']??null,'now'=>$now,'id'=>$id]);}else{$this->db->prepare('INSERT INTO relationship_records (relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode,source_event_id,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),:disposition,:affinity,:mode,:source,:now)')->execute($this->scopeParams($input)+['id'=>$id,'identity'=>$this->encode($input['actor_identity']),'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'mode'=>$input['source_mode'],'source'=>$input['source_event_id']??null,'now'=>$now]);}$after=['disposition'=>$input['disposition'],'affinity'=>$input['affinity']];$this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,source_event_id,created_at) VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:source,:now)')->execute(['audit'=>Uuid::v4(),'id'=>$id,'mode'=>$input['source_mode'],'before'=>$this->encode($before?['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity']]:[]),'after'=>$this->encode($after),'reason'=>$input['reason']??'updated','source'=>$input['source_event_id']??null,'now'=>$now]);return ['relationship_id'=>$id]+$after+['source_mode'=>$input['source_mode']];});
+        return $this->transaction(function()use($input,$now):array{
+            $scope=$this->scopeParams($input);
+            $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id '
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND t.deleted_at IS NULL');
+            $owner->execute($scope);if(!$owner->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_scope');
+            if(isset($input['source_event_id'])){
+                $source=$this->db->prepare('SELECT 1 FROM source_events e JOIN sessions s ON s.session_id=e.session_id '
+                    .'WHERE e.source_event_id=:source AND e.installation_id=:installation AND s.playthrough_id=:playthrough');
+                $source->execute(['source'=>$input['source_event_id'],'installation'=>$scope['installation'],'playthrough'=>$scope['playthrough']]);
+                if(!$source->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_source');
+            }
+            $before=false;
+            if(isset($input['relationship_id'])){
+                $find=$this->db->prepare('SELECT * FROM relationship_records WHERE relationship_id=:id AND installation_id=:installation '
+                    .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL FOR UPDATE');
+                $find->execute($scope+['id'=>$input['relationship_id']]);$before=$find->fetch();
+                if(!$before)throw new RuntimeException('not_found');
+                if((int)$before['revision']!==($input['expected_revision']??null))throw new RuntimeException('relationship_revision_conflict');
+                if(isset($input['actor_identity'])&&$this->actorKey($input['actor_identity'])!==$this->actorKey($this->json($before['actor_identity'])))
+                    throw new \InvalidArgumentException('relationship_identity_immutable');
+                $id=(string)$before['relationship_id'];
+                $save=$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,source_mode=:mode,'
+                    .'source_event_id=:source,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
+                $params=['id'=>$id,'revision'=>$input['expected_revision']];
+            }else{
+                $identity=$this->encode($input['actor_identity']);
+                // Serialize absent-row creation; an ordinary row lock cannot protect a missing identity.
+                $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
+                $lock->execute(['key'=>'relationship:'.implode(':',$scope).':'.$this->actorKey($input['actor_identity'])]);
+                $find=$this->db->prepare('SELECT relationship_id FROM relationship_records WHERE installation_id=:installation '
+                    .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL '
+                    .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
+                    .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) LIMIT 1');
+                $find->execute($scope+['identity'=>$identity,'exact_identity'=>$identity]);
+                if($find->fetchColumn())throw new RuntimeException('relationship_already_exists');
+                $id=Uuid::v4();
+                $save=$this->db->prepare('INSERT INTO relationship_records (relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
+                    .'disposition,affinity,source_mode,source_event_id,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+                    .':disposition,:affinity,:mode,:source,:now) RETURNING revision');
+                $params=$scope+['id'=>$id,'identity'=>$identity];
+            }
+            $save->execute($params+['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'mode'=>$input['source_mode'],
+                'source'=>$input['source_event_id']??null,'now'=>$now]);
+            $revision=$save->fetchColumn();if($revision===false)throw new RuntimeException('relationship_revision_conflict');
+            $after=['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'revision'=>(int)$revision];
+            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,source_event_id,created_at) '
+                .'VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:source,:now)')->execute([
+                    'audit'=>Uuid::v4(),'id'=>$id,'mode'=>$input['source_mode'],
+                    'before'=>$this->encode($before?['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity'],'revision'=>(int)$before['revision']]:[]),
+                    'after'=>$this->encode($after),'reason'=>$input['reason']??'updated','source'=>$input['source_event_id']??null,'now'=>$now]);
+            return ['relationship_id'=>$id]+$after+['source_mode'=>$input['source_mode']];
+        });
     }
 
-    /** Soft-delete one relationship and preserve the state change in its audit history. */
-    public function deleteRelationship(string $id,string $now):void
+    /** Soft-delete exactly the revision shown to the editor, keeping its audit history. */
+    public function deleteRelationship(string $id,string $now,int $expectedRevision):void
     {
-        $this->transaction(function()use($id,$now):void{$find=$this->db->prepare('SELECT disposition,affinity FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL FOR UPDATE');
+        $this->transaction(function()use($id,$now,$expectedRevision):void{
+            $find=$this->db->prepare('SELECT disposition,affinity,revision FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL FOR UPDATE');
             $find->execute(['id'=>$id]);$before=$find->fetch();if(!$before)throw new RuntimeException('not_found');
-            $this->db->prepare('UPDATE relationship_records SET deleted_at=:now,updated_at=:now WHERE relationship_id=:id')->execute(['now'=>$now,'id'=>$id]);
-            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,created_at) VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:now)')
-                ->execute(['audit'=>Uuid::v4(),'id'=>$id,'mode'=>'manual','before'=>$this->encode(['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity']]),'after'=>$this->encode(['deleted'=>true]),'reason'=>'management delete','now'=>$now]);});
+            if((int)$before['revision']!==$expectedRevision)throw new RuntimeException('relationship_revision_conflict');
+            $save=$this->db->prepare('UPDATE relationship_records SET deleted_at=:now,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
+            $save->execute(['now'=>$now,'id'=>$id,'revision'=>$expectedRevision]);$revision=$save->fetchColumn();
+            if($revision===false)throw new RuntimeException('relationship_revision_conflict');
+            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,created_at) '
+                .'VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:now)')->execute([
+                    'audit'=>Uuid::v4(),'id'=>$id,'mode'=>'manual',
+                    'before'=>$this->encode(['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity'],'revision'=>(int)$before['revision']]),
+                    'after'=>$this->encode(['deleted'=>true,'revision'=>(int)$revision]),'reason'=>'management delete','now'=>$now]);
+        });
     }
 
     public function relationships(array $scope):array{$s=$this->db->prepare('SELECT * FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);return $r;},$s->fetchAll());}

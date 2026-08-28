@@ -375,6 +375,39 @@ revised_memory=memory_text+' revised'; r=request(revise_memory['action'],'POST',
 r=request('/ALMSIVIserver/manage/forms/memory-delete','POST',{'_csrf':csrf,'memory_id':memory_id}); body=r.read().decode(); assert r.status==200 and revised_memory not in body,(r.status,r.geturl())
 legacy_relationships,body=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab'))
 assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content active"' in body and '/forms/relationships' not in body,(legacy_relationships.current,body)
+relationship_page,body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?embed=1&installation_id='+valid['installation_id']))
+relationship_create=next((f for f in relationship_page.forms if f['action'].endswith('/forms/relationships')),None)
+assert relationship_create is not None,body
+relationship_identity={'kind':'npc','record_id':'http_relationship_actor','display_name':'HTTP relationship actor',
+    'content_file':'Morrowind.esm','refnum':{'index':98765,'content_file':0},'cell':{'kind':'interior','name':'HTTP fixture'}}
+relationship_values=dict(relationship_create['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,
+    playthrough_id=playthrough_id,actor_profile_id='',content_json=json.dumps(relationship_identity),disposition='10',affinity='5',reason='HTTP relationship create')
+r=request(relationship_create['action'],'POST',dict(relationship_values,disposition='not-a-number')); assert r.status==422
+r=request(relationship_create['action'],'POST',relationship_values); relationship_page,body=parse(r)
+assert r.status==200 and 'embed=1' in r.geturl() and 'HTTP relationship actor' in body,(r.status,r.geturl(),body)
+relationship_edit=next(f for f in relationship_page.forms if f['action'].endswith('/forms/relationships') and f['fields'].get('relationship_id'))
+relationship_id=relationship_edit['fields']['relationship_id']; assert relationship_edit['fields']['expected_revision']=='1'
+renamed_identity=dict(relationship_identity,display_name='Renamed HTTP actor')
+r=request(relationship_create['action'],'POST',dict(relationship_values,content_json=json.dumps(renamed_identity))); body=r.read().decode()
+assert r.status==200 and 'relationship_already_exists' in r.geturl() and 'already has a relationship' in body
+r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,disposition='20',affinity='6',reason='HTTP relationship edit')); relationship_page,body=parse(r)
+latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+assert latest_edit['fields']['expected_revision']=='2' and latest_edit['fields']['disposition']=='20'
+r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,disposition='99',affinity='6',reason='Stale edit')); body=r.read().decode()
+assert r.status==200 and 'relationship_revision_conflict' in r.geturl() and 'The latest values are shown' in body
+api_relationship={key:relationship_values[key] for key in ['installation_id','profile_id','playthrough_id']}
+api_relationship.update(relationship_id=relationship_id,expected_revision=1,disposition=99,affinity=0,source_mode='manual')
+try:
+    opener.open(urllib.request.Request(base+'/ALMSIVIserver/manage/api/v1/relationships',data=json.dumps(api_relationship).encode(),
+        headers={'Content-Type':'application/json','X-CSRF-Token':csrf}),timeout=5)
+    raise AssertionError('stale management API write accepted')
+except urllib.error.HTTPError as error:
+    assert error.code==409 and json.loads(error.read())['error']=='relationship_revision_conflict'
+relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationship-delete'))
+r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
+r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
+assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
+assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body and 'Recent changes (3 shown)' in body
 backup_response=request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))

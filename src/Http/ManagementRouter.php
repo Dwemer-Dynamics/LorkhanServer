@@ -90,7 +90,13 @@ final class ManagementRouter
             if($r->method==='POST'&&preg_match('#^/forms/([a-z-]+)$#D',$path,$m))return$this->submit($m[1],$r);
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
-        catch(RuntimeException $e){$status=$e->getMessage()==='unauthorized'?401:404;if($status===401&&$this->htmlRequest($r))return$this->redirect($this->uiPath('quickstart'));return Response::json($status,['error'=>$e->getMessage()]);}
+        catch(RuntimeException $e){
+            if(in_array($e->getMessage(),['relationship_revision_conflict','relationship_already_exists'],true)){
+                if($this->htmlRequest($r))return $this->redirect($this->relationshipPageLocation($this->form($r),$e->getMessage()));
+                return Response::json(409,['error'=>$e->getMessage()]);
+            }
+            $status=$e->getMessage()==='unauthorized'?401:404;if($status===401&&$this->htmlRequest($r))return$this->redirect($this->uiPath('quickstart'));return Response::json($status,['error'=>$e->getMessage()]);
+        }
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
@@ -147,7 +153,8 @@ final class ManagementRouter
 
     private function submit(string $domain,Request $r):Response
     {
-        $v=$this->form($r);$scope=$this->scopeForm($v);$content=$this->jsonField($v,'content_json');
+        $v=$this->form($r);$scope=$this->scopeForm($v);
+        $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
         if($domain==='connector-test'){
             $detail=$this->testConnector($v);
@@ -254,8 +261,8 @@ final class ManagementRouter
             'memory-revise'=>$this->reviseMemory($v),
             'memory-delete'=>$this->repository->deleteMemory($this->need($v,'memory_id'),gmdate('Y-m-d\TH:i:s\Z')),
             'memory-rebuild'=>$this->repository->rebuildMemories($scope,gmdate('Y-m-d\TH:i:s\Z')),
-            'relationships'=>$this->service->setRelationship($scope+['actor_identity'=>$content,'disposition'=>(int)($v['disposition']??0),'affinity'=>(int)($v['affinity']??0),'source_mode'=>'manual','reason'=>$v['reason']??'management']),
-            'relationship-delete'=>$this->repository->deleteRelationship($this->need($v,'relationship_id'),gmdate('Y-m-d\TH:i:s\Z')),
+            'relationships'=>$this->saveRelationship($v,$scope,$content),
+            'relationship-delete'=>$this->service->deleteRelationship($this->need($v,'relationship_id'),$this->relationshipRevision($v)),
             'knowledge'=>$this->service->ingestKnowledge($scope+$this->knowledgeFormInput($v)),
             'knowledge-revise'=>$this->service->updateKnowledge($this->need($v,'document_id'),$this->knowledgeFormInput($v)),
             'knowledge-delete'=>$this->deleteKnowledgeDocument($v),
@@ -273,6 +280,7 @@ final class ManagementRouter
             if($domain==='memory-summarize'&&($result['state']??'')==='dead')$query['status']='summary-failed';
             return $this->redirect($this->uiPath('memory').'&'.http_build_query($query));
         }
+        if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
@@ -1233,6 +1241,46 @@ final class ManagementRouter
         if(!is_array($utterances)||$utterances===[]||count($utterances)>4||!is_string($utterances[0]['text']??null)||trim($utterances[0]['text'])==='')
             throw new RuntimeException('provider_invalid_output');
         return count($utterances).' valid utterance'.(count($utterances)===1?'':'s').' in '.(int)round((microtime(true)-$started)*1000).' ms';
+    }
+
+    /** Keep form number parsing strict and separate new identities from revisioned edits. */
+    private function saveRelationship(array $values,array $scope,array $identity):array
+    {
+        $input=$scope+['source_mode'=>'manual','reason'=>$values['reason']??'management'];
+        foreach(['disposition','affinity'] as $field){
+            $number=filter_var($values[$field]??null,FILTER_VALIDATE_INT);
+            if($number===false)throw new InvalidArgumentException('invalid_relationship_value');
+            $input[$field]=$number;
+        }
+        if(isset($values['relationship_id'])&&$values['relationship_id']!==''){
+            $input['relationship_id']=$this->need($values,'relationship_id');
+            $input['expected_revision']=$this->relationshipRevision($values);
+        }else{
+            if(isset($values['actor_profile_id'])&&$values['actor_profile_id']!==''){
+                $id=$this->need($values,'actor_profile_id');$this->uuid($id,'actor_profile_id');
+                $profile=$this->repository->getRevisioned('profile',$id);
+                if($profile['installation_id']!==($scope['installation_id']??null))throw new InvalidArgumentException('invalid_actor_profile');
+                $identity=is_array($profile['actor_identity'])?$profile['actor_identity']:json_decode($profile['actor_identity'],true,32,JSON_THROW_ON_ERROR);
+            }
+            $input['actor_identity']=$identity;
+        }
+        return $this->service->setRelationship($input);
+    }
+
+    /** Return to the same standalone page or iframe after saving or refreshing a conflict. */
+    private function relationshipPageLocation(array $values,string $status):string
+    {
+        $query=['status'=>$status];
+        if(is_string($values['installation_id']??null))$query['installation_id']=$values['installation_id'];
+        if(($values['embed']??null)==='1')$query['embed']='1';
+        return $this->webRoot().'/ui/relationship_logs.php?'.http_build_query($query);
+    }
+
+    private function relationshipRevision(array $values):int
+    {
+        $revision=filter_var($values['expected_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_relationship_revision');
+        return $revision;
     }
 
     /** Rebuild one edited memory's deterministic retrieval fields before saving it. */

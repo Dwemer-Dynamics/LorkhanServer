@@ -215,10 +215,33 @@ final class ProductService
     public function setRelationship(array $input): array
     {
         $this->scope($input);
-        if (!isset($input['actor_identity']) || !is_array($input['actor_identity']) || array_is_list($input['actor_identity'])) throw new InvalidArgumentException('invalid_actor_identity');
+        if (isset($input['relationship_id'])) {
+            $this->uuid((string)$input['relationship_id']);
+            if (!is_int($input['expected_revision'] ?? null) || $input['expected_revision'] < 1) throw new InvalidArgumentException('invalid_relationship_revision');
+            if (isset($input['actor_identity']) && (!is_array($input['actor_identity']) || array_is_list($input['actor_identity']))) throw new InvalidArgumentException('invalid_actor_identity');
+        } else {
+            $identity=$input['actor_identity']??null;
+            if (!is_array($identity) || array_is_list($identity) || array_diff(array_keys($identity),['kind','record_id','content_file','display_name','refnum','cell'])!==[]
+                || !in_array($identity['kind']??null,['npc','creature','player'],true)) throw new InvalidArgumentException('invalid_actor_identity');
+            foreach (['record_id','content_file','display_name'] as $field) $this->boundedString($identity,$field,1,256);
+            $refnum=$identity['refnum']??null;
+            if (!is_array($refnum) || count($refnum)!==2 || !is_int($refnum['index']??null) || !is_int($refnum['content_file']??null)
+                || $refnum['index']<0 || $refnum['index']>4294967295 || $refnum['content_file']<0 || $refnum['content_file']>2147483647
+                || strlen(json_encode($identity,JSON_THROW_ON_ERROR))>4096) throw new InvalidArgumentException('invalid_actor_identity');
+        }
         foreach (['disposition', 'affinity'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < -100 || $input[$field] > 100) throw new InvalidArgumentException('invalid_relationship_value');
         if (!in_array($input['source_mode'] ?? null, ['derived', 'manual'], true)) throw new InvalidArgumentException('invalid_source_mode');
+        if (isset($input['source_event_id'])) $this->uuid((string)$input['source_event_id']);
+        $input['reason']=$input['reason']??'updated';
+        $this->boundedString($input,'reason',1,1024);
         return $this->repository->setRelationship($input, $this->clock->iso());
+    }
+
+    public function deleteRelationship(string $id,int $expectedRevision):void
+    {
+        $this->uuid($id);
+        if($expectedRevision<1)throw new InvalidArgumentException('invalid_relationship_revision');
+        $this->repository->deleteRelationship($id,$this->clock->iso(),$expectedRevision);
     }
 
     /** @param array<string,mixed> $input */
