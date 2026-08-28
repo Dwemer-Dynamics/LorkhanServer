@@ -61,6 +61,7 @@ final class EffectiveSettingsResolver
         'llm_fallback_configuration_id' => 'uuid_or_empty',
         'oghma_configuration_id' => 'uuid_or_empty',
         'profile_generation_configuration_id' => 'uuid_or_empty',
+        'relationship_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
@@ -137,6 +138,8 @@ final class EffectiveSettingsResolver
             $sources['settings.oghma.' . $field] = array_key_exists($field, $oghmaGlobal) ? 'global' : 'default';
         }
 
+        $settings['relationship'] = ['update_chance_percent'=>0, 'locked'=>false];
+        $this->markLeaves($settings['relationship'], 'default', 'settings.relationship', $sources);
         $routing = [];
         foreach ([['core_profile', $coreProfileContent], ['npc', $npcProfileContent]] as [$source, $content]) {
             if (!is_array($content) || ($content !== [] && array_is_list($content))) throw new InvalidArgumentException('invalid_settings_layer');
@@ -224,6 +227,11 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if(array_key_exists('relationship',$validation)){
+            self::validateSettingsShape(['relationship'=>$validation['relationship']],
+                ['relationship'=>['update_chance_percent'=>0,'locked'=>false]],true);
+            unset($validation['relationship']);
+        }
         if(array_key_exists('oghma_knowledge_tags',$validation['memory']??[])){
             $value=$validation['memory']['oghma_knowledge_tags'];
             if(!is_string($value)||strlen($value)>4096||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_settings_overrides');
@@ -310,6 +318,7 @@ final class EffectiveSettingsResolver
             'behavior.combat_bark_period_seconds' => [5, 300],
             'memory.recent_turn_limit' => [1, 100],
             'memory.knowledge_limit' => [0, 20],
+            'relationship.update_chance_percent' => [0, 100],
             'presentation.transcript_rows' => [2, 20],
             'presentation.tts_volume_boost' => [1, 4],
         ];

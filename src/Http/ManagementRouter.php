@@ -1003,7 +1003,7 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
         foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
@@ -1015,7 +1015,7 @@ final class ManagementRouter
         $overrides=[];
         $booleanFields=[
             'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'narrator'=>['enabled','context_visibility'],
+            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],
             'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled'],
         ];
@@ -1024,7 +1024,7 @@ final class ManagementRouter
             $overrides[$section][$field]=$value==='1';}
         $integerFields=[
             'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit'],
+            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],
             'oghma'=>['topic_count','result_limit','extractor_timeout_ms'],
         ];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
@@ -1076,9 +1076,9 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id'];
         if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
-            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)||isset($values['llm_routing_fields'])){
+            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)||array_key_exists('relationship_configuration_id',$values)||isset($values['llm_routing_fields'])){
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
             foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
                 if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
@@ -1104,13 +1104,13 @@ final class ManagementRouter
     private function profileSettingsOverrides(array $values):array
     {
         $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled']];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
         $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit'],'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
+            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
         $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');

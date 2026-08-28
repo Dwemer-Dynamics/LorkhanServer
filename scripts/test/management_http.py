@@ -497,13 +497,32 @@ r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf)); bo
 revise=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
 values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-v2',mock_prefix='[revised] ',change_reason='HTTP model-slot test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
+core_list,core_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php'))
+core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
+# Legacy Core controls have separate known label gaps; validate the new relationship labels specifically.
+core_body=request('/ALMSIVIserver/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
+core_page=Page(); core_page.feed(core_body)
+assert 'aria-labelledby="relationship_configuration_id-label"' in core_body
+assert 'aria-label="Relationship Update Chance"' in core_body and 'for="relationship-lock"' in core_body
+core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
+core_values=dict(core_form['fields'],_csrf=csrf,relationship_configuration_id=slot_id,
+    setting_relationship_update_chance_percent='100',setting_relationship_locked='1')
+core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
+core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
+core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
+assert core_saved['fields']['relationship_configuration_id']==slot_id and core_saved['fields']['setting_relationship_update_chance_percent']=='100'
+assert core_saved['fields']['setting_relationship_locked']=='1',core_saved
+core_reset=dict(core_saved['fields'],_csrf=csrf,relationship_configuration_id='',
+    setting_relationship_update_chance_percent='',setting_relationship_locked='inherit')
+assert request(core_form['action'],'POST',core_reset).status==200
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 routing_form=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-create'))
 routing_profile_name='HTTP routed profile '+uuid.uuid4().hex
 values=dict(routing_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=routing_profile_name,
     biography='Exercises CHIM-style model routing.',voice_language='en',llm_configuration_id=slot_id,
     llm_fast_configuration_id=slot_id,llm_powerful_configuration_id=slot_id,llm_experimental_configuration_id=slot_id,
-    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1',profile_generation_configuration_id=slot_id)
+    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1',profile_generation_configuration_id=slot_id,relationship_configuration_id=slot_id,
+    setting_relationship_update_chance_percent='100',setting_relationship_locked='1')
 r=request(routing_form['action'],'POST',values); body=r.read().decode()
 routing_match=re.search(re.escape(routing_profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert routing_match,body
 routing_profile_id=routing_match.group(1)
@@ -511,6 +530,8 @@ routing_page=Page(); routing_page.feed(body)
 saved_routing=next(f for f in routing_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
 saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); saved_routing_values=saved_routing_content.get('routing',{})
 assert saved_routing_values.get('profile_generation_configuration_id')==slot_id and 'Use server runtime' in body
+assert saved_routing_values['relationship_configuration_id']==slot_id
+assert saved_routing_content['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
 assert r.status==200 and saved_routing_values.get('llm_configuration_id')==slot_id and saved_routing_values.get('llm_fallback_configuration_id')==slot_id and saved_routing_values.get('llm_randomizer_enabled') is True and saved_routing_values.get('llm_fallback_enabled') is True,(r.status,r.geturl(),saved_routing)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body
@@ -519,16 +540,22 @@ assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php?selected='+routing_profile_id))
 clear_routing=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
 assert 'profile_generation_configuration_id' in {control[2] for control in profiles_page.controls},'live NPC editor has no generation route'
-runtime_route=dict(clear_routing['fields'],_csrf=csrf,profile_generation_configuration_id='__disabled__',change_reason='Use runtime generator')
+runtime_route=dict(clear_routing['fields'],_csrf=csrf,profile_generation_configuration_id='__disabled__',relationship_configuration_id='__disabled__',
+    setting_relationship_update_chance_percent='0',setting_relationship_locked='0',change_reason='Use runtime generator')
 r=request(clear_routing['action'],'POST',runtime_route); assert r.status==200
 runtime_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
 assert runtime_content['routing']['profile_generation_configuration_id']=='',runtime_content['routing']
+assert runtime_content['routing']['relationship_configuration_id']==''
+assert runtime_content['settings_overrides']['relationship']=={'update_chance_percent':0,'locked':False}
 values=dict(clear_routing['fields'],_csrf=csrf,llm_configuration_id='',llm_fast_configuration_id='',
-    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',profile_generation_configuration_id='',change_reason='Clear routing')
+    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',profile_generation_configuration_id='',relationship_configuration_id='',setting_relationship_update_chance_percent='',
+    setting_relationship_locked='inherit',change_reason='Clear routing')
 values.pop('llm_randomizer_enabled',None); values.pop('llm_fallback_enabled',None)
 r=request(clear_routing['action'],'POST',values); assert r.status==200
 inherited_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
 assert 'profile_generation_configuration_id' not in inherited_content.get('routing',{}),inherited_content.get('routing')
+assert 'relationship_configuration_id' not in inherited_content.get('routing',{})
+assert 'relationship' not in inherited_content.get('settings_overrides',{})
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':routing_profile_id}); assert r.status==200
 provider_export_response=request('/ALMSIVIserver/manage/exports/providers/'+slot_id+'.json'); provider_export=json.loads(provider_export_response.read().decode())
 assert provider_export_response.status==200 and provider_export['schema']=='almsivi.provider-export.v1' and 'installation_id' not in provider_export and 'endpoint' not in provider_export and 'api_key' not in json.dumps(provider_export).lower()

@@ -90,7 +90,7 @@ function almsivi_ui_effective_settings_summary(array $effective, string $title =
     echo '<p>Resolution order: NPC override &gt; assigned Core Profile &gt; Global &gt; built-in default.</p><div class="effective-settings-grid">';
     foreach ($sources as $path => $source) {
         if (!is_string($path) || (!str_starts_with($path, 'settings.memory.') && !str_starts_with($path, 'settings.narrator.')
-            && !str_starts_with($path, 'settings.safety.') && !str_starts_with($path, 'routing.'))) continue;
+            && !str_starts_with($path, 'settings.relationship.') && !str_starts_with($path, 'settings.safety.') && !str_starts_with($path, 'routing.'))) continue;
         $value = $effective;
         foreach (explode('.', $path) as $segment) {
             if (!is_array($value) || !array_key_exists($segment, $value)) { $value = null; break; }

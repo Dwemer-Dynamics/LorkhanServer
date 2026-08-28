@@ -582,6 +582,87 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     &&(int)($deliveredMemory['current_revision']??0)===1
     &&($deliveredMemoryProvenance['status']??null)==='played',
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
+// Exercise the optional worker with a real played source; roll back only these synthetic fixtures.
+$db->beginTransaction();
+$relationships=new \ALMSIVIserver\Infrastructure\RelationshipEvaluationRepository($db);
+$assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
+$relationshipContent=$actorProfile['content'];
+$relationshipContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$relationshipContent['settings_overrides']['relationship']=['update_chance_percent'=>100,'locked'=>false];
+$relationshipContent['management']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'enable relationship test',$now);
+$relationshipJob=$relationships->enqueue($delivery['message_id']);
+$assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
+$relationshipProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;
+    public mixed $during=null;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor']))
+            throw new RuntimeException('relationship input missing');
+        if($this->during!==null)($this->during)();
+        return ['disposition_delta'=>4,'affinity_delta'=>2,'reason'=>'A friendly played exchange.'];
+    }
+};
+$relationshipRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipEvaluateJobHandler(
+    $relationships,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
+$relationshipWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $relationshipRegistry,'relationship-integration',5,1,1,0,10,['relationship.evaluate']))->run();
+$db->exec('SAVEPOINT relationship_queued');
+$products->revise('provider',$profileModelSlot['configuration_id'],
+    array_replace($profileModelSlot['content'],['model'=>'later-model']), 'provider changed after enqueue',$now);
+$relationshipStats=$relationshipWorker();
+$relationshipReceipt=$db->query('SELECT * FROM relationship_evaluation_results')->fetch();
+$assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
+    &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
+    'played relationship worker did not persist one bounded result despite independent profile lock');
+$assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationshipJob['job_id']
+    &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
+$assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
+    'queued relationship job did not keep its frozen provider revision');
+$db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
+    ->execute(['id'=>$relationshipJob['job_id']]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===1,
+    'a retried job reapplied an already committed relationship receipt');
+$db->exec('SAVEPOINT relationship_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/064_relationship_evaluation_results.down.sql'));
+    throw new RuntimeException('relationship downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
+    'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipContent['settings_overrides']['relationship']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock queued relationship',$now);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1,
+    'relationship lock failed to cancel queued provider work');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipProvider->during=static function()use($products,$actorProfile,$relationshipContent,$now):void{
+    $products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock during provider call',$now);
+};
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===2
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
+    'late relationship output survived a profile policy revision');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipProvider->during=static function()use($products,$actorProfile,$installationId,$session,$turn,$now):void{
+    $record=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+        'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$turn['payload']['speaker'],
+        'disposition'=>50,'affinity'=>30,'source_mode'=>'manual','reason'=>'Manual create during evaluation'],$now);
+    $products->deleteRelationship($record['relationship_id'],$now,1);
+};
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
+    'manual create/delete did not invalidate absent relationship snapshot');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');$relationshipProvider->during=null;
+$db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key")
+    ->execute(['key'=>'turn:'.$turn['turn_id']]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3,
+    'hidden source was sent to relationship provider');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")
+    ->execute(['session'=>$sessionId]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3,
+    'ended session reached relationship provider');
+$db->rollBack();
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
 $memoryNow=(new \DateTimeImmutable('now'))->modify('+1 minute')->format('Y-m-d\TH:i:sP');

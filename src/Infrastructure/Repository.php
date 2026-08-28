@@ -695,6 +695,7 @@ final class Repository
                 $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                     . "VALUES(:job,'memory.derive',1,:key,CAST(:payload AS jsonb),3,40) ON CONFLICT(job_type,idempotency_key) DO NOTHING")
                     ->execute(['job'=>Uuid::v4(),'key'=>'memory:dialogue:'.$m['dialogue_message_id'],'payload'=>$this->encode($payload)]);
+                (new RelationshipEvaluationRepository($this->db))->enqueue($m['message_id']);
             }
             return['duplicate'=>false];
         });

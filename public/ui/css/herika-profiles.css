@@ -695,6 +695,7 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 @container (max-width: 540px) {
+    .profiles-page .profile-relationship-settings .setting-row { grid-template-columns: 1fr; gap: 0; }
     .profiles-page .profile-editor-toolbar { position: static; }
     .profiles-page .profile-core-grid,
     .profiles-page .profile-toggle-grid { grid-template-columns: 1fr; }

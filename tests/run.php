@@ -93,6 +93,15 @@ try {
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
 $inheritedLlm=['driver'=>'configured','model'=>'existing-model'];
+$relationshipOutput=['disposition_delta'=>2,'affinity_delta'=>-1,'reason'=>'A witnessed disagreement.'];
+$check(\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput)===$relationshipOutput
+    &&!\ALMSIVIserver\Application\RelationshipEvaluationPolicy::eligible(0,'one-response')
+    &&\ALMSIVIserver\Application\RelationshipEvaluationPolicy::eligible(100,'one-response'),
+    'relationship output and automatic chance boundaries');
+foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reason"],['actor'=>'somebody else']]as$invalidChange){
+    try{\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
+    catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
+}
 $memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
 $check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
     'model memory defaults can stay off without a provider');
@@ -683,9 +692,21 @@ $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile
     && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
     && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,
     'effective settings retain per-field provenance and a canonical hash');
+$relationshipCore=['routing'=>['relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'],
+    'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]];
+$relationshipResolved=(new EffectiveSettingsResolver())->resolve([],$relationshipCore,
+    ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>false]]]);
+$check($relationshipResolved['settings']['relationship']===['update_chance_percent'=>100,'locked'=>false]
+    &&$relationshipResolved['routing']['relationship_configuration_id']===''
+    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='core_profile',
+    'relationship policy inherits Core while explicit NPC disable and unlock win');
+try{EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['update_chance_percent'=>101]]);
+    $check(false,'relationship chance outside 0-100 rejected');}
+catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 rejected');}
 $projectionInput=$effective;
 $projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
 $projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';
+$projectionInput['routing']['relationship_configuration_id']='00000000-0000-4000-8000-000000000444';
 $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
 $check($projection['settings']['behavior']['rechat']===false
     &&$projection['settings']['memory']['knowledge_limit']===0&&$projection['routing']['llm_configuration_id']===''
@@ -695,6 +716,7 @@ $check($projection['settings']['behavior']['rechat']===false
 $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!isset($projection['routing']['oghma_configuration_id'])
     &&!isset($projection['routing']['profile_generation_configuration_id'])
+    &&!isset($projection['routing']['relationship_configuration_id'])&&!isset($projection['settings']['relationship'])
     &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
