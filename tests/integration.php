@@ -457,6 +457,10 @@ $promptSectionStatement->execute(['turn'=>$turn['turn_id']]);$promptSections=$pr
 $memoryRetrievalStatement=$db->prepare("SELECT prompt_section,result_ids,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='memory'");
 $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=$memoryRetrievalStatement->fetch();
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
+$assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
+    &&str_contains((string)($promptMessages[0]['content']??''),'ai.follow parameters:')
+    &&str_contains((string)($promptMessages[0]['content']??''),'&quot;const&quot;:192'),
+    'accepted turn did not freeze the server-negotiated catalog contract before prompt assembly');
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
     &&($promptMessages[0]['role']??null)==='system'
