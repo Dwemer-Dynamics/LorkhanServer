@@ -8,6 +8,7 @@ $pageTitle = 'ALMSIVI Roleplay';
 $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
+require __DIR__ . '/tmpl/memory_policy.php';
 $roleplay = $uiRepository->roleplay();
 $eventLogRepository = new EventLogRepository($database);
 $eventLogState = $eventLogRepository->page([
@@ -21,6 +22,8 @@ $tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memori
 $requestedTab = isset($_GET['tab']) ? (string) $_GET['tab'] : 'eventlog';
 $requestedTab = $tabAliases[$requestedTab] ?? $requestedTab;
 $activeTab = in_array($requestedTab, $allowedTabs, true) ? $requestedTab : 'eventlog';
+$memoryPolicies=$uiRepository->rows('memory_policy');
+$memoryConnectors=$uiRepository->rows('llm');
 $installationOptions=[];foreach($uiRepository->rows('installations')as$row){$id=(string)($row['installation_id']??'');if($id!=='')$installationOptions[$id]=(string)($row['display_name']??$id);}
 $profileOptions=[];foreach(array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'))as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
 $playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$row){$id=(string)($row['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($row['playthrough']??$id);}
@@ -34,8 +37,14 @@ function almsivi_roleplay_scope_select(string $name,string $label,array $options
 }
 
 /** Render the editable CHIM-style memory manager while preserving ALMSIVI retrieval provenance. */
-function almsivi_roleplay_memory_manager(array $rows,array $installations,array $profiles,array $playthroughs,string $base,string $csrf):void
+function almsivi_roleplay_memory_manager(array $rows,array $installations,array $profiles,array $playthroughs,string $base,string $csrf,
+    array $memoryPolicies,array $memoryConnectors,string $webRoot):void
 {
+    $selected=is_string($_GET['policy_installation_id']??null)?$_GET['policy_installation_id']:'';
+    if(!isset($installations[$selected]))$selected=(string)(array_key_first($installations)??'');
+    $policy=[];foreach($memoryPolicies as$item)if(($item['installation_id']??'')===$selected){$policy=$item;break;}
+    $connectors=[];foreach($memoryConnectors as$item)if(($item['installation_id']??'')===$selected)$connectors[(string)$item['configuration_id']]=(string)$item['name'];
+    almsivi_roleplay_memory_policy($policy,$installations,$selected,$connectors,$base,$csrf,$webRoot);
     echo'<details class="management-section"><summary>Add or rebuild memories</summary><div class="profile-grid"><form class="management-form" method="post" action="'.almsivi_ui_h($base.'/forms/memory').'"><fieldset><legend>Add memory</legend>';
     almsivi_roleplay_scope_select('installation_id','Installation',$installations);almsivi_roleplay_scope_select('profile_id','Profile',$profiles);almsivi_roleplay_scope_select('playthrough_id','Playthrough',$playthroughs);
     echo'<label for="memory-tier">Tier</label><select id="memory-tier" name="tier"><option value="recent">Recent</option><option value="mid">Middle term</option><option value="long">Long term</option></select>';
@@ -44,7 +53,7 @@ function almsivi_roleplay_memory_manager(array $rows,array $installations,array 
     almsivi_roleplay_scope_select('installation_id','Installation',$installations);almsivi_roleplay_scope_select('profile_id','Profile',$profiles);almsivi_roleplay_scope_select('playthrough_id','Playthrough',$playthroughs);
     echo'<p>Recalculate deterministic lexical and vector fields for the selected playthrough without changing memory text.</p><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base" type="submit">Rebuild memories</button></fieldset></form></div></details>';
     if($rows===[]){echo'<p class="empty-state">No memories are available yet.</p>';return;}echo'<div class="profile-grid">';
-    foreach($rows as$row){$id=(string)($row['memory_id']??'');$revision=(int)($row['current_revision']??1);$revisions=is_array($row['revisions']??null)?$row['revisions']:[];echo'<article class="profile-card"><header><div><span class="connector-kind">'.almsivi_ui_h($row['tier']??'memory').'</span><h3>'.almsivi_ui_h($row['occurred_at']??'Memory').'</h3></div><span class="status-badge">r'.almsivi_ui_h($revision).' · '.almsivi_ui_h($row['eligibility']??'authored').'</span></header><p>'.nl2br(almsivi_ui_h($row['content']??'')).'</p><details><summary>Revision history ('.count($revisions).')</summary>';if($revisions===[])echo'<p>No revision history is available.</p>';else{echo'<ol class="revision-list">';foreach($revisions as$history)echo'<li><strong>r'.almsivi_ui_h($history['revision']??'').'</strong> '.almsivi_ui_h($history['reason']??'revised').' <small>'.almsivi_ui_h($history['created_at']??'').'</small></li>';echo'</ol>';}echo'</details><details><summary>Edit memory</summary><form class="management-form" method="post" action="'.almsivi_ui_h($base.'/forms/memory-revise').'"><fieldset><legend>Save memory</legend><label for="memory-edit-'.almsivi_ui_h($id).'">Memory content</label><textarea id="memory-edit-'.almsivi_ui_h($id).'" name="content" required>'.almsivi_ui_h($row['content']??'').'</textarea><input type="hidden" name="memory_id" value="'.almsivi_ui_h($id).'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-primary" type="submit">Save memory</button></fieldset></form></details><form class="danger-form" method="post" action="'.almsivi_ui_h($base.'/forms/memory-delete').'"><input type="hidden" name="memory_id" value="'.almsivi_ui_h($id).'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-danger" type="submit">Delete memory</button></form></article>';}
+    foreach($rows as$row){$id=(string)($row['memory_id']??'');$revision=(int)($row['current_revision']??1);$revisions=is_array($row['revisions']??null)?$row['revisions']:[];echo'<article class="profile-card"><header><div><span class="connector-kind">'.almsivi_ui_h($row['tier']??'memory').'</span><h3>'.almsivi_ui_h($row['occurred_at']??'Memory').'</h3></div><span class="status-badge">r'.almsivi_ui_h($revision).' · '.almsivi_ui_h($row['eligibility']??'authored').'</span></header><p>'.nl2br(almsivi_ui_h($row['content']??'')).'</p><details><summary>Revision history ('.count($revisions).')</summary>';if($revisions===[])echo'<p>No revision history is available.</p>';else{echo'<ol class="revision-list">';foreach($revisions as$history)echo'<li><strong>r'.almsivi_ui_h($history['revision']??'').'</strong> '.almsivi_ui_h($history['reason']??'revised').' <small>'.almsivi_ui_h($history['created_at']??'').'</small></li>';echo'</ol>';}echo'</details><details><summary>Edit memory</summary><form class="management-form" method="post" action="'.almsivi_ui_h($base.'/forms/memory-revise').'"><fieldset><legend>Save memory</legend><label for="memory-edit-'.almsivi_ui_h($id).'">Memory content</label><textarea id="memory-edit-'.almsivi_ui_h($id).'" name="content" required>'.almsivi_ui_h($row['content']??'').'</textarea><input type="hidden" name="memory_id" value="'.almsivi_ui_h($id).'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-primary" type="submit">Save memory</button></fieldset></form></details>' . almsivi_roleplay_memory_summary_control($row,$base,$csrf) . '<form class="danger-form" method="post" action="'.almsivi_ui_h($base.'/forms/memory-delete').'"><input type="hidden" name="memory_id" value="'.almsivi_ui_h($id).'"><input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-danger" type="submit">Delete memory</button></form></article>';}
     echo'</div>';
 }
 
@@ -111,6 +120,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/main.css">
 <link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo almsivi_ui_h((string)filemtime(__DIR__.'/css/hub-navigation.css')); ?>">
 <main class="container-fluid events-memories-page">
+    <?php if(($_GET['status']??'')==='saved'): ?><p class="almsivi-status" role="status">Changes saved.</p>
+    <?php elseif(($_GET['status']??'')==='summary-requested'): ?><p class="almsivi-status" role="status">Summary requested. Check Jobs for progress.</p>
+    <?php elseif(($_GET['status']??'')==='summary-failed'): ?><p class="almsivi-status" role="status">The previous summary job failed. Check the connector and retry it in Jobs.</p><?php endif; ?>
     <div class="tab-container">
         <?php include __DIR__ . '/tmpl/events_memories_navigation.php'; ?>
 
@@ -137,7 +149,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         ?>
             <section id="<?php echo almsivi_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
                 <?php if($tabId==='eventlog'){almsivi_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{ ?><div class="tab-panel-inner roleplay-panel" data-roleplay-panel><h2 class="visually-hidden"><?php echo almsivi_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo almsivi_ui_h($heading); ?>:</strong> <?php echo almsivi_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo almsivi_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-list-controls"><div class="pagination-shape"><button type="button" class="active">1</button><button type="button" disabled>Next</button></div><label>Filter:<input type="search" placeholder="Search <?php echo almsivi_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><div class="roleplay-data" data-roleplay-data><?php
-                    if($tabId==='memory')almsivi_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf);
+                    if($tabId==='memory')almsivi_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf,$memoryPolicies,$memoryConnectors,$webRoot);
                     elseif(in_array($tabId,['adventure','diaries'],true)){echo'<p><a class="btn-base btn-primary" href="'.almsivi_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';almsivi_ui_table($rows,$emptyMessage);}
                     else almsivi_ui_table($rows,$emptyMessage);
                 ?></div></div><?php } ?>

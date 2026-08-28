@@ -617,6 +617,34 @@ $memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider
 $assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
     'selected NPC-profile memory failed prompt scope validation');
 $bystanderProbe['payload']['ui_source']='almsivi_rechat';
+$modelProvider=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Model privacy fixture',
+    'content'=>['driver'=>'mock','model'=>'privacy-v1']]);
+$modelPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']];
+$modelPolicy=$memoryService->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Model privacy policy','content'=>$modelPolicyContent]);
+$db->prepare('INSERT INTO memory_model_summaries(memory_id,memory_revision,policy_configuration_id,policy_revision,provider_configuration_id,provider_revision,content,input_sha256,created_at)
+    VALUES(:memory,1,:policy,1,:provider,1,:content,:sha,:now)')->execute(['memory'=>$mixedMemory['memory_id'],
+        'policy'=>$modelPolicy['configuration_id'],'provider'=>$modelProvider['configuration_id'],'content'=>'MODEL MIXED MEMORY SENTINEL',
+        'sha'=>hash('sha256',$mixedMemory['content']),'now'=>$memoryNow]);
+$modelSelection=$products->promptContext($memoryProbe,$memoryNow);
+$modelPrompt=(new PromptAssembler())->assemble($memoryProbe,$modelSelection);
+$modelSources=array_column(array_filter($modelPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'),null,'source_id');
+$assert(str_contains($modelPrompt['provider_input']['_assembled_prompt'],'MODEL MIXED MEMORY SENTINEL')
+    &&$modelSources[$mixedMemory['memory_id']]['source_table']==='memory_model_summaries'
+    &&!in_array($mixedMemory['memory_id'],array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id'),true),
+    'model summary projection lost its original witness privacy or trace provenance');
+$modelPolicyContent['enabled']=false;
+$memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture off');
+$originalSelection=$products->promptContext($memoryProbe,$memoryNow);
+$originalRows=array_column($originalSelection['memory'],null,'id');
+$assert($originalRows[$mixedMemory['memory_id']]['content']==='MIXED PRIVATE SUMMARY SENTINEL',
+    'disabling model memory did not restore deterministic text');
+$modelPolicyContent['enabled']=true;
+$memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture on');
+$products->updateMemory($mixedMemory['memory_id'],'MIXED EDITED MEMORY SENTINEL',['edited'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
+$editedRows=array_column($products->promptContext($memoryProbe,$memoryNow)['memory'],null,'id');
+$assert($editedRows[$mixedMemory['memory_id']]['content']==='MIXED EDITED MEMORY SENTINEL'
+    &&!isset($editedRows[$mixedMemory['memory_id']]['_model_summary']),'an older model projection hid a manual memory edit');
 $rechatHistory=$products->promptContext($bystanderProbe,$memoryNow)['history'];
 $rechatHistoryText=json_encode(array_column($rechatHistory,'content'),JSON_THROW_ON_ERROR);
 $assert(str_contains($rechatHistoryText,'SHARED CONVERSATION SENTINEL')

@@ -93,6 +93,18 @@ try {
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
 $inheritedLlm=['driver'=>'configured','model'=>'existing-model'];
+$memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+$check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
+    'model memory defaults can stay off without a provider');
+foreach([array_replace($memoryPolicy,['enabled'=>true]),array_replace($memoryPolicy,['enabled'=>'true']),
+    array_replace($memoryPolicy,['provider_configuration_id'=>'not-a-uuid'])]as$invalidPolicy){
+    try{\ALMSIVIserver\Application\MemorySummaryPolicy::validate($invalidPolicy);$check(false,'invalid model memory policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid model memory policy rejected');}
+}
+foreach([['summary'=>''],['summary'=>str_repeat('古',1400)],['summary'=>"bad\0text"],['summary'=>'fact','action'=>'follow']]as$invalidSummary){
+    try{\ALMSIVIserver\Application\MemorySummaryPolicy::summary($invalidSummary);$check(false,'invalid model summary accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid model summary rejected');}
+}
 $check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
     &&LlmConnector::requestOptions([],0.7,false)===['temperature'=>0.7,'response_format'=>['type'=>'json_object']],
     'legacy LLM slots retain their content and request defaults without materialized overrides');

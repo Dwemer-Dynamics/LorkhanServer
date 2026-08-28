@@ -23,6 +23,10 @@ final class ProductRepository
     public function createRevisioned(string $kind, array $input, string $now): array
     {
         return $this->transaction(function () use ($kind, $input, $now): array {
+            if($kind==='memory_policy'){
+                if(isset($input['profile_id']))throw new \InvalidArgumentException('memory_policy_is_installation_scoped');
+                (new MemorySummaryRepository($this->db))->assertProvider($input['installation_id'],$input['content']);
+            }
             $id = Uuid::v4();
             $reason = (string) ($input['change_reason'] ?? 'created');
             if ($kind === 'core_profile') {
@@ -46,7 +50,7 @@ final class ProductRepository
                 $this->revision('playthrough_revisions', 'playthrough_id', $id, 1, $input['content'], $reason, $now);
             } else {
                 $configKind = match ($kind) {
-                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings' => $kind,
+                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy' => $kind,
                     default => throw new RuntimeException('invalid_resource_kind'),
                 };
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
@@ -211,6 +215,10 @@ final class ProductRepository
             $stmt->execute(['id'=>$id]);
             $current = $stmt->fetchColumn();
             if ($current === false) throw new RuntimeException('not_found');
+            if($kind==='memory_policy'){
+                $policy=$this->getRevisioned($kind,$id);
+                (new MemorySummaryRepository($this->db))->assertProvider($policy['installation_id'],$content);
+            }
             $next = (int)$current + 1;
             $this->revision($revisions, $key, $id, $next, $content, $reason, $now);
             $this->db->prepare("UPDATE {$table} SET current_revision=:revision WHERE {$key}=:id")->execute(['revision'=>$next,'id'=>$id]);
@@ -496,8 +504,11 @@ final class ProductRepository
             if($kind==='provider'){
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='profile.generate' AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
+                $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
+                    WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
+                $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id) LIMIT 1");
@@ -954,6 +965,18 @@ final class ProductRepository
         $stmt=$this->db->prepare('SELECT * FROM memory_records WHERE memory_id=:id AND deleted_at IS NULL');$stmt->execute(['id'=>$id]);$row=$stmt->fetch();if(!$row)throw new RuntimeException('not_found');return $this->decodeMemory($row);
     }
 
+    public function memorySummaryPolicyForInstallation(string $installation):?array
+    {
+        return (new MemorySummaryRepository($this->db))->policy($installation);
+    }
+
+    public function enqueueMemorySummary(string $installation,string $memoryId,int $revision):array
+    {
+        if($revision<1)throw new \InvalidArgumentException('invalid_memory_revision');
+        return (new MemorySummaryRepository($this->db))->enqueue($installation,$memoryId,$revision)
+            ??throw new \InvalidArgumentException('memory_summary_unavailable');
+    }
+
     public function updateMemory(string $id,string $content,array $terms,array $vector,string $now): array
     {
         $this->db->prepare('UPDATE memory_records SET content=:content,lexical_terms=CAST(:terms AS text[]),fake_vector=CAST(:vector AS jsonb),updated_at=:now WHERE memory_id=:id AND deleted_at IS NULL')
@@ -982,17 +1005,32 @@ final class ProductRepository
     /** Keep manual memories with their NPC profile and require witnessed provenance for derived rows. */
     private function promptMemoryCandidates(array $turn, array $actorKey, string $activeProfileId, bool $ownsProfile, string $now): array
     {
-        $statement = $this->db->prepare('SELECT memory_id AS id,profile_id,tier,content,lexical_terms,fake_vector,'
-            . 'provenance,source_event_id,derivation_key,occurred_at,updated_at,current_revision FROM memory_records '
-            . 'WHERE installation_id=:installation AND playthrough_id=:playthrough '
-            . 'AND profile_id IN (:session_profile,:actor_profile) AND deleted_at IS NULL '
-            . 'AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC,memory_id LIMIT 500');
+        $statement = $this->db->prepare("SELECT m.memory_id AS id,m.profile_id,m.tier,m.content,m.lexical_terms,m.fake_vector,
+            m.provenance,m.source_event_id,m.derivation_key,m.occurred_at,m.updated_at,m.current_revision,
+            summary.content AS model_summary,summary.provider_configuration_id,summary.provider_revision,summary.input_sha256,
+            summary.policy_configuration_id,summary.policy_revision
+            FROM memory_records m LEFT JOIN memory_model_summaries summary
+                ON summary.memory_id=m.memory_id AND summary.memory_revision=m.current_revision
+                AND EXISTS(SELECT 1 FROM configuration_sets c JOIN configuration_revisions r
+                    ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
+                    WHERE c.configuration_id=summary.policy_configuration_id AND c.installation_id=m.installation_id
+                        AND c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->'enabled'='true'::jsonb)
+            WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough
+                AND m.profile_id IN (:session_profile,:actor_profile) AND m.deleted_at IS NULL
+                AND (m.expires_at IS NULL OR m.expires_at>:now) ORDER BY m.occurred_at DESC,m.memory_id LIMIT 500");
         $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now]);
         $candidates = [];
         $sourceIds = [];
         foreach ($statement->fetchAll() as $row) {
             $memory = $this->decodeMemory($row);
+            if(is_string($row['model_summary'])){
+                $memory['content']=$row['model_summary'];
+                $memory['_model_summary']=['memory_revision'=>(int)$row['current_revision'],
+                    'provider_configuration_id'=>$row['provider_configuration_id'],'provider_revision'=>(int)$row['provider_revision'],
+                    'policy_configuration_id'=>$row['policy_configuration_id'],'policy_revision'=>(int)$row['policy_revision'],
+                    'input_sha256'=>$row['input_sha256']];
+            }
             $ids = $this->memorySourceIds($memory);
             if ($ids === null) continue;
             if ($ids === [] && (!$ownsProfile || $memory['profile_id'] !== $activeProfileId
@@ -1306,6 +1344,10 @@ SQL);
                         'profile'=>$row['profile_id'],'kind'=>$row['kind'],'name'=>$row['name'],'now'=>$now]);}
                 $this->revision('configuration_revisions','configuration_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['configurations']++;}
 
+            foreach($document['data']['configurations']as$row)if($row['kind']==='memory_policy'){
+                if($row['profile_id']!==null)throw new \InvalidArgumentException('memory_policy_is_installation_scoped');
+                (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
+            }
             $this->db->prepare('DELETE FROM installation_provider_selections WHERE installation_id=:installation')
                 ->execute(['installation'=>$installation]);
             $insert=$this->db->prepare('INSERT INTO installation_provider_selections(installation_id,provider_kind,configuration_id,updated_at) '
@@ -2026,7 +2068,7 @@ SQL);
             ->execute(['installation'=>$row['installation_id'],'key'=>$key,'default'=>$default,'custom'=>$custom,
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}

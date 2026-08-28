@@ -185,7 +185,7 @@ final class ManagementRouter
             if(($v['embed']??'')==='1')$query['embed']='1';
             return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query($query));
         }
-        match($domain){
+        $result=match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
             'profile-template-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'actor_identity'=>$this->templateIdentity($v),'content'=>$this->profileContent($v)]),
@@ -209,6 +209,8 @@ final class ManagementRouter
             'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
+            'memory-policy'=>$this->saveMemoryPolicy($v,$scope),
+            'memory-summarize'=>$this->requestMemorySummary($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
             'biography-template-revise'=>$this->repository->saveBiographyTemplate($v),
             'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
@@ -265,6 +267,12 @@ final class ManagementRouter
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
+        if(in_array($domain,['memory-policy','memory-summarize'],true)){
+            $query=['status'=>$domain==='memory-policy'?'saved':'summary-requested',
+                'policy_installation_id'=>$scope['installation_id']];
+            if($domain==='memory-summarize'&&($result['state']??'')==='dead')$query['status']='summary-failed';
+            return $this->redirect($this->uiPath('memory').'&'.http_build_query($query));
+        }
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
@@ -804,7 +812,7 @@ final class ManagementRouter
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
-        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings'];
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
                 ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
@@ -814,6 +822,14 @@ final class ManagementRouter
         $selectionKinds=[];foreach($data['connector_selections']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             $kind=$row['provider_kind']??null;$id=$row['configuration_id']??null;if($keys!==['configuration_id','provider_kind']||!in_array($kind,['tts_provider','stt_provider'],true)
                 ||!is_string($id)||($configurationKinds[$id]??null)!==$kind||isset($selectionKinds[$kind]))throw new RuntimeException('backup_integrity_failed');$selectionKinds[$kind]=true;}
+        $memoryPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='memory_policy')continue;
+            \ALMSIVIserver\Application\MemorySummaryPolicy::validate($row['content']);
+            $provider=$row['content']['provider_configuration_id'];
+            if(++$memoryPolicies>1||$row['profile_id']!==null
+                ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
+        }
         if($this->containsSecretKey($document))throw new RuntimeException('backup_integrity_failed');
     }
 
@@ -899,6 +915,30 @@ final class ManagementRouter
         $content['welcome_events']=isset($values['welcome_events']);$content['random_events']=isset($values['random_events']);
         $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
         return$content;
+    }
+
+    /** Validate the manual request before it reaches database UUID and revision predicates. */
+    private function requestMemorySummary(array $values,array $scope):array
+    {
+        $id=$this->need($values,'memory_id');$this->uuid($id,'memory_id');
+        $revision=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1||$revision>2147483647)throw new InvalidArgumentException('invalid_memory_revision');
+        return$this->repository->enqueueMemorySummary(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$id,$revision);
+    }
+
+    /** Save the opt-in model policy without scheduling historical work or contacting a provider. */
+    private function saveMemoryPolicy(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $content=['schema'=>'almsivi.memory-policy.v1','enabled'=>isset($values['enabled']),
+            'provider_configuration_id'=>trim((string)($values['provider_configuration_id']??''))];
+        $existing=$this->repository->memorySummaryPolicyForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('memory_policy',
+            ['installation_id'=>$installation,'name'=>'Model memory','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('memory_policy',$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'Memory policy update'))?:'Memory policy update');
     }
 
     /** Create or revise the one typed global-settings document owned by an installation. */

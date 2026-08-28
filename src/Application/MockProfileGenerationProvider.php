@@ -10,6 +10,9 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
     public function generate(array $profile, CancellationToken $cancellation): array
     {
         $cancellation->throwIfCancellationRequested();
+        if(($profile['generation_mode']??'')==='memory_summary'){
+            return['summary'=>mb_strcut(trim((string)($profile['memory']??'')),0,4096,'UTF-8')];
+        }
         if(($profile['generation_mode']??'npc_profile')==='player_speech_style'){
             $inputs=is_array($profile['recent_player_inputs']??null)?$profile['recent_player_inputs']:[];
             return['speech_style'=>'Speaks in concise, direct sentences inferred from '.count($inputs).' recent player input'.(count($inputs)===1?'':'s').'.'];

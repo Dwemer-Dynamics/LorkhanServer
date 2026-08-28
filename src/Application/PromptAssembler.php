@@ -126,10 +126,12 @@ final class PromptAssembler
         // Audit the first ten ranked candidates plus actual survivors, without writing 500 trace rows per turn.
         $memoryTraceRows = [];
         $memoryScores = [];
+        $memoryModels = [];
         foreach ($memory as $index => $row) {
             $id = $this->sourceId('memory', $row);
             if ($index < 10 || isset($memoryState['texts'][$id])) $memoryTraceRows[] = $row;
             if (isset($memoryState['texts'][$id])) $memoryScores[$id] = (float) ($row['_prompt_score'] ?? 0);
+            if (isset($row['_model_summary'])) $memoryModels[$id] = $row['_model_summary'];
         }
         $memory = $memoryTraceRows;
 
@@ -164,7 +166,8 @@ final class PromptAssembler
             $memoryRetrieval['scores'] = $memoryIncluded ? $memoryScores : [];
             $memoryRetrieval['reasons'] = [];
             foreach ($memoryRetrieval['result_ids'] as $rank => $id) $memoryRetrieval['reasons'][$id] = [
-                'rank' => $rank + 1, 'reason' => $memoryState['reasons'][$id]];
+                'rank' => $rank + 1, 'reason' => $memoryState['reasons'][$id]]
+                + (isset($memoryModels[$id]) ? ['model_summary' => $memoryModels[$id]] : []);
             $memoryRetrieval['selection'] = 'exact-rendered-coverage-v1';
             $memoryRetrieval['coverage'] = $memoryState['counts'];
             $memoryRetrieval['coverage']['selected'] = count($memoryRetrieval['result_ids']);
@@ -959,7 +962,7 @@ final class PromptAssembler
                     'source_id' => $id,
                     'section_key' => $section,
                     'section_order' => self::SECTION_ORDER[$section],
-                    'source_table' => $this->sourceTable($kind),
+                    'source_table' => $kind === 'memory' && isset($item['_model_summary']) ? 'memory_model_summaries' : $this->sourceTable($kind),
                     'source_revision' => $this->sourceRevision($item),
                     'source_occurred_at' => $this->sourceTimestamp($item),
                     'playthrough_id' => $turn['playthrough_id'],

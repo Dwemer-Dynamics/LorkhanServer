@@ -130,6 +130,28 @@ codec/MIME, declared and actual bytes/hash, expiry and access audit. Authenticat
 checks ownership/current session as policy requires and streams with fixed safe headers; it does not
 accept a filesystem path or redirect.
 
+## Optional model memory summaries
+
+The installation's revisioned `memory_policy` is off by default. Enabling it requires an explicit
+LLM connector from the same installation. Saving the policy never calls a provider or queues past
+memories. Normal four-record deterministic consolidation remains authoritative; when enabled, each
+new mid/long consolidated memory queues a bounded `memory.summarize` job. The Memories page can also
+request one eligible existing record. `memory.rebuild` remains a deterministic index rebuild.
+
+Jobs freeze memory, policy and provider revisions, use the existing strict JSON text transport,
+and record provider attempts. A summary is a separate UTF-8 projection (maximum 4096 bytes), keyed
+by the exact memory revision; originals, search terms and source/witness provenance are unchanged.
+Prompt retrieval substitutes it only while its policy remains enabled and the original revision
+is current. Existing privacy checks still decide whether that memory can enter a prompt. Traces
+identify the projection and its input hash; ranking remains deterministic, not semantic embedding.
+
+Disabling the policy prevents new calls and cancels/discards pending output. Editing, deleting or
+expiring a memory invalidates pending output; lost worker leases cannot persist it. Failed jobs
+retry through the existing bounded queue and keep the original fallback. Connector changes affect
+future jobs; queued jobs retain their saved revision. Configuration backups include the policy and
+connector references, not generated memory text. Migration 062 refuses downgrade while any summary
+or policy history exists rather than discarding it. No client protocol or OpenMW action changes.
+
 ## Failure and observability
 
 Every request has correlation/request/turn/session IDs. Structured logs use stable event/error codes

@@ -358,6 +358,17 @@ values=dict(create_memory['fields'],_csrf=csrf,installation_id=valid['installati
 r=request(create_memory['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=memory' in r.geturl() and memory_text in body,(r.status,r.geturl(),body)
 memory_match=re.search(re.escape(memory_text)+r'.*?name="memory_id" value="([0-9a-f-]{36})"',body,re.S); assert memory_match,body
 memory_id=memory_match.group(1)
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+summary_form=next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))
+assert 'enabled' not in summary_form['fields']
+summary_values=dict(summary_form['fields'],_csrf=csrf,installation_id=valid['installation_id'])
+r=request(summary_form['action'],'POST',dict(summary_values,enabled='1',provider_configuration_id='')); assert r.status==422
+r=request(summary_form['action'],'POST',dict(summary_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+assert 'enabled' not in next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))['fields']
+for changes in [{'memory_id':'not-a-uuid'},{'base_revision':'1.5'},{'base_revision':'0'},{}]:
+    r=request('/ALMSIVIserver/manage/forms/memory-summarize','POST',dict({'_csrf':csrf,'installation_id':valid['installation_id'],'memory_id':memory_id,'base_revision':'1'},**changes))
+    assert r.status==422,(r.status,r.read().decode()) # Manual memories are never model-summary inputs.
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 revise_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory-revise') and f['fields'].get('memory_id')==memory_id)
 revised_memory=memory_text+' revised'; r=request(revise_memory['action'],'POST',dict(revise_memory['fields'],_csrf=csrf,content=revised_memory)); body=r.read().decode(); assert r.status==200 and revised_memory in body,(r.status,r.geturl(),body)
@@ -376,6 +387,17 @@ current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+pro
 values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
+summary_connectors,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?create=1'))
+summary_connector_form=next(f for f in summary_connectors.forms if f['action'].endswith('/forms/providers'))
+summary_connector_name='HTTP memory summary '+uuid.uuid4().hex
+r=request(summary_connector_form['action'],'POST',dict(summary_connector_form['fields'],_csrf=csrf,name=summary_connector_name,driver='mock',model='memory-http'))
+summary_connector_id=connector_editor_id(r.read().decode(),summary_connector_name)
+summary_values.update(provider_configuration_id=summary_connector_id,enabled='1')
+r=request(summary_form['action'],'POST',summary_values); policy_page,body=parse(r)
+assert r.status==200 and 'policy_installation_id='+valid['installation_id'] in r.geturl()
+assert next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))['fields']['enabled']=='1'
+assert any(f['action'].endswith('/forms/memory-rebuild') for f in policy_page.forms)
+r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':summary_connector_id}); assert r.status==422
 database,body=parse(request('/ALMSIVIserver/ui/database_manager.php'))
 backup_ids_before=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body))
 create_backup=next(f for f in database.forms if f['action'].endswith('/forms/configuration-backup'))
@@ -390,6 +412,9 @@ assert backup_response.status==200 and configuration_backup['schema']=='almsivi.
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
 assert all(row['core_profile_id'] in core_ids for row in configuration_backup['data']['profiles']),configuration_backup['data']['profiles']
 assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and 'api_key' not in json.dumps(configuration_backup).lower()
+saved_policy=next(row for row in configuration_backup['data']['configurations'] if row['kind']=='memory_policy')
+assert saved_policy['content']['enabled'] is True and saved_policy['content']['provider_configuration_id']==summary_connector_id
+summary_values.pop('enabled'); r=request(summary_form['action'],'POST',summary_values); assert r.status==200
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
@@ -401,6 +426,11 @@ values=dict(restore_configuration['fields'],_csrf=csrf,installation_id=valid['in
 r=request(restore_configuration['action'],'POST',values); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
 values['confirm']='Restore'; r=request(restore_configuration['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'restored ·' in body,(r.status,r.geturl(),body)
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+restored_policy=next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))
+assert restored_policy['fields']['enabled']=='1' and restored_policy['fields']['provider_configuration_id']==summary_connector_id
+summary_values['provider_configuration_id']=''; r=request(summary_form['action'],'POST',summary_values); assert r.status==200
+r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':summary_connector_id}); assert r.status==200
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Changed after the configuration backup.' not in body
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/ALMSIVIserver/ui/description_manager.php'))

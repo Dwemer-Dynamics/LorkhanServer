@@ -32,6 +32,8 @@ final class FirstPartyJobHandlerFactory
         $handlers[] = new SttProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$sttProvider,$mediaStore,
             new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig);
         return array_merge($handlers, [
+            new MemorySummaryJobHandler(new \ALMSIVIserver\Infrastructure\MemorySummaryRepository($db),$products,
+                new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new MemoryDeriveJobHandler($repository, $clock),
             new MemoryConsolidateJobHandler($repository, $clock),
             new MemoryRebuildJobHandler($repository, $clock),
@@ -59,6 +61,7 @@ final class FirstPartyJobHandlerFactory
             SttProcessJobHandler::TYPE,
             MemoryDeriveJobHandler::TYPE,
             MemoryConsolidateJobHandler::TYPE,
+            MemorySummaryJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,
             NarrativeJobHandler::SUMMARY_TYPE,
             NarrativeJobHandler::DIARY_TYPE,

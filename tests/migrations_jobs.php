@@ -1069,6 +1069,141 @@ $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$lega
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
     &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
     'memory consolidation replay was not idempotent');
+$summaryRepository=new \ALMSIVIserver\Infrastructure\MemorySummaryRepository($db);
+$summaryMemory=$middleRows[0];
+$check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null
+    &&(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
+    'default memory behavior queued paid generation');
+$summaryProvider=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Memory mock',
+    'content'=>['driver'=>'mock','model'=>'memory-mock-v1']]);
+$summaryPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$summaryProvider['configuration_id']];
+$summaryPolicy=$service->createRevisioned('memory_policy',['installation_id'=>$legacyInstallation,'name'=>'Model memory','content'=>$summaryPolicyContent]);
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
+    'saving memory policy queued historical generation');
+$summaryJob=$summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$summaryReplay=$summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$check($summaryJob['job_id']===$summaryReplay['job_id'],'memory summary enqueue was not idempotent');
+$service->revise('provider',$summaryProvider['configuration_id'],['driver'=>'mock','model'=>'memory-mock-v2'],'test frozen revision');
+$summaryStats=(new Worker($jobs,$firstPartyRegistry,'model-memory',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$summaryStored=$db->query("SELECT * FROM memory_model_summaries WHERE memory_id='{$summaryMemory['memory_id']}'")->fetch();
+$summaryOriginal=$products->memory($summaryMemory['memory_id']);
+$check($summaryStats['succeeded']===1&&(int)$summaryStored['provider_revision']===1
+    &&(int)$summaryOriginal['current_revision']===1&&$summaryOriginal['content']===$summaryMemory['content']
+    &&$summaryStored['input_sha256']===hash('sha256',$summaryMemory['content']),
+    'model summary changed the original or ignored the frozen provider revision');
+$check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
+    'completed model summary queued another provider call');
+$cancelMemory=$middleRows[1];
+$cancelJob=$summaryRepository->enqueue($legacyInstallation,$cancelMemory['memory_id'],1);
+$summaryPolicyContent['enabled']=false;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'disable model memory');
+$attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn();
+$cancelStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-disabled',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($cancelStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount,
+    'disabling model memory did not stop queued paid work');
+$summaryPolicyContent['enabled']=true;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'restore opt-in');
+$resumeJob=$summaryRepository->enqueue($legacyInstallation,$cancelMemory['memory_id'],1);
+$check($resumeJob['job_id']!==$cancelJob['job_id'],'re-enabling summaries could not enqueue previously skipped work');
+$resumeStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-resumed',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($resumeStats['succeeded']===1,'re-enabled model memory did not complete');
+$attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn();
+$editMemory=$middleRows[2];
+$editJob=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],1);
+$products->updateMemory($editMemory['memory_id'],'Manually corrected memory.',['corrected'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
+$editStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-edited',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($editStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount
+    &&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.',
+    'stale memory job called a provider or overwrote an edit');
+$liveMemory=$middleRows[3];
+$summaryRepository->enqueue($legacyInstallation,$liveMemory['memory_id'],1);
+$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function __construct(private $service,private string $policy,private array $content){}
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        $cancellation->throwIfCancellationRequested();$this->content['enabled']=false;
+        $this->service->revise('memory_policy',$this->policy,$this->content,'disabled during provider execution');
+        return ['summary'=>'This late output must be discarded.'];
+    }
+};
+$disablingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$disablingProvider)]);
+$duringStats=(new Worker($jobs,$disablingRegistry,'model-memory-disabled-during-call',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($duringStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$liveMemory['memory_id']}'")->fetchColumn()===0
+    &&$products->memory($liveMemory['memory_id'])['content']===$liveMemory['content'],
+    'disabling model memory during the call did not discard its output');
+$db->beginTransaction();$db->exec('SAVEPOINT model_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/062_model_memory_summaries.down.sql'));
+    throw new RuntimeException('model summary downgrade discarded data');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove model memory support'),'unexpected model downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT model_downgrade');}
+$check((int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===2,'guarded downgrade changed model summaries');
+$db->rollBack();
+$summaryPolicyContent['enabled']=true;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'enable future consolidation');
+foreach(range(17,20)as$ordinal)$derivePlayedMemory($ordinal);
+$beforeEnqueueFailure=(int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid'")->fetchColumn();
+$newRecent=$db->query("SELECT memory_id FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='recent' ORDER BY occurred_at DESC LIMIT 1")->fetchColumn();
+$db->exec("CREATE FUNCTION pg_temp.reject_model_enqueue() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''model enqueue test failure''; END'");
+$db->exec("CREATE TRIGGER reject_model_enqueue BEFORE INSERT ON durable_jobs FOR EACH ROW WHEN (NEW.job_type='memory.summarize') EXECUTE FUNCTION pg_temp.reject_model_enqueue()");
+try{(new \ALMSIVIserver\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
+    throw new RuntimeException('model enqueue failure was ignored');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'model enqueue test failure'),'unexpected model enqueue failure');}
+$db->exec('DROP TRIGGER reject_model_enqueue ON durable_jobs');
+$check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid'")->fetchColumn()===$beforeEnqueueFailure,
+    'failed model enqueue left a consolidated record that could not be retried');
+$autoConsolidation=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-consolidation',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
+$autoSummary=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-summary',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($autoConsolidation['dead']===0&&$autoSummary['succeeded']===1
+    &&(int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===3,
+    'enabled future consolidation did not produce its model summary');
+try{$foreignPolicy=$summaryPolicyContent;$foreignPolicy['provider_configuration_id']=$providerConfig['configuration_id'];
+    $service->revise('memory_policy',$summaryPolicy['configuration_id'],$foreignPolicy,'reject foreign connector');
+    throw new RuntimeException('foreign memory connector accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='memory_provider_installation_mismatch','unexpected foreign memory connector error');}
+$summaryBackup=['installation_id'=>$legacyInstallation,'data'=>$products->configurationBackupState($legacyInstallation)];
+foreach($summaryBackup['data']['configurations']as&$configuration)if($configuration['kind']==='memory_policy')
+    $configuration['content']['provider_configuration_id']=$providerConfig['configuration_id'];
+unset($configuration);
+$policyBeforeRestore=$summaryRepository->policy($legacyInstallation);
+try{$products->restoreConfigurationBackup($summaryBackup,$clock->iso());throw new RuntimeException('foreign connector restored into memory policy');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='memory_provider_installation_mismatch','unexpected memory backup restore error');}
+$check($summaryRepository->policy($legacyInstallation)===$policyBeforeRestore,'rejected memory backup changed policy history');
+try{$service->deleteRevisioned('provider',$summaryProvider['configuration_id']);throw new RuntimeException('configured memory provider deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected memory provider deletion error');}
+$failedSummary=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],2);
+$db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$failedSummary['job_id']]);
+$invalidSummaryProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
+};
+$invalidSummaryRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$invalidSummaryProvider)]);
+$failureStats=(new Worker($jobs,$invalidSummaryRegistry,'model-memory-invalid-output',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.'
+    &&(int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$editMemory['memory_id']}'")->fetchColumn()===0,
+    'invalid model output replaced the deterministic fallback');
+$leaseSummary=$summaryRepository->enqueue($legacyInstallation,$longRows[0]['memory_id'],1);
+$db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$leaseSummary['job_id']]);
+$leaseProvider=new class($db,$leaseSummary['job_id']) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function __construct(private PDO $db,private string $job){}
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        $cancellation->throwIfCancellationRequested();
+        $this->db->prepare("UPDATE durable_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=:id")->execute(['id'=>$this->job]);
+        return ['summary'=>'Expired lease output'];
+    }
+};
+$leaseRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$leaseProvider)]);
+(new Worker($jobs,$leaseRegistry,'model-memory-lease-lost',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$longRows[0]['memory_id']}'")->fetchColumn()===0,
+    'expired model worker persisted a late summary');
+(new Worker($jobs,$firstPartyRegistry,'model-memory-expired-cleanup',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$summaryPolicyContent['enabled']=false;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'leave model fixture disabled');
+
 $failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
 $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
     ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);

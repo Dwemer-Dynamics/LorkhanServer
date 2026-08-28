@@ -186,7 +186,13 @@ final class FirstPartyJobRepository
                 'source_range' => ['from' => $sourceFrom, 'to' => $sourceTo],
             ],
         ];
-        $this->upsertConsolidatedMemory($memory, $now);
+        // Commit the deterministic record and its optional durable job together so a failed enqueue is retryable.
+        $owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();
+        try{
+            $this->upsertConsolidatedMemory($memory, $now);
+            (new MemorySummaryRepository($this->db))->enqueue($scope['installation_id'],$memoryId);
+            if($owns)$this->db->commit();
+        }catch(\Throwable $error){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$error;}
         return $memory;
     }
 
