@@ -677,6 +677,8 @@ $historyDialogue=$db->query("SELECT dialogue_message_id,speaker FROM dialogue_ut
 $historyDelivery=$delivery;$historyDelivery['message_id']=$newUuid(5703);$historyDelivery['request_id']=$historyTurn['request_id'];
 $historyDelivery['turn_id']=$historyTurn['turn_id'];$historyDelivery['dialogue_message_id']=$historyDialogue['dialogue_message_id'];
 $historyDelivery['speaker']=json_decode($historyDialogue['speaker'],true,32,JSON_THROW_ON_ERROR);
+// This is a new playback receipt, not the first reply's earlier completion time.
+$historyDelivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
 [$historyStatus,$historyAck]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
 $assert($historyStatus===200,'second historical delivery failed: '.json_encode([$historyStatus,$historyAck]));
 $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
