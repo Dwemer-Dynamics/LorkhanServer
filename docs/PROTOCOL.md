@@ -123,10 +123,16 @@ acceptance freezes the assembled prompt and provider slot snapshot so later admi
 already accepted job.
 
 The controls response also returns a strict `almsivi.effective-settings.v1` snapshot for the active target.
-It contains the resolved memory, narrator, safety, and routing values, their Global/Core Profile/NPC source
-map, bound profile revisions, and a deterministic change token. Client-local presentation settings are not
-part of this target-effective document. Layered rechat enable/depth is included; timer scheduling,
-boredom, greetings, combat barks, ITT, and Background Life are excluded. STT is an installation-global connector and never participates in the layered profile resolver.
+It contains resolved rechat, memory, narrator, safety, and client-visible routing values, their
+Global/Core Profile/NPC source map, bound profile revisions, and a deterministic change token.
+The unchanged v1 wire shape retains compiled presentation and disabled legacy behavior defaults for
+strict older parsers. These compatibility fields never replace local OpenMW preferences or enable
+timer scheduling, boredom, greetings, combat barks, ITT, or Background Life. The Lua bridge receives
+only the seven playback-gated rechat fields from behavior; its safety gates require both local and
+server permission. Server-only Oghma tags and Oghma/profile-generation routes are not exposed.
+The source map omits excluded/internal paths and compatibility-only defaults. Model-slot driver
+labels are the v1 categories `mock` or `configured`, not provider credentials or endpoints.
+STT is an installation-global connector and never participates in the layered profile resolver.
 
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states

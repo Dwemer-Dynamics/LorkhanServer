@@ -315,6 +315,8 @@ $narratorProfile=$products->createRevisioned('profile',['installation_id'=>$inst
 $controlsQuery=$fixture('controls-query');
 $controlsQuery['message_id']=$newUuid(6);$controlsQuery['request_id']=$newUuid(7);
 $controlsQuery['session_id']=$sessionId;$controlsQuery['generation']=7;
+$directControlSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Controls explicit connector',
+    'content'=>['driver'=>'openai-compatible','model'=>'controls-test','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']],$now);
 [$status,$controls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$controlsQuery);
 $assert($status===200&&$controls['schema']==='almsivi.controls.v1'
     &&in_array($modelSlot['configuration_id'],array_column($controls['model_slots'],'configuration_id'),true)
@@ -326,8 +328,14 @@ $assert($status===200&&$controls['schema']==='almsivi.controls.v1'
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
     &&($controls['effective_settings']['profile_id']??null)===null
     &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
-    &&!isset($controls['effective_settings']['settings']['behavior'],$controls['effective_settings']['settings']['presentation']),
+    &&isset($controls['effective_settings']['settings']['behavior'])
+    &&$controls['effective_settings']['settings']['presentation']===\ALMSIVIserver\Application\EffectiveSettingsResolver::defaults()['presentation']
+    &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
     'in-game controls query did not return safe model/profile choices');
+$controlSlots=array_column($controls['model_slots'],null,'configuration_id');
+$assert($controlSlots[$directControlSlot['configuration_id']]['driver']==='configured'
+    &&!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
+    'explicit connectors must retain their server-side driver and endpoint behind a v1 configured model slot');
 
 $selectModel=$fixture('controls-select');
 $selectModel['message_id']=$newUuid(8);$selectModel['request_id']=$newUuid(9);
@@ -363,7 +371,8 @@ $coreProfile=$products->defaultCoreProfileForInstallation($installationId);
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],[
     'schema'=>'almsivi.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
     'routing'=>['llm_configuration_id'=>$coreModelSlot['configuration_id']],
-    'settings_overrides'=>['behavior'=>['rechat'=>true],'memory'=>['knowledge_limit'=>0]],
+    'settings_overrides'=>['behavior'=>['rechat'=>true,'rechat_probability_percent'=>0,'open_rechat'=>false],
+        'memory'=>['knowledge_limit'=>0]],
 ],'integration layered settings',$now);
 $inheritedContent=$actorProfile['content'];$inheritedContent['routing']=[];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$inheritedContent,'inherit Core Profile routing',$now);
@@ -379,8 +388,13 @@ $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configur
     &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
     &&($effectiveControls['effective_settings']['core_profile_id']??null)===$coreProfile['core_profile_id']
     &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===0
+    &&($effectiveControls['effective_settings']['settings']['behavior']['rechat']??null)===true
+    &&($effectiveControls['effective_settings']['settings']['behavior']['rechat_probability_percent']??null)===0
+    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===false
     &&($effectiveControls['effective_settings']['source_map']['settings.memory.knowledge_limit']??null)==='core_profile',
     'Core Profile routing and typed setting overrides did not reach runtime resolution');
+$coreContent=$coreProfile['content'];$coreContent['settings_overrides']['behavior']=['rechat'=>true];
+$coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$coreContent,'restore rechat fixture probability',$now);
 $maskedContent=$actorProfile['content'];$maskedContent['routing']=['llm_configuration_id'=>''];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$maskedContent,'explicit NPC route disable',$now);
 $assert($products->providerContext($turnLike)===null,

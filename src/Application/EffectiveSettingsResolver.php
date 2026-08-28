@@ -72,6 +72,45 @@ final class EffectiveSettingsResolver
         return self::DEFAULT_SETTINGS;
     }
 
+    /** Project internal settings into the unchanged strict v1 controls contract. */
+    public static function controlsProjection(array $resolved): array
+    {
+        $settings = self::DEFAULT_SETTINGS;
+        unset($settings['schema']);
+        $rechatFields = array_fill_keys(['rechat', 'rechat_max_depth', 'rechat_probability_percent',
+            'rechat_mode', 'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'], true);
+        foreach (['behavior', 'memory', 'narrator', 'safety'] as $section) {
+            $allowed = $section === 'behavior' ? $rechatFields : $settings[$section];
+            $settings[$section] = array_replace($settings[$section],
+                array_intersect_key($resolved['settings'][$section], $allowed));
+        }
+        // Presentation and legacy behavior fields are inert v1 compatibility defaults.
+        // They are never projected into Lua; the client's local preferences remain authoritative.
+        $routing = array_intersect_key($resolved['routing'], array_fill_keys([
+            'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
+            'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
+            'llm_fallback_configuration_id', 'tts_configuration_id',
+            'llm_randomizer_enabled', 'llm_fallback_enabled',
+        ], true));
+        $routing += ['llm_randomizer_enabled' => false, 'llm_fallback_enabled' => false];
+        $sources = [];
+        foreach ($settings as $section => $values) {
+            if ($section === 'presentation') continue;
+            foreach ($values as $field => $_) {
+                if ($section === 'behavior' && !isset($rechatFields[$field])) continue;
+                $path = 'settings.' . $section . '.' . $field;
+                $source = $resolved['sources'][$path] ?? null;
+                if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+            }
+        }
+        foreach ($routing as $field => $_) {
+            $path = 'routing.' . $field;
+            $source = $resolved['sources'][$path] ?? 'default';
+            if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+        }
+        return ['settings' => $settings, 'routing' => $routing, 'source_map' => $sources];
+    }
+
     /**
      * @param array<string,mixed> $globalSettings
      * @param array<string,mixed> $coreProfileContent

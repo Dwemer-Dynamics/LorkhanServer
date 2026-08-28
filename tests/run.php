@@ -683,6 +683,24 @@ $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile
     && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
     && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,
     'effective settings retain per-field provenance and a canonical hash');
+$projectionInput=$effective;
+$projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
+$projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';
+$projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
+$check($projection['settings']['behavior']['rechat']===false
+    &&$projection['settings']['memory']['knowledge_limit']===0&&$projection['routing']['llm_configuration_id']===''
+    &&$projection['source_map']['settings.behavior.rechat']==='core_profile'
+    &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],
+    'controls retain typed overrides while presentation remains inert v1 compatibility data');
+$check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
+    &&!isset($projection['routing']['oghma_configuration_id'])
+    &&!isset($projection['routing']['profile_generation_configuration_id'])
+    &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
+    &&!in_array('excluded',$projection['source_map'],true)
+    &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
+    &&$projection['settings']['behavior']['auto_greeting']===false
+    &&$projection['settings']['behavior']['rechat_allow_actions']===false,
+    'controls omit server-only settings and provenance without altering internal resolution or enabling automation');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
     $check(false,'unknown layered setting rejected');

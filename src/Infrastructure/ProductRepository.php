@@ -1189,7 +1189,7 @@ SQL);
         $modelSlots=[];
         foreach($providers->fetchAll() as$row){$content=$this->json($row['content']);$modelSlots[]=[
             'configuration_id'=>(string)$row['configuration_id'],'name'=>(string)$row['name'],
-            'revision'=>(int)$row['current_revision'],'driver'=>(string)($content['driver']??'mock'),
+            'revision'=>(int)$row['current_revision'],'driver'=>($content['driver']??'mock')==='mock'?'mock':'configured',
             'model'=>(string)($content['model']??'deterministic-mock-v1')];}
         $profiles=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles "
             ."WHERE installation_id=:installation AND deleted_at IS NULL "
@@ -1203,28 +1203,13 @@ SQL);
         $effective=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
         $profile=is_array($effective['npc_profile']??null)?$effective['npc_profile']:null;
         $core=is_array($effective['core_profile']??null)?$effective['core_profile']:null;
-        $sourceMap=array_filter($effective['sources']??[],static fn(mixed $source,string $path):bool=>is_string($source)
-            &&(str_starts_with($path,'settings.memory.')||str_starts_with($path,'settings.narrator.')
-                ||str_starts_with($path,'settings.safety.')||str_starts_with($path,'routing.')),ARRAY_FILTER_USE_BOTH);
-        $routing=$effective['routing'];
-        foreach(['llm_randomizer_enabled','llm_fallback_enabled'] as $flag){
-            if(!array_key_exists($flag,$routing))$routing[$flag]=false;
-            if(!array_key_exists('routing.'.$flag,$sourceMap))$sourceMap['routing.'.$flag]='default';
-        }
         $effectiveSettings=[
             'schema'=>'almsivi.effective-settings.v1',
             'profile_id'=>$profile===null?null:(string)$profile['profile_id'],
             'profile_revision'=>$profile===null?null:(int)($profile['revision']??$profile['current_revision']??0),
             'core_profile_id'=>$core===null?null:(string)$core['core_profile_id'],
             'core_profile_revision'=>$core===null?null:(int)($core['revision']??$core['current_revision']??0),
-            'settings'=>[
-                'memory'=>$effective['settings']['memory'],
-                'narrator'=>$effective['settings']['narrator'],
-                'safety'=>$effective['settings']['safety'],
-            ],
-            'routing'=>$routing,
-            'source_map'=>$sourceMap,
-        ];
+        ]+EffectiveSettingsResolver::controlsProjection($effective);
         $effectiveSettings['change_token']=hash('sha256',$this->encodeCanonical($effectiveSettings));
         return ['model_slots'=>$modelSlots,'profiles'=>$profileRows,
             'selected_model_slot_id'=>$selectedModel,
