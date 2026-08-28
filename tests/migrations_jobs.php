@@ -106,6 +106,21 @@ $check($runner->up() === [$latestVersion], 'up did not restore reverted migratio
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
 
+// The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
+$db->beginTransaction();
+$db->exec("INSERT INTO almsivi_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
+    ."VALUES('30000000-0000-4000-8000-000000000060','capacity-guard-fixture','legacy_snapshot',repeat('0',64),20000,'superseded',now(),now())");
+$db->exec('SAVEPOINT capacity_guard');
+try{$db->exec("UPDATE almsivi_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
+    throw new RuntimeException('biography capacity became unbounded');}
+catch(PDOException $error){$check($error->getCode()==='23514','unexpected biography capacity failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/060_biography_catalog_capacity.down.sql'));
+    throw new RuntimeException('larger biography catalog was rolled back');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore the 10,000-row biography limit'),'unexpected biography rollback failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
+$check((int)$db->query("SELECT row_count FROM almsivi_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
+    'refused rollback changed the biography catalog');
+$db->rollBack();
+
 // Upgrade a populated 004 database: preserve the legacy session while materializing scoped owners.
 $upgradeVersions = array_values(array_filter($expectedVersions, static fn(int $version): bool => $version > 4));
 $downVersions = array_reverse($upgradeVersions);
