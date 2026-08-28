@@ -116,8 +116,9 @@ Controls are authenticated and generation-scoped. They expose no credentials or 
 its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile
 bindings use stable OpenMW identity within one installation/playthrough; special player/narrator profiles are
 excluded from the binding list. Narrator generation accepts only the installation narrator ID returned by the
-same authenticated control query. The selected actor profile may
-change profile/prompt sources, but session-profile memory and relationship scope is retained. Turn
+same authenticated control query. The selected actor profile owns relationship and manual-memory
+context; source-derived memories additionally require witnessed-source eligibility. An unbound target
+does not inherit another actor's relationships or manual memories from the session profile. Turn
 acceptance freezes the assembled prompt and provider slot snapshot so later admin edits cannot alter an
 already accepted job.
 
