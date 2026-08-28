@@ -315,7 +315,13 @@ SQL);
         };
 
         if ($sql === []) return [];
-        return array_map(fn(array $row): array => $this->redactRow($row), $this->all($sql));
+        return array_map(function (array $row) use ($view): array {
+            // Strict LLM documents contain named key references, not secrets. A generic "token"
+            // redaction would blank numeric token limits and erase them on the next editor save.
+            if ($view === 'llm') $row['content'] = \ALMSIVIserver\Application\LlmConnector::validate(
+                json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
+            return $this->redactRow($row);
+        }, $this->all($sql));
     }
 
     /** Return one effective factory-or-custom biography template for on-demand details and editing. */

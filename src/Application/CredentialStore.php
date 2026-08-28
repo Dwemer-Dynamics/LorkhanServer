@@ -19,6 +19,7 @@ final class CredentialStore
     public static function allowedVariables(): array
     {
         $variables=['ALMSIVI_LLM_API_KEY','ALMSIVI_TTS_API_KEY','ALMSIVI_STT_API_KEY'];
+        foreach(LlmConnector::CREDENTIALS as$variable)if($variable!=='')$variables[]=$variable;
         foreach(['tts_provider','stt_provider']as$kind)foreach(ConnectorCatalog::all($kind)as$definition){
             $variable=(string)$definition['credential_environment'];if($variable!=='')$variables[]=$variable;
         }

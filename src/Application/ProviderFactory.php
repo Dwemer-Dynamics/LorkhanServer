@@ -21,13 +21,23 @@ final class ProviderFactory
                 self::apiKey($provider, 'ALMSIVI_LLM_API_KEY', $config),
                 (int) ($provider['timeout_ms'] ?? 30_000),
                 (bool) ($provider['disable_reasoning'] ?? false),
+                (array) ($provider['options'] ?? []),
+                (bool) ($provider['allow_loopback_http'] ?? false),
+                (bool) ($provider['direct_connection'] ?? false),
             ),
             default => throw new RuntimeException('Unsupported dialogue provider driver.'),
         };
     }
 
-    /** Build a turn-scoped provider from a server-owned slot; credentials remain in process config. */
+    /** Build a turn-scoped provider while resolving only server-held credential references. */
     public static function dialogueForSlot(array $config, array $slot): Provider
+    {
+        $config['provider']=self::slotSection($config,$slot);
+        return self::dialogue($config);
+    }
+
+    /** Resolve a frozen connector revision without letting an explicit endpoint inherit a runtime key. */
+    private static function slotSection(array $config,array $slot):array
     {
         $keys=array_keys($slot);sort($keys);
         if($keys!==['configuration_id','content','revision']
@@ -36,43 +46,30 @@ final class ProviderFactory
             ||!is_int($slot['revision'])||$slot['revision']<1
             ||!is_array($slot['content'])||array_is_list($slot['content']))
             throw new RuntimeException('Provider slot snapshot is invalid.');
-        $content=$slot['content'];$driver=$content['driver']??null;$model=$content['model']??null;
-        if(!is_string($driver)||!in_array($driver,['configured','mock'],true)
-            ||!is_string($model)||$model===''||strlen($model)>256)
-            throw new RuntimeException('Provider slot content is invalid.');
-        if($driver==='mock'){
-            $allowed=['driver','mock_prefix','model','timeout_ms'];$keys=array_keys($content);sort($keys);
-            if(array_diff($keys,$allowed)!==[]||!is_string($content['mock_prefix']??'')||strlen((string)($content['mock_prefix']??''))>256)
-                throw new RuntimeException('Mock provider slot content is invalid.');
-            return new MockProvider((string)($content['mock_prefix']??''));
+        $content=LlmConnector::validate($slot['content']);
+        if($content['driver']==='mock')return$content;
+        if($content['driver']==='configured'){
+            $section=self::section($config,'provider');$section['model']=$content['model'];
+            if(isset($content['timeout_ms']))$section['timeout_ms']=$content['timeout_ms'];
+            if(isset($content['options']))$section['options']=array_replace((array)($section['options']??[]),$content['options']);
+            return$section;
         }
-        $keys=array_keys($content);sort($keys);
-        if($keys!==['driver','model'])throw new RuntimeException('Configured provider slot content is invalid.');
-        $configured=$config;
-        $section=self::section($configured,'provider');
-        $section['model']=$model;
-        $configured['provider']=$section;
-        return self::dialogue($configured);
+        return$content+['allowed_hosts'=>[(string)parse_url($content['endpoint'],PHP_URL_HOST)],
+            'allow_loopback_http'=>str_starts_with($content['endpoint'],'http://'),'direct_connection'=>true];
     }
 
     /** Build the profile-routed extractor without exposing connector credentials or dialogue contracts. */
     public static function oghmaTopicExtractorForSlot(array $config,array $slot,?int $timeoutMs=null):OghmaTopicExtractor
     {
-        $keys=array_keys($slot);sort($keys);
-        if($keys!==['configuration_id','content','revision']||!is_string($slot['configuration_id'])
-            ||preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$slot['configuration_id'])!==1
-            ||!is_int($slot['revision'])||$slot['revision']<1||!is_array($slot['content'])||array_is_list($slot['content']))
-            throw new RuntimeException('Provider slot snapshot is invalid.');
-        $content=$slot['content'];$driver=$content['driver']??null;$model=$content['model']??null;
-        if(!is_string($driver)||!in_array($driver,['configured','mock'],true)||!is_string($model)||$model===''||strlen($model)>256)
-            throw new RuntimeException('Provider slot content is invalid.');
-        if($driver==='mock')return new MockOghmaTopicExtractor();
-        $keys=array_keys($content);sort($keys);if($keys!==['driver','model'])throw new RuntimeException('Configured provider slot content is invalid.');
-        $provider=self::section($config,'provider');$timeout=$timeoutMs===null
+        $provider=self::slotSection($config,$slot);
+        if(($provider['driver']??'mock')==='mock')return new MockOghmaTopicExtractor();
+        if($provider['driver']!=='openai-compatible')throw new RuntimeException('Unsupported topic extraction provider driver.');
+        $timeout=$timeoutMs===null
             ?max(1000,min(15_000,(int)($provider['timeout_ms']??15_000)))
             :max(250,min(3000,$timeoutMs));
-        return new OpenAiCompatibleOghmaTopicExtractor((string)($provider['endpoint']??''),self::hosts($provider),$model,
-            self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false));
+        return new OpenAiCompatibleOghmaTopicExtractor((string)($provider['endpoint']??''),self::hosts($provider),(string)$provider['model'],
+            self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false),
+            (array)($provider['options']??[]),(bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false));
     }
 
     /** Build the task-specific profile generator from the same server-owned LLM configuration. */
@@ -83,7 +80,8 @@ final class ProviderFactory
             'mock'=>new MockProfileGenerationProvider(),
             'openai-compatible'=>new OpenAiCompatibleProfileGenerationProvider((string)($provider['endpoint']??''),self::hosts($provider),
                 (string)($provider['model']??''),self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),(int)($provider['timeout_ms']??30_000),
-                (bool)($provider['disable_reasoning']??false)),
+                (bool)($provider['disable_reasoning']??false),(array)($provider['options']??[]),
+                (bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false)),
             default=>throw new RuntimeException('Unsupported profile generation provider driver.'),
         };
     }
@@ -201,6 +199,12 @@ final class ProviderFactory
     /** @param array<string,mixed> $provider */
     private static function apiKey(array $provider, string $defaultVariable, array $config): string
     {
+        if(array_key_exists('credential',$provider)){
+            $reference=$provider['credential'];
+            if(!is_string($reference)||!array_key_exists($reference,LlmConnector::CREDENTIALS))throw new RuntimeException('Invalid LLM credential reference.');
+            $variable=LlmConnector::CREDENTIALS[$reference];
+            return$variable===''?'':self::environment($variable,$config);
+        }
         $variable = (string) ($provider['api_key_env'] ?? $defaultVariable);
         if ($variable === '' || preg_match('/^[A-Z_][A-Z0-9_]*$/D', $variable) !== 1) {
             throw new RuntimeException('Provider API key environment variable is invalid.');

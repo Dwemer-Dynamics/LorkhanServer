@@ -31,7 +31,8 @@ final class ProductService
                 throw new InvalidArgumentException('invalid_core_profile_slot');
             }
         }
-        $this->assertNoSecrets($input['content']);
+        // LLM slots use an exact typed schema: credential is a reference and max_tokens is numeric.
+        if ($kind !== 'provider') $this->assertNoSecrets($input['content']);
         $input['content']=$this->validateConfiguration($kind,$input['content']);
         return $this->repository->createRevisioned($kind, $input, $this->clock->iso());
     }
@@ -42,7 +43,8 @@ final class ProductService
         $this->uuid($id);
         if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
-        $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
+        if ($kind !== 'provider') $this->assertNoSecrets($content);
+        $content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
     }
 
@@ -62,7 +64,9 @@ final class ProductService
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
         $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
-        $content=$this->repository->revisionContent($kind,$id,$revision);$this->assertNoSecrets($content);$this->validateConfiguration($kind,$content);
+        $content=$this->repository->revisionContent($kind,$id,$revision);
+        if ($kind !== 'provider') $this->assertNoSecrets($content);
+        $this->validateConfiguration($kind,$content);
         return $this->repository->rollback($kind, $id, $revision, $reason, $this->clock->iso());
     }
 
@@ -334,19 +338,7 @@ final class ProductService
         if($kind==='action_policy')return$this->validateActionPolicy($content);
         if($kind==='global_settings')return EffectiveSettingsResolver::validateGlobalSettings($content);
         if($kind!=='provider')return$content;
-        $driver=$content['driver']??null;
-        if(!in_array($driver,['configured','mock'],true))throw new InvalidArgumentException('invalid_provider_driver');
-        $model=$content['model']??($driver==='mock'?'deterministic-mock-v1':null);
-        if(!is_string($model)||$model===''||strlen($model)>256||!mb_check_encoding($model,'UTF-8'))
-            throw new InvalidArgumentException('invalid_provider_model');
-        if($driver==='configured'){
-            $keys=array_keys($content);sort($keys);if($keys!==['driver','model'])throw new InvalidArgumentException('invalid_provider_content');
-            return['driver'=>'configured','model'=>$model];
-        }
-        $allowed=['driver','mock_prefix','model','timeout_ms'];$keys=array_keys($content);sort($keys);
-        if(array_diff($keys,$allowed)!==[]||!is_string($content['mock_prefix']??'')||strlen((string)($content['mock_prefix']??''))>256)
-            throw new InvalidArgumentException('invalid_provider_content');
-        return['driver'=>'mock','model'=>$model,'mock_prefix'=>(string)($content['mock_prefix']??'')];
+        return LlmConnector::validate($content);
     }
 
     /** Keep server-to-client settings bounded, typed, and free of executable or transport values. */

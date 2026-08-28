@@ -18,9 +18,13 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         private readonly string $apiKey,
         private readonly int $timeoutMs = 30_000,
         private readonly bool $disableReasoning = false,
+        private readonly array $options = [],
+        private readonly bool $allowLoopbackHttp = false,
+        private readonly bool $directConnection = false,
     ) {
-        OutboundUrlPolicy::validate($endpoint, $allowedHosts);
-        if ($model === '' || strlen($model) > 200 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
+        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
+        LlmConnector::validateOptions($options);
+        if ($model === '' || strlen($model) > 256 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_configuration');
         }
     }
@@ -34,18 +38,14 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     {
         $cancellation->throwIfCancellationRequested();
         $messages = $this->promptMessages($turn);
-        $request = [
+        $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning) + [
             'model' => $this->model,
-            'temperature' => 0.7,
-            'stream' => true,
-            'response_format' => ['type' => 'json_object'],
+            'stream' => $this->options['stream'] ?? true,
             'messages' => $messages,
         ];
-        if ($this->disableReasoning) {
-            $request['reasoning'] = ['exclude' => true, 'enabled' => false];
-        }
         $body = json_encode($request, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts));
+        $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
+        $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         $headers = ['Content-Type: application/json', 'Accept: text/event-stream, application/json'];
         if ($this->apiKey !== '') $headers[] = 'Authorization: Bearer ' . $this->apiKey;
@@ -54,7 +54,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $content = '';
         $streamed = false;
         $visible = new StreamingDialogueText();
-        curl_setopt_array($handle, [
+        curl_setopt_array($handle, $networkOptions + [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_RETURNTRANSFER => false,

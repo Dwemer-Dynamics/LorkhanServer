@@ -30,6 +30,32 @@ canonical PHP pages while `/manage/forms/*` and `/manage/api/v1/*` remain the CS
 It does not own OpenMW game objects, execute engine actions, store Bethesda game data, or put provider
 credentials in the client.
 
+## LLM connectors
+
+The connector editor supports three modes:
+
+- **Configured runtime** keeps the server endpoint and key. Existing model-only slots need no changes.
+- **Direct OpenAI-compatible endpoint** uses a complete chat-completions URL and a named server-held key.
+  Public hosts require HTTPS; plain HTTP is limited to `localhost` or `127.*`. URLs cannot contain
+  credentials, a query string, or a fragment. DNS/private-address checks run when connecting, not saving.
+- **Deterministic mock** makes no provider request.
+
+Optional sampling controls include temperature, one token limit (`max_tokens` or
+`max_completion_tokens`), top-p/top-k/min-p/top-a, and repetition/frequency/presence penalties.
+Blank sampling fields use the provider's defaults for direct connectors, or inherit server settings
+for configured connectors. Explicit zero and false values are preserved. Provider support varies;
+an unsupported parameter may cause a test failure. See the [OpenRouter parameter reference](https://openrouter.ai/docs/api_reference/parameters).
+Streaming affects dialogue only. Turning JSON mode off removes the provider hint, not ALMSIVI's
+strict response validation. Arbitrary request bodies, JSON prefill, and reasoning-tag cleanup remain unsupported.
+
+API Keys manages Default, OpenAI LLM, OpenRouter LLM, and Custom LLM keys separately. Existing default
+and speech key values are not moved. Direct connectors start without a key. Export/import clears
+the key selection so an imported endpoint cannot acquire a local credential automatically; select
+the intended key after reviewing the endpoint. Local cloning and revision rollback preserve key references.
+Explicit direct connections bypass environment proxies and pin validated DNS answers; configured
+runtime connections retain the operator's proxy configuration. Neither Save nor Import calls a provider.
+Test and subsequent use of an assigned connector can incur provider charges.
+
 ## Local deployment
 
 The normal developer deploy mirrors the active source to `/var/www/html/ALMSIVIserver`, keeps

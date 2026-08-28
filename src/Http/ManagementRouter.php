@@ -6,6 +6,7 @@ namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\DeterministicRetrieval;
 use ALMSIVIserver\Application\ConnectorCatalog;
+use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Provider;
@@ -489,9 +490,30 @@ final class ManagementRouter
     private function providerFormContent(array $values):array
     {
         $driver=$this->need($values,'driver');$model=$this->need($values,'model');
-        if($driver==='configured')return['driver'=>'configured','model'=>$model];
         if($driver==='mock')return['driver'=>'mock','model'=>$model,'mock_prefix'=>trim((string)($values['mock_prefix']??''))];
-        throw new InvalidArgumentException('invalid_provider_driver');
+        $content=['driver'=>$driver,'model'=>$model];
+        if($driver==='openai-compatible')$content+=['endpoint'=>$this->need($values,'endpoint'),
+            'credential'=>$values['credential']??'none'];
+        if(isset($values['timeout_ms'])&&$values['timeout_ms']!==''){
+            $timeout=filter_var($values['timeout_ms'],FILTER_VALIDATE_INT);
+            if($timeout===false)throw new InvalidArgumentException('invalid_provider_timeout');
+            $content['timeout_ms']=$timeout;
+        }
+        $options=[];
+        foreach(LlmConnector::OPTION_RULES as$name=>$rule){
+            $key='option_'.$name;if(!array_key_exists($key,$values)||$values[$key]==='')continue;
+            $raw=$values[$key];
+            if($rule['type']==='boolean'){
+                if(!in_array($raw,['true','false'],true))throw new InvalidArgumentException('invalid_provider_option_'.$name);
+                $options[$name]=$raw==='true';
+            }else{
+                $value=filter_var($raw,$rule['type']==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
+                if($value===false)throw new InvalidArgumentException('invalid_provider_option_'.$name);
+                $options[$name]=$value;
+            }
+        }
+        if($options!==[])$content['options']=$options;
+        return LlmConnector::validate($content);
     }
 
     /** Restrict generic revision controls to the two JSON-backed management editors. */
@@ -559,12 +581,14 @@ final class ManagementRouter
             'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
     }
 
-    /** Download one portable model slot without installation ownership, revision history, endpoints, or credentials. */
+    /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */
     private function exportProvider(string $configurationId):Response
     {
         $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('provider',$configurationId);
         $content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('provider_export_rejected');
+        $content=LlmConnector::validate($content);
+        if($content['driver']==='openai-compatible')$content['credential']='none';
         $document=['schema'=>'almsivi.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-model-slot';
@@ -587,12 +611,12 @@ final class ManagementRouter
         if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.provider-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
-        $content=$document['content'];$driver=$content['driver']??null;$contentKeys=array_keys($content);sort($contentKeys);
-        $minimal=['driver','model'];$withPrefix=['driver','mock_prefix','model'];sort($minimal);sort($withPrefix);
-        if(!in_array($driver,['configured','mock'],true)||($driver==='configured'?$contentKeys!==$minimal:!in_array($contentKeys,[$minimal,$withPrefix],true)))throw new InvalidArgumentException('invalid_provider_export');
+        $content=LlmConnector::validate($document['content']);
+        // Imported endpoints must not silently acquire an existing local API key.
+        if($content['driver']==='openai-compatible')$content['credential']='none';
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_provider_export');
         return$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
-            'name'=>$name,'content'=>$this->providerFormContent($content)]);
+            'name'=>$name,'content'=>$content]);
     }
 
     /** Download one portable prompt without installation ownership, revision history, or secret-like fields. */

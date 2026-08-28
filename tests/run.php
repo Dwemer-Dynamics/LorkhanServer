@@ -8,6 +8,7 @@ require __DIR__ . '/Support/StateStore.php';
 use ALMSIVIserver\Config\Settings;
 use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Application\CredentialStore;
+use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\CloudSpeechConnectorProvider;
 use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
 use ALMSIVIserver\Application\CanonicalResponseNormalizer;
@@ -90,6 +91,39 @@ try {
 }
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
+$inheritedLlm=['driver'=>'configured','model'=>'existing-model'];
+$check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
+    &&LlmConnector::requestOptions([],0.7,false)===['temperature'=>0.7,'response_format'=>['type'=>'json_object']],
+    'legacy LLM slots retain their content and request defaults without materialized overrides');
+$directLlm=['driver'=>'openai-compatible','model'=>'local-model','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions',
+    'options'=>['temperature'=>0,'top_p'=>0,'stream'=>false,'json_mode'=>false,'disable_reasoning'=>false]];
+$validatedLlm=LlmConnector::validate($directLlm);
+$check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
+    &&LlmConnector::requestOptions($validatedLlm['options'],null,true)===['temperature'=>0,'top_p'=>0]
+    &&LlmConnector::requestOptions([],null,false)===['response_format'=>['type'=>'json_object']],
+    'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
+$directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
+$check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
+    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleOghmaTopicExtractor,
+    'dialogue and Oghma resolve the explicit connector without inheriting runtime credentials');
+$pinned=\ALMSIVIserver\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
+$check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
+    'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');
+foreach(['127.0.0.1','[::1]','[::ffff:127.0.0.1]','[::ffff:192.168.1.1]']as$privateHost){
+    try{\ALMSIVIserver\Security\OutboundUrlPolicy::validate('https://'.$privateHost.'/v1/chat/completions',[$privateHost]);$check(false,'private HTTPS provider rejected');}
+    catch(InvalidArgumentException){$check(true,'private HTTPS provider rejected');}
+}
+foreach([
+    ['endpoint'=>'http://192.168.1.4/v1/chat/completions'],
+    ['endpoint'=>'https://api.openai.com/v1/chat/completions?api_key=not-a-real-key'],
+    ['endpoint'=>'https://user:password@api.openai.com/v1/chat/completions'],
+    ['credential'=>'ALMSIVI_PAIRING_TOKEN_HASH'],
+    ['options'=>['temperature'=>'0']],['options'=>['temperature'=>INF]],['options'=>['stream'=>0]],
+    ['options'=>['max_tokens'=>10,'max_completion_tokens'=>10]],['options'=>['messages'=>[]]],
+]as$invalidLlm){
+    try{LlmConnector::validate(array_replace($directLlm,$invalidLlm));$check(false,'unsafe or untyped LLM connector rejected');}
+    catch(InvalidArgumentException){$check(true,'unsafe or untyped LLM connector rejected');}
+}
 $streamText=new StreamingDialogueText();$streamChunks=[];
 foreach(['{"utterances":[{"text":"Hello ','there. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
     foreach($streamText->push($chunk,$index===2) as $delta)$streamChunks[]=$delta;

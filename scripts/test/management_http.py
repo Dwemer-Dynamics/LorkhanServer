@@ -8,12 +8,21 @@ opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 class VoiceProvider(http.server.BaseHTTPRequestHandler):
     uploads=[]
+    llm_requests=[]
     def do_GET(self):
         if self.path.startswith('/speakers_list'):
             payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
     def do_POST(self):
+        if self.path=='/llm/chat/completions':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.llm_requests.append((dict(self.headers),body))
+            content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body['model']!='invalid-output' else {'unexpected':'not dialogue'})
+            if body.get('stream'):
+                payload=('data: '+json.dumps({'choices':[{'delta':{'content':content}}]})+'\n\ndata: [DONE]\n\n').encode(); content_type='text/event-stream'
+            else:
+                payload=json.dumps({'choices':[{'message':{'content':content}}]}).encode(); content_type='application/json'
+            self.send_response(200); self.send_header('Content-Type',content_type); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path!='/upload_sample': self.send_error(404); return
         body=self.rfile.read(int(self.headers.get('Content-Length','0'))); self.uploads.append((dict(self.headers),body))
         payload=b'{"status":"ok"}'
@@ -465,6 +474,41 @@ assert r.status==200 and provider_export['name'] in body,(r.status,r.geturl(),bo
 import_provider_id=connector_editor_id(body,provider_export['name'])
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':import_provider_id}); assert r.status==200
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved')
+# Exercise the real adapter with a disposable local HTTP provider, never a paid endpoint.
+direct_name='HTTP direct '+uuid.uuid4().hex
+direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test',
+    'endpoint':'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions','credential':'none','timeout_ms':'4000',
+    'option_temperature':'0','option_top_p':'0','option_max_completion_tokens':'64','option_stream':'false','option_json_mode':'false'}
+r=request('/ALMSIVIserver/manage/forms/providers','POST',direct_values); body=r.read().decode(); assert r.status==200 and direct_name in body,(r.status,body)
+direct_id=connector_editor_id(body,direct_name)
+_,direct_editor=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?edit='+direct_id))
+assert re.search(r'id="llm_option_max_completion_tokens"[^>]*value="64"',direct_editor),direct_editor
+direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]
+assert 'Authorization' not in headers and sent['temperature']==0 and sent['top_p']==0 and sent['max_completion_tokens']==64 and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'ALMSIVI_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
+direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',change_reason='Exercise explicit key and streaming')
+r=request('/ALMSIVIserver/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]
+assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)
+direct_export=json.loads(request('/ALMSIVIserver/manage/exports/providers/'+direct_id+'.json').read().decode())
+assert direct_export['content']['credential']=='none' and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
+direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'
+r=request('/ALMSIVIserver/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(direct_export)}); body=r.read().decode(); assert r.status==200,(r.status,body)
+portable_id=connector_editor_id(body,direct_export['name'])
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',dict(direct_test,configuration_id=portable_id)); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+assert 'Authorization' not in VoiceProvider.llm_requests[-1][0],VoiceProvider.llm_requests[-1][0]
+r=request('/ALMSIVIserver/manage/forms/provider-rollback','POST',dict(direct_test,revision='1')); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]; assert 'Authorization' not in headers and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+direct_values.update(model='invalid-output',credential='none',option_stream='false',option_json_mode='false',change_reason='Strict output still required')
+r=request('/ALMSIVIserver/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert 'status=tested' not in r.geturl() and 'provider_invalid_output' in body,(r.status,body)
+for connector_id in [direct_id,portable_id]:
+    r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':connector_id}); assert r.status==200
+r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'delete','variable':'ALMSIVI_LLM_CUSTOM_API_KEY'}); assert 'Managed credential removed.' in r.read().decode()
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
 prompt_form=next(f for f in prompts.forms if f['action'].endswith('/forms/prompts'))
 prompt_name='HTTP prompt '+uuid.uuid4().hex

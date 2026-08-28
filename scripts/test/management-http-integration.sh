@@ -11,6 +11,7 @@ initdb -D "$TMP/data" -A trust --no-locale -E UTF8 >/dev/null
 pg_ctl -D "$TMP/data" -o "-h 127.0.0.1 -k $TMP -p $PG_PORT" -l "$TMP/postgres.log" start >/dev/null
 createdb -h 127.0.0.1 -p "$PG_PORT" almsivi_management_http
 mkdir "$TMP/control" "$TMP/state"
+mkdir "$TMP/control/credentials"
 DSN="pgsql:host=127.0.0.1;port=$PG_PORT;dbname=almsivi_management_http"
 CONFIG="$ROOT/config/server.test.php"
 TOKEN_HASH=0f007385b6f9d4b7eeb2748605afe1a984a0a3bfa3f014d09e2a784ce9e5cd1a

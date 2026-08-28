@@ -15,10 +15,12 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
     /** @param list<string> $allowedHosts */
     public function __construct(private readonly string $endpoint,private readonly array $allowedHosts,
         private readonly string $model,private readonly string $apiKey,private readonly int $timeoutMs=30_000,
-        private readonly bool $disableReasoning=false)
+        private readonly bool $disableReasoning=false,private readonly array $options=[],
+        private readonly bool $allowLoopbackHttp=false,private readonly bool $directConnection=false)
     {
-        OutboundUrlPolicy::validate($endpoint,$allowedHosts);
-        if($model===''||strlen($model)>200||$timeoutMs<1000||$timeoutMs>120_000)
+        OutboundUrlPolicy::validate($endpoint,$allowedHosts,$allowLoopbackHttp);
+        LlmConnector::validateOptions($options);
+        if($model===''||strlen($model)>256||$timeoutMs<1000||$timeoutMs>120_000)
             throw new \InvalidArgumentException('invalid_profile_provider_configuration');
     }
 
@@ -34,15 +36,15 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             'narrator_profile'=>'Create a grounded narrator persona for a Morrowind roleplay experience. The narrator describes scenes, actions, and atmosphere but is not a world actor or NPC. Return one JSON object with exactly these string keys: appearance, biography, personality, speech_style, occupation, goals, relationships, notes. Keep appearance metaphorical or voice-focused, make relationships describe the narrator stance toward the player and world, do not add Markdown, and do not invent certainty beyond the supplied existing profile. Each value must be concise and no more than 2000 characters.',
             default=>'Create a grounded Morrowind NPC roleplay profile. Return one JSON object with exactly these string keys: appearance, biography, personality, speech_style, occupation, goals, relationships, notes. Do not add Markdown or invent certainty where the supplied identity and existing profile do not support it. Each value must be concise and no more than 2000 characters.',
         };
-        $request=['model'=>$this->model,'temperature'=>0.4,'response_format'=>['type'=>'json_object'],'messages'=>[
+        $request=LlmConnector::requestOptions($this->options,$this->directConnection?null:0.4,$this->disableReasoning)+['model'=>$this->model,'messages'=>[
             ['role'=>'system','content'=>$system],
             ['role'=>'user','content'=>$input],
         ]];
-        if($this->disableReasoning)$request['reasoning']=['exclude'=>true,'enabled'=>false];
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
-        $handle=curl_init(OutboundUrlPolicy::validate($this->endpoint,$this->allowedHosts));if($handle===false)throw new RuntimeException('provider_unavailable');
+        $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
+        $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
         $headers=['Content-Type: application/json','Accept: application/json'];if($this->apiKey!=='')$headers[]='Authorization: Bearer '.$this->apiKey;
-        curl_setopt_array($handle,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,
+        curl_setopt_array($handle,$networkOptions+[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body,CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,
             CURLOPT_CONNECTTIMEOUT_MS=>min(5000,$this->timeoutMs),CURLOPT_TIMEOUT_MS=>$this->timeoutMs,CURLOPT_SSL_VERIFYPEER=>true,
             CURLOPT_SSL_VERIFYHOST=>2,CURLOPT_HTTPHEADER=>$headers,CURLOPT_NOPROGRESS=>false,
             CURLOPT_XFERINFOFUNCTION=>static function($handle,$downloadTotal,$downloaded,$uploadTotal,$uploaded)use($cancellation):int{
