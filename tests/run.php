@@ -412,6 +412,23 @@ $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter
     ['utterances'=>[['text'=>'*A distant silt strider calls.* Hello.']],'action'=>null]));
 $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===true,
     'text-only narration remains visible without synthesizing narrator audio');
+$narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Disabled';
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['utterances'=>[['text'=>'*Fargoth waves.* Welcome. *He smiles.*'],['text'=>'**He nods.**']],'action'=>null]));
+$check($planned[0]['text']==='Welcome.'&&$planned[0]['speech_enabled']===true
+    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===false,
+    'disabled narration removes stage directions from mixed speech and keeps pure emotes text-only');
+$narrationTurn['_narrator_profile']['content']['enabled']=false;
+$narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Narrator';
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['text'=>'*The wind rises.* Stay safe.','action'=>null]));
+$check(count($planned)===1&&$planned[0]['speaker']['kind']==='npc'&&$planned[0]['text']==='Stay safe.',
+    'disabled narrator profile cannot route stage directions into NPC speech through the text fallback');
+unset($narrationTurn['_narrator_profile']);
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['utterances'=>[['text'=>'*He bows.* Greetings.'],['text'=>'Plain speech.']],'action'=>null]));
+$check(array_column($planned,'text')===['Greetings.','Plain speech.'],
+    'missing narrator profile strips stage directions without changing plain speech');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
 $check(count($ttsCatalog)===22 && count($sttCatalog)===8

@@ -634,6 +634,16 @@ $db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE
 $hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');
 $assert(!in_array($sharedMemory['memory_id'],$hiddenIds,true),
     'suppressed source conversation remained accessible through a derived memory');
+$narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
+    ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");
+for($i=0;$i<12;$i++)$narrativeInsert->execute(['id'=>$newUuid(3940+$i),'installation'=>$installationId,
+    'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],'content'=>'NARRATIVE RECENCY '.$i,
+    'now'=>(new \DateTimeImmutable($memoryNow))->modify('+'.$i.' seconds')->format('Y-m-d\TH:i:sP')]);
+$narrativeSelection=$products->promptContext($memoryProbe,$memoryNow);
+$narrativePrompt=(new PromptAssembler())->assemble($memoryProbe,$narrativeSelection)['provider_input']['_assembled_prompt'];
+$assert(array_column($narrativeSelection['narrative'],'narrative_id')===array_map($newUuid,range(3951,3942))
+    &&str_contains($narrativePrompt,'NARRATIVE RECENCY 11')&&!str_contains($narrativePrompt,'NARRATIVE RECENCY 0'),
+    'prompt narrative budget must select the latest entries before the ten-record cap, not UUID order');
 $db->rollBack();
 $eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
     .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');

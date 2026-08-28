@@ -1093,7 +1093,7 @@ SQL);
     public function updateNarrative(string $id,array $input,string $now):array{$statement=$this->db->prepare('UPDATE narrative_records SET kind=:kind,title=:title,content=:content,provenance=CAST(:provenance AS jsonb),updated_at=:now WHERE narrative_id=:id AND deleted_at IS NULL RETURNING narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,updated_at');
         $statement->execute(['id'=>$id,'kind'=>$input['kind'],'title'=>$input['title'],'content'=>$input['content'],'provenance'=>$this->encode($input['provenance']),'now'=>$now]);$row=$statement->fetch();if(!$row)throw new RuntimeException('not_found');$row['provenance']=$this->json($row['provenance']);return$row;}
     public function deleteNarrative(string $id,string $now):void{$this->db->prepare('UPDATE narrative_records SET deleted_at=:now,updated_at=:now WHERE narrative_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function narratives(array $scope):array{$s=$this->db->prepare('SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function narratives(array $scope):array{$s=$this->db->prepare('SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC,narrative_id LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
 
     public function exportScope(array $scope):array
     {
@@ -1516,7 +1516,7 @@ SQL);
             str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
         $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
-        $narratives=$this->narratives($scope);usort($narratives,fn($a,$b)=>strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
+        $narratives=$this->narratives($scope);
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
         $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());

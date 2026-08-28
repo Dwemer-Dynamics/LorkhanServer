@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace ALMSIVIserver\Application;
 
-/** Separates one bounded leading asterisk block into an opt-in narrator delivery. */
+/** Routes opt-in narration and keeps disabled stage directions out of speech. */
 final class InlineNarrationRouter
 {
     /** @param array<string,mixed> $turn @param array<string,mixed> $result @return array<string,mixed> */
@@ -13,11 +13,27 @@ final class InlineNarrationRouter
         $profile=$turn['_narrator_profile']??null;$content=is_array($profile)&&!array_is_list($profile)
             ?($profile['content']??null):null;$identity=is_array($profile)&&!array_is_list($profile)
             ?($profile['actor_identity']??null):null;
-        if(!is_array($content)||array_is_list($content)||($content['enabled']??false)!==true
-            ||!is_array($identity)||array_is_list($identity))return$result;
-        $mode=(string)($content['inline_narration_mode']??'Disabled');
-        if(!in_array($mode,['Narrator','NPC','Text Only'],true))return$result;
-        $raw=$result['utterances']??null;if(!is_array($raw)||!array_is_list($raw))return$result;
+        $mode=is_array($content)&&!array_is_list($content)&&($content['enabled']??false)===true
+            &&is_array($identity)&&!array_is_list($identity)
+            ?(string)($content['inline_narration_mode']??'Disabled'):'Disabled';
+        $raw=$result['utterances']??null;
+        if($raw===null&&is_string($result['text']??null))$raw=[['text'=>$result['text']]];
+        if(!is_array($raw)||!array_is_list($raw))return$result;
+        if(!in_array($mode,['Narrator','NPC','Text Only'],true)){
+            foreach($raw as&$candidate){
+                if(!is_array($candidate)||array_is_list($candidate)||!is_string($candidate['text']??null)
+                    ||strlen($candidate['text'])>16_384||mb_strlen($candidate['text'],'UTF-8')>4096)continue;
+                $spoken=preg_replace('/\*+[^*]+\*+/u','',$candidate['text']);
+                if($spoken===null||$spoken===$candidate['text'])continue;
+                $spoken=trim($spoken);
+                // A stage-direction-only reply stays visible without an empty dialogue or a TTS job.
+                if($spoken==='')$candidate['speech_enabled']=false;
+                else$candidate['text']=$spoken;
+            }
+            unset($candidate);
+            $result['utterances']=$raw;
+            return$result;
+        }
         $routed=[];
         foreach($raw as$candidate){
             if(!is_array($candidate)||array_is_list($candidate)||!is_string($candidate['text']??null)
