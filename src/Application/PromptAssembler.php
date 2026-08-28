@@ -1185,7 +1185,7 @@ final class PromptAssembler
             if ($field === 'profile_id' && $kind === 'memory'
                 && is_string($turn['_selected_profile_id'] ?? null)
                 && $source[$field] === $turn['_selected_profile_id']) continue;
-            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge'], true)
+            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge', 'relationship'], true)
                 && is_string($turn['_selected_profile_id'] ?? null)) $expected = $turn['_selected_profile_id'];
             if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {
                 throw new InvalidArgumentException('prompt_source_scope_mismatch');

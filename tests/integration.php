@@ -575,6 +575,46 @@ $memoryService=new ProductService($products,new DeterministicClock(new \DateTime
 $memoryProbe=$turn;$memoryProbe['turn_id']=$newUuid(3900);
 $bystander=$turn['payload']['target'];$bystander['refnum']['index']+=100;
 $bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
+$relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+    'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
+$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id']]);
+$memoryService->setRelationship($relationshipInput+['profile_id'=>$turn['profile_id']]);
+$relationshipSelection=$products->promptContext($memoryProbe,$memoryNow);
+$assert(array_column($relationshipSelection['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
+    &&$products->promptContext($bystanderProbe,$memoryNow)['relationship']===[],
+    'relationships must belong to the selected NPC, not the session profile or an unbound same-name actor');
+$relationshipProbe=$memoryProbe;$relationshipProbe['_selected_profile_id']=$actorProfile['profile_id'];
+$relationshipPrompt=(new PromptAssembler())->assemble($relationshipProbe,$relationshipSelection);
+$relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
+    static fn(array$row):bool=>$row['source_kind']==='relationship'));
+$assert(array_column($relationshipSources,'source_id')===[$ownedRelationship['relationship_id']],
+    'selected NPC relationships failed prompt scope validation or lost their source trace');
+$wrongOwnerSelection=$relationshipSelection;
+$wrongOwnerSelection['relationship']=$products->relationships($relationshipInput+['profile_id'=>$turn['profile_id']]);
+try{(new PromptAssembler())->assemble($relationshipProbe,$wrongOwnerSelection);
+    throw new RuntimeException('session-profile relationships passed selected-NPC prompt validation');}
+catch(InvalidArgumentException$error){$assert($error->getMessage()==='prompt_source_scope_mismatch',
+    'unexpected relationship scope validation error');}
+$db->exec('SAVEPOINT relationship_fallback');
+$db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile')
+    ->execute(['installation'=>$installationId,'playthrough'=>$turn['playthrough_id'],'profile'=>$actorProfile['profile_id']]);
+$fallbackIdentity=$memoryProbe['payload']['target'];unset($fallbackIdentity['refnum']);
+$db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')
+    ->execute(['identity'=>json_encode($fallbackIdentity,JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);
+$fallbackProbe=$memoryProbe;$fallbackProbe['profile_id']=$actorProfile['profile_id'];
+$fallbackMemory=$memoryService->createMemory($relationshipInput+['profile_id'=>$actorProfile['profile_id'],
+    'tier'=>'recent','content'=>'EXACT OWNER MEMORY SENTINEL','provenance'=>['source'=>'manual']]);
+$mismatchedContext=$products->promptContext($fallbackProbe,$memoryNow);
+$assert($mismatchedContext['relationship']===[]
+    &&!in_array($fallbackMemory['memory_id'],array_column($mismatchedContext['memory'],'id'),true),
+    'an unbound actor with a different RefNum must not inherit the session profile relationships or manual memories');
+$fallbackProbe['payload']['target']=$fallbackIdentity;
+$fallbackProbe['payload']['target']['display_name']='Renamed NPC';
+$fallbackContext=$products->promptContext($fallbackProbe,$memoryNow);
+$assert(array_column($fallbackContext['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
+    &&in_array($fallbackMemory['memory_id'],array_column($fallbackContext['memory'],'id'),true),
+    'an exact-identity session profile must retain its own relationships and memories without a binding or matching display name');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_fallback');
 $visible=$products->promptContext($memoryProbe,$memoryNow)['memory'];
 $hidden=$products->promptContext($bystanderProbe,$memoryNow)['memory'];
 $assert(in_array($delivery['message_id'],array_column($visible,'source_event_id'),true)

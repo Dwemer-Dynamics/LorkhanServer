@@ -73,6 +73,17 @@ public directory so source, configuration, storage, and secrets stay outside the
    playback; no timer worker creates it.
 10. Other derived jobs are enqueued after commit and process idempotently.
 
+### Relationship prompt ownership
+
+Stored relationship context belongs to the selected NPC profile within the current installation and
+playthrough. A session profile is eligible only when its stable TES3 actor identity matches the
+speaking target; an unbound same-name actor receives no relationship rows. An explicit actor-profile
+binding remains authoritative. Prompt assembly validates relationships against that selected profile,
+not the shared session profile. The existing ten-record/8 KiB prompt caps and source traces remain.
+The shared ownership check decodes the stored JSON identity before comparison, so exact-identity
+fallback also works for manual memories. This does not change stored relationships, static biography
+text, or enable automatic evaluation.
+
 ### Memory prompt coverage
 
 The existing privacy-filtered pool of at most 500 memories is ranked once. Prompt assembly selects

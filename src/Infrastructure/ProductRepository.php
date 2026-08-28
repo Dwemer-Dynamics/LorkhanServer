@@ -1587,7 +1587,6 @@ SQL);
         $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
             str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
-        $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $narratives=$this->narratives($scope);
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
@@ -1601,7 +1600,11 @@ SQL);
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
-        $ownsProfile=$selectedProfileId!==null || $this->actorKey((array)$profile['actor_identity'])===$this->actorKey($actor);
+        $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
+        // Relationship records describe their owning NPC, never a shared session or witness pool.
+        $relationshipScope=$scope;$relationshipScope['profile_id']=$activeProfileId;
+        $relationships=$ownsProfile?$this->relationships($relationshipScope):[];
+        usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $memorySelection=$this->selectPromptMemories($turn,$scope,
             $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now),$now);
         $memories=$memorySelection['rows'];
