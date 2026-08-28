@@ -157,6 +157,11 @@ final class FirstPartyJobRepository
         if ($content === '') {
             throw new RuntimeException('memory_consolidation_empty');
         }
+        // Provenance lists every input; only this separate content proof survives summary truncation.
+        $completeSources = [];
+        foreach ($rows as $row) {
+            if (\ALMSIVIserver\Application\MemoryPromptSelection::covers($content, (string) $row['content'])) $completeSources[] = (string) $row['memory_id'];
+        }
         $utc = new \DateTimeZone('UTC');
         $sourceFrom = (new \DateTimeImmutable((string) $rows[0]['occurred_at']))->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');
         $sourceTo = (new \DateTimeImmutable((string) $rows[array_key_last($rows)]['occurred_at']))->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');
@@ -175,6 +180,8 @@ final class FirstPartyJobRepository
                 'revision' => 1,
                 'source_tier' => $sourceTier,
                 'source_memory_ids' => $sourceMemoryIds,
+                'content_coverage' => ['algorithm' => 'exact-content-v1', 'content_sha256' => hash('sha256', $content),
+                    'complete_source_memory_ids' => $completeSources],
                 'source_event_ids' => $sourceEventIds,
                 'source_range' => ['from' => $sourceFrom, 'to' => $sourceTo],
             ],

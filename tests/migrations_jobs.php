@@ -1012,18 +1012,19 @@ $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyPro
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
 $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstallation,$legacyProfile,$legacyPlaythrough,$legacySession):void{
+    $memoryText='Played memory '.$ordinal.'.'.($ordinal>=15?str_repeat('古',3666):'');
     $source=Uuid::v4();$dialogue=Uuid::v4();$message=Uuid::v4();$memory=Uuid::v4();$turn=Uuid::v4();$request=Uuid::v4();$turnMessage=Uuid::v4();
     $occurred=sprintf('2026-01-01T00:00:%02dZ',$ordinal);
     $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
         ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
     $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
-        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>'Played memory '.$ordinal.'.']);
+        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>$memoryText]);
     $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
         ->execute(['source'=>$source,'installation'=>$legacyInstallation,'session'=>$legacySession,'occurred'=>$occurred,'request'=>$request,'turn'=>$turn]);
     $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok',:occurred)")
         ->execute(['dialogue'=>$dialogue,'source'=>$source,'message'=>$message,'request'=>$request,'turn'=>$turn,'session'=>$legacySession,'occurred'=>$occurred]);
     $derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
-        'memory_id'=>$memory,'tier'=>'recent','content'=>'Played memory '.$ordinal.'.','source_event_id'=>$source,
+        'memory_id'=>$memory,'tier'=>'recent','content'=>$memoryText,'source_event_id'=>$source,
         'occurred_at'=>$occurred,'provenance'=>['source'=>'dialogue.delivery','status'=>'played','source_event_ids'=>[$source]]],
         'memory.derive:played:'.$ordinal,static fn():bool=>true);
 };
@@ -1035,7 +1036,7 @@ $check($fourStats['retried']===0&&$fourStats['dead']===0
     'four eligible recent memories did not produce exactly one middle memory');
 foreach(range(5,16)as$ordinal)$derivePlayedMemory($ordinal);
 $allStats=(new Worker($jobs,$firstPartyRegistry,'memory-consolidation-all',5,1,50,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
-$consolidated=$db->query("SELECT memory_id,tier,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
+$consolidated=$db->query("SELECT memory_id,tier,content,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
 $middleRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='mid'));
 $longRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='long'));
 $check($allStats['retried']===0&&$allStats['dead']===0&&count($middleRows)===4&&count($longRows)===1,
@@ -1046,6 +1047,17 @@ foreach($middleRows as$row){$provenance=json_decode((string)$row['provenance'],t
     &&count($provenance['source_memory_ids'])===4&&count($provenance['source_event_ids'])===4
     &&isset($provenance['source_range']['from'],$provenance['source_range']['to']),'middle-memory provenance is incomplete');}
 $longProvenance=json_decode((string)$longRows[0]['provenance'],true,64,JSON_THROW_ON_ERROR);
+$cappedSummaries=0;
+foreach($consolidated as$row){
+    $coverage=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR)['content_coverage'];
+    $capped=strlen($row['content'])>16380;
+    if($capped)++$cappedSummaries;
+    $check($coverage['algorithm']==='exact-content-v1'&&$coverage['content_sha256']===hash('sha256',$row['content'])
+        &&count($coverage['complete_source_memory_ids'])===($capped?3:4)
+        &&strlen($row['content'])<=16384&&mb_check_encoding($row['content'],'UTF-8'),
+        'consolidation coverage claimed a truncated source or lost valid UTF-8');
+}
+$check($cappedSummaries===2,'large recent sources did not exercise both consolidation tier caps');
 $check((int)$longRows[0]['current_revision']===1&&$longProvenance['source_tier']==='mid'
     &&count($longProvenance['source_memory_ids'])===4&&count($longProvenance['source_event_ids'])===16
     &&$longProvenance['source_range']['from']==='2026-01-01T00:00:04Z'
@@ -1107,7 +1119,27 @@ $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-00
 foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}
 $traceInput=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,'session_id'=>$legacySession,'turn_id'=>$traceTurn,'request_id'=>'40000000-0000-4000-8000-000000000011'];
 $traceMeta=['prompt_configuration_id'=>$legacyProfile,'prompt_revision'=>1,'algorithm'=>'deterministic-prompt-v1','input_sha256'=>hash('sha256','secret prompt body'),'input_bytes'=>18,'truncated'=>false,'sources'=>[['ordinal'=>0,'source_kind'=>'profile','source_id'=>$legacyProfile,'included'=>true,'reason'=>'included','source_sha256'=>hash('sha256','profile body'),'included_bytes'=>12]]];
+$traceMeta['sources'][]=['ordinal'=>1,'source_kind'=>'memory','source_id'=>$derivedMemoryId,'included'=>false,
+    'reason'=>'covered_by_history','source_sha256'=>hash('sha256','covered memory'),'included_bytes'=>0];
+$traceMeta['sources'][]=['ordinal'=>2,'source_kind'=>'memory','source_id'=>$longRows[0]['memory_id'],'included'=>false,
+    'reason'=>'covered_by_memory','source_sha256'=>hash('sha256','covered summary'),'included_bytes'=>0];
+$traceMeta['sections']=[['section_order'=>7,'section_key'=>'memory_context','source_refs'=>[],
+    'inclusion_reason'=>'covered_by_history','source_occurred_at'=>null,'source_characters'=>0,'estimated_tokens'=>0,
+    'redacted_preview'=>'','source_sha256'=>hash('sha256','')]];
+$traceMeta['memory_retrieval']=['query'=>'fixture','result_ids'=>[],'scores'=>[],'algorithm'=>'fixture',
+    'created_at'=>$clock->iso(),'prompt_section'=>'memory_context',
+    'reasons'=>['_context'=>['selection'=>'exact-rendered-coverage-v1','coverage'=>['selected'=>0]]]];
 $traceId=$products->recordPromptTrace($traceInput,$traceMeta,$clock->iso());
+$check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason IN('covered_by_history','covered_by_memory') AND included=false")->fetchColumn()===2
+    &&$db->query("SELECT reasons->'_context'->>'selection' FROM retrieval_traces WHERE turn_id='{$traceTurn}' AND domain='memory'")->fetchColumn()==='exact-rendered-coverage-v1',
+    'coverage source reasons or retrieval metadata were not persisted');
+$db->beginTransaction();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.down.sql'));
+$check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason='section_limit'")->fetchColumn()===2
+    &&$db->query("SELECT inclusion_reason FROM prompt_trace_sections WHERE prompt_trace_id='{$traceId}'")->fetchColumn()==='empty',
+    'coverage migration rollback lost audit rows or left incompatible reasons');
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.up.sql'));
+$db->rollBack();
 $storedTrace=$db->query("SELECT input_sha256,input_bytes FROM prompt_traces WHERE prompt_trace_id='{$traceId}'")->fetch();
 $check($storedTrace['input_sha256']===hash('sha256','secret prompt body') && (int)$storedTrace['input_bytes']===18, 'prompt trace metadata was not persisted');
 $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_name='prompt_traces' AND column_name IN ('prompt','content','payload')")->fetchColumn()===0, 'prompt trace schema can persist raw prompts');

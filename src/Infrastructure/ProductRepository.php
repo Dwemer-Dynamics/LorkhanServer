@@ -1629,7 +1629,8 @@ SQL);
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
             'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
-            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'memory_retrieval'=>$memorySelection['trace'],
+            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
+            'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],
             'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
@@ -1761,7 +1762,7 @@ SQL);
             unset($memory['_prompt_score']);
         }
         unset($memory);
-        return['rows'=>$selected,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
+        return['rows'=>$selected,'candidates'=>$memories,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
             'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1',
             'created_at'=>$now,'prompt_section'=>'memory_context','scope'=>$scope]];
     }

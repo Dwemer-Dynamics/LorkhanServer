@@ -73,6 +73,25 @@ public directory so source, configuration, storage, and secrets stay outside the
    playback; no timer worker creates it.
 10. Other derived jobs are enqueued after commit and process idempotently.
 
+### Memory prompt coverage
+
+The existing privacy-filtered pool of at most 500 memories is ranked once. Prompt assembly selects
+at most ten records within 16 KiB of escaped item XML. Exact full-record text already retained in
+conversation history or another selected memory is omitted; lower-ranked uncovered records can
+fill the remaining slots. If total prompt pressure removes history, memory is selected again without
+that coverage. Per-source truncation, section caps and the final fallback are reflected in the trace.
+
+Coverage uses actual retained text, never source-ID overlap alone. Partially overlapping summaries,
+changed wording and incomplete final lines are kept. Deterministic consolidation retains its full
+privacy provenance and additionally records a content hash and the source memory IDs whose complete
+text survived its 16 KiB cap. Older or edited provenance grants no shortcut. No memory is deleted,
+rewritten or hidden from management by prompt deduplication.
+
+Migration 061 adds coverage omission reasons to prompt audit tables, after the exact migration 060
+shared with the Tamriel Rebuilt catalog. Its rollback preserves audit rows and maps the new reasons
+to older coarse omissions. Retrieval decisions store actual selected IDs/scores and bounded coverage
+counts under reasons._context; source traces cover the initial top ten plus actual survivors.
+
 ## Persistence domains
 
 - installations/pairing-token hash and client profiles;

@@ -23,6 +23,7 @@ use ALMSIVIserver\Application\StreamingDialogueText;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\MemoryPromptSelection;
 use ALMSIVIserver\Application\InlineNarrationRouter;
 use ALMSIVIserver\Application\DialoguePlanner;
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
@@ -372,6 +373,53 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
+$coveredHistory=$roleHistory;
+$coveredHistory['memory']=[['memory_id'=>'heard-line','content'=>'Fargoth: I have not seen it.']];
+$coveredHistory['memory_retrieval']=['result_ids'=>['heard-line'],'scores'=>['heard-line'=>1]];
+$coveredPrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$coveredHistory);
+$coveredSources=array_column(array_filter($coveredPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'),null,'source_id');
+$check(substr_count($coveredPrompt['provider_input']['_assembled_prompt'],'Fargoth: I have not seen it.')===1
+    &&$coveredSources['heard-line']['reason']==='covered_by_history'&&!$coveredSources['heard-line']['included']
+    &&$coveredPrompt['trace']['memory_retrieval']['result_ids']===[], 'fully retained history covers a memory without a false inclusion trace');
+$restoredHistory=$coveredHistory;
+$restoredHistory['history'][]=['history_id'=>'history-pressure','content'=>['kind'=>'speech','text'=>str_repeat('H',1000),'speaker'=>'Guard']];
+$restoredPrompt=(new PromptAssembler(4096,1024))->assemble($promptTurn,$restoredHistory);
+$check(str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<conversation_context></conversation_context>')
+    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<memory_context><item>Fargoth: I have not seen it.</item>'),
+    'dropping history for the total prompt budget restores its otherwise-covered memory');
+$fallbackPrompt=(new PromptAssembler(512,256))->assemble($promptTurn,$coveredHistory);
+$check($fallbackPrompt['trace']['memory_retrieval']['result_ids']===[]
+    &&$fallbackPrompt['trace']['memory_retrieval']['coverage']['covered_by_history']===0,
+    'minimal prompt fallback cannot claim memory or history coverage');
+$pool=[];foreach(range(1,12)as$index)$pool[]=['id'=>'duplicate-'.$index,'text'=>'A remembered fact.'];
+$pool[]=['id'=>'uncovered','text'=>'A different fact.'];
+$dedup=MemoryPromptSelection::select($pool,'',1024);
+$check(array_keys($dedup['texts'])===['duplicate-1','uncovered']&&$dedup['counts']['covered_by_memory']===11,
+    'duplicate memories do not crowd out a lower-ranked uncovered record');
+$summary=MemoryPromptSelection::select([['id'=>'child','text'=>'A remembered fact.'],
+    ['id'=>'parent','text'=>"A remembered fact.\nA different fact."]],'',1024);
+$check(array_keys($summary['texts'])===['parent']&&$summary['reasons']['child']==='covered_by_memory',
+    'a fully retained summary can replace its exact child without losing facts');
+$partial=MemoryPromptSelection::select([['id'=>'partial','text'=>"A remembered fact.\nA different fact."],
+    ['id'=>'missing','text'=>'A different fact.']],'A remembered fact.',24);
+$check(isset($partial['texts']['partial'],$partial['texts']['missing'])&&$partial['reasons']['missing']==='included',
+    'partial history overlap and a truncated summary never suppress an uncovered fact');
+$smallSummary=MemoryPromptSelection::select([['id'=>'child','text'=>'A remembered fact.'],
+    ['id'=>'parent','text'=>"A different fact.\nA remembered fact."]],'',1024,45);
+$check(isset($smallSummary['texts']['child']), 'a summary cut by the section budget cannot replace a child it no longer covers');
+$escapedMemory=MemoryPromptSelection::select([['id'=>'escaped','text'=>str_repeat('é<&',6000)]],'',16384);
+$check(strlen($escapedMemory['xml'])<=16384&&mb_check_encoding($escapedMemory['xml'],'UTF-8')
+    &&$escapedMemory['reasons']['escaped']==='byte_limit'&&!str_contains($escapedMemory['xml'],'é<&'),
+    'memory enforces the actual escaped XML section budget and retains valid UTF-8');
+$candidateSelection=$roleHistory;$candidateSelection['history']=[];$candidateSelection['memory_candidates']=[];
+foreach($pool as$rank=>$item)$candidateSelection['memory_candidates'][]=['memory_id'=>$item['id'],'content'=>$item['text'],'_prompt_score'=>1-$rank/100];
+$candidateSelection['memory']=array_slice($candidateSelection['memory_candidates'],0,10);
+$candidateSelection['memory_retrieval']=['result_ids'=>[],'scores'=>[]];
+$candidatePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$candidateSelection);
+$candidateTrace=array_values(array_filter($candidatePrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'));
+$check($candidatePrompt['trace']['memory_retrieval']['result_ids']===['duplicate-1','uncovered']
+    &&count($candidateTrace)===11&&$candidateTrace[10]['source_id']==='uncovered'&&$candidateTrace[10]['included'],
+    'candidate refill audits actual survivors beyond the initial top ten with bounded trace rows');
 $extendedHistory=$roleHistory;$extendedHistory['history']=[];
 foreach(range(1,45)as$index)$extendedHistory['history'][]=['id'=>'history-limit-'.$index,
     'content'=>['kind'=>'speech','text'=>'Distinct history line '.$index,'speaker'=>'Fargoth',
