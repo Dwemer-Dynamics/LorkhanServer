@@ -8,17 +8,37 @@ $selected=is_string($_GET['installation_id']??null)?$_GET['installation_id']:'';
 if(!isset($installations[$selected]))$selected=(string)(array_key_first($installations)??'');
 $rows=$selected===''?[]:$uiRepository->rows('relationships',$selected);
 $history=$selected===''?[]:$uiRepository->rows('relationship_logs',$selected);
-$owners=[];$actors=[];$playthroughs=[];
+$owners=[];$actors=[];$playthroughs=[];$buildOwners=[];
 foreach($selected===''?[]:$uiRepository->rows('relationship_profiles',$selected) as $row){
     $identity=$row['actor_identity']??[];
     $owners[(string)$row['profile_id']]=(string)$row['name'];
+    if(!in_array($identity['kind']??null,['player','narrator'],true))$buildOwners[(string)$row['profile_id']]=(string)$row['name'];
     if(!in_array($identity['kind']??null,['npc','creature','player'],true))continue;
     if(isset($identity['refnum']['index'],$identity['refnum']['content_file'])&&($identity['content_file']??'')!=='')
         $actors[(string)$row['profile_id']]=(string)$row['name'].' — '.($identity['record_id']??'').' #'.$identity['refnum']['index'];
 }
 foreach($selected===''?[]:$productRepository->listRevisioned('playthrough',$selected) as $row)$playthroughs[(string)$row['id']]=(string)$row['name'];
-$notice=match($_GET['status']??''){
+$buildProfile=is_string($_GET['profile_id']??null)&&isset($buildOwners[$_GET['profile_id']])?$_GET['profile_id']:'';
+$buildPlaythrough=is_string($_GET['playthrough_id']??null)&&isset($playthroughs[$_GET['playthrough_id']])?$_GET['playthrough_id']:'';
+$buildLimit=filter_var($_GET['history_limit']??100,FILTER_VALIDATE_INT);
+if(!in_array($buildLimit,[10,25,50,100],true))$buildLimit=100;
+$buildScope=['installation_id'=>$selected,'profile_id'=>$buildProfile,'playthrough_id'=>$buildPlaythrough];
+$buildScoped=$selected!==''&&$buildProfile!==''&&$buildPlaythrough!=='';
+$buildJobs=$buildScoped?(new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($database))->recentJobs($buildScope):[];
+$buildQuery=$buildScope+['history_limit'=>$buildLimit];if($embedded)$buildQuery['embed']='1';
+$buildUrl=$webRoot.'/ui/relationship_logs.php?'.http_build_query($buildQuery).'#relationship-builder';
+$buildStatus=is_string($_GET['status']??null)?$_GET['status']:'';
+$notice=match($buildStatus){
     'saved'=>'Changes saved.',
+    'relationship_build_requested'=>'Relationship build requested. Reload for its current status.',
+    'relationship_build_pending'=>'A build is already pending for this NPC and playthrough. Wait for it to finish.',
+    'relationship_build_locked'=>'Relationship Lock is on. Unlock it in the NPC editor or its Core Profile, then try again.',
+    'relationship_build_no_connector'=>'Choose a Relationship LLM in the NPC editor or its Core Profile, then try again.',
+    'relationship_build_no_history'=>'No eligible played conversations were found in this window for that NPC and playthrough.',
+    'relationship_build_too_large'=>'This history is too large to analyze. Choose fewer conversations.',
+    'relationship_build_ambiguous_owner'=>'This profile covers more than one actor in the selected history. Choose fewer conversations or review its bindings.',
+    'relationship_build_ambiguous_records'=>'More than one saved record matches a participant. Review the current records before building.',
+    'relationship_build_request_conflict'=>'That request was already used with different settings. Reload the page and try again.',
     'relationship_revision_conflict'=>'This record changed. The latest values are shown; review them before saving again.',
     'relationship_already_exists'=>'This actor already has a relationship in that profile and playthrough. Edit the existing record.',
     default=>'',
@@ -27,7 +47,8 @@ $notice=match($_GET['status']??''){
 /** Render the scoped selectors without adding a second settings or script system. */
 function almsivi_relationship_select(string $name,string $label,array $options,string $selected=''):void
 {
-    echo '<label for="relationship-'.almsivi_ui_h($name).'">'.almsivi_ui_h($label).'</label><select id="relationship-'.almsivi_ui_h($name).'" name="'.almsivi_ui_h($name).'">';
+    static $counter=0;$id='relationship-'.$name.'-'.++$counter;
+    echo '<label for="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</label><select id="'.almsivi_ui_h($id).'" name="'.almsivi_ui_h($name).'">';
     foreach($options as $value=>$text)echo '<option value="'.almsivi_ui_h($value).'"'.((string)$value===$selected?' selected':'').'>'.almsivi_ui_h($text).'</option>';
     echo '</select>';
 }
@@ -46,13 +67,46 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
 <main class="almsivi-page<?php echo $embedded?' embedded':''; ?>">
     <header class="almsivi-page-header"><div><h1>Relationship Audit</h1><p>Edit saved relationships and review their change history.</p></div>
         <a href="#relationship-history">Recent changes</a></header>
-    <?php if($notice!==''): ?><p role="status"><?php echo almsivi_ui_h($notice); ?></p><?php endif; ?>
+    <?php if($notice!==''&&!str_starts_with($buildStatus,'relationship_build_')): ?><p role="<?php echo $buildStatus==='saved'?'status':'alert'; ?>"><?php echo almsivi_ui_h($notice); ?></p><?php endif; ?>
     <?php if($installations===[]): ?><p class="empty-state">Connect OpenMW to manage relationships.</p><?php else: ?>
     <?php if(count($installations)>1): ?><form class="management-form" method="get">
         <?php almsivi_relationship_select('installation_id','Installation',$installations,$selected); ?>
         <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
         <button class="btn-base" type="submit">Show</button>
     </form><?php endif; ?>
+    <details class="management-section" id="relationship-builder"<?php echo $buildProfile!==''||str_starts_with($buildStatus,'relationship_build_')?' open':''; ?>>
+        <summary>Build with AI</summary>
+        <?php if($notice!==''&&str_starts_with($buildStatus,'relationship_build_')): ?><p role="<?php echo $buildStatus==='relationship_build_requested'?'status':'alert'; ?>"><?php echo almsivi_ui_h($notice); ?></p><?php endif; ?>
+        <p>Analyze recent played conversations for one NPC. This can replace its saved relationship scores.</p>
+        <form class="management-form relationship-build-form relationship-build-scope" method="get" action="<?php echo almsivi_ui_h($webRoot.'/ui/relationship_logs.php#relationship-builder'); ?>">
+            <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selected); ?>">
+            <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+            <div class="management-field"><?php almsivi_relationship_select('profile_id','NPC to build for',[''=>'Choose an NPC']+$buildOwners,$buildProfile); ?></div>
+            <div class="management-field"><?php almsivi_relationship_select('playthrough_id','Playthrough to analyze',[''=>'Choose a playthrough']+$playthroughs,$buildPlaythrough); ?></div>
+            <button class="btn-base" type="submit">Show build controls</button>
+        </form>
+        <?php if($buildScoped): ?>
+        <form class="management-form relationship-build-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/relationship-history-build'); ?>">
+            <?php foreach($buildScope as $field=>$value): ?><input type="hidden" name="<?php echo $field; ?>" value="<?php echo almsivi_ui_h($value); ?>"><?php endforeach; ?>
+            <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+            <input type="hidden" name="request_id" value="<?php echo \ALMSIVIserver\Infrastructure\Uuid::v4(); ?>">
+            <input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
+            <div class="management-field"><?php almsivi_relationship_select('history_limit','Recent conversations to check',[10=>'10',25=>'25',50=>'50',100=>'100'],(string)$buildLimit); ?></div>
+            <button class="btn-base btn-primary" type="submit">Build relationships</button>
+        </form>
+        <details><summary>How this works</summary><p>Uses the saved Relationship LLM and honors Relationship Lock. Automatic update chance does not apply, even at 0%. You can build after a session ends.</p>
+            <p>Checks up to 100 recent conversations and 20 known participants. Only fully played, visible exchanges are used. Oversized requests are rejected; other relationships stay unchanged.</p>
+            <p>Loading, starting or stopping a session, changing settings, editing a relationship or hiding source history before saving stops the build. Reload for status; this page does not refresh automatically.</p></details>
+        <h3>Recent builds for this NPC and playthrough</h3>
+        <?php if($buildJobs===[]): ?><p>No builds requested yet.</p><?php else: ?><ul>
+        <?php foreach($buildJobs as $job): $outcome=match($job['outcome']){
+            'queued'=>'Waiting to start','leased'=>'Analyzing','succeeded'=>'Finished: '.(int)$job['changed_count'].' relationships updated',
+            'stale'=>'Stopped before saving; nothing changed','dead'=>'Did not finish; nothing changed',default=>'Unavailable',
+        }; ?><li><?php echo almsivi_ui_h($job['created_at'].' · '.$job['source_count'].' exchanges selected · '.$outcome); ?></li><?php endforeach; ?>
+        </ul><?php endif; ?>
+        <a href="<?php echo almsivi_ui_h($buildUrl); ?>">Reload for status</a>
+        <?php endif; ?>
+    </details>
     <details class="management-section"><summary>Add relationship</summary>
         <?php if($owners===[]||$playthroughs===[]): ?><p>Create an actor profile and playthrough first.</p><?php else: ?>
         <form class="management-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/relationships'); ?>">

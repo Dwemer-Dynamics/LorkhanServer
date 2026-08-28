@@ -102,6 +102,14 @@ foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reas
     try{\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
     catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
 }
+$buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
+$check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
+    'history build accepts bounded absolute scores');
+foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],
+    ['relationships'=>[array_replace($buildRow,['target_key'=>'Fargoth'])]],['relationships'=>[],'action'=>'follow']] as $invalidBuild){
+    try{\ALMSIVIserver\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}
+    catch(InvalidArgumentException){$check(true,'unsafe history build rejected');}
+}
 $memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
 $check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
     'model memory defaults can stay off without a provider');

@@ -92,9 +92,11 @@ final class RelationshipEvaluationRepository
     }
 
     /** Only the frozen NPC owner and its actual interlocutor may receive a derived relationship. */
-    private function source(string $id,bool $withText=true):?array
+    public function source(string $id,bool $withText=true,bool $historical=false):?array
     {
         $inputColumn=$withText?',t.input_text':'';
+        $liveGuard=$historical?'':" AND s.state='active' AND NOT EXISTS(SELECT 1 FROM turns newer
+            WHERE newer.session_id=t.session_id AND newer.runtime_generation>t.runtime_generation)";
         $query=$this->db->prepare("SELECT d.source_event_id,t.turn_id,t.session_id,t.generation,t.runtime_generation,
             s.installation_id,s.playthrough_id,trace.selected_profile_id AS profile_id,
             t.target AS owner_identity,t.speaker AS target_identity{$inputColumn}
@@ -103,7 +105,7 @@ final class RelationshipEvaluationRepository
             JOIN prompt_traces trace ON trace.turn_id=t.turn_id
             JOIN eventlog_metadata input_event ON input_event.projection_key='turn:'||t.turn_id::text
                 AND input_event.projection_kind='turn' AND input_event.suppressed_at IS NULL
-            WHERE d.source_event_id=:source AND d.status='played' AND s.state='active' AND s.generation=t.generation
+            WHERE d.source_event_id=:source AND d.status='played' AND s.generation=t.generation {$liveGuard}
                 AND t.state='complete' AND t.target->>'kind' IN ('npc','creature')
                 AND NOT EXISTS(SELECT 1 FROM dialogue_utterances pending WHERE pending.turn_id=t.turn_id AND pending.delivery_state<>'played')
                 AND t.speaker->>'kind' IN ('player','npc','creature') AND trace.selected_profile_id IS NOT NULL
@@ -112,7 +114,6 @@ final class RelationshipEvaluationRepository
                     OR relationship_identity_key(input_event.speaker)=relationship_identity_key(t.target)
                     OR EXISTS(SELECT 1 FROM jsonb_array_elements(input_event.audience) witness(identity)
                         WHERE relationship_identity_key(witness.identity)=relationship_identity_key(t.target)))
-                AND NOT EXISTS(SELECT 1 FROM turns newer WHERE newer.session_id=t.session_id AND newer.runtime_generation>t.runtime_generation)
             ORDER BY trace.created_at DESC LIMIT 1 FOR SHARE OF d,delivered,t,s,trace,input_event");
         $query->execute(['source'=>$id]);$source=$query->fetch();if(!$source)return null;
         foreach(['owner_identity','target_identity']as$field)$source[$field]=json_decode($source[$field],true,32,JSON_THROW_ON_ERROR);
@@ -134,12 +135,12 @@ final class RelationshipEvaluationRepository
                 ||$products->actorKey(json_decode($utterance['speaker'],true,32,JSON_THROW_ON_ERROR))!==$ownerKey)return null;
         }
         $source['reply']=implode("\n",array_column($utterances,'text'));
-        if(strlen($source['input_text'])+strlen($source['reply'])>32768)return null;
+        if(!$historical&&strlen($source['input_text'])+strlen($source['reply'])>32768)return null;
         return $source;
     }
 
     /** Read only the two profile layers; relationship work never needs Oghma or global settings. */
-    private function policy(string $installation,string $profile):?array
+    public function policy(string $installation,string $profile):?array
     {
         $query=$this->db->prepare('SELECT profile_id,core_profile_id,current_revision FROM profiles '
             .'WHERE installation_id=:installation AND profile_id=:profile AND deleted_at IS NULL FOR SHARE');
@@ -161,7 +162,7 @@ final class RelationshipEvaluationRepository
     }
 
     /** Include deleted rows in the fence so transient manual create/delete cycles cannot be overwritten. */
-    private function records(array $source):?array
+    public function records(array $source):?array
     {
         $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity FROM relationship_records '
             .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
@@ -177,7 +178,7 @@ final class RelationshipEvaluationRepository
         return ['fence'=>hash('sha256',json_encode($rows,JSON_THROW_ON_ERROR)),'record'=>$active[0]??null];
     }
 
-    private function lockIdentity(array $source):void
+    public function lockIdentity(array $source):void
     {
         $key='relationship:'.$source['installation_id'].':'.$source['profile_id'].':'.$source['playthrough_id'].':'
             .(new ProductRepository($this->db))->actorKey($source['target_identity']);

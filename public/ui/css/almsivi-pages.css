@@ -865,6 +865,24 @@ body.hub-page > main {
     gap: 7px;
 }
 
+#relationship-builder { scroll-margin-top: 80px; }
+.management-form.relationship-build-form {
+    grid-template-columns: minmax(0, 280px) auto;
+    align-items: end;
+    margin: 12px 0;
+    padding: 12px;
+}
+.management-form.relationship-build-scope {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+#relationship-builder :is(select, button, summary, a):focus-visible {
+    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline-offset: 2px;
+}
+@media (max-width: 700px) {
+    .management-form.relationship-build-form { grid-template-columns: minmax(0, 1fr); }
+}
+
 .management-form legend {
     color: var(--almsivi-accent, #ffb641);
     font-family: Gothic821, sans-serif;

@@ -663,6 +663,93 @@ $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3,
     'ended session reached relationship provider');
 $db->rollBack();
+// A manual build spans recent history, works offline at chance zero, and applies one atomic score set.
+$db->beginTransaction();
+$historyContent=$actorProfile['content'];$historyContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$historyContent['settings_overrides']['relationship']=['update_chance_percent'=>0,'locked'=>false];
+$historyContent['management']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$historyContent,'manual history fixture',$now);
+$historyTurn=$turn;$historyTurn['message_id']=$newUuid(5700);$historyTurn['turn_id']=$newUuid(5701);$historyTurn['request_id']=$newUuid(5702);
+$historyTurn['payload']['speaker']=$speechTarget;$historyTurn['payload']['input']['text']='Thank you for keeping your promise.';
+[$historyStatus]=$call($router,'POST',$base.'/turns',$headers($historyTurn['message_id']),[],$historyTurn);
+$assert($historyStatus===202&&$runTurnWorker(new MockProvider())['succeeded']===1,'second historical turn failed');
+$historyDialogue=$db->query("SELECT dialogue_message_id,speaker FROM dialogue_utterances WHERE turn_id='{$historyTurn['turn_id']}'")->fetch();
+$historyDelivery=$delivery;$historyDelivery['message_id']=$newUuid(5703);$historyDelivery['request_id']=$historyTurn['request_id'];
+$historyDelivery['turn_id']=$historyTurn['turn_id'];$historyDelivery['dialogue_message_id']=$historyDialogue['dialogue_message_id'];
+$historyDelivery['speaker']=json_decode($historyDialogue['speaker'],true,32,JSON_THROW_ON_ERROR);
+[$historyStatus]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
+$assert($historyStatus===200,'second historical delivery failed');
+$db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
+$builds=new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($db);
+$buildScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id']];
+$buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest);
+$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
+try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_pending','unexpected pending-build error');}
+$buildProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2)throw new RuntimeException('history was reduced to one exchange or target');
+        if($this->during!==null)($this->during)();
+        $result=['relationships'=>array_map(static fn(array $target):array=>['target_key'=>$target['target_key'],
+            'disposition'=>35,'affinity'=>20,'reason'=>'A pattern of kept promises.'],$input['interlocutors'])];
+        if($this->unknownTarget)$result['relationships'][1]['target_key']=str_repeat('f',64);
+        return $result;
+    }
+};
+$buildRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipBuildJobHandler(
+    $builds,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
+$buildWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $buildRegistry,'relationship-build-integration',5,1,1,0,10,['relationship.build']))->run();
+$db->exec('SAVEPOINT history_queued');
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
+$buildReceipt=$db->query('SELECT source_count,target_count,changed_count FROM relationship_build_results')->fetch();
+$assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2], 'history build did not atomically update both known targets');
+$buildStatus=$builds->recentJobs($buildScope);
+$assert(count($buildStatus)===1&&$buildStatus[0]['outcome']==='succeeded'&&(int)$buildStatus[0]['changed_count']===2
+    &&$builds->recentJobs(array_replace($buildScope,['profile_id'=>$newUuid(5706)]))===[], 'history build status escaped its scope');
+$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id']&&$buildWorker()['claimed']===0,
+    'completed history request was reapplied');
+$db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
+    ->execute(['id'=>$buildJob['job_id']]);
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'committed history receipt was reapplied on retry');
+$db->exec('SAVEPOINT history_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/065_relationship_build_results.down.sql'));
+    throw new RuntimeException('history downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship build'),'unexpected history downgrade error');
+    $db->exec('ROLLBACK TO SAVEPOINT history_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($db,$historyDelivery):void{
+    $db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
+        ->execute(['key'=>'dialogue:'.$historyDelivery['dialogue_message_id']]);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===2
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'history suppressed during provider I/O still changed relationships');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($products,$buildScope,$speechTarget,$now):void{
+    $created=$products->setRelationship($buildScope+['actor_identity'=>$speechTarget,'disposition'=>90,'affinity'=>80,
+        'source_mode'=>'manual','reason'=>'User owns the newer edit'],$now);
+    $products->deleteRelationship($created['relationship_id'],$now,(int)$created['revision']);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'manual create/delete during history build did not cancel the whole result');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($db,$sessionId):void{
+    $db->prepare("UPDATE sessions SET state='active',ended_at=NULL WHERE session_id=:id")->execute(['id'=>$sessionId]);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===4
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'session lifecycle change during history build did not cancel the result');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=null;$buildProvider->unknownTarget=true;
+$beforeRecords=$products->relationships($buildScope);$buildWorker();
+$assert($products->relationships($buildScope)===$beforeRecords
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'an invented target allowed a partial history update');
+$db->rollBack();
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
 $memoryNow=(new \DateTimeImmutable('now'))->modify('+1 minute')->format('Y-m-d\TH:i:sP');

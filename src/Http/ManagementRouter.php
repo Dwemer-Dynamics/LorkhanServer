@@ -156,6 +156,21 @@ final class ManagementRouter
         $v=$this->form($r);$scope=$this->scopeForm($v);
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
+        if($domain==='relationship-history-build'){
+            $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
+            $limit=filter_var($v['history_limit']??null,FILTER_VALIDATE_INT);
+            if($limit===false||$limit<1||$limit>100)throw new InvalidArgumentException('invalid_relationship_build_request');
+            try{
+                $this->repository->enqueueRelationshipBuild($scope,$request,$limit);
+                $status='relationship_build_requested';
+            }catch(InvalidArgumentException $error){
+                $status=$error->getMessage();
+                if(!in_array($status,['relationship_build_pending','relationship_build_locked','relationship_build_no_connector',
+                    'relationship_build_no_history','relationship_build_ambiguous_owner','relationship_build_ambiguous_records',
+                    'relationship_build_too_large','relationship_build_request_conflict'],true))throw $error;
+            }
+            return $this->redirect($this->relationshipPageLocation($v,$status).'#relationship-builder');
+        }
         if($domain==='connector-test'){
             $detail=$this->testConnector($v);
             $target=(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors');
@@ -1271,7 +1286,8 @@ final class ManagementRouter
     private function relationshipPageLocation(array $values,string $status):string
     {
         $query=['status'=>$status];
-        if(is_string($values['installation_id']??null))$query['installation_id']=$values['installation_id'];
+        foreach(['installation_id','profile_id','playthrough_id','history_limit'] as $field)
+            if(is_string($values[$field]??null))$query[$field]=$values[$field];
         if(($values['embed']??null)==='1')$query['embed']='1';
         return $this->webRoot().'/ui/relationship_logs.php?'.http_build_query($query);
     }

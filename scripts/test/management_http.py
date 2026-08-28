@@ -378,6 +378,18 @@ assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content 
 relationship_page,body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?embed=1&installation_id='+valid['installation_id']))
 relationship_create=next((f for f in relationship_page.forms if f['action'].endswith('/forms/relationships')),None)
 assert relationship_create is not None,body
+build_query=urllib.parse.urlencode(dict(installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,embed='1'))
+build_page,build_body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?'+build_query))
+build_form=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
+build_values=dict(build_form['fields'],_csrf=csrf,history_limit='25')
+assert build_form['fields']['history_limit']=='100' and uuid.UUID(build_values['request_id'])
+r=request(build_form['action'],'POST',build_values); build_page,build_body=parse(r)
+assert r.status==200 and 'relationship_build_no_connector' in r.geturl() and 'role="alert"' in build_body
+build_retry=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
+assert all(build_retry['fields'][key]==build_values[key] for key in ['installation_id','profile_id','playthrough_id','history_limit','embed'])
+assert request(build_form['action'],'POST',dict(build_values,history_limit='101')).status==422
+assert request(build_form['action'],'POST',dict(build_values,playthrough_id=str(uuid.uuid4()))).status==422
+r=request(build_form['action'],'POST',dict(build_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 relationship_identity={'kind':'npc','record_id':'http_relationship_actor','display_name':'HTTP relationship actor',
     'content_file':'Morrowind.esm','refnum':{'index':98765,'content_file':0},'cell':{'kind':'interior','name':'HTTP fixture'}}
 relationship_values=dict(relationship_create['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,
@@ -532,6 +544,8 @@ saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); 
 assert saved_routing_values.get('profile_generation_configuration_id')==slot_id and 'Use server runtime' in body
 assert saved_routing_values['relationship_configuration_id']==slot_id
 assert saved_routing_content['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+locked_build=dict(build_values,profile_id=routing_profile_id,request_id=str(uuid.uuid4()))
+r=request(build_form['action'],'POST',locked_build); assert r.status==200 and 'relationship_build_locked' in r.geturl()
 assert r.status==200 and saved_routing_values.get('llm_configuration_id')==slot_id and saved_routing_values.get('llm_fallback_configuration_id')==slot_id and saved_routing_values.get('llm_randomizer_enabled') is True and saved_routing_values.get('llm_fallback_enabled') is True,(r.status,r.geturl(),saved_routing)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body

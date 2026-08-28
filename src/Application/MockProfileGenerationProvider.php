@@ -10,6 +10,7 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
     public function generate(array $profile, CancellationToken $cancellation): array
     {
         $cancellation->throwIfCancellationRequested();
+        if(($profile['generation_mode']??'')==='relationship_build')return ['relationships'=>[]];
         if(($profile['generation_mode']??'')==='relationship_evaluation')
             return ['disposition_delta'=>0,'affinity_delta'=>0,'reason'=>'Mock evaluation preserves the current relationship.'];
         if(($profile['generation_mode']??'')==='memory_summary'){

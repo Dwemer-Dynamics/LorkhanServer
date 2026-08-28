@@ -13,7 +13,7 @@ function almsivi_ui_feature_registry(): array
         'presentation.local' => ['title' => 'Local OpenMW Presentation', 'state' => 'replaced', 'description' => 'HUD visibility, transcript size, panel layout, hotkeys, and ALMSIVI TTS volume boost are local OpenMW preferences and cannot be overridden by Global, Core Profile, or NPC settings.'],
 
         'config.npc' => ['title' => 'ALMSIVI NPCs', 'state' => 'live', 'description' => 'Versioned OpenMW NPC profiles and explicit overrides.'],
-        'config.npc.relationship-builder' => ['title' => 'Build Relationships', 'state' => 'planned', 'description' => 'Manual rebuilding from conversation history is planned.'],
+        'config.npc.relationship-builder' => ['title' => 'Build Relationships', 'state' => 'planned', 'description' => 'Bulk conversion of relationship text is planned. Use Build with AI in an NPC editor to analyze its played history.'],
         'config.npc.reset' => ['title' => 'Reset NPC', 'state' => 'planned', 'description' => 'OpenMW save-aware NPC reset is not connected yet.'],
         'config.npc.identity' => ['title' => 'OpenMW NPC Identity', 'state' => 'replaced', 'description' => 'NPC names and record identities are learned from stable OpenMW actor data rather than edited in the browser.'],
         'config.npc.memory-bank' => ['title' => 'NPC Memory Bank', 'state' => 'replaced', 'description' => 'ALMSIVI resolves recent, middle-term, and long-term memory through typed repositories instead of a per-NPC switch.'],

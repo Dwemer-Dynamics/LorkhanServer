@@ -504,7 +504,7 @@ final class ProductRepository
             if($kind==='provider'){
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
@@ -968,6 +968,11 @@ final class ProductRepository
     public function memorySummaryPolicyForInstallation(string $installation):?array
     {
         return (new MemorySummaryRepository($this->db))->policy($installation);
+    }
+
+    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit):array
+    {
+        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit);
     }
 
     public function enqueueMemorySummary(string $installation,string $memoryId,int $revision):array
