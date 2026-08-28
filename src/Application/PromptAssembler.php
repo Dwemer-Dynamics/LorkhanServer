@@ -1114,6 +1114,9 @@ final class PromptAssembler
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) {
             if (!array_key_exists($field, $source) || $source[$field] === null) continue;
             $expected = $turn[$field];
+            if ($field === 'profile_id' && $kind === 'memory'
+                && is_string($turn['_selected_profile_id'] ?? null)
+                && $source[$field] === $turn['_selected_profile_id']) continue;
             if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge'], true)
                 && is_string($turn['_selected_profile_id'] ?? null)) $expected = $turn['_selected_profile_id'];
             if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {

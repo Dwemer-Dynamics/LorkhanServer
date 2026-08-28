@@ -568,6 +568,65 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     &&(int)($deliveredMemory['current_revision']??0)===1
     &&($deliveredMemoryProvenance['status']??null)==='played',
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
+// Exercise prompt privacy against real source projections without altering later turn fixtures.
+$db->beginTransaction();
+$memoryNow=gmdate('Y-m-d\TH:i:s\Z');
+$memoryService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($memoryNow)));
+$memoryProbe=$turn;$memoryProbe['turn_id']=$newUuid(3900);
+$bystander=$turn['payload']['target'];$bystander['refnum']['index']+=100;
+$bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
+$visible=$products->promptContext($memoryProbe,$memoryNow)['memory'];
+$hidden=$products->promptContext($bystanderProbe,$memoryNow)['memory'];
+$assert(in_array($delivery['message_id'],array_column($visible,'source_event_id'),true)
+    &&!in_array($delivery['message_id'],array_column($hidden,'source_event_id'),true),
+    'session-scoped played memories leaked to an unwitnessing same-name NPC');
+$manualMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'NPC PRIVATE MEMORY SENTINEL',
+    'provenance'=>['source'=>'manual']]);
+$sessionMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SESSION PRIVATE MEMORY SENTINEL',
+    'provenance'=>['source'=>'manual']]);
+$sharedSource=$newUuid(3901);$sharedTurn=$newUuid(3902);
+$sharedPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
+    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL'],'context'=>[]];
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
+    . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'almsivi.turn.v1',:turn,CAST(:payload AS jsonb))")
+    ->execute(['id'=>$sharedSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$memoryNow,
+        'turn'=>$sharedTurn,'payload'=>json_encode($sharedPayload,JSON_THROW_ON_ERROR)]);
+(new EventLogRepository($db))->projectSource($sharedSource,$installationId,$sessionId,'turn.requested',$memoryNow,
+    null,$sharedTurn,null,$sharedPayload);
+$sharedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SHARED MEMORY SENTINEL',
+    'source_event_id'=>$sharedSource,'provenance'=>['source'=>'turn.requested']]);
+$mixedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'mid','content'=>'MIXED PRIVATE SUMMARY SENTINEL',
+    'provenance'=>['source'=>'memory.consolidate','source_event_ids'=>[$sharedSource,$delivery['message_id']]]]);
+$visible=$products->promptContext($memoryProbe,$memoryNow);
+$hidden=$products->promptContext($bystanderProbe,$memoryNow);
+$visibleIds=array_column($visible['memory'],'id');$hiddenIds=array_column($hidden['memory'],'id');
+$assert(in_array($manualMemory['memory_id'],$visibleIds,true)
+    &&!in_array($sessionMemory['memory_id'],$visibleIds,true)
+    &&in_array($mixedMemory['memory_id'],$visibleIds,true)
+    &&in_array($sharedMemory['memory_id'],$hiddenIds,true)
+    &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
+    &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
+    'NPC-profile manual memory or all-source summary eligibility was not enforced');
+$memoryProbe['_selected_profile_id']=$actorProfile['profile_id'];
+$memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider_input']['_assembled_prompt'];
+$assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
+    'selected NPC-profile memory failed prompt scope validation');
+$bystanderProbe['payload']['ui_source']='almsivi_rechat';
+$rechatHistory=$products->promptContext($bystanderProbe,$memoryNow)['history'];
+$rechatHistoryText=json_encode(array_column($rechatHistory,'content'),JSON_THROW_ON_ERROR);
+$assert(str_contains($rechatHistoryText,'SHARED CONVERSATION SENTINEL')
+    &&!str_contains($rechatHistoryText,'Please follow me.'),
+    'rechat history bypassed the original conversation audience');
+$db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE source_event_id=:source AND projection_kind='turn'")
+    ->execute(['source'=>$sharedSource]);
+$hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');
+$assert(!in_array($sharedMemory['memory_id'],$hiddenIds,true),
+    'suppressed source conversation remained accessible through a derived memory');
+$db->rollBack();
 $eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
     .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');
 $eventProjection->execute(['turn'=>$turn['turn_id']]);$eventProjectionRows=$eventProjection->fetchAll();
@@ -972,7 +1031,7 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
     &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
-    &&substr_count($rechatConversation,'Please follow me.')===1
+    &&!str_contains($rechatConversation,'Please follow me.')
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'

@@ -949,6 +949,76 @@ final class ProductRepository
         $stmt=$this->db->prepare('SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at,updated_at,current_revision FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC LIMIT 500');$stmt->execute($this->scopeParams($scope)+['now'=>$now]);return array_map(fn($r)=>$this->decodeMemory($r),$stmt->fetchAll());
     }
 
+    /** Keep manual memories with their NPC profile and require witnessed provenance for derived rows. */
+    private function promptMemoryCandidates(array $turn, array $actorKey, string $activeProfileId, bool $ownsProfile, string $now): array
+    {
+        $statement = $this->db->prepare('SELECT memory_id AS id,profile_id,tier,content,lexical_terms,fake_vector,'
+            . 'provenance,source_event_id,derivation_key,occurred_at,updated_at,current_revision FROM memory_records '
+            . 'WHERE installation_id=:installation AND playthrough_id=:playthrough '
+            . 'AND profile_id IN (:session_profile,:actor_profile) AND deleted_at IS NULL '
+            . 'AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC,memory_id LIMIT 500');
+        $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now]);
+        $candidates = [];
+        $sourceIds = [];
+        foreach ($statement->fetchAll() as $row) {
+            $memory = $this->decodeMemory($row);
+            $ids = $this->memorySourceIds($memory);
+            if ($ids === null) continue;
+            if ($ids === [] && (!$ownsProfile || $memory['profile_id'] !== $activeProfileId
+                || $memory['derivation_key'] !== null
+                || in_array($memory['provenance']['source'] ?? null, ['dialogue.delivery','memory.consolidate'], true))) continue;
+            $memory['_source_event_ids'] = $ids;
+            $candidates[] = $memory;
+            foreach ($ids as $id) $sourceIds[$id] = true;
+        }
+        if ($sourceIds === []) return $candidates;
+
+        // One bounded lookup for all candidate sources; use only the principal event projection,
+        // so hiding a conversation cannot be bypassed through its weather/location side records.
+        $sources = $this->db->prepare(<<<'SQL'
+SELECT se.source_event_id
+FROM source_events se
+LEFT JOIN dialogue_delivery_results d ON d.source_event_id=se.source_event_id
+JOIN eventlog_metadata m ON m.projection_key=CASE se.event_kind
+    WHEN 'dialogue.delivery' THEN 'dialogue:'||d.dialogue_message_id::text
+    WHEN 'turn.requested' THEN 'turn:'||COALESCE(se.turn_id,se.source_event_id)::text
+    WHEN 'action.result' THEN 'action-result:'||se.source_event_id::text
+    WHEN 'location' THEN 'location:'||se.source_event_id::text
+    WHEN 'death' THEN 'death:'||se.source_event_id::text
+    WHEN 'narration' THEN 'narration:'||se.source_event_id::text END
+  AND m.projection_kind=CASE se.event_kind
+    WHEN 'dialogue.delivery' THEN 'dialogue' WHEN 'turn.requested' THEN 'turn'
+    WHEN 'action.result' THEN 'action' ELSE 'world' END
+WHERE se.source_event_id=ANY(CAST(:sources AS uuid[])) AND se.installation_id=:installation
+  AND m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
+  AND m.turn_id IS DISTINCT FROM :current_turn
+  AND (se.event_kind<>'dialogue.delivery' OR d.status='played')
+  AND (m.speaker @> CAST(:actor AS jsonb) OR m.target @> CAST(:actor AS jsonb)
+       OR m.audience @> CAST(:audience AS jsonb))
+SQL);
+        $sources->execute(['sources'=>$this->pgArray(array_keys($sourceIds)),'installation'=>$turn['installation_id'],
+            'playthrough'=>$turn['playthrough_id'],'current_turn'=>$turn['turn_id']??null,
+            'actor'=>$this->encode($actorKey),'audience'=>$this->encode([$actorKey])]);
+        $witnessed = array_fill_keys($sources->fetchAll(PDO::FETCH_COLUMN), true);
+        return array_values(array_filter($candidates, static function(array $memory) use ($witnessed): bool {
+            foreach ($memory['_source_event_ids'] as $id) if (!isset($witnessed[$id])) return false;
+            return true;
+        }));
+    }
+
+    /** Flatten and bound source references; malformed provenance never grants prompt access. */
+    private function memorySourceIds(array $memory): ?array
+    {
+        $ids = $memory['provenance']['source_event_ids'] ?? [];
+        if (!is_array($ids) || !array_is_list($ids) || count($ids) > 64) return null;
+        if ($memory['source_event_id'] !== null) $ids[] = $memory['source_event_id'];
+        foreach ($ids as $id) {
+            if (!is_string($id) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $id) !== 1) return null;
+        }
+        return array_values(array_unique($ids));
+    }
+
     public function createKnowledge(array $input,array $terms,string $now): array
     {
         $id=Uuid::v4();$sha=hash('sha256',$input['content']);$statement=$this->db->prepare("INSERT INTO knowledge_documents (document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES (:id,:installation,:profile,:playthrough,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category) ON CONFLICT (installation_id,(COALESCE(profile_id,'00000000-0000-0000-0000-000000000000'::uuid)),(COALESCE(playthrough_id,'00000000-0000-0000-0000-000000000000'::uuid)),(lower(topic))) WHERE deleted_at IS NULL AND provenance->>'source' IS DISTINCT FROM 'factory-oghma' DO UPDATE SET title=EXCLUDED.title,content=EXCLUDED.content,content_sha256=EXCLUDED.content_sha256,lexical_terms=EXCLUDED.lexical_terms,provenance=EXCLUDED.provenance,created_at=EXCLUDED.created_at,aliases=EXCLUDED.aliases,topic_desc_basic=EXCLUDED.topic_desc_basic,knowledge_class=EXCLUDED.knowledge_class,knowledge_class_basic=EXCLUDED.knowledge_class_basic,tags=EXCLUDED.tags,category=EXCLUDED.category RETURNING document_id");$statement->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id']??null,'playthrough'=>$input['playthrough_id']??null,'title'=>$input['title'],'content'=>$input['content'],'sha'=>$sha,'terms'=>$this->pgArray($terms),'provenance'=>$this->encode($input['provenance']),'now'=>$now,'topic'=>$input['topic'],'aliases'=>$input['aliases'],'basic'=>$input['topic_desc_basic'],'advanced_class'=>$input['knowledge_class'],'basic_class'=>$input['knowledge_class_basic'],'tags'=>$input['tags'],'category'=>$input['category']]);$savedId=$statement->fetchColumn();if(!is_string($savedId)||$savedId==='')throw new RuntimeException('knowledge_save_failed');return $this->knowledge($savedId);
@@ -1436,8 +1506,6 @@ final class ProductRepository
             $coreContent=is_array($coreProfile['content']??null)?$coreProfile['content']:[];
             $coreProfile['content']=['prompt'=>(string)($coreContent['prompt']??'')];
         }
-        $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
-        $memories=$memorySelection['rows'];
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
         $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
             $this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),
@@ -1461,6 +1529,10 @@ final class ProductRepository
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
+        $ownsProfile=$selectedProfileId!==null || $this->actorKey((array)$profile['actor_identity'])===$this->actorKey($actor);
+        $memorySelection=$this->selectPromptMemories($turn,$scope,
+            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now),$now);
+        $memories=$memorySelection['rows'];
         $historyStatement=$this->db->prepare(<<<'SQL'
 SELECT 'event:'||e.rowid::text AS id,
        COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
@@ -1496,7 +1568,7 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
   AND m.turn_id IS DISTINCT FROM :current_turn
   AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
-  AND (CAST(:is_rechat AS boolean)=true OR m.speaker @> CAST(:event_speaker AS jsonb)
+  AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
@@ -1505,7 +1577,6 @@ SQL);
         $historyStatement->execute([
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
-            'is_rechat'=>(($turn['payload']['ui_source']??null)==='almsivi_rechat')?'true':'false',
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
         ]);
         $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
