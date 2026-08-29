@@ -5,8 +5,8 @@ DROP VIEW herika_compat.memory_v;
 DROP VIEW public.eventlog_view;
 ALTER TABLE public.eventlog_metadata DROP CONSTRAINT eventlog_metadata_rowid_fkey;
 ALTER SEQUENCE public.eventlog_rowid_seq OWNED BY NONE;
-ALTER SEQUENCE public.eventlog_rowid_seq RENAME TO eventlog_almsivi_stage_rowid_seq;
-ALTER TABLE public.eventlog RENAME TO eventlog_almsivi_stage;
+ALTER SEQUENCE public.eventlog_rowid_seq RENAME TO eventlog_lorkhan_stage_rowid_seq;
+ALTER TABLE public.eventlog RENAME TO eventlog_lorkhan_stage;
 
 CREATE TABLE public.eventlog (
     type character varying(128),
@@ -38,7 +38,7 @@ INSERT INTO public.eventlog (
     type,data,sess,gamets,localts,ts,rowid,people,location,party,utterance_id,delivery_state
 )
 SELECT type,data,sess,gamets,localts,ts,rowid,people,location,party,utterance_id,delivery_state
-FROM public.eventlog_almsivi_stage ORDER BY rowid;
+FROM public.eventlog_lorkhan_stage ORDER BY rowid;
 SELECT setval('public.eventlog_rowid_seq',COALESCE((SELECT max(rowid) FROM public.eventlog),1),
               EXISTS(SELECT 1 FROM public.eventlog));
 
@@ -70,5 +70,5 @@ FROM (
 ) subquery
 ORDER BY subquery.gamets,subquery.ts;
 
-DROP TABLE public.eventlog_almsivi_stage;
-DROP SEQUENCE public.eventlog_almsivi_stage_rowid_seq;
+DROP TABLE public.eventlog_lorkhan_stage;
+DROP SEQUENCE public.eventlog_lorkhan_stage_rowid_seq;

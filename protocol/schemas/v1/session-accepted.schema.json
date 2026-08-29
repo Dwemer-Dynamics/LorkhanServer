@@ -1,5 +1,5 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/session-accepted.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/session-accepted.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -19,23 +19,23 @@
       "type": "string"
     },
     "client_settings": {
-      "$ref": "https://almsivi.invalid/schemas/v1/client-settings.schema.json"
+      "$ref": "https://lorkhan.invalid/schemas/v1/client-settings.schema.json"
     },
     "event_cursor": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/sequence"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/sequence"
     },
     "generation": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/generation"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/generation"
     },
     "message_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "schema": {
-      "const": "almsivi.session.accepted.v1",
+      "const": "lorkhan.session.accepted.v1",
       "type": "string"
     },
     "session_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     }
   },
   "required": [

@@ -1,16 +1,16 @@
 -- Keep explicit relationship labels typed, portable and safe for manual or model-authored writes.
-ALTER TABLE almsivi_internal.relationship_records
+ALTER TABLE lorkhan_internal.relationship_records
     ADD COLUMN relationship_type text NOT NULL DEFAULT 'neutral'
     CHECK (relationship_type ~ '^[a-z][a-z0-9_-]{0,49}$');
 
 CREATE INDEX relationship_audit_record_order
-    ON almsivi_internal.relationship_audit (relationship_id,audit_sequence DESC);
+    ON lorkhan_internal.relationship_audit (relationship_id,audit_sequence DESC);
 
 -- Keep the staged Herika projection useful without making it the relationship authority.
-CREATE OR REPLACE FUNCTION almsivi_internal.refresh_npc_relationships(source_profile uuid)
+CREATE OR REPLACE FUNCTION lorkhan_internal.refresh_npc_relationships(source_profile uuid)
 RETURNS void
 LANGUAGE plpgsql
-SET search_path = public, almsivi_internal, pg_temp
+SET search_path = public, lorkhan_internal, pg_temp
 AS $function$
 DECLARE relationships_json jsonb;
 BEGIN
@@ -22,7 +22,7 @@ BEGIN
             'source',r.source_mode
         )
     ) INTO relationships_json
-    FROM almsivi_internal.relationship_records r
+    FROM lorkhan_internal.relationship_records r
     WHERE r.profile_id=source_profile AND r.deleted_at IS NULL;
 
     UPDATE core_npc_master npc SET

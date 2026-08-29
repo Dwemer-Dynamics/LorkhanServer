@@ -7,9 +7,9 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 source_root=${1:-}
-http_port=${ALMSIVI_HTTP_PORT:-8089}
+http_port=${LORKHAN_HTTP_PORT:-8089}
 if [[ -z ${source_root} || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
-    echo "Usage: scripts/deploy-wsl.sh <absolute-ALMSIVIserver-source-path>" >&2
+    echo "Usage: scripts/deploy-wsl.sh <absolute-LORKHANserver-source-path>" >&2
     exit 2
 fi
 
@@ -18,44 +18,44 @@ for command in apache2ctl openssl php psql rsync runuser sha256sum ss; do
 done
 
 if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 )); then
-    echo "ALMSIVI_HTTP_PORT must be an integer from 1024 through 65535." >&2
+    echo "LORKHAN_HTTP_PORT must be an integer from 1024 through 65535." >&2
     exit 2
 fi
 case " ${http_port} " in
     ' 8020 '|' 8021 '|' 8022 '|' 8023 '|' 8024 '|' 8082 '|' 8085 '|' 8086 '|' 12346 ')
-        echo "Port ${http_port} is reserved by another Dwemer service. ALMSIVI uses dedicated port 8089 by default." >&2
+        echo "Port ${http_port} is reserved by another Dwemer service. LORKHAN uses dedicated port 8089 by default." >&2
         exit 2
         ;;
 esac
 if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${http_port}$"; then
-    if [[ ! -e /etc/apache2/sites-enabled/almsiviserver.conf ]] \
-        || ! grep -Eq "<VirtualHost[[:space:]]+\*:${http_port}>" /etc/apache2/sites-enabled/almsiviserver.conf; then
+    if [[ ! -e /etc/apache2/sites-enabled/lorkhanserver.conf ]] \
+        || ! grep -Eq "<VirtualHost[[:space:]]+\*:${http_port}>" /etc/apache2/sites-enabled/lorkhanserver.conf; then
         echo "Port ${http_port} is already owned by another service." >&2
         exit 1
     fi
 fi
 
-install -d -m 0755 /var/www/ALMSIVIserver/releases /etc/almsiviserver
-getent group almsivi >/dev/null || groupadd --system almsivi
-if ! id -u almsivi >/dev/null 2>&1; then
-    useradd --system --gid almsivi --groups www-data --home-dir /nonexistent --shell /usr/sbin/nologin almsivi
+install -d -m 0755 /var/www/LORKHANserver/releases /etc/lorkhanserver
+getent group lorkhan >/dev/null || groupadd --system lorkhan
+if ! id -u lorkhan >/dev/null 2>&1; then
+    useradd --system --gid lorkhan --groups www-data --home-dir /nonexistent --shell /usr/sbin/nologin lorkhan
 else
-    usermod --append --groups www-data almsivi
+    usermod --append --groups www-data lorkhan
 fi
-install -d -o almsivi -g www-data -m 2770 /var/lib/almsiviserver/media
-find /var/lib/almsiviserver/media -xdev -type f -name '*.media' -exec chown almsivi:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/voices
-find /var/lib/almsiviserver/voices -xdev -type f -name '*.wav' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/profile-portraits
-find /var/lib/almsiviserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/backups
-find /var/lib/almsiviserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o www-data -g www-data -m 0750 /var/lib/almsiviserver/credentials
-find /var/lib/almsiviserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
-install -d -o almsivi -g www-data -m 0750 /var/log/almsiviserver
+install -d -o lorkhan -g www-data -m 2770 /var/lib/lorkhanserver/media
+find /var/lib/lorkhanserver/media -xdev -type f -name '*.media' -exec chown lorkhan:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/voices
+find /var/lib/lorkhanserver/voices -xdev -type f -name '*.wav' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/profile-portraits
+find /var/lib/lorkhanserver/profile-portraits -xdev -type f \( -name '*.png' -o -name '*.jpg' -o -name '*.webp' \) -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/backups
+find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
+find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
+install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
 
 release_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "${source_root}" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
-release_dir="/var/www/ALMSIVIserver/releases/${release_id}"
+release_dir="/var/www/LORKHANserver/releases/${release_id}"
 if [[ -e ${release_dir} ]]; then
     echo "Release already exists: ${release_dir}" >&2
     exit 1
@@ -63,7 +63,7 @@ fi
 install -d -m 0755 "${release_dir}"
 release_committed=false
 cleanup_failed_release() {
-    if [[ ${release_committed} != true && -n ${release_dir:-} && ${release_dir} == /var/www/ALMSIVIserver/releases/* ]]; then
+    if [[ ${release_committed} != true && -n ${release_dir:-} && ${release_dir} == /var/www/LORKHANserver/releases/* ]]; then
         rm -rf -- "${release_dir}"
     fi
 }
@@ -73,55 +73,55 @@ rsync -a --exclude=.git --exclude=.github --exclude=.work --exclude=build --excl
 find "${release_dir}" -type d -exec chmod 0755 {} +
 find "${release_dir}" -type f -exec chmod 0644 {} +
 
-if [[ ! -f /etc/almsiviserver/database-password ]]; then
-    openssl rand -hex 32 > /etc/almsiviserver/database-password
+if [[ ! -f /etc/lorkhanserver/database-password ]]; then
+    openssl rand -hex 32 > /etc/lorkhanserver/database-password
 fi
-if [[ ! -f /etc/almsiviserver/client-pairing-key ]]; then
-    openssl rand -base64 32 | tr -d '=\n' | tr '+/' '-_' > /etc/almsiviserver/client-pairing-key
+if [[ ! -f /etc/lorkhanserver/client-pairing-key ]]; then
+    openssl rand -base64 32 | tr -d '=\n' | tr '+/' '-_' > /etc/lorkhanserver/client-pairing-key
 fi
-if [[ ! -f /etc/almsiviserver/management-secret ]]; then
-    openssl rand -base64 24 | tr -d '=\n' | tr '+/' '-_' > /etc/almsiviserver/management-secret
+if [[ ! -f /etc/lorkhanserver/management-secret ]]; then
+    openssl rand -base64 24 | tr -d '=\n' | tr '+/' '-_' > /etc/lorkhanserver/management-secret
 fi
-chown root:www-data /etc/almsiviserver/database-password
-chmod 0640 /etc/almsiviserver/database-password
+chown root:www-data /etc/lorkhanserver/database-password
+chmod 0640 /etc/lorkhanserver/database-password
 local_group=dweme
 getent group "${local_group}" >/dev/null || local_group=root
-chown root:"${local_group}" /etc/almsiviserver/client-pairing-key /etc/almsiviserver/management-secret
-chmod 0640 /etc/almsiviserver/client-pairing-key /etc/almsiviserver/management-secret
+chown root:"${local_group}" /etc/lorkhanserver/client-pairing-key /etc/lorkhanserver/management-secret
+chmod 0640 /etc/lorkhanserver/client-pairing-key /etc/lorkhanserver/management-secret
 
-database_password=$(< /etc/almsiviserver/database-password)
-pairing_key=$(< /etc/almsiviserver/client-pairing-key)
-management_secret=$(< /etc/almsiviserver/management-secret)
+database_password=$(< /etc/lorkhanserver/database-password)
+pairing_key=$(< /etc/lorkhanserver/client-pairing-key)
+management_secret=$(< /etc/lorkhanserver/management-secret)
 pairing_hash=$(printf '%s' "${pairing_key}" | sha256sum | awk '{print $1}')
 management_hash=$(printf '%s' "${management_secret}" | sha256sum | awk '{print $1}')
 
-if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_roles WHERE rolname='almsivi_runtime'" | grep -qx 1; then
-    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "CREATE ROLE almsivi_runtime LOGIN PASSWORD '${database_password}'"
+if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_roles WHERE rolname='lorkhan_runtime'" | grep -qx 1; then
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "CREATE ROLE lorkhan_runtime LOGIN PASSWORD '${database_password}'"
 else
-    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "ALTER ROLE almsivi_runtime PASSWORD '${database_password}'"
+    runuser -u postgres -- psql -v ON_ERROR_STOP=1 -c "ALTER ROLE lorkhan_runtime PASSWORD '${database_password}'"
 fi
-if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname='almsivi'" | grep -qx 1; then
-    runuser -u postgres -- createdb --template=template0 --owner=almsivi_runtime --encoding=UTF8 almsivi
+if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname='lorkhan'" | grep -qx 1; then
+    runuser -u postgres -- createdb --template=template0 --owner=lorkhan_runtime --encoding=UTF8 lorkhan
 fi
 
 # pgvector is not a trusted PostgreSQL extension, so the restricted runtime role cannot install it
 # during a genuinely fresh migration. Keep extension ownership with PostgreSQL administration.
-runuser -u postgres -- psql --dbname=almsivi --set=ON_ERROR_STOP=1 \
+runuser -u postgres -- psql --dbname=lorkhan --set=ON_ERROR_STOP=1 \
     --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
 
-cat > /etc/almsiviserver/server.php <<'PHP'
+cat > /etc/lorkhanserver/server.php <<'PHP'
 <?php
 declare(strict_types=1);
 
 return [
     'environment' => 'production',
-    'base_path' => '/ALMSIVIserver/api/v1',
-    'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=almsivi',
-    'database_user' => 'almsivi_runtime',
-    'database_password' => trim((string) file_get_contents('/etc/almsiviserver/database-password')),
-    'pairing_token_hash' => trim((string) file_get_contents('/etc/almsiviserver/pairing-token-hash')),
-    'management_base_path' => '/ALMSIVIserver/manage',
-    'management_secret_hash' => trim((string) file_get_contents('/etc/almsiviserver/management-secret-hash')),
+    'base_path' => '/LORKHANserver/api/v1',
+    'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
+    'database_user' => 'lorkhan_runtime',
+    'database_password' => trim((string) file_get_contents('/etc/lorkhanserver/database-password')),
+    'pairing_token_hash' => trim((string) file_get_contents('/etc/lorkhanserver/pairing-token-hash')),
+    'management_base_path' => '/LORKHANserver/manage',
+    'management_secret_hash' => trim((string) file_get_contents('/etc/lorkhanserver/management-secret-hash')),
     'browser_session_ttl_seconds' => 3600,
     'max_json_bytes' => 2 * 1024 * 1024,
     'max_context_bytes' => 128 * 1024,
@@ -135,7 +135,7 @@ return [
         'endpoint' => 'https://openrouter.ai/api/v1/chat/completions',
         'allowed_hosts' => ['openrouter.ai'],
         'model' => 'z-ai/glm-4.7',
-        'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+        'api_key_env' => 'LORKHAN_LLM_API_KEY',
         'timeout_ms' => 120000,
         'disable_reasoning' => true,
     ],
@@ -147,11 +147,11 @@ return [
         'driver' => 'mock',
         'timeout_ms' => 30000,
     ],
-    'media_storage_path' => '/var/lib/almsiviserver/media',
-    'voice_storage_path' => '/var/lib/almsiviserver/voices',
-    'portrait_storage_path' => '/var/lib/almsiviserver/profile-portraits',
-    'backup_storage_path' => '/var/lib/almsiviserver/backups',
-    'credential_storage_path' => '/var/lib/almsiviserver/credentials/provider-keys.json',
+    'media_storage_path' => '/var/lib/lorkhanserver/media',
+    'voice_storage_path' => '/var/lib/lorkhanserver/voices',
+    'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',
+    'backup_storage_path' => '/var/lib/lorkhanserver/backups',
+    'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,
     'worker' => [
@@ -164,61 +164,61 @@ return [
     ],
 ];
 PHP
-printf '%s\n' "${pairing_hash}" > /etc/almsiviserver/pairing-token-hash
-printf '%s\n' "${management_hash}" > /etc/almsiviserver/management-secret-hash
-cat > /etc/almsiviserver/apache-env.conf <<EOF
-SetEnv ALMSIVI_CONFIG /etc/almsiviserver/server.php
-SetEnv ALMSIVI_PAIRING_MAC_KEY ${pairing_key}
+printf '%s\n' "${pairing_hash}" > /etc/lorkhanserver/pairing-token-hash
+printf '%s\n' "${management_hash}" > /etc/lorkhanserver/management-secret-hash
+cat > /etc/lorkhanserver/apache-env.conf <<EOF
+SetEnv LORKHAN_CONFIG /etc/lorkhanserver/server.php
+SetEnv LORKHAN_PAIRING_MAC_KEY ${pairing_key}
 EOF
-chown root:www-data /etc/almsiviserver/server.php /etc/almsiviserver/pairing-token-hash \
-    /etc/almsiviserver/management-secret-hash /etc/almsiviserver/apache-env.conf
-chmod 0640 /etc/almsiviserver/server.php /etc/almsiviserver/pairing-token-hash \
-    /etc/almsiviserver/management-secret-hash /etc/almsiviserver/apache-env.conf
-cat > /etc/almsiviserver/worker.env <<'EOF'
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php
+chown root:www-data /etc/lorkhanserver/server.php /etc/lorkhanserver/pairing-token-hash \
+    /etc/lorkhanserver/management-secret-hash /etc/lorkhanserver/apache-env.conf
+chmod 0640 /etc/lorkhanserver/server.php /etc/lorkhanserver/pairing-token-hash \
+    /etc/lorkhanserver/management-secret-hash /etc/lorkhanserver/apache-env.conf
+cat > /etc/lorkhanserver/worker.env <<'EOF'
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php
 EOF
-chown root:almsivi /etc/almsiviserver/worker.env
-chmod 0640 /etc/almsiviserver/worker.env
+chown root:lorkhan /etc/lorkhanserver/worker.env
+chmod 0640 /etc/lorkhanserver/worker.env
 
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/migrate.php" up
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-connectors.php"
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-descriptions.php"
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-biographies.php"
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/backfill-morrowind-localities.php"
-ALMSIVI_CONFIG=/etc/almsiviserver/server.php php "${release_dir}/scripts/provision-default-oghma.php"
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/migrate.php" up
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-connectors.php"
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-descriptions.php"
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-biographies.php"
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/backfill-morrowind-localities.php"
+LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-oghma.php"
 
-ln -sfn "${release_dir}" /var/www/ALMSIVIserver/current.next
-mv -Tf /var/www/ALMSIVIserver/current.next /var/www/ALMSIVIserver/current
+ln -sfn "${release_dir}" /var/www/LORKHANserver/current.next
+mv -Tf /var/www/LORKHANserver/current.next /var/www/LORKHANserver/current
 release_committed=true
 gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
 if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "Could not determine the Windows-to-WSL gateway address." >&2
     exit 1
 fi
-sed -e "s/@WSL_GATEWAY@/${gateway}/g" -e "s/@ALMSIVI_HTTP_PORT@/${http_port}/g" \
-    "${release_dir}/deploy/apache/almsiviserver.conf" \
-    > /etc/apache2/sites-available/almsiviserver.conf
-chmod 0644 /etc/apache2/sites-available/almsiviserver.conf
+sed -e "s/@WSL_GATEWAY@/${gateway}/g" -e "s/@LORKHAN_HTTP_PORT@/${http_port}/g" \
+    "${release_dir}/deploy/apache/lorkhanserver.conf" \
+    > /etc/apache2/sites-available/lorkhanserver.conf
+chmod 0644 /etc/apache2/sites-available/lorkhanserver.conf
 sed -i -E "/^Listen[[:space:]]+(127\\.0\\.0\\.1|0\\.0\\.0\\.0):${http_port}$/d" /etc/apache2/ports.conf
 printf '\nListen 0.0.0.0:%s\n' "${http_port}" >> /etc/apache2/ports.conf
 a2enmod rewrite >/dev/null
-a2ensite almsiviserver.conf >/dev/null
+a2ensite lorkhanserver.conf >/dev/null
 apache2ctl configtest
 service apache2 restart
 
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    install -m 0644 "${release_dir}/deploy/systemd/almsiviserver-worker.service" \
-        /etc/systemd/system/almsiviserver-worker.service
-    install -m 0644 "${release_dir}/deploy/systemd/almsiviserver-worker.timer" \
-        /etc/systemd/system/almsiviserver-worker.time
+    install -m 0644 "${release_dir}/deploy/systemd/lorkhanserver-worker.service" \
+        /etc/systemd/system/lorkhanserver-worker.service
+    install -m 0644 "${release_dir}/deploy/systemd/lorkhanserver-worker.timer" \
+        /etc/systemd/system/lorkhanserver-worker.time
     systemctl daemon-reload
-    systemctl enable --now almsiviserver-worker.timer >/dev/null
-    systemctl reset-failed almsiviserver-worker.service >/dev/null 2>&1 || true
-    systemctl start --no-block almsiviserver-worker.service
-    if [[ $(systemctl is-enabled almsiviserver-worker.timer) != enabled \
-        || $(systemctl is-active almsiviserver-worker.timer) != active ]]; then
-        echo "ALMSIVIserver worker timer did not become active." >&2
+    systemctl enable --now lorkhanserver-worker.timer >/dev/null
+    systemctl reset-failed lorkhanserver-worker.service >/dev/null 2>&1 || true
+    systemctl start --no-block lorkhanserver-worker.service
+    if [[ $(systemctl is-enabled lorkhanserver-worker.timer) != enabled \
+        || $(systemctl is-active lorkhanserver-worker.timer) != active ]]; then
+        echo "LORKHANserver worker timer did not become active." >&2
         exit 1
     fi
 else
@@ -226,22 +226,22 @@ else
         command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
     done
     install -d -m 0755 /usr/local/libexec
-    install -m 0755 "${release_dir}/deploy/sysv/almsiviserver-worker-loop" \
-        /usr/local/libexec/almsiviserver-worker-loop
-    install -m 0755 "${release_dir}/deploy/sysv/almsiviserver-worker" \
-        /etc/init.d/almsiviserver-worker
-    update-rc.d almsiviserver-worker defaults >/dev/null
-    service almsiviserver-worker restart
-    service almsiviserver-worker status >/dev/null
+    install -m 0755 "${release_dir}/deploy/sysv/lorkhanserver-worker-loop" \
+        /usr/local/libexec/lorkhanserver-worker-loop
+    install -m 0755 "${release_dir}/deploy/sysv/lorkhanserver-worker" \
+        /etc/init.d/lorkhanserver-worker
+    update-rc.d lorkhanserver-worker defaults >/dev/null
+    service lorkhanserver-worker restart
+    service lorkhanserver-worker status >/dev/null
 fi
 
-health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health")
-if [[ ${health} != '{"schema":"almsivi.health.v1"}' ]]; then
+health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health")
+if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
     echo "Unexpected health response." >&2
     exit 1
 fi
 
 echo "Deployed ${release_dir}"
-echo "Health: http://127.0.0.1:${http_port}/ALMSIVIserver/api/v1/health"
-echo "Management: http://127.0.0.1:${http_port}/ALMSIVIserver/manage"
-echo "Local secrets remain in /etc/almsiviserver and were not printed."
+echo "Health: http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health"
+echo "Management: http://127.0.0.1:${http_port}/LORKHANserver/manage"
+echo "Local secrets remain in /etc/lorkhanserver and were not printed."

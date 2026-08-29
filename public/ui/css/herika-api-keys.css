@@ -11,7 +11,7 @@ body.api-keys-page-shell > main.api-keys-page {
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .api-keys-page .page-header h1.api-title { color: #f5f1e8; font-family: MagicCards, serif; font-weight: 400; word-spacing: 8px; }
 .api-keys-page .page-subtitle { color: #bbb; }
 .api-keys-page .keys-notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(65, 170, 100, .4); border-radius: 8px; background: rgba(42, 42, 42, .95); color: #a9e5bd; }

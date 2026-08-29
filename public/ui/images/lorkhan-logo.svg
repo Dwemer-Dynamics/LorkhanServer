@@ -1,10 +1,10 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="250" height="52" viewBox="0 0 250 52" role="img" aria-labelledby="title">
-  <title id="title">ALMSIVI</title>
+  <title id="title">LORKHAN</title>
   <g transform="translate(2 2)">
     <circle cx="24" cy="24" r="21" fill="#15110d" stroke="#d97822" stroke-width="2"/>
     <circle cx="24" cy="24" r="15" fill="none" stroke="#784018" stroke-width="1"/>
     <path d="M24 8 38 35H10L24 8Zm0 8-7 14h14L24 16Z" fill="#e38a31" fill-rule="evenodd"/>
     <circle cx="24" cy="24" r="4" fill="#ffd08a"/>
   </g>
-  <text x="58" y="34" fill="#f4f1eb" font-family="Georgia, Times New Roman, serif" font-size="28" font-weight="700" letter-spacing="3">ALMSIVI</text>
+  <text x="58" y="34" fill="#f4f1eb" font-family="Georgia, Times New Roman, serif" font-size="28" font-weight="700" letter-spacing="3">LORKHAN</text>
 </svg>

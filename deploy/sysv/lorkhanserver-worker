@@ -1,22 +1,22 @@
 #!/bin/sh
 ### BEGIN INIT INFO
-# Provides:          almsiviserver-worker
+# Provides:          lorkhanserver-worker
 # Required-Start:    $network $postgresql
 # Required-Stop:     $network $postgresql
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: ALMSIVIserver durable job worker
+# Short-Description: LORKHANserver durable job worker
 ### END INIT INFO
 
 set -eu
 
-name=almsiviserver-worker
-daemon=/usr/local/libexec/almsiviserver-worker-loop
-pidfile=/run/almsiviserver-worker.pid
-logfile=/var/log/almsiviserver/worker.log
+name=lorkhanserver-worker
+daemon=/usr/local/libexec/lorkhanserver-worker-loop
+pidfile=/run/lorkhanserver-worker.pid
+logfile=/var/log/lorkhanserver/worker.log
 
 is_running() {
-    start-stop-daemon --status --quiet --pidfile "$pidfile" --user almsivi
+    start-stop-daemon --status --quiet --pidfile "$pidfile" --user lorkhan
 }
 
 case "${1:-}" in
@@ -26,14 +26,14 @@ case "${1:-}" in
         fi
         rm -f "$pidfile"
         start-stop-daemon --start --quiet --background --make-pidfile \
-            --pidfile "$pidfile" --chuid almsivi:almsivi \
-            --chdir /var/www/ALMSIVIserver/current --startas "$daemon" \
+            --pidfile "$pidfile" --chuid lorkhan:lorkhan \
+            --chdir /var/www/LORKHANserver/current --startas "$daemon" \
             --output "$logfile"
         ;;
     stop)
         if is_running; then
             start-stop-daemon --stop --quiet --retry TERM/35/KILL/5 \
-                --pidfile "$pidfile" --user almsivi --remove-pidfile
+                --pidfile "$pidfile" --user lorkhan --remove-pidfile
         else
             rm -f "$pidfile"
         fi

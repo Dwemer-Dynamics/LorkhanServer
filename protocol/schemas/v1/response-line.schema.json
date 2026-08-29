@@ -1,5 +1,5 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/response-line.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/response-line.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -8,11 +8,11 @@
     "command_name": {"maxLength": 64, "pattern": "^[a-z][a-z0-9_.]{0,63}$", "type": "string"},
     "display_name": {"maxLength": 256, "minLength": 1, "type": "string"},
     "final_response_line": {"type": "boolean"},
-    "line_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "line_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
     "line_index": {"maximum": 63, "minimum": 0, "type": "integer"},
     "listener": {"maxLength": 256, "minLength": 1, "type": "string"},
-    "listener_identity": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
-    "media": {"$ref": "https://almsivi.invalid/schemas/v1/media-descriptor.schema.json"},
+    "listener_identity": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+    "media": {"$ref": "https://lorkhan.invalid/schemas/v1/media-descriptor.schema.json"},
     "metadata": {
       "additionalProperties": false,
       "maxProperties": 6,
@@ -27,16 +27,16 @@
       "type": "object"
     },
     "rechat_target": {"maxLength": 256, "minLength": 1, "type": "string"},
-    "rechat_target_identity": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
-    "request_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "schema": {"const": "almsivi.response.line.v1", "type": "string"},
+    "rechat_target_identity": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+    "request_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "schema": {"const": "lorkhan.response.line.v1", "type": "string"},
     "speaker": {"maxLength": 256, "minLength": 1, "type": "string"},
-    "speaker_identity": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+    "speaker_identity": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
     "subtitle": {"maxLength": 4096, "type": "string"},
     "text": {"maxLength": 4096, "type": "string"},
     "tts_cache_key": {"maxLength": 256, "pattern": "^[A-Za-z0-9._:-]+$", "type": "string"},
     "tts_text": {"maxLength": 4096, "type": "string"},
-    "utterance_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"}
+    "utterance_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"}
   },
   "required": ["schema", "line_id", "line_index", "speaker", "display_name", "speaker_identity", "action", "text", "subtitle", "tts_text", "request_id", "utterance_id", "listener", "listener_identity", "rechat_target", "rechat_target_identity", "final_response_line", "metadata"],
   "allOf": [

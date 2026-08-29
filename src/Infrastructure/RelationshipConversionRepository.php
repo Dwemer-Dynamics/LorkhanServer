@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\OperationCancelled;
-use ALMSIVIserver\Application\RelationshipBuildPolicy;
-use ALMSIVIserver\Application\RelationshipType;
+use LORKHANserver\Application\OperationCancelled;
+use LORKHANserver\Application\RelationshipBuildPolicy;
+use LORKHANserver\Application\RelationshipType;
 use PDO;
 
 /** Explicitly convert bounded profile relationship text without inventing OpenMW actors. */

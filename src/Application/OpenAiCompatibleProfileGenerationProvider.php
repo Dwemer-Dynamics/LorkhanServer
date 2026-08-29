@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use RuntimeException;
 
 /** Bounded JSON text generation for profiles, diaries, speech-style analysis, and optional memory summaries. */

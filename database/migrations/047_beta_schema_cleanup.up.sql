@@ -30,7 +30,7 @@ DROP TABLE IF EXISTS public.core_faction_politics_relation;
 DROP TABLE IF EXISTS public.core_faction_politics_state;
 DROP TABLE IF EXISTS public.master_packages;
 DROP TABLE IF EXISTS public.npc_commitments;
-DROP TABLE IF EXISTS almsivi_internal.autonomy_schedules;
+DROP TABLE IF EXISTS lorkhan_internal.autonomy_schedules;
 
-DROP FUNCTION IF EXISTS almsivi_internal.chim_touch_updated_at();
-DROP FUNCTION IF EXISTS almsivi_internal.reject_excluded_feature_write();
+DROP FUNCTION IF EXISTS lorkhan_internal.chim_touch_updated_at();
+DROP FUNCTION IF EXISTS lorkhan_internal.reject_excluded_feature_write();

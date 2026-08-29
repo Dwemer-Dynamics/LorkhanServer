@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
 use PDO;
 use RuntimeException;

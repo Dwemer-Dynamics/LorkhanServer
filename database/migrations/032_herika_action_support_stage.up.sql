@@ -1,5 +1,5 @@
 -- Exact Herika action, animation, import, translation, and supporting profile tables.
--- Unsupported Skyrim data remains empty; ALMSIVI's negotiated OpenMW actions project
+-- Unsupported Skyrim data remains empty; LORKHAN's negotiated OpenMW actions project
 -- into the custom action layer used by the copied Herika UI.
 
 CREATE TABLE herika_compat.animations (

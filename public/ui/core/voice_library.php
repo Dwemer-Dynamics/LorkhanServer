@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\ConnectorCatalog;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Application\ConnectorCatalog;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Security\OutboundUrlPolicy;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='Voice Management';$topNavSection='configuration';
 $embedded=($_GET['embed']??'')==='1';
@@ -13,7 +13,7 @@ require $uiRootDir.'/ui_bootstrap.php';
 
 $requestedStudioTab=(string)($_GET['tab']??$_POST['studio_tab']??'');
 
-$voiceRoot=(string)($config['voice_storage_path']??(is_dir('/var/lib/almsiviserver')?'/var/lib/almsiviserver/voices':($applicationRoot.'/storage/voices')));
+$voiceRoot=(string)($config['voice_storage_path']??(is_dir('/var/lib/lorkhanserver')?'/var/lib/lorkhanserver/voices':($applicationRoot.'/storage/voices')));
 if(!is_dir($voiceRoot)&&!mkdir($voiceRoot,0750,true)&&!is_dir($voiceRoot))throw new RuntimeException('Voice storage is unavailable.');
 $products=new ProductRepository($database);$installations=$uiRepository->rows('installations');
 $installationId=(string)($installations[0]['installation_id']??'');
@@ -31,14 +31,14 @@ $voiceDiscoveryDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtt
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
 
 /** Validate a user-facing voice name and map it to one bounded local WAV filename. */
-function almsivi_voice_filename(string $name):string
+function lorkhan_voice_filename(string $name):string
 {
     $name=trim($name);if($name===''||strlen($name)>80||preg_match('/^[\pL\pN][\pL\pN _+.-]*$/uD',$name)!==1)throw new InvalidArgumentException('invalid_voice_name');
     return preg_replace('/\s+/u','_',$name).'.wav';
 }
 
 /** Require a PCM-compatible RIFF/WAVE upload before it enters the persistent voice library. */
-function almsivi_voice_validate_wav(string $path):void
+function lorkhan_voice_validate_wav(string $path):void
 {
     $size=filesize($path);$header=file_get_contents($path,false,null,0,12);
     if(!is_int($size)||$size<44||$size>16_777_216||$header===false||substr($header,0,4)!=='RIFF'||substr($header,8,4)!=='WAVE')
@@ -46,13 +46,13 @@ function almsivi_voice_validate_wav(string $path):void
 }
 
 /** List active profile and connector references that make a local sample unsafe to delete. */
-function almsivi_voice_references(string $voice,array $referenceIndex):array
+function lorkhan_voice_references(string $voice,array $referenceIndex):array
 {
     return$referenceIndex[mb_strtolower(trim($voice),'UTF-8')]??[];
 }
 
 /** Normalize the short language identifiers accepted by compatible local voice services. */
-function almsivi_voice_language(string $language):string
+function lorkhan_voice_language(string $language):string
 {
     $language=strtolower(trim($language));
     if($language===''||preg_match('/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/D',$language)!==1)
@@ -61,7 +61,7 @@ function almsivi_voice_language(string $language):string
 }
 
 /** Exclude audio.cpp PocketTTS because its local voice directory has no upload endpoint. */
-function almsivi_voice_can_sync(array $preset):bool
+function lorkhan_voice_can_sync(array $preset):bool
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
     if(!in_array($driver,['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'],true))return false;
@@ -70,7 +70,7 @@ function almsivi_voice_can_sync(array $preset):bool
 }
 
 /** Fetch one bounded JSON document from an explicitly configured local voice service. */
-function almsivi_voice_fetch_json(string $endpoint,string $path):array
+function lorkhan_voice_fetch_json(string $endpoint,string $path):array
 {
     $endpoint=rtrim($endpoint,'/');$parts=parse_url($endpoint);$host=is_array($parts)?strtolower((string)($parts['host']??'')):'';
     if($host==='')throw new InvalidArgumentException('voice_discovery_unsupported');
@@ -86,7 +86,7 @@ function almsivi_voice_fetch_json(string $endpoint,string $path):array
 }
 
 /** Normalize XTTS-family and OmniVoice speaker payloads into safe voice cards. */
-function almsivi_voice_normalize_discovery(array $payload,string $fallbackLanguage):array
+function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLanguage):array
 {
     if(isset($payload['speakers'])&&is_array($payload['speakers']))$payload=$payload['speakers'];
     elseif(!array_is_list($payload)){
@@ -101,7 +101,7 @@ function almsivi_voice_normalize_discovery(array $payload,string $fallbackLangua
         else continue;
         if($id===''||strlen($id)>512||!mb_check_encoding($id,'UTF-8'))continue;
         if($display===''||strlen($display)>512||!mb_check_encoding($display,'UTF-8'))$display=$id;
-        try{$language=almsivi_voice_language($language);}catch(InvalidArgumentException){$language=$fallbackLanguage;}
+        try{$language=lorkhan_voice_language($language);}catch(InvalidArgumentException){$language=$fallbackLanguage;}
         if($status===''||strlen($status)>64||!mb_check_encoding($status,'UTF-8'))$status='available';
         $voices[$id]=['id'=>$id,'display'=>$display===''?$id:$display,'language'=>$language===''?$fallbackLanguage:$language,
             'status'=>$status===''?'available':$status,'custom'=>$custom];
@@ -110,17 +110,17 @@ function almsivi_voice_normalize_discovery(array $payload,string $fallbackLangua
 }
 
 /** Query only CHIM-compatible local speaker-list endpoints after an explicit browser action. */
-function almsivi_voice_discover(array $preset,string $language):array
+function lorkhan_voice_discover(array $preset,string $language):array
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
-    if(!almsivi_voice_can_sync($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
-    $language=almsivi_voice_language($language);
+    if(!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
+    $language=lorkhan_voice_language($language);
     $path=$driver==='omnivoice'?'/speakers_list_extended?language='.rawurlencode($language):'/speakers_list';
-    return almsivi_voice_normalize_discovery(almsivi_voice_fetch_json((string)($content['endpoint']??''),$path),$language);
+    return lorkhan_voice_normalize_discovery(lorkhan_voice_fetch_json((string)($content['endpoint']??''),$path),$language);
 }
 
 /** Import a bounded flat ZIP of WAV files without allowing traversal or partial batches. */
-function almsivi_voice_import_zip(string $archivePath,string $voiceRoot):int
+function lorkhan_voice_import_zip(string $archivePath,string $voiceRoot):int
 {
     $archiveSize=filesize($archivePath);
     if(!is_int($archiveSize)||$archiveSize<1||$archiveSize>67_108_864||!class_exists(ZipArchive::class))
@@ -135,7 +135,7 @@ function almsivi_voice_import_zip(string $archivePath,string $voiceRoot):int
             if(str_contains($entry,'\\')||basename($entry)!==$entry||pathinfo($entry,PATHINFO_EXTENSION)==='')
                 throw new InvalidArgumentException('invalid_voice_archive');
             if(strtolower(pathinfo($entry,PATHINFO_EXTENSION))!=='wav')continue;
-            $filename=almsivi_voice_filename(pathinfo($entry,PATHINFO_FILENAME));$key=strtolower($filename);
+            $filename=lorkhan_voice_filename(pathinfo($entry,PATHINFO_FILENAME));$key=strtolower($filename);
             if(isset($seen[$key])||is_file($voiceRoot.DIRECTORY_SEPARATOR.$filename))throw new InvalidArgumentException('voice_sample_exists');
             $seen[$key]=true;$declared=(int)($stat['size']??0);
             if($declared<44||$declared>16_777_216)throw new InvalidArgumentException('invalid_voice_sample');
@@ -145,7 +145,7 @@ function almsivi_voice_import_zip(string $archivePath,string $voiceRoot):int
             try{$copied=stream_copy_to_stream($source,$destination,16_777_217);}finally{fclose($source);fclose($destination);}
             if(!is_int($copied)||$copied!==$declared||$copied>16_777_216){@unlink($temp);throw new InvalidArgumentException('invalid_voice_sample');}
             $totalBytes+=$copied;if($totalBytes>134_217_728){@unlink($temp);throw new InvalidArgumentException('invalid_voice_archive');}
-            almsivi_voice_validate_wav($temp);$staged[]=['temp'=>$temp,'path'=>$voiceRoot.DIRECTORY_SEPARATOR.$filename];
+            lorkhan_voice_validate_wav($temp);$staged[]=['temp'=>$temp,'path'=>$voiceRoot.DIRECTORY_SEPARATOR.$filename];
             if(count($staged)>64)throw new InvalidArgumentException('invalid_voice_archive');
         }
         if($staged===[])throw new InvalidArgumentException('invalid_voice_archive');
@@ -156,11 +156,11 @@ function almsivi_voice_import_zip(string $archivePath,string $voiceRoot):int
 }
 
 /** Upload one stored sample to a configured local connector using its bounded multipart contract. */
-function almsivi_voice_sync_connector(array $preset,string $path,string $voice,string $language):void
+function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,string $language):void
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
-    if(!almsivi_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
-    $language=almsivi_voice_language($language);
+    if(!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
+    $language=lorkhan_voice_language($language);
     $endpoint=rtrim((string)($content['endpoint']??''),'/');$parts=parse_url($endpoint);$host=is_array($parts)?strtolower((string)($parts['host']??'')):'';
     if($host==='')throw new InvalidArgumentException('voice_sync_unsupported');
     $url=OutboundUrlPolicy::validate($endpoint.'/upload_sample',[$host],true);$handle=curl_init($url);
@@ -188,25 +188,25 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
             $discoverLanguage=strtolower(trim((string)($_POST['language']??'en'))?:'en');
-            $discoveredVoices=almsivi_voice_discover($preset,$discoverLanguage);$discoveredPreset=$preset;$selectedDiscoveryId=$configurationId;$catalogLoaded=true;
+            $discoveredVoices=lorkhan_voice_discover($preset,$discoverLanguage);$discoveredPreset=$preset;$selectedDiscoveryId=$configurationId;$catalogLoaded=true;
             $products->replaceConnectorVoiceCatalog($configurationId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
             $notice=count($discoveredVoices).' provider voices discovered.';
         }elseif($action==='upload'){
             $upload=$_FILES['voice_sample']??null;if(!is_array($upload)||($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($upload['tmp_name']??'')))throw new InvalidArgumentException('voice_upload_failed');
             $extension=strtolower(pathinfo((string)($upload['name']??''),PATHINFO_EXTENSION));
-            if($extension==='zip'){$count=almsivi_voice_import_zip((string)$upload['tmp_name'],$voiceRoot);$notice=$count.' voice samples imported.';}
-            else{$filename=almsivi_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;almsivi_voice_validate_wav((string)$upload['tmp_name']);
+            if($extension==='zip'){$count=lorkhan_voice_import_zip((string)$upload['tmp_name'],$voiceRoot);$notice=$count.' voice samples imported.';}
+            else{$filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;lorkhan_voice_validate_wav((string)$upload['tmp_name']);
                 if(is_file($path))throw new InvalidArgumentException('voice_sample_exists');
                 if(!move_uploaded_file((string)$upload['tmp_name'],$path))throw new RuntimeException('voice_upload_failed');@chmod($path,0640);$notice='Voice sample saved.';}
         }elseif($action==='sync'){
-            $filename=almsivi_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
+            $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!is_file($path))throw new InvalidArgumentException('voice_sample_not_found');
-            almsivi_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),trim((string)($_POST['language']??'en'))?:'en');
+            lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),trim((string)($_POST['language']??'en'))?:'en');
             $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
         }elseif($action==='delete'){
-            $filename=almsivi_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
-            $errorReferences=almsivi_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
+            $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
+            $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
             if($errorReferences!==[])throw new InvalidArgumentException('voice_sample_in_use');
             if(!is_file($path)||!unlink($path))throw new RuntimeException('voice_delete_failed');$notice='Local voice sample deleted.';
         }else throw new InvalidArgumentException('invalid_voice_action');
@@ -215,8 +215,8 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 
 if($discoveredPreset===null){
     $selectedDiscoveryId=(string)($_GET['configuration_id']??($activeTts['configuration_id']??''));
-    if(!isset($ttsPresetsById[$selectedDiscoveryId])||!almsivi_voice_can_sync($ttsPresetsById[$selectedDiscoveryId])){
-        $selectedDiscoveryId='';foreach($ttsPresets as$preset)if(almsivi_voice_can_sync($preset)){$selectedDiscoveryId=(string)($preset['configuration_id']??'');break;}
+    if(!isset($ttsPresetsById[$selectedDiscoveryId])||!lorkhan_voice_can_sync($ttsPresetsById[$selectedDiscoveryId])){
+        $selectedDiscoveryId='';foreach($ttsPresets as$preset)if(lorkhan_voice_can_sync($preset)){$selectedDiscoveryId=(string)($preset['configuration_id']??'');break;}
     }
     if($selectedDiscoveryId!==''&&isset($ttsPresetsById[$selectedDiscoveryId])){
         $cached=$products->connectorVoiceCatalog($selectedDiscoveryId);

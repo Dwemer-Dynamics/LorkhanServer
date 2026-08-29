@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\MediaStore;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\Repository;
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Infrastructure\MediaStore;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\Uuid;
 use Throwable;
 
 final class SttProcessJobHandler implements JobHandler
@@ -35,7 +35,7 @@ final class SttProcessJobHandler implements JobHandler
             if($provider===null)throw new \RuntimeException('provider_unavailable');
             $providerName=is_array($preset['content']??null)?(string)($preset['content']['driver']??'stt'):
                 ($provider instanceof OpenAiCompatibleSpeechToTextProvider?'openai-compatible':'mock');
-            error_log(sprintf('[ALMSIVI] STT job starting: request_id=%s job_id=%s attempt=%d provider=%s audio_bytes=%d codec=%s language=%s',
+            error_log(sprintf('[LORKHAN] STT job starting: request_id=%s job_id=%s attempt=%d provider=%s audio_bytes=%d codec=%s language=%s',
                 (string)$request['request_id'],(string)$job['job_id'],(int)$job['attempt'],$providerName,strlen($bytes),
                 (string)$request['codec'],(string)$request['language']));
             $this->attempts->start($attempt,'stt',$providerName,'transcribe',$job['attempt'],$request['request_id'],$request['turn_id'],$job['job_id'],inputBytes:strlen($bytes));
@@ -43,13 +43,13 @@ final class SttProcessJobHandler implements JobHandler
             $this->repository->completeStt($messageId,$result,$fence);
             $this->media->delete($request['storage_media_id']);
             $this->attempts->finish($attempt,'succeeded',strlen($result['text']));
-            error_log(sprintf('[ALMSIVI] STT job succeeded: request_id=%s job_id=%s transcript_chars=%d language=%s',
+            error_log(sprintf('[LORKHAN] STT job succeeded: request_id=%s job_id=%s transcript_chars=%d language=%s',
                 (string)$request['request_id'],(string)$job['job_id'],mb_strlen($result['text']),(string)$result['language']));
         }catch(Throwable $error){
             $code=in_array($error->getMessage(),['invalid_audio','provider_invalid_output','provider_timeout','provider_unavailable'],true)
                 ?$error->getMessage():'provider_unavailable';
             try{$this->attempts->finish($attempt,'failed',errorCode:$code);}catch(Throwable){}
-            error_log(sprintf('[ALMSIVI] STT job failed: request_id=%s job_id=%s attempt=%d code=%s exception=%s',
+            error_log(sprintf('[LORKHAN] STT job failed: request_id=%s job_id=%s attempt=%d code=%s exception=%s',
                 (string)($request['request_id']??'unknown'),(string)($job['job_id']??'unknown'),(int)($job['attempt']??0),
                 $code,$error::class));
             if(in_array($code,['invalid_audio','provider_invalid_output'],true)||$job['attempt']>=3){$this->repository->failStt($messageId,$code,$fence);$this->media->delete($request['storage_media_id']);return;}

@@ -1,4 +1,4 @@
-ALTER TABLE almsivi_internal.knowledge_documents
+ALTER TABLE lorkhan_internal.knowledge_documents
     ADD COLUMN topic varchar(256),
     ADD COLUMN aliases text NOT NULL DEFAULT '',
     ADD COLUMN topic_desc_basic text,
@@ -7,28 +7,28 @@ ALTER TABLE almsivi_internal.knowledge_documents
     ADD COLUMN tags text NOT NULL DEFAULT '',
     ADD COLUMN category text NOT NULL DEFAULT '';
 
-UPDATE almsivi_internal.knowledge_documents
-SET topic=title,topic_desc_basic=content,category=COALESCE(provenance->>'category','ALMSIVI')
+UPDATE lorkhan_internal.knowledge_documents
+SET topic=title,topic_desc_basic=content,category=COALESCE(provenance->>'category','LORKHAN')
 WHERE topic IS NULL;
 
-ALTER TABLE almsivi_internal.knowledge_documents
+ALTER TABLE lorkhan_internal.knowledge_documents
     ALTER COLUMN topic SET NOT NULL,
     ALTER COLUMN topic_desc_basic SET NOT NULL,
     ADD CONSTRAINT knowledge_topic_bytes CHECK (octet_length(topic) BETWEEN 1 AND 256),
     ADD CONSTRAINT knowledge_basic_bytes CHECK (octet_length(topic_desc_basic) BETWEEN 1 AND 131072),
     ADD CONSTRAINT knowledge_category_bytes CHECK (octet_length(category) BETWEEN 1 AND 128);
 
-CREATE TABLE almsivi_internal.oghma_installation_settings (
-    installation_id uuid PRIMARY KEY REFERENCES almsivi_internal.installations(installation_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.oghma_installation_settings (
+    installation_id uuid PRIMARY KEY REFERENCES lorkhan_internal.installations(installation_id) ON DELETE CASCADE,
     knowledge_tags text NOT NULL DEFAULT 'common' CHECK (octet_length(knowledge_tags) BETWEEN 0 AND 4096),
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp()
 );
 
-CREATE UNIQUE INDEX knowledge_factory_topic_uq ON almsivi_internal.knowledge_documents (
+CREATE UNIQUE INDEX knowledge_factory_topic_uq ON lorkhan_internal.knowledge_documents (
     installation_id,lower(topic)
 ) WHERE deleted_at IS NULL AND provenance->>'source'='factory-oghma';
 
-CREATE TABLE almsivi_internal.oghma_catalogs (
+CREATE TABLE lorkhan_internal.oghma_catalogs (
     catalog_id uuid PRIMARY KEY,
     catalog_version varchar(128) NOT NULL UNIQUE,
     format_version text NOT NULL,
@@ -41,17 +41,17 @@ CREATE TABLE almsivi_internal.oghma_catalogs (
     official_content_sha256 jsonb NOT NULL CHECK (jsonb_typeof(official_content_sha256)='object'),
     row_count integer NOT NULL CHECK (row_count BETWEEN 1 AND 1000),
     state text NOT NULL CHECK (state IN ('active','superseded')),
-    previous_catalog_id uuid REFERENCES almsivi_internal.oghma_catalogs(catalog_id),
+    previous_catalog_id uuid REFERENCES lorkhan_internal.oghma_catalogs(catalog_id),
     imported_at timestamptz NOT NULL,
     activated_at timestamptz NOT NULL,
     superseded_at timestamptz,
     CHECK (catalog_version=btrim(catalog_version) AND length(catalog_version) BETWEEN 1 AND 128)
 );
-CREATE UNIQUE INDEX oghma_catalogs_one_active_uq ON almsivi_internal.oghma_catalogs ((state)) WHERE state='active';
-CREATE INDEX oghma_catalogs_recent_idx ON almsivi_internal.oghma_catalogs (activated_at DESC,catalog_id);
+CREATE UNIQUE INDEX oghma_catalogs_one_active_uq ON lorkhan_internal.oghma_catalogs ((state)) WHERE state='active';
+CREATE INDEX oghma_catalogs_recent_idx ON lorkhan_internal.oghma_catalogs (activated_at DESC,catalog_id);
 
-CREATE TABLE almsivi_internal.oghma_catalog_entries (
-    catalog_id uuid NOT NULL REFERENCES almsivi_internal.oghma_catalogs(catalog_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.oghma_catalog_entries (
+    catalog_id uuid NOT NULL REFERENCES lorkhan_internal.oghma_catalogs(catalog_id) ON DELETE CASCADE,
     topic varchar(256) NOT NULL,
     title varchar(256) NOT NULL,
     aliases text NOT NULL DEFAULT '',
@@ -68,21 +68,21 @@ CREATE TABLE almsivi_internal.oghma_catalog_entries (
     CHECK (octet_length(topic_desc_basic) BETWEEN 1 AND 131072),
     CHECK (octet_length(category) BETWEEN 1 AND 128)
 );
-CREATE UNIQUE INDEX oghma_catalog_entries_topic_uq ON almsivi_internal.oghma_catalog_entries (catalog_id,lower(topic));
+CREATE UNIQUE INDEX oghma_catalog_entries_topic_uq ON lorkhan_internal.oghma_catalog_entries (catalog_id,lower(topic));
 
-CREATE TABLE almsivi_internal.oghma_factory_documents (
-    installation_id uuid NOT NULL REFERENCES almsivi_internal.installations(installation_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.oghma_factory_documents (
+    installation_id uuid NOT NULL REFERENCES lorkhan_internal.installations(installation_id) ON DELETE CASCADE,
     topic varchar(256) NOT NULL,
-    document_id uuid NOT NULL UNIQUE REFERENCES almsivi_internal.knowledge_documents(document_id) ON DELETE CASCADE,
-    catalog_id uuid NOT NULL REFERENCES almsivi_internal.oghma_catalogs(catalog_id),
+    document_id uuid NOT NULL UNIQUE REFERENCES lorkhan_internal.knowledge_documents(document_id) ON DELETE CASCADE,
+    catalog_id uuid NOT NULL REFERENCES lorkhan_internal.oghma_catalogs(catalog_id),
     PRIMARY KEY (installation_id,topic)
 );
-CREATE INDEX oghma_factory_documents_catalog_idx ON almsivi_internal.oghma_factory_documents (catalog_id,installation_id);
+CREATE INDEX oghma_factory_documents_catalog_idx ON lorkhan_internal.oghma_factory_documents (catalog_id,installation_id);
 
-CREATE OR REPLACE FUNCTION almsivi_internal.sync_knowledge_projection()
+CREATE OR REPLACE FUNCTION lorkhan_internal.sync_knowledge_projection()
 RETURNS trigger
 LANGUAGE plpgsql
-SET search_path = public, almsivi_internal, pg_temp
+SET search_path = public, lorkhan_internal, pg_temp
 AS $function$
 DECLARE projected_topic text;
 BEGIN

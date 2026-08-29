@@ -2,19 +2,19 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\DeterministicClock;
-use ALMSIVIserver\Application\ProductService;
-use ALMSIVIserver\Infrastructure\ProductRepository;
+use LORKHANserver\Application\DeterministicClock;
+use LORKHANserver\Application\ProductService;
+use LORKHANserver\Infrastructure\ProductRepository;
 
-$uiRootDir=dirname(__DIR__);$pageTitle='ALMSIVI NPC Portrait';$topNavSection='configuration';
+$uiRootDir=dirname(__DIR__);$pageTitle='LORKHAN NPC Portrait';$topNavSection='configuration';
 require $uiRootDir.'/ui_bootstrap.php';
 
-$portraitRoot=(string)($config['portrait_storage_path']??(is_dir('/var/lib/almsiviserver')?'/var/lib/almsiviserver/profile-portraits':($applicationRoot.'/storage/profile-portraits')));
+$portraitRoot=(string)($config['portrait_storage_path']??(is_dir('/var/lib/lorkhanserver')?'/var/lib/lorkhanserver/profile-portraits':($applicationRoot.'/storage/profile-portraits')));
 if(!is_dir($portraitRoot)&&!mkdir($portraitRoot,0750,true)&&!is_dir($portraitRoot))throw new RuntimeException('Portrait storage is unavailable.');
 $products=new ProductRepository($database);$service=new ProductService($products,new DeterministicClock());
 
 /** Load only ordinary NPC profiles and normalize their current content. */
-function almsivi_portrait_profile(ProductRepository $products,string $profileId):array
+function lorkhan_portrait_profile(ProductRepository $products,string $profileId):array
 {
     if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$profileId)!==1)throw new InvalidArgumentException('invalid_profile_id');
     $profile=$products->getRevisioned('profile',$profileId);$identity=$profile['actor_identity']??[];
@@ -24,7 +24,7 @@ function almsivi_portrait_profile(ProductRepository $products,string $profileId)
 }
 
 /** Resolve only the server-generated filename belonging to this exact profile. */
-function almsivi_portrait_path(string $root,string $profileId,array $portrait):?string
+function lorkhan_portrait_path(string $root,string $profileId,array $portrait):?string
 {
     $filename=(string)($portrait['filename']??'');
     if(!str_starts_with($filename,$profileId.'-')||preg_match('/^[0-9a-f-]{36}-[0-9a-f]{16}\.(?:png|jpg|webp)$/D',$filename)!==1)return null;
@@ -33,9 +33,9 @@ function almsivi_portrait_path(string $root,string $profileId,array $portrait):?
 
 $profileId=trim((string)($_REQUEST['profile_id']??''));
 try{
-    $profile=almsivi_portrait_profile($products,$profileId);$content=$profile['content'];
+    $profile=lorkhan_portrait_profile($products,$profileId);$content=$profile['content'];
     if($_SERVER['REQUEST_METHOD']==='GET'){
-        $portrait=is_array($content['portrait']??null)?$content['portrait']:[];$path=almsivi_portrait_path($portraitRoot,$profileId,$portrait);
+        $portrait=is_array($content['portrait']??null)?$content['portrait']:[];$path=lorkhan_portrait_path($portraitRoot,$profileId,$portrait);
         if($path===null)throw new RuntimeException('portrait_metadata_invalid');
         if(!is_file($path))throw new RuntimeException('portrait_file_missing');
         header('Content-Type: '.(string)$portrait['mime']);header('Content-Length: '.(string)filesize($path));
@@ -57,16 +57,16 @@ try{
             'sha256'=>$sha,'updated_at'=>gmdate('Y-m-d\TH:i:s\Z')];
         try{$service->revise('profile',$profileId,$content,'portrait upload');}
         catch(Throwable $error){if(!hash_equals((string)($old['filename']??''),$filename))@unlink($path);throw$error;}
-        $oldPath=almsivi_portrait_path($portraitRoot,$profileId,$old);if($oldPath!==null&&!hash_equals($oldPath,$path))@unlink($oldPath);
+        $oldPath=lorkhan_portrait_path($portraitRoot,$profileId,$old);if($oldPath!==null&&!hash_equals($oldPath,$path))@unlink($oldPath);
     }elseif($action==='delete'){
         unset($content['portrait']);$service->revise('profile',$profileId,$content,'portrait delete');
-        $oldPath=almsivi_portrait_path($portraitRoot,$profileId,$old);if($oldPath!==null&&is_file($oldPath))@unlink($oldPath);
+        $oldPath=lorkhan_portrait_path($portraitRoot,$profileId,$old);if($oldPath!==null&&is_file($oldPath))@unlink($oldPath);
     }else throw new InvalidArgumentException('invalid_portrait_action');
     header('Location: '.$webRoot.'/ui/core/npc_master.php?status=saved',true,303);exit;
 }catch(Throwable $error){
     if($_SERVER['REQUEST_METHOD']==='GET'){$safeGetCodes=['invalid_profile_id','not_found','profile_not_portraitable','portrait_metadata_invalid','portrait_file_missing'];
         $code=in_array($error->getMessage(),$safeGetCodes,true)?$error->getMessage():'portrait_not_found';
-        http_response_code(404);header('Content-Type: text/plain; charset=utf-8');header('X-ALMSIVI-Portrait-Status: '.$code);echo"Portrait not found.\n";exit;}
+        http_response_code(404);header('Content-Type: text/plain; charset=utf-8');header('X-LORKHAN-Portrait-Status: '.$code);echo"Portrait not found.\n";exit;}
     $known=['invalid_profile_id','profile_not_portraitable','portrait_upload_failed','invalid_profile_portrait','invalid_portrait_action','unauthorized'];
     $message=in_array($error->getMessage(),$known,true)?$error->getMessage():'portrait_action_failed';
     header('Location: '.$webRoot.'/ui/core/npc_master.php?error='.rawurlencode($message),true,303);exit;

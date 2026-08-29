@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\MediaStore;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\Repository;
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Infrastructure\MediaStore;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\Uuid;
 use DomainException;
 use Throwable;
 

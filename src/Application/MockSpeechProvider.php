@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 final class MockSpeechProvider implements SpeechProvider
 {

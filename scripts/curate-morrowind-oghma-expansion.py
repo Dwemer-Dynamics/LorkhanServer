@@ -400,7 +400,7 @@ def main() -> int:
         raise ValueError(f"{args.api_key_env} is required for GLM curation")
     args.run_dir.mkdir(parents=True, exist_ok=True)
     input_lock = {
-        "format": "almsivi.morrowind-oghma-curation-lock.v1",
+        "format": "lorkhan.morrowind-oghma-curation-lock.v1",
         "audit_sha256": hashlib.sha256(args.audit.read_bytes()).hexdigest(),
         "seeds_sha256": hashlib.sha256(args.seeds.read_bytes()).hexdigest(),
         "ontology_sha256": hashlib.sha256(args.ontology.read_bytes()).hexdigest(),
@@ -438,7 +438,7 @@ def main() -> int:
                 saved_attempt = read_json(prior_attempts[-1])
                 decisions = validate_decisions(saved_attempt["raw_result"], batch, ontology, require_all=False)
                 atomic_json(partial_path, {
-                    "format": "almsivi.morrowind-oghma-curation-partial.v1",
+                    "format": "lorkhan.morrowind-oghma-curation-partial.v1",
                     "batch": batch_number,
                     "decisions": [portable_decision(row) for row in decisions],
                 })
@@ -454,7 +454,7 @@ def main() -> int:
             raw, usage = call_provider(session, api_key, args.model, remaining, ontology, args.request_timeout)
             attempt_path = args.run_dir / "batches" / f"attempt-{attempt_number:04d}-batch-{batch_number:04d}.json"
             atomic_json(attempt_path, {
-                "format": "almsivi.morrowind-oghma-curation-attempt.v1",
+                "format": "lorkhan.morrowind-oghma-curation-attempt.v1",
                 "batch": batch_number,
                 "started_at": started,
                 "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
@@ -466,13 +466,13 @@ def main() -> int:
             decisions.extend(partial)
             decided_topics.update(row["topic"] for row in partial)
             atomic_json(partial_path, {
-                "format": "almsivi.morrowind-oghma-curation-partial.v1",
+                "format": "lorkhan.morrowind-oghma-curation-partial.v1",
                 "batch": batch_number,
                 "decisions": [portable_decision(row) for row in decisions],
             })
             print(f"[partial] batch {batch_number}: {len(decisions)}/{len(batch)} decisions; total cost ${current_cost(args.run_dir, args.prior_cost):.6f}", flush=True)
         atomic_json(batch_path, {
-            "format": "almsivi.morrowind-oghma-curation-batch.v1",
+            "format": "lorkhan.morrowind-oghma-curation-batch.v1",
             "batch": batch_number,
             "completed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "decisions": [portable_decision(row) for row in decisions],
@@ -509,12 +509,12 @@ def main() -> int:
     rejected.sort(key=lambda row: (-int(row["quality_score"]), -int(row["score"]), str(row["title"]).casefold()))
     expansion_seeds = [seed_from_decision(row) for row in selected]
     combined_topics = [*existing, *expansion_seeds]
-    combined = {"format": "almsivi.morrowind-oghma-topic-seeds.v2", "topics": combined_topics}
-    atomic_json(args.run_dir / "expansion-seeds.json", {"format": "almsivi.morrowind-oghma-expansion-seeds.v2", "topics": expansion_seeds})
+    combined = {"format": "lorkhan.morrowind-oghma-topic-seeds.v2", "topics": combined_topics}
+    atomic_json(args.run_dir / "expansion-seeds.json", {"format": "lorkhan.morrowind-oghma-expansion-seeds.v2", "topics": expansion_seeds})
     atomic_json(args.run_dir / "combined-topic-seeds.json", combined)
     combined_sha = hashlib.sha256((args.run_dir / "combined-topic-seeds.json").read_bytes()).hexdigest()
     manifest = {
-        "format": "almsivi.morrowind-oghma-curation-manifest.v2",
+        "format": "lorkhan.morrowind-oghma-curation-manifest.v2",
         "model": args.model,
         "existing_count": len(existing),
         "candidate_count": len(candidates),

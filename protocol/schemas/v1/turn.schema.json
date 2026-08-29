@@ -1,22 +1,22 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/turn.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/turn.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "content_fingerprint": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/content_fingerprint"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/content_fingerprint"
     },
     "created_at": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
     },
     "generation": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/generation"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/generation"
     },
     "installation_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "message_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "payload": {
       "additionalProperties": false,
@@ -35,7 +35,7 @@
               "type": "object"
             },
             "target": {
-              "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"
+              "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
             },
             "tier": {
               "maximum": 3,
@@ -52,7 +52,7 @@
         },
         "audience": {
           "items": {
-            "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"
+            "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
           },
           "maxItems": 12,
           "type": "array"
@@ -143,10 +143,10 @@
             "additionalProperties": false,
             "properties": {
               "action_id": {
-                "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+                "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
               },
               "completed_at": {
-                "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
+                "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
               },
               "observed": {
                 "$comment": "Deferred typed observed result contents; bounded envelope only.",
@@ -182,10 +182,10 @@
           "type": "array"
         },
         "speaker": {
-          "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"
+          "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
         },
         "target": {
-          "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"
+          "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"
         },
         "ui_source": {
           "type": "string"
@@ -203,16 +203,16 @@
       "type": "object"
     },
     "playthrough_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "profile_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "request_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "runtime": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/runtime"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/runtime"
     },
     "runtime_generation": {
       "maximum": 9007199254740991,
@@ -220,14 +220,14 @@
       "type": "integer"
     },
     "schema": {
-      "const": "almsivi.turn.v1",
+      "const": "lorkhan.turn.v1",
       "type": "string"
     },
     "session_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "turn_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     }
   },
   "required": [

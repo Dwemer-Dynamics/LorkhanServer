@@ -30,7 +30,7 @@ LORE_TITLE = re.compile(
 
 def load_generator() -> Any:
     path = ROOT / "scripts" / "run-morrowind-oghma-preflight.py"
-    spec = importlib.util.spec_from_file_location("almsivi_oghma_generator", path)
+    spec = importlib.util.spec_from_file_location("lorkhan_oghma_generator", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load the Oghma generator")
     module = importlib.util.module_from_spec(spec)
@@ -111,7 +111,7 @@ def main() -> int:
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     payload = {
-        "format": "almsivi.morrowind-oghma-book-audit.v1",
+        "format": "lorkhan.morrowind-oghma-book-audit.v1",
         "baseline_catalog": args.catalog.name,
         "baseline_rows": len(articles),
         "official_content_sha256": hashes,

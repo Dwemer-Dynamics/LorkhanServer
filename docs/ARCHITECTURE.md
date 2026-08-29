@@ -1,15 +1,15 @@
-# ALMSIVIserver architecture
+# LORKHANserver architecture
 
 ## System boundary
 
-ALMSIVIserver is a single-user local-first web application in WSL2. Apache serves the browser UI and
+LORKHANserver is a single-user local-first web application in WSL2. Apache serves the browser UI and
 strict game API on `127.0.0.1:8089`; PHP owns validation/application services; PostgreSQL/pgvector
 owns durable state; supervised CLI workers own derived memory/profile/relationship jobs. Provider
 calls are outbound server-side only.
 
 ```mermaid
 flowchart LR
-  C["ALMSIVI native bridge"] -->|"pair token + v1 JSON"| A["Apache/PHP ingress"]
+  C["LORKHAN native bridge"] -->|"pair token + v1 JSON"| A["Apache/PHP ingress"]
   B["Browser management UI"] -->|"browser session + CSRF"| A
   A --> V["Schema/auth/rate/session validation"]
   V --> S["Application services"]
@@ -48,7 +48,7 @@ layout if its equivalent is stronger. Preserve separation and ownership, not fol
 The browser surface deliberately follows the maintained Dwemer server page composition. Each
 top-level PHP page loads `public/ui/ui_bootstrap.php`, includes the common head and navbar, renders
 its own page family, and includes the common footer. Embedded pages use the same bootstrap and CSRF
-session but omit the navbar when requested with `embed=1`. Apache aliases `/ALMSIVIserver` to the
+session but omit the navbar when requested with `embed=1`. Apache aliases `/LORKHANserver` to the
 public directory so source, configuration, storage, and secrets stay outside the served tree.
 
 ## Request lifecycle

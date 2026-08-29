@@ -11,7 +11,7 @@ $configSections = [
     'characters' => [
         'label' => 'Characters',
         'tabs' => [
-            'npc' => ['ALMSIVI NPCs', '&#x1F31F;', 'config.npc', $webRoot . '/ui/core/npc_master.php?embed=1'],
+            'npc' => ['LORKHAN NPCs', '&#x1F31F;', 'config.npc', $webRoot . '/ui/core/npc_master.php?embed=1'],
             'profiles' => ['Profiles', '&#x1F5C3;&#xFE0F;', 'config.profiles', $webRoot . '/ui/core/core_profiles.php?embed=1'],
             'player' => ['Player', '&#x1F464;', 'config.player', $webRoot . '/ui/core/player_management.php?embed=1'],
             'narrator' => ['Narration', '&#x1F5E3;&#xFE0F;', 'config.narrator', $webRoot . '/ui/narrator_management.php?embed=1'],
@@ -56,20 +56,20 @@ $includeManagementStyles = false;
 include dirname(__DIR__) . '/tmpl/head.html';
 include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
-<link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/main.css">
-<link rel="stylesheet" href="<?php echo almsivi_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo almsivi_ui_h((string) filemtime(dirname(__DIR__) . '/css/hub-navigation.css')); ?>">
-<main class="d-flex flex-column herika-hub-page" data-config-hub data-active-tab="<?php echo almsivi_ui_h($active); ?>">
+<link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/main.css">
+<link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/hub-navigation.css?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/css/hub-navigation.css')); ?>">
+<main class="d-flex flex-column herika-hub-page" data-config-hub data-active-tab="<?php echo lorkhan_ui_h($active); ?>">
     <div id="toast" class="toast-notification" role="status" aria-live="polite"><span class="message"></span></div>
     <div class="top-area">
         <div class="config-navigation" aria-label="Configuration sections">
             <div class="tab-groups">
                 <?php foreach ($configSections as $sectionId => $section): $sectionActive = array_key_exists($active, $section['tabs']); ?>
-                <section class="tab-group<?php echo $sectionActive ? ' active' : ''; ?>" data-category="<?php echo almsivi_ui_h($sectionId); ?>">
-                    <div class="tab-group-label"><?php echo almsivi_ui_h($section['label']); ?></div>
-                    <div class="tab-buttons" role="tablist" aria-label="<?php echo almsivi_ui_h($section['label']); ?> configuration pages">
-                        <?php foreach ($section['tabs'] as $tabId => [$label, $icon, $featureId]): $feature = almsivi_ui_feature($featureId); ?>
-                        <button class="tab-button<?php echo $tabId === $active ? ' active' : ''; ?>" type="button" data-tab="<?php echo almsivi_ui_h($tabId); ?>" data-category="<?php echo almsivi_ui_h($sectionId); ?>" aria-selected="<?php echo $tabId === $active ? 'true' : 'false'; ?>">
-                            <span class="tab-icon" aria-hidden="true"><?php echo $icon; ?></span><?php if ($feature['state'] === 'live'): ?><span class="tab-label"><?php echo almsivi_ui_h($label); ?></span><?php else: ?><span class="tab-label-stack"><span class="tab-label"><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge($featureId, true); ?></span><?php endif; ?>
+                <section class="tab-group<?php echo $sectionActive ? ' active' : ''; ?>" data-category="<?php echo lorkhan_ui_h($sectionId); ?>">
+                    <div class="tab-group-label"><?php echo lorkhan_ui_h($section['label']); ?></div>
+                    <div class="tab-buttons" role="tablist" aria-label="<?php echo lorkhan_ui_h($section['label']); ?> configuration pages">
+                        <?php foreach ($section['tabs'] as $tabId => [$label, $icon, $featureId]): $feature = lorkhan_ui_feature($featureId); ?>
+                        <button class="tab-button<?php echo $tabId === $active ? ' active' : ''; ?>" type="button" data-tab="<?php echo lorkhan_ui_h($tabId); ?>" data-category="<?php echo lorkhan_ui_h($sectionId); ?>" aria-selected="<?php echo $tabId === $active ? 'true' : 'false'; ?>">
+                            <span class="tab-icon" aria-hidden="true"><?php echo $icon; ?></span><?php if ($feature['state'] === 'live'): ?><span class="tab-label"><?php echo lorkhan_ui_h($label); ?></span><?php else: ?><span class="tab-label-stack"><span class="tab-label"><?php echo lorkhan_ui_h($label); ?></span><?php echo lorkhan_ui_feature_badge($featureId, true); ?></span><?php endif; ?>
                         </button>
                         <?php endforeach; ?>
                     </div>
@@ -80,8 +80,8 @@ include dirname(__DIR__) . '/tmpl/navbar.php';
     </div>
     <div class="content-area flex-grow-1 d-flex overflow-hidden">
         <?php foreach ($allTabs as $tabId => [$label, $icon, $featureId, $src]): ?>
-        <div id="<?php echo almsivi_ui_h($tabId); ?>" class="tab-content<?php echo $tabId === $active ? ' active' : ''; ?>" data-tab-panel>
-            <div class="embed-wrap"><iframe class="embed" title="<?php echo almsivi_ui_h($label); ?>" loading="<?php echo $tabId === $active ? 'eager' : 'lazy'; ?>" src="<?php echo $tabId === $active ? almsivi_ui_h($src) : 'about:blank'; ?>" data-src="<?php echo almsivi_ui_h($src); ?>"></iframe></div>
+        <div id="<?php echo lorkhan_ui_h($tabId); ?>" class="tab-content<?php echo $tabId === $active ? ' active' : ''; ?>" data-tab-panel>
+            <div class="embed-wrap"><iframe class="embed" title="<?php echo lorkhan_ui_h($label); ?>" loading="<?php echo $tabId === $active ? 'eager' : 'lazy'; ?>" src="<?php echo $tabId === $active ? lorkhan_ui_h($src) : 'about:blank'; ?>" data-src="<?php echo lorkhan_ui_h($src); ?>"></iframe></div>
         </div>
         <?php endforeach; ?>
     </div>

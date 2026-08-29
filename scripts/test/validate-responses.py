@@ -12,17 +12,17 @@ from jsonschema import Draft202012Validator
 ROOT = Path(__file__).resolve().parents[2]
 SCHEMAS = ROOT / "protocol/schemas/v1"
 SCHEMA_FOR = {
-    "almsivi.health.v1": "health.schema.json",
-    "almsivi.error.v1": "error.schema.json",
-    "almsivi.session.accepted.v1": "session-accepted.schema.json",
-    "almsivi.controls.v1": "controls.schema.json",
-    "almsivi.turn.accepted.v1": "turn-accepted.schema.json",
-    "almsivi.events.v1": "events.schema.json",
-    "almsivi.interruption.accepted.v1": "interruption-accepted.schema.json",
-    "almsivi.action-result.accepted.v1": "action-result-accepted.schema.json",
-    "almsivi.stt.accepted.v1": "stt-accepted.schema.json",
-    "almsivi.dialogue-delivery-result.accepted.v1": "dialogue-delivery-result-accepted.schema.json",
-    "almsivi.session.ended.v1": "session-ended.schema.json",
+    "lorkhan.health.v1": "health.schema.json",
+    "lorkhan.error.v1": "error.schema.json",
+    "lorkhan.session.accepted.v1": "session-accepted.schema.json",
+    "lorkhan.controls.v1": "controls.schema.json",
+    "lorkhan.turn.accepted.v1": "turn-accepted.schema.json",
+    "lorkhan.events.v1": "events.schema.json",
+    "lorkhan.interruption.accepted.v1": "interruption-accepted.schema.json",
+    "lorkhan.action-result.accepted.v1": "action-result-accepted.schema.json",
+    "lorkhan.stt.accepted.v1": "stt-accepted.schema.json",
+    "lorkhan.dialogue-delivery-result.accepted.v1": "dialogue-delivery-result-accepted.schema.json",
+    "lorkhan.session.ended.v1": "session-ended.schema.json",
 }
 
 def main() -> int:

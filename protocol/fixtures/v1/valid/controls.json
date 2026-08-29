@@ -1,7 +1,7 @@
 {
   "description": "Safe server-owned model slots and actor profiles for the active session",
   "instance": {
-    "schema": "almsivi.controls.v1",
+    "schema": "lorkhan.controls.v1",
     "message_id": "10000000-0000-4000-8000-000000000404",
     "request_id": "10000000-0000-4000-8000-000000000405",
     "session_id": "10000000-0000-4000-8000-000000000403",
@@ -18,7 +18,7 @@
     "selected_profile_id": null,
     "narrator_profile_id": "10000000-0000-4000-8000-000000000408",
     "effective_settings": {
-      "schema": "almsivi.effective-settings.v1",
+      "schema": "lorkhan.effective-settings.v1",
       "change_token": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
       "profile_id": null,
       "profile_revision": null,
@@ -62,5 +62,5 @@
       "revision": 2
     }]
   },
-  "schema": "https://almsivi.invalid/schemas/v1/controls.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/controls.schema.json"
 }

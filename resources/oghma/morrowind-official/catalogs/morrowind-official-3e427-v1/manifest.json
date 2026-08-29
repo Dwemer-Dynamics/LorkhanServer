@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "format": "lorkhan.morrowind-oghma-catalog.v1",
   "catalog_version": "morrowind-official-3e427-v1",
   "row_count": 112,
   "articles_sha256": "13a9f5dd55bf6b17b97efc0079468b686aa6370cfee8e83476216de55292ac2a",
@@ -34,7 +34,7 @@
   "source_runs": [
     {
       "articles_sha256": "adad8beae37bbe15b17704a2ce4418f9cfc6b7840717ddc55d229b187fd6c087",
-      "manifest_sha256": "171a36f7d5d1483f76936c5f9bc202f2ff9bbb711757a4f65e79d5be36a4d817",
+      "manifest_sha256": "4b53966d5da1cb006425b012b8fb793da70b605dfb2a15453a98e7e0e67c3c0d",
       "row_count": 50,
       "model": "z-ai/glm-5.1",
       "cost": 0.29401325879999995

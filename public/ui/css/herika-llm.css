@@ -16,7 +16,7 @@ body.llm-page-shell > main.llm-page {
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .llm-page .page-header h1.api-title {
     color: #f5f1e8;
     font-family: MagicCards, serif;
@@ -318,7 +318,7 @@ body.llm-page-shell > main.llm-page {
 
 .llm-page .llm-advanced-panel > .llm-group-heading { margin-top: 0; }
 
-/* Inherited Herika controls that ALMSIVI does not implement, grouped and clearly inert. */
+/* Inherited Herika controls that LORKHAN does not implement, grouped and clearly inert. */
 .llm-page .llm-legacy-panel {
     margin-top: 12px;
     padding: 10px 12px;

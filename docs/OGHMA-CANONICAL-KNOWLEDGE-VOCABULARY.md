@@ -2,7 +2,7 @@
 
 Frozen: 2026-08-14
 
-This document defines one semantic vocabulary for ALMSIVI and CHIM while leaving their generators,
+This document defines one semantic vocabulary for LORKHAN and CHIM while leaving their generators,
 runtime code, catalogs, migrations, and validation independent. The byte-identical machine-readable
 source is `resources/oghma/canonical-knowledge-vocabulary-v1.json` in each repository.
 
@@ -44,7 +44,7 @@ for editorial review, but analogy never grants access or rewrites identity.
 
 The shared role classes above are the only cross-product occupation permissions. CHIM additionally
 keeps bard, fisher, innkeeper, and noble because its reviewed Skyrim catalog contains useful advanced
-articles for each. They are not added to ALMSIVI until Morrowind has reviewed article coverage.
+articles for each. They are not added to LORKHAN until Morrowind has reviewed article coverage.
 
 Synonymous jobs translate to the narrowest supported role: apothecary to alchemist, physician to
 healer, smith to blacksmith, trader or shopkeeper to merchant, soldier or archer to warrior, and

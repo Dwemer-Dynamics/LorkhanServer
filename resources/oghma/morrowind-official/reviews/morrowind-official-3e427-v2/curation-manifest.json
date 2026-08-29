@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-curation-manifest.v2",
+  "format": "lorkhan.morrowind-oghma-curation-manifest.v2",
   "model": "z-ai/glm-4.7-flash",
   "existing_count": 112,
   "candidate_count": 1882,

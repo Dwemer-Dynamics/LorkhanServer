@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\Repository;
 
 final class DialogueExpiryJobHandler implements JobHandler
 {

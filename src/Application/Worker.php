@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\JobRepository;
+use LORKHANserver\Infrastructure\JobRepository;
 use Throwable;
 
 final class Worker

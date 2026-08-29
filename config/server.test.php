@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Tests\Support\ControllableProvider;
+use LORKHANserver\Tests\Support\ControllableProvider;
 
 require_once dirname(__DIR__) . '/tests/Support/ControllableProvider.php';
 
-$controlDirectory = getenv('ALMSIVI_TEST_PROVIDER_CONTROL') ?: '';
+$controlDirectory = getenv('LORKHAN_TEST_PROVIDER_CONTROL') ?: '';
 if ($controlDirectory === '' || !is_dir($controlDirectory)) {
-    throw new RuntimeException('ALMSIVI_TEST_PROVIDER_CONTROL must name an existing directory.');
+    throw new RuntimeException('LORKHAN_TEST_PROVIDER_CONTROL must name an existing directory.');
 }
-$dsn = getenv('ALMSIVI_TEST_DSN') ?: '';
+$dsn = getenv('LORKHAN_TEST_DSN') ?: '';
 if ($dsn === '') {
-    throw new RuntimeException('ALMSIVI_TEST_DSN is required.');
+    throw new RuntimeException('LORKHAN_TEST_DSN is required.');
 }
 
 return [
     'environment' => 'test',
-    'base_path' => '/ALMSIVIserver/api/v1',
+    'base_path' => '/LORKHANserver/api/v1',
     'database_dsn' => $dsn,
-    'database_user' => getenv('ALMSIVI_TEST_DB_USER') ?: '',
-    'database_password' => getenv('ALMSIVI_TEST_DB_PASSWORD') ?: '',
+    'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
+    'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '',
     'pairing_token_hash' => '',
     'max_json_bytes' => 2 * 1024 * 1024,
     'events_page_size' => 100,

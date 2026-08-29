@@ -1,10 +1,10 @@
 {
-  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "format": "lorkhan.morrowind-oghma-preflight.v1",
   "updated_at_utc": "2026-08-12T20:36:03Z",
   "model": "z-ai/glm-5.1",
   "prompt_sha256": "08cd0837a69c72fe31b3e27b19d446cc94f25b46bffd704c65e9cfbb9dcc3724",
   "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
-  "topic_seeds_sha256": "b4b9dcfbf6b753a795d67c6fc1809544cea3acc5a9b2ddfd47e0ff03c7d17636",
+  "topic_seeds_sha256": "4aec20497b569928fb3bca72f8a8994efa23d9e9147caa5b1b8adf188c221321",
   "official_content_sha256": {
     "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
     "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",

@@ -1,4 +1,4 @@
-ALTER TABLE almsivi_internal.oghma_installation_settings
+ALTER TABLE lorkhan_internal.oghma_installation_settings
     ADD COLUMN enabled boolean NOT NULL DEFAULT true,
     ADD COLUMN result_limit smallint NOT NULL DEFAULT 3,
     ADD COLUMN extractor_timeout_ms integer NOT NULL DEFAULT 1500,

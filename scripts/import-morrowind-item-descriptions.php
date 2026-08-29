@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\DescriptionCatalogImporter;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\DescriptionCatalogImporter;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
@@ -24,11 +24,11 @@ try {
         if (preg_match('/^--(csv|manifest|catalog-version)=(.+)$/D', $argument, $match) !== 1) $usage();
         $options[$match[1]] = $match[2];
     }
-    $configFile = getenv('ALMSIVI_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
-    if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');
-    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+    $config['database_password'] = getenv('LORKHAN_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
     $importer = new DescriptionCatalogImporter(Connection::open($config));
     if (in_array($command, ['dry-run', 'apply'], true)) {
         if (!isset($options['csv'], $options['manifest'], $options['catalog-version'])) $usage();

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
 use PDO;
 
@@ -21,7 +21,7 @@ final class Connection
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES => false,
         ]);
-        $db->exec('SET search_path TO almsivi_internal, public, pg_temp');
+        $db->exec('SET search_path TO lorkhan_internal, public, pg_temp');
         return $db;
     }
 }

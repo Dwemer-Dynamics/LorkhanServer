@@ -1,22 +1,22 @@
-# ALMSIVIserver CHIM/Dialectic integration plan
+# LORKHANserver CHIM/Dialectic integration plan
 
 Status: finalized long-running server and data plan, audited and user-confirmed 2026-08-09.
 
-The paired client plan is `ALMSIVI/docs/CHIM-DIALECTIC-INTEGRATION-PLAN.md`. This document defines the server cutover needed to preserve HerikaServer's useful product/data shape while using Dialectic's typed JSON response format and ALMSIVI's PostgreSQL, security, identity, and worker model.
+The paired client plan is `LORKHAN/docs/CHIM-DIALECTIC-INTEGRATION-PLAN.md`. This document defines the server cutover needed to preserve HerikaServer's useful product/data shape while using Dialectic's typed JSON response format and LORKHAN's PostgreSQL, security, identity, and worker model.
 
 ## 1. Non-negotiable boundaries
 
 - Keep the existing typed PHP application/services and PostgreSQL repositories.
 - Keep installation, playthrough, profile, session, generation, request, turn, utterance, actor, and delivery identity.
 - Keep source events immutable and durable jobs idempotent.
-- Use HerikaServer/DialecticServer table and page contracts where applicable; do not create alternate ALMSIVI-only representations for the same concept.
+- Use HerikaServer/DialecticServer table and page contracts where applicable; do not create alternate LORKHAN-only representations for the same concept.
 - Use Dialectic-shaped JSON envelopes for input, events, responses, response lines, actions, media, and Morrowind game data.
 - Preserve the Global -> Core Profile -> NPC inheritance model.
 - Rechat is playback-gated continuation, not timer autonomy.
 - Do not implement AI Quests, Background Life, timer-driven autonomy, greetings, boredom, combat barks, or ITT.
 - Consolidate all current work into the existing client and server draft PR branches, keep the PRs draft, and do not merge them into `main` without a separate explicit instruction.
 - Freeze the audited CHIM, HerikaServer, Dialectic, and DialecticServer commits recorded in the paired client plan until implementation completes.
-- Preserve exact applicable HerikaServer/DialecticServer public table names, column order, types, defaults, indexes, views, and page formats over the typed ALMSIVI sources.
+- Preserve exact applicable HerikaServer/DialecticServer public table names, column order, types, defaults, indexes, views, and page formats over the typed LORKHAN sources.
 - Require UTF-8 end to end for source files, PostgreSQL connections/storage, JSON, prompts, profiles, Journal text, subtitles, provider input/output, and browser rendering.
 
 ## 2. Current database disposition
@@ -31,7 +31,7 @@ The target is not a fourth layer. The cutover must assign one authority to every
 
 ## 3. Canonical table map
 
-| Herika/Dialectic surface | Authoritative ALMSIVI source | Final disposition |
+| Herika/Dialectic surface | Authoritative LORKHAN source | Final disposition |
 |---|---|---|
 | `eventlog`/`eventlog_view` | `source_events`, `response_events`, `action_results`, delivery/STT records | Public chronological projection with established useful columns plus correlation metadata. Never directly authored by browser pages. |
 | `speech` | `dialogue_utterances` + `dialogue_delivery_results` + `media_objects` | Public delivered-utterance projection. Include speaker/listener/location/text/audio/utterance/request and delivery state. |
@@ -74,13 +74,13 @@ All migrations and fixtures must be UTF-8. PostgreSQL must report `server_encodi
 
 Add sibling-identical schemas for:
 
-- `almsivi.input.v1`;
-- `almsivi.event.v1`;
-- `almsivi.response.v1`;
-- `almsivi.response.line.v1`;
-- `almsivi.gamedata.v1`.
+- `lorkhan.input.v1`;
+- `lorkhan.event.v1`;
+- `lorkhan.response.v1`;
+- `lorkhan.response.line.v1`;
+- `lorkhan.gamedata.v1`.
 
-`almsivi.response.v1` must contain `ok`, ordered `lines`, and `close`. Each line must carry the applicable Dialectic fields:
+`lorkhan.response.v1` must contain `ok`, ordered `lines`, and `close`. Each line must carry the applicable Dialectic fields:
 
 - speaker and display name;
 - `say` or `rolecommand` action;
@@ -90,9 +90,9 @@ Add sibling-identical schemas for:
 - command name/arguments for actions;
 - bounded metadata.
 
-ALMSIVI adds mandatory installation/playthrough/session/turn/generation/runtime correlation outside or alongside the line envelope. Provider output is parsed once into this canonical model. Database projections, client events, browser logs, TTS jobs, action jobs, and rechat must consume that same model.
+LORKHAN adds mandatory installation/playthrough/session/turn/generation/runtime correlation outside or alongside the line envelope. Provider output is parsed once into this canonical model. Database projections, client events, browser logs, TTS jobs, action jobs, and rechat must consume that same model.
 
-The current `almsivi.events.v1.autonomy` field remains an empty compatibility field for v1. Any greeting, boredom, or combat-bark directive is rejected. A later coordinated v2 may remove the field.
+The current `lorkhan.events.v1.autonomy` field remains an empty compatibility field for v1. Any greeting, boredom, or combat-bark directive is rejected. A later coordinated v2 may remove the field.
 
 ## 6. Server request and response path
 
@@ -104,7 +104,7 @@ Use one path for typed text and STT transcripts:
 4. Snapshot connector/profile/prompt revisions for the turn.
 5. Assemble ordered CHIM-style XML and persist its source trace.
 6. Execute the selected LLM slot and one bounded fallback policy.
-7. Normalize provider output into `almsivi.response.v1`.
+7. Normalize provider output into `lorkhan.response.v1`.
 8. Persist provider attempts, normalized lines, utterances, action intents, and public projections transactionally.
 9. Stream/publish correlated events without marking partial output final.
 10. Queue TTS per utterance and expose authenticated media.
@@ -187,7 +187,7 @@ Gate: every table has one owner/disposition and excluded features cannot create 
 
 - Add response, response-line, event, input, and game-data schemas/fixtures.
 - Add hostile, stale-generation, duplicate, malformed, over-limit, and Morrowind identity fixtures.
-- Synchronize protocol manifests with ALMSIVI.
+- Synchronize protocol manifests with LORKHAN.
 
 Gate: byte-identical sibling manifests and all positive/negative fixtures pass.
 
@@ -227,7 +227,7 @@ Gate: builds, schemas, migrations, fake-client flows, deployment hashes, HTTP he
 
 Server parity is complete when:
 
-- all applicable CHIM/Herika outcomes use typed ALMSIVI services;
+- all applicable CHIM/Herika outcomes use typed LORKHAN services;
 - all applicable JSON uses the agreed Dialectic-shaped contracts;
 - every data concept has one write authority and a tested compatibility projection where needed;
 - Global -> Core Profile -> NPC settings and connector routing are deterministic and traceable;

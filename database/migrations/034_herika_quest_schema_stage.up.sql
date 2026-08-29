@@ -1,5 +1,5 @@
 -- Exact Herika Skyrim quest/SNQE schema retained for presentation compatibility.
--- ALMSIVI uses the Morrowind journal tables from migration 029; these producers are
+-- LORKHAN uses the Morrowind journal tables from migration 029; these producers are
 -- Not Applicable and no Skyrim quest engine, action outbox, or autonomous worker runs.
 
 CREATE TABLE herika_compat.quest_asset_packs (

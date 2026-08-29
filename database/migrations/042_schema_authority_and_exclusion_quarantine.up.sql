@@ -1,5 +1,5 @@
 -- Keep migration authority internal and make excluded compatibility tables read-only.
-CREATE SCHEMA IF NOT EXISTS almsivi_internal;
+CREATE SCHEMA IF NOT EXISTS lorkhan_internal;
 
 DO $migration_ledger$
 BEGIN
@@ -7,14 +7,14 @@ BEGIN
         IF EXISTS (
             SELECT 1
             FROM public.schema_migrations legacy
-            JOIN almsivi_internal.schema_migrations current USING (version)
+            JOIN lorkhan_internal.schema_migrations current USING (version)
             WHERE legacy.name IS DISTINCT FROM current.name
                OR legacy.checksum IS DISTINCT FROM current.checksum
         ) THEN
             RAISE EXCEPTION 'Conflicting public and internal migration ledger rows';
         END IF;
 
-        INSERT INTO almsivi_internal.schema_migrations(version,name,checksum,applied_at)
+        INSERT INTO lorkhan_internal.schema_migrations(version,name,checksum,applied_at)
         SELECT version,name,checksum,applied_at
         FROM public.schema_migrations
         ON CONFLICT (version) DO NOTHING;
@@ -24,7 +24,7 @@ BEGIN
 END
 $migration_ledger$;
 
-CREATE OR REPLACE FUNCTION almsivi_internal.reject_excluded_feature_write()
+CREATE OR REPLACE FUNCTION lorkhan_internal.reject_excluded_feature_write()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $function$
@@ -37,7 +37,7 @@ DO $excluded_tables$
 DECLARE
     relation_name text;
     excluded_relations text[] := ARRAY[
-        'almsivi_internal.autonomy_schedules',
+        'lorkhan_internal.autonomy_schedules',
         'public.bgl_history',
         'public.core_faction_politics_development',
         'public.core_faction_politics_relation',
@@ -69,10 +69,10 @@ BEGIN
         IF to_regclass(relation_name) IS NULL THEN
             RAISE EXCEPTION 'Missing excluded compatibility table %',relation_name;
         END IF;
-        EXECUTE format('DROP TRIGGER IF EXISTS almsivi_reject_excluded_write ON %s',relation_name);
+        EXECUTE format('DROP TRIGGER IF EXISTS lorkhan_reject_excluded_write ON %s',relation_name);
         EXECUTE format(
-            'CREATE TRIGGER almsivi_reject_excluded_write BEFORE INSERT OR UPDATE OR DELETE ON %s '
-            'FOR EACH STATEMENT EXECUTE FUNCTION almsivi_internal.reject_excluded_feature_write()',
+            'CREATE TRIGGER lorkhan_reject_excluded_write BEFORE INSERT OR UPDATE OR DELETE ON %s '
+            'FOR EACH STATEMENT EXECUTE FUNCTION lorkhan_internal.reject_excluded_feature_write()',
             relation_name
         );
     END LOOP;

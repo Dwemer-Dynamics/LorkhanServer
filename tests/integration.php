@@ -1,45 +1,45 @@
 <?php
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\ActionPolicyValidator;
-use ALMSIVIserver\Application\CancellationToken;
-use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
-use ALMSIVIserver\Application\DeterministicClock;
-use ALMSIVIserver\Application\MockProvider;
-use ALMSIVIserver\Application\MockSpeechProvider;
-use ALMSIVIserver\Application\MockSpeechToTextProvider;
-use ALMSIVIserver\Application\MorrowindVoiceCatalog;
-use ALMSIVIserver\Application\Provider;
-use ALMSIVIserver\Application\PromptAssembler;
-use ALMSIVIserver\Application\ProductService;
-use ALMSIVIserver\Application\RechatCoordinator;
-use ALMSIVIserver\Application\Worker;
-use ALMSIVIserver\Http\Request;
-use ALMSIVIserver\Http\Router;
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
-use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
-use ALMSIVIserver\Infrastructure\DefaultConnectorProvisioner;
-use ALMSIVIserver\Infrastructure\EventLogRepository;
-use ALMSIVIserver\Infrastructure\JobRepository;
-use ALMSIVIserver\Infrastructure\MediaStore;
-use ALMSIVIserver\Infrastructure\MigrationRunner;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\Repository;
-use ALMSIVIserver\Protocol\Validator;
-use ALMSIVIserver\Security\PairingToken;
-use ALMSIVIserver\Security\RequestMac;
+use LORKHANserver\Application\ActionPolicyValidator;
+use LORKHANserver\Application\CancellationToken;
+use LORKHANserver\Application\FirstPartyJobHandlerFactory;
+use LORKHANserver\Application\DeterministicClock;
+use LORKHANserver\Application\MockProvider;
+use LORKHANserver\Application\MockSpeechProvider;
+use LORKHANserver\Application\MockSpeechToTextProvider;
+use LORKHANserver\Application\MorrowindVoiceCatalog;
+use LORKHANserver\Application\Provider;
+use LORKHANserver\Application\PromptAssembler;
+use LORKHANserver\Application\ProductService;
+use LORKHANserver\Application\RechatCoordinator;
+use LORKHANserver\Application\Worker;
+use LORKHANserver\Http\Request;
+use LORKHANserver\Http\Router;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\ActionCatalogRepository;
+use LORKHANserver\Infrastructure\BiographyCatalogImporter;
+use LORKHANserver\Infrastructure\DefaultConnectorProvisioner;
+use LORKHANserver\Infrastructure\EventLogRepository;
+use LORKHANserver\Infrastructure\JobRepository;
+use LORKHANserver\Infrastructure\MediaStore;
+use LORKHANserver\Infrastructure\MigrationRunner;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Protocol\Validator;
+use LORKHANserver\Security\PairingToken;
+use LORKHANserver\Security\RequestMac;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
-$dsn = getenv('ALMSIVI_TEST_DSN') ?: '';
-if ($dsn === '') { fwrite(STDERR, "ALMSIVI_TEST_DSN is required\n"); exit(2); }
-$db = Connection::open(['database_dsn' => $dsn, 'database_user' => getenv('ALMSIVI_TEST_DB_USER') ?: '',
-    'database_password' => getenv('ALMSIVI_TEST_DB_PASSWORD') ?: '']);
+$dsn = getenv('LORKHAN_TEST_DSN') ?: '';
+if ($dsn === '') { fwrite(STDERR, "LORKHAN_TEST_DSN is required\n"); exit(2); }
+$db = Connection::open(['database_dsn' => $dsn, 'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
+    'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '']);
 $repo = new Repository($db, 256, new ActionCatalogRepository($db), new ActionPolicyValidator());
 (new MigrationRunner($db, dirname(__DIR__) . '/database/migrations'))->up();
-$mediaPath = sys_get_temp_dir() . '/almsivi-media-' . bin2hex(random_bytes(8));
+$mediaPath = sys_get_temp_dir() . '/lorkhan-media-' . bin2hex(random_bytes(8));
 $mediaStore = new MediaStore($mediaPath, 33_554_432, 67_108_864);
 $token = PairingToken::generate();
 $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installationId='00000000-0000-4000-8000-000000000001';
@@ -53,16 +53,16 @@ $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rat
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
     products:$products,promptAssembler:new PromptAssembler(),
     morrowindVoices:$morrowindVoices,rechatCoordinator:$rechatCoordinator);
-$base = '/ALMSIVIserver/api/v1';
+$base = '/LORKHANserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
 $call = function (Router $target, string $method, string $path, array $headers = [], array $query = [], array|string|null $body = null) use($macKey,$installationId): array {
     $encoded = is_array($body) ? json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) : ($body ?? '');
     $request=new Request($method,$path,$headers,$query,$encoded);
-    if(!isset($headers['Authorization'])&&$path!=='/ALMSIVIserver/api/v1/health'){$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$digest=hash('sha256',$encoded);$headers+=['X-ALMSIVI-Auth'=>RequestMac::ALGORITHM,'X-ALMSIVI-Installation-Id'=>$installationId,'X-ALMSIVI-Timestamp'=>$timestamp,'X-ALMSIVI-Nonce'=>$nonce,'X-ALMSIVI-Content-SHA256'=>$digest,'X-ALMSIVI-Signature'=>RequestMac::sign($macKey,$request,$installationId,$timestamp,$nonce,(string)($headers['Content-Type']??''),$digest)];$request=new Request($method,$path,$headers,$query,$encoded);}
+    if(!isset($headers['Authorization'])&&$path!=='/LORKHANserver/api/v1/health'){$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$digest=hash('sha256',$encoded);$headers+=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installationId,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>$digest,'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$request,$installationId,$timestamp,$nonce,(string)($headers['Content-Type']??''),$digest)];$request=new Request($method,$path,$headers,$query,$encoded);}
     $response = $target->dispatch($request);
     $decoded = json_decode($response->body, true, 64, JSON_THROW_ON_ERROR);
-    $capture = getenv('ALMSIVI_RESPONSE_CAPTURE') ?: '';
+    $capture = getenv('LORKHAN_RESPONSE_CAPTURE') ?: '';
     if ($capture !== '') file_put_contents($capture, $response->body . "\n", FILE_APPEND | LOCK_EX);
     return [$response->status, $decoded];
 };
@@ -70,11 +70,11 @@ $assert = function (bool $condition, string $message): void { if (!$condition) t
 $headers = fn(string $key): array => $jsonAuth + ['Idempotency-Key' => $key];
 $newUuid = function (int $n): string { return sprintf('10000000-0000-4000-8000-%012d', $n); };
 $defaultInstallationId='00000000-0000-4000-8000-000000000099';
-$defaultVoicePath=sys_get_temp_dir().'/almsivi-default-voices-'.bin2hex(random_bytes(8));
+$defaultVoicePath=sys_get_temp_dir().'/lorkhan-default-voices-'.bin2hex(random_bytes(8));
 mkdir($defaultVoicePath,0700,true);file_put_contents($defaultVoicePath.'/mw_dark_elf_male.wav','test');
 $defaultProvisioner=new DefaultConnectorProvisioner($db,$defaultVoicePath);
 $defaultRepository=new Repository($db,256,null,null,$defaultProvisioner);
-$defaultRepository->ensureInstallation($defaultInstallationId,hash('sha256','almsivi-default-installation'));
+$defaultRepository->ensureInstallation($defaultInstallationId,hash('sha256','lorkhan-default-installation'));
 $defaultRows=$db->prepare("SELECT c.name,r.content FROM configuration_sets c JOIN configuration_revisions r "
     ."ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation "
     ."AND c.deleted_at IS NULL ORDER BY c.kind,c.name");
@@ -113,24 +113,24 @@ $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($de
 $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
     'default connector provisioning was not idempotent');
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
-$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null,
-    ?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
-    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
+$runWorker = function (array $types, ?Provider $provider = null, ?\LORKHANserver\Application\SpeechToTextProvider $sttProvider=null,
+    ?\LORKHANserver\Application\TranslationProvider $translationProvider=null,
+    ?\LORKHANserver\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
         provider:$provider,speechProvider:$speechProvider??($provider === null ? null : new MockSpeechProvider()),providerTimeoutMs:1000,
         sttProvider:$sttProvider,translationProvider:$translationProvider),
         'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
-$runTurnWorker = function(Provider $provider,?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
-    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
+$runTurnWorker = function(Provider $provider,?\LORKHANserver\Application\TranslationProvider $translationProvider=null,
+    ?\LORKHANserver\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
     $turnStats=$runWorker(['turn.process'],$provider,null,$translationProvider,$speechProvider);
     $runWorker(['speech.synthesize'],$provider,null,$translationProvider,$speechProvider);
     return $turnStats;
 };
 
 [$status, $health] = $call($router, 'GET', $base . '/health');
-$assert($status === 200 && $health['schema'] === 'almsivi.health.v1', 'health failed');
+$assert($status === 200 && $health['schema'] === 'lorkhan.health.v1', 'health failed');
 $unsignedResponse=$router->dispatch(new Request('GET',$base.'/events',[],['session_id'=>$newUuid(1),'generation'=>'1'],''));
 $assert($unsignedResponse->status===401,'event auth missing');
 [$status] = $call($router, 'GET', $base . '/events', [], ['token' => 'hostile']);
@@ -158,7 +158,7 @@ $assert($status === 201 && $accepted['generation'] === 7
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect']
     &&$accepted['config_revision']==='global-settings-default-v1'
-    &&($accepted['client_settings']['schema']??null)==='almsivi.client-settings.v1'
+    &&($accepted['client_settings']['schema']??null)==='lorkhan.client-settings.v1'
     &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
 $sessionId = $accepted['session_id'];
 $playerProfile=$products->playerProfileForInstallation($installationId);
@@ -236,7 +236,7 @@ $assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['
     &&($portableActorIdentity['kind']??null)==='npc',
     'first-seen OpenMW actor did not inherit the exact imported biography template');
 $products->deleteRevisioned('profile',$portableTemplateId,$now);
-$factoryDirectory=sys_get_temp_dir().'/almsivi-biography-factory-'.bin2hex(random_bytes(4));
+$factoryDirectory=sys_get_temp_dir().'/lorkhan-biography-factory-'.bin2hex(random_bytes(4));
 mkdir($factoryDirectory,0700,true);$factoryBiographies=$factoryDirectory.'/biographies.json';$factoryManifest=$factoryDirectory.'/manifest.json';
 $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Factory Bosmer keeps a careful watch over Seyda Neen.',
     'npc_static_bio'=>'Factory Bosmer has lived beside the Bitter Coast for many years. He knows the paths around Seyda Neen.',
@@ -247,7 +247,7 @@ $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Fa
     'goals'=>'* Keep travelers safe\n* Protect the paths near Seyda Neen\n* Avoid needless conflict',
     'voiceid'=>null,'gender'=>'male','race'=>'Wood Elf','refid'=>'factory_bosmer'];
 file_put_contents($factoryBiographies,json_encode([$factoryRow],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
-file_put_contents($factoryManifest,json_encode(['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>1,
+file_put_contents($factoryManifest,json_encode(['format'=>'lorkhan.morrowind-biography-preflight.v1','selected_count'=>1,
     'completed_count'=>1,'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture builder'),
     'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64),'TR_Mainland.esm'=>str_repeat('d',64)],
     'items'=>[['record_id'=>'factory_bosmer','display_name'=>'Factory Bosmer','content_file'=>'TR_Mainland.esm','generation_status'=>'complete']]],
@@ -279,9 +279,9 @@ $assert(($exactFargothVoice['id']??null)==='fargoth'&&($exactFargothVoice['sourc
     &&($exactFargothVoice['race']??null)==='wood elf'&&($exactFargothVoice['gender']??null)==='Male',
     'active provider exact actor voice did not override the race and gender fallback');
 $ruleCoreLow=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule low priority',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $ruleCoreHigh=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule high priority',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $emptyRuleMatch=array_fill_keys(['names','races','classes','genders','factions','content_files'],[]);
 $lowRule=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Automatic Bosmer by name',
     'core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>10,'enabled'=>true,
@@ -318,9 +318,9 @@ $assert($existingAutomatic===$automaticProfileId
     'editing a rule reassigned an existing NPC profile');
 $tieTarget=$automaticTarget;$tieTarget['record_id']='rule_tie_npc';$tieTarget['refnum']['index']=106;$tieTarget['display_name']='Rule Tie NPC';
 $tieCoreOld=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule older tie winner',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $tieCoreNew=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule newer tie loser',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $tieOld=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Older tie',
     'core_profile_id'=>$tieCoreOld['core_profile_id'],'priority'=>50,'enabled'=>true,
     'match'=>array_replace($emptyRuleMatch,['names'=>['Rule Tie NPC']])],$now);
@@ -333,7 +333,7 @@ $tieProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'
 $assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreOld['core_profile_id'],
     'equal-priority assignment rules did not preserve the older rule');
 $ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
 $ruleOnly=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Rule-only Core Profile use',
     'core_profile_id'=>$ruleOnlyCore['core_profile_id'],'priority'=>0,'enabled'=>false,
     'match'=>array_replace($emptyRuleMatch,['names'=>['Never Seen NPC']])],$now);
@@ -408,7 +408,7 @@ $speechProfile=$products->createRevisioned('profile',['installation_id'=>$instal
     'actor_identity'=>['record_id'=>'jiub'],'content'=>['gender'=>'Female','race'=>'Dunmer',
         'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']]]],$now);
 $narratorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'The Test Narrator',
-    'actor_identity'=>['kind'=>'narrator','record_id'=>'almsivi:narrator','content_file'=>'ALMSIVI'],
+    'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'],
     'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','speech_style'=>'Measured narration.']],$now);
 $controlsQuery=$fixture('controls-query');
 $controlsQuery['message_id']=$newUuid(6);$controlsQuery['request_id']=$newUuid(7);
@@ -416,18 +416,18 @@ $controlsQuery['session_id']=$sessionId;$controlsQuery['generation']=7;
 $directControlSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Controls explicit connector',
     'content'=>['driver'=>'openai-compatible','model'=>'controls-test','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']],$now);
 [$status,$controls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$controlsQuery);
-$assert($status===200&&$controls['schema']==='almsivi.controls.v1'
+$assert($status===200&&$controls['schema']==='lorkhan.controls.v1'
     &&in_array($modelSlot['configuration_id'],array_column($controls['model_slots'],'configuration_id'),true)
     &&in_array($actorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&!in_array($narratorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&$controls['narrator_profile_id']===$narratorProfile['profile_id']
     &&$controls['selected_model_slot_id']===null&&$controls['selected_profile_id']===null
-    &&($controls['effective_settings']['schema']??null)==='almsivi.effective-settings.v1'
+    &&($controls['effective_settings']['schema']??null)==='lorkhan.effective-settings.v1'
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
     &&($controls['effective_settings']['profile_id']??null)===null
     &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
     &&isset($controls['effective_settings']['settings']['behavior'])
-    &&$controls['effective_settings']['settings']['presentation']===\ALMSIVIserver\Application\EffectiveSettingsResolver::defaults()['presentation']
+    &&$controls['effective_settings']['settings']['presentation']===\LORKHANserver\Application\EffectiveSettingsResolver::defaults()['presentation']
     &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
     'in-game controls query did not return safe model/profile choices');
 $controlSlots=array_column($controls['model_slots'],null,'configuration_id');
@@ -467,7 +467,7 @@ $coreModelSlot=$products->createRevisioned('provider',['installation_id'=>$insta
     'content'=>['driver'=>'mock','model'=>'deterministic-core-v1','mock_prefix'=>'[core] ']],$now);
 $coreProfile=$products->defaultCoreProfileForInstallation($installationId);
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],[
-    'schema'=>'almsivi.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
+    'schema'=>'lorkhan.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
     'routing'=>['llm_configuration_id'=>$coreModelSlot['configuration_id']],
     'settings_overrides'=>['behavior'=>['rechat'=>true,'rechat_probability_percent'=>0,'open_rechat'=>false],
         'memory'=>['knowledge_limit'=>0]],
@@ -548,7 +548,7 @@ $wrongNarrator['selection_id']=$actorProfile['profile_id'];
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
 $assert($status===422,'in-game narrator generation accepted a non-narrator profile');
 
-$turnMoodTemplates=\ALMSIVIserver\Application\PlayerMoodPolicy::defaultTemplates();
+$turnMoodTemplates=\LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
     'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
@@ -635,7 +635,7 @@ $canonicalActionLines=array_values(array_filter($canonicalLines,static fn(array 
 $projectedResponseEvents=array_values(array_filter($events['events'],
     static fn(array $event):bool=>in_array($event['type'],['dialogue.complete','action.intent'],true)));
 $responseCompleteEvents=array_values(array_filter($events['events'],static fn(array $event):bool=>$event['type']==='response.complete'));
-$assert($canonicalResponse['schema']==='almsivi.response.v1'&&$canonicalResponse['response_id']===$canonicalRow['response_id']
+$assert($canonicalResponse['schema']==='lorkhan.response.v1'&&$canonicalResponse['response_id']===$canonicalRow['response_id']
     &&$canonicalResponse['installation_id']===$installationId&&$canonicalResponse['session_id']===$sessionId
     &&$canonicalResponse['turn_id']===$turn['turn_id']&&$canonicalResponse['request_id']===$turn['request_id']
     &&$canonicalResponse['generation']===7&&$canonicalResponse['runtime_generation']===$turn['runtime_generation']
@@ -657,7 +657,7 @@ $assert($canonicalUtteranceRow['dialogue_message_id']===$canonicalDialogueLines[
     &&array_column($canonicalLogRows,'response_message_id')===array_column($canonicalLines,'line_id')
     &&array_column($canonicalLogRows,'tag')===['response.line','response.line']
     &&array_map(static fn(array $row):string=>json_decode((string)$row['payload'],true,64,JSON_THROW_ON_ERROR)['schema'],
-        $canonicalLogRows)===['almsivi.response.line.v1','almsivi.response.line.v1'],
+        $canonicalLogRows)===['lorkhan.response.line.v1','lorkhan.response.line.v1'],
     'canonical response lines did not retain line, utterance, generation, and responselog identity');
 $pollStarted = microtime(true);
 [$status, $emptyPoll] = $call($router, 'GET', $base . '/events', [], [
@@ -703,7 +703,7 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
 // Exercise the optional worker with a real played source; roll back only these synthetic fixtures.
 $db->beginTransaction();
-$relationships=new \ALMSIVIserver\Infrastructure\RelationshipEvaluationRepository($db);
+$relationships=new \LORKHANserver\Infrastructure\RelationshipEvaluationRepository($db);
 $assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
 $relationshipContent=$actorProfile['content'];
 $relationshipContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
@@ -712,10 +712,10 @@ $relationshipContent['management']['locked']=true;
 $products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'enable relationship test',$now);
 $relationshipJob=$relationships->enqueue($delivery['message_id']);
 $assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
-$relationshipProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+$relationshipProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
     public int $calls=0;
     public mixed $during=null;
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor'])
             ||($input['relationship_type']??null)!=='neutral'
@@ -726,9 +726,9 @@ $relationshipProvider=new class implements \ALMSIVIserver\Application\ProfileGen
             'reason'=>'A friendly played exchange.'];
     }
 };
-$relationshipRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipEvaluateJobHandler(
-    $relationships,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
-$relationshipWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+$relationshipRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipEvaluateJobHandler(
+    $relationships,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
+$relationshipWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
     $relationshipRegistry,'relationship-integration',5,1,1,0,10,['relationship.evaluate']))->run();
 $db->exec('SAVEPOINT relationship_queued');
 $products->revise('provider',$profileModelSlot['configuration_id'],
@@ -807,7 +807,7 @@ $historyDelivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
 [$historyStatus,$historyAck]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
 $assert($historyStatus===200,'second historical delivery failed: '.json_encode([$historyStatus,$historyAck]));
 $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
-$builds=new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($db);
+$builds=new \LORKHANserver\Infrastructure\RelationshipBuildRepository($db);
 $buildScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id']];
 $privateBuildNote='PLAYER-ONLY CUSTOM INFO';
 $products->setRelationship($buildScope+['actor_identity'=>$turn['payload']['speaker'],
@@ -819,9 +819,9 @@ $buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildReques
 $assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
 try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_pending','unexpected pending-build error');}
-$buildProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+$buildProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
     public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2
             ||!in_array('professional',$input['available_relationship_types']??[],true))throw new RuntimeException('history was reduced to one exchange or target');
@@ -834,9 +834,9 @@ $buildProvider=new class implements \ALMSIVIserver\Application\ProfileGeneration
         return $result;
     }
 };
-$buildRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipBuildJobHandler(
-    $builds,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
-$buildWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+$buildRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipBuildJobHandler(
+    $builds,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
+$buildWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
     $buildRegistry,'relationship-build-integration',5,1,1,0,10,['relationship.build']))->run();
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
@@ -914,16 +914,16 @@ $conversionOwner=$products->createRevisioned('profile',['installation_id'=>$inst
     'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
 $conversionScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
 $conversionRecordScope=$conversionScope+['profile_id'=>$conversionOwner['profile_id']];
-$conversions=new \ALMSIVIserver\Infrastructure\RelationshipConversionRepository($db);
+$conversions=new \LORKHANserver\Infrastructure\RelationshipConversionRepository($db);
 $conversionRequest=$newUuid(5800);$conversionSummary=$conversions->enqueue($conversionScope,$conversionRequest,'missing');
 $assert($conversionSummary['queued']===1&&$conversionSummary['existing']===0
     &&$conversions->enqueue($conversionScope,$conversionRequest,'missing')==$conversionSummary,
     'missing-mode conversion was not bounded and idempotent: '.json_encode($conversionSummary));
 try{$conversions->enqueue($conversionScope,$conversionRequest,'rebuild');throw new RuntimeException('conversion request mode changed');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_conversion_request_conflict','unexpected conversion request conflict');}
-$conversionProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+$conversionProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
     public int $calls=0;public string $phase='all';public mixed $during=null;
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();$encoded=json_encode($input,JSON_THROW_ON_ERROR);
         if(($input['generation_mode']??null)!=='relationship_text_conversion'||isset($input['exchanges'])
             ||!str_contains((string)($input['relationship_text']??''),'Unknown Conversion Stranger')
@@ -941,9 +941,9 @@ $conversionProvider=new class implements \ALMSIVIserver\Application\ProfileGener
         return['relationships'=>$rows];
     }
 };
-$conversionRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipConversionJobHandler(
-    $conversions,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
-$conversionWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+$conversionRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipConversionJobHandler(
+    $conversions,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
+$conversionWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
     $conversionRegistry,'relationship-conversion-integration',5,1,1,0,10,['relationship.convert']))->run();
 $firstConversionRun=$conversionWorker();
 $assert($firstConversionRun['succeeded']===1&&$conversionProvider->calls===1,
@@ -1043,7 +1043,7 @@ $derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mod
 $derivedEdit['reason']='A witnessed act increased trust';unset($derivedEdit['relationship_type']);
 $derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
 $derivedExport=$products->exportScope($privateScope)['relationships'][0];
-$derivedUi=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
+$derivedUi=(new \LORKHANserver\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
 $derivedUi=array_values(array_filter($derivedUi,static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']))[0];
 $assert($derivedExport['custom_info']===$privateNote&&$derivedExport['relationship_type']==='trusted_companion'
     &&(int)$derivedUi['strongest_positive_delta']===7,'derived writer replaced player text/type or lost its strongest affinity signal');
@@ -1081,7 +1081,7 @@ $db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,p
 $legacyEdit=$relationshipEdit;$legacyEdit['relationship_id']=$legacyId;
 $assert($memoryService->setRelationship($legacyEdit)['revision']===2,'legacy identity could not be edited by explicit record ID');
 $memoryService->deleteRelationship($ownedRelationship['relationship_id'],2);
-$relationshipUi=new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db);
+$relationshipUi=new \LORKHANserver\Infrastructure\ManagementUiRepository($db);
 $currentRelationships=$relationshipUi->rows('relationships');
 $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true)
     &&in_array($legacyId,array_column($currentRelationships,'relationship_id'),true)
@@ -1209,7 +1209,7 @@ $sharedPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload'
     'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL','mood'=>['kind'=>'playful']],
     'context'=>['world'=>['cell'=>'History limit test cell']]];
 $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
-    . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'almsivi.turn.v1',:turn,CAST(:payload AS jsonb))")
+    . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'lorkhan.turn.v1',:turn,CAST(:payload AS jsonb))")
     ->execute(['id'=>$sharedSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$memoryNow,
         'turn'=>$sharedTurn,'payload'=>json_encode($sharedPayload,JSON_THROW_ON_ERROR)]);
 (new EventLogRepository($db))->projectSource($sharedSource,$installationId,$sessionId,'turn.requested',$memoryNow,
@@ -1238,7 +1238,7 @@ $assert(in_array($manualMemory['memory_id'],$visibleIds,true)
     &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
     &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
     'NPC-profile manual memory or all-source summary eligibility was not enforced');
-$semanticPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+$semanticPolicyContent=['schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
 $semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
     'name'=>'Semantic memory integration','content'=>$semanticPolicyContent]);
@@ -1247,9 +1247,9 @@ $db->prepare('INSERT INTO memory_embeddings(memory_id,memory_revision,policy_con
     VALUES(:memory,1,:policy,1,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
         'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],
         'embedding'=>json_encode($semanticVector,JSON_THROW_ON_ERROR),'sha'=>hash('sha256',$manualMemory['content']),
-        'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
+        'model'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
 $semanticSignal=['status'=>'succeeded','policy_configuration_id'=>$semanticPolicy['configuration_id'],
-    'policy_revision'=>1,'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
+    'policy_revision'=>1,'model'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
 $semanticSelection=$products->promptContext($memoryProbe,$memoryNow,[],$semanticSignal);
 $semanticReasons=$semanticSelection['memory_retrieval']['reasons'];
 $fallbackSelection=$products->promptContext($memoryProbe,$memoryNow,[],
@@ -1266,10 +1266,10 @@ $memoryProbe['_selected_profile_id']=$actorProfile['profile_id'];
 $memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider_input']['_assembled_prompt'];
 $assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
     'selected NPC-profile memory failed prompt scope validation');
-$bystanderProbe['payload']['ui_source']='almsivi_rechat';
+$bystanderProbe['payload']['ui_source']='lorkhan_rechat';
 $modelProvider=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Model privacy fixture',
     'content'=>['driver'=>'mock','model'=>'privacy-v1']]);
-$modelPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']];
+$modelPolicyContent=['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']];
 $modelPolicy=$memoryService->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Model privacy policy','content'=>$modelPolicyContent]);
 $db->prepare('INSERT INTO memory_model_summaries(memory_id,memory_revision,policy_configuration_id,policy_revision,provider_configuration_id,provider_revision,content,input_sha256,created_at)
     VALUES(:memory,1,:policy,1,:provider,1,:content,:sha,:now)')->execute(['memory'=>$mixedMemory['memory_id'],
@@ -1291,7 +1291,7 @@ $assert($originalRows[$mixedMemory['memory_id']]['content']==='MIXED PRIVATE SUM
 $modelPolicyContent['enabled']=true;
 $memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture on');
 $products->updateMemory($mixedMemory['memory_id'],'MIXED EDITED MEMORY SENTINEL',['edited'],
-    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
+    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
 $editedRows=array_column($products->promptContext($memoryProbe,$memoryNow)['memory'],null,'id');
 $assert($editedRows[$mixedMemory['memory_id']]['content']==='MIXED EDITED MEMORY SENTINEL'
     &&!isset($editedRows[$mixedMemory['memory_id']]['_model_summary']),'an older model projection hid a manual memory edit');
@@ -1335,7 +1335,7 @@ $assert(array_column($eventProjectionRows,'type')===['inputtext','chat']
     'CHIM event projection did not preserve readable turn/dialogue rows and exact delivery correlation: '.json_encode($eventProjectionRows));
 $immutableSourceCount=$db->prepare("SELECT count(*) FROM source_events WHERE turn_id=:turn AND event_kind IN ('turn.requested','dialogue.delivery')");
 $immutableSourceCount->execute(['turn'=>$turn['turn_id']]);
-$assert((int)$immutableSourceCount->fetchColumn()===2,'event projection replaced immutable ALMSIVI source records');
+$assert((int)$immutableSourceCount->fetchColumn()===2,'event projection replaced immutable LORKHAN source records');
 [$status,$deliveryReplay]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($delivery['message_id']),[],$delivery);
 $assert($status===200&&$deliveryReplay['duplicate'],'dialogue delivery replay failed');
 $wrongRequestDelivery=$delivery;$wrongRequestDelivery['message_id']=$newUuid(24);$wrongRequestDelivery['request_id']=$newUuid(25);
@@ -1348,7 +1348,7 @@ $providerAttemptRows = $db->query("SELECT provider_kind, state FROM provider_att
     . " ORDER BY provider_kind")->fetchAll();
 $assert($providerAttemptRows === [['provider_kind' => 'llm', 'state' => 'succeeded'], ['provider_kind' => 'tts', 'state' => 'succeeded']],
     'provider attempts were not reconciled');
-$mediaPath=$base.'/media/'.$speech['media_id'];$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$mediaUnsigned=new Request('GET',$mediaPath,[],[],'');$mediaHeaders=['X-ALMSIVI-Auth'=>RequestMac::ALGORITHM,'X-ALMSIVI-Installation-Id'=>$installationId,'X-ALMSIVI-Timestamp'=>$timestamp,'X-ALMSIVI-Nonce'=>$nonce,'X-ALMSIVI-Content-SHA256'=>RequestMac::EMPTY_SHA256,'X-ALMSIVI-Signature'=>RequestMac::sign($macKey,$mediaUnsigned,$installationId,$timestamp,$nonce,'',RequestMac::EMPTY_SHA256)];
+$mediaPath=$base.'/media/'.$speech['media_id'];$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$mediaUnsigned=new Request('GET',$mediaPath,[],[],'');$mediaHeaders=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installationId,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>RequestMac::EMPTY_SHA256,'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$mediaUnsigned,$installationId,$timestamp,$nonce,'',RequestMac::EMPTY_SHA256)];
 $mediaResponse = $router->dispatch(new Request('GET',$mediaPath,$mediaHeaders));
 $assert($mediaResponse->status === 200 && strlen($mediaResponse->body) === 204 && substr($mediaResponse->body, 0, 4) === 'RIFF'
     && hash('sha256', $mediaResponse->body) === $speech['sha256'], 'private media serving failed');
@@ -1391,7 +1391,7 @@ $assert($status === 409 && $body['code'] === 'stale_generation', 'stale turn gen
 
 $cancelledTurn = $turn; $cancelledTurn['message_id'] = $newUuid(37); $cancelledTurn['request_id'] = $newUuid(38); $cancelledTurn['turn_id'] = $newUuid(39);
 [$status] = $call($router, 'POST', $base . '/turns', $headers($cancelledTurn['message_id']), [], $cancelledTurn);
-$cancelRequest = ['schema'=>'almsivi.interrupt.v1','message_id'=>$newUuid(36),'request_id'=>$cancelledTurn['request_id'],
+$cancelRequest = ['schema'=>'lorkhan.interrupt.v1','message_id'=>$newUuid(36),'request_id'=>$cancelledTurn['request_id'],
     'turn_id'=>$cancelledTurn['turn_id'],'session_id'=>$sessionId,'generation'=>7,'created_at'=>gmdate('Y-m-d\\TH:i:s\\Z'),'reason'=>'player'];
 [$interruptStatus]=$call($router,'POST',$base.'/interruptions',$headers($cancelRequest['message_id']),[],$cancelRequest);
 $assert($status === 202 && $interruptStatus === 202, 'active turn interruption failed');
@@ -1401,7 +1401,7 @@ $assert($status === 200 && array_column($cancelledEvents['events'], 'type') === 
 $cancelledProjection=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
 $cancelledProjection->execute(['turn'=>$cancelledTurn['turn_id']]);
 $cancelledResponse=json_decode((string)$cancelledProjection->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$assert($cancelledResponse['schema']==='almsivi.response.v1'&&$cancelledResponse['ok']===false
+$assert($cancelledResponse['schema']==='lorkhan.response.v1'&&$cancelledResponse['ok']===false
     &&$cancelledResponse['lines']===[]&&$cancelledResponse['error']==='interrupted.player',
     'interrupted turn did not persist a canonical terminal response');
 
@@ -1423,7 +1423,7 @@ $assert($failedAttempt === ['state' => 'failed', 'error_code' => 'provider_unava
 $failedProjection=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
 $failedProjection->execute(['turn'=>$failedTurn['turn_id']]);
 $failedResponse=json_decode((string)$failedProjection->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$assert($failedResponse['schema']==='almsivi.response.v1'&&$failedResponse['ok']===false
+$assert($failedResponse['schema']==='lorkhan.response.v1'&&$failedResponse['ok']===false
     &&$failedResponse['lines']===[]&&$failedResponse['error']==='provider_unavailable',
     'provider failure did not persist a canonical terminal response');
 
@@ -1562,13 +1562,13 @@ $assert($status===200&&count($combatIntents)===1&&$combatIntents[0]['payload']['
     &&$combatIntents[0]['payload']['tier']===2,'combat.start tier-2 proposal was not emitted E2E');
 
 // Authenticated binary STT is durable and returns its transcript through the session event stream.
-$sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \ALMSIVIserver\Application\NeverCancelledToken())['bytes'];
+$sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \LORKHANserver\Application\NeverCancelledToken())['bytes'];
 $sttMessage=$newUuid(90);$sttRequest=$newUuid(91);$sttTurn=$newUuid(92);$sttCreated=gmdate('Y-m-d\TH:i:s\Z');
 $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttMessage,
-    'X-ALMSIVI-Schema'=>'almsivi.stt.request.v1','X-ALMSIVI-Message-Id'=>$sttMessage,'X-ALMSIVI-Request-Id'=>$sttRequest,
-    'X-ALMSIVI-Turn-Id'=>$sttTurn,'X-ALMSIVI-Session-Id'=>$sessionId,'X-ALMSIVI-Generation'=>'7','X-ALMSIVI-Created-At'=>$sttCreated,
-    'X-ALMSIVI-Codec'=>'wav','X-ALMSIVI-Language'=>'en-US','X-ALMSIVI-Audio-Bytes'=>(string)strlen($sttAudio),
-    'X-ALMSIVI-Sha256'=>hash('sha256',$sttAudio)];
+    'X-LORKHAN-Schema'=>'lorkhan.stt.request.v1','X-LORKHAN-Message-Id'=>$sttMessage,'X-LORKHAN-Request-Id'=>$sttRequest,
+    'X-LORKHAN-Turn-Id'=>$sttTurn,'X-LORKHAN-Session-Id'=>$sessionId,'X-LORKHAN-Generation'=>'7','X-LORKHAN-Created-At'=>$sttCreated,
+    'X-LORKHAN-Codec'=>'wav','X-LORKHAN-Language'=>'en-US','X-LORKHAN-Audio-Bytes'=>(string)strlen($sttAudio),
+    'X-LORKHAN-Sha256'=>hash('sha256',$sttAudio)];
 [$status,$sttAccepted]=$call($router,'POST',$base.'/stt',$sttHeaders,[],$sttAudio);
 $assert($status===202&&!$sttAccepted['duplicate'],'typed STT route did not durably accept audio');
 $assert(in_array('stt.process',FirstPartyJobHandlerFactory::jobTypes(),true),'STT worker was not registered');
@@ -1698,7 +1698,7 @@ $assert($status===409&&$invalidTravelError['code']==='action_parameters_invalid'
 $rechatChainId=$newUuid(838);
 $rechatTurn=$turn;
 $rechatTurn['message_id']=$newUuid(821);$rechatTurn['request_id']=$newUuid(822);$rechatTurn['turn_id']=$newUuid(823);
-$rechatTurn['payload']['ui_source']='almsivi_rechat';
+$rechatTurn['payload']['ui_source']='lorkhan_rechat';
 $rechatTurn['payload']['input']['text']='Please follow me again.';
 $rechatTurn['payload']['recent_action_results']=[];
 $rechatTurn['payload']['audience']=[$dialogueEvent['payload']['speaker'],$secondaryTarget];
@@ -1889,7 +1889,7 @@ $assert($oghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
 $historySourceId=$newUuid(843);$historyRequestId=$newUuid(844);$historyTurnId=$newUuid(845);
 $historyPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
     'input'=>['text'=>'[oghma: Vivec]'],'context'=>$turn['payload']['context']];
-$historySource=$db->prepare('INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,7,\'turn.requested\',:now,\'almsivi.turn.v1\',:request,:turn,CAST(:payload AS jsonb))');
+$historySource=$db->prepare('INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,7,\'turn.requested\',:now,\'lorkhan.turn.v1\',:request,:turn,CAST(:payload AS jsonb))');
 $historySource->execute(['source'=>$historySourceId,'installation'=>$installationId,'session'=>$sessionId,'now'=>$now,
     'request'=>$historyRequestId,'turn'=>$historyTurnId,'payload'=>json_encode($historyPayload,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
 (new EventLogRepository($db))->projectSource($historySourceId,$installationId,$sessionId,'turn.requested',$now,
@@ -1914,7 +1914,7 @@ $assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=
     'fallback-grounded Oghma turn did not complete through the normal response pipeline');
 
 // Freeze NPC output translation at acceptance and keep stored history, subtitle, and TTS text independent.
-$translationEnabled=array_replace(\ALMSIVIserver\Application\TranslationPolicy::defaults(),[
+$translationEnabled=array_replace(\LORKHANserver\Application\TranslationPolicy::defaults(),[
     'provider'=>'deepl','translate_text'=>true,'translate_audio'=>true,'source_language'=>'EN','target_language'=>'DE']);
 $translationSaved=$biographyService->createRevisioned('translation_policy',['installation_id'=>$installationId,
     'name'=>'NPC Output Translation','content'=>$translationEnabled]);
@@ -1925,10 +1925,10 @@ $translationSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_pro
 $translationSnapshotStatement->execute(['turn'=>$translationTurn['turn_id']]);
 $translationSnapshot=json_decode((string)$translationSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $biographyService->revise('translation_policy',$translationSaved['configuration_id'],
-    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
-$translationProvider=new class implements \ALMSIVIserver\Application\TranslationProvider {
+    \LORKHANserver\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
+$translationProvider=new class implements \LORKHANserver\Application\TranslationProvider {
     public int$calls=0;
-    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LORKHANserver\Application\CancellationToken$token):array{
         ++$this->calls;$token->throwIfCancellationRequested();
         if($sourceLanguage!=='EN'||$targetLanguage!=='DE')throw new RuntimeException('translation policy not frozen');
         return array_map(static fn(string$text):string=>'DE: '.$text,$texts);
@@ -1967,13 +1967,13 @@ $assert($status===202&&$translationStats===['claimed'=>1,'succeeded'=>1,'retried
         'dialogue'=>$translationDialogue,'event'=>$translationEvent,'job'=>$translationJobPayload,
         'attempt'=>$translationAttempt,'attempt_metadata'=>$translationAttemptMetadata,'expected'=>$expectedOriginal],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
-$capturedSpeech=new class implements \ALMSIVIserver\Application\SpeechProvider {
+$capturedSpeech=new class implements \LORKHANserver\Application\SpeechProvider {
     public array$inputs=[];
-    public function synthesize(string$text,\ALMSIVIserver\Application\CancellationToken$cancellation,array$context=[]):array{
+    public function synthesize(string$text,\LORKHANserver\Application\CancellationToken$cancellation,array$context=[]):array{
         $this->inputs[]=$text;return(new MockSpeechProvider())->synthesize($text,$cancellation,$context);
     }
 };
-$speechRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\SpeechSynthesizeJobHandler(
+$speechRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\SpeechSynthesizeJobHandler(
     new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
 $translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
     ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
@@ -1992,9 +1992,9 @@ $translationFailureTurn['turn_id']=$newUuid(865);$translationFailureTurn['payloa
 [$status]=$call($router,'POST',$base.'/turns',$headers($translationFailureTurn['message_id']),[],$translationFailureTurn);
 $translationCurrent=$products->translationPolicyForInstallation($installationId);
 $biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
-    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
-$unavailableTranslation=new class implements \ALMSIVIserver\Application\TranslationProvider {
-    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+    \LORKHANserver\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
+$unavailableTranslation=new class implements \LORKHANserver\Application\TranslationProvider {
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LORKHANserver\Application\CancellationToken$token):array{
         throw new RuntimeException('sensitive upstream detail');
     }
 };
@@ -2025,7 +2025,7 @@ $assert($status === 200 && $endedAgain == $ended, 'session delete replay incoher
 $assert($status === 200 && $resultAfterEnd['duplicate'], 'terminal result replay expired with session');
 [$status, $body] = $call($router, 'GET', $base . '/media/' . $speech['media_id'], []);
 $assert($status === 404 && $body['code'] === 'media_unavailable', 'ended-session media remained available');
-$settingsDocument=['schema'=>'almsivi.client-settings.v1','behavior'=>[
+$settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
     'auto_greeting'=>true,'rechat'=>true,'rechat_delay_seconds'=>60,'rechat_max_depth'=>8,
     'rechat_probability_percent'=>50,'rechat_mode'=>'random','rechat_strict_targeting'=>false,
     'open_rechat'=>true,'rechat_allow_actions'=>false,'end_conversation_cooldown_seconds'=>60,

@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-preflight.v1",
+  "format": "lorkhan.morrowind-oghma-preflight.v1",
   "updated_at_utc": "2026-08-25T22:24:41Z",
   "model": "z-ai/glm-5.1",
   "prompt_sha256": "afa82861e4321921f1c1ad8b57c50ae376034a56ad63428b45f1bade5047ee8a",

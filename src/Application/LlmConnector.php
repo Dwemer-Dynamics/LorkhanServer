@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
@@ -11,10 +11,10 @@ final class LlmConnector
 {
     public const CREDENTIALS = [
         'none' => '',
-        'default' => 'ALMSIVI_LLM_API_KEY',
-        'openai' => 'ALMSIVI_LLM_OPENAI_API_KEY',
-        'openrouter' => 'ALMSIVI_LLM_OPENROUTER_API_KEY',
-        'custom' => 'ALMSIVI_LLM_CUSTOM_API_KEY',
+        'default' => 'LORKHAN_LLM_API_KEY',
+        'openai' => 'LORKHAN_LLM_OPENAI_API_KEY',
+        'openrouter' => 'LORKHAN_LLM_OPENROUTER_API_KEY',
+        'custom' => 'LORKHAN_LLM_CUSTOM_API_KEY',
     ];
 
     public const OPTION_RULES = [

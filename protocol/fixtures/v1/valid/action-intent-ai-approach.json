@@ -13,7 +13,7 @@
     "expires_at": "2026-07-19T20:00:30Z",
     "name": "ai.approach",
     "parameters": {},
-    "schema": "almsivi.action-intent.v1",
+    "schema": "lorkhan.action-intent.v1",
     "target": {
       "cell": {"grid_x": -2, "grid_y": -9, "kind": "exterior"},
       "content_file": "Morrowind.esm",
@@ -25,5 +25,5 @@
     "tier": 1,
     "turn_id": "00000000-0000-4000-8000-000000000032"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/action-intent.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/action-intent.schema.json"
 }

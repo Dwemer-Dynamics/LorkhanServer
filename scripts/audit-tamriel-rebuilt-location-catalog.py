@@ -160,7 +160,7 @@ def main() -> int:
     }
     errors.extend(f"failed check: {name}" for name, passed in checks.items() if not passed)
     report = {
-        "format": "almsivi.tamriel-rebuilt-location-catalog-review.v1",
+        "format": "lorkhan.tamriel-rebuilt-location-catalog-review.v1",
         "catalog_version": manifest.get("catalog_version"),
         "errors": sorted(set(errors)),
         "checks": checks,

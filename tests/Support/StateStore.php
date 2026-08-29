@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Tests\Support;
+namespace LORKHANserver\Tests\Support;
 
 use RuntimeException;
 

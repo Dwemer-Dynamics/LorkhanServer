@@ -1,17 +1,17 @@
-# Azure Sol assignment: build ALMSIVIserver
+# Azure Sol assignment: build LORKHANserver
 
 ## Objective
 
-Create the local backend and management UI for ALMSIVI by importing the final completed Synthserver,
+Create the local backend and management UI for LORKHAN by importing the final completed Synthserver,
 preserving its applicable product capabilities, translating all game semantics to TES3/OpenMW, and
-proving the strict `almsivi.*.v1` contract against the sibling client fake and later Windows runtime.
+proving the strict `lorkhan.*.v1` contract against the sibling client fake and later Windows runtime.
 
 ## Start gate and baselines
 
 Do not import source until the parent verifies `RANGROO/SYNTH` and `RANGROO/Synthserver` have met their
 non-game stop conditions. Record their final SHAs, tests, source licenses and provenance first.
 
-- Working repo: `RANGROO/ALMSIVIserver`; sibling: `RANGROO/ALMSIVI`.
+- Working repo: `RANGROO/LORKHANserver`; sibling: `RANGROO/LORKHAN`.
 - Direct seed: final tested `RANGROO/Synthserver` main SHA.
 - Reference server: `Dwemer-Dynamics/DialecticServer@f447a9c6b59bfc689c788fb0139a0d13c6c6dc51`.
 - Lineage/design: `abeiro/HerikaServer@0dbfa3eb4d3197d8159b5ff2c77bfdb5bf98b4d0`.
@@ -34,7 +34,7 @@ non-game stop conditions. Record their final SHAs, tests, source licenses and pr
    relationships, knowledge, playthroughs, workers/backups, health and redacted diagnostics.
 9. Add WSL setup/upgrade/rollback, migrations/restore drill, rate/abuse/security tests, frontend build,
    protocol parity, package/provenance/license/secret scans and cross-repo fake E2E.
-10. Later run the exact Windows in-game matrix with sibling ALMSIVI; never infer action success from
+10. Later run the exact Windows in-game matrix with sibling LORKHAN; never infer action success from
     server acceptance.
 
 ## Required automated proof
@@ -52,7 +52,7 @@ non-game stop conditions. Record their final SHAs, tests, source licenses and pr
 
 ## Boundaries
 
-- Work only in the two ALMSIVI repos and isolated temporary directories.
+- Work only in the two LORKHAN repos and isolated temporary directories.
 - Do not push, publish, deploy, expose services, use live provider billing or modify reference repos.
 - Never send credentials, game data, saves, production/personal data or unredacted provider payloads
   to Azure/model tooling.

@@ -3,28 +3,28 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
-use ALMSIVIserver\Application\Provider;
-use ALMSIVIserver\Application\ProviderFactory;
-use ALMSIVIserver\Application\SpeechProvider;
-use ALMSIVIserver\Application\Worker;
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\JobRepository;
-use ALMSIVIserver\Infrastructure\MediaStore;
+use LORKHANserver\Application\FirstPartyJobHandlerFactory;
+use LORKHANserver\Application\Provider;
+use LORKHANserver\Application\ProviderFactory;
+use LORKHANserver\Application\SpeechProvider;
+use LORKHANserver\Application\Worker;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\JobRepository;
+use LORKHANserver\Infrastructure\MediaStore;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
 try {
-    $configFile = getenv('ALMSIVI_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
     if (!is_file($configFile)) {
-        throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+        throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     }
     $config = require $configFile;
     if (!is_array($config)) {
         throw new RuntimeException('Server configuration is invalid.');
     }
-    $config['credential_storage_path'] ??= '/var/lib/almsiviserver/credentials/provider-keys.json';
-    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+    $config['credential_storage_path'] ??= '/var/lib/lorkhanserver/credentials/provider-keys.json';
+    $config['database_password'] = getenv('LORKHAN_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
     $worker = $config['worker'] ?? [];
     if (!is_array($worker)) {
         throw new RuntimeException('Worker configuration is invalid.');

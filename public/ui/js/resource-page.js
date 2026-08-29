@@ -366,7 +366,7 @@
             panels.forEach((panel) => { panel.hidden = panel.getAttribute('data-npc-editor-panel') !== name; });
             if (name === 'history') openHistoryPanel(modal);
             // History is read on demand, so it never becomes the remembered default tab.
-            else try { window.localStorage.setItem('almsivi-npc-editor-tab', name); } catch (_error) {}
+            else try { window.localStorage.setItem('lorkhan-npc-editor-tab', name); } catch (_error) {}
         };
         tabActivators.set(tablist, activate);
         buttons.forEach((button) => button.addEventListener('click', () => activate(button.getAttribute('data-npc-editor-tab') || 'general')));
@@ -378,7 +378,7 @@
             activate(buttons[next].getAttribute('data-npc-editor-tab') || 'general', true);
         });
         let initial = 'general';
-        try { initial = window.localStorage.getItem('almsivi-npc-editor-tab') || initial; } catch (_error) {}
+        try { initial = window.localStorage.getItem('lorkhan-npc-editor-tab') || initial; } catch (_error) {}
         if (initial === 'history' || !buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
         activate(initial);
     });

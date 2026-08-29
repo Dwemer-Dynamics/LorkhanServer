@@ -5,7 +5,7 @@ $root = dirname(__DIR__, 2);
 $manifest = json_decode(file_get_contents($root . '/protocol/MANIFEST.json'), true, 64, JSON_THROW_ON_ERROR);
 $seen = [];
 foreach ($manifest['files'] as $entry) {
-    $relative = preg_replace('#^almsivi/#', '', $entry['path']);
+    $relative = preg_replace('#^lorkhan/#', '', $entry['path']);
     $file = $root . '/protocol/' . $relative;
     if (!is_file($file)) throw new RuntimeException('Missing protocol file: ' . $relative);
     if (isset($seen[$relative])) throw new RuntimeException('Duplicate manifest path: ' . $relative);

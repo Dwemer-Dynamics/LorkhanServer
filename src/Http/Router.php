@@ -1,28 +1,28 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
-use ALMSIVIserver\Application\MorrowindVoiceCatalog;
-use ALMSIVIserver\Application\MemoryEmbeddingPolicy;
-use ALMSIVIserver\Application\MiniMeEmbeddingProvider;
-use ALMSIVIserver\Application\NeverCancelledToken;
-use ALMSIVIserver\Application\PromptAssembler;
-use ALMSIVIserver\Application\Provider;
-use ALMSIVIserver\Application\ProviderFactory;
-use ALMSIVIserver\Application\RechatCoordinator;
-use ALMSIVIserver\Application\SpeechProvider;
-use ALMSIVIserver\Application\SpeechToTextProvider;
-use ALMSIVIserver\Application\TranslationPolicy;
-use ALMSIVIserver\Infrastructure\ManagementRepository;
-use ALMSIVIserver\Infrastructure\MediaStore;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\Repository;
-use ALMSIVIserver\Infrastructure\Uuid;
-use ALMSIVIserver\Protocol\ValidationException;
-use ALMSIVIserver\Protocol\Validator;
-use ALMSIVIserver\Security\RequestMac;
+use LORKHANserver\Application\MorrowindVoiceCatalog;
+use LORKHANserver\Application\MemoryEmbeddingPolicy;
+use LORKHANserver\Application\MiniMeEmbeddingProvider;
+use LORKHANserver\Application\NeverCancelledToken;
+use LORKHANserver\Application\PromptAssembler;
+use LORKHANserver\Application\Provider;
+use LORKHANserver\Application\ProviderFactory;
+use LORKHANserver\Application\RechatCoordinator;
+use LORKHANserver\Application\SpeechProvider;
+use LORKHANserver\Application\SpeechToTextProvider;
+use LORKHANserver\Application\TranslationPolicy;
+use LORKHANserver\Infrastructure\ManagementRepository;
+use LORKHANserver\Infrastructure\MediaStore;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\Uuid;
+use LORKHANserver\Protocol\ValidationException;
+use LORKHANserver\Protocol\Validator;
+use LORKHANserver\Security\RequestMac;
 use DomainException;
 use OutOfBoundsException;
 use Throwable;
@@ -36,7 +36,7 @@ final class Router
         private readonly Validator $validator,
         private readonly Provider $provider,
         private readonly string $pairingTokenHash,
-        private readonly string $basePath = '/ALMSIVIserver/api/v1',
+        private readonly string $basePath = '/LORKHANserver/api/v1',
         private readonly int $maxJsonBytes = 2_097_152,
         private readonly int $eventLimit = 100,
         private readonly int $rateLimitRequests = 120,
@@ -58,13 +58,13 @@ final class Router
 
     public function dispatch(Request $request): Response
     {
-        $candidate=$request->header('X-ALMSIVI-Request-Id')??$request->header('Idempotency-Key');
+        $candidate=$request->header('X-LORKHAN-Request-Id')??$request->header('Idempotency-Key');
         if(str_contains(strtolower((string)$request->header('Content-Type')),'application/json')){try{$raw=json_decode($request->body,true,8,JSON_THROW_ON_ERROR);if(is_array($raw)&&is_string($raw['request_id']??null))$candidate=$raw['request_id'];}catch(Throwable){}}
         $correlation=is_string($candidate)&&$this->uuid($candidate)?$candidate:Uuid::v4();
         try {
             $path = $this->path($request->path);
             if ($request->method === 'GET' && $path === '/health') {
-                return Response::json(200, ['schema' => 'almsivi.health.v1']);
+                return Response::json(200, ['schema' => 'lorkhan.health.v1']);
             }
             $this->authenticatedInstallation=null;
             $this->authenticate($request);
@@ -96,7 +96,7 @@ final class Router
             return Response::error(404, $this->publicCode($error->getMessage()), $correlation);
         } catch (Throwable $error) {
             $message=preg_replace('/[\r\n\t]+/',' ',trim($error->getMessage()))??'unavailable';
-            error_log(sprintf('[ALMSIVI] API internal_error correlation=%s method=%s path=%s exception=%s message=%s',
+            error_log(sprintf('[LORKHAN] API internal_error correlation=%s method=%s path=%s exception=%s message=%s',
                 $correlation,$request->method,$request->path,$error::class,substr($message,0,1000)));
             return Response::error(500, 'internal_error', $correlation, true);
         }
@@ -104,7 +104,7 @@ final class Router
 
     private function createSession(Request $request): Response
     {
-        $m = $this->json($request, 'almsivi.session.init.v1');
+        $m = $this->json($request, 'lorkhan.session.init.v1');
         $this->assertPrincipal($m['installation_id']);
         $this->requireIdempotency($request, $m['message_id']);
         return $this->repository->serializedIdempotency($m['installation_id'], $m['message_id'], '/sessions', function () use ($m): Response {
@@ -114,7 +114,7 @@ final class Router
                 // The installation is materialized by createSession, so the player profile can now satisfy its foreign key.
                 $this->products?->ensurePlayerProfile((string)$m['installation_id'],(string)$m['created_at']);
                 $settings=$this->clientSettings((string)$m['installation_id']);
-                return [201, ['schema' => 'almsivi.session.accepted.v1', 'message_id' => $m['message_id'],
+                return [201, ['schema' => 'lorkhan.session.accepted.v1', 'message_id' => $m['message_id'],
                     'session_id' => $sessionId, 'generation' => $session['generation'],
                     'capabilities' => $session['capabilities'], 'config_revision' => $settings['revision'],
                     'client_settings'=>$settings['content'],'event_cursor' => 0]];
@@ -127,7 +127,7 @@ final class Router
     {
         $saved=$this->products?->globalSettingsForInstallation($installationId);
         if($saved!==null)return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$saved['content']];
-        return['revision'=>'global-settings-default-v1','content'=>['schema'=>'almsivi.client-settings.v1',
+        return['revision'=>'global-settings-default-v1','content'=>['schema'=>'lorkhan.client-settings.v1',
             'behavior'=>['auto_greeting'=>false,'rechat'=>false,'rechat_delay_seconds'=>45,'rechat_max_depth'=>2,
                 'rechat_probability_percent'=>50,'rechat_mode'=>'random','rechat_strict_targeting'=>false,
                 'open_rechat'=>true,'rechat_allow_actions'=>false,'end_conversation_cooldown_seconds'=>60,
@@ -150,7 +150,7 @@ final class Router
 
     private function createTurn(Request $request): Response
     {
-        $m = $this->json($request, 'almsivi.turn.v1');
+        $m = $this->json($request, 'lorkhan.turn.v1');
         $this->assertPrincipal($m['installation_id']);
         $this->requireIdempotency($request, $m['message_id']);
         return $this->repository->serializedIdempotency($m['installation_id'], $m['message_id'], '/turns', function () use ($m): Response {
@@ -158,7 +158,7 @@ final class Router
             $cached = $this->repository->idempotent($m['installation_id'], $m['message_id'], '/turns', $hash);
             if ($cached !== null) return Response::json($cached['status'], $cached['body']);
 
-            if (($m['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+            if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
                 if ($this->rechatCoordinator === null) throw new DomainException('rechat_unavailable');
                 $m = $this->rechatCoordinator->resolve($m);
             }
@@ -166,7 +166,7 @@ final class Router
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
             if ($providerInput !== null) {
-                $providerInput['_allowed_action_definitions'] = ($m['payload']['ui_source'] ?? null) === 'almsivi_rechat'
+                $providerInput['_allowed_action_definitions'] = ($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat'
                     ? [] : $this->repository->allowedPromptActions($m['session_id'], $m['generation']);
             }
             $assembled = null;
@@ -193,7 +193,7 @@ final class Router
                 $providerInput['_translation_policy']=['configuration_id'=>$translation['configuration_id'],
                     'revision'=>(int)$translation['current_revision'],'content'=>TranslationPolicy::validate($translation['content'])];
             }
-            $body = ['schema' => 'almsivi.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
+            $body = ['schema' => 'lorkhan.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
                 'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
             $accepted = $this->repository->acceptTurn($m, $providerInput, $assembled['trace'] ?? null, $hash, $body, $directAction);
             $body['event_cursor']=$accepted['sequence'];
@@ -287,14 +287,14 @@ final class Router
             usleep((int) min(100_000, max(1_000, ($deadline - microtime(true)) * 1_000_000)));
         } while (true);
         $next = $events === [] ? $after : $events[array_key_last($events)]['sequence'];
-        return Response::json(200, ['schema' => 'almsivi.events.v1', 'session_id' => $session,
+        return Response::json(200, ['schema' => 'lorkhan.events.v1', 'session_id' => $session,
             'generation' => $generation, 'next_after' => $next, 'events' => $events,'autonomy'=>[]]);
     }
 
     private function controlsQuery(Request $request): Response
     {
         if($this->products===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
-        $m=$this->json($request,'almsivi.controls.query.v1');
+        $m=$this->json($request,'lorkhan.controls.query.v1');
         $session=$this->repository->session($m['session_id'],$m['generation']);
         $this->assertPrincipal((string)$session['installation_id']);
         return Response::json(200,$this->controlsBody($m,$session));
@@ -303,7 +303,7 @@ final class Router
     private function controlsSelect(Request $request): Response
     {
         if($this->products===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
-        $m=$this->json($request,'almsivi.controls.select.v1');
+        $m=$this->json($request,'lorkhan.controls.select.v1');
         $session=$this->repository->session($m['session_id'],$m['generation']);
         $this->assertPrincipal((string)$session['installation_id']);
         $this->requireIdempotency($request,$m['message_id']);
@@ -328,7 +328,7 @@ final class Router
     {
         $controls=$this->products?->sessionControls($session,$request['target']);
         if($controls===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
-        return ['schema'=>'almsivi.controls.v1','message_id'=>$request['message_id'],'request_id'=>$request['request_id'],
+        return ['schema'=>'lorkhan.controls.v1','message_id'=>$request['message_id'],'request_id'=>$request['request_id'],
             'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
     }
 
@@ -358,7 +358,7 @@ final class Router
     private function synthesize(array $message, array $capabilities, string $text): ?array
     {
         if (!in_array('speech.say', $capabilities, true) || $this->mediaStore === null || $this->speechProvider === null) return null;
-        $cancellation = new \ALMSIVIserver\Application\NeverCancelledToken();
+        $cancellation = new \LORKHANserver\Application\NeverCancelledToken();
         $attemptId = Uuid::v4();
         try {
             $this->providerAttempts?->start($attemptId, 'tts', 'mock', 'synthesize', 1, $message['request_id'], $message['turn_id'],
@@ -378,22 +378,22 @@ final class Router
 
     private function interrupt(Request $request): Response
     {
-        $m = $this->json($request, 'almsivi.interrupt.v1');
+        $m = $this->json($request, 'lorkhan.interrupt.v1');
         $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
         $this->requireIdempotency($request, $m['message_id']);
         $result = $this->repository->interrupt($m);
-        return Response::json(202, ['schema' => 'almsivi.interruption.accepted.v1', 'message_id' => $m['message_id'],
+        return Response::json(202, ['schema' => 'lorkhan.interruption.accepted.v1', 'message_id' => $m['message_id'],
             'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation'],
             'turn_id' => $m['turn_id'], 'event_cursor' => $result['cursor'], 'duplicate' => $result['duplicate']]);
     }
 
     private function actionResult(Request $request): Response
     {
-        $m = $this->json($request, 'almsivi.action-result.v1');
+        $m = $this->json($request, 'lorkhan.action-result.v1');
         $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
         $this->requireIdempotency($request, $m['message_id']);
         $result = $this->repository->actionResult($m);
-        return Response::json(200, ['schema' => 'almsivi.action-result.accepted.v1', 'message_id' => $m['message_id'],
+        return Response::json(200, ['schema' => 'lorkhan.action-result.accepted.v1', 'message_id' => $m['message_id'],
             'request_id' => $m['request_id'], 'action_id' => $m['action_id'], 'turn_id' => $m['turn_id'],
             'session_id' => $m['session_id'], 'generation' => $m['generation'], 'status' => $m['status'],
             'duplicate' => $result['duplicate']]);
@@ -406,7 +406,7 @@ final class Router
         if (strtolower(trim((string) $request->header('Content-Type'))) !== 'application/octet-stream') {
             throw new ApiException(415, 'invalid_schema', 'Binary audio required.');
         }
-        $header = fn(string $name): string => (string) ($request->header('X-ALMSIVI-' . $name) ?? '');
+        $header = fn(string $name): string => (string) ($request->header('X-LORKHAN-' . $name) ?? '');
         $message = [
             'schema' => $header('Schema'), 'message_id' => $header('Message-Id'), 'request_id' => $header('Request-Id'),
             'turn_id' => $header('Turn-Id'), 'session_id' => $header('Session-Id'),
@@ -414,7 +414,7 @@ final class Router
             'codec' => $header('Codec'), 'language' => $header('Language'),
             'audio_bytes' => filter_var($header('Audio-Bytes'), FILTER_VALIDATE_INT), 'sha256' => $header('Sha256'),
         ];
-        $this->validator->validate($message, 'almsivi.stt.request.v1');
+        $this->validator->validate($message, 'lorkhan.stt.request.v1');
         $installationId = $this->repository->sessionInstallation($message['session_id']);
         $this->assertPrincipal($installationId);
         $this->requireIdempotency($request, $message['message_id']);
@@ -443,14 +443,14 @@ final class Router
             $this->mediaStore->delete($mediaId);
             throw $error;
         }
-        return Response::json(202, ['schema' => 'almsivi.stt.accepted.v1', 'message_id' => $message['message_id'],
+        return Response::json(202, ['schema' => 'lorkhan.stt.accepted.v1', 'message_id' => $message['message_id'],
             'request_id' => $message['request_id'], 'turn_id' => $message['turn_id'], 'session_id' => $message['session_id'],
             'generation' => $message['generation'], 'event_cursor' => $result['cursor'], 'duplicate' => $result['duplicate']]);
     }
 
     private function deliveryResult(Request $request):Response
     {
-        $m=$this->json($request,'almsivi.dialogue-delivery-result.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);$result=$this->repository->dialogueDeliveryResult($m);return Response::json(200,['schema'=>'almsivi.dialogue-delivery-result.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'dialogue_message_id'=>$m['dialogue_message_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$result['duplicate']]);
+        $m=$this->json($request,'lorkhan.dialogue-delivery-result.v1');$this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));$this->requireIdempotency($request,$m['message_id']);$result=$this->repository->dialogueDeliveryResult($m);return Response::json(200,['schema'=>'lorkhan.dialogue-delivery-result.accepted.v1','message_id'=>$m['message_id'],'request_id'=>$m['request_id'],'dialogue_message_id'=>$m['dialogue_message_id'],'turn_id'=>$m['turn_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$result['duplicate']]);
     }
 
     private function authenticate(Request $request): void
@@ -538,7 +538,7 @@ final class Router
 
     private function bootstrapMacKey():?string
     {
-        $value=getenv('ALMSIVI_PAIRING_MAC_KEY');if(!is_string($value)||$value==='')return hex2bin($this->pairingTokenHash)?:null;
+        $value=getenv('LORKHAN_PAIRING_MAC_KEY');if(!is_string($value)||$value==='')return hex2bin($this->pairingTokenHash)?:null;
         $decoded=base64_decode(strtr($value,'-_','+/'),true);return is_string($decoded)&&strlen($decoded)===32?$decoded:null;
     }
 

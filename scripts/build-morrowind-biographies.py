@@ -106,7 +106,7 @@ plain factual wording over literary narration, dramatic metaphors, editorial jud
 Put each stable fact in the single field where it is most useful instead of repeating it across sections.
 
 Formatting rules:
-- oghma_knowledge_tags: return an empty string. ALMSIVI knowledge tags are intentionally deferred.
+- oghma_knowledge_tags: return an empty string. LORKHAN knowledge tags are intentionally deferred.
 - core: exactly one identity sentence of 18-34 words.
 - npc_static_bio: 2-3 sentences and 28-95 words covering stable background, location, affiliations, and role.
 - appearance: 2-3 sentences and 20-65 words covering physical appearance only. Use precise age, hair,
@@ -167,7 +167,7 @@ FORBIDDEN_PATTERNS = tuple(
 
 
 def default_cache_dir() -> Path:
-    return Path.home() / ".cache" / "almsiviserver" / "uesp-morrowind-npcs"
+    return Path.home() / ".cache" / "lorkhanserver" / "uesp-morrowind-npcs"
 
 
 def decode_tes3_text(raw: bytes) -> str:
@@ -419,7 +419,7 @@ def call_glm(
                 OPENROUTER_URL,
                 headers={
                     "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-                    "HTTP-Referer": "https://dwemerdynamics.com", "X-Title": "ALMSIVI Morrowind Biography Builder",
+                    "HTTP-Referer": "https://dwemerdynamics.com", "X-Title": "LORKHAN Morrowind Biography Builder",
                 },
                 json={
                     "model": model, "temperature": 0.0, "max_tokens": 2800, "reasoning": {"effort": "none"},
@@ -797,7 +797,7 @@ def review_manifest(
     *, hashes: dict[str, str], catalog_count: int, selected_count: int, results: list[dict[str, Any]],
 ) -> dict[str, Any]:
     return {
-        "format": "almsivi.morrowind-biography-review.v1",
+        "format": "lorkhan.morrowind-biography-review.v1",
         "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "official_content_sha256": hashes,
         "official_winning_npc_count": catalog_count,
@@ -872,7 +872,7 @@ def main() -> int:
     checkpoint_chim = dict(resume_chim)
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "ALMSIVIserver biography builder/0.1 (local development)"})
+    session.headers.update({"User-Agent": "LORKHANserver biography builder/0.1 (local development)"})
     results: list[dict[str, Any]] = []
     chim_rows: list[dict[str, Any]] = []
     refresh_keys = {value.casefold() for value in args.refresh_npc}
@@ -939,7 +939,7 @@ def main() -> int:
                     write_json(
                         args.rejected_output,
                         {
-                            "format": "almsivi.morrowind-biography-rejection.v1",
+                            "format": "lorkhan.morrowind-biography-rejection.v1",
                             "generated_at_utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                             "identity": {
                                 "record_id": npc["record_id"], "display_name": npc["display_name"],

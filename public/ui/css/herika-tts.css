@@ -20,7 +20,7 @@ body.tts-page-shell > main.tts-page.embedded { padding-top: 10px; }
 
 .tts-page .page-shell { max-width: 1450px; margin: 0 auto; }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .tts-page .page-header h1.api-title {
     color: #f5f1e8;
     font-family: MagicCards, serif;

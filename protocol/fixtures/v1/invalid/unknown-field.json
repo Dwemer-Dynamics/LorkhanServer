@@ -1,5 +1,5 @@
 {
   "description": "Contract-owned object rejects unknown fields",
-  "instance": {"extra": true, "schema": "almsivi.health.v1"},
-  "schema": "https://almsivi.invalid/schemas/v1/health.schema.json"
+  "instance": {"extra": true, "schema": "lorkhan.health.v1"},
+  "schema": "https://lorkhan.invalid/schemas/v1/health.schema.json"
 }

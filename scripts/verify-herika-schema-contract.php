@@ -3,11 +3,11 @@
 declare(strict_types=1);
 
 $referenceDsn = getenv('HERIKA_REFERENCE_DSN') ?: 'pgsql:dbname=dwemer';
-$targetDsn = getenv('ALMSIVI_SCHEMA_DSN') ?: 'pgsql:dbname=almsivi';
+$targetDsn = getenv('LORKHAN_SCHEMA_DSN') ?: 'pgsql:dbname=lorkhan';
 $referenceSchema = getenv('HERIKA_REFERENCE_SCHEMA') ?: 'public';
-$targetSchema = getenv('ALMSIVI_HERIKA_SCHEMA') ?: 'public';
-$user = getenv('ALMSIVI_SCHEMA_DB_USER') ?: null;
-$password = getenv('ALMSIVI_SCHEMA_DB_PASSWORD') ?: null;
+$targetSchema = getenv('LORKHAN_HERIKA_SCHEMA') ?: 'public';
+$user = getenv('LORKHAN_SCHEMA_DB_USER') ?: null;
+$password = getenv('LORKHAN_SCHEMA_DB_PASSWORD') ?: null;
 
 $tables = [
     'bio_templates', 'bio_templates_custom', 'core_api_badge',
@@ -134,7 +134,7 @@ $target = new PDO($targetDsn, $user ?: null, $password ?: null, $options);
 $expected = normalizeSnapshot(catalogSnapshot($reference, $referenceSchema, $tables, $views, $sequences), $referenceSchema);
 $actual = normalizeSnapshot(catalogSnapshot($target, $targetSchema, $tables, $views, $sequences), $targetSchema);
 
-// ALMSIVI retired ITT before beta, so the otherwise exact profile contract
+// LORKHAN retired ITT before beta, so the otherwise exact profile contract
 // intentionally omits Herika's nullable ITT foreign-key column and constraint.
 $expected['tables']['core_profiles']['columns'] = array_values(array_filter(
     $expected['tables']['core_profiles']['columns'],

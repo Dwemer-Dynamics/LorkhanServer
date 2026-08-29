@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "format": "lorkhan.morrowind-oghma-catalog.v1",
   "catalog_version": "morrowind-official-3e427-v5.14",
   "row_count": 1300,
   "articles_sha256": "b5600418d22b2474d653551cbc642a1dfadd7ec4042a620c135316902fb79c88",
@@ -668,7 +668,7 @@
   },
   "canonical_vocabulary_sha256": "cf474d88cdaaf40d67946915c1c9790a1665657a7ee4762d280a5e4eb93c35ac",
   "alias_serialization": "comma-separated; internal commas encoded as underscores",
-  "geography_sha256": "986496dff712c8e814eff313c1b4d8cc6b451ca4aaf522d33c9f9fbff7d0b17f",
+  "geography_sha256": "223d4a35d4cb4dcf7f7e8f045d7972fc7d9eb968fee95e1d56e2555af72145e8",
   "geography_policy_sha256": "9306440e3fceff917ce841fb3166f168fedfd1342426d0107c261a787b628548",
   "geography_ruleset": "official-cell-door-reference-v1"
 }

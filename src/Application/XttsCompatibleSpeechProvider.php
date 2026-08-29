@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use RuntimeException;
 
 /** Local/remote XTTS-family JSON adapter shared by PocketTTS, OmniVoice, Chatterbox, and XTTS. */

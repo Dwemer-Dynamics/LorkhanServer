@@ -1,5 +1,5 @@
 {
-  "schema": "almsivi.morrowind-voice-catalog.v1",
+  "schema": "lorkhan.morrowind-voice-catalog.v1",
   "language": "en",
   "known_actor_defaults": {
     "fargoth": {"race": "wood elf", "gender": "male"}

@@ -72,7 +72,7 @@ def main() -> int:
         raise ValueError("Tamriel Rebuilt coverage count does not match the reviewed run")
     if coverage_summary.get("base_catalog_sha256") != sha256(base_articles_path):
         raise ValueError("Tamriel Rebuilt coverage was audited against a different base catalog")
-    if curation.get("format") != "almsivi.tamriel-rebuilt-location-curation.v1":
+    if curation.get("format") != "lorkhan.tamriel-rebuilt-location-curation.v1":
         raise ValueError("Unsupported Tamriel Rebuilt location curation format")
 
     base_by_topic = {str(row.get("topic", "")): row for row in base_articles}
@@ -150,7 +150,7 @@ def main() -> int:
         merged_seeds_by_topic[str(topic["topic"])] = topic
     seeds_path = args.output / "tamriel-rebuilt-topic-seeds.json"
     write_json(seeds_path, {
-        "format": "almsivi.morrowind-oghma-topic-seeds.v2",
+        "format": "lorkhan.morrowind-oghma-topic-seeds.v2",
         "topics": list(merged_seeds_by_topic.values()),
     })
     (args.output / "catalog-version.txt").write_text(args.catalog_version + "\n", encoding="utf-8", newline="\n")

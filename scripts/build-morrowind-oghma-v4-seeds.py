@@ -21,7 +21,7 @@ DEFAULT_OUTPUT = ROOT / "build" / "oghma-v4-seeds"
 
 def load_generator() -> Any:
     path = ROOT / "scripts" / "run-morrowind-oghma-preflight.py"
-    spec = importlib.util.spec_from_file_location("almsivi_oghma_generator", path)
+    spec = importlib.util.spec_from_file_location("lorkhan_oghma_generator", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load the Oghma generator")
     module = importlib.util.module_from_spec(spec)
@@ -215,13 +215,13 @@ def main() -> int:
         raise ValueError(f"V4 additions collide with the v3 baseline: {collisions}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    additions_document = {"format": "almsivi.morrowind-oghma-v4-selection.v1", "topics": additions}
+    additions_document = {"format": "lorkhan.morrowind-oghma-v4-selection.v1", "topics": additions}
     write_json(args.output_dir / "additions.json", additions_document)
     write_json(args.output_dir / "topic-seeds.json", combined)
     additions_sha = hashlib.sha256((args.output_dir / "additions.json").read_bytes()).hexdigest()
     combined_sha = hashlib.sha256((args.output_dir / "topic-seeds.json").read_bytes()).hexdigest()
     manifest = {
-        "format": "almsivi.morrowind-oghma-v4-selection-manifest.v1",
+        "format": "lorkhan.morrowind-oghma-v4-selection-manifest.v1",
         "baseline_catalog": "morrowind-official-3e427-v3",
         "baseline_count": len(baseline_articles),
         "baseline_seed_count": len(baseline["topics"]),

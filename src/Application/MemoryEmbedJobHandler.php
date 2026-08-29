@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\MemoryEmbeddingRepository;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Infrastructure\MemoryEmbeddingRepository;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\Uuid;
 use InvalidArgumentException;
 use Throwable;
 

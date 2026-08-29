@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Deterministic extractor used by existing unit and integration test configurations. */
 final class MockOghmaTopicExtractor implements OghmaTopicExtractor

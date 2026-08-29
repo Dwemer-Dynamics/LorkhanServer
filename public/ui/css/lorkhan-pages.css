@@ -1,12 +1,12 @@
 :root {
-    --almsivi-dashboard-gap: 20px;
+    --lorkhan-dashboard-gap: 20px;
 }
 
 body {
     min-height: 100vh;
     padding-top: 80px;
-    background: var(--almsivi-bg, #171717);
-    color: var(--almsivi-text, #f5f1e8);
+    background: var(--lorkhan-bg, #171717);
+    color: var(--lorkhan-text, #f5f1e8);
 }
 
 body.embedded-page {
@@ -26,13 +26,13 @@ body.embedded-page {
     flex-wrap: wrap;
     gap: 8px 20px;
     margin: 0 0 4px;
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     font-size: .88rem;
 }
 
 .home-heading h1 {
     margin: 0 0 18px;
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     font-family: Gothic821, sans-serif;
     letter-spacing: 1.5px;
 }
@@ -40,16 +40,16 @@ body.embedded-page {
 .dashboard-container {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: var(--almsivi-dashboard-gap);
+    gap: var(--lorkhan-dashboard-gap);
 }
 
 .widget {
     min-width: 0;
     overflow: hidden;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
-    box-shadow: var(--almsivi-shadow, 0 4px 14px rgba(0, 0, 0, .16));
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
+    box-shadow: var(--lorkhan-shadow, 0 4px 14px rgba(0, 0, 0, .16));
 }
 
 .widget-wide {
@@ -58,13 +58,13 @@ body.embedded-page {
 
 .widget-header {
     padding: 12px 15px;
-    border-bottom: 1px solid var(--almsivi-border, #404040);
-    background: var(--almsivi-surface-3, #1d1d1d);
+    border-bottom: 1px solid var(--lorkhan-border, #404040);
+    background: var(--lorkhan-surface-3, #1d1d1d);
 }
 
 .widget-header h3 {
     margin: 0;
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     font-family: Gothic821, sans-serif;
     font-size: 1.15rem;
     letter-spacing: 1px;
@@ -82,9 +82,9 @@ body.embedded-page {
 
 .stat-card {
     padding: 13px;
-    border: 1px solid var(--almsivi-border-soft, #343434);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-3, #1d1d1d);
+    border: 1px solid var(--lorkhan-border-soft, #343434);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-3, #1d1d1d);
     text-align: center;
 }
 
@@ -94,13 +94,13 @@ body.embedded-page {
 }
 
 .stat-value {
-    color: var(--almsivi-accent-bright, #ffd27a);
+    color: var(--lorkhan-accent-bright, #ffd27a);
     font-size: 1.45rem;
     font-weight: 700;
 }
 
 .stat-label {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     font-size: .8rem;
 }
 
@@ -112,28 +112,28 @@ body.embedded-page {
 .table {
     margin: 0;
     --bs-table-bg: transparent;
-    --bs-table-hover-bg: var(--almsivi-accent-soft, rgba(255, 182, 65, .13));
+    --bs-table-hover-bg: var(--lorkhan-accent-soft, rgba(255, 182, 65, .13));
 }
 
 .table th {
     position: sticky;
     top: 0;
     z-index: 1;
-    color: var(--almsivi-accent, #ffb641);
-    background: var(--almsivi-surface-3, #1d1d1d);
+    color: var(--lorkhan-accent, #ffb641);
+    background: var(--lorkhan-surface-3, #1d1d1d);
     white-space: nowrap;
 }
 
 .table td {
     max-width: 480px;
-    color: var(--almsivi-text, #f5f1e8);
+    color: var(--lorkhan-text, #f5f1e8);
     overflow-wrap: anywhere;
 }
 
 .empty-state {
     margin: 0;
     padding: 20px;
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     text-align: center;
 }
 
@@ -145,10 +145,10 @@ body.embedded-page {
 
 .word-chip {
     padding: 5px 9px;
-    border: 1px solid var(--almsivi-border, #404040);
+    border: 1px solid var(--lorkhan-border, #404040);
     border-radius: 999px;
-    background: var(--almsivi-surface-3, #1d1d1d);
-    color: var(--almsivi-accent-bright, #ffd27a);
+    background: var(--lorkhan-surface-3, #1d1d1d);
+    color: var(--lorkhan-accent-bright, #ffd27a);
 }
 
 body.hub-page > main {
@@ -165,9 +165,9 @@ body.hub-page > main {
 .tab-content {
     display: none;
     min-height: 360px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: 0 var(--almsivi-radius-md, 10px) var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: 0 var(--lorkhan-radius-md, 10px) var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .tab-content.active {
@@ -201,7 +201,7 @@ body.hub-page > main {
 .embed {
     height: 100%;
     border: 0;
-    background: var(--almsivi-surface-1, #232323);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .management-page {
@@ -211,7 +211,7 @@ body.hub-page > main {
 }
 
 .management-page h1 {
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     font-family: Gothic821, sans-serif;
     letter-spacing: 1px;
 }
@@ -220,15 +220,15 @@ body.hub-page > main {
 .configuration-page-header {
     margin: 14px 14px 28px;
     padding: 20px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
     text-align: center;
 }
 
 .configuration-page-header h1 {
     margin: 0;
-    color: var(--almsivi-text, #f5f1e8) !important;
+    color: var(--lorkhan-text, #f5f1e8) !important;
     font-size: 2rem;
 }
 
@@ -250,9 +250,9 @@ body.hub-page > main {
 .configuration-detail {
     min-width: 0;
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .configuration-sidebar {
@@ -287,7 +287,7 @@ body.hub-page > main {
 
 .configuration-action-panel > summary.btn-primary {
     border-color: #d67118 !important;
-    background: var(--almsivi-accent-dark, #805814) !important;
+    background: var(--lorkhan-accent-dark, #805814) !important;
     color: #fff7ec !important;
 }
 
@@ -299,7 +299,7 @@ body.hub-page > main {
     max-height: 82vh;
     margin: auto;
     overflow: auto;
-    border-color: var(--almsivi-accent, #ffb641);
+    border-color: var(--lorkhan-accent, #ffb641);
     box-shadow: 0 20px 80px rgba(0, 0, 0, .72);
 }
 
@@ -316,10 +316,10 @@ body.hub-page > main {
     justify-content: space-between;
     gap: 10px;
     padding: 12px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-2, #2b2b2b);
-    color: var(--almsivi-text, #f5f1e8) !important;
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-2, #2b2b2b);
+    color: var(--lorkhan-text, #f5f1e8) !important;
 }
 
 .configuration-record:hover,
@@ -329,7 +329,7 @@ body.hub-page > main {
 }
 
 .configuration-record.active {
-    box-shadow: inset 3px 0 var(--almsivi-accent, #ffb641);
+    box-shadow: inset 3px 0 var(--lorkhan-accent, #ffb641);
 }
 
 .configuration-record > span:first-child {
@@ -344,7 +344,7 @@ body.hub-page > main {
 }
 
 .configuration-record small {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
 }
 
 .configuration-detail {
@@ -358,9 +358,9 @@ body.hub-page > main {
 
 .configuration-empty {
     padding: 18px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-2, #2b2b2b);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-2, #2b2b2b);
 }
 
 .configuration-empty h2 {
@@ -381,9 +381,9 @@ body.hub-page > main {
 .global-settings-title,
 .global-settings-tabs,
 .global-settings-panel {
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .global-settings-document {
@@ -448,7 +448,7 @@ body.hub-page > main {
 
 .global-settings-title h1 {
     margin: 0;
-    color: var(--almsivi-text, #f5f1e8) !important;
+    color: var(--lorkhan-text, #f5f1e8) !important;
     font-size: 1.55rem;
 }
 
@@ -467,16 +467,16 @@ body.hub-page > main {
     min-height: 38px;
     padding: 8px 10px;
     border: 1px solid #4a4a4a;
-    border-radius: var(--almsivi-radius-sm, 6px);
+    border-radius: var(--lorkhan-radius-sm, 6px);
     background: #343434;
     text-align: center;
 }
 
 .global-settings-tabs span.active {
-    border-color: var(--almsivi-accent, #ffb641);
+    border-color: var(--lorkhan-accent, #ffb641);
     background: #3a2d23;
-    color: var(--almsivi-accent-bright, #ffd27a);
-    box-shadow: inset 0 -2px var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent-bright, #ffd27a);
+    box-shadow: inset 0 -2px var(--lorkhan-accent, #ffb641);
 }
 
 .global-settings-panel {
@@ -501,9 +501,9 @@ body.hub-page > main {
 .descriptions-panel {
     min-width: 0;
     padding: 18px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .descriptions-panel > h2 {
@@ -515,9 +515,9 @@ body.hub-page > main {
     width: min(960px, calc(100% - 28px));
     margin: 0 auto 24px;
     padding: 20px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .knowledge-search-logic > h2 {
@@ -536,9 +536,9 @@ body.hub-page > main {
     align-items: center;
     gap: 16px;
     padding: 13px 16px;
-    border-left: 3px solid var(--almsivi-accent, #ffb641);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-2, #2b2b2b);
+    border-left: 3px solid var(--lorkhan-accent, #ffb641);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-2, #2b2b2b);
 }
 
 .knowledge-steps article > span {
@@ -548,7 +548,7 @@ body.hub-page > main {
     display: grid;
     place-items: center;
     border-radius: 50%;
-    background: var(--almsivi-accent-dark, #805814);
+    background: var(--lorkhan-accent-dark, #805814);
     color: #fff;
     font-weight: 700;
 }
@@ -559,7 +559,7 @@ body.hub-page > main {
 }
 
 .knowledge-steps h3 {
-    color: var(--almsivi-accent, #ffb641) !important;
+    color: var(--lorkhan-accent, #ffb641) !important;
     font-size: 1rem;
 }
 
@@ -582,9 +582,9 @@ body.hub-page > main {
 .action-filter-bar {
     margin-bottom: 18px;
     padding: 16px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .prompts-guidance p:last-child {
@@ -600,9 +600,9 @@ body.hub-page > main {
 
 .prompts-tools > details {
     padding: 18px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .prompts-tools > details > summary {
@@ -611,7 +611,7 @@ body.hub-page > main {
 
 .prompts-search h2 {
     margin: 0 0 8px;
-    color: var(--almsivi-accent, #ffb641) !important;
+    color: var(--lorkhan-accent, #ffb641) !important;
     font-size: 1.1rem;
 }
 
@@ -634,9 +634,9 @@ body.hub-page > main {
 
 .action-overview-grid > section {
     padding: 18px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .action-overview-grid h2 {
@@ -654,20 +654,20 @@ body.hub-page > main {
     display: grid;
     gap: 8px;
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-2, #2b2b2b);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-2, #2b2b2b);
 }
 
 .action-stat-grid strong {
     width: max-content;
     padding: 5px 9px;
-    border: 1px solid var(--almsivi-border, #404040);
+    border: 1px solid var(--lorkhan-border, #404040);
     border-radius: 999px;
 }
 
 .action-stat-grid strong.success {
-    border-color: var(--almsivi-success, #42a36d);
+    border-color: var(--lorkhan-success, #42a36d);
     color: #75cd97;
 }
 
@@ -702,13 +702,13 @@ body.hub-page > main {
     gap: 10px;
     margin-top: 14px;
     padding: 10px 12px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-3, #1d1d1d);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-3, #1d1d1d);
 }
 
 .description-safety-note strong {
-    color: var(--almsivi-accent-bright, #ffd27a);
+    color: var(--lorkhan-accent-bright, #ffd27a);
     font-size: 1.35rem;
 }
 
@@ -768,9 +768,9 @@ body.hub-page > main {
 
 .view-narrator .narrator-settings-shell .management-field {
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 @media (max-width: 760px) {
@@ -786,8 +786,8 @@ body.hub-page > main {
 .view-player .player-settings-shell > .management-form,
 .view-player .player-settings-shell .profile-card {
     padding: 20px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
     background: transparent;
 }
 
@@ -803,13 +803,13 @@ body.hub-page > main {
 
 .view-player .player-settings-shell .management-field {
     padding: 16px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .view-player .player-settings-shell .management-field label {
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
 }
 
 .view-player .player-settings-shell .management-form > button {
@@ -841,9 +841,9 @@ body.hub-page > main {
     gap: 10px;
     margin: 18px 0;
     padding: 16px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .management-form fieldset {
@@ -876,7 +876,7 @@ body.hub-page > main {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
 }
 #relationship-builder :is(select, button, summary, a):focus-visible {
-    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline: 2px solid var(--lorkhan-accent, #ffb641);
     outline-offset: 2px;
 }
 #npc-relationships-modal :is(select, input, button, summary, a):focus-visible {
@@ -888,7 +888,7 @@ body.hub-page > main {
 }
 
 .management-form legend {
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     font-family: Gothic821, sans-serif;
     font-size: 1.15rem;
 }
@@ -898,10 +898,10 @@ body.hub-page > main {
 .management-form select {
     width: 100%;
     padding: 8px 10px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-3, #1d1d1d);
-    color: var(--almsivi-text, #f5f1e8);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-3, #1d1d1d);
+    color: var(--lorkhan-text, #f5f1e8);
 }
 
 .management-form textarea {
@@ -910,11 +910,11 @@ body.hub-page > main {
 
 .management-form textarea[name="custom_info"] { resize: vertical; }
 .management-form textarea[name="custom_info"]:focus-visible {
-    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline: 2px solid var(--lorkhan-accent, #ffb641);
     outline-offset: 2px;
 }
-.management-form .relationship-custom-info-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
-.management-form .relationship-type-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
+.management-form .relationship-custom-info-help { color: var(--lorkhan-text-muted, #aaa69e); font-size: .85rem; }
+.management-form .relationship-type-help { color: var(--lorkhan-text-muted, #aaa69e); font-size: .85rem; }
 
 .management-form button {
     justify-self: start;
@@ -922,14 +922,14 @@ body.hub-page > main {
 
 .management-create-panel {
     margin: 14px 0;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-sm, 6px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-sm, 6px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .management-create-panel > summary {
     padding: 11px 14px;
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     cursor: pointer;
     font-weight: 700;
 }
@@ -937,7 +937,7 @@ body.hub-page > main {
 .management-create-panel > .management-form {
     margin: 0;
     border: 0;
-    border-top: 1px solid var(--almsivi-border, #404040);
+    border-top: 1px solid var(--lorkhan-border, #404040);
     border-radius: 0;
 }
 
@@ -951,14 +951,14 @@ body.hub-page > main {
     display: grid;
     gap: 12px;
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .connector-card.active {
     border-color: rgba(255, 182, 65, 0.65);
-    box-shadow: inset 3px 0 var(--almsivi-accent, #ffb641);
+    box-shadow: inset 3px 0 var(--lorkhan-accent, #ffb641);
 }
 
 .connector-card > header {
@@ -973,7 +973,7 @@ body.hub-page > main {
 }
 
 .connector-kind {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     font-size: 0.7rem;
     font-weight: 700;
     letter-spacing: 0.12em;
@@ -988,7 +988,7 @@ body.hub-page > main {
 }
 
 .connector-card dt {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
 }
 
 .connector-card dd {
@@ -1002,10 +1002,10 @@ body.hub-page > main {
     margin: 0;
     padding: 10px;
     overflow: auto;
-    border: 1px solid var(--almsivi-border, #404040);
+    border: 1px solid var(--lorkhan-border, #404040);
     border-radius: 4px;
     background: #121212;
-    color: var(--almsivi-text, #f1eee8);
+    color: var(--lorkhan-text, #f1eee8);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
 }
@@ -1032,13 +1032,13 @@ body.hub-page > main {
 
 .connector-card details,
 .profile-card details {
-    border-top: 1px solid var(--almsivi-border, #404040);
+    border-top: 1px solid var(--lorkhan-border, #404040);
     padding-top: 10px;
 }
 
 .connector-card summary,
 .profile-card summary {
-    color: var(--almsivi-accent, #ffb641);
+    color: var(--lorkhan-accent, #ffb641);
     cursor: pointer;
     font-weight: 700;
 }
@@ -1058,9 +1058,9 @@ body.hub-page > main {
     display: grid;
     gap: 12px;
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .profile-card > header {
@@ -1082,7 +1082,7 @@ body.hub-page > main {
 }
 
 .profile-card dt {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
 }
 
 .profile-card dd {
@@ -1097,7 +1097,7 @@ body.hub-page > main {
     align-items: end;
     gap: 8px;
     padding-top: 10px;
-    border-top: 1px solid var(--almsivi-border, #404040);
+    border-top: 1px solid var(--lorkhan-border, #404040);
 }
 
 .revision-actions .management-form,
@@ -1113,7 +1113,7 @@ body.hub-page > main {
 }
 
 .btn-danger {
-    border-color: var(--almsivi-danger, #c65353) !important;
+    border-color: var(--lorkhan-danger, #c65353) !important;
     color: #ffd3d3 !important;
 }
 
@@ -1125,9 +1125,9 @@ body.hub-page > main {
 
 .voice-card {
     padding: 14px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .voice-card h3 {
@@ -1135,7 +1135,7 @@ body.hub-page > main {
 }
 
 .voice-card p {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
 }
 
 .voice-card form {
@@ -1158,7 +1158,7 @@ body.hub-page > main {
 .profile-management-filters label {
     display: grid;
     gap: 5px;
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     font-size: .8rem;
 }
 
@@ -1194,9 +1194,9 @@ body.hub-page > main {
 
 .profile-preference-grid article {
     padding: 12px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .profile-preference-grid h4 {
@@ -1209,9 +1209,9 @@ body.hub-page > main {
 
 .bulk-profile-tools details {
     padding: 12px;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .bulk-profile-tools summary {
@@ -1220,7 +1220,7 @@ body.hub-page > main {
 }
 
 .bulk-profile-tools p {
-    color: var(--almsivi-text-muted, #aaa69e);
+    color: var(--lorkhan-text-muted, #aaa69e);
     font-size: .84rem;
 }
 
@@ -1242,9 +1242,9 @@ body.hub-page > main {
     width: 160px;
     height: 160px;
     object-fit: cover;
-    border: 1px solid var(--almsivi-border, #404040);
-    border-radius: var(--almsivi-radius-md, 10px);
-    background: var(--almsivi-surface-0, #181818);
+    border: 1px solid var(--lorkhan-border, #404040);
+    border-radius: var(--lorkhan-radius-md, 10px);
+    background: var(--lorkhan-surface-0, #181818);
 }
 
 .portrait-form input[type="file"] {
@@ -1254,12 +1254,12 @@ body.hub-page > main {
 .page-status,
 .page-error {
     padding: 10px 14px;
-    border-left: 4px solid var(--almsivi-success, #42a36d);
-    background: var(--almsivi-surface-1, #232323);
+    border-left: 4px solid var(--lorkhan-success, #42a36d);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .page-error {
-    border-left-color: var(--almsivi-danger, #c65353);
+    border-left-color: var(--lorkhan-danger, #c65353);
 }
 
 .log-grid {
@@ -1273,7 +1273,7 @@ body.hub-page > main {
     overflow: auto;
     white-space: pre-wrap;
     overflow-wrap: anywhere;
-    color: var(--almsivi-text, #e9e6df);
+    color: var(--lorkhan-text, #e9e6df);
     font-size: .8rem;
     line-height: 1.45;
 }
@@ -1283,7 +1283,7 @@ body.hub-page > main {
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 8px;
     padding: 10px;
-    border: 1px solid var(--almsivi-border, #444);
+    border: 1px solid var(--lorkhan-border, #444);
 }
 
 .action-policy-bulk {
@@ -1300,7 +1300,7 @@ body.hub-page > main {
 }
 
 .action-policy-count {
-    color: var(--almsivi-muted, #aaa);
+    color: var(--lorkhan-muted, #aaa);
     font-size: .8rem;
 }
 
@@ -1310,8 +1310,8 @@ body.hub-page > main {
     gap: 9px;
     align-items: flex-start;
     padding: 8px;
-    border: 1px solid var(--almsivi-border, #444);
-    background: var(--almsivi-surface-1, #232323);
+    border: 1px solid var(--lorkhan-border, #444);
+    background: var(--lorkhan-surface-1, #232323);
 }
 
 .action-policy-toggle input,
@@ -1327,7 +1327,7 @@ body.hub-page > main {
 
 .action-policy-toggle small {
     margin-top: 3px;
-    color: var(--almsivi-muted, #aaa);
+    color: var(--lorkhan-muted, #aaa);
     font-weight: 400;
 }
 
@@ -1830,7 +1830,7 @@ body.hub-page > main {
         align-items:flex-start;
     }
 }
-/* ALMSIVI data/form adapters around the copied Herika NPC presentation. */
+/* LORKHAN data/form adapters around the copied Herika NPC presentation. */
 body.view-characters {
     background: #2a2a2a;
 }

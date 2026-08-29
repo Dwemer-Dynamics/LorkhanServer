@@ -6,14 +6,14 @@
 - Ref: frozen `origin/unstable` parity baseline
 - Commit: `c973f5c8fde2d01cb8211be3d5f96d1783663da4`
 - Operational comparison database: local `dwemer` PostgreSQL schema inspected read-only on 2026-08-05
-- ALMSIVI migration strategy: exact Herika product tables plus separate OpenMW ownership/correlation metadata
+- LORKHAN migration strategy: exact Herika product tables plus separate OpenMW ownership/correlation metadata
 
 Migration 026 creates the first exact DDL family in `herika_compat`. This staging schema is deliberate:
 the current `public.core_profiles`, `public.prompts`, `public.speech`, and `public.responselog` names are
-still used by ALMSIVI's typed repositories. The staged tables are backfilled before repository dual
+still used by LORKHAN's typed repositories. The staged tables are backfilled before repository dual
 writes and the final public-schema cutover, so no user data is overwritten or silently reinterpreted.
 Migration 037 performs that reversible cutover: all 81 active Herika core tables and eight active
-views live in `public`; all ALMSIVI-only transport and companion tables live in `almsivi_internal`;
+views live in `public`; all LORKHAN-only transport and companion tables live in `lorkhan_internal`;
 and `herika_compat` is removed.
 
 ## Disposition rules
@@ -38,7 +38,7 @@ functions with neutral UTC-derived OpenMW event timestamps. Full TES3 game-time 
 added when the client supplies the calendar fields required to derive it without guessing.
 
 Internal companions: connector, profile, NPC, prompt, speech and response metadata tables map the
-Herika integer/row IDs back to ALMSIVI installation UUIDs, immutable turns, exact actor identities,
+Herika integer/row IDs back to LORKHAN installation UUIDs, immutable turns, exact actor identities,
 delivery state and source revisions.
 
 Herika's `speech.rowid` and `responselog.rowid` are sequence-backed but are not unique constraints.
@@ -46,20 +46,20 @@ Their companion metadata therefore owns the row ID as its primary key without ad
 that would require changing the copied Herika tables. Repository transactions and parity checks must
 enforce the one-to-one relationship.
 
-`core_stt_connector` preserves the Herika page/table contract over ALMSIVI's active installation-global
+`core_stt_connector` preserves the Herika page/table contract over LORKHAN's active installation-global
 STT presets and selection. `core_itt_connector` exists only for the active Herika profile foreign-key
-contract and remains read-only with no functional ALMSIVI runtime or enabled UI.
+contract and remains read-only with no functional LORKHAN runtime or enabled UI.
 
 ## Proven deprecated objects
 
 HerikaServer's Database Manager explicitly labels `npc_templates`, `npc_templates_custom`,
-`npc_templates_trl`, and `npc_templates_v2` as legacy. They are not canonical ALMSIVI tables;
+`npc_templates_trl`, and `npc_templates_v2` as legacy. They are not canonical LORKHAN tables;
 `bio_templates`, `bio_templates_custom`, and `combined_bio_templates` replace them.
 
 No other table or column is deprecated merely because it is empty. `conf_opts`, for example, remains
 actively read by Herika production paths and cannot be removed until its consumers are migrated.
 Physical PostgreSQL column slots already removed from Herika are treated as proven deprecated catalog
-tombstones: visible column order is preserved, but ALMSIVI does not recreate invisible `attisdropped`
+tombstones: visible column order is preserved, but LORKHAN does not recreate invisible `attisdropped`
 entries solely to reproduce gaps in `ordinal_position`.
 
 ## Second staged family
@@ -70,13 +70,13 @@ backfill the Herika request/log structures; typed action intents backfill `actio
 metadata preserves immutable turn and action correlation. `core_api_badge` remains empty and audit
 rows never copy provider keys or authorization headers.
 
-`conf_opts` remains because the pinned Herika runtime still reads it. ALMSIVI writes only the current
+`conf_opts` remains because the pinned Herika runtime still reads it. LORKHAN writes only the current
 player name and a bounded Global Settings compatibility document during this stage.
 
 ## Remaining families
 
 Migration 028 stages exact `memory`, `memory_summary`, `memory_v`, `oghma`, `oghma_dynamic`,
-`diarylog`, `physical_npc_diaries`, relationship queues and `rumors`. Current ALMSIVI memory,
+`diarylog`, `physical_npc_diaries`, relationship queues and `rumors`. Current LORKHAN memory,
 knowledge, narrative, relationship and retrieval records are backfilled with companion source IDs.
 Background Life remains excluded: no scheduler or `backgroundlife_diary` producer is added, and the
 copied `memory_v` continues to filter that legacy classifier.
@@ -87,9 +87,9 @@ Migration 029 stages exact Herika `books`, `quests`, `questlog`, `currentmission
 backfilled into those contracts with exact source identities in companion metadata. `locations_v`
 keeps the Herika columns but removes the Skyrim-specific hard-coded cleared-location exception.
 - Relationships: `core_npc_master.extended_data` plus exact relationship queues and history snapshots.
-- Final cutover: migration 037 moves all ALMSIVI-only tables, not only conflicting names, into
-  `almsivi_internal`; promotes the validated tables, views, sequences and adapted views into `public`;
-  retargets projection functions; and leaves no custom ALMSIVI columns on copied Herika tables.
+- Final cutover: migration 037 moves all LORKHAN-only tables, not only conflicting names, into
+  `lorkhan_internal`; promotes the validated tables, views, sequences and adapted views into `public`;
+  retargets projection functions; and leaves no custom LORKHAN columns on copied Herika tables.
 - Browser reads: NPCs, Core Profiles, LLM/TTS connectors, prompts, events, responses, memories,
   relationships, narratives, knowledge, journal, books, descriptions and actions read the public
   Herika objects, joining internal companion metadata only for UUID ownership and protocol state.
@@ -111,7 +111,7 @@ adaptation assertions.
 ## Local cutover validation snapshot
 
 The 2026-08-05 local WSL cutover was preceded by
-`/var/backups/almsiviserver/almsivi-pre-herika-cutover-20260805T203820Z.dump` with SHA-256
+`/var/backups/lorkhanserver/lorkhan-pre-herika-cutover-20260805T203820Z.dump` with SHA-256
 `ee392828566374921e0f2e14217d5ee46c37db598cb68863598d2a585a840b8b`. All 37 migrations applied,
 and the catalog verifier reported `Herika core schema contract matches public -> public`.
 
@@ -135,7 +135,7 @@ job, integration vertical-slice and browser-like management HTTP suites pass tog
 
 The live Morrowind projections contain no Skyrim-labelled quest, location or content-file data. The
 five active Herika `skyrim_quest_*` tables remain present for exact schema parity but contain no rows
-and have no ALMSIVI producer. ITT, Background Life, AI Quest, greetings, boredom, combat barks and
+and have no LORKHAN producer. ITT, Background Life, AI Quest, greetings, boredom, combat barks and
 timer autonomy remain excluded even where exact Herika compatibility tables are retained. STT is
 active through the single installation-global connector workflow.
 

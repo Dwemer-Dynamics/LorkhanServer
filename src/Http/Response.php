@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
 final readonly class Response
 {
@@ -23,7 +23,7 @@ final readonly class Response
     public static function error(int $status, string $code, string $correlationId, bool $retriable = false, ?int $retryAfterMs = null): self
     {
         $body = [
-            'schema' => 'almsivi.error.v1',
+            'schema' => 'lorkhan.error.v1',
             'code' => $code,
             'message' => 'Request rejected',
             'correlation_id' => $correlationId,

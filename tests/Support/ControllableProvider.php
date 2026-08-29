@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Tests\Support;
+namespace LORKHANserver\Tests\Support;
 
-use ALMSIVIserver\Application\CancellationToken;
-use ALMSIVIserver\Application\MockProvider;
-use ALMSIVIserver\Application\Provider;
+use LORKHANserver\Application\CancellationToken;
+use LORKHANserver\Application\MockProvider;
+use LORKHANserver\Application\Provider;
 use RuntimeException;
 
 final class ControllableProvider implements Provider

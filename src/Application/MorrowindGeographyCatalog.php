@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use RuntimeException;
 
@@ -22,7 +22,7 @@ final class MorrowindGeographyCatalog
         $raw=file_get_contents($path);
         if(!is_string($raw))throw new RuntimeException('morrowind_geography_catalog_unavailable');
         $document=json_decode($raw,true,32,JSON_THROW_ON_ERROR);
-        if(!is_array($document)||($document['schema']??null)!=='almsivi.morrowind-geography.v1'
+        if(!is_array($document)||($document['schema']??null)!=='lorkhan.morrowind-geography.v1'
             ||!is_array($document['npc_references']??null)||!is_array($document['interior_cells']??null)
             ||!is_array($document['exterior_cells']??null)||!is_array($document['canonical_regions']??null)
             ||!is_array($document['supplemental_locality_classes']??null))

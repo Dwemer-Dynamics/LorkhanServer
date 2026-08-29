@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-ontology.v1",
+  "format": "lorkhan.morrowind-oghma-ontology.v1",
   "scope": "Stable, source-grounded knowledge for a new Morrowind playthrough. It includes reviewed places, substantial books, equipment families, ingredients, and lore while excluding ordinary NPCs, trivial item variants, minor notes, routine spells, quest outcomes, and dynamic knowledge.",
   "categories": [
     "lore",

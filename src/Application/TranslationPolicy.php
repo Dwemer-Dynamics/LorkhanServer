@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
@@ -14,7 +14,7 @@ final class TranslationPolicy
 
     public static function defaults(): array
     {
-        return ['schema'=>'almsivi.translation-policy.v1','provider'=>'none','translate_text'=>false,
+        return ['schema'=>'lorkhan.translation-policy.v1','provider'=>'none','translate_text'=>false,
             'translate_audio'=>false,'save_translated_text'=>false,'source_language'=>'','target_language'=>'',
             'endpoint'=>self::FREE_ENDPOINT];
     }
@@ -23,7 +23,7 @@ final class TranslationPolicy
     public static function validate(array $content): array
     {
         $expected=array_keys(self::defaults());$keys=array_keys($content);sort($expected);sort($keys);
-        if($keys!==$expected||($content['schema']??null)!=='almsivi.translation-policy.v1')
+        if($keys!==$expected||($content['schema']??null)!=='lorkhan.translation-policy.v1')
             throw new InvalidArgumentException('invalid_translation_policy');
         if(!in_array($content['provider']??null,['none','deepl'],true))
             throw new InvalidArgumentException('invalid_translation_provider');

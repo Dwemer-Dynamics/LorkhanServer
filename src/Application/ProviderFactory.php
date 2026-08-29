@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use RuntimeException;
 
@@ -18,7 +18,7 @@ final class ProviderFactory
                 (string) ($provider['endpoint'] ?? ''),
                 self::hosts($provider),
                 (string) ($provider['model'] ?? ''),
-                self::apiKey($provider, 'ALMSIVI_LLM_API_KEY', $config),
+                self::apiKey($provider, 'LORKHAN_LLM_API_KEY', $config),
                 (int) ($provider['timeout_ms'] ?? 30_000),
                 (bool) ($provider['disable_reasoning'] ?? false),
                 (array) ($provider['options'] ?? []),
@@ -68,7 +68,7 @@ final class ProviderFactory
             ?max(1000,min(15_000,(int)($provider['timeout_ms']??15_000)))
             :max(250,min(3000,$timeoutMs));
         return new OpenAiCompatibleOghmaTopicExtractor((string)($provider['endpoint']??''),self::hosts($provider),(string)$provider['model'],
-            self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false),
+            self::apiKey($provider,'LORKHAN_LLM_API_KEY',$config),$timeout,(bool)($provider['disable_reasoning']??false),
             (array)($provider['options']??[]),(bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false));
     }
 
@@ -86,7 +86,7 @@ final class ProviderFactory
         return match((string)($provider['driver']??'mock')){
             'mock'=>new MockProfileGenerationProvider(),
             'openai-compatible'=>new OpenAiCompatibleProfileGenerationProvider((string)($provider['endpoint']??''),self::hosts($provider),
-                (string)($provider['model']??''),self::apiKey($provider,'ALMSIVI_LLM_API_KEY',$config),(int)($provider['timeout_ms']??30_000),
+                (string)($provider['model']??''),self::apiKey($provider,'LORKHAN_LLM_API_KEY',$config),(int)($provider['timeout_ms']??30_000),
                 (bool)($provider['disable_reasoning']??false),(array)($provider['options']??[]),
                 (bool)($provider['allow_loopback_http']??false),(bool)($provider['direct_connection']??false)),
             default=>throw new RuntimeException('Unsupported profile generation provider driver.'),
@@ -105,7 +105,7 @@ final class ProviderFactory
                 self::hosts($provider),
                 (string) ($provider['model'] ?? ''),
                 (string) ($provider['voice'] ?? ''),
-                self::apiKey($provider, 'ALMSIVI_TTS_API_KEY', $config),
+                self::apiKey($provider, 'LORKHAN_TTS_API_KEY', $config),
                 (int) ($provider['timeout_ms'] ?? 30_000),
             ),
             default => throw new RuntimeException('Unsupported speech provider driver.'),
@@ -123,7 +123,7 @@ final class ProviderFactory
                 (string) ($provider['endpoint'] ?? ''),
                 self::hosts($provider),
                 (string) ($provider['model'] ?? ''),
-                self::apiKey($provider, 'ALMSIVI_STT_API_KEY', $config),
+                self::apiKey($provider, 'LORKHAN_STT_API_KEY', $config),
                 (int) ($provider['timeout_ms'] ?? 30_000),
             ),
             default => throw new RuntimeException('Unsupported speech-to-text provider driver.'),
@@ -135,7 +135,7 @@ final class ProviderFactory
     {
         $content=TranslationPolicy::validate($policy);
         if($content['provider']!=='deepl')throw new RuntimeException('provider_unavailable');
-        return new DeepLTranslationProvider($content['endpoint'],self::environment('ALMSIVI_DEEPL_API_KEY',$config),
+        return new DeepLTranslationProvider($content['endpoint'],self::environment('LORKHAN_DEEPL_API_KEY',$config),
             max(1000,min(120_000,(int)($config['translation_timeout_ms']??30_000))));
     }
 
@@ -146,7 +146,7 @@ final class ProviderFactory
         $endpoint=(string)$content['endpoint'];$driver=(string)$content['driver'];$parts=parse_url($endpoint);
         $host=is_array($parts)?(string)($parts['host']??''):'';$loopback=($parts['scheme']??null)==='http';
         $apiKey=self::environment((string)$definition['credential_environment'],$config);
-        $voiceReferenceRoot=(string)($config['voice_storage_path']??'/var/lib/almsiviserver/voices');
+        $voiceReferenceRoot=(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices');
         if($driver==='pockettts')return new PocketTtsSpeechProvider($endpoint,(string)($content['model']?:'pocket-tts'),
             (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms'],
             is_dir($voiceReferenceRoot)?$voiceReferenceRoot:null);
@@ -168,7 +168,7 @@ final class ProviderFactory
                 (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms']);
         }
         if($driver==='zonos_gradio')return new ZonosGradioSpeechProvider($endpoint,(string)$content['voice'],
-            (string)$content['language'],(string)$content['model'],(string)($config['voice_storage_path']??'/var/lib/almsiviserver/voices'),
+            (string)$content['language'],(string)$content['model'],(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices'),
             (array)$content['options'],(int)$content['timeout_ms']);
         if($driver==='xvasynth')return new XvaSynthSpeechProvider($endpoint,(string)$content['voice'],
             (string)$content['language'],(array)$content['options'],(int)$content['timeout_ms']);
@@ -190,7 +190,7 @@ final class ProviderFactory
             $endpoint,[$host],$driver==='parakeet'?'whisper-1':(string)($content['model']?:'whisper-1'),
             self::environment((string)$definition['credential_environment'],$config),(int)$content['timeout_ms'],$loopback,
             $driver==='localwhisper'?(string)($options['file_field']??'audio_file'):'file',$driver!=='localwhisper',
-            !$translate&&$driver!=='localwhisper'?(string)($options['prompt']??'ALMSIVI,Nerevarine,Morrowind'):'',!$translate);
+            !$translate&&$driver!=='localwhisper'?(string)($options['prompt']??'LORKHAN,Nerevarine,Morrowind'):'',!$translate);
         if(in_array($driver,['azure','deepgram','gemini','inworld'],true))return new CloudSpeechToTextConnectorProvider(
             $endpoint,$driver,(string)$content['model'],self::environment((string)$definition['credential_environment'],$config),
             $options,(int)$content['timeout_ms']);

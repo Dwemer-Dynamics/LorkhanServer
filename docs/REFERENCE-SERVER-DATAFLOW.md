@@ -2,7 +2,7 @@
 
 Research date: 2026-07-18
 
-The sibling `ALMSIVI/docs/REFERENCE-STACK-DATAFLOW.md` describes the full game/client/server flow.
+The sibling `LORKHAN/docs/REFERENCE-STACK-DATAFLOW.md` describes the full game/client/server flow.
 This document concentrates on what the final Synthserver contributes and how its Fallout semantics
 become an OpenMW/TES3 backend.
 
@@ -11,9 +11,9 @@ become an OpenMW/TES3 backend.
 | Product | Owns | Does not own |
 | --- | --- | --- |
 | OpenMW | Game world, objects, saves, audio/rendering and sandboxed Lua runtime | AI profiles/providers/memory. |
-| ALMSIVI native bridge | Authenticated typed loopback transport/media and cancellation | Prompts, arbitrary HTTP, engine actions. |
-| ALMSIVI Lua | Player input/UI, current world context, actor identity and typed action execution | Provider keys/database/long-term memory. |
-| ALMSIVIserver | Events, prompts/providers, profiles, memory, relationships, knowledge, media, management/workers | Direct game mutation or assumed action success. |
+| LORKHAN native bridge | Authenticated typed loopback transport/media and cancellation | Prompts, arbitrary HTTP, engine actions. |
+| LORKHAN Lua | Player input/UI, current world context, actor identity and typed action execution | Provider keys/database/long-term memory. |
+| LORKHANserver | Events, prompts/providers, profiles, memory, relationships, knowledge, media, management/workers | Direct game mutation or assumed action success. |
 | Optional content addon | Original records/assets only after separate gate | Core transport/server/product logic. |
 
 ## Physical flow
@@ -21,8 +21,8 @@ become an OpenMW/TES3 backend.
 ```mermaid
 flowchart LR
   subgraph WIN["Windows"]
-    O["ALMSIVI OpenMW"]
-    L["ALMSIVI Lua"]
+    O["LORKHAN OpenMW"]
+    L["LORKHAN Lua"]
     N["native bridge"]
     B["browser"]
     O <--> L
@@ -48,19 +48,19 @@ flowchart LR
 
 ## First-run setup
 
-1. Install/verify WSL stack and immutable ALMSIVIserver release.
+1. Install/verify WSL stack and immutable LORKHANserver release.
 2. Create least-privilege database roles, migrate and seed safe defaults/mock providers.
 3. Start supervised workers and verify heartbeat.
 4. Bind Apache loopback port 8089 and prove WSL plus Windows localhost reachability.
 5. Generate pairing token and import native profile snippet.
 6. In browser Quickstart, choose mock or configured providers, create/bind profile/playthrough and
    enable desired action tiers.
-7. Start ALMSIVI. Session init supplies exact engine/API/client/content/capability identity.
+7. Start LORKHAN. Session init supplies exact engine/API/client/content/capability identity.
 8. UI shows compatibility, DB/migrations, workers, provider and client status before claiming ready.
 
 ## Session initialization
 
-Native code authenticates and sends `almsivi.session.init.v1`. Ingress validates runtime pin/API,
+Native code authenticates and sends `lorkhan.session.init.v1`. Ingress validates runtime pin/API,
 client/protocol, content fingerprint, profile/playthrough request and caps. Application derives the
 installation's allowed binding and action/prompt/provider settings, persists a session/init source
 event, closes the prior current generation, and returns intersection capabilities plus config revision
@@ -73,13 +73,13 @@ secrets and browser session never enter Lua.
 
 ```mermaid
 sequenceDiagram
-  participant C as ALMSIVI client
+  participant C as LORKHAN client
   participant I as ingress
   participant D as repositories
   participant P as prompt pipeline
   participant X as provider
   participant E as event feed
-  C->>I: strict almsivi.turn.v1
+  C->>I: strict lorkhan.turn.v1
   I->>I: auth/rate/schema/session/generation/idempotency
   I->>D: append source event + accepted turn
   I-->>C: accepted + cursor
@@ -174,7 +174,7 @@ remain masked and are never re-rendered.
 7. Profiles/memory/relationship/knowledge/narrative workers.
 8. Complete management/backup/diagnostics and security hardening.
 9. Clean WSL E2E, source/license/secret scan and all automated ledger rows.
-10. Later exact Windows ALMSIVI in-game matrix.
+10. Later exact Windows LORKHAN in-game matrix.
 
 ## Source navigation after the start gate
 

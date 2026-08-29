@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\FirstPartyJobRepository;
-use ALMSIVIserver\Infrastructure\MediaStore;
+use LORKHANserver\Infrastructure\FirstPartyJobRepository;
+use LORKHANserver\Infrastructure\MediaStore;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;

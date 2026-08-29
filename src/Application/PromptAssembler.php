@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 use JsonException;
@@ -239,7 +239,7 @@ final class PromptAssembler
     }
 
     /**
-     * Construct the same broad XML families CHIM uses while keeping ALMSIVI's typed response contract.
+     * Construct the same broad XML families CHIM uses while keeping LORKHAN's typed response contract.
      * @param list<array<string,mixed>> $memory
      * @param list<array{role:string,content:string,_source_id:string}> $historyMessages
      * @param list<array<string,mixed>> $relationships
@@ -720,7 +720,7 @@ final class PromptAssembler
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string,_complete:bool}> */
     private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates): array
     {
-        if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+        if (($turn['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
             $latestPlayerInput = null;
             foreach ($rows as $index => $row) {
                 $content = $row['content'] ?? null;
@@ -879,7 +879,7 @@ final class PromptAssembler
     {
         if ($text === '') return true;
         $normalized = mb_strtolower(ltrim($text), 'UTF-8');
-        return str_starts_with($normalized, 'automated almsivi smoke test')
+        return str_starts_with($normalized, 'automated lorkhan smoke test')
             || str_starts_with($normalized, '[autonomy:')
             || str_starts_with($normalized, '[fallback]');
     }

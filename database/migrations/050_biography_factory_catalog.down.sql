@@ -1,2 +1,2 @@
-DROP TABLE IF EXISTS almsivi_internal.biography_catalog_entries;
-DROP TABLE IF EXISTS almsivi_internal.biography_catalogs;
+DROP TABLE IF EXISTS lorkhan_internal.biography_catalog_entries;
+DROP TABLE IF EXISTS lorkhan_internal.biography_catalogs;

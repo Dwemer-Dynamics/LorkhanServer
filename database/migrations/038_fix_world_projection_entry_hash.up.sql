@@ -3,7 +3,7 @@ DO $fix_world_projection$
 DECLARE
     definition text;
 BEGIN
-    SELECT pg_get_functiondef('almsivi_internal.project_turn_world(uuid)'::regprocedure)
+    SELECT pg_get_functiondef('lorkhan_internal.project_turn_world(uuid)'::regprocedure)
     INTO definition;
 
     IF position('DECLARE computed_entry_hash char(64);' IN definition) > 0 THEN

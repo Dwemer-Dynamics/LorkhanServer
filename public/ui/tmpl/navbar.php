@@ -9,13 +9,13 @@ $topNavSection=$topNavSection??match(true){
 };
 ?>
 <div class="chim-navbar-wrapper">
-    <nav class="navbar navbar-expand-lg chim-navbar" aria-label="ALMSIVI server navigation">
+    <nav class="navbar navbar-expand-lg chim-navbar" aria-label="LORKHAN server navigation">
         <div class="container-fluid mx-1">
             <div class="navbar-content-wrapper">
             <div class="navbar-center dropdown">
                 <button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">
-                    <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">
-                    <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/almsivi-logo.svg" alt="ALMSIVI Server">
+                    <img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">
+                    <img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/lorkhan-logo.svg" alt="LORKHAN Server">
                 </button>
                 <ul class="dropdown-menu brand-menu">
                     <?php foreach([
@@ -24,7 +24,7 @@ $topNavSection=$topNavSection??match(true){
                         'configuration'=>['Configuration',$webRoot.'/ui/core/config_hub.php'],
                         'control'=>['Control Panel',$webRoot.'/ui/control_panel.php'],
                     ]as$key=>[$label,$href]): ?>
-                        <li><a class="dropdown-item<?php echo $topNavSection===$key?' active':''; ?>" href="<?php echo almsivi_ui_h($href); ?>"<?php echo $topNavSection===$key?' aria-current="page"':''; ?>><?php echo almsivi_ui_h($label); ?></a></li>
+                        <li><a class="dropdown-item<?php echo $topNavSection===$key?' active':''; ?>" href="<?php echo lorkhan_ui_h($href); ?>"<?php echo $topNavSection===$key?' aria-current="page"':''; ?>><?php echo lorkhan_ui_h($label); ?></a></li>
                     <?php endforeach; ?>
                     <li><hr class="dropdown-divider"></li>
                     <li><a class="dropdown-item" href="/Dwemer-Dashboard/index.php">DwemerDistro Home</a></li>

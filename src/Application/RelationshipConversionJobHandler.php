@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\RelationshipConversionRepository;
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\RelationshipConversionRepository;
+use LORKHANserver\Infrastructure\Uuid;
 
 /** Convert one frozen NPC profile paragraph using its frozen Relationship LLM revision. */
 final class RelationshipConversionJobHandler implements JobHandler

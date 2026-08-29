@@ -9,10 +9,10 @@ fi
 source_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "${source_root}"
 game_data=${1:-'/mnt/c/Program Files (x86)/Steam/steamapps/common/Morrowind/Data Files'}
-config_path=/etc/almsiviserver/server.php
-worker_env=/etc/almsiviserver/worker.env
+config_path=/etc/lorkhanserver/server.php
+worker_env=/etc/lorkhanserver/worker.env
 for path in "${config_path}" "${worker_env}" "${source_root}/scripts/configure-local-llm-from-herika.sh"; do
-    [[ -f ${path} ]] || { echo "Required ALMSIVI configuration is missing: ${path}" >&2; exit 1; }
+    [[ -f ${path} ]] || { echo "Required LORKHAN configuration is missing: ${path}" >&2; exit 1; }
 done
 [[ -f ${game_data}/Morrowind.esm ]] || { echo "Morrowind Data Files were not found at ${game_data}." >&2; exit 1; }
 
@@ -32,12 +32,12 @@ IFS=$'\t' read -r tts_driver tts_endpoint < <(
 [[ ${tts_endpoint} == http://127.0.0.1:8086* ]] || { echo 'The active CHIM PocketTTS endpoint is not the local audio.cpp service.' >&2; exit 1; }
 curl --fail --silent --show-error --max-time 5 "${tts_endpoint%/}/health" >/dev/null
 
-export ALMSIVI_IMPORTED_TTS_ENDPOINT=${tts_endpoint%/}
+export LORKHAN_IMPORTED_TTS_ENDPOINT=${tts_endpoint%/}
 set -a
 source "${worker_env}"
 set +a
-export ALMSIVI_CONFIG=${config_path}
-export ALMSIVI_DEFAULT_TTS_ENDPOINT=${ALMSIVI_IMPORTED_TTS_ENDPOINT}
+export LORKHAN_CONFIG=${config_path}
+export LORKHAN_DEFAULT_TTS_ENDPOINT=${LORKHAN_IMPORTED_TTS_ENDPOINT}
 php "${source_root}/scripts/provision-default-connectors.php"
 
 php "${source_root}/scripts/import-morrowind-voices.php" "${game_data}"
@@ -46,27 +46,27 @@ php <<'PHP'
 <?php
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\NeverCancelledToken;
-use ALMSIVIserver\Application\ProviderFactory;
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\ProductRepository;
+use LORKHANserver\Application\NeverCancelledToken;
+use LORKHANserver\Application\ProviderFactory;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\ProductRepository;
 
 require __DIR__ . '/src/Autoload.php';
-$config = require (string) getenv('ALMSIVI_CONFIG');
-if (!is_array($config)) throw new RuntimeException('ALMSIVI server configuration is invalid.');
-$config['database_password'] = (string) (getenv('ALMSIVI_DATABASE_PASSWORD') ?: ($config['database_password'] ?? ''));
+$config = require (string) getenv('LORKHAN_CONFIG');
+if (!is_array($config)) throw new RuntimeException('LORKHAN server configuration is invalid.');
+$config['database_password'] = (string) (getenv('LORKHAN_DATABASE_PASSWORD') ?: ($config['database_password'] ?? ''));
 $db = Connection::open($config);
 $installationId = (string) $db->query("SELECT installation_id FROM installations WHERE revoked_at IS NULL ORDER BY created_at LIMIT 1")->fetchColumn();
 $preset = (new ProductRepository($db))->connectorForInstallation($installationId, 'tts_provider');
-if ($preset === null) throw new RuntimeException('The active ALMSIVI TTS connector is unavailable.');
+if ($preset === null) throw new RuntimeException('The active LORKHAN TTS connector is unavailable.');
 $speech = ProviderFactory::speechForPreset($config, $preset)->synthesize(
-    'ALMSIVI PocketTTS connector test.', new NeverCancelledToken(), ['voice'=>'mw_dark_elf_male','language'=>'en']
+    'LORKHAN PocketTTS connector test.', new NeverCancelledToken(), ['voice'=>'mw_dark_elf_male','language'=>'en']
 );
 echo json_encode([
-    'schema'=>'almsivi.local-tts-probe.v1','codec'=>$speech['codec'],
+    'schema'=>'lorkhan.local-tts-probe.v1','codec'=>$speech['codec'],
     'bytes'=>strlen($speech['bytes']),'duration_ms'=>$speech['duration_ms'],'voice'=>'mw_dark_elf_male',
 ], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) . PHP_EOL;
 PHP
 
-service almsiviserver-worker restart >/dev/null
-echo 'Configured ALMSIVI with the active CHIM LLM and PocketTTS defaults.'
+service lorkhanserver-worker restart >/dev/null
+echo 'Configured LORKHAN with the active CHIM LLM and PocketTTS defaults.'

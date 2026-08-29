@@ -1,4 +1,4 @@
--- Keep the staged Herika data model current while the typed ALMSIVI tables remain the
+-- Keep the staged Herika data model current while the typed LORKHAN tables remain the
 -- protocol-facing write model. Every projection runs in the source write transaction.
 
 -- A response may legitimately correlate to a pre-turn STT request before the turn row
@@ -253,7 +253,7 @@ BEGIN
         ) VALUES (
             projected_topic,NEW.content,to_tsvector('simple',NEW.content),'Morrowind',
             left(NEW.content,1000),'Morrowind',array_to_string(NEW.lexical_terms,','),
-            COALESCE(NEW.provenance->>'category','ALMSIVI'),''
+            COALESCE(NEW.provenance->>'category','LORKHAN'),''
         );
         INSERT INTO oghma_metadata (
             topic,document_id,installation_id,profile_id,playthrough_id
@@ -265,7 +265,7 @@ BEGIN
             topic_desc=NEW.content,native_vector=to_tsvector('simple',NEW.content),
             knowledge_class='Morrowind',topic_desc_basic=left(NEW.content,1000),
             knowledge_class_basic='Morrowind',tags=array_to_string(NEW.lexical_terms,','),
-            category=COALESCE(NEW.provenance->>'category','ALMSIVI')
+            category=COALESCE(NEW.provenance->>'category','LORKHAN')
         WHERE topic=projected_topic;
         UPDATE oghma_metadata SET
             installation_id=NEW.installation_id,profile_id=NEW.profile_id,

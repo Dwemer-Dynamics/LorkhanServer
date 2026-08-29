@@ -21,7 +21,7 @@ from urllib.parse import quote
 import requests
 
 
-FORMAT_VERSION = "almsivi.morrowind-item-description-preflight.v1"
+FORMAT_VERSION = "lorkhan.morrowind-item-description-preflight.v1"
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 DEFAULT_MODEL = "z-ai/glm-5.1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -372,7 +372,7 @@ def call_glm(
         try:
             response = session.post(OPENROUTER_URL, headers={
                 "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-                "HTTP-Referer": "https://dwemerdynamics.com", "X-Title": "ALMSIVI Morrowind Item Description Builder",
+                "HTTP-Referer": "https://dwemerdynamics.com", "X-Title": "LORKHAN Morrowind Item Description Builder",
             }, json={
                 "model": model, "temperature": 0.0, "max_tokens": 2000, "reasoning": {"effort": "none"},
                 "provider": {"require_parameters": True},
@@ -558,7 +558,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--size", type=int, default=50)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
-    parser.add_argument("--cache-dir", type=Path, default=Path.home() / ".cache" / "almsiviserver" / "uesp-morrowind-items")
+    parser.add_argument("--cache-dir", type=Path, default=Path.home() / ".cache" / "lorkhanserver" / "uesp-morrowind-items")
     parser.add_argument("--timeout", type=float, default=90)
     parser.add_argument("--max-cost", type=float, default=5.0)
     parser.add_argument("--workers", type=int, default=1)
@@ -597,7 +597,7 @@ def main() -> int:
         record_dir.mkdir(parents=True, exist_ok=True)
         telemetry: dict[str, Any] = {}
         session = requests.Session()
-        session.headers.update({"User-Agent": "ALMSIVI item-description authoring tool/1.0 (https://dwemerdynamics.com)"})
+        session.headers.update({"User-Agent": "LORKHAN item-description authoring tool/1.0 (https://dwemerdynamics.com)"})
         try:
             if args.skip_uesp:
                 uesp = {"status": "skipped"}

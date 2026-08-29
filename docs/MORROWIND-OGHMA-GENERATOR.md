@@ -1,6 +1,6 @@
 # Morrowind Oghma generator
 
-`scripts/run-morrowind-oghma-preflight.py` creates a review-only Morrowind knowledge and lore catalog in CHIM's Oghma Infinium field format. It does not import PostgreSQL rows, change prompt retrieval, deploy ALMSIVIserver, or implement Dynamic Oghma.
+`scripts/run-morrowind-oghma-preflight.py` creates a review-only Morrowind knowledge and lore catalog in CHIM's Oghma Infinium field format. It does not import PostgreSQL rows, change prompt retrieval, deploy LORKHANserver, or implement Dynamic Oghma.
 
 ## Scope
 

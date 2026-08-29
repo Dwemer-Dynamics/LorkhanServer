@@ -1,19 +1,19 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/action-result.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/action-result.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "action_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "completed_at": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"
     },
     "generation": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/generation"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/generation"
     },
     "message_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "observed": {
       "$comment": "Deferred typed observed result contents; bounded envelope only.",
@@ -26,14 +26,14 @@
       "type": "string"
     },
     "request_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "schema": {
-      "const": "almsivi.action-result.v1",
+      "const": "lorkhan.action-result.v1",
       "type": "string"
     },
     "session_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "status": {
       "enum": [
@@ -46,7 +46,7 @@
       "type": "string"
     },
     "turn_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     }
   },
   "required": [

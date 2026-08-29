@@ -7,7 +7,7 @@
     "message_id": "00000000-0000-4000-8000-000000000030",
     "reason_code": "playback_completed",
     "request_id": "00000000-0000-4000-8000-000000000031",
-    "schema": "almsivi.dialogue-delivery-result.v1",
+    "schema": "lorkhan.dialogue-delivery-result.v1",
     "session_id": "00000000-0000-4000-8000-000000000033",
     "speaker": {
       "cell": {
@@ -27,5 +27,5 @@
     "status": "played",
     "turn_id": "00000000-0000-4000-8000-000000000032"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/dialogue-delivery-result.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/dialogue-delivery-result.schema.json"
 }

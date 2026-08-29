@@ -14,7 +14,7 @@ body.player-page-shell.embedded-page { padding-top: 0; }
 .player-page.embedded { padding-top: 10px; }
 .player-page .page-container { width: 100%; max-width: 1400px; }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .player-page .page-header h1 {
     color: #f5f1e8;
     font-family: MagicCards, serif;

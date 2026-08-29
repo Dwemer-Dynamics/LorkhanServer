@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use DomainException;
 use InvalidArgumentException;
@@ -111,7 +111,7 @@ final class ActionPolicyValidator
     public function promptContract(array $turn): string
     {
         $definitions = $turn['_allowed_action_definitions'] ?? [];
-        if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat' || $definitions === []) {
+        if (($turn['payload']['ui_source'] ?? null) === 'lorkhan_rechat' || $definitions === []) {
             return 'action must be null. No actions are available for this turn.';
         }
         $actions = [];

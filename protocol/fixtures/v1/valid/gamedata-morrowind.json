@@ -9,9 +9,9 @@
     "playthrough_id": "10000000-0000-4000-8000-000000000002",
     "request_id": "10000000-0000-4000-8000-000000000004",
     "runtime_generation": 4,
-    "schema": "almsivi.gamedata.v1",
+    "schema": "lorkhan.gamedata.v1",
     "session_id": "10000000-0000-4000-8000-000000000005",
     "type": "nearby_actors"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/gamedata.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json"
 }

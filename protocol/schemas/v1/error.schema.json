@@ -1,5 +1,5 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/error.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/error.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -46,7 +46,7 @@
       "type": "string"
     },
     "correlation_id": {
-      "$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"
+      "$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"
     },
     "message": {
       "maxLength": 1024,
@@ -62,7 +62,7 @@
       "type": "integer"
     },
     "schema": {
-      "const": "almsivi.error.v1",
+      "const": "lorkhan.error.v1",
       "type": "string"
     }
   },

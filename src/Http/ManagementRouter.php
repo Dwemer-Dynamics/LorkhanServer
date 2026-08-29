@@ -2,24 +2,24 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
-use ALMSIVIserver\Application\DeterministicRetrieval;
-use ALMSIVIserver\Application\ConnectorCatalog;
-use ALMSIVIserver\Application\EffectiveSettingsResolver;
-use ALMSIVIserver\Application\LlmConnector;
-use ALMSIVIserver\Application\NeverCancelledToken;
-use ALMSIVIserver\Application\PlayerMoodPolicy;
-use ALMSIVIserver\Application\ProductService;
-use ALMSIVIserver\Application\Provider;
-use ALMSIVIserver\Application\ProviderFactory;
-use ALMSIVIserver\Application\TranslationPolicy;
-use ALMSIVIserver\Infrastructure\ManagementRepository;
-use ALMSIVIserver\Infrastructure\EventLogRepository;
-use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\Uuid;
-use ALMSIVIserver\Security\BrowserSession;
+use LORKHANserver\Application\DeterministicRetrieval;
+use LORKHANserver\Application\ConnectorCatalog;
+use LORKHANserver\Application\EffectiveSettingsResolver;
+use LORKHANserver\Application\LlmConnector;
+use LORKHANserver\Application\NeverCancelledToken;
+use LORKHANserver\Application\PlayerMoodPolicy;
+use LORKHANserver\Application\ProductService;
+use LORKHANserver\Application\Provider;
+use LORKHANserver\Application\ProviderFactory;
+use LORKHANserver\Application\TranslationPolicy;
+use LORKHANserver\Infrastructure\ManagementRepository;
+use LORKHANserver\Infrastructure\EventLogRepository;
+use LORKHANserver\Infrastructure\OghmaCatalogImporter;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\Uuid;
+use LORKHANserver\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -67,7 +67,7 @@ final class ManagementRouter
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
-        private readonly ProductService $service,private readonly string $basePath='/ALMSIVIserver/manage',
+        private readonly ProductService $service,private readonly string $basePath='/LORKHANserver/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
         private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
         private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
@@ -96,7 +96,7 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/exports/biographies/custom.csv')return$this->exportBiographiesCsv($this->queryUuid($r,'installation_id'));
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
-            if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
+            if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['lorkhan_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','lorkhan_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
             if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
             if($r->method==='POST'&&preg_match('#^/forms/([a-z-]+)$#D',$path,$m))return$this->submit($m[1],$r);
             throw new RuntimeException('not_found');
@@ -399,7 +399,7 @@ final class ManagementRouter
 
     private function page(string $slug,Request $r):Response
     {
-        $csrf=BrowserSession::parseCsrf($r->header('Cookie'))??'';$title=match($slug){'quickstart'=>'ALMSIVI Dashboard','control-panel'=>'Control Panel',default=>ucwords(str_replace('-',' ',$slug))};$body=isset($r->query['status'])?'<p role="status">Changes saved.</p>':'';
+        $csrf=BrowserSession::parseCsrf($r->header('Cookie'))??'';$title=match($slug){'quickstart'=>'LORKHAN Dashboard','control-panel'=>'Control Panel',default=>ucwords(str_replace('-',' ',$slug))};$body=isset($r->query['status'])?'<p role="status">Changes saved.</p>':'';
         $scope=$this->fields(['installation_id'=>'Installation ID','profile_id'=>'Profile ID','playthrough_id'=>'Playthrough ID']);
         $body.=match($slug){
             'quickstart'=>$this->quickstart(),
@@ -434,7 +434,7 @@ final class ManagementRouter
             'memory'=>$this->formHtml('memory','Create memory',$csrf,$scope.$this->select('tier','Tier',['recent','mid','long']).$this->area('content','Memory').$this->input('provenance','Provenance source')),
             'relationships'=>$this->formHtml('relationships','Save relationship',$csrf,$scope.$this->area('content_json','Actor identity JSON','{}').$this->input('disposition','Disposition','number','0').$this->input('affinity','Affinity','number','0').$this->input('reason','Reason','text','management')),
             'knowledge'=>$this->formHtml('knowledge','Create knowledge',$csrf,$scope.$this->input('title','Title').$this->area('content','Knowledge').$this->input('provenance','Provenance source')),
-            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Autonomy <span class="status-badge">Excluded</span></h2><p>Timer-driven autonomy is not part of ALMSIVI. Rechat and bored-event handling remain explicit gameplay flows.</p></section>',
+            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Autonomy <span class="status-badge">Excluded</span></h2><p>Timer-driven autonomy is not part of LORKHAN. Rechat and bored-event handling remain explicit gameplay flows.</p></section>',
             'traces'=>'<section><h2>Events and traces</h2><p>Use the authenticated traces API with installation scope. Provider and prompt details remain redacted.</p></section>',
             'jobs'=>'<section><h2>Workers and jobs</h2><p>Queue and dead-letter counts are shown in diagnostics. Worker leases and retries are bounded.</p></section>',
             'backup-health'=>$this->formHtml('retention','Run bounded retention',$csrf,$this->input('days','Retention days','number','30').'<p>This removes expired operational metadata and never accepts a filesystem path.</p>'),
@@ -456,10 +456,10 @@ final class ManagementRouter
             .'<section class="widget"><div class="widget-header"><h3>Getting Started</h3></div><div class="widget-content"><ol class="test-path">'
             .'<li><strong>Pair the client</strong><span>Import the native profile and keep the MAC key outside Lua.</span></li>'
             .'<li><strong>Create a profile</strong><span>Bind the Morrowind identity and playthrough state.</span></li>'
-            .'<li><strong>Start OpenMW</strong><span>Load ALMSIVI and open the in-game chat.</span></li>'
+            .'<li><strong>Start OpenMW</strong><span>Load LORKHAN and open the in-game chat.</span></li>'
             .'<li><strong>Test dialogue</strong><span>Select an NPC and verify text, speech, and actions.</span></li>'
             .'</ol></div></section>'
-            .'<section class="widget"><div class="widget-header"><h3>ALMSIVI Stats</h3></div><div class="widget-content widget-stats">'
+            .'<section class="widget"><div class="widget-header"><h3>LORKHAN Stats</h3></div><div class="widget-content widget-stats">'
             .'<div class="stat-card"><span class="stat-value">'.$counts['memory_records'].'</span><span class="stat-label">Memories</span></div>'
             .'<div class="stat-card"><span class="stat-value">'.$counts['queued_jobs'].'</span><span class="stat-label">Queued Jobs</span></div>'
             .'<div class="stat-card"><span class="stat-value">'.$counts['dead_jobs'].'</span><span class="stat-label">Dead Jobs</span></div>'
@@ -511,7 +511,7 @@ final class ManagementRouter
         return$this->csvResponse('custom_descriptions_export_'.gmdate('Y-m-d_H-i-s').'.csv',$this->repository->customItemDescriptions($installationId));
     }
 
-    /** Parse one bounded ALMSIVI biography CSV before any profile revision is written. */
+    /** Parse one bounded LORKHAN biography CSV before any profile revision is written. */
     private function biographyCsvRows(Request $request):array
     {
         $file=$request->files['csv_file']??null;
@@ -555,7 +555,7 @@ final class ManagementRouter
             $this->repository->customBiographyTemplates($installationId));
     }
 
-    /** Encode a round-trip-safe UTF-8 biography CSV in the exact ALMSIVI field order. */
+    /** Encode a round-trip-safe UTF-8 biography CSV in the exact LORKHAN field order. */
     private function biographyCsvResponse(string $filename,array $rows):Response
     {
         $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');
@@ -775,9 +775,9 @@ final class ManagementRouter
         }
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('not_found');
         $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
-        $document=['schema'=>'almsivi.profile-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'name'=>(string)$row['name'],
+        $document=['schema'=>'lorkhan.profile-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'name'=>(string)$row['name'],
             'actor_identity'=>$identity===[]?(object)[]:$identity,'content'=>$content===[]?(object)[]:$content];
-        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-profile';
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-profile';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
              ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -804,10 +804,10 @@ final class ManagementRouter
         $content=EffectiveSettingsResolver::validateCoreProfile(is_array($row['content']??null)?$row['content']:[]);
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
         if($this->containsSecretKey($overrides))throw new RuntimeException('core_profile_settings_export_rejected');
-        $document=['schema'=>'almsivi.core-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.core-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'settings_overrides'=>$overrides===[]?(object)[]:$overrides];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');
-        if($filename==='')$filename='almsivi-core-profile';
+        if($filename==='')$filename='lorkhan-core-profile';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'-settings.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -817,7 +817,7 @@ final class ManagementRouter
     {
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
         if($keys!==['exported_at','name','schema','settings_overrides']
-            ||($document['schema']??null)!=='almsivi.core-profile-settings.v1'
+            ||($document['schema']??null)!=='lorkhan.core-profile-settings.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings_overrides']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException('invalid_core_profile_settings_preset');
@@ -827,7 +827,7 @@ final class ManagementRouter
         return$this->service->createRevisioned('core_profile',[
             'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'default_npc'=>false,'slot'=>null,
-            'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
+            'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
         ]);
     }
 
@@ -842,11 +842,11 @@ final class ManagementRouter
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
         if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
         $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
-        $schema=$kind==='player'?'almsivi.player-profile-settings.v2':'almsivi.narrator-profile-settings.v1';
+        $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v1';
         $document=['schema'=>$schema,'exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
         if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
-            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-'.$kind.'-settings.json"',
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-'.$kind.'-settings.json"',
                 'X-Content-Type-Options'=>'nosniff']);
     }
 
@@ -857,14 +857,14 @@ final class ManagementRouter
         $error='invalid_'.$kind.'_profile_settings_preset';
         $schema=$document['schema']??null;
         $validSchema=$kind==='player'
-            ?in_array($schema,['almsivi.player-profile-settings.v1','almsivi.player-profile-settings.v2'],true)
-            :$schema==='almsivi.narrator-profile-settings.v1';
+            ?in_array($schema,['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],true)
+            :$schema==='lorkhan.narrator-profile-settings.v1';
         if($keys!==['exported_at','schema','settings']
             ||!$validSchema
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException($error);
-        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,$schema==='almsivi.player-profile-settings.v2');
+        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,$schema==='lorkhan.player-profile-settings.v2');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
@@ -931,10 +931,10 @@ final class ManagementRouter
         $row=$this->repository->getRevisioned('global_settings',$configurationId);
         $settings=EffectiveSettingsResolver::validateGlobalSettings(is_array($row['content']??null)?$row['content']:[]);
         if($this->containsSecretKey($settings))throw new RuntimeException('global_settings_export_rejected');
-        $document=['schema'=>'almsivi.global-settings-preset.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.global-settings-preset.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'settings'=>$settings];
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
-            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-global-settings.json"',
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-global-settings.json"',
                 'X-Content-Type-Options'=>'nosniff']);
     }
 
@@ -943,7 +943,7 @@ final class ManagementRouter
     {
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
         if($keys!==['exported_at','name','schema','settings']
-            ||($document['schema']??null)!=='almsivi.global-settings-preset.v1'
+            ||($document['schema']??null)!=='lorkhan.global-settings-preset.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException('invalid_global_settings_preset');
@@ -981,9 +981,9 @@ final class ManagementRouter
         if($this->containsSecretKey($content))throw new RuntimeException('provider_export_rejected');
         $content=LlmConnector::validate($content);
         if($content['driver']==='openai-compatible')$content['credential']='none';
-        $document=['schema'=>'almsivi.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
-        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-model-slot';
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-model-slot';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1000,7 +1000,7 @@ final class ManagementRouter
     private function importProvider(array $values,array $scope):array
     {
         $document=$this->jsonField($values,'provider_json');$keys=array_keys($document);sort($keys);
-        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.provider-export.v1'
+        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='lorkhan.provider-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
         $content=LlmConnector::validate($document['content']);
@@ -1017,9 +1017,9 @@ final class ManagementRouter
         $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('prompt',$configurationId);
         $content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('prompt_export_rejected');
-        $document=['schema'=>'almsivi.prompt-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.prompt-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
-        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-prompt';
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-prompt';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1036,7 +1036,7 @@ final class ManagementRouter
     private function importPrompt(array $values,array $scope):array
     {
         $document=$this->jsonField($values,'prompt_json');$keys=array_keys($document);sort($keys);
-        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.prompt-export.v1'
+        if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='lorkhan.prompt-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_prompt_export');
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_prompt_export');
@@ -1051,9 +1051,9 @@ final class ManagementRouter
         if(!in_array($kind,['tts_provider','stt_provider'],true))throw new RuntimeException('not_found');
         $row=$this->repository->getRevisioned($kind,$configurationId);$content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('connector_export_rejected');
-        $document=['schema'=>'almsivi.connector-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'kind'=>$kind,
+        $document=['schema'=>'lorkhan.connector-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'kind'=>$kind,
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
-        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-connector';
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-connector';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1084,7 +1084,7 @@ final class ManagementRouter
     private function importConnector(array $values,array $scope):array
     {
         $kind=$this->speechConnectorKind($values);$document=$this->jsonField($values,'connector_json');$keys=array_keys($document);sort($keys);
-        if($keys!==['content','exported_at','kind','name','schema']||($document['schema']??null)!=='almsivi.connector-export.v1'
+        if($keys!==['content','exported_at','kind','name','schema']||($document['schema']??null)!=='lorkhan.connector-export.v1'
             ||($document['kind']??null)!==$kind||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_connector_export');
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_connector_export');
@@ -1108,7 +1108,7 @@ final class ManagementRouter
         $this->uuid($playthroughId,'playthrough_id');$row=$this->repository->getRevisioned('playthrough',$playthroughId);
         $document=$this->service->exportPlaythrough(['installation_id'=>(string)$row['installation_id'],
             'profile_id'=>(string)$row['profile_id'],'playthrough_id'=>$playthroughId]);
-        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-playthrough';
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-playthrough';
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'-backup.json"','X-Content-Type-Options'=>'nosniff']);
     }
@@ -1119,7 +1119,7 @@ final class ManagementRouter
         if(!hash_equals('Backup',$this->need($values,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $backupId=Uuid::v4();$now=gmdate('Y-m-d\TH:i:s\Z');$document=[
-            'schema'=>'almsivi.configuration-backup.v2','format_version'=>2,'backup_id'=>$backupId,'created_at'=>$now,
+            'schema'=>'lorkhan.configuration-backup.v2','format_version'=>2,'backup_id'=>$backupId,'created_at'=>$now,
             'installation_id'=>$installation,'data'=>$this->repository->configurationBackupState($installation)];
         $json=json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n";
         if(strlen($json)>$this->maxJsonBytes)throw new InvalidArgumentException('backup_too_large');
@@ -1136,7 +1136,7 @@ final class ManagementRouter
     {
         $this->uuid($backupId,'backup_id');[$document,$json]=$this->readConfigurationBackup($backupId);
         return new Response(200,$json,['Content-Type'=>'application/json; charset=utf-8',
-            'Content-Disposition'=>'attachment; filename="almsivi-configuration-'.$document['installation_id'].'-'.$backupId.'.json"',
+            'Content-Disposition'=>'attachment; filename="lorkhan-configuration-'.$document['installation_id'].'-'.$backupId.'.json"',
             'X-Content-Type-Options'=>'nosniff']);
     }
 
@@ -1168,7 +1168,7 @@ final class ManagementRouter
     private function validateConfigurationBackup(mixed $document,string $backupId,string $installation):void
     {
         if(!$this->objectArray($document))throw new RuntimeException('backup_integrity_failed');$top=array_keys($document);sort($top);
-        $format=$document['format_version']??null;$expectedSchema=$format===1?'almsivi.configuration-backup.v1':'almsivi.configuration-backup.v2';
+        $format=$document['format_version']??null;$expectedSchema=$format===1?'lorkhan.configuration-backup.v1':'lorkhan.configuration-backup.v2';
         if($top!==['backup_id','created_at','data','format_version','installation_id','schema']
             ||!in_array($format,[1,2],true)||$document['schema']!==$expectedSchema
             ||$document['backup_id']!==$backupId||$document['installation_id']!==$installation||!is_string($document['created_at']))
@@ -1209,7 +1209,7 @@ final class ManagementRouter
         $memoryPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_policy')continue;
-            \ALMSIVIserver\Application\MemorySummaryPolicy::validate($row['content']);
+            \LORKHANserver\Application\MemorySummaryPolicy::validate($row['content']);
             $provider=$row['content']['provider_configuration_id'];
             if(++$memoryPolicies>1||$row['profile_id']!==null
                 ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
@@ -1217,7 +1217,7 @@ final class ManagementRouter
         $embeddingPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_embedding_policy')continue;
-            \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+            \LORKHANserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
             if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
         }
         $translationPolicies=0;
@@ -1231,7 +1231,7 @@ final class ManagementRouter
 
     private function backupRoot():string
     {
-        $root=rtrim((string)($this->providerConfig['backup_storage_path']??'/var/lib/almsiviserver/backups'),DIRECTORY_SEPARATOR);
+        $root=rtrim((string)($this->providerConfig['backup_storage_path']??'/var/lib/lorkhanserver/backups'),DIRECTORY_SEPARATOR);
         if($root===''||(!is_dir($root)&&!mkdir($root,0750,true)&&!is_dir($root)))throw new RuntimeException('backup_storage_unavailable');return$root;
     }
     private function objectArray(mixed $value):bool{return is_array($value)&&($value===[]||!array_is_list($value));}
@@ -1252,7 +1252,7 @@ final class ManagementRouter
     private function profileImportDocument(array $values):array
     {
         $document=$this->jsonField($values,'profile_json');$keys=array_keys($document);sort($keys);
-        if($keys!==['actor_identity','content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.profile-export.v1'
+        if($keys!==['actor_identity','content','exported_at','name','schema']||($document['schema']??null)!=='lorkhan.profile-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64||!is_string($document['name']??null))throw new InvalidArgumentException('invalid_profile_export');
         $identity=$document['actor_identity']??null;$content=$document['content']??null;
         if(!is_array($identity)||array_is_list($identity)||!is_array($content)||array_is_list($content))throw new InvalidArgumentException('invalid_profile_export');
@@ -1296,8 +1296,8 @@ final class ManagementRouter
     /** Build the stable non-world identity used for player-local narrator delivery. */
     private function narratorIdentity(array $values):array
     {
-        return['kind'=>'narrator','record_id'=>'almsivi:narrator','refnum'=>['index'=>0,'content_file'=>0],
-            'content_file'=>'ALMSIVI','cell'=>['kind'=>'interior','name'=>'ALMSIVI Narrator'],
+        return['kind'=>'narrator','record_id'=>'lorkhan:narrator','refnum'=>['index'=>0,'content_file'=>0],
+            'content_file'=>'LORKHAN','cell'=>['kind'=>'interior','name'=>'LORKHAN Narrator'],
             'display_name'=>$this->need($values,'name')];
     }
 
@@ -1327,7 +1327,7 @@ final class ManagementRouter
     private function saveMemoryPolicy(array $values,array $scope):array
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
-        $content=['schema'=>'almsivi.memory-policy.v1','enabled'=>isset($values['enabled']),
+        $content=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['enabled']),
             'provider_configuration_id'=>trim((string)($values['provider_configuration_id']??''))];
         $existing=$this->repository->memorySummaryPolicyForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('memory_policy',
@@ -1343,8 +1343,8 @@ final class ManagementRouter
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $timeout=filter_var($values['timeout_ms']??null,FILTER_VALIDATE_INT);
         if($timeout===false)throw new InvalidArgumentException('invalid_memory_embedding_timeout');
-        $content=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate([
-            'schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,
+        $content=\LORKHANserver\Application\MemoryEmbeddingPolicy::validate([
+            'schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['enabled']),'endpoint'=>trim((string)($values['endpoint']??'')),
             'timeout_ms'=>$timeout,
         ]);
@@ -1392,7 +1392,7 @@ final class ManagementRouter
         $provider=strtolower(trim((string)($values['translation_provider']??'none')));
         $active=$provider==='deepl';
         $content=TranslationPolicy::validate([
-            'schema'=>'almsivi.translation-policy.v1','provider'=>$provider,
+            'schema'=>'lorkhan.translation-policy.v1','provider'=>$provider,
             'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
             'save_translated_text'=>$active&&isset($values['translation_save_text']),
             'source_language'=>trim((string)($values['translation_source_language']??'')),
@@ -1479,7 +1479,7 @@ final class ManagementRouter
         $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
         if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
 
-        return['schema'=>'almsivi.core-profile.v1','prompt'=>(string)($values['prompt']??''),
+        return['schema'=>'lorkhan.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];
     }
 
@@ -1488,7 +1488,7 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $mode=(string)($values['narrator_inline_mode']??'Disabled');
-        return['schema'=>'almsivi.client-settings.v1','behavior'=>[
+        return['schema'=>'lorkhan.client-settings.v1','behavior'=>[
             'auto_greeting'=>false,'rechat'=>isset($values['rechat']),
             'rechat_delay_seconds'=>$integer($values,'rechat_delay_seconds',45),'rechat_max_depth'=>$integer($values,'rechat_max_depth',2),
             'rechat_probability_percent'=>$integer($values,'rechat_probability_percent',50),
@@ -1674,12 +1674,12 @@ final class ManagementRouter
         $preset=$this->repository->getRevisioned($kind,$configuration);$token=new NeverCancelledToken();$started=microtime(true);
         if($kind==='tts_provider'){
             $voice=trim((string)($values['voice_id']??''));$context=$voice===''?[]:['voice'=>$voice];
-            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)->synthesize('Greetings, traveler. This is ALMSIVI.',$token,$context);
+            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)->synthesize('Greetings, traveler. This is LORKHAN.',$token,$context);
             return strtoupper((string)$audio['codec']).' '.(int)$audio['duration_ms'].' ms in '.(int)round((microtime(true)-$started)*1000).' ms';
         }
         $speechPreset=$this->repository->connectorForInstallation($installation,'tts_provider');
         if($speechPreset===null)throw new InvalidArgumentException('active_tts_connector_required');
-        $audio=ProviderFactory::speechForPreset($this->providerConfig,$speechPreset)->synthesize('Greetings, traveler. This is ALMSIVI.',$token);
+        $audio=ProviderFactory::speechForPreset($this->providerConfig,$speechPreset)->synthesize('Greetings, traveler. This is LORKHAN.',$token);
         $result=ProviderFactory::speechToTextForPreset($this->providerConfig,$preset)->transcribe($audio['bytes'],$audio['codec'],'en',$token);
         return trim((string)$result['text']).' ('.(int)round((microtime(true)-$started)*1000).' ms)';
     }
@@ -1712,7 +1712,7 @@ final class ManagementRouter
     /** Validate one dialogue provider against the common utterance contract without saving its output. */
     private function diagnoseProvider(Provider $provider):string
     {
-        $identity=['kind'=>'npc','display_name'=>'ALMSIVI Test NPC','record_id'=>'almsivi_test_npc','content_file'=>'ALMSIVI'];
+        $identity=['kind'=>'npc','display_name'=>'LORKHAN Test NPC','record_id'=>'lorkhan_test_npc','content_file'=>'LORKHAN'];
         $player=['kind'=>'player','display_name'=>'Player','record_id'=>'player'];$started=microtime(true);
         $result=$provider->complete(['payload'=>[
             'input'=>['mode'=>'text','text'=>'Reply with one brief in-character greeting.'],'speaker'=>$player,'target'=>$identity,'audience'=>[$identity],
@@ -1818,7 +1818,7 @@ final class ManagementRouter
         ['name'=>'inspect.report','tier'=>0,'capability'=>'action.inspect.report','description'=>'Read-only observation report.'],
         ['name'=>'inventory.inspect','tier'=>0,'capability'=>'action.inventory.inspect','description'=>'Read-only bounded NPC inventory report.'],
         ['name'=>'ai.follow','tier'=>1,'capability'=>'action.ai.follow','description'=>'Follow the player.'],
-        ['name'=>'ai.stop','tier'=>1,'capability'=>'action.ai.stop','description'=>'Stop ALMSIVI movement packages.'],
+        ['name'=>'ai.stop','tier'=>1,'capability'=>'action.ai.stop','description'=>'Stop LORKHAN movement packages.'],
         ['name'=>'ai.approach','tier'=>1,'capability'=>'action.ai.approach','description'=>'Approach the addressed actor in the current cell.'],
         ['name'=>'ai.wait','tier'=>1,'capability'=>'action.ai.wait','description'=>'Wait in place for a bounded duration.'],
         ['name'=>'ai.travel','tier'=>1,'capability'=>'action.ai.travel','description'=>'Travel to a confirmed same-cell destination.'],
@@ -1847,7 +1847,7 @@ final class ManagementRouter
         if(!is_file($articles)||!is_file($manifest))throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
         return$importer->apply($articles,$manifest,$version);
     }
-    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/ALMSIVIserver';}
+    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LORKHANserver';}
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/');}

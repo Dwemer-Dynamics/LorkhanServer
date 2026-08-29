@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Deterministically grounds conversational mentions in canonical Oghma catalog entities. */
 final class OghmaGroundedRetriever
@@ -26,7 +26,7 @@ final class OghmaGroundedRetriever
         if (!is_array($input) || array_is_list($input) || !in_array($input['kind'] ?? null, ['text', 'stt'], true)) return false;
         return in_array(mb_strtolower(trim((string)($payload['ui_source'] ?? '')), 'UTF-8'), [
             'text', 'chat', 'inputtext', 'inputtext_s', 'ginputtext', 'ginputtext_s', 'rechat', 'continue',
-            'instruction', 'suggestion', 'almsivi_text', 'almsivi_voice', 'almsivi_open_mic', 'almsivi_rechat',
+            'instruction', 'suggestion', 'lorkhan_text', 'lorkhan_voice', 'lorkhan_open_mic', 'lorkhan_rechat',
         ], true);
     }
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
 final readonly class Request
 {

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Config;
+namespace LORKHANserver\Config;
 
 use InvalidArgumentException;
 

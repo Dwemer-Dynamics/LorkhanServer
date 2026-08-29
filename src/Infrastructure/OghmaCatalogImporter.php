@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\DeterministicRetrieval;
+use LORKHANserver\Application\DeterministicRetrieval;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -12,7 +12,7 @@ use Throwable;
 
 final class OghmaCatalogImporter
 {
-    private const FORMAT = 'almsivi.morrowind-oghma-catalog.v1';
+    private const FORMAT = 'lorkhan.morrowind-oghma-catalog.v1';
     private const MAX_ARTICLES_BYTES = 33_554_432;
     private const MAX_MANIFEST_BYTES = 262_144;
     private const LOCK_ID = 4_684_566_698_006_905;
@@ -42,7 +42,7 @@ final class OghmaCatalogImporter
             elseif($current[$topic]===$row)++$unchanged;
             else++$changed;
         }
-        return['schema'=>'almsivi.oghma-catalog-plan.v1','valid'=>$package['errors']===[],
+        return['schema'=>'lorkhan.oghma-catalog-plan.v1','valid'=>$package['errors']===[],
             'catalog_version'=>$catalogVersion,'row_count'=>count($package['rows']),
             'inserted'=>$inserted,'changed'=>$changed,'unchanged'=>$unchanged,
             'missing_from_import'=>count(array_diff_key($current,$incoming)),
@@ -94,18 +94,18 @@ final class OghmaCatalogImporter
     {
         if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/Di',$installationId)!==1)throw new InvalidArgumentException('invalid_installation_id');
         $active=$this->activeCatalog();
-        if($active===null)return['schema'=>'almsivi.oghma-installation-provision.v1','status'=>'skipped','reason'=>'no_active_catalog'];
+        if($active===null)return['schema'=>'lorkhan.oghma-installation-provision.v1','status'=>'skipped','reason'=>'no_active_catalog'];
         return$this->transaction(function()use($installationId,$active):array{
             $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>'oghma-catalog:'.$installationId]);
             $count=$this->projectInstallation((string)$active['catalog_id'],$installationId);
-            return['schema'=>'almsivi.oghma-installation-provision.v1','status'=>'ready','catalog_version'=>$active['catalog_version'],'row_count'=>$count];
+            return['schema'=>'lorkhan.oghma-installation-provision.v1','status'=>'ready','catalog_version'=>$active['catalog_version'],'row_count'=>$count];
         });
     }
 
     public function status():array
     {
         $current=$this->activeCatalog();if($current!==null)$current['row_count']=(int)$current['row_count'];
-        return['schema'=>'almsivi.oghma-current-dataset-status.v1','current_dataset'=>$current];
+        return['schema'=>'lorkhan.oghma-current-dataset-status.v1','current_dataset'=>$current];
     }
 
     private function loadPackage(string $articlesPath,string $manifestPath,string $catalogVersion):array

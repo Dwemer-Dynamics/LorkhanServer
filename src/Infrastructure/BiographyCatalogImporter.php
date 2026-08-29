@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
 use InvalidArgumentException;
 use PDO;
@@ -11,7 +11,7 @@ use Throwable;
 
 final class BiographyCatalogImporter
 {
-    private const FORMAT = 'almsivi.morrowind-biography-preflight.v1';
+    private const FORMAT = 'lorkhan.morrowind-biography-preflight.v1';
     private const MAX_ROWS = 20000;
     private const MAX_BIOGRAPHIES_BYTES = 33_554_432;
     private const MAX_MANIFEST_BYTES = 16_777_216;
@@ -30,7 +30,7 @@ final class BiographyCatalogImporter
     {
         $package = $this->loadPackage($biographiesPath, $manifestPath, $catalogVersion);
         return [
-            'schema' => 'almsivi.biography-catalog-plan.v1',
+            'schema' => 'lorkhan.biography-catalog-plan.v1',
             'catalog_version' => $catalogVersion,
             'valid' => $package['errors'] === [],
             'row_count' => count($package['rows']),
@@ -114,7 +114,7 @@ SQL);
                 || !hash_equals((string) $existing['manifest_sha256'], $package['manifest_sha256'])) {
                 throw new RuntimeException('biography_catalog_version_conflict');
             }
-            return ['schema' => 'almsivi.biography-catalog-provision.v1', 'applied' => false,
+            return ['schema' => 'lorkhan.biography-catalog-provision.v1', 'applied' => false,
                 'idempotent' => true, 'catalog_id' => $existing['catalog_id'],
                 'catalog_version' => $existing['catalog_version'], 'state' => $existing['state']];
         }
@@ -132,7 +132,7 @@ SQL);
                 : ($active['previous_catalog_id'] === null ? null : $this->catalogById((string) $active['previous_catalog_id']));
             if ($target === null) throw new RuntimeException('biography_catalog_rollback_target_missing');
             if ($target['catalog_id'] === $active['catalog_id']) {
-                return ['schema' => 'almsivi.biography-catalog-rollback.v1', 'rolled_back' => false,
+                return ['schema' => 'lorkhan.biography-catalog-rollback.v1', 'rolled_back' => false,
                     'catalog_id' => $target['catalog_id'], 'catalog_version' => $target['catalog_version']];
             }
             $now = gmdate('Y-m-d\TH:i:s\Z');
@@ -141,7 +141,7 @@ SQL);
             $this->db->prepare("UPDATE biography_catalogs SET state='active',activated_at=:now,superseded_at=NULL WHERE catalog_id=:id")
                 ->execute(['now' => $now, 'id' => $target['catalog_id']]);
             $this->projectCatalog((string) $target['catalog_id']);
-            return ['schema' => 'almsivi.biography-catalog-rollback.v1', 'rolled_back' => true,
+            return ['schema' => 'lorkhan.biography-catalog-rollback.v1', 'rolled_back' => true,
                 'catalog_id' => $target['catalog_id'], 'catalog_version' => $target['catalog_version'],
                 'row_count' => (int) $target['row_count']];
         });
@@ -156,7 +156,7 @@ SQL);
             $row['official_content_sha256'] = json_decode((string) $row['official_content_sha256'], true, 16, JSON_THROW_ON_ERROR);
         }
         unset($row);
-        return ['schema' => 'almsivi.biography-catalog-status.v1', 'catalogs' => $rows];
+        return ['schema' => 'lorkhan.biography-catalog-status.v1', 'catalogs' => $rows];
     }
 
     /** Parse and cross-check exact identity and CHIM fields while collecting bounded diagnostics. */
@@ -357,7 +357,7 @@ SQL);
 
     private function planResult(array $package, string $catalogVersion): array
     {
-        return ['schema' => 'almsivi.biography-catalog-plan.v1', 'catalog_version' => $catalogVersion,
+        return ['schema' => 'lorkhan.biography-catalog-plan.v1', 'catalog_version' => $catalogVersion,
             'valid' => true, 'row_count' => count($package['rows']), 'duplicate_count' => 0, 'invalid_count' => 0,
             'errors' => [], 'biographies_sha256' => $package['biographies_sha256'],
             'manifest_sha256' => $package['manifest_sha256']];

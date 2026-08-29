@@ -1,4 +1,4 @@
-ALTER TABLE almsivi_internal.oghma_installation_settings
+ALTER TABLE lorkhan_internal.oghma_installation_settings
     DROP CONSTRAINT IF EXISTS oghma_extractor_timeout_range,
     DROP CONSTRAINT IF EXISTS oghma_result_limit_range,
     DROP COLUMN IF EXISTS extractor_timeout_ms,

@@ -2,37 +2,37 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\ManagementRepository;
-use ALMSIVIserver\Infrastructure\ManagementUiRepository;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Security\BrowserSession;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\ManagementRepository;
+use LORKHANserver\Infrastructure\ManagementUiRepository;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Security\BrowserSession;
 
 $applicationRoot = dirname(__DIR__, 2);
 require_once $applicationRoot . '/src/Autoload.php';
 
-$pageTitle = isset($pageTitle) ? (string) $pageTitle : 'ALMSIVI';
+$pageTitle = isset($pageTitle) ? (string) $pageTitle : 'LORKHAN';
 $topNavSection = isset($topNavSection) ? (string) $topNavSection : '';
 $embedded = isset($_GET['embed']) && $_GET['embed'] === '1';
 $uiAssetVersion = (string) max(
-    (int) @filemtime(__DIR__ . '/js/almsivi-management.js'),
+    (int) @filemtime(__DIR__ . '/js/lorkhan-management.js'),
     (int) @filemtime(__DIR__ . '/js/resource-page.js')
 );
 
 try {
-    $configFile = getenv('ALMSIVI_CONFIG') ?: $applicationRoot . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: $applicationRoot . '/config/server.php';
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');
-    $config['credential_storage_path'] ??= '/var/lib/almsiviserver/credentials/provider-keys.json';
-    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+    $config['credential_storage_path'] ??= '/var/lib/lorkhanserver/credentials/provider-keys.json';
+    $config['database_password'] = getenv('LORKHAN_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
 
     $database = Connection::open($config);
     $managementRepository = new ManagementRepository($database);
     $uiRepository = new ManagementUiRepository($database);
     $productRepository = new ProductRepository($database);
-    $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/ALMSIVIserver/manage'), '/');
-    $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/ALMSIVIserver';
+    $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/LORKHANserver/manage'), '/');
+    $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/LORKHANserver';
     $sessionTtl = (int) ($config['browser_session_ttl_seconds'] ?? 3600);
 
     $cookieHeader = $_SERVER['HTTP_COOKIE'] ?? null;
@@ -47,8 +47,8 @@ try {
     }
 
     // Retire the previous narrow-path cookies so /manage writes receive one unambiguous token pair.
-    header('Set-Cookie: almsivi_management=; Path=' . $managementBasePath . '; Max-Age=0; HttpOnly; SameSite=Strict', false);
-    header('Set-Cookie: almsivi_csrf=; Path=' . $managementBasePath . '; Max-Age=0; SameSite=Strict', false);
+    header('Set-Cookie: lorkhan_management=; Path=' . $managementBasePath . '; Max-Age=0; HttpOnly; SameSite=Strict', false);
+    header('Set-Cookie: lorkhan_csrf=; Path=' . $managementBasePath . '; Max-Age=0; SameSite=Strict', false);
 
     header('Content-Type: text/html; charset=utf-8');
     header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
@@ -58,35 +58,35 @@ try {
     http_response_code(503);
     header('Content-Type: text/html; charset=utf-8');
     header("Content-Security-Policy: default-src 'none'; style-src 'self'; base-uri 'none'; frame-ancestors 'self'");
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>ALMSIVI unavailable</title></head>';
-    echo '<body><main><h1>ALMSIVIserver is unavailable</h1><p>Check the local server configuration and database service.</p></main></body></html>';
+    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>LORKHAN unavailable</title></head>';
+    echo '<body><main><h1>LORKHANserver is unavailable</h1><p>Check the local server configuration and database service.</p></main></body></html>';
     exit;
 }
 
 /** Escape text for safe use in server-rendered management HTML. */
-function almsivi_ui_h(mixed $value): string
+function lorkhan_ui_h(mixed $value): string
 {
     return htmlspecialchars((string) $value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 }
 
 /** Render structured values compactly without exposing HTML from stored records. */
-function almsivi_ui_value(mixed $value): string
+function lorkhan_ui_value(mixed $value): string
 {
     if (is_array($value)) {
-        return almsivi_ui_h(json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
+        return lorkhan_ui_h(json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE));
     }
     if (is_bool($value)) return $value ? 'Yes' : 'No';
     if ($value === null || $value === '') return '—';
-    return almsivi_ui_h($value);
+    return lorkhan_ui_h($value);
 }
 
 /** Show the resolved Global -> Core Profile -> NPC value and source for each applicable setting. */
-function almsivi_ui_effective_settings_summary(array $effective, string $title = 'Effective settings and inheritance', bool $open = false): void
+function lorkhan_ui_effective_settings_summary(array $effective, string $title = 'Effective settings and inheritance', bool $open = false): void
 {
     $sources = is_array($effective['sources'] ?? null) ? $effective['sources'] : [];
     if ($sources === []) return;
     $sourceLabels = ['default' => 'Built-in default', 'global' => 'Global', 'core_profile' => 'Core Profile', 'npc' => 'NPC override'];
-    echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . almsivi_ui_h($title) . '</summary>';
+    echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . lorkhan_ui_h($title) . '</summary>';
     echo '<p>Resolution order: NPC override &gt; assigned Core Profile &gt; Global &gt; built-in default.</p><div class="effective-settings-grid">';
     foreach ($sources as $path => $source) {
         if (!is_string($path) || (!str_starts_with($path, 'settings.memory.') && !str_starts_with($path, 'settings.narrator.')
@@ -98,26 +98,26 @@ function almsivi_ui_effective_settings_summary(array $effective, string $title =
         }
         if (is_array($value)) continue;
         $label = ucwords(str_replace('_', ' ', str_replace(['settings.', '.'], ['', ' / '], $path)));
-        echo '<article><span>' . almsivi_ui_h($label) . '</span><strong>' . almsivi_ui_value($value) . '</strong>';
-        echo '<small data-effective-source="' . almsivi_ui_h($source) . '">' . almsivi_ui_h($sourceLabels[$source] ?? (string) $source) . '</small></article>';
+        echo '<article><span>' . lorkhan_ui_h($label) . '</span><strong>' . lorkhan_ui_value($value) . '</strong>';
+        echo '<small data-effective-source="' . lorkhan_ui_h($source) . '">' . lorkhan_ui_h($sourceLabels[$source] ?? (string) $source) . '</small></article>';
     }
     echo '</div></details>';
 }
 
 /** Render a bounded repository result using the common sibling-server table structure. */
-function almsivi_ui_table(array $rows, string $emptyMessage = 'No records are available yet.'): void
+function lorkhan_ui_table(array $rows, string $emptyMessage = 'No records are available yet.'): void
 {
     if ($rows === []) {
-        echo '<p class="empty-state">' . almsivi_ui_h($emptyMessage) . '</p>';
+        echo '<p class="empty-state">' . lorkhan_ui_h($emptyMessage) . '</p>';
         return;
     }
     $columns = array_keys($rows[0]);
     echo '<div class="table-responsive"><table class="table table-dark table-hover align-middle"><thead><tr>';
-    foreach ($columns as $column) echo '<th scope="col">' . almsivi_ui_h(ucwords(str_replace('_', ' ', $column))) . '</th>';
+    foreach ($columns as $column) echo '<th scope="col">' . lorkhan_ui_h(ucwords(str_replace('_', ' ', $column))) . '</th>';
     echo '</tr></thead><tbody>';
     foreach ($rows as $row) {
         echo '<tr>';
-        foreach ($columns as $column) echo '<td>' . almsivi_ui_value($row[$column] ?? null) . '</td>';
+        foreach ($columns as $column) echo '<td>' . lorkhan_ui_value($row[$column] ?? null) . '</td>';
         echo '</tr>';
     }
     echo '</tbody></table></div>';

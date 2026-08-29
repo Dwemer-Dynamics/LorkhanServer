@@ -31,7 +31,7 @@ NEAR_DUPLICATE_RESOLUTIONS = {
 
 def load_generator() -> Any:
     path = ROOT / "scripts" / "run-morrowind-oghma-preflight.py"
-    spec = importlib.util.spec_from_file_location("almsivi_oghma_generator", path)
+    spec = importlib.util.spec_from_file_location("lorkhan_oghma_generator", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load the Oghma generator")
     module = importlib.util.module_from_spec(spec)
@@ -81,7 +81,7 @@ def main() -> int:
     manifest = read_json(manifest_path)
     ontology = read_json(args.ontology)
     decisions = read_json(args.editorial_decisions)
-    if decisions.get("format") != "almsivi.morrowind-oghma-editorial-decisions.v1":
+    if decisions.get("format") != "lorkhan.morrowind-oghma-editorial-decisions.v1":
         raise ValueError("Unsupported Oghma editorial decision format")
     exclusions = {str(row.get("topic", "")) for row in decisions.get("exclusions", [])}
     content_files = tuple(args.content_file or generator.CONTENT_FILES)
@@ -169,7 +169,7 @@ def main() -> int:
     if evidence["accepted_result_count"] != evidence["accepted_official_source"]:
         errors.append("one or more accepted generated articles lack official ESM evidence")
     report = {
-        "format": "almsivi.morrowind-oghma-catalog-review.v2",
+        "format": "lorkhan.morrowind-oghma-catalog-review.v2",
         "catalog_version": manifest.get("catalog_version"),
         "row_count": len(articles),
         "articles_sha256": manifest.get("articles_sha256"),

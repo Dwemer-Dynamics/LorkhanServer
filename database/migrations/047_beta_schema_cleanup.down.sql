@@ -2,17 +2,17 @@
 -- before beta. Restore the verified pre-cleanup PostgreSQL dump if required.
 -- Recreate the version-004 typed table so a complete historical migration
 -- teardown/reapply can still cross the version-037 schema cutover safely.
-CREATE TABLE IF NOT EXISTS almsivi_internal.autonomy_schedules (
+CREATE TABLE IF NOT EXISTS lorkhan_internal.autonomy_schedules (
     schedule_id uuid PRIMARY KEY,
-    installation_id uuid NOT NULL REFERENCES almsivi_internal.installations(installation_id) ON DELETE CASCADE,
-    profile_id uuid NOT NULL REFERENCES almsivi_internal.profiles(profile_id) ON DELETE CASCADE,
-    playthrough_id uuid NOT NULL REFERENCES almsivi_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
+    installation_id uuid NOT NULL REFERENCES lorkhan_internal.installations(installation_id) ON DELETE CASCADE,
+    profile_id uuid NOT NULL REFERENCES lorkhan_internal.profiles(profile_id) ON DELETE CASCADE,
+    playthrough_id uuid NOT NULL REFERENCES lorkhan_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
     kind text NOT NULL CHECK (kind IN ('rechat', 'boredom', 'greeting')),
     enabled boolean NOT NULL DEFAULT false,
     interval_seconds integer NOT NULL CHECK (interval_seconds BETWEEN 30 AND 86400),
     cooldown_seconds integer NOT NULL CHECK (cooldown_seconds BETWEEN 30 AND 86400),
     last_triggered_at timestamptz,
-    current_session_id uuid REFERENCES almsivi_internal.sessions(session_id),
+    current_session_id uuid REFERENCES lorkhan_internal.sessions(session_id),
     confirmed_at timestamptz,
     updated_at timestamptz NOT NULL DEFAULT clock_timestamp(),
     UNIQUE (installation_id, profile_id, playthrough_id, kind)
