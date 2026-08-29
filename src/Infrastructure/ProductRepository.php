@@ -2369,6 +2369,67 @@ SQL);
         $statement->execute(['installation'=>$installationId]);return$statement->fetchAll();
     }
 
+    /** Atomically create or revise installation-scoped biography templates by stable OpenMW identity. */
+    public function saveBiographyTemplates(string $installationId,array $inputs,string $now):array
+    {
+        return$this->transaction(function()use($installationId,$inputs,$now):array{
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')
+                ->execute(['key'=>'biography-import:'.$installationId]);
+            $defaultCore=(string)($this->defaultCoreProfileForInstallation($installationId,$now,true)['core_profile_id']
+                ??throw new RuntimeException('default_core_profile_required'));
+            $find=$this->db->prepare("SELECT p.profile_id,p.current_revision,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND lower(COALESCE(p.actor_identity->>'content_file',''))=lower(:content_file) AND lower(COALESCE(p.actor_identity->>'record_id',''))=lower(:record_id) ORDER BY p.created_at,p.profile_id FOR UPDATE OF p");
+            $nameConflict=$this->db->prepare('SELECT profile_id FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL FOR UPDATE');
+            $saved=[];$portable=['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','oghma_knowledge_tags','gender','race','voice'];
+            foreach($inputs as$input){
+                $find->execute(['installation'=>$installationId,'content_file'=>$input['content_file'],'record_id'=>$input['record_id']]);
+                $matches=$find->fetchAll();if(count($matches)>1)throw new RuntimeException('ambiguous_biography_template');
+                $existing=$matches[0]??null;$nameConflict->execute(['installation'=>$installationId,'name'=>$input['name']]);
+                $named=$nameConflict->fetchColumn();
+                if($named!==false&&($existing===null||(string)$named!==(string)$existing['profile_id']))
+                    throw new \InvalidArgumentException('biography_template_name_conflict');
+                $identity=['kind'=>'template','display_name'=>$input['name'],'content_file'=>$input['content_file'],'record_id'=>$input['record_id']];
+                $content=$existing===null?[]:$this->json($existing['content']);
+                foreach($portable as$field)unset($content[$field]);
+                $content=array_replace($content,$input['content']);
+                if(strlen($this->encode($content))>131_072)throw new \InvalidArgumentException('invalid_profile_content');
+                if($existing===null){
+                    $id=Uuid::v4();
+                    $this->db->prepare('INSERT INTO profiles(profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES(:id,:installation,:name,CAST(:identity AS jsonb),:core_profile,:now)')
+                        ->execute(['id'=>$id,'installation'=>$installationId,'name'=>$input['name'],'identity'=>$this->encode($identity),'core_profile'=>$defaultCore,'now'=>$now]);
+                    $revision=1;
+                }else{
+                    $id=(string)$existing['profile_id'];$revision=(int)$existing['current_revision']+1;
+                    $this->db->prepare('UPDATE profiles SET name=:name,actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:id')
+                        ->execute(['name'=>$input['name'],'identity'=>$this->encode($identity),'id'=>$id]);
+                }
+                $this->revision('profile_revisions','profile_id',$id,$revision,$content,'biography CSV import',$now);
+                if($existing!==null)$this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:id')
+                    ->execute(['revision'=>$revision,'id'=>$id]);
+                $saved[]=['profile_id'=>$id,'revision'=>$revision,'created'=>$existing===null];
+            }
+            return$saved;
+        });
+    }
+
+    /** Return only reusable custom templates in the portable ALMSIVI biography CSV field order. */
+    public function customBiographyTemplates(string $installationId):array
+    {
+        $statement=$this->db->prepare("SELECT p.actor_identity->>'content_file' AS content_file,p.actor_identity->>'record_id' AS record_id,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND btrim(COALESCE(p.actor_identity->>'content_file',''))<>'' AND btrim(COALESCE(p.actor_identity->>'record_id',''))<>'' ORDER BY lower(p.actor_identity->>'content_file'),lower(p.actor_identity->>'record_id'),p.created_at,p.profile_id");
+        $statement->execute(['installation'=>$installationId]);$rows=[];
+        foreach($statement->fetchAll()as$row){
+            $content=$this->json($row['content']);$voice=$content['voice']??[];
+            $relationships=$content['relationships']??'{}';if(is_array($relationships))$relationships=$this->encode($relationships);
+            $tags=$content['oghma_knowledge_tags']??($content['oghma_tags']??'');if(is_array($tags))$tags=implode(', ',array_map('strval',$tags));
+            $rows[]=['content_file'=>(string)$row['content_file'],'record_id'=>(string)$row['record_id'],'name'=>(string)$row['name'],
+                'core'=>(string)($content['core']??''),'biography'=>(string)($content['biography']??''),'appearance'=>(string)($content['appearance']??''),
+                'personality'=>(string)($content['personality']??''),'relationships'=>(string)$relationships,'occupation'=>(string)($content['occupation']??''),
+                'skills'=>(string)($content['skills']??''),'speech_style'=>(string)($content['speech_style']??''),'goals'=>(string)($content['goals']??''),
+                'oghma_tags'=>(string)$tags,'voice_id'=>is_array($voice)?(string)($voice['id']??''):(string)$voice,
+                'gender'=>(string)($content['gender']??''),'race'=>(string)($content['race']??'')];
+        }
+        return$rows;
+    }
+
     /** Soft-delete every active override for one installation so factory defaults become effective again. */
     public function resetItemDescriptions(string $installationId,string $now): int
     {

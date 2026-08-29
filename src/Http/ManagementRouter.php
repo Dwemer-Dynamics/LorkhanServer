@@ -26,6 +26,8 @@ use Throwable;
 final class ManagementRouter
 {
     private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
+    private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
+        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -89,6 +91,8 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
             if($r->method==='GET'&&$path==='/exports/descriptions/example.csv')return$this->exampleDescriptionsCsv();
             if($r->method==='GET'&&$path==='/exports/descriptions/custom.csv')return$this->exportDescriptionsCsv($this->queryUuid($r,'installation_id'));
+            if($r->method==='GET'&&$path==='/exports/biographies/example.csv')return$this->exampleBiographiesCsv();
+            if($r->method==='GET'&&$path==='/exports/biographies/custom.csv')return$this->exportBiographiesCsv($this->queryUuid($r,'installation_id'));
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
@@ -251,6 +255,10 @@ final class ManagementRouter
             $saved=$this->service->importItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->descriptionCsvRows($r));
             return$this->redirect($this->descriptionPageLocation($scope['installation_id'],'imported',count($saved)));
         }
+        if($domain==='biography-import'){
+            $saved=$this->service->importBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->biographyCsvRows($r));
+            return$this->redirect($this->biographyPageLocation($v,'imported',count($saved)));
+        }
         if($domain==='knowledge-import'){
             $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$inputs=[];
             foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
@@ -383,7 +391,7 @@ final class ManagementRouter
             'profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate',
             'profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'],true))
             return$this->redirect($this->characterPageLocation($v,'saved'));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete','narrative-generate'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete','narrative-generate'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise','biography-import'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -502,6 +510,60 @@ final class ManagementRouter
         return$this->csvResponse('custom_descriptions_export_'.gmdate('Y-m-d_H-i-s').'.csv',$this->repository->customItemDescriptions($installationId));
     }
 
+    /** Parse one bounded ALMSIVI biography CSV before any profile revision is written. */
+    private function biographyCsvRows(Request $request):array
+    {
+        $file=$request->files['csv_file']??null;
+        if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('biography_csv_missing');
+        $size=(int)($file['size']??0);if($size<1||$size>$this->maxJsonBytes)throw new InvalidArgumentException('biography_csv_size');
+        if(strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='csv')throw new InvalidArgumentException('biography_csv_type');
+        $handle=fopen((string)$file['tmp_name'],'rb');if($handle===false)throw new InvalidArgumentException('biography_csv_unreadable');
+        try{
+            $header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('biography_csv_header');
+            if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0])??(string)$header[0];
+            $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
+            if($header!==self::BIOGRAPHY_CSV_HEADER)throw new InvalidArgumentException('biography_csv_header');
+            $rows=[];
+            while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){
+                if($values===[null]||count($values)===0)continue;
+                if(count($values)!==count(self::BIOGRAPHY_CSV_HEADER))throw new InvalidArgumentException('biography_csv_columns');
+                if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('biography_csv_encoding');
+                $rows[]=array_combine(self::BIOGRAPHY_CSV_HEADER,array_map('strval',$values));
+                if(count($rows)>1000)throw new InvalidArgumentException('biography_csv_rows');
+            }
+        }finally{fclose($handle);}
+        if($rows===[])throw new InvalidArgumentException('biography_csv_empty');return$rows;
+    }
+
+    private function exampleBiographiesCsv():Response
+    {
+        return$this->biographyCsvResponse('example_biographies.csv',[[
+            'content_file'=>'Morrowind.esm','record_id'=>'fargoth','name'=>'Fargoth',
+            'core'=>'A nervous Bosmer commoner who wants to recover his missing possessions.',
+            'biography'=>'Fargoth lives in Seyda Neen and has had trouble with the local guards.',
+            'appearance'=>'A slight Bosmer wearing common clothes.','personality'=>'Nervous, friendly, and grateful.',
+            'relationships'=>'{}','occupation'=>'Commoner','skills'=>'Sneaking and light commerce.',
+            'speech_style'=>'Hesitant and earnest.','goals'=>'Recover what was taken and stay out of trouble.',
+            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf',
+        ]]);
+    }
+
+    private function exportBiographiesCsv(string $installationId):Response
+    {
+        return$this->biographyCsvResponse('custom_biographies_export_'.gmdate('Y-m-d_H-i-s').'.csv',
+            $this->repository->customBiographyTemplates($installationId));
+    }
+
+    /** Encode a round-trip-safe UTF-8 biography CSV in the exact ALMSIVI field order. */
+    private function biographyCsvResponse(string $filename,array $rows):Response
+    {
+        $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');
+        fwrite($stream,"\xEF\xBB\xBF");fputcsv($stream,self::BIOGRAPHY_CSV_HEADER,',','"','\\');
+        foreach($rows as$row)fputcsv($stream,array_map(static fn(string$field):string=>(string)($row[$field]??''),self::BIOGRAPHY_CSV_HEADER),',','"','\\');
+        rewind($stream);$body=stream_get_contents($stream);fclose($stream);if(!is_string($body))throw new RuntimeException('csv_unavailable');
+        return new Response(200,$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'"','X-Content-Type-Options'=>'nosniff']);
+    }
+
     /** Encode spreadsheet-safe UTF-8 CSV with the established CHIM column order. */
     private function csvResponse(string $filename,array $rows):Response
     {
@@ -550,6 +612,13 @@ final class ManagementRouter
     {
         $query=['installation_id'=>$installationId,'status'=>$status];if($count>0)$query['count']=$count;
         return$this->uiPath('descriptions').'?'.http_build_query($query);
+    }
+
+    private function biographyPageLocation(array $values,string $status,int $count=0):string
+    {
+        $query=['installation_id'=>$this->need($values,'installation_id'),'status'=>$status];
+        if($count>0)$query['count']=$count;if(($values['embed']??null)==='1')$query['embed']='1';
+        return$this->webRoot().'/ui/core/npc_biographies.php?'.http_build_query($query);
     }
 
     /** Return to the selected Global Settings document without nesting the configuration hub inside its iframe. */

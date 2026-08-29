@@ -192,6 +192,47 @@ $products->selectConnector($installationId,'tts_provider',$profileTtsPreset['con
 $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Bosmer male biography template',
     'actor_identity'=>['kind'=>'template'],'content'=>['race'=>'Wood Elf','gender'=>'Male',
         'biography'=>'A Bosmer raised beneath the great graht-oaks.','personality'=>'Observant and quick-witted.']],$now);
+$biographyService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
+$portableBiographyRow=['content_file'=>'HTTP Portability.esp','record_id'=>'portable_biography_npc','name'=>'Portable Biography NPC',
+    'core'=>'A careful guide with strong local boundaries.','biography'=>'Portable biography v1.','appearance'=>'Travel-worn clothes.',
+    'personality'=>'Patient and observant.','relationships'=>'{"Player":{"aff":25}}','occupation'=>'Guide',
+    'skills'=>'Local geography.','speech_style'=>'Direct and calm.','goals'=>'Help respectful travellers.',
+    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf'];
+$portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
+$portableTemplateId=$portableSaved[0]['profile_id'];$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
+$portableIdentity=json_decode((string)$portableTemplate['actor_identity'],true,16,JSON_THROW_ON_ERROR);
+$assert($portableSaved[0]['created']===true&&(int)$portableTemplate['current_revision']===1
+    &&($portableIdentity['kind']??null)==='template'
+    &&($portableTemplate['content']['oghma_knowledge_tags']??null)==='Balmora',
+    'portable biography import did not create one typed OpenMW template');
+$portableContent=$portableTemplate['content'];$portableContent['notes']='Preserve this nonportable field.';
+$portableContent['routing']=['llm_configuration_id'=>$profileModelSlot['configuration_id']];
+$products->revise('profile',$portableTemplateId,$portableContent,'manual template settings',$now);
+$portableBiographyRow['biography']='Portable biography v2.';$portableBiographyRow['voice_id']='';
+$portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
+$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
+$portableExport=array_values(array_filter($products->customBiographyTemplates($installationId),
+    static fn(array$row):bool=>$row['record_id']==='portable_biography_npc'));
+$assert($portableSaved[0]['created']===false&&$portableSaved[0]['revision']===3
+    &&($portableTemplate['content']['biography']??null)==='Portable biography v2.'
+    &&($portableTemplate['content']['notes']??null)==='Preserve this nonportable field.'
+    &&($portableTemplate['content']['routing']['llm_configuration_id']??null)===$profileModelSlot['configuration_id']
+    &&!isset($portableTemplate['content']['voice'])&&count($portableExport)===1
+    &&$portableExport[0]['oghma_tags']==='Balmora',
+    'biography re-import did not revise the same template while preserving nonportable settings');
+$portableTarget=['kind'=>'npc','record_id'=>'portable_biography_npc','refnum'=>['index'=>99,'content_file'=>0],
+    'content_file'=>'HTTP Portability.esp','cell'=>['kind'=>'interior','name'=>'Balmora'],
+    'display_name'=>'Portable Biography NPC'];
+$portableVoice=$morrowindVoices->resolve($portableTarget,['targetState'=>['identity'=>['race'=>'Dark Elf','gender'=>'Female']]]);
+$portableProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$portableTarget]],$portableVoice,$now);
+$portableProfile=$products->getRevisioned('profile',$portableProfileId);
+$portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],true,16,JSON_THROW_ON_ERROR);
+$assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
+    &&($portableActorIdentity['kind']??null)==='npc',
+    'first-seen OpenMW actor did not inherit the exact imported biography template');
+$products->deleteRevisioned('profile',$portableTemplateId,$now);
 $factoryDirectory=sys_get_temp_dir().'/almsivi-biography-factory-'.bin2hex(random_bytes(4));
 mkdir($factoryDirectory,0700,true);$factoryBiographies=$factoryDirectory.'/biographies.json';$factoryManifest=$factoryDirectory.'/manifest.json';
 $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Factory Bosmer keeps a careful watch over Seyda Neen.',

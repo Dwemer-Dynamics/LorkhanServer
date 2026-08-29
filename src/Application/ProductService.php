@@ -96,9 +96,67 @@ final class ProductService
         return$this->repository->saveItemDescriptions($validated,$this->clock->iso());
     }
 
+    /** Validate portable OpenMW biography rows before atomically revising reusable NPC templates. */
+    public function importBiographyTemplates(string $installationId,array $rows):array
+    {
+        $this->uuid($installationId);
+        if($rows===[]||count($rows)>1000)throw new InvalidArgumentException('invalid_biography_batch');
+        $validated=[];$seen=[];
+        foreach($rows as$row){
+            if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_biography_row');
+            foreach(['content_file'=>256,'record_id'=>256,'name'=>256,'core'=>16384]as$field=>$limit){
+                $this->boundedString($row,$field,1,$limit);
+                if(trim($row[$field])===''||str_contains($row[$field],"\0"))throw new InvalidArgumentException('invalid_'.$field);
+            }
+            foreach(['biography','appearance','personality','relationships','occupation','skills','speech_style','goals']as$field){
+                $value=$row[$field]??null;
+                if(!is_string($value)||strlen($value)>16384||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
+                    throw new InvalidArgumentException('invalid_biography_'.$field);
+            }
+            foreach(['oghma_tags'=>4096,'voice_id'=>512,'gender'=>256,'race'=>256]as$field=>$limit){
+                $value=$row[$field]??null;
+                if(!is_string($value)||strlen($value)>$limit||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
+                    throw new InvalidArgumentException('invalid_biography_'.$field);
+            }
+            $relationships=trim($row['relationships']);
+            if($relationships==='')$relationships='{}';
+            try{$relationshipObject=json_decode($relationships,false,64,JSON_THROW_ON_ERROR);}
+            catch(\JsonException){throw new InvalidArgumentException('invalid_biography_relationships');}
+            if(!$relationshipObject instanceof \stdClass||count(get_object_vars($relationshipObject))>16)
+                throw new InvalidArgumentException('invalid_biography_relationships');
+            $row['relationships']=json_encode($relationshipObject,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            $row['oghma_tags']=$this->normalizeProfileTags($row['oghma_tags']);
+            $key=mb_strtolower(trim($row['content_file']),'UTF-8')."\0".mb_strtolower(trim($row['record_id']),'UTF-8');
+            if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_biography_identity');
+            $seen[$key]=true;
+            $content=[];
+            foreach(['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','gender','race']as$field){
+                $value=trim($row[$field]);if($value!=='')$content[$field]=$value;
+            }
+            if($row['oghma_tags']!=='')$content['oghma_knowledge_tags']=$row['oghma_tags'];
+            $voice=trim($row['voice_id']);if($voice!=='')$content['voice']=['id'=>$voice,'language'=>'en'];
+            $this->validateProfile($content);
+            $validated[]=['content_file'=>trim($row['content_file']),'record_id'=>trim($row['record_id']),
+                'name'=>trim($row['name']),'content'=>$content];
+        }
+        return$this->repository->saveBiographyTemplates($installationId,$validated,$this->clock->iso());
+    }
+
     public function resetItemDescriptions(string $installationId): int
     {
         $this->uuid($installationId);return$this->repository->resetItemDescriptions($installationId,$this->clock->iso());
+    }
+
+    /** Normalize comma-delimited Oghma access tags while excluding article-only catalog markers. */
+    private function normalizeProfileTags(string $value):string
+    {
+        $tags=[];
+        foreach(preg_split('/\s*[,|;]\s*/u',trim($value))?:[]as$tag){
+            $tag=trim($tag);
+            if($tag===''||in_array(mb_strtolower($tag,'UTF-8'),['common','esoteric'],true)||in_array($tag,$tags,true))continue;
+            $tags[]=$tag;
+        }
+        return implode(', ',$tags);
     }
 
     public function deleteItemDescription(string $descriptionId,string $installationId): void

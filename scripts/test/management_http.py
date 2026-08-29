@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
+import atexit, csv, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 base=sys.argv[1].rstrip('/')
 provider_host=sys.argv[2] if len(sys.argv)>2 else '127.0.0.1'
@@ -186,6 +186,33 @@ excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf'
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
 assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
 assert any(f['action'].endswith('/forms/biography-template-revise') for f in biographies.forms),'factory biography templates are not editable'
+biography_import=next(f for f in biographies.forms if f['action'].endswith('/forms/biography-import'))
+biography_installation=biography_import['fields']['installation_id']
+biography_header=['content_file','record_id','name','core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race']
+def biography_csv(rows):
+    stream=io.StringIO(newline=''); writer=csv.writer(stream,lineterminator='\n'); writer.writerow(biography_header); writer.writerows(rows)
+    return stream.getvalue().encode()
+example=request('/ALMSIVIserver/manage/exports/biographies/example.csv'); example_body=example.read().decode('utf-8-sig')
+assert example.status==200 and next(csv.reader(io.StringIO(example_body)))==biography_header,example_body
+biography_suffix=uuid.uuid4().hex; biography_record='http_biography_'+biography_suffix; biography_name='HTTP Biography '+biography_suffix
+atomic_record='http_atomic_'+biography_suffix; invalid_record='http_invalid_'+biography_suffix
+atomic_rows=[
+    ['HTTP Test.esp',atomic_record,'HTTP Atomic '+biography_suffix,'Atomic core','Must not persist','','','{}','','','','','','','Female','Dark Elf'],
+    ['HTTP Test.esp',invalid_record,'HTTP Invalid '+biography_suffix,'Invalid core','Rejected','','','[]','','','','','','','Male','Wood Elf'],
+]
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv(atomic_rows)); body=r.read().decode()
+assert r.status==422 and 'invalid_biography_relationships' in body,(r.status,r.geturl(),body)
+exported=request('/ALMSIVIserver/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+assert atomic_record not in exported and invalid_record not in exported,exported
+biography_row=['HTTP Test.esp',biography_record,biography_name,'A careful OpenMW guide.','Imported biography v1.','Travel-worn clothes.','Patient and observant.','{"Player":{"aff":25}}','Guide','Local geography.','Direct and calm.','Help travellers.','Balmora, common','', 'Female','Dark Elf']
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv([biography_row])); body=r.read().decode()
+assert r.status==200 and 'status=imported' in r.geturl() and '1 biography template imported.' in body,(r.status,r.geturl(),body)
+biography_row[4]='Imported biography v2.'
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv([biography_row])); body=r.read().decode()
+assert r.status==200 and '1 biography template imported.' in body,(r.status,r.geturl(),body)
+exported=request('/ALMSIVIserver/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+export_rows=[row for row in csv.DictReader(io.StringIO(exported)) if row['record_id']==biography_record]
+assert len(export_rows)==1 and export_rows[0]['content_file']=='HTTP Test.esp' and export_rows[0]['biography']=='Imported biography v2.' and export_rows[0]['oghma_tags']=='Balmora',export_rows
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 assert request('/ALMSIVIserver/ui/server_plugins.php').status==404
 assert request('/ALMSIVIserver/manage/server-plugins').status==404
