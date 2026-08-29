@@ -29,6 +29,7 @@ foreach ($uiRepository->rows('llm') as $connector) {
 }
 if ($generationId !== '' && !isset($generationOptions[$generationId])) $generationOptions[$generationId] = 'Unavailable connector';
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
+$biographyKnownByAll = ($content['biography_known_by_all'] ?? true) !== false;
 
 /** Normalize PostgreSQL JSON values used by the latest typed OpenMW context. */
 function almsivi_player_json_array(mixed $value): array
@@ -45,6 +46,15 @@ function almsivi_player_context_items(mixed $value): array
     $decoded = almsivi_player_json_array($value);
     $items = is_array($decoded['items'] ?? null) ? $decoded['items'] : $decoded;
     return array_is_list($items) ? array_values(array_filter($items, 'is_array')) : [];
+}
+
+/** Render one Herika-style live switch backed by the typed player profile document. */
+function almsivi_player_toggle(string $name, string $id, string $label, bool $checked, string $hint): void
+{
+    $hintId = $id . '-help';
+    echo '<input type="hidden" name="' . almsivi_ui_h($name) . '" value="0">'
+        . '<label class="toggle-row" for="' . almsivi_ui_h($id) . '"><span class="toggle-switch"><input id="' . almsivi_ui_h($id) . '" name="' . almsivi_ui_h($name) . '" type="checkbox" value="1"' . ($checked ? ' checked' : '') . ' aria-describedby="' . almsivi_ui_h($hintId) . '"><span class="toggle-slider"></span></span><span class="toggle-label">' . almsivi_ui_h($label) . '</span></label>'
+        . '<span class="hint" id="' . almsivi_ui_h($hintId) . '">' . almsivi_ui_h($hint) . '</span>';
 }
 
 /** Render a copied Herika switch that cannot mutate unsupported ALMSIVI state. */
@@ -139,7 +149,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <label for="player-biography">Character Bio</label>
                         <textarea id="player-biography" name="biography" placeholder="Describe your character's background and story..."><?php echo almsivi_ui_h($content['biography'] ?? ''); ?></textarea>
                         <span class="hint">Backstory and character context stored in the versioned player profile.</span>
-                        <?php almsivi_player_placeholder_toggle('Player Biography Known by All', 'config.player.biography-visibility', 'Audience-specific biography visibility is planned; ALMSIVI currently includes the typed player profile through its normal prompt context.'); ?>
+                        <?php almsivi_player_toggle('biography_known_by_all', 'player-biography-known-by-all', 'Player Biography Known by All', $biographyKnownByAll, 'On, NPCs and the Narrator may receive this biography. Off, only the Narrator may receive it. This visibility setting is saved with the player profile and carried by portable player settings alongside appearance, biography, personality, speech style, goals, and notes.'); ?>
                         <details>
                             <summary>Additional typed player profile</summary>
                             <div class="field-block"><label for="player-personality">Personality</label><textarea id="player-personality" name="personality"><?php echo almsivi_ui_h($content['personality'] ?? ''); ?></textarea></div>
@@ -193,7 +203,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <details class="player-portability">
                     <summary class="player-portability-summary"><span class="player-portability-summary-icon">&#x25B6;</span><span>Portable Player Settings</span></summary>
                     <div class="player-portability-body">
-                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, personality, speech style, goals, and notes only.</p>
+                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only.</p>
                         <div class="player-portability-actions">
                             <a class="btn-portable" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/player-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.player.export')['description']); ?>">Export Settings</a>
                         </div>

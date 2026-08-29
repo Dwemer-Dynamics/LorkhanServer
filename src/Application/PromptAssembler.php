@@ -493,6 +493,8 @@ final class PromptAssembler
         $player = $turn['_player_profile'] ?? null;
         if (is_array($player) && !array_is_list($player)) {
             $content = is_array($player['content'] ?? null) && !array_is_list($player['content']) ? $player['content'] : [];
+            $biographyVisible = ($content['biography_known_by_all'] ?? true) !== false
+                || ($turn['payload']['target']['kind'] ?? null) === 'narrator';
             foreach ([
                 'basic_summary' => ['biography', 'background', 'basic_summary', 'persona'],
                 'personality' => ['personality'],
@@ -501,6 +503,7 @@ final class PromptAssembler
                 'goals' => ['goals'],
                 'notes' => ['notes'],
             ] as $tag => $keys) {
+                if ($tag === 'basic_summary' && !$biographyVisible) continue;
                 $value = $this->fieldText($content, $keys);
                 if ($value !== '') $xml .= $this->xmlTag($tag, $value);
             }

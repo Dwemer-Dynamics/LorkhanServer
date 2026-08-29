@@ -915,15 +915,18 @@ if create_player is not None:
     player_id=match.group(1)
     edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',personality='Patient',goals='Find Fargoth.',profile_generation_configuration_id=slot_id,change_reason='HTTP parity test')
+    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',profile_generation_configuration_id=slot_id,change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
     edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+    revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
+    assert revise['fields'].get('biography_known_by_all')=='0' and 'id="player-biography-known-by-all"' in body
     player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))
     player_preset_response=request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json')
     player_preset=json.loads(player_preset_response.read().decode())
     assert player_preset_response.status==200 and sorted(player_preset)==['exported_at','schema','settings']
-    assert player_preset['schema']=='almsivi.player-profile-settings.v1' and player_preset['settings']['personality']=='Patient'
-    assert sorted(player_preset['settings'])==['appearance','biography','goals','notes','personality','speech_style']
+    assert player_preset['schema']=='almsivi.player-profile-settings.v2' and player_preset['settings']['personality']=='Patient'
+    assert sorted(player_preset['settings'])==['appearance','biography','biography_known_by_all','goals','notes','personality','speech_style']
+    assert player_preset['settings']['biography_known_by_all'] is False
     assert not any(key in player_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing','latest_context'])
     invalid_player_preset=dict(player_preset,unexpected='rejected')
     r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_player_preset))); invalid_body=r.read().decode()
@@ -931,12 +934,22 @@ if create_player is not None:
     secret_player_preset=dict(player_preset,settings=dict(player_preset['settings'],api_key='never'))
     r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_player_preset))); invalid_body=r.read().decode()
     assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    invalid_visibility_preset=dict(player_preset,settings=dict(player_preset['settings'],biography_known_by_all='false'))
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_visibility_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    legacy_player_preset=dict(player_preset,schema='almsivi.player-profile-settings.v1',settings=dict(player_preset['settings']))
+    legacy_player_preset['settings'].pop('biography_known_by_all'); legacy_player_preset['settings']['personality']='Legacy portable player'
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(legacy_player_preset))); legacy_body=r.read().decode()
+    assert r.status==200 and 'status=imported' in r.geturl() and 'Legacy portable player' in legacy_body,(r.status,r.geturl(),legacy_body)
+    legacy_imported=json.loads(request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
+    assert legacy_imported['schema']=='almsivi.player-profile-settings.v2' and legacy_imported['settings']['biography_known_by_all'] is False
     player_preset['settings']['personality']='Portable and patient'
     player_preset['settings']['goals']=''
+    player_preset['settings']['biography_known_by_all']=True
     r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(player_preset))); imported_body=r.read().decode()
     assert r.status==200 and 'status=imported' in r.geturl() and 'Portable player settings imported as a new player profile revision.' in imported_body and 'Portable and patient' in imported_body,(r.status,r.geturl(),imported_body)
     imported_player=json.loads(request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
-    assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient'
+    assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient' and imported_player['settings']['biography_known_by_all'] is True
     imported_player_page,_=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     imported_player_form=next(f for f in imported_player_page.forms if f['action'].endswith('/forms/player-profile-revise'))
     assert imported_player_form['fields']['profile_generation_configuration_id']==slot_id

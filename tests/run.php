@@ -411,6 +411,14 @@ $check(str_contains($assembled['provider_input']['_assembled_prompt'],'<player_c
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
     'server-owned player profile is included in turn context with an explicit field allowlist');
+$restrictedPlayerTurn=$promptTurn;$restrictedPlayerTurn['_player_profile']['content']['biography_known_by_all']=false;
+$restrictedPlayerPrompt=$assembler->assemble($restrictedPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($restrictedPlayerPrompt,'Freed from the Imperial prison.')&&str_contains($restrictedPlayerPrompt,'Curious'),
+    'restricted player biography is hidden from NPC prompts without hiding the remaining player profile');
+$narratorPlayerTurn=$restrictedPlayerTurn;$narratorPlayerTurn['payload']['target']['kind']='narrator';
+$narratorPlayerPrompt=$assembler->assemble($narratorPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($narratorPlayerPrompt,'Freed from the Imperial prison.'),
+    'restricted player biography remains available to the Narrator');
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'<record_descriptions>')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
