@@ -95,7 +95,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <a class="btn-save" href="<?php echo almsivi_ui_h($queryFor(['create' => '1'])); ?>">New</a>
                     <a class="btn-primary" href="<?php echo almsivi_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.import')['description']); ?>">Import</a>
                     <?php echo almsivi_ui_placeholder_control('Rules', 'config.profiles.rules'); ?>
-                    <?php echo almsivi_ui_placeholder_control('Test', 'config.profiles.test'); ?>
+                    <button class="btn-primary" id="profile-connector-test-open" type="button" data-profile-test-open aria-haspopup="dialog" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.test')['description']); ?>">Test</button>
                 </div>
 
                 <details class="profile-preset-note">
@@ -199,7 +199,32 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </div>
             </section>
         </div>
+
+        <div class="profile-test-overlay" data-profile-test-overlay hidden>
+            <div class="profile-test-shell" role="dialog" aria-modal="true" aria-labelledby="profile-test-title" aria-describedby="profile-test-warning" data-profile-test-dialog data-profile-test-endpoint="<?php echo almsivi_ui_h($managementBasePath . '/api/v1/profile-connector-tests'); ?>" data-profile-test-csrf="<?php echo almsivi_ui_h($csrf); ?>" data-profile-test-installation="<?php echo almsivi_ui_h($installationId); ?>">
+                <div class="modal-header profile-test-header">
+                    <h2 class="modal-title" id="profile-test-title">Test Core Profile Connectors</h2>
+                    <button class="profile-test-dismiss" type="button" data-profile-test-close aria-label="Close connector tests">&#215;</button>
+                </div>
+                <div class="modal-body profile-test-body">
+                    <p class="profile-test-warning" id="profile-test-warning"><strong>Running these tests contacts each configured connector.</strong> Deterministic mock connectors stay local. Each live connector receives one small request, so a paid provider may charge you for that usage. Nothing is sent until you press <strong>Run tests</strong>.</p>
+                    <p class="hint profile-test-help">Every connector is tested once, at most two at a time, and the result appears in each Core Profile slot that uses that connector. Test replies are never saved and never shown; only the short summary the server returns is displayed, with no credentials, endpoints, or provider output.</p>
+                    <p class="profile-test-scope" data-profile-test-scope></p>
+                    <div class="profile-test-counts" data-profile-test-counts role="group" aria-label="Connector test result totals"></div>
+                    <div class="profile-test-progress" data-profile-test-progress role="progressbar" aria-label="Connector tests completed" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden><span class="profile-test-progress-fill" id="profile-test-progress-fill" data-profile-test-progress-fill></span></div>
+                    <p class="profile-test-status" data-profile-test-status role="status" aria-live="polite">Loading the connector test plan.</p>
+                    <div class="profile-test-plan" data-profile-test-plan></div>
+                </div>
+                <div class="modal-footer profile-test-footer">
+                    <button class="btn-save" type="button" data-profile-test-run disabled>Run tests</button>
+                    <button class="btn-danger" type="button" data-profile-test-stop hidden>Stop queued tests</button>
+                    <button class="btn-base" type="button" data-profile-test-reload hidden>Reload plan</button>
+                    <button class="btn-base" type="button" data-profile-test-close>Close</button>
+                </div>
+            </div>
+        </div>
     <?php endif; ?>
 </main>
 <?php if ($importMode): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
+<?php if ($installations !== []): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

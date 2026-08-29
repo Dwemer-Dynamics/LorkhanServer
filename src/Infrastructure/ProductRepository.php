@@ -9,6 +9,7 @@ use ALMSIVIserver\Application\MorrowindGeographyCatalog;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\DeterministicRetrieval;
 use ALMSIVIserver\Application\OghmaGroundedRetriever;
+use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -261,6 +262,45 @@ final class ProductRepository
         $parameters=['installation'=>$installationId];if($kindFilter!=='')$parameters['kind']=$kind;
         $stmt->execute($parameters);
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
+    }
+
+    /** Build the deduplicated, read-only connector test plan shown by the Core Profiles UI. */
+    public function coreProfileConnectorTestPlan(string $installationId):array
+    {
+        $profiles=$this->db->prepare('SELECT c.core_profile_id,c.label,c.default_npc,r.content FROM core_profiles c '
+            .'JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
+            .'WHERE c.installation_id=:installation AND c.deleted_at IS NULL ORDER BY c.default_npc DESC,lower(c.label),c.core_profile_id LIMIT 100');
+        $profiles->execute(['installation'=>$installationId]);
+        $configurations=$this->db->prepare("SELECT configuration_id,kind,name FROM configuration_sets WHERE installation_id=:installation AND kind IN ('provider','tts_provider') AND deleted_at IS NULL");
+        $configurations->execute(['installation'=>$installationId]);$labels=[];
+        foreach($configurations->fetchAll()as$row)$labels[(string)$row['kind'].':'.(string)$row['configuration_id']]=(string)$row['name'];
+        $definitions=[
+            ['tts_configuration_id','TTS Connector','tts_provider'],
+            ['llm_configuration_id','Standard LLM','provider'],
+            ['llm_fast_configuration_id','Fast LLM','provider'],
+            ['llm_powerful_configuration_id','Powerful LLM','provider'],
+            ['llm_experimental_configuration_id','Experimental LLM','provider'],
+            ['llm_fallback_configuration_id','Fallback LLM','provider'],
+            ['oghma_configuration_id','Oghma Extractor','provider'],
+            ['profile_generation_configuration_id','Profile Generation LLM','provider'],
+            ['relationship_configuration_id','Relationship LLM','provider'],
+            ['diary_generation_configuration_id','Diary LLM','provider'],
+        ];
+        $jobs=[];$profileRows=[];
+        foreach($profiles->fetchAll()as$profile){$content=$this->json($profile['content']);$routing=is_array($content['routing']??null)?$content['routing']:[];$slots=[];
+            foreach($definitions as[$field,$label,$kind]){$configurationId=trim((string)($routing[$field]??''));
+                if($configurationId===''){$slots[]=['field'=>$field,'label'=>$label,'kind'=>$kind,'configuration_id'=>null,'job_key'=>null,
+                    'status'=>'skipped','message'=>'No connector selected'];continue;}
+                $jobKey=$kind.':'.$configurationId;$configurationLabel=$labels[$jobKey]??'Unavailable connector';
+                $jobs[$jobKey]=['job_key'=>$jobKey,'kind'=>$kind,'configuration_id'=>$configurationId,'label'=>$configurationLabel];
+                $slots[]=['field'=>$field,'label'=>$label,'kind'=>$kind,'configuration_id'=>$configurationId,'job_key'=>$jobKey,
+                    'status'=>'pending','message'=>'Waiting to test '.$configurationLabel];
+            }
+            $profileRows[]=['id'=>(string)$profile['core_profile_id'],'label'=>(string)$profile['label'],
+                'default_npc'=>filter_var($profile['default_npc'],FILTER_VALIDATE_BOOL),'slots'=>$slots];
+        }
+        if(count($jobs)>100)throw new InvalidArgumentException('profile_connector_test_too_many_connectors');
+        return['profiles'=>$profileRows,'jobs'=>array_values($jobs)];
     }
 
     /** Queue one idempotent generation job for the profile's current revision. */

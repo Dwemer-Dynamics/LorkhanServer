@@ -673,7 +673,7 @@ core_list,core_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php'))
 core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
 assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
 assert 'settings overrides only' in core_body
-assert 'Rules <span class="feature-state-badge feature-state-planned' in core_body and 'Test <span class="feature-state-badge feature-state-planned' in core_body
+assert 'Rules <span class="feature-state-badge feature-state-planned' in core_body and 'id="profile-connector-test-open"' in core_body
 core_import_page,core_import_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php?import=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
 assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
@@ -685,7 +685,7 @@ assert 'aria-label="Relationship Update Chance"' in core_body and 'for="relation
 assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Manual Diary Generation' in core_body
 assert 'Generate nearby NPC diaries during sleep or wait.' in core_body and 'Create a physical in-game diary that can be read.' in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
-core_values=dict(core_form['fields'],_csrf=csrf,relationship_configuration_id=slot_id,
+core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,relationship_configuration_id=slot_id,
     setting_relationship_update_chance_percent='100',setting_relationship_locked='1',diary_generation_configuration_id=slot_id,
     setting_diary_enabled='1',setting_diary_include_in_context='0',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
@@ -697,6 +697,25 @@ assert core_saved['fields']['diary_generation_configuration_id']==slot_id and co
 assert core_saved['fields']['setting_diary_include_in_context']=='0' and core_saved['fields']['setting_diary_context_turn_limit']=='12'
 assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help">Record only witnessed events.</textarea>' in core_body
 assert len(VoiceProvider.llm_requests)==provider_calls_before_diary,core_saved
+connector_plan_calls=len(VoiceProvider.llm_requests)
+connector_plan_response=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests?installation_id='+valid['installation_id'])
+connector_plan=json.loads(connector_plan_response.read().decode())
+assert connector_plan_response.status==200 and len(VoiceProvider.llm_requests)==connector_plan_calls,connector_plan
+matching_jobs=[job for job in connector_plan['jobs'] if job['configuration_id']==slot_id]
+assert len(matching_jobs)==1 and matching_jobs[0]['kind']=='provider' and matching_jobs[0]['label']==slot_name,connector_plan
+matching_profile=next(profile for profile in connector_plan['profiles'] if profile['id']==core_edit.group(1))
+matching_slots=[slot for slot in matching_profile['slots'] if slot['configuration_id']==slot_id]
+assert {slot['field'] for slot in matching_slots}=={'llm_configuration_id','llm_fast_configuration_id','relationship_configuration_id','diary_generation_configuration_id'} and len({slot['job_key'] for slot in matching_slots})==1,matching_slots
+assert any(job['configuration_id']==tts_id and job['kind']=='tts_provider' for job in connector_plan['jobs']),connector_plan
+assert not any(key in json.dumps(connector_plan).lower() for key in ['api_key','credential','endpoint','content']),connector_plan
+bulk_values={'installation_id':valid['installation_id'],'kind':'provider','configuration_id':slot_id}
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',bulk_values); bulk_error=json.loads(r.read().decode())
+assert r.status==401 and bulk_error['error']=='unauthorized',bulk_error
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',dict(bulk_values,kind='stt_provider'),csrf); bulk_error=json.loads(r.read().decode())
+assert r.status==422 and bulk_error['error']=='invalid_connector_kind',bulk_error
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',bulk_values,csrf); bulk_result=json.loads(r.read().decode())['result']
+assert r.status==200 and bulk_result['job_key']=='provider:'+slot_id and bulk_result['status']=='pass' and bulk_result['message'].startswith('1 valid utterance'),bulk_result
+assert len(VoiceProvider.llm_requests)==connector_plan_calls,bulk_result
 core_preset_response=request('/ALMSIVIserver/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
@@ -724,7 +743,7 @@ secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
 assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
 r=request('/ALMSIVIserver/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
-core_reset=dict(core_saved['fields'],_csrf=csrf,relationship_configuration_id='',diary_generation_configuration_id='',
+core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',relationship_configuration_id='',diary_generation_configuration_id='',
     setting_relationship_update_chance_percent='',setting_relationship_locked='inherit',setting_diary_enabled='inherit',
     setting_diary_include_in_context='inherit',setting_diary_context_turn_limit='',setting_diary_prompt='')
 assert request(core_form['action'],'POST',core_reset).status==200

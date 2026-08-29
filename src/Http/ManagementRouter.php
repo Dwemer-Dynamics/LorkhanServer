@@ -138,6 +138,10 @@ final class ManagementRouter
             return Response::json(200,['ok'=>true,'hidden_types'=>$hidden]);
         }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
+        if($path==='/api/v1/profile-connector-tests'){
+            if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
+            if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
+        }
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
@@ -1582,6 +1586,20 @@ final class ManagementRouter
         if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
         $slot=['configuration_id'=>$configuration,'revision'=>(int)($preset['current_revision']??0),'content'=>$preset['content']??[]];
         return$this->diagnoseProvider(ProviderFactory::dialogueForSlot($this->providerConfig,$slot));
+    }
+
+    /** Run one explicitly requested Core Profile connector check and return only its redacted outcome. */
+    private function runProfileConnectorTest(array $values):array
+    {
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $kind=$this->need($values,'kind');if(!in_array($kind,['provider','tts_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
+        $preset=$this->repository->getRevisioned($kind,$configuration);
+        if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        $detail=$kind==='provider'
+            ?$this->testProvider(['installation_id'=>$installation,'configuration_id'=>$configuration])
+            :$this->testConnector(['installation_id'=>$installation,'configuration_id'=>$configuration,'kind'=>'tts_provider']);
+        return['job_key'=>$kind.':'.$configuration,'kind'=>$kind,'configuration_id'=>$configuration,'status'=>'pass','message'=>$detail];
     }
 
     /** Validate one dialogue provider against the common utterance contract without saving its output. */
