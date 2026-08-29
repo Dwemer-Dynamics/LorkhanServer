@@ -12,6 +12,10 @@ use Throwable;
 
 final class EventLogRepository
 {
+    private const NPC_HISTORY_TYPES = [
+        'inputtext','chat','location','weather','death','infoaction','narration','quest','book',
+    ];
+
     private const DEFAULT_HIDDEN_TYPES = [
         'prechat','rechat','infonpc','request','infonpc_close','addnpc','addbgnpc','user_input','infosave','init',
         'playerinfo','oghma_import','biography_import','dynamic_oghma_import','infoitems','description_import',
@@ -142,6 +146,158 @@ final class EventLogRepository
             'hidden_types'=>$this->hiddenTypes((string) $scope['installation_id']),
             'event_types'=>$this->visibleTypes($scope, $hidden),
             'pagination'=>['current_page'=>$page,'total_pages'=>(int) ceil($total / $limit),'total_records'=>$total,'limit'=>$limit]];
+    }
+
+    /** Return bounded narrative events involving one exact OpenMW NPC identity. */
+    public function profileHistory(string $profileId, string $playthroughId, ?string $selectedType = null, int $limit = 100): array
+    {
+        $scope = $this->profileScope($profileId, $playthroughId);
+        $hidden = array_values(array_unique(array_merge(self::DEFAULT_HIDDEN_TYPES,
+            $this->hiddenTypes($scope['installation_id']))));
+        $visibleTypes = array_values(array_diff(self::NPC_HISTORY_TYPES, $hidden));
+        $selectedType = trim((string) $selectedType);
+        if ($selectedType !== '' && !in_array($selectedType, $visibleTypes, true)) {
+            throw new InvalidArgumentException('invalid_event_type');
+        }
+        $limit = max(1, min(100, $limit));
+        $parameters = [
+            'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
+            'speaker'=>$this->encodeObject($scope['identity']),'target'=>$this->encodeObject($scope['identity']),
+            'audience'=>$this->encodeList([$scope['identity']]),'types'=>$this->pgArray($visibleTypes),
+        ];
+        $where = [
+            'm.installation_id=:installation','m.playthrough_id=:playthrough','m.suppressed_at IS NULL',
+            'e.type=ANY(CAST(:types AS text[]))',
+            '(m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))',
+        ];
+        if ($selectedType !== '') {
+            $where[] = 'e.type=:selected_type';
+            $parameters['selected_type'] = $selectedType;
+        }
+        $base = ' FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE ' . implode(' AND ', $where);
+        $statement = $this->db->prepare('SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state,'
+            . "(m.projection_kind='management_injection') AS deletable" . $base
+            . ' ORDER BY e.gamets DESC,e.ts DESC,e.localts DESC,e.rowid DESC LIMIT :limit');
+        foreach ($parameters as $key => $value) $statement->bindValue(':' . $key, $value);
+        $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
+        $statement->execute();
+        $events = array_map(function(array $row): array {
+            $presented = $this->present($row);
+            $presented['deletable'] = in_array($row['deletable'] ?? false, [true,1,'1','t','true'], true);
+            return $presented;
+        }, $statement->fetchAll());
+
+        $typeParameters = $parameters;
+        unset($typeParameters['selected_type']);
+        $typeWhere = array_values(array_filter($where, static fn(string $clause): bool => $clause !== 'e.type=:selected_type'));
+        $typeStatement = $this->db->prepare('SELECT DISTINCT e.type FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE '
+            . implode(' AND ', $typeWhere) . ' ORDER BY e.type');
+        $typeStatement->execute($typeParameters);
+
+        $recipients = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles WHERE installation_id=:installation "
+            . "AND deleted_at IS NULL AND profile_id<>:profile AND COALESCE(actor_identity->>'kind','npc') NOT IN ('player','narrator','template') "
+            . 'ORDER BY lower(name),profile_id LIMIT 500');
+        $recipients->execute(['installation'=>$scope['installation_id'],'profile'=>$profileId]);
+        $recipientProfiles = [];
+        foreach ($recipients->fetchAll() as $row) {
+            try {
+                $this->stableIdentity($this->decodeObject($row['actor_identity']));
+                $recipientProfiles[] = ['profile_id'=>(string) $row['profile_id'],'name'=>(string) $row['name']];
+            } catch (InvalidArgumentException) {}
+        }
+        return [
+            'profile'=>['profile_id'=>$profileId,'name'=>$scope['name']],
+            'playthrough_id'=>$playthroughId,
+            'event_types'=>array_map('strval', $typeStatement->fetchAll(PDO::FETCH_COLUMN)),
+            'recipient_profiles'=>$recipientProfiles,
+            'events'=>$events,
+        ];
+    }
+
+    /** Add one explicit cross-scene narrative event for up to twelve exact NPC profiles. */
+    public function injectProfileEvent(string $profileId, string $playthroughId, array $input): array
+    {
+        $scope = $this->profileScope($profileId, $playthroughId);
+        $text = trim((string) ($input['event'] ?? ''));
+        if (strlen($text) >= 2 && $text[0] === '(' && substr($text, -1) === ')') $text = trim(substr($text, 1, -1));
+        if ($text === '' || !mb_check_encoding($text, 'UTF-8')) throw new InvalidArgumentException('invalid_event_text');
+        if (mb_strlen($text, 'UTF-8') > 4000) throw new InvalidArgumentException('event_text_too_long');
+        $requested = $input['recipient_profile_ids'] ?? [];
+        if (!is_array($requested) || !array_is_list($requested) || count($requested) > 11) {
+            throw new InvalidArgumentException('invalid_event_recipients');
+        }
+        $profileIds = [$profileId];
+        foreach ($requested as $recipientId) {
+            if (!is_string($recipientId) || !Uuid::isValid($recipientId)) {
+                throw new InvalidArgumentException('invalid_event_recipients');
+            }
+            if (!in_array($recipientId, $profileIds, true)) $profileIds[] = $recipientId;
+        }
+        if (count($profileIds) > 12) throw new InvalidArgumentException('invalid_event_recipients');
+
+        $placeholders = [];
+        $parameters = ['installation'=>$scope['installation_id']];
+        foreach ($profileIds as $index => $id) {
+            $key = 'profile_' . $index;
+            $placeholders[] = ':' . $key;
+            $parameters[$key] = $id;
+        }
+        $profiles = $this->db->prepare("SELECT profile_id,name,actor_identity FROM profiles WHERE installation_id=:installation "
+            . 'AND deleted_at IS NULL AND profile_id IN (' . implode(',', $placeholders) . ") "
+            . "AND COALESCE(actor_identity->>'kind','npc') NOT IN ('player','narrator','template')");
+        $profiles->execute($parameters);
+        $byId = [];
+        foreach ($profiles->fetchAll() as $row) $byId[(string) $row['profile_id']] = $row;
+        if (count($byId) !== count($profileIds)) throw new InvalidArgumentException('invalid_event_recipients');
+        $recipients = [];
+        foreach ($profileIds as $id) {
+            $row = $byId[$id];
+            $recipients[] = ['profile_id'=>$id,'name'=>(string) $row['name'],
+                'identity'=>$this->stableIdentity($this->decodeObject($row['actor_identity']))];
+        }
+        $gameTime = $this->db->prepare('SELECT COALESCE(max(e.gamets),0) FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
+            . 'WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough');
+        $gameTime->execute(['installation'=>$scope['installation_id'],'playthrough'=>$playthroughId]);
+        $now = gmdate('Y-m-d\TH:i:s\Z');
+        $wrapped = '(' . $text . ')';
+        $rowId = $this->insert([
+            'installation_id'=>$scope['installation_id'],'playthrough_id'=>$playthroughId,'profile_id'=>null,'session_id'=>null,
+            'source_event_id'=>null,'request_id'=>null,'turn_id'=>null,
+            'speaker'=>['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm',
+                'refnum'=>['index'=>0,'content_file'=>0],'display_name'=>'Player'],
+            'target'=>$recipients[0]['identity'],'audience'=>array_column(array_slice($recipients, 1), 'identity'),
+            'payload'=>['input'=>['kind'=>'text','language'=>'en','text'=>$wrapped],'source'=>'npc_history'],
+            'created_at'=>$now,'gamets'=>(int) $gameTime->fetchColumn(),'location'=>null,'sess'=>null,
+            'people'=>'|' . implode('|', array_column($recipients, 'name')) . '|','type'=>'inputtext','data'=>$wrapped,
+            'projection_kind'=>'management_injection','projection_key'=>'management-event:' . Uuid::v4(),
+            'delivery_state'=>null,'utterance_id'=>null,
+        ]);
+        return ['message'=>'Event saved for ' . implode(', ', array_column($recipients, 'name')) . '.',
+            'rowid'=>$rowId,'recipients'=>array_map(static fn(array $row): array =>
+                ['profile_id'=>$row['profile_id'],'name'=>$row['name']], $recipients)];
+    }
+
+    /** Suppress only a management-injected event that belongs to this exact NPC history. */
+    public function suppressProfileEvent(string $profileId, string $playthroughId, int $rowId): array
+    {
+        if ($rowId < 1) throw new InvalidArgumentException('invalid_event_row');
+        $scope = $this->profileScope($profileId, $playthroughId);
+        $parameters = [
+            'rowid'=>$rowId,'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId,
+            'speaker'=>$this->encodeObject($scope['identity']),'target'=>$this->encodeObject($scope['identity']),
+            'audience'=>$this->encodeList([$scope['identity']]),
+        ];
+        $check = $this->db->prepare("SELECT 1 FROM eventlog_metadata m WHERE m.rowid=:rowid AND m.installation_id=:installation "
+            . "AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND m.projection_kind='management_injection' "
+            . 'AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb))');
+        $check->execute($parameters);
+        if (!$check->fetchColumn()) throw new InvalidArgumentException('event_not_deletable');
+        $statement = $this->db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp(),suppression_reason='npc_history_delete' "
+            . "WHERE rowid=:rowid AND installation_id=:installation AND playthrough_id=:playthrough AND suppressed_at IS NULL "
+            . "AND projection_kind='management_injection'");
+        $statement->execute(['rowid'=>$rowId,'installation'=>$scope['installation_id'],'playthrough'=>$playthroughId]);
+        if ($statement->rowCount() !== 1) throw new InvalidArgumentException('event_not_deletable');
+        return ['message'=>'Event deleted.','rowid'=>$rowId];
     }
 
     public function hideType(string $installationId, string $type): array
@@ -352,16 +508,17 @@ final class EventLogRepository
     }
 
     /** Insert the CHIM row and typed metadata atomically; duplicate projections are harmless. */
-    private function insert(array $row): void
+    private function insert(array $row): int
     {
         $owns = !$this->db->inTransaction();
         if ($owns) $this->db->beginTransaction();
         try {
-            $exists = $this->db->prepare('SELECT 1 FROM eventlog_metadata WHERE projection_kind=:kind AND projection_key=:key');
+            $exists = $this->db->prepare('SELECT rowid FROM eventlog_metadata WHERE projection_kind=:kind AND projection_key=:key');
             $exists->execute(['kind'=>$row['projection_kind'],'key'=>$row['projection_key']]);
-            if ($exists->fetchColumn()) {
+            $existingRowId = $exists->fetchColumn();
+            if ($existingRowId !== false) {
                 if ($owns) $this->db->commit();
-                return;
+                return (int) $existingRowId;
             }
             $event = $this->db->prepare('INSERT INTO eventlog (type,data,sess,gamets,localts,ts,people,location,party,utterance_id,delivery_state) '
                 . 'VALUES (:type,:data,:sess,:gamets,extract(epoch FROM CAST(:created AS timestamptz))::bigint,'
@@ -381,10 +538,53 @@ final class EventLogRepository
                 'target'=>$this->encodeObject($row['target'] ?? []),'audience'=>$this->encodeList($row['audience'] ?? []),
                 'payload'=>$this->encodeObject($row['payload'] ?? []),'created'=>$row['created_at']]);
             if ($owns) $this->db->commit();
+            return $rowId;
         } catch (Throwable $error) {
             if ($owns && $this->db->inTransaction()) $this->db->rollBack();
             throw $error;
         }
+    }
+
+    /** Resolve an NPC and playthrough to one installation-owned stable identity. */
+    private function profileScope(string $profileId, string $playthroughId): array
+    {
+        foreach ([$profileId, $playthroughId] as $id) {
+            if (!Uuid::isValid($id)) throw new InvalidArgumentException('invalid_eventlog_scope');
+        }
+        $statement = $this->db->prepare("SELECT p.installation_id,p.name,p.actor_identity FROM profiles p "
+            . 'JOIN playthroughs t ON t.playthrough_id=:playthrough AND t.installation_id=p.installation_id AND t.deleted_at IS NULL '
+            . "WHERE p.profile_id=:profile AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','npc') NOT IN ('player','narrator','template')");
+        $statement->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);
+        $row = $statement->fetch();
+        if (!$row) throw new InvalidArgumentException('invalid_eventlog_scope');
+        return ['installation_id'=>(string) $row['installation_id'],'name'=>(string) $row['name'],
+            'identity'=>$this->stableIdentity($this->decodeObject($row['actor_identity']))];
+    }
+
+    /** Keep only immutable actor-key fields so cell/display changes do not break history ownership. */
+    private function stableIdentity(array $identity): array
+    {
+        $stable = [];
+        foreach (['kind','record_id','content_file','refnum'] as $field) {
+            if (array_key_exists($field, $identity)) $stable[$field] = $identity[$field];
+        }
+        if (!is_string($stable['kind'] ?? null) || !is_string($stable['record_id'] ?? null)
+            || trim($stable['record_id']) === '' || !is_string($stable['content_file'] ?? null)
+            || trim($stable['content_file']) === '') {
+            throw new InvalidArgumentException('invalid_profile_identity');
+        }
+        if (isset($stable['refnum']) && (!is_array($stable['refnum'])
+            || !is_int($stable['refnum']['index'] ?? null) || !is_int($stable['refnum']['content_file'] ?? null))) {
+            throw new InvalidArgumentException('invalid_profile_identity');
+        }
+        return $stable;
+    }
+
+    private function decodeObject(mixed $value): array
+    {
+        if (is_array($value) && !array_is_list($value)) return $value;
+        $decoded = json_decode((string) $value, true, 32, JSON_THROW_ON_ERROR);
+        return is_array($decoded) && !array_is_list($decoded) ? $decoded : [];
     }
 
     private function hiddenTypes(string $installationId): array

@@ -132,7 +132,7 @@ body.view-characters .npc-modal-body {
 
 .npc-editor-tabs {
     display: grid;
-    grid-template-columns: repeat(6, minmax(0, 1fr));
+    grid-template-columns: repeat(7, minmax(0, 1fr));
     gap: 8px;
     margin-bottom: 14px;
     padding: 8px;
@@ -405,5 +405,209 @@ body.view-characters .npc-modal-body {
     .npc-editor-meta > input {
         width: 100%;
         min-width: 0;
+    }
+}
+
+/* Profile Versions keeps the revision controls named separately from the History tab. */
+.npc-profile-versions {
+    display: grid;
+    gap: 8px;
+    min-width: 0;
+}
+
+.npc-editor-secondary > .npc-profile-versions {
+    flex: 1 1 320px;
+}
+
+.npc-profile-versions > h3 {
+    margin: 0;
+    color: rgb(242, 124, 17);
+    font-size: 15px;
+}
+
+.npc-profile-versions > .management-note {
+    margin: 0;
+    color: #aaa;
+    font-size: 12px;
+}
+
+/* NPC editor History tab: bounded event reads, one typed injection, guarded deletes. */
+.npc-history {
+    display: grid;
+    gap: 12px;
+    min-width: 0;
+}
+
+.npc-history-note {
+    margin: 0;
+    color: #aaa;
+    font-size: 13px;
+}
+
+.npc-history-controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: flex-end;
+    min-width: 0;
+}
+
+.npc-history-controls > .form-item {
+    display: grid;
+    flex: 1 1 190px;
+    gap: 6px;
+    min-width: 0;
+}
+
+.npc-history-controls > button {
+    min-height: 36px;
+    white-space: nowrap;
+}
+
+.npc-history-status {
+    min-height: 18px;
+    margin: 0;
+    color: #bbb;
+    font-size: 13px;
+}
+
+.npc-history-error {
+    margin: 0;
+    padding: 8px 10px;
+    border: 1px solid rgba(214, 84, 61, .6);
+    border-radius: 6px;
+    background: rgba(80, 30, 24, .5);
+    color: #f0c8c0;
+    font-size: 13px;
+}
+
+.npc-history-error[hidden] {
+    display: none;
+}
+
+.npc-history-table-scroll {
+    max-height: 320px;
+    min-width: 0;
+    overflow: auto;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, .8);
+}
+
+.npc-history-table-scroll:focus-visible {
+    outline: 2px solid rgb(242, 124, 17);
+    outline-offset: 2px;
+}
+
+.npc-history-empty {
+    margin: 0;
+    padding: 14px;
+    color: #999;
+    font-size: 13px;
+}
+
+.npc-history-table {
+    width: 100%;
+    min-width: 620px;
+    border-collapse: collapse;
+    font-size: 13px;
+}
+
+.npc-history-table th,
+.npc-history-table td {
+    padding: 7px 9px;
+    border-bottom: 1px solid #333;
+    text-align: left;
+    vertical-align: top;
+}
+
+.npc-history-table th {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    background: #2b2b2b;
+    color: rgb(242, 124, 17);
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.npc-history-table td {
+    color: #ddd;
+}
+
+.npc-history-event-text {
+    display: block;
+    max-width: 320px;
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+}
+
+.npc-history-locked {
+    color: #888;
+    white-space: nowrap;
+}
+
+.npc-history-delete {
+    padding: 4px 8px;
+    border: 1px solid #5c3a35;
+    border-radius: 5px;
+    background: #3a2320;
+    color: #f0c8c0;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.npc-history-delete:hover:not(:disabled) {
+    border-color: rgba(214, 84, 61, .8);
+    background: #4a2b26;
+}
+
+.npc-history-delete:disabled {
+    opacity: .55;
+    cursor: not-allowed;
+}
+
+.npc-history-inject {
+    display: grid;
+    gap: 10px;
+    min-width: 0;
+    padding: 12px;
+    border: 1px solid #3a3a3a;
+    border-radius: 8px;
+    background: rgba(28, 28, 28, .8);
+}
+
+.npc-history-inject > h3 {
+    margin: 0;
+    color: rgb(242, 124, 17);
+    font-size: 15px;
+}
+
+.npc-history-inject .form-item {
+    display: grid;
+    gap: 6px;
+    min-width: 0;
+}
+
+.npc-editor-panel .npc-history-inject select[multiple] {
+    min-height: 92px;
+}
+
+.npc-history-inject > button {
+    justify-self: start;
+}
+
+@media (max-width: 700px) {
+    .npc-editor-secondary > .npc-profile-versions {
+        flex: 1 1 100%;
+    }
+
+    .npc-history-controls > .form-item,
+    .npc-history-controls > button {
+        flex: 1 1 100%;
+    }
+
+    .npc-history-event-text {
+        max-width: 220px;
     }
 }

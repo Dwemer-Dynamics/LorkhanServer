@@ -107,6 +107,17 @@ final class ManagementRouter
 
     private function api(Request $r,string $path):Response
     {
+        if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+            $events=$this->eventLogRepository??throw new RuntimeException('not_found');
+            if($r->method==='GET'&&!isset($m[2]))return Response::json(200,['data'=>$events->profileHistory(
+                $m[1],$this->queryUuid($r,'playthrough_id'),isset($r->query['type'])?(string)$r->query['type']:null,
+                (int)($r->query['limit']??100))]);
+            if(($r->method==='POST'&&!isset($m[2]))||($r->method==='DELETE'&&isset($m[2]))){
+                $body=$this->json($r);$playthrough=(string)($body['playthrough_id']??'');$this->uuid($playthrough,'playthrough_id');
+                if($r->method==='POST')return Response::json(201,['data'=>$events->injectProfileEvent($m[1],$playthrough,$body)]);
+                return Response::json(200,['data'=>$events->suppressProfileEvent($m[1],$playthrough,(int)$m[2])]);
+            }
+        }
         if($path==='/api/v1/eventlog'){
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
@@ -346,6 +357,10 @@ final class ManagementRouter
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
+        if(in_array($domain,['profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite',
+            'profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate',
+            'profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'],true))
+            return$this->redirect($this->characterPageLocation($v,'saved'));
         $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete','narrative-generate'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');

@@ -792,6 +792,18 @@ $management->revokePairingToken($rotation['pairing_token_id']);
 $check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
 $check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
 $eventLogs=new EventLogRepository($db);
+$historyOwnerIdentity=['kind'=>'npc','record_id'=>'history_owner','display_name'=>'History Owner','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62001,'content_file'=>0]];
+$historyRecipientIdentity=['kind'=>'npc','record_id'=>'history_recipient','display_name'=>'History Recipient','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62002,'content_file'=>0]];
+$historyOutsiderIdentity=['kind'=>'npc','record_id'=>'history_outsider','display_name'=>'History Outsider','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62003,'content_file'=>0]];
+$historyOwner=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Owner',
+    'actor_identity'=>$historyOwnerIdentity,'content'=>['role'=>'npc']]);
+$historyRecipient=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Recipient',
+    'actor_identity'=>$historyRecipientIdentity,'content'=>['role'=>'npc']]);
+$historyOutsider=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Outsider',
+    'actor_identity'=>$historyOutsiderIdentity,'content'=>['role'=>'npc']]);
 $baseEventRow=(int)$db->query('SELECT COALESCE(max(rowid),0) FROM eventlog')->fetchColumn();
 $insertEvent=$db->prepare("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death',:data,NULL,:gamets,:localts,:ts,'|Player|') RETURNING rowid");
 $insertMetadata=$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,'cursor_test',:key,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)");
@@ -835,6 +847,62 @@ $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quick
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
+$historyPath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
+$historyPayload=['playthrough_id'=>$playthrough['playthrough_id'],'event'=>'(History Owner gave History Recipient a kwama egg.)',
+    'recipient_profile_ids'=>[$historyRecipient['profile_id']]];
+$historyDenied=$managementRouter->dispatch(new Request('POST',$historyPath,['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
+$check($historyDenied->status===401,'NPC history injection accepted missing CSRF');
+$jobsBeforeHistory=(int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn();
+$attemptsBeforeHistory=(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn();
+$historyInjected=$managementRouter->dispatch(new Request('POST',$historyPath,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
+$historyInjectedBody=json_decode($historyInjected->body,true,32,JSON_THROW_ON_ERROR);
+$historyRowId=(int)($historyInjectedBody['data']['rowid']??0);
+$check($historyInjected->status===201&&$historyRowId>0
+    &&(int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn()===$jobsBeforeHistory
+    &&(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn()===$attemptsBeforeHistory,
+    'explicit NPC history injection failed or triggered provider work');
+$historyQuery=['playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'100'];
+$ownerHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
+$ownerHistoryBody=json_decode($ownerHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$recipientHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
+    ['Cookie'=>$cookie],$historyQuery));
+$recipientHistoryBody=json_decode($recipientHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$outsiderHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
+    ['Cookie'=>$cookie],$historyQuery));
+$outsiderHistoryBody=json_decode($outsiderHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$check($ownerHistory->status===200&&$recipientHistory->status===200&&$outsiderHistory->status===200
+    &&array_column($ownerHistoryBody['events'],'rowid')===[$historyRowId]
+    &&array_column($recipientHistoryBody['events'],'rowid')===[$historyRowId]
+    &&$outsiderHistoryBody['events']===[]&&$ownerHistoryBody['events'][0]['deletable']===true
+    &&$ownerHistoryBody['events'][0]['data']==='(History Owner gave History Recipient a kwama egg.)'
+    &&in_array('inputtext',$ownerHistoryBody['event_types'],true),
+    'NPC history was not bounded to exact recipient identities');
+$filteredHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery+['type'=>'inputtext']));
+$hiddenHistoryType=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery+['type'=>'rechat']));
+$check($filteredHistory->status===200
+    &&array_column(json_decode($filteredHistory->body,true,32,JSON_THROW_ON_ERROR)['data']['events'],'rowid')===[$historyRowId]
+    &&$hiddenHistoryType->status===422,'NPC history event-type filter escaped the visible narrative types');
+$historyDeletePath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
+$historyDeleteDenied=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
+    ['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$check($historyDeleteDenied->status===401,'NPC history deletion accepted missing CSRF');
+$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$check($historyWrongOwner->status===422,'NPC history deletion escaped exact identity ownership');
+$historyDeleted=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$historyAfterDelete=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
+$historySuppression=$db->query("SELECT suppression_reason FROM eventlog_metadata WHERE rowid={$historyRowId}")->fetchColumn();
+$check($historyDeleted->status===200&&$historySuppression==='npc_history_delete'
+    &&json_decode($historyAfterDelete->body,true,32,JSON_THROW_ON_ERROR)['data']['events']===[],
+    'NPC history delete did not soft-suppress only the injected projection');
+$historyForeignScope=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],
+    ['playthrough_id'=>$legacyPlaythrough,'limit'=>'100']));
+$check($historyForeignScope->status===422,'NPC history accepted a foreign playthrough');
+$service->deleteRevisioned('profile',$historyOwner['profile_id']);
+$service->deleteRevisioned('profile',$historyRecipient['profile_id']);
+$service->deleteRevisioned('profile',$historyOutsider['profile_id']);
 $eventlogResponse=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
 $eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
 $check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');

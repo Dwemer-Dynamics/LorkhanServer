@@ -73,6 +73,15 @@ def request(path,method='GET',data=None,follow=True):
     try: return opener.open(req,timeout=5)
     except urllib.error.HTTPError as e: return e
 
+def json_request(path,method='GET',data=None,csrf_token=None):
+    body=None if data is None else json.dumps(data).encode()
+    headers={'Accept':'application/json'}
+    if body is not None: headers['Content-Type']='application/json'
+    if csrf_token is not None: headers['X-CSRF-Token']=csrf_token
+    req=urllib.request.Request(base+path,data=body,method=method,headers=headers)
+    try: return opener.open(req,timeout=5)
+    except urllib.error.HTTPError as e: return e
+
 def multipart_request(path,fields,file_field,filename,content_type,payload):
     boundary='----almsivi-'+uuid.uuid4().hex; body=bytearray()
     for name,value in fields.items():
@@ -229,7 +238,7 @@ form=next(f for f in profile.forms if f['action'].endswith('/forms/profile-creat
 invalid=dict(form['fields'],_csrf=csrf,installation_id='invalid',name='Test',voice_language='en')
 r=request(form['action'],'POST',invalid); _,text=parse(r); assert r.status==422 and 'role="alert"' in text
 profile_name='HTTP managed profile '+uuid.uuid4().hex
-valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
+valid=dict(form['fields'],_csrf=csrf,name=profile_name,record_id='http_managed_'+uuid.uuid4().hex,content_file='Morrowind.esm',refnum_index='62010',refnum_content_file='0',voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
 valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
@@ -353,6 +362,51 @@ values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=p
 r=request(create_playthrough['action'],'POST',values); body=r.read().decode(); assert r.status==200 and playthrough_name in body and all(label in body for label in ['Sessions','Turns','Responses','Memories','Relationships','Narratives','Knowledge']),(r.status,r.geturl(),body)
 match=re.search(r'<h2>'+re.escape(playthrough_name)+r'</h2>.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
 playthrough_id=match.group(1)
+state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile='',state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,state_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+state_query))
+core_match=re.search(r'name="core_profile_id" form="management-form-profile-'+re.escape(profile_id)+r'"[^>]*>.*?<option value="([0-9a-f-]{36})" selected',state_body,re.S)
+assert core_match,state_body
+state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile=core_match.group(1),state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,state_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+state_query))
+assert '&#128220; History' in state_body and 'data-npc-history-view' in state_body and 'data-npc-history-recipients' in state_body
+assert all(('name="ui_'+field+'"' in state_body) for field in ['embed','q','profile','state','initial','fav','lock','installation_id']),state_body
+revise=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
+state_values=dict(revise['fields'],_csrf=csrf,favorite='1',change_reason='HTTP list-state continuity',ui_page='2')
+r=request(revise['action'],'POST',state_values); state_url=urllib.parse.urlparse(r.geturl()); state_params=urllib.parse.parse_qs(state_url.query)
+assert r.status==200 and state_url.path.endswith('/ui/core/npc_master.php') and state_params.get('status')==['saved']
+assert state_params.get('embed')==['1'] and state_params.get('q')==[profile_name] and state_params.get('profile')==[core_match.group(1)]
+assert state_params.get('state')==['favorites'] and state_params.get('initial')==['H'] and state_params.get('fav')==['1'] and state_params.get('lock')==['1']
+assert state_params.get('installation_id')==[valid['installation_id']] and state_params.get('page')==['2'],state_params
+
+recipient_name='HTTP history recipient '+uuid.uuid4().hex
+recipient_values=dict(form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=recipient_name,
+    record_id='http_history_recipient_'+uuid.uuid4().hex,content_file='Morrowind.esm',refnum_index='62011',refnum_content_file='0',
+    voice_language='en',biography='Known recipient for the NPC history test.')
+r=request(form['action'],'POST',recipient_values); recipient_body=r.read().decode()
+assert r.status==200 and recipient_name in recipient_body,(r.status,r.geturl(),recipient_body)
+recipient_profile_id=selected_record_id(recipient_body,recipient_name)
+provider_calls_before_history=len(VoiceProvider.llm_requests)
+history_path='/ALMSIVIserver/manage/api/v1/profiles/'+profile_id+'/eventlog'
+history_query='?'+urllib.parse.urlencode(dict(playthrough_id=playthrough_id,limit='100'))
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and history['events']==[] and history['recipient_profiles'],history
+recipient_id=recipient_profile_id
+assert recipient_id in [recipient['profile_id'] for recipient in history['recipient_profiles']],history
+history_event='Met a known companion near Balmora. <&> 古'
+payload={'playthrough_id':playthrough_id,'event':history_event,'recipient_profile_ids':[recipient_id]}
+r=json_request(history_path,'POST',payload); assert r.status==401,(r.status,r.read().decode())
+r=json_request(history_path,'POST',payload,csrf); injected=json.loads(r.read().decode())['data']; history_row_id=injected['rowid']
+assert r.status==201 and history_row_id>0 and recipient_id in [recipient['profile_id'] for recipient in injected['recipients']],injected
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and [event['rowid'] for event in history['events']]==[history_row_id]
+assert history['events'][0]['data']=='('+history_event+')' and history['events'][0]['deletable'] is True and 'inputtext' in history['event_types'],history
+delete_path=history_path+'/'+str(history_row_id)
+r=json_request(delete_path,'DELETE',{'playthrough_id':playthrough_id}); assert r.status==401,(r.status,r.read().decode())
+r=json_request(delete_path,'DELETE',{'playthrough_id':playthrough_id},csrf); assert r.status==200,(r.status,r.read().decode())
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and history['events']==[] and len(VoiceProvider.llm_requests)==provider_calls_before_history,history
+r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':recipient_profile_id}); assert r.status==200
+
 provider_calls_before_conversion=len(VoiceProvider.llm_requests)
 conversion_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
 characters,conversion_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+conversion_query))
