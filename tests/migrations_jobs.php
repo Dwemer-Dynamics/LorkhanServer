@@ -1122,11 +1122,12 @@ $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id
     ->execute(['rowid'=>$diaryRowId,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],
         'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
         'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
-$diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
-$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'route future manual diaries');
+$diaryProfileContent=$products->getRevisioned('profile',$diaryProfile['profile_id'])['content'];
+$diaryProfileContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
+$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'route future manual diaries for this NPC');
 $diaryJob=$products->enqueueDiaryGeneration($diaryScope);
 $diaryPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$diaryJob['job_id']}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$check($diaryPayload['profile_revision']===1&&$diaryPayload['provider_revision']===1
+$check($diaryPayload['profile_revision']===2&&$diaryPayload['provider_revision']===1
     &&$diaryPayload['source_turn_ids']===[$diaryTurn]&&count($diaryPayload['input']['witnessed_context'])===1
     &&!isset($diaryPayload['input']['endpoint'],$diaryPayload['input']['api_key']),
     'manual diary request was not idempotent, revision-frozen, bounded, or secret-free');
@@ -1136,7 +1137,7 @@ $diaryConnectorRow=array_values(array_filter($diaryConnectorRows,static fn(array
 $check((int)$diaryConnectorRow['queued_job_usage']===1&&(int)$diaryConnectorRow['profile_usage']===1,
     'manual diary connector use was not visible to connector management');
 $service->revise('provider',$diaryConnector['configuration_id'],['driver'=>'mock','model'=>'diary-v2'],'new diary connector revision');
-$diaryCoreContent['routing']=[];$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'leave queued diary frozen');
+$diaryProfileContent['routing']=[];$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'leave queued diary frozen');
 $diaryReplay=$products->enqueueDiaryGeneration($diaryScope);
 $check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id']===$diaryJob['narrative_id']
     &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
@@ -1150,7 +1151,7 @@ $diaryProvenance=json_decode((string)$diaryRow['provenance'],true,32,JSON_THROW_
 $diaryAttempt=$db->query("SELECT operation,model,config_revision,state FROM provider_attempts WHERE job_id='{$diaryJob['job_id']}'")->fetch();
 $check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['title']==='Diary NPC diary'
     &&str_contains($diaryRow['content'],'1 witnessed Morrowind event')
-    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===1
+    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===2
     &&$diaryProvenance['provider_revision']===1&&$diaryProvenance['source_turn_ids']===[$diaryTurn]
     &&$diaryAttempt['operation']==='generate_diary'&&$diaryAttempt['model']==='diary-v1'
     &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',
