@@ -29,6 +29,7 @@ PROFILE_BY_CATEGORY = {
     "races": "common", "cultures": "scholarly", "figures": "scholarly", "regions": "regional",
     "settlements": "regional", "locations": "regional", "creatures": "specialist", "diseases": "specialist",
     "magic": "scholarly", "alchemy": "specialist", "artifacts": "esoteric",
+    "books": "scholarly", "equipment": "specialist", "ingredients": "specialist",
 }
 REASON_CODES = {
     "major", "stable_specialist", "minor", "ordinary_actor", "generic_object", "routine_spell",
@@ -281,7 +282,7 @@ def validate_decisions(
             score = min(score, 3)
             reason = "uncertain"
         if profile not in profiles:
-            raise ValueError(f"Curation returned invalid profile for {topic}")
+            profile = PROFILE_BY_CATEGORY[category]
         if any(value not in classes for value in selected_classes):
             raise ValueError(f"Curation returned invalid knowledge classes for {topic}")
         if not reason or ("curation_reason" not in raw and "reason" not in raw and reason_code not in REASON_CODES):
@@ -321,6 +322,8 @@ def seed_from_decision(row: dict[str, Any]) -> dict[str, Any]:
             links.append({"record_id": record_id, "record_type": record_type})
     if links:
         seed["record_links"] = links
+    if row.get("mod_source"):
+        seed["mod_source"] = str(row["mod_source"])
     return seed
 
 

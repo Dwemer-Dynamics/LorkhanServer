@@ -49,8 +49,11 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
 $statuses = [];
 foreach ($store->statuses() as $status) $statuses[(string) $status['variable']] = $status;
 $providers = [
-    'openrouter' => ['OpenRouter', 'https://openrouter.ai/keys', 'ALMSIVI_LLM_API_KEY', ['LLM'], 'config.keys'],
-    'openai' => ['OpenAI', 'https://platform.openai.com/api-keys', 'ALMSIVI_TTS_OPENAI_API_KEY', ['LLM', 'TTS', 'STT'], 'config.keys'],
+    'openrouter' => ['Default LLM key (OpenRouter)', 'https://openrouter.ai/keys', 'ALMSIVI_LLM_API_KEY', ['configured runtime and Default LLM key'], 'config.keys'],
+    'openai-llm' => ['OpenAI LLM key', 'https://platform.openai.com/api-keys', 'ALMSIVI_LLM_OPENAI_API_KEY', ['direct LLM connectors selecting OpenAI LLM key'], 'config.keys'],
+    'openrouter-llm' => ['OpenRouter LLM key', 'https://openrouter.ai/keys', 'ALMSIVI_LLM_OPENROUTER_API_KEY', ['direct LLM connectors selecting OpenRouter LLM key'], 'config.keys'],
+    'custom-llm' => ['Custom LLM key', null, 'ALMSIVI_LLM_CUSTOM_API_KEY', ['direct LLM connectors selecting Custom LLM key'], 'config.keys'],
+    'openai' => ['OpenAI speech key', 'https://platform.openai.com/api-keys', 'ALMSIVI_TTS_OPENAI_API_KEY', ['TTS'], 'config.keys'],
     'deepgram' => ['Deepgram', 'https://console.deepgram.com/', 'ALMSIVI_TTS_DEEPGRAM_API_KEY', ['STT', 'TTS'], 'config.keys'],
     'google' => ['Google', 'https://console.cloud.google.com/apis/credentials', 'ALMSIVI_TTS_GCP_API_KEY', ['LLM', 'TTS'], 'config.keys'],
     'azure' => ['Azure', 'https://ai.azure.com/', 'ALMSIVI_TTS_AZURE_API_KEY', ['TTS', 'STT'], 'config.keys'],
@@ -60,7 +63,7 @@ $providers = [
     'google-stt' => ['Google Gemini STT', 'https://aistudio.google.com/apikey', 'ALMSIVI_STT_GEMINI_API_KEY', ['STT'], 'config.keys'],
     'groq' => ['Groq', 'https://console.groq.com/keys', null, ['LLM'], 'config.keys.groq'],
     'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', null, ['LLM'], 'config.keys.nano-gpt'],
-    'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', null, ['Translation'], 'config.keys.deepl'],
+    'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', 'ALMSIVI_DEEPL_API_KEY', ['Translation'], 'config.keys.deepl'],
 ];
 
 $additionalStylesheets = ['herika-api-keys.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-api-keys.css')];
@@ -98,7 +101,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="provider-links">
                                 <?php if ($featureId !== 'config.keys'): echo almsivi_ui_feature_badge($featureId, true); endif; ?>
                                 <?php if ($environment): echo almsivi_ui_feature_badge('config.keys.environment', true); endif; ?>
-                                <a href="<?php echo almsivi_ui_h($link); ?>" target="_blank" rel="noopener noreferrer">Create Key</a>
+                                <?php if ($link !== null): ?><a href="<?php echo almsivi_ui_h($link); ?>" target="_blank" rel="noopener noreferrer">Create Key</a><?php endif; ?>
                             </div>
                         </header>
                         <div class="provider-body">

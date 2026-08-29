@@ -131,10 +131,10 @@ def existing_lookup(seeds: list[dict[str, Any]]) -> dict[str, str]:
     return result
 
 
-def collect_official_inventory(data_dir: Path) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, str]]]]:
+def collect_official_inventory(data_dir: Path, content_files: list[str]) -> tuple[dict[str, dict[str, Any]], dict[str, list[dict[str, str]]]]:
     topics: dict[str, dict[str, Any]] = {}
     winning_records: dict[str, dict[str, str]] = {}
-    for content_file in CONTENT_FILES:
+    for content_file in content_files:
         path = data_dir / content_file
         if not path.is_file():
             raise FileNotFoundError(f"Required official content file is missing: {path}")
@@ -178,7 +178,7 @@ def collect_official_inventory(data_dir: Path) -> tuple[dict[str, dict[str, Any]
     for record in winning_records.values():
         named_records.setdefault(normalized(record["display_name"]), []).append(record)
     for records in named_records.values():
-        records.sort(key=lambda row: (CONTENT_FILES.index(row["content_file"]), row["record_type"], row["record_id"].casefold()))
+        records.sort(key=lambda row: (content_files.index(row["content_file"]), row["record_type"], row["record_id"].casefold()))
     return topics, named_records
 
 
@@ -261,8 +261,15 @@ def markdown_report(summary: dict[str, Any], rows: list[dict[str, Any]]) -> str:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data-dir", type=Path, default=DEFAULT_DATA_DIR)
+    parser.add_argument(
+        "--content-file",
+        action="append",
+        dest="content_files",
+        help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.",
+    )
     parser.add_argument("--seeds", type=Path, default=DEFAULT_SEEDS)
     parser.add_argument("--catalog", type=Path, default=DEFAULT_CATALOG)
+    parser.add_argument("--mod-source", help="Keep only candidates whose winning dialogue source includes this mod file.")
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args()
 
@@ -276,8 +283,11 @@ def main() -> int:
     catalog = read_json(args.catalog)
     if not isinstance(catalog, list):
         raise ValueError("Catalog is not an article array")
-    lookup = existing_lookup(seeds)
-    dialogue_topics, named_records = collect_official_inventory(args.data_dir)
+    lookup = existing_lookup([*seeds, *catalog])
+    content_files = args.content_files or list(CONTENT_FILES)
+    if len(content_files) != len(set(name.casefold() for name in content_files)):
+        raise ValueError("Content load order contains duplicate filenames")
+    dialogue_topics, named_records = collect_official_inventory(args.data_dir, content_files)
     rows: list[dict[str, Any]] = []
     covered = 0
     for topic in dialogue_topics.values():
@@ -286,7 +296,7 @@ def main() -> int:
         if existing_topic is not None:
             covered += 1
             continue
-        sources = sorted(topic["sources"], key=CONTENT_FILES.index)
+        sources = sorted(topic["sources"], key=content_files.index)
         record_matches = named_records.get(normalized(title), [])
         band, reason = candidate_band(title, {record["record_kind"] for record in record_matches})
         rows.append({
@@ -294,16 +304,19 @@ def main() -> int:
             "title": title,
             "response_count": int(topic["response_count"]),
             "sources": sources,
+            "mod_source": next((source for source in reversed(sources) if source not in CONTENT_FILES), None),
             "band": band,
             "score": candidate_score(int(topic["response_count"]), sources, band),
             "reason": reason,
             "record_matches": record_matches,
         })
     rows.sort(key=lambda row: (-int(row["score"]), -int(row["response_count"]), str(row["title"]).casefold()))
+    if args.mod_source:
+        rows = [row for row in rows if row.get("mod_source") == args.mod_source]
     band_counts = dict(sorted(Counter(str(row["band"]) for row in rows).items()))
     summary = {
         "format": "almsivi.morrowind-oghma-expansion-audit.v1",
-        "official_content_files": list(CONTENT_FILES),
+        "official_content_files": content_files,
         "official_dialogue_topics": len(dialogue_topics),
         "existing_seed_topics": len(seeds),
         "existing_catalog_rows": len(catalog),
@@ -315,7 +328,7 @@ def main() -> int:
     write_json(args.output_dir / "summary.json", summary)
     write_json(args.output_dir / "candidates.json", {"summary": summary, "candidates": rows})
     with (args.output_dir / "candidates.csv").open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=["score", "response_count", "band", "topic", "title", "sources", "record_matches", "reason"])
+        writer = csv.DictWriter(handle, fieldnames=["score", "response_count", "band", "topic", "title", "sources", "mod_source", "record_matches", "reason"])
         writer.writeheader()
         for row in rows:
             writer.writerow({**row, "sources": ",".join(row["sources"]), "record_matches": json.dumps(row["record_matches"], ensure_ascii=False)})

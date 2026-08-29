@@ -1,0 +1,32 @@
+{
+  "raw_candidates": 1346,
+  "final_dispositions": {
+    "accept": 1177,
+    "exclude": 123,
+    "merge": 47
+  },
+  "accepted_new_subjects": 1177,
+  "approved_pilot_articles": 22,
+  "provider_new_topics": 1155,
+  "backfill_topics": 106,
+  "provider_topics_total": 1261,
+  "new_categories": {
+    "artifacts": 69,
+    "books": 530,
+    "creatures": 23,
+    "cultures": 12,
+    "diseases": 19,
+    "factions": 15,
+    "history": 2,
+    "ingredients": 491,
+    "lore": 1,
+    "magic": 3,
+    "races": 11,
+    "religion": 1
+  },
+  "batch_counts": {
+    "new-nonbook-noningredient": 138,
+    "new-books": 528,
+    "new-ingredients": 489
+  }
+}

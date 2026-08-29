@@ -1,7 +1,7 @@
 document.addEventListener('DOMContentLoaded', () => {
   const toolbar = document.querySelector('[data-action-filters]');
   const rows = Array.from(document.querySelectorAll('.action-row'));
-  if (toolbar && rows.length) {
+  if (toolbar) {
     const search = toolbar.querySelector('[data-action-search]');
     const visible = document.querySelector('[data-action-visible]');
     const empty = document.querySelector('[data-action-empty]');
@@ -44,11 +44,14 @@ document.addEventListener('DOMContentLoaded', () => {
     const bulk = group.querySelector('[data-action-bulk]');
     if (bulk) {
       const buttonClass = bulk.dataset.actionBulkClass || '';
+      const policyContainer = group.closest('.policy-card, .connector-card, [data-policy-panel]');
+      const policyLabel = policyContainer?.querySelector('h3, h2, legend')?.textContent?.trim() || 'this policy';
       [['Select all', true], ['Clear', false]].forEach(([label, checked]) => {
         const button = document.createElement('button');
         button.type = 'button';
         if (buttonClass) button.className = buttonClass;
         button.textContent = label;
+        button.setAttribute('aria-label', `${label} actions for ${policyLabel}`);
         button.addEventListener('click', () => {
           boxes.forEach((box) => { box.checked = checked; });
           report();
@@ -61,12 +64,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const policyPanel = document.querySelector('[data-policy-panel]');
   if (policyPanel) {
-    document.querySelector('[data-policy-create]')?.addEventListener('click', () => {
+    const policyOpener = document.querySelector('[data-policy-create]');
+    policyOpener?.addEventListener('click', () => {
       policyPanel.hidden = false;
       policyPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      policyPanel.querySelector('input:not([type=hidden]), select, textarea, button')?.focus();
+      policyPanel.querySelector('form input:not([type=hidden]), form select, form textarea, form button')?.focus({ preventScroll: true });
     });
-    document.querySelector('[data-policy-close]')?.addEventListener('click', () => { policyPanel.hidden = true; });
+    document.querySelector('[data-policy-close]')?.addEventListener('click', () => {
+      policyPanel.hidden = true;
+      policyOpener?.focus();
+    });
   }
 
   const modal = document.querySelector('[data-active-modal]');
@@ -79,6 +86,25 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     modal.querySelector('[data-active-close]')?.addEventListener('click', close);
     modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
-    document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && !modal.hidden) close(); });
+    document.addEventListener('keydown', (event) => {
+      if (modal.hidden) return;
+      if (event.key === 'Escape') {
+        close();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!modal.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    });
   }
 });

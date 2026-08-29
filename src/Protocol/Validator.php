@@ -101,11 +101,31 @@ final class Validator
         if (!is_array($input) || array_is_list($input)) {
             throw new ValidationException('invalid_schema');
         }
-        $this->keys($input, ['kind','text','language']);
+        $inputKeys = ['kind','text','language'];
+        if (array_key_exists('mood', $input)) $inputKeys[] = 'mood';
+        $this->keys($input, $inputKeys);
         if (!in_array($input['kind'], ['text','stt'], true) || !is_string($input['text']) || $input['text'] === ''
             || strlen($input['text']) > 16_384 || !mb_check_encoding($input['text'], 'UTF-8')
             || !is_string($input['language']) || preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{2,8})*$/D', $input['language']) !== 1) {
             throw new ValidationException('invalid_schema');
+        }
+        if (array_key_exists('mood', $input)) {
+            $mood = $input['mood'];
+            if (!is_array($mood) || array_is_list($mood) || !is_string($mood['kind'] ?? null)) {
+                throw new ValidationException('invalid_schema');
+            }
+            $kinds = ['happy','sad','angry','annoyed','scared','surprised','confused','suspicious','playful','flirty','custom'];
+            if (!in_array($mood['kind'], $kinds, true)) throw new ValidationException('invalid_schema');
+            $moodKeys = ['kind'];
+            if ($mood['kind'] === 'custom') $moodKeys[] = 'custom';
+            $this->keys($mood, $moodKeys);
+            if ($mood['kind'] === 'custom') {
+                $custom = $mood['custom'] ?? null;
+                if (!is_string($custom) || trim($custom) === '' || mb_strlen($custom, 'UTF-8') > 80
+                    || !mb_check_encoding($custom, 'UTF-8') || preg_match('/[\r\n\p{Cc}]/u', $custom) === 1) {
+                    throw new ValidationException('invalid_schema');
+                }
+            }
         }
     }
 

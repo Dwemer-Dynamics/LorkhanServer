@@ -10,6 +10,17 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
     public function generate(array $profile, CancellationToken $cancellation): array
     {
         $cancellation->throwIfCancellationRequested();
+        if(in_array($profile['generation_mode']??'',['relationship_build','relationship_text_conversion'],true))return ['relationships'=>[]];
+        if(($profile['generation_mode']??'')==='relationship_evaluation')
+            return ['disposition_delta'=>0,'affinity_delta'=>0,'reason'=>'Mock evaluation preserves the current relationship.'];
+        if(($profile['generation_mode']??'')==='memory_summary'){
+            return['summary'=>mb_strcut(trim((string)($profile['memory']??'')),0,4096,'UTF-8')];
+        }
+        if(($profile['generation_mode']??'')==='diary_generation'){
+            $name=trim((string)($profile['name']??'Unknown'))?:'Unknown';
+            $context=is_array($profile['witnessed_context']??null)?$profile['witnessed_context']:[];
+            return['title'=>$name.' diary','content'=>$name.' records '.count($context).' witnessed Morrowind event'.(count($context)===1?'':'s').'.'];
+        }
         if(($profile['generation_mode']??'npc_profile')==='player_speech_style'){
             $inputs=is_array($profile['recent_player_inputs']??null)?$profile['recent_player_inputs']:[];
             return['speech_style'=>'Speaks in concise, direct sentences inferred from '.count($inputs).' recent player input'.(count($inputs)===1?'':'s').'.'];

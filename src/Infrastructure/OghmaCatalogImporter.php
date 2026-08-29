@@ -19,7 +19,11 @@ final class OghmaCatalogImporter
     private const CATEGORIES = ['alchemy','artifacts','books','creatures','cultures','diseases','equipment','factions',
         'figures','history','ingredients','locations','lore','magic','races','regions','religion','settlements',
         'ascadian_isles','ashlands','azuras_coast','bitter_coast','grazelands','molag_amur','mournhold',
-        'red_mountain','sheogorad','solstheim','west_gash','locationother'];
+        'red_mountain','sheogorad','solstheim','west_gash','locationother',
+        'aanthirin','alt_orethan','armun_ashlands','boethiah_s_spine','dagon_urul','firemoth','lan_orethan',
+        'mephalan_vales','molag_ruhn','molagreahd','nedothril','old_ebonheart','othreleth_woods',
+        'padomaic_ocean','roth_roryn','sacred_lands','sea_of_ghosts','shipal_shin','sundered_scar',
+        'telvanni_isles','thirr_valley','velothi_mountains'];
     private const FIELDS = ['topic','title','aliases','topic_desc','knowledge_class','topic_desc_basic',
         'knowledge_class_basic','tags','category'];
 
@@ -138,12 +142,21 @@ final class OghmaCatalogImporter
             foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field)if(!is_array($row[$field])||!array_is_list($row[$field]))$errors[]="article {$topic} {$field} must be an array";
             if($topic===''||strlen($topic)>256||isset($topics[mb_strtolower($topic,'UTF-8')]))$errors[]="article {$index} topic is invalid or duplicate";
             if($title===''||strlen($title)>256||!in_array($category,self::CATEGORIES,true))$errors[]="article {$topic} title or category is invalid";
-            foreach(['topic_desc','topic_desc_basic']as$field){$text=trim((string)$row[$field]);if($text===''||strlen($text)>131072||!mb_check_encoding($text,'UTF-8'))$errors[]="article {$topic} {$field} is invalid";}
+            $advancedText=trim((string)$row['topic_desc']);$basicText=trim((string)$row['topic_desc_basic']);
+            if($advancedText===''||strlen($advancedText)>131072||!mb_check_encoding($advancedText,'UTF-8'))$errors[]="article {$topic} topic_desc is invalid";
+            if($basicText===''||strlen($basicText)>131072||!mb_check_encoding($basicText,'UTF-8'))$errors[]="article {$topic} topic_desc_basic is invalid";
+            if(is_array($row['knowledge_class'])&&is_array($row['knowledge_class_basic'])){
+                if(count($row['knowledge_class'])!==count(array_unique($row['knowledge_class'])))$errors[]="article {$topic} knowledge_class contains duplicates";
+                if(count($row['knowledge_class_basic'])!==count(array_unique($row['knowledge_class_basic'])))$errors[]="article {$topic} knowledge_class_basic contains duplicates";
+                $overlap=array_values(array_intersect($row['knowledge_class'],$row['knowledge_class_basic']));
+                if($overlap!==[])$errors[]="article {$topic} advanced and basic classes overlap";
+                if($row['knowledge_class_basic']===[])$errors[]="article {$topic} knowledge_class_basic is empty";
+            }
             $topics[mb_strtolower($topic,'UTF-8')]=true;
-            $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if($field==='aliases')$value=self::serializeAliasName($value);if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode($field==='aliases'?', ':',',$values);}
+            $flat=[];foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$values=[];foreach($row[$field]as$value){$value=trim((string)$value);if($value===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')){$errors[]="article {$topic} {$field} contains an invalid value";continue;}if(in_array($field,['knowledge_class','knowledge_class_basic'],true)&&preg_match('/^!?[a-z0-9_]+$/D',$value)!==1)$errors[]="article {$topic} {$field} contains an invalid class";if(!in_array($value,$values,true))$values[]=$value;}$flat[$field]=implode($field==='aliases'?' | ':',',$values);}
             foreach([$topic,...$row['aliases']]as$alias){$aliasKey=preg_replace('/[^a-z0-9]+/','',mb_strtolower((string)$alias,'UTF-8'));if($aliasKey==='')continue;$owner=$aliasOwners[$aliasKey]??null;if($owner!==null&&$owner!==$topic)$errors[]="alias {$alias} collides between {$owner} and {$topic}";$aliasOwners[$aliasKey]=$topic;}
-            $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>trim((string)$row['topic_desc']),
-                'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>trim((string)$row['topic_desc_basic']),
+            $normalized[]=['topic'=>$topic,'title'=>$title,'aliases'=>$flat['aliases'],'topic_desc'=>$advancedText,
+                'knowledge_class'=>$flat['knowledge_class'],'topic_desc_basic'=>$basicText,
                 'knowledge_class_basic'=>$flat['knowledge_class_basic'],'tags'=>$flat['tags'],'category'=>$category,
                 'mod_source'=>$normalizedModSource];
         }
@@ -181,8 +194,6 @@ final class OghmaCatalogImporter
     }
     private function activeCatalog():?array{$r=$this->db->query("SELECT * FROM oghma_catalogs WHERE state='active'")->fetch();return$r===false?null:$r;}
     private function catalogById(string $id):?array{$s=$this->db->prepare('SELECT * FROM oghma_catalogs WHERE catalog_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();return$r===false?null:$r;}
-    /** Protect commas inside one alias before joining the comma-separated storage field. */
-    private static function serializeAliasName(string $value):string{return preg_replace('/\s*,\s*/u','_',$value)??$value;}
     private function readUtf8File(string $path,int $maxBytes,string $label):string{if(!is_file($path)||!is_readable($path))throw new InvalidArgumentException("{$label} file is unavailable");$size=filesize($path);if($size===false||$size<1||$size>$maxBytes)throw new InvalidArgumentException("{$label} file size is invalid");$value=file_get_contents($path);if($value===false||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException("{$label} must be valid UTF-8");return str_starts_with($value,"\xEF\xBB\xBF")?substr($value,3):$value;}
     private function validateVersion(string $version):string{$version=trim($version);if(preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/D',$version)!==1)throw new InvalidArgumentException('invalid_oghma_catalog_version');return$version;}
     private function pgArray(array $values):string{return'{'.implode(',',array_map(static fn(string$v):string=>'"'.str_replace(['\\','"'],['\\\\','\\"'],$v).'"',$values)).'}';}

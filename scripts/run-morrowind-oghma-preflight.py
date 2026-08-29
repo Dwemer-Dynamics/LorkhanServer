@@ -4,7 +4,9 @@
 from __future__ import annotations
 
 import argparse
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import csv
+from difflib import SequenceMatcher
 import hashlib
 import html
 import json
@@ -12,6 +14,7 @@ import os
 from pathlib import Path
 import re
 import struct
+import threading
 import time
 from typing import Any, Iterable
 from urllib.parse import quote
@@ -20,7 +23,7 @@ import requests
 
 
 FORMAT_VERSION = "almsivi.morrowind-oghma-preflight.v1"
-GENERATION_RULESET = "morrowind-oghma-static-3e427-v2"
+GENERATION_RULESET = "morrowind-oghma-static-3e427-v5"
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 DEFAULT_MODEL = "z-ai/glm-5.1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
@@ -30,7 +33,10 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 RESOURCE_DIR = SCRIPT_DIR.parent / "resources" / "oghma" / "morrowind-official"
 DEFAULT_SEEDS = RESOURCE_DIR / "topic-seeds.json"
 DEFAULT_ONTOLOGY = RESOURCE_DIR / "ontology.json"
-RECORD_TYPES = {b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC", b"BOOK"}
+RECORD_TYPES = {
+    b"NPC_", b"CREA", b"WEAP", b"ARMO", b"CLOT", b"MISC", b"BOOK", b"CELL", b"REGN",
+    b"INGR", b"SPEL", b"RACE", b"FACT",
+}
 
 SYSTEM_PROMPT = """You write concise, source-grounded Morrowind encyclopedia entries for the CHIM Oghma Infinium system.
 
@@ -46,19 +52,29 @@ the supplied official identity and source evidence conservatively. Do not mentio
 records, form IDs, files, databases, wikis, UESP, prompts, language models, statistics, levels, mechanics, or source
 material. Do not reproduce book or dialogue passages. Do not invent disputed claims, secret motives, relationships,
 appearance, ownership, outcomes, or prophecy fulfillment. When accounts disagree, state the uncertainty briefly.
+Use only affirmative facts present in the supplied evidence. Do not extrapolate titles, political status, exact rules,
+numeric ranges, named people, landmarks, history, or social customs that the evidence does not directly establish.
 If official dialogue is tied to an errand or dispute, extract only stable encyclopedic knowledge. Never narrate a
 one-time request, theft, commercial scheme, investigation, missing person, delivery, payment, current plan, or its
 ordinary participants. Do not name ordinary NPCs unless the locked subject itself is a reviewed major figure.
 
-The advanced article must explain the subject's identity, significance, and stable context in 55-150 words. The
-basic article must be a separately written 18-65 word account containing only broadly available knowledge; aim for
-35-55 words so it remains safely inside that hard limit. It must
-not be a clipped copy of the advanced article. Return useful search aliases only when supported. Return 2-12 concise
-search tags. Select knowledge access classes only from the supplied allowlist, keeping the seed classes unless the
-evidence clearly supports an additional class. Select exactly the supplied category.
+The advanced article must explain the subject's identity, significance, and stable context in no more than 150 words.
+The supplied basic_knowledge_mode controls location basics. For "unknown", use an ignorance fallback in the exact
+form "You do not know where <title> is." and assign it only to common knowledge. For "common", provide a short,
+factual summary of the place's broadly known identity and general location, assigned only to common knowledge.
+Never move restricted details into either basic form. For "auto", follow the ordinary lore rule and leave basic empty
+unless broad public knowledge is directly supported. A factual basic account may be no more than 65 words. Short,
+complete advanced articles are valid when evidence is sparse; never pad either field.
+The basic article must not be a clipped copy of the advanced article. If it is empty, return an empty basic class list.
+No access class may appear in both the advanced and basic class lists. Return only the supplied seed aliases; do not
+invent spelling variants or additional aliases. Return 2-12 concise search tags supported by the locked evidence.
+Select knowledge access classes only from the supplied seed and profile classes; do not add inferred classes. Select
+exactly the supplied category.
 
-Always return full prose in both description fields, including on a repair. Never return null, None, a refusal,
-an apology, or a placeholder. Avoid every forbidden out-of-world word literally, including the word game.
+Always return full advanced prose, including on a repair. Return the basic description as an empty string when the
+subject is not common knowledge. Never return null, None, a refusal,
+an apology, or a placeholder. Avoid forbidden out-of-world phrases; an in-world subject name containing an otherwise
+ordinary word remains valid.
 """
 
 ARTICLE_SCHEMA = {
@@ -77,7 +93,8 @@ ARTICLE_SCHEMA = {
 }
 
 FORBIDDEN = re.compile(
-    r"\b(?:video\s+game|player(?:s|'s)?|quest(?:line)?|form\s*id|game\s+file|database|wiki|UESP|prompt|"
+    r"\b(?:video\s+game|the\s+player(?:s|'s)?|player(?:s|'s)?\s+(?:can|must|should|may|character|actions?|choices?|inventory)|"
+    r"quest(?:line)?|form\s*id|game\s+file|database|wiki|UESP|prompt|"
     r"language\s+model|game\s+mechanics?|character\s+level|stat(?:istic)?s?|hit\s+points?|armor\s+rating|"
     r"inventory\s+(?:menu|screen)|walkthrough)\b",
     re.IGNORECASE,
@@ -85,6 +102,10 @@ FORBIDDEN = re.compile(
 POST_GAME = re.compile(
     r"\b(?:4E\s*\d*|Fourth\s+Era|Red\s+Year|New\s+Temple|House\s+Sadras|"
     r"Tribunal(?:'s)?\s+(?:fall|collapse|dissolution)|recalled?\s+(?:him\s+)?to\s+the\s+Imperial\s+City)\b",
+    re.IGNORECASE,
+)
+TAG_FORBIDDEN = re.compile(
+    r"\b(?:Tamriel\s+Rebuilt|UESP|wiki|mod(?:ification)?|console|record\s+ID|quest|the\s+player)\b",
     re.IGNORECASE,
 )
 
@@ -370,6 +391,10 @@ def validate_seed_document(document: Any, ontology: dict[str, Any], records: dic
                 raise ValueError(f"Alias {alias!r} for {topic} collides with {owner}")
             alias_owner[key] = topic
         row = dict(raw)
+        basic_mode = str(raw.get("basic_mode", "auto")).strip().casefold()
+        if basic_mode not in {"auto", "common", "unknown"}:
+            raise ValueError(f"Topic {topic} has an invalid basic_mode")
+        row["basic_mode"] = basic_mode
         mod_source = str(raw.get("mod_source", "")).strip()
         if mod_source and not re.fullmatch(r"[^/\\\x00]{1,256}\.(?:esm|esp|omwaddon)", mod_source, re.IGNORECASE):
             raise ValueError(f"Topic {topic} has an invalid mod_source")
@@ -435,9 +460,49 @@ def uesp_search(session: requests.Session, topic: dict[str, Any], cache_dir: Pat
     cache_dir.mkdir(parents=True, exist_ok=True)
     cache_path = cache_dir / f"{topic['topic']}.json"
     if cache_path.is_file() and not refresh:
-        return read_json(cache_path)
-    queries = [f"Morrowind:{topic['title']}", f"Lore:{topic['title']}"]
+        cached = read_json(cache_path)
+        requested_revision = topic.get("uesp_revision_id")
+        if requested_revision is None or cached.get("requested_revision_id") == requested_revision:
+            return cached
+    requested_revision = topic.get("uesp_revision_id")
     explicit_titles = set(topic.get("uesp_titles", []))
+    if requested_revision is not None:
+        response = session.get(UESP_API_URL, params={
+            "action": "query", "revids": int(requested_revision), "prop": "info|revisions",
+            "inprop": "url", "rvprop": "ids|timestamp", "format": "json", "formatversion": 2,
+        }, timeout=30)
+        response.raise_for_status()
+        pages = response.json().get("query", {}).get("pages", [])
+        if len(pages) != 1 or pages[0].get("missing"):
+            result = {"status": "not-found", "queries": [], "pages": [],
+                      "requested_revision_id": requested_revision}
+            atomic_json(cache_path, result)
+            return result
+        page = pages[0]
+        if explicit_titles and str(page.get("title", "")) not in explicit_titles:
+            raise ValueError(f"UESP revision {requested_revision} does not belong to the locked page title")
+        parsed = session.get(UESP_API_URL, params={
+            "action": "parse", "oldid": int(requested_revision), "prop": "text",
+            "format": "json", "formatversion": 2,
+        }, timeout=30)
+        parsed.raise_for_status()
+        markup = str(parsed.json().get("parse", {}).get("text", ""))
+        markup = re.sub(r"<(script|style)[^>]*>.*?</\1>", " ", markup, flags=re.IGNORECASE | re.DOTALL)
+        evidence = html.unescape(re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", markup))).strip()[:8000]
+        revision = (page.get("revisions") or [{}])[0]
+        selected_pages = [] if len(evidence) < 20 else [{
+            "title": page.get("title"), "page_id": page.get("pageid"),
+            "revision_id": revision.get("revid"), "revision_timestamp": revision.get("timestamp"),
+            "url": page.get("fullurl"),
+            "license": "UESP content; see source page for license and attribution", "evidence": evidence,
+        }]
+        result = {
+            "status": "found" if selected_pages else "not-found", "queries": [], "pages": selected_pages,
+            "requested_revision_id": requested_revision,
+        }
+        atomic_json(cache_path, result)
+        return result
+    queries = [f"Morrowind:{topic['title']}", f"Lore:{topic['title']}"]
     candidate_titles = {f"Morrowind:{topic['title']}", f"Lore:{topic['title']}", *explicit_titles}
     for query in queries:
         response = session.get(UESP_API_URL, params={
@@ -513,6 +578,15 @@ def build_evidence(topic: dict[str, Any], uesp: dict[str, Any], dialogue: dict[s
         "seed_aliases: " + ", ".join(topic.get("aliases", [])),
         "seed_classes: " + ", ".join(topic.get("classes", [])),
     ]
+    if topic.get("domain_instructions"):
+        lines.append("domain_instructions: " + str(topic["domain_instructions"]))
+    lines.append("basic_knowledge_mode: " + str(topic.get("basic_mode", "auto")))
+    for fact in topic.get("evidence_facts", []):
+        lines.append("locked_evidence_fact: " + str(fact))
+    if topic.get("required_phrases"):
+        lines.append("required_advanced_phrases: " + " | ".join(str(value) for value in topic["required_phrases"]))
+    if topic.get("forbidden_phrases"):
+        lines.append("unsupported_phrases_forbidden_in_prose: " + " | ".join(str(value) for value in topic["forbidden_phrases"]))
     for record in topic.get("resolved_records", []):
         lines.append("official_record: " + json.dumps(record, ensure_ascii=False, sort_keys=True))
     book_budget = 24000
@@ -562,27 +636,44 @@ def extract_json_object(content: Any) -> dict[str, Any]:
     return value
 
 
-def provider_call(session: requests.Session, api_key: str, model: str, evidence: str, timeout: float, repair: str) -> tuple[dict[str, Any], dict[str, Any]]:
+class ProviderResponseError(ValueError):
+    """Preserve billable usage when a successful provider response cannot be accepted."""
+
+    def __init__(self, message: str, usage: dict[str, Any]) -> None:
+        super().__init__(message)
+        self.usage = usage
+
+
+def provider_call(session: requests.Session, api_key: str, model: str, evidence: str, timeout: float,
+                  repair: str, max_output_tokens: int) -> tuple[dict[str, Any], dict[str, Any]]:
     user = evidence + ("\n\nREWRITE THE ENTIRE JSON OBJECT TO REPAIR THESE VALIDATION ERRORS:\n" + repair if repair else "")
     started = time.monotonic()
     response = session.post(OPENROUTER_URL, headers={
         "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
         "HTTP-Referer": "https://dwemerdynamics.com/", "X-Title": "ALMSIVI Morrowind Oghma Generator",
     }, json={
-        "model": model, "temperature": 0.0, "max_tokens": 1800, "reasoning": {"effort": "none"},
+        "model": model, "temperature": 0.0, "max_tokens": max_output_tokens, "reasoning": {"effort": "none"},
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
         "response_format": {"type": "json_schema", "json_schema": {"name": "morrowind_oghma_article", "strict": True, "schema": ARTICLE_SCHEMA}},
     }, timeout=timeout)
     elapsed = time.monotonic() - started
     response.raise_for_status()
     payload = response.json()
-    message = payload["choices"][0]["message"]["content"]
+    choice = payload["choices"][0]
+    message = choice["message"]["content"]
     usage = payload.get("usage") or {}
-    return extract_json_object(message), {
+    usage_record = {
         "elapsed_seconds": elapsed, "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"), "total_tokens": usage.get("total_tokens"),
         "cost": usage.get("cost"), "provider": payload.get("provider"), "model": payload.get("model") or model,
     }
+    if choice.get("finish_reason") == "length":
+        raise ProviderResponseError("provider response ended at the output-token limit", usage_record)
+    try:
+        generated = extract_json_object(message)
+    except (ValueError, json.JSONDecodeError) as error:
+        raise ProviderResponseError(str(error), usage_record) from error
+    return generated, usage_record
 
 
 def article_classes(topic: dict[str, Any], ontology: dict[str, Any], generated: dict[str, Any], field: str) -> list[str]:
@@ -591,24 +682,41 @@ def article_classes(topic: dict[str, Any], ontology: dict[str, Any], generated: 
     defaults = list(profile["advanced" if field == "knowledge_class" else "basic"])
     if field == "knowledge_class":
         defaults.extend(topic.get("classes", []))
-    values = unique_strings(generated.get(field, []))
-    result = unique_strings(defaults + values)
+    result = unique_strings(defaults)
     return [value for value in result if value in allowed]
 
 
 def normalize_article(topic: dict[str, Any], ontology: dict[str, Any], generated: dict[str, Any]) -> dict[str, Any]:
-    aliases = unique_strings([*topic.get("aliases", []), *generated.get("aliases", [])])
+    aliases = unique_strings(topic.get("aliases", []))
     canonical_keys = {
         re.sub(r"[^a-z0-9]+", "", str(topic[field]).casefold()) for field in ("topic", "title")
     }
     aliases = [value for value in aliases if re.sub(r"[^a-z0-9]+", "", value.casefold()) not in canonical_keys]
+    advanced_classes = article_classes(topic, ontology, generated, "knowledge_class")
+    if not advanced_classes:
+        advanced_classes = [{
+            "alchemy": "alchemist", "creatures": "hunter", "diseases": "healer",
+            "equipment": "blacksmith", "ingredients": "alchemist",
+        }.get(topic["category"], "scholar")]
+    basic_desc = re.sub(r"\s+", " ", str(generated.get("topic_desc_basic", ""))).strip()
+    basic_classes = article_classes(topic, ontology, generated, "knowledge_class_basic") if basic_desc else []
+    if topic.get("basic_mode") == "common" and basic_desc:
+        # Common-mode access is a formatter contract, not a profile-specific choice.
+        basic_classes = ["common"]
+    if topic.get("basic_mode") == "unknown" and "common" not in advanced_classes:
+        basic_desc = f"You do not know where {topic['title']} is."
+        basic_classes = ["common"]
+    basic_classes = [value for value in basic_classes if value not in set(advanced_classes)]
     article = {
         "topic": topic["topic"], "title": topic["title"],
         "topic_desc": re.sub(r"\s+", " ", str(generated.get("topic_desc", ""))).strip(),
-        "knowledge_class": article_classes(topic, ontology, generated, "knowledge_class"),
-        "topic_desc_basic": re.sub(r"\s+", " ", str(generated.get("topic_desc_basic", ""))).strip(),
-        "knowledge_class_basic": article_classes(topic, ontology, generated, "knowledge_class_basic"),
-        "tags": unique_strings(generated.get("tags", [])), "category": topic["category"],
+        "knowledge_class": advanced_classes,
+        "topic_desc_basic": basic_desc,
+        "knowledge_class_basic": basic_classes,
+        "tags": [
+            value for value in unique_strings(generated.get("tags", []))
+            if not TAG_FORBIDDEN.search(value)
+        ], "category": topic["category"],
         "aliases": aliases[: int(ontology["prose"]["max_aliases"])],
         "record_links": topic.get("resolved_records", []),
     }
@@ -622,18 +730,30 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
     prose = ontology["prose"]
     advanced_words = word_count(article["topic_desc"])
     basic_words = word_count(article["topic_desc_basic"])
-    if not prose["advanced_min_words"] <= advanced_words <= prose["advanced_max_words"]:
+    if advanced_words < 1 or advanced_words > prose["advanced_max_words"]:
         errors.append(f"advanced article has {advanced_words} words")
-    if not prose["basic_min_words"] <= basic_words <= prose["basic_max_words"]:
+    prose_key = re.sub(r"[^a-z0-9]+", "", article["topic_desc"].casefold())
+    title_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
+    if prose_key == title_key:
+        errors.append("advanced article only repeats the title")
+    if basic_words > prose["basic_max_words"]:
         errors.append(f"basic article has {basic_words} words")
     for field in ("topic_desc", "topic_desc_basic"):
+        if "\ufffd" in article[field]:
+            errors.append(f"{field} contains a replacement character")
+        if re.search(
+            r"\b(?:canonical_topic|required_category|access_profile|seed_aliases|seed_classes|"
+            r"domain_instructions|basic_knowledge_mode|official_record|uesp_page|uesp_evidence)\b",
+            article[field], re.IGNORECASE,
+        ) or re.fullmatch(r"[a-z0-9]+(?:_[a-z0-9]+)+", article[field].strip(), re.IGNORECASE):
+            errors.append(f"{field} contains leaked prompt or topic identifiers")
         if FORBIDDEN.search(article[field]):
             errors.append(f"{field} contains forbidden out-of-world language")
         if POST_GAME.search(article[field]):
             errors.append(f"{field} contains knowledge after the 3E 427 start-of-game baseline")
-    advanced_terms = set(re.findall(r"[a-z0-9]+", article["topic_desc"].casefold()))
-    basic_terms = set(re.findall(r"[a-z0-9]+", article["topic_desc_basic"].casefold()))
-    if basic_terms and len(advanced_terms & basic_terms) / len(basic_terms) > 0.9:
+    advanced_normalized = re.sub(r"\s+", " ", article["topic_desc"].casefold()).strip()
+    basic_normalized = re.sub(r"\s+", " ", article["topic_desc_basic"].casefold()).strip()
+    if basic_normalized and SequenceMatcher(None, advanced_normalized, basic_normalized).ratio() >= 0.9:
         errors.append("basic article is too close to the advanced article")
     if article["category"] != topic["category"]:
         errors.append("category changed from locked inventory")
@@ -642,11 +762,31 @@ def validate_article(article: dict[str, Any], topic: dict[str, Any], ontology: d
     if len(article["aliases"]) > int(prose["max_aliases"]):
         errors.append("alias count is outside the ontology bounds")
     allowed = set(ontology["knowledge_classes"])
-    for field in ("knowledge_class", "knowledge_class_basic"):
-        if not article[field] or any(value not in allowed for value in article[field]):
-            errors.append(f"{field} is empty or outside the ontology")
+    if not article["knowledge_class"] or any(value not in allowed for value in article["knowledge_class"]):
+        errors.append("knowledge_class is empty or outside the ontology")
+    if any(value not in allowed for value in article["knowledge_class_basic"]):
+        errors.append("knowledge_class_basic is outside the ontology")
+    if bool(article["topic_desc_basic"]) != bool(article["knowledge_class_basic"]):
+        errors.append("basic prose and basic classes must either both be present or both be empty")
+    if topic.get("basic_mode") == "common" and (
+        not article["topic_desc_basic"] or article["knowledge_class_basic"] != ["common"]
+    ):
+        errors.append("common basic_mode requires factual basic prose assigned only to common")
+    overlap = set(article["knowledge_class"]) & set(article["knowledge_class_basic"])
+    if overlap:
+        errors.append("advanced and basic classes overlap: " + ", ".join(sorted(overlap)))
     if not prose["min_tags"] <= len(article["tags"]) <= prose["max_tags"]:
         errors.append("tag count is outside the ontology bounds")
+    if any(TAG_FORBIDDEN.search(value) for value in article["tags"]):
+        errors.append("tags contain forbidden out-of-world language")
+    advanced_folded = article["topic_desc"].casefold()
+    for phrase in topic.get("required_phrases", []):
+        if str(phrase).casefold() not in advanced_folded:
+            errors.append(f"advanced article is missing required phrase: {phrase}")
+    all_prose = f"{article['topic_desc']} {article['topic_desc_basic']}".casefold()
+    for phrase in topic.get("forbidden_phrases", []):
+        if str(phrase).casefold() in all_prose:
+            errors.append(f"article contains unsupported phrase: {phrase}")
     return errors
 
 
@@ -735,6 +875,12 @@ def build_manifest(run_dir: Path, selected: list[dict[str, Any]], hashes: dict[s
         items.append({"topic": topic["topic"], "title": topic["title"], "category": topic["category"],
                       "mod_source": topic.get("mod_source"), "status": status})
     spent = attempt_cost(run_dir)
+    untracked_provider_responses = 0
+    for path in (run_dir / "records").glob("*/attempts.json") if (run_dir / "records").is_dir() else []:
+        for attempt in read_json(path).get("attempts", []):
+            errors = "; ".join(str(value) for value in attempt.get("errors", []))
+            if not (attempt.get("usage") or {}).get("cost") and "provider response contains no JSON object" in errors:
+                untracked_provider_responses += 1
     return {
         "format": FORMAT_VERSION, "updated_at_utc": utc_timestamp(), "model": model,
         "prompt_sha256": hashlib.sha256(SYSTEM_PROMPT.encode("utf-8")).hexdigest(),
@@ -742,7 +888,11 @@ def build_manifest(run_dir: Path, selected: list[dict[str, Any]], hashes: dict[s
         "official_content_sha256": hashes, "selected_count": len(selected),
         "evidence_completed_count": evidence_complete, "completed_count": complete,
         "failed_count": failed, "pending_count": len(selected) - complete - failed,
-        "usage": {"cost": spent},
+        "usage": {
+            "recorded_cost": spent,
+            "accounting_complete": untracked_provider_responses == 0,
+            "untracked_provider_response_count": untracked_provider_responses,
+        },
         "budget": None if max_cost is None else {"limit": max_cost, "reserve": reserve, "spent": spent, "next_call_allowed": spent < max_cost - reserve},
         "items": items,
     }
@@ -763,16 +913,23 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ALMSIVI" / "oghma-uesp-cache")
     parser.add_argument("--refresh-uesp-cache", action="store_true")
     parser.add_argument("--skip-uesp", action="store_true",
-                        help="Retained for command compatibility; remote wiki acquisition is always disabled.")
+                        help="Skip UESP evidence acquisition, including revision-pinned seed pages.")
     parser.add_argument("--evidence-only", action="store_true")
     parser.add_argument("--resume", action="store_true")
     parser.add_argument("--request-timeout", type=float, default=120.0)
+    parser.add_argument("--max-output-tokens", type=int, default=1800)
     parser.add_argument("--max-cost", type=float)
     parser.add_argument("--budget-reserve", type=float, default=0.10)
     parser.add_argument("--checkpoint-every", type=int, default=10)
+    parser.add_argument("--workers", type=int, default=1,
+                        help="Concurrent evidence/provider workers. Each topic remains independently checkpointed.")
     args = parser.parse_args()
     if args.max_cost is not None and args.budget_reserve >= args.max_cost:
         parser.error("--budget-reserve must be lower than --max-cost")
+    if args.workers < 1 or args.workers > 16:
+        parser.error("--workers must be between 1 and 16")
+    if args.max_output_tokens < 512 or args.max_output_tokens > 8192:
+        parser.error("--max-output-tokens must be between 512 and 8192")
     content_files = tuple(args.content_file or CONTENT_FILES)
     if len({value.casefold() for value in content_files}) != len(content_files):
         parser.error("--content-file values must be unique")
@@ -809,13 +966,52 @@ def main() -> int:
             selected = stable_selection(available_topics, args.size)
             atomic_json(selection_path, selection_document(selected, hashes, ontology_sha, seeds_sha))
         print(f"[inventory] curated={len(topics)} excluded={len(excluded)} selected={len(selected)} official_records={len(records)}", flush=True)
-        session = requests.Session()
-        session.headers.update({"User-Agent": "ALMSIVI-Oghma-Generator/1.0 (https://dwemerdynamics.com/)"})
         api_key = os.environ.get(args.api_key_env, "").strip()
         if not args.evidence_only and not api_key:
             raise ValueError(f"{args.api_key_env} is required unless --evidence-only is used")
-        processed = 0
-        for index, topic in enumerate(selected, 1):
+        budget_lock = threading.Lock()
+        budget_stopped = threading.Event()
+        spent = attempt_cost(args.run_dir)
+
+        # Preserve exact usage accounting and serialize provider calls only when a hard budget is active.
+        def provider_with_budget(session: requests.Session, evidence: str, repair: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+            nonlocal spent
+
+            def request() -> tuple[dict[str, Any], dict[str, Any]]:
+                return provider_call(
+                    session, api_key, args.model, evidence, args.request_timeout,
+                    repair, args.max_output_tokens,
+                )
+
+            if args.max_cost is not None:
+                with budget_lock:
+                    if spent >= args.max_cost - args.budget_reserve:
+                        budget_stopped.set()
+                        return None
+                    try:
+                        generated, usage = request()
+                    except ProviderResponseError as error:
+                        spent += float(error.usage.get("cost") or 0.0)
+                        raise
+                    spent += float(usage.get("cost") or 0.0)
+                    return generated, usage
+            try:
+                generated, usage = request()
+            except ProviderResponseError as error:
+                with budget_lock:
+                    spent += float(error.usage.get("cost") or 0.0)
+                raise
+            with budget_lock:
+                spent += float(usage.get("cost") or 0.0)
+            return generated, usage
+
+        # Process one independently checkpointed topic so large catalogs can use bounded parallel provider calls.
+        def process_topic(index: int, topic: dict[str, Any]) -> str:
+            nonlocal spent
+            if budget_stopped.is_set():
+                return "budget-stop"
+            session = requests.Session()
+            session.headers.update({"User-Agent": "ALMSIVI-Oghma-Generator/1.0 (https://dwemerdynamics.com/)"})
             directory = record_dir(args.run_dir, topic["topic"])
             directory.mkdir(parents=True, exist_ok=True)
             evidence_path = directory / "evidence.json"
@@ -824,47 +1020,65 @@ def main() -> int:
                 uesp = evidence_document["uesp"]
                 evidence = evidence_document["evidence"]
             else:
-                uesp = {"status": "skipped", "page": None, "evidence": ""}
+                uesp = ({"status": "skipped", "pages": []} if args.skip_uesp
+                        else uesp_search(session, topic, args.cache_dir, args.refresh_uesp_cache))
                 dialogue_key = re.sub(r"[^a-z0-9]+", "", str(topic["title"]).casefold())
-                dialogue = dialogue_topics.get(dialogue_key)
+                dialogue = None if topic.get("include_dialogue_evidence") is False else dialogue_topics.get(dialogue_key)
                 evidence = build_evidence(topic, uesp, dialogue)
                 evidence_document = {"format": FORMAT_VERSION, "topic": topic["topic"], "identity": topic, "official_dialogue": dialogue, "uesp": uesp, "evidence": evidence, "evidence_sha256": hashlib.sha256(evidence.encode("utf-8")).hexdigest()}
                 atomic_json(evidence_path, evidence_document)
             print(f"[evidence] {index}/{len(selected)} {topic['topic']}: {uesp.get('status')}", flush=True)
             if args.evidence_only:
-                continue
+                return "evidence"
             result_path = directory / "result.json"
             valid, _ = valid_result(result_path, topic, ontology) if result_path.is_file() else (False, "missing")
             if args.resume and valid:
                 print(f"[skip] {topic['topic']}: checkpointed", flush=True)
-                continue
-            if args.max_cost is not None and attempt_cost(args.run_dir) >= args.max_cost - args.budget_reserve:
-                print(f"[stop] provider budget reserve reached before {topic['topic']}", flush=True)
-                break
+                return "skipped"
             errors: list[str] = []
             for attempt in range(1, 4):
                 try:
-                    generated, usage = provider_call(session, api_key, args.model, evidence, args.request_timeout, "; ".join(errors))
+                    response = provider_with_budget(session, evidence, "; ".join(errors))
+                    if response is None:
+                        print(f"[stop] provider budget reserve reached before {topic['topic']}", flush=True)
+                        return "budget-stop"
+                    generated, usage = response
                     article = normalize_article(topic, ontology, generated)
                     errors = validate_article(article, topic, ontology)
                     append_attempt(directory / "attempts.json", {"attempt": attempt, "created_at_utc": utc_timestamp(), "usage": usage, "errors": errors, "candidate": generated})
                     if not errors:
                         atomic_json(result_path, {"format": FORMAT_VERSION, "generation_ruleset": GENERATION_RULESET, "status": "complete", "topic": topic["topic"], "article": article, "source": evidence_document, "model": args.model})
                         print(f"[complete] {topic['topic']}: advanced={word_count(article['topic_desc'])} basic={word_count(article['topic_desc_basic'])}", flush=True)
-                        break
+                        return "complete"
+                except ProviderResponseError as error:
+                    errors = [str(error)]
+                    append_attempt(directory / "attempts.json", {"attempt": attempt, "created_at_utc": utc_timestamp(), "usage": error.usage, "errors": errors})
                 except Exception as error:
                     errors = [str(error)]
                     append_attempt(directory / "attempts.json", {"attempt": attempt, "created_at_utc": utc_timestamp(), "usage": {}, "errors": errors})
-            else:
-                atomic_json(result_path, {"format": FORMAT_VERSION, "status": "rejected", "topic": topic["topic"], "errors": errors})
-                print(f"[quarantine] {topic['topic']}: {'; '.join(errors)}", flush=True)
-            processed += 1
-            if processed % args.checkpoint_every == 0:
-                manifest = build_manifest(args.run_dir, selected, hashes, ontology_sha, seeds_sha, args.model, args.max_cost, args.budget_reserve)
-                write_combined(args.run_dir, selected, manifest)
+            atomic_json(result_path, {"format": FORMAT_VERSION, "status": "rejected", "topic": topic["topic"], "errors": errors})
+            print(f"[quarantine] {topic['topic']}: {'; '.join(errors)}", flush=True)
+            return "rejected"
+
+        processed = 0
+        with ThreadPoolExecutor(max_workers=args.workers) as executor:
+            futures = {
+                executor.submit(process_topic, index, topic): topic
+                for index, topic in enumerate(selected, 1)
+            }
+            for future in as_completed(futures):
+                future.result()
+                processed += 1
+                if processed % args.checkpoint_every == 0:
+                    manifest = build_manifest(args.run_dir, selected, hashes, ontology_sha, seeds_sha, args.model, args.max_cost, args.budget_reserve)
+                    write_combined(args.run_dir, selected, manifest)
+                if budget_stopped.is_set():
+                    for pending in futures:
+                        pending.cancel()
+                    break
         manifest = build_manifest(args.run_dir, selected, hashes, ontology_sha, seeds_sha, args.model, args.max_cost, args.budget_reserve)
         write_combined(args.run_dir, selected, manifest)
-        print(f"[summary] selected={manifest['selected_count']} evidence={manifest['evidence_completed_count']} complete={manifest['completed_count']} failed={manifest['failed_count']} cost={manifest['usage']['cost']:.6f}", flush=True)
+        print(f"[summary] selected={manifest['selected_count']} evidence={manifest['evidence_completed_count']} complete={manifest['completed_count']} failed={manifest['failed_count']} recorded_cost={manifest['usage']['recorded_cost']:.6f} accounting_complete={manifest['usage']['accounting_complete']}", flush=True)
         return 0 if args.evidence_only or manifest["completed_count"] == manifest["selected_count"] else 2
     finally:
         release_run_lock(lock)

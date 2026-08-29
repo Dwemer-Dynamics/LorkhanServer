@@ -36,30 +36,122 @@ $queryFor = static function (array $values) use ($pageUrl, $installationId, $emb
     return $pageUrl . '?' . http_build_query($values);
 };
 
-/** Render one copied Herika toggle that is awaiting a typed ALMSIVI provider field. */
-function almsivi_llm_planned_toggle(string $label, string $description): void
+/** The three model-slot runtimes, in the order the editor offers them: label, then list badge. */
+const ALMSIVI_LLM_DRIVERS = [
+    'configured' => ['Configured runtime', 'Runtime'],
+    'openai-compatible' => ['Direct OpenAI-compatible endpoint', 'Direct'],
+    'mock' => ['Deterministic mock', 'Mock'],
+];
+
+/** Server-held credential references a direct connector may point at; key values never reach this page. */
+const ALMSIVI_LLM_CREDENTIALS = [
+    'none' => 'No API key',
+    'default' => 'Default LLM key',
+    'openai' => 'OpenAI LLM key',
+    'openrouter' => 'OpenRouter LLM key',
+    'custom' => 'Custom LLM key',
+];
+
+/** Numeric override fields: name, label, type, minimum, maximum, step, help. */
+const ALMSIVI_LLM_GENERATION_FIELDS = [
+    ['max_tokens', 'Max tokens', 'integer', 1, 32768, '1', 'Upper bound on the tokens one response may generate. Set this or Max completion tokens, never both.'],
+    ['max_completion_tokens', 'Max completion tokens', 'integer', 1, 32768, '1', 'Alternative token limit for models that require this parameter. Set only one token limit.'],
+    ['temperature', 'Temperature', 'number', 0, 2, '0.01', 'Higher values make wording more varied.'],
+];
+
+const ALMSIVI_LLM_SAMPLING_FIELDS = [
+    ['top_p', 'Top p', 'number', 0, 1, '0.01', 'Keeps the smallest set of tokens whose probabilities reach p.'],
+    ['top_k', 'Top k', 'integer', 0, 1000, '1', 'Keeps only the k most likely tokens; 0 applies no limit.'],
+    ['min_p', 'Min p', 'number', 0, 1, '0.01', 'Drops tokens far below the most likely token.'],
+    ['top_a', 'Top a', 'number', 0, 1, '0.01', 'Scales the cutoff with the most likely token probability.'],
+    ['frequency_penalty', 'Frequency penalty', 'number', -2, 2, '0.01', 'Discourages tokens that already appeared often.'],
+    ['presence_penalty', 'Presence penalty', 'number', -2, 2, '0.01', 'Discourages topics that already appeared.'],
+    ['repetition_penalty', 'Repetition penalty', 'number', 0, 2, '0.01', 'Penalises repeated spans across the whole response.'],
+];
+
+/** Boolean override fields: name, label, inherit-option label, help, optional feature id. */
+const ALMSIVI_LLM_BOOLEAN_FIELDS = [
+    ['stream', 'Streaming', 'Default', 'Dialogue only. Default is on for direct connectors; configured connectors inherit the runtime.'],
+    ['json_mode', 'JSON mode', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. ALMSIVI validates responses even when this is off.'],
+    ['disable_reasoning', 'Disable reasoning', 'Inherit', 'Asks the provider to skip reasoning output. Configured connectors inherit the server runtime; direct connectors are off unless set. This does not clean reasoning tags out of a response.'],
+    ['reasoning_model', 'Reasoning Model Fix', 'Inherit', 'Removes one leading <think>, <thinking>, or <reasoning> block from a response before ALMSIVI parses the JSON. Off unless set, or unless a configured runtime supplies it. Disable reasoning is the separate setting that asks the provider not to produce reasoning at all; this one only cleans a block that was already returned, and JSON and result checks still apply.', 'config.llm.reasoning-fix'],
+];
+
+/** Merge the shipped UI bounds with the server-owned rules once the backend class is present. */
+function almsivi_llm_option_rules(): array
 {
-    ?>
-    <label class="llm-toggle-row" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.llm.generation')['description']); ?>">
-        <span><strong><?php echo almsivi_ui_h($label); ?></strong><small><?php echo almsivi_ui_h($description); ?></small></span>
-        <?php echo almsivi_ui_feature_badge('config.llm.generation', true); ?>
-        <input type="checkbox" disabled aria-disabled="true">
-    </label>
-    <?php
+    static $rules = null;
+    if ($rules !== null) return $rules;
+    $rules = [];
+    $class = 'ALMSIVIserver\\Application\\LlmConnector';
+    if (class_exists($class) && defined($class . '::OPTION_RULES')) {
+        $declared = constant($class . '::OPTION_RULES');
+        if (is_array($declared)) $rules = $declared;
+    }
+    return $rules;
 }
 
-/** Render one disabled Herika sampling control under the centralized advanced status. */
-function almsivi_llm_planned_slider(string $label, string $description, string $min, string $max, string $step): void
+/** Render one numeric override where an empty control means "inherit", never "zero". */
+function almsivi_llm_number_field(array $field, array $options, string $formId, bool $active): void
 {
+    [$name, $label, $type, $minimum, $maximum, $step, $help] = $field;
+    $rule = almsivi_llm_option_rules()[$name] ?? null;
+    if (is_array($rule)) {
+        $type = (string) ($rule['type'] ?? $type);
+        if (array_key_exists('minimum', $rule)) $minimum = $rule['minimum'];
+        if (array_key_exists('maximum', $rule)) $maximum = $rule['maximum'];
+    }
+    if ($type === 'integer') $step = '1';
+    $stored = $options[$name] ?? null;
+    $value = is_int($stored) || is_float($stored) ? (string) $stored : (is_string($stored) ? $stored : '');
+    $id = 'llm_option_' . $name;
     ?>
-    <div class="llm-slider-row" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.llm.advanced')['description']); ?>">
-        <label><?php echo almsivi_ui_h($label); ?><small><?php echo almsivi_ui_h($description); ?></small></label>
-        <div class="llm-slider-controls"><input type="range" min="<?php echo almsivi_ui_h($min); ?>" max="<?php echo almsivi_ui_h($max); ?>" step="<?php echo almsivi_ui_h($step); ?>" disabled aria-disabled="true"><input class="inline-num" type="number" disabled aria-disabled="true"></div>
+    <div class="llm-option-field">
+        <label for="<?php echo almsivi_ui_h($id); ?>"><?php echo almsivi_ui_h($label); ?></label>
+        <input id="<?php echo almsivi_ui_h($id); ?>" name="option_<?php echo almsivi_ui_h($name); ?>" type="number"
+               inputmode="<?php echo $type === 'integer' ? 'numeric' : 'decimal'; ?>"
+               min="<?php echo almsivi_ui_h($minimum); ?>" max="<?php echo almsivi_ui_h($maximum); ?>" step="<?php echo almsivi_ui_h($step); ?>"
+               value="<?php echo almsivi_ui_h($value); ?>" placeholder="Default"
+               aria-describedby="<?php echo almsivi_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo almsivi_ui_h($formId); ?>">
+        <p class="llm-help" id="<?php echo almsivi_ui_h($id); ?>-help"><?php echo almsivi_ui_h($help); ?> Range: <?php echo almsivi_ui_h($minimum); ?> to <?php echo almsivi_ui_h($maximum); ?>.</p>
     </div>
     <?php
 }
 
-/** Render Herika's provider service picker as a visible server-owned adapter. */
+/** Render one boolean override as an explicit inherit / on / off choice instead of an ambiguous checkbox. */
+function almsivi_llm_boolean_field(array $field, array $options, string $formId, bool $active): void
+{
+    [$name, $label, $inheritLabel, $help] = $field;
+    $featureId = (string) ($field[4] ?? '');
+    $stored = $options[$name] ?? null;
+    $current = $stored === true ? 'true' : ($stored === false ? 'false' : '');
+    $id = 'llm_option_' . $name;
+    ?>
+    <div class="llm-option-field">
+        <label for="<?php echo almsivi_ui_h($id); ?>"><?php echo almsivi_ui_h($label); ?><?php if ($featureId !== '') echo ' ' . almsivi_ui_feature_badge($featureId, true); ?></label>
+        <select id="<?php echo almsivi_ui_h($id); ?>" name="option_<?php echo almsivi_ui_h($name); ?>"
+                aria-describedby="<?php echo almsivi_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo almsivi_ui_h($formId); ?>">
+            <option value=""<?php echo $current === '' ? ' selected' : ''; ?>><?php echo almsivi_ui_h($inheritLabel); ?></option>
+            <option value="true"<?php echo $current === 'true' ? ' selected' : ''; ?>>On</option>
+            <option value="false"<?php echo $current === 'false' ? ' selected' : ''; ?>>Off</option>
+        </select>
+        <p class="llm-help" id="<?php echo almsivi_ui_h($id); ?>-help"><?php echo almsivi_ui_h($help); ?></p>
+    </div>
+    <?php
+}
+
+/** Describe one inherited Herika control ALMSIVI does not implement, without drawing a switch that does nothing. */
+function almsivi_llm_legacy_row(string $label, string $featureId): void
+{
+    ?>
+    <div class="llm-legacy-row">
+        <p class="llm-legacy-name"><span><?php echo almsivi_ui_h($label); ?></span><?php echo almsivi_ui_feature_badge($featureId, true); ?></p>
+        <p class="llm-help"><?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?></p>
+    </div>
+    <?php
+}
+
+/** Keep Herika's provider service strip visible as a clearly inert legacy surface. */
 function almsivi_llm_service_picker(string $webRoot): void
 {
     $services = [
@@ -67,13 +159,14 @@ function almsivi_llm_service_picker(string $webRoot): void
         'groq' => 'Groq', 'nanogpt' => 'NanoGPT', 'player2' => 'Player2', 'custom' => 'Custom',
     ];
     ?>
-    <div class="llm-service-block" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.llm.service')['description']); ?>">
-        <div class="llm-field-heading"><span>Service: ALMSIVI Server runtime</span><?php echo almsivi_ui_feature_badge('config.llm.service', true); ?></div>
-        <div class="service-picker"><div class="service-icons" aria-label="Server-owned provider services">
+    <div class="llm-legacy-row llm-service-block">
+        <p class="llm-legacy-name"><span>Service preset icons</span><?php echo almsivi_ui_feature_badge('config.llm.service', true); ?></p>
+        <p class="llm-help"><?php echo almsivi_ui_h(almsivi_ui_feature('config.llm.service')['description']); ?></p>
+        <div class="llm-service-icons" role="presentation">
             <?php foreach ($services as $file => $label): ?>
-            <span class="service-icon-shell" title="<?php echo almsivi_ui_h($label); ?> is selected by the server runtime"><img class="service-icon" src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo almsivi_ui_h($file); ?>.jpg" alt="<?php echo almsivi_ui_h($label); ?>" aria-disabled="true"></span>
+            <img class="llm-service-icon" src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo almsivi_ui_h($file); ?>.jpg" alt="" aria-hidden="true">
             <?php endforeach; ?>
-        </div></div>
+        </div>
     </div>
     <?php
 }
@@ -111,11 +204,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <?php foreach ($rows as $row):
                     $content = is_array($row['content'] ?? null) ? $row['content'] : [];
                     $active = $selected !== null && $selected['configuration_id'] === $row['configuration_id'];
-                    $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0;
+                    $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0
+                        || (int) ($row['queued_job_usage'] ?? 0) > 0 || (int) ($row['memory_policy_usage'] ?? 0) > 0;
+                    $rowDriver = (string) ($content['driver'] ?? 'configured');
                 ?>
                 <div class="conn-li<?php echo $active ? ' active' : ''; ?>" data-configuration-id="<?php echo almsivi_ui_h($row['configuration_id']); ?>">
                     <a class="conn-li-select" href="<?php echo almsivi_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>" aria-label="Edit <?php echo almsivi_ui_h($row['name']); ?>">
-                        <span class="head"><span class="title"><?php echo almsivi_ui_h($row['name']); ?></span><span class="badge"><?php echo almsivi_ui_h($content['driver'] ?? 'configured'); ?></span></span>
+                        <span class="head"><span class="title"><?php echo almsivi_ui_h($row['name']); ?></span><span class="badge"><?php echo almsivi_ui_h(ALMSIVI_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver); ?></span></span>
                         <span class="sub"><?php echo almsivi_ui_h($content['model'] ?? ''); ?></span>
                     </a>
                     <div class="actions">
@@ -146,17 +241,30 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <h2>Import LLM Connector <?php echo almsivi_ui_feature_badge('config.llm.import-format', true); ?></h2>
                     <form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/provider-import">
                         <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
-                        <label>Choose portable JSON file<input type="file" accept="application/json,.json" data-json-import-target="llm-import-json"></label>
-                        <label>Portable ALMSIVI model-slot JSON<textarea id="llm-import-json" name="provider_json" required placeholder="Choose a JSON file or paste its contents here."></textarea></label>
+                        <label for="llm-import-file">Choose portable JSON file</label>
+                        <input id="llm-import-file" type="file" accept="application/json,.json" data-json-import-target="llm-import-json">
+                        <label for="llm-import-json">Portable ALMSIVI model-slot JSON</label>
+                        <textarea id="llm-import-json" name="provider_json" required aria-describedby="llm-import-help" placeholder="Choose a JSON file or paste its contents here."></textarea>
+                        <p class="llm-help" id="llm-import-help">A portable model slot never carries an API key value. An imported direct connector keeps its endpoint but always arrives set to No API key, so it cannot pick up a key you already hold. Choose the credential yourself after importing.</p>
                         <button class="btn-save" type="submit">Import</button>
                     </form>
                 </div>
             <?php else:
                 $creating = $mode === 'create';
                 $content = $creating ? [] : (is_array($selected['content'] ?? null) ? $selected['content'] : []);
+                $options = is_array($content['options'] ?? null) ? $content['options'] : [];
                 $formId = $creating ? 'llm-create-form' : 'llm-revise-form';
                 $formAction = $creating ? 'providers' : 'provider-revise';
                 $driver = (string) ($content['driver'] ?? 'configured');
+                if (!isset(ALMSIVI_LLM_DRIVERS[$driver])) $driver = 'configured';
+                $credential = (string) ($content['credential'] ?? 'none');
+                if (!isset(ALMSIVI_LLM_CREDENTIALS[$credential])) $credential = 'none';
+                $storedTimeout = $content['timeout_ms'] ?? null;
+                $timeout = is_int($storedTimeout) ? (string) $storedTimeout : (is_string($storedTimeout) ? $storedTimeout : '');
+                $isDirect = $driver === 'openai-compatible';
+                $isMock = $driver === 'mock';
+                // Inactive mode controls stay disabled so they neither submit nor block native validation.
+                $unless = static fn(bool $active): string => $active ? '' : ' disabled';
             ?>
                 <div class="form-container wide-centered llm-editor">
                     <form id="<?php echo almsivi_ui_h($formId); ?>" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/<?php echo almsivi_ui_h($formAction); ?>">
@@ -173,58 +281,110 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <span class="llm-toolbar-placeholder"><button class="btn-primary feature-placeholder-control" type="button" disabled aria-disabled="true">Test</button><?php echo almsivi_ui_feature_badge('config.llm.saved-only', true); ?></span>
                         <span class="llm-toolbar-placeholder"><button class="btn-save feature-placeholder-control" type="button" disabled aria-disabled="true">Export</button><?php echo almsivi_ui_feature_badge('config.llm.saved-only', true); ?></span>
                         <?php endif; ?>
-                        <div class="llm-test-note">Please save any changes before testing to ensure the latest settings are used.</div>
-                        <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
+                        <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
+                        <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                     </div>
 
                     <div class="two-col-llm">
                         <div class="llm-column">
-                            <label>Name<?php if (!$creating) echo almsivi_ui_feature_badge('config.llm.identity', true); ?><input type="text" <?php echo $creating ? 'name="name" required maxlength="128" form="' . almsivi_ui_h($formId) . '"' : 'value="' . almsivi_ui_h($selected['name']) . '" readonly'; ?>></label>
-                            <?php almsivi_llm_service_picker($webRoot); ?>
-                            <label>Driver<select name="driver" form="<?php echo almsivi_ui_h($formId); ?>"><option value="configured"<?php echo $driver === 'configured' ? ' selected' : ''; ?>>Configured runtime</option><option value="mock"<?php echo $driver === 'mock' ? ' selected' : ''; ?>>Deterministic mock</option></select></label>
-                            <label>Model<input type="text" name="model" required maxlength="256" value="<?php echo almsivi_ui_h($content['model'] ?? ''); ?>" form="<?php echo almsivi_ui_h($formId); ?>"></label>
-                            <label>Mock prefix<input type="text" name="mock_prefix" maxlength="256" value="<?php echo almsivi_ui_h($content['mock_prefix'] ?? ''); ?>" form="<?php echo almsivi_ui_h($formId); ?>"></label>
-                            <label>Provider <?php echo almsivi_ui_feature_badge('config.llm.service', true); ?><input type="text" placeholder="Selected by the server runtime" disabled aria-disabled="true"></label>
-                            <label>API Key <?php echo almsivi_ui_feature_badge('config.llm.api-key', true); ?><select disabled aria-disabled="true"><option>Server-owned credential</option></select></label>
+                            <label for="llm_name">Name<?php if (!$creating) echo ' ' . almsivi_ui_feature_badge('config.llm.identity', true); ?></label>
+                            <input id="llm_name" type="text" aria-describedby="llm_name-help" <?php echo $creating ? 'name="name" required maxlength="128" form="' . almsivi_ui_h($formId) . '"' : 'value="' . almsivi_ui_h($selected['name']) . '" readonly'; ?>>
+                            <p class="llm-help" id="llm_name-help"><?php echo $creating ? 'This label appears in profile and player connector pickers.' : 'The name stays fixed while model-slot content changes through immutable revisions.'; ?></p>
 
-                            <div class="llm-toggle-list">
-                                <?php almsivi_llm_planned_toggle('Reasoning Model Fix', 'Fixes reasoning-only model tags before response parsing.'); ?>
-                                <?php almsivi_llm_planned_toggle('Enforce JSON', 'Force responses to use the bounded dialogue response schema.'); ?>
-                                <?php almsivi_llm_planned_toggle('JSON Schema', 'Guide and validate the JSON structure.'); ?>
-                                <?php almsivi_llm_planned_toggle('Prefill JSON', 'Send a starter JSON object to steer field names and shape.'); ?>
-                                <?php almsivi_llm_planned_toggle('Disable Streaming', 'Wait for a complete provider response before parsing.'); ?>
-                                <?php almsivi_llm_planned_toggle('Remove Action Prompt', 'Disable the action-enforcement prompt for this connector.'); ?>
-                            </div>
+                            <label for="llm_driver">Mode</label>
+                            <select id="llm_driver" name="driver" aria-describedby="llm_driver-help" form="<?php echo almsivi_ui_h($formId); ?>">
+                                <?php foreach (ALMSIVI_LLM_DRIVERS as $driverId => $driverLabels): ?>
+                                <option value="<?php echo almsivi_ui_h($driverId); ?>"<?php echo $driver === $driverId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($driverLabels[0]); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <p class="llm-help" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
+
+                            <label for="llm_model">Model</label>
+                            <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo almsivi_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo almsivi_ui_h($formId); ?>">
+                            <p class="llm-help" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
+
+                            <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
+                                <div class="llm-group-heading"><span>Inherited connection</span><?php echo almsivi_ui_feature_badge('config.llm.service', true); ?></div>
+                                <p class="llm-help">The endpoint and the API key come from the ALMSIVI server runtime. This mode has no per-connector endpoint or credential of its own.</p>
+                            </section>
+
+                            <section class="llm-mode-panel llm-connection-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
+                                <div class="llm-group-heading"><span>Direct connection</span><?php echo almsivi_ui_feature_badge('config.llm.endpoint', true); ?></div>
+                                <label for="llm_endpoint">Endpoint URL</label>
+                                <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
+                                       value="<?php echo almsivi_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
+                                       aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo almsivi_ui_h($formId); ?>">
+                                <p class="llm-help" id="llm_endpoint-help">Paste the complete chat-completions URL. ALMSIVI stores it verbatim and never appends or rewrites a path.</p>
+                                <details class="llm-help-details">
+                                    <summary>Endpoint rules</summary>
+                                    <ul>
+                                        <li>Give the whole path, for example <code>http://127.0.0.1:1234/v1/chat/completions</code>.</li>
+                                        <li>Plain HTTP is accepted for loopback hosts only (<code>127.*</code> or <code>localhost</code>). Any other host must use HTTPS.</li>
+                                        <li>No query string, no fragment, and no <code>user:password@</code> userinfo.</li>
+                                        <li>Nothing is normalised or guessed from a provider preset, so a wrong path fails at Test rather than being silently corrected.</li>
+                                    </ul>
+                                </details>
+
+                                <label for="llm_credential">API key <?php echo almsivi_ui_feature_badge('config.llm.api-key', true); ?></label>
+                                <select id="llm_credential" name="credential" aria-describedby="llm_credential-help"<?php echo $unless($isDirect); ?> form="<?php echo almsivi_ui_h($formId); ?>">
+                                    <?php foreach (ALMSIVI_LLM_CREDENTIALS as $credentialId => $credentialLabel): ?>
+                                    <option value="<?php echo almsivi_ui_h($credentialId); ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($credentialLabel); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <p class="llm-help" id="llm_credential-help">Chooses which server-held key this connector sends. Key values live on the API Keys page and never appear in this form, in a revision, or in an export; an export resets this choice to No API key. New connectors start at No API key, which suits a local endpoint.</p>
+                            </section>
+
+                            <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                <label for="llm_timeout_ms">Request timeout (ms)</label>
+                                <input id="llm_timeout_ms" type="number" name="timeout_ms" min="1000" max="120000" step="1" inputmode="numeric"
+                                       value="<?php echo almsivi_ui_h($timeout); ?>" placeholder="<?php echo $isDirect ? '30000' : 'Inherit runtime timeout'; ?>"
+                                       aria-describedby="llm_timeout_ms-help"<?php echo $unless(!$isMock); ?> form="<?php echo almsivi_ui_h($formId); ?>">
+                                <p class="llm-help" id="llm_timeout_ms-help">1000 to 120000 milliseconds. Blank on a configured connector inherits the runtime timeout; blank on a direct connector uses 30000.</p>
+                            </section>
+
+                            <section class="llm-mode-panel" data-llm-modes="mock"<?php echo $isMock ? '' : ' hidden'; ?>>
+                                <label for="llm_mock_prefix">Mock prefix</label>
+                                <input id="llm_mock_prefix" type="text" name="mock_prefix" maxlength="256" value="<?php echo almsivi_ui_h($content['mock_prefix'] ?? ''); ?>" aria-describedby="llm_mock_prefix-help"<?php echo $unless($isMock); ?> form="<?php echo almsivi_ui_h($formId); ?>">
+                                <p class="llm-help" id="llm_mock_prefix-help">Prepended to every deterministic mock response, up to 256 characters. Saving in mock mode keeps whatever is written here.</p>
+                            </section>
                         </div>
 
                         <div class="llm-column">
-                            <div class="llm-group-heading"><span>Generation Controls</span><?php echo almsivi_ui_feature_badge('config.llm.generation', true); ?></div>
-                            <div class="llm-slider-row"><label>Max Tokens<small>Maximum tokens the model can generate for a response.</small></label><div class="llm-slider-controls"><input type="number" value="750" disabled aria-disabled="true"></div></div>
-                            <div class="llm-slider-row"><label>Temperature<small>Controls randomness; higher is more creative.</small></label><div class="llm-slider-controls"><input type="range" min="0" max="2" step="0.1" value="1" disabled aria-disabled="true"><input class="inline-num" type="number" value="1" disabled aria-disabled="true"></div></div>
+                            <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                <div class="llm-group-heading"><span>Generation Controls</span><?php echo almsivi_ui_feature_badge('config.llm.generation', true); ?></div>
+                                <p class="llm-help">Blank sampling fields use provider defaults for direct connectors, or inherit server settings for configured connectors. Zero and Off are explicit overrides.</p>
+                                <div class="llm-option-grid">
+                                    <?php foreach (ALMSIVI_LLM_GENERATION_FIELDS as $field) almsivi_llm_number_field($field, $options, $formId, !$isMock); ?>
+                                    <?php foreach (ALMSIVI_LLM_BOOLEAN_FIELDS as $field) almsivi_llm_boolean_field($field, $options, $formId, !$isMock); ?>
+                                </div>
 
-                            <section class="llm-advanced-panel">
-                                <div class="llm-group-heading"><span>Advanced LLM Settings Override</span><?php echo almsivi_ui_feature_badge('config.llm.advanced', true); ?></div>
-                                <p>If a value is left empty, the API provider's recommended default will be used.</p>
-                                <?php almsivi_llm_planned_slider('Presence penalty', 'Reduces repetition by discouraging repeated topics.', '-2', '2', '0.1'); ?>
-                                <?php almsivi_llm_planned_slider('Frequency penalty', 'Reduces repeated words or phrases.', '0', '2', '0.1'); ?>
-                                <?php almsivi_llm_planned_slider('Repetition penalty', 'Stops the model from repeating itself.', '0', '2', '0.1'); ?>
-                                <?php almsivi_llm_planned_slider('Top p', 'Chooses tokens with a combined probability up to p.', '0', '1', '0.01'); ?>
-                                <?php almsivi_llm_planned_slider('Top k', 'Picks from the top k most likely words.', '0', '100', '1'); ?>
-                                <?php almsivi_llm_planned_slider('Min p', 'Ignores words with very low probability.', '0', '1', '0.01'); ?>
-                                <?php almsivi_llm_planned_slider('Top a', 'Adjusts word probabilities for better balance.', '0', '1', '0.01'); ?>
+                                <section class="llm-advanced-panel">
+                                    <div class="llm-group-heading"><span>Advanced sampling overrides</span><?php echo almsivi_ui_feature_badge('config.llm.advanced', true); ?></div>
+                                    <p class="llm-help">Leave a field empty to keep the provider or runtime default. Not every provider honours every value.</p>
+                                    <div class="llm-option-grid">
+                                        <?php foreach (ALMSIVI_LLM_SAMPLING_FIELDS as $field) almsivi_llm_number_field($field, $options, $formId, !$isMock); ?>
+                                    </div>
+                                </section>
                             </section>
 
-                            <section class="llm-body-parameters" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.llm.body-parameters')['description']); ?>">
-                                <div class="llm-group-heading"><span>Include Body Parameters (YAML)</span><?php echo almsivi_ui_feature_badge('config.llm.body-parameters', true); ?></div>
-                                <label class="llm-toggle-row"><span><strong>Enable YAML Body Parameters</strong><small>When off, saved parameters remain stored but are not sent.</small></span><input type="checkbox" disabled aria-disabled="true"></label>
-                                <textarea disabled aria-disabled="true" placeholder="Additional request body parameters"></textarea>
-                                <small>Enter additional request body parameters in YAML format. (Advanced users only.)</small>
+                            <section class="llm-mode-panel llm-connection-panel" data-llm-modes="mock"<?php echo $isMock ? '' : ' hidden'; ?>>
+                                <div class="llm-group-heading"><span>Deterministic mock</span></div>
+                                <p class="llm-help">Mock connectors never contact a provider. Switching modes keeps unsaved field values, but Save stores only fields for the selected mode. Earlier saved settings remain in revision history.</p>
                             </section>
+
+                            <details class="llm-legacy-panel">
+                                <summary>Herika controls ALMSIVI does not implement <?php echo almsivi_ui_feature_badge('config.llm.legacy-controls', true); ?></summary>
+                                <p class="llm-help">These controls exist in the Herika editor this page was copied from. They are listed so nothing looks silently missing. None of them is wired up, and none is a hidden default.</p>
+                                <?php almsivi_llm_legacy_row('JSON Schema and Prefill JSON', 'config.llm.json-schema'); ?>
+                                <?php almsivi_llm_legacy_row('Remove Action Prompt', 'config.llm.action-prompt'); ?>
+                                <?php almsivi_llm_legacy_row('Include Body Parameters (YAML)', 'config.llm.body-parameters'); ?>
+                                <?php almsivi_llm_service_picker($webRoot); ?>
+                            </details>
                         </div>
                     </div>
 
                     <?php if (!$creating): ?>
-                    <details class="llm-revisions"><summary>Revision history</summary><?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; almsivi_ui_table($history); ?><?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?><form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/provider-rollback"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo almsivi_ui_h($selected['configuration_id']); ?>"><label>Restore revision<select name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?></option><?php endforeach; ?></select></label><button type="submit">Restore</button></form><?php endif; ?></details>
+                    <details class="llm-revisions"><summary>Revision history</summary><?php $history = is_array($selected['revisions'] ?? null) ? $selected['revisions'] : []; almsivi_ui_table($history); ?><?php $earlier = array_values(array_filter($history, static fn(array $revision): bool => (int) ($revision['revision'] ?? 0) !== (int) $selected['current_revision'])); if ($earlier !== []): ?><form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/provider-rollback"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo almsivi_ui_h($selected['configuration_id']); ?>"><label for="llm_rollback_revision">Restore revision</label><select id="llm_rollback_revision" name="revision"><?php foreach ($earlier as $revision): ?><option value="<?php echo (int) $revision['revision']; ?>">Revision <?php echo (int) $revision['revision']; ?></option><?php endforeach; ?></select><button type="submit">Restore</button></form><?php endif; ?></details>
                     <?php endif; ?>
                 </div>
             <?php endif; ?>
@@ -233,4 +393,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script>
+<script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/llm-connectors.js?v=<?php echo almsivi_ui_h((string) filemtime(dirname(__DIR__) . '/js/llm-connectors.js')); ?>" defer></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

@@ -12,8 +12,9 @@ use Throwable;
 final class BiographyCatalogImporter
 {
     private const FORMAT = 'almsivi.morrowind-biography-preflight.v1';
-    private const MAX_ROWS = 10000;
+    private const MAX_ROWS = 20000;
     private const MAX_BIOGRAPHIES_BYTES = 33_554_432;
+    private const MAX_MANIFEST_BYTES = 16_777_216;
     private const LOCK_ID = 4_701_950_050;
     private const CHIM_FIELDS = [
         'npc_name', 'oghma_knowledge_tags', 'core', 'npc_static_bio', 'appearance', 'personality',
@@ -164,7 +165,7 @@ SQL);
         $this->validateVersion($catalogVersion);
         $errors = [];
         $biographiesRaw = $this->readUtf8File($biographiesPath, self::MAX_BIOGRAPHIES_BYTES, 'biographies');
-        $manifestRaw = $this->readUtf8File($manifestPath, 8_388_608, 'manifest');
+        $manifestRaw = $this->readUtf8File($manifestPath, self::MAX_MANIFEST_BYTES, 'manifest');
         try {
             $biographies = json_decode($biographiesRaw, true, 256, JSON_THROW_ON_ERROR);
             $manifest = json_decode($manifestRaw, true, 256, JSON_THROW_ON_ERROR);

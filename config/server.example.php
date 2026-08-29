@@ -30,6 +30,8 @@ return [
         'timeout_ms' => 120_000,
         'disable_reasoning' => true,
     ],
+    // DeepL endpoint selection is revisioned per installation; the API key remains in the credential store.
+    'translation_timeout_ms' => 30_000,
     // OpenAI-compatible speech can be disabled, mocked for local plumbing tests, or sent to a vetted HTTPS host.
     'speech_provider' => [
         'driver' => 'mock',

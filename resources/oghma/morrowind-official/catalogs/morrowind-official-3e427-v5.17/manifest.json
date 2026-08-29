@@ -1,0 +1,209 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "catalog_version": "morrowind-official-3e427-v5.17",
+  "row_count": 3743,
+  "articles_sha256": "f39832e30ba1ec7377767e23e2273b0d27316547a4f0596b3ec2a1866f681836",
+  "ontology_sha256": "55860171f0a443c9dc59fe8f1db7d3fd972468ab53be520ba04f821d98242c63",
+  "topic_seeds_sha256": "ff7bf8ce91c18234f4c57d1133dde24298a5aa89caeb89ba966c724c7aced4ce",
+  "tamriel_rebuilt_topic_seeds_sha256": "ff7bf8ce91c18234f4c57d1133dde24298a5aa89caeb89ba966c724c7aced4ce",
+  "editorial_decisions_sha256": "b62490061b4b1f470fe58cad264ff6711404b2883dfd8312e08a40157a28b2bc",
+  "generator_sha256": "d5291b152ae74202680674f4f9ecb2dbab14ca2f045a1a30d9203211847eb4d6",
+  "builder_sha256": "8ac90fa59395843f04e1cd3513a3c6135c4d89817d696b00ee3d32dc4b159b9a",
+  "assembly_method": "locked-v5.16-plus-reviewed-tamriel-rebuilt-v5.17",
+  "base_catalog_articles_sha256": "e93bb84d254694bdfe9978296501e55299dca9cd633ea7fff313a3d5c42657f3",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+    "Tamriel_Data.esm": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
+    "TR_Mainland.esm": "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b"
+  },
+  "category_counts": {
+    "alchemy": 3,
+    "artifacts": 155,
+    "ascadian_isles": 47,
+    "ashlands": 43,
+    "azuras_coast": 61,
+    "bitter_coast": 27,
+    "books": 767,
+    "creatures": 104,
+    "cultures": 55,
+    "diseases": 45,
+    "equipment": 38,
+    "factions": 90,
+    "figures": 83,
+    "grazelands": 21,
+    "history": 60,
+    "ingredients": 601,
+    "locationother": 41,
+    "locations": 1059,
+    "lore": 34,
+    "magic": 29,
+    "molag_amur": 30,
+    "mournhold": 11,
+    "races": 44,
+    "red_mountain": 10,
+    "regions": 48,
+    "religion": 75,
+    "settlements": 82,
+    "sheogorad": 27,
+    "solstheim": 11,
+    "west_gash": 42
+  },
+  "alias_key_count": 6365,
+  "dropped_alias_collisions": [
+    {
+      "topic": "great_house_dres",
+      "alias": "House Dres",
+      "owner": "house_dres"
+    }
+  ],
+  "source_runs": [
+    {
+      "run": "backfill",
+      "selected": 106,
+      "completed": 100,
+      "failed": 6,
+      "recorded_cost": 0.5246955016000001,
+      "accounting_complete": true
+    },
+    {
+      "run": "nonbook",
+      "selected": 138,
+      "completed": 128,
+      "failed": 10,
+      "recorded_cost": 0.5070219703999999,
+      "accounting_complete": true
+    },
+    {
+      "run": "books",
+      "selected": 528,
+      "completed": 117,
+      "failed": 9,
+      "recorded_cost": 0.8401311992000006,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients",
+      "selected": 489,
+      "completed": 145,
+      "failed": 10,
+      "recorded_cost": 0.45387489519999996,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-1",
+      "selected": 103,
+      "completed": 98,
+      "failed": 5,
+      "recorded_cost": 0.6555066324000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-2",
+      "selected": 103,
+      "completed": 90,
+      "failed": 13,
+      "recorded_cost": 0.7123951627999996,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-3",
+      "selected": 103,
+      "completed": 96,
+      "failed": 7,
+      "recorded_cost": 0.6573086984000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "books-remaining-part-4",
+      "selected": 102,
+      "completed": 91,
+      "failed": 11,
+      "recorded_cost": 0.7342114960000002,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-1",
+      "selected": 86,
+      "completed": 72,
+      "failed": 14,
+      "recorded_cost": 0.3587499772000002,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-2",
+      "selected": 86,
+      "completed": 73,
+      "failed": 13,
+      "recorded_cost": 0.20473509400000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-3",
+      "selected": 86,
+      "completed": 81,
+      "failed": 5,
+      "recorded_cost": 0.18823122839999995,
+      "accounting_complete": true
+    },
+    {
+      "run": "ingredients-remaining-part-4",
+      "selected": 86,
+      "completed": 80,
+      "failed": 6,
+      "recorded_cost": 0.18604614079999998,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-1",
+      "selected": 90,
+      "completed": 76,
+      "failed": 14,
+      "recorded_cost": 0.4934051804000004,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-2",
+      "selected": 14,
+      "completed": 10,
+      "failed": 4,
+      "recorded_cost": 0.07507816560000001,
+      "accounting_complete": true
+    },
+    {
+      "run": "repair-3",
+      "selected": 4,
+      "completed": 4,
+      "failed": 0,
+      "recorded_cost": 0.017648764400000003,
+      "accounting_complete": true
+    },
+    {
+      "run": "assembly-repair",
+      "selected": 2,
+      "completed": 2,
+      "failed": 0,
+      "recorded_cost": 0.009040784,
+      "accounting_complete": true
+    }
+  ],
+  "reviewed_row_count": 3743,
+  "editorial_exclusions": [],
+  "editorial_overrides": [],
+  "generation_cost": 6.918051891,
+  "generation_cost_accounting_complete": true,
+  "untracked_provider_response_count": 0,
+  "temporal_anchor": "3E 427",
+  "excluded": [
+    "ordinary_npcs",
+    "generic_equipment",
+    "consumables",
+    "routine_spells",
+    "minor_quest_objects",
+    "walkthroughs",
+    "player_outcomes",
+    "fourth_era",
+    "dynamic_oghma"
+  ]
+}

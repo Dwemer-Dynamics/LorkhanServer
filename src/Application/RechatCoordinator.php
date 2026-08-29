@@ -36,6 +36,13 @@ final class RechatCoordinator
             || $chainId === '' || !$this->uuid($originTurnId) || $originLine === '') {
             throw new DomainException('invalid_rechat_context');
         }
+        $participantIdentities = $this->participantIdentities($message, $previousSpeaker, $listener, $targetHint);
+        $participantStates = $this->participantStates($rechat['participant_states'] ?? null, $participantIdentities);
+        if ($participantStates !== null) {
+            $speakerState = $participantStates[$this->identityKey($previousSpeaker)] ?? null;
+            if ($speakerState === null) throw new DomainException('invalid_rechat_context');
+            if ($this->stateBlocked($speakerState, false)) throw new DomainException('rechat_no_responder');
+        }
 
         $existing = $this->repository->rechatChain(
             $chainId,
@@ -52,7 +59,7 @@ final class RechatCoordinator
         $mode = (string) ($existing['mode'] ?? $this->resolvedMode($configuredMode, $chainId));
         if ($existing === null && ($behavior['open_rechat'] ?? true) !== true) $mode = 'tight';
 
-        $participants = $this->participants($message, $previousSpeaker, $listener, $targetHint);
+        $participants = $this->participants($message, $previousSpeaker, $listener, $targetHint, $participantStates);
         $selected = $this->selectResponder($mode, $participants, $listener, $targetHint, $chainId, $depth);
         if ($selected === null) throw new DomainException('rechat_no_responder');
 
@@ -62,6 +69,7 @@ final class RechatCoordinator
             $selected,
         );
         $selectedBehavior = is_array($effective['settings']['behavior'] ?? null) ? $effective['settings']['behavior'] : $behavior;
+        if (($selectedBehavior['rechat'] ?? false) !== true) throw new DomainException('rechat_no_responder');
         $cooldown = max(0, min(300, (int) ($selectedBehavior['end_conversation_cooldown_seconds'] ?? 60)));
         if ($existing === null && $this->repository->rechatCooldownActive(
             (string) $message['installation_id'],
@@ -77,7 +85,7 @@ final class RechatCoordinator
 
         $strict = (bool) ($existing['strict_targeting'] ?? $selectedBehavior['rechat_strict_targeting'] ?? false);
         $message['payload']['target'] = $selected;
-        $message['payload']['context']['rechat'] = [
+        $resolvedRechat = [
             'speaker' => $previousSpeaker,
             'listener_hint' => $this->identity($listener) ? $listener : null,
             'rechat_target_hint' => $this->identity($targetHint) ? $targetHint : null,
@@ -95,12 +103,20 @@ final class RechatCoordinator
             'participants' => $participants,
             'is_final_round' => $depth >= $roundBudget,
         ];
+        if ($participantStates !== null) {
+            $resolvedRechat['participant_states'] = [];
+            foreach ($participantStates as $key => $state) {
+                $resolvedRechat['participant_states'][] = ['identity' => $participantIdentities[$key], 'state' => $state];
+            }
+        }
+        $message['payload']['context']['rechat'] = $resolvedRechat;
         unset($message['payload']['action_request']);
         return $message;
     }
 
     /** @return list<array<string,mixed>> */
-    private function participants(array $message, mixed $previousSpeaker, mixed $listener, mixed $targetHint): array
+    private function participants(array $message, mixed $previousSpeaker, mixed $listener, mixed $targetHint,
+        ?array $participantStates): array
     {
         $values = [];
         foreach (array_merge(
@@ -109,6 +125,12 @@ final class RechatCoordinator
         ) as $identity) {
             if (!$this->identity($identity) || in_array(strtolower((string) $identity['kind']), ['player', 'narrator'], true)
                 || $this->sameIdentity($identity, $previousSpeaker)) continue;
+            if ($participantStates !== null) {
+                $state = $participantStates[$this->identityKey($identity)] ?? null;
+                $directlyAddressed = $this->sameIdentity($identity, $listener)
+                    || $this->sameIdentity($identity, $targetHint);
+                if ($state === null || $this->stateBlocked($state, $directlyAddressed)) continue;
+            }
             $values[$this->identityKey($identity)] ??= $identity;
         }
         return array_values($values);
@@ -139,6 +161,51 @@ final class RechatCoordinator
         if ($unique === []) return null;
         $values = array_values($unique);
         return $values[$this->stableNumber($chainId . ':responder:' . $depth, count($values))];
+    }
+
+    /** @return array<string,array<string,mixed>> */
+    private function participantIdentities(array $message, mixed $previousSpeaker, mixed $listener, mixed $targetHint): array
+    {
+        $identities = [];
+        foreach (array_merge(
+            [$previousSpeaker],
+            is_array($message['payload']['audience'] ?? null) ? $message['payload']['audience'] : [],
+            [$message['payload']['target'] ?? null, $listener, $targetHint]
+        ) as $identity) {
+            if ($this->identity($identity)) $identities[$this->identityKey($identity)] ??= $identity;
+        }
+        return $identities;
+    }
+
+    /** @param array<string,array<string,mixed>> $participantIdentities @return null|array<string,string> */
+    private function participantStates(mixed $value, array $participantIdentities): ?array
+    {
+        if ($value === null) return null;
+        if (!is_array($value) || !array_is_list($value) || $value === [] || count($value) > 13) {
+            throw new DomainException('invalid_rechat_context');
+        }
+        $states = [];
+        foreach ($value as $row) {
+            if (!is_array($row) || array_is_list($row) || count($row) !== 2
+                || !array_key_exists('identity', $row) || !array_key_exists('state', $row)
+                || !$this->identity($row['identity'] ?? null)
+                || in_array(strtolower((string) $row['identity']['kind']), ['player', 'narrator'], true)
+                || !in_array($row['state'] ?? null, ['active', 'busy', 'sleeping', 'unconscious', 'inactive'], true)) {
+                throw new DomainException('invalid_rechat_context');
+            }
+            $key = $this->identityKey($row['identity']);
+            if (!isset($participantIdentities[$key]) || isset($states[$key])) {
+                throw new DomainException('invalid_rechat_context');
+            }
+            $states[$key] = $row['state'];
+        }
+        return $states;
+    }
+
+    private function stateBlocked(string $state, bool $directlyAddressed): bool
+    {
+        return in_array($state, ['busy', 'unconscious', 'inactive'], true)
+            || ($state === 'sleeping' && !$directlyAddressed);
     }
 
     private function resolvedMode(string $configuredMode, string $chainId): string

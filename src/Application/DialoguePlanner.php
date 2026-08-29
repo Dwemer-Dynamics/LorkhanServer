@@ -69,10 +69,18 @@ final class DialoguePlanner
             }
             $totalBytes += strlen($text);
             if ($totalBytes > self::MAX_TOTAL_BYTES) throw new DomainException('provider_invalid_output');
+            $variants=[];
+            foreach(['_history_text','_subtitle','_tts_text']as$field){
+                $value=$candidate[$field]??$text;
+                if(!is_string($value)||$value===''||!mb_check_encoding($value,'UTF-8')
+                    ||mb_strlen($value,'UTF-8')>4096||strlen($value)>16_384)
+                    throw new DomainException('provider_invalid_output');
+                $variants[$field]=$value;
+            }
             $utterances[] = ['speaker' => $speaker, 'addressee' => $addressee,
                 'audience' => array_values($eligible), 'text' => $text,
                 'speech_enabled'=>($candidate['speech_enabled']??true)!==false,
-                'index' => $index + 1, 'count' => count($raw)];
+                'index' => $index + 1, 'count' => count($raw)]+$variants;
         }
         return $utterances;
     }

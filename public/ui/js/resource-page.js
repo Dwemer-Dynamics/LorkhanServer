@@ -23,6 +23,286 @@
         });
     });
 
+    const HISTORY_COLUMNS = ['Type', 'Event', 'People Present', 'Tamrielic Time', 'Time (UTC)', 'Location', 'Actions'];
+    const tabActivators = new WeakMap();
+    const historyControllers = new WeakMap();
+
+    const historyText = (value) => (value === null || value === undefined ? '' : String(value));
+
+    const historyRequest = async (url, options = {}) => {
+        const response = await fetch(url, {
+            credentials: 'same-origin',
+            ...options,
+            headers: { Accept: 'application/json', ...(options.headers || {}) },
+        });
+        const payload = await response.json().catch(() => null);
+        if (!response.ok || !payload) throw new Error('request_failed');
+        return payload;
+    };
+
+    /** Wire one NPC editor History tab: bounded reads, one typed injection, and guarded deletes. */
+    const createHistoryController = (view) => {
+        const endpoint = view.getAttribute('data-history-endpoint') || '';
+        const csrf = view.getAttribute('data-history-csrf') || '';
+        const limit = Number(view.getAttribute('data-history-limit')) || 100;
+        const maxLength = Number(view.getAttribute('data-history-max-length')) || 4000;
+        const recipientCap = Number(view.getAttribute('data-history-recipient-cap')) || 12;
+        const extraRecipients = Math.max(0, recipientCap - 1);
+        const playthrough = view.querySelector('[data-npc-history-playthrough]');
+        const typeSelect = view.querySelector('[data-npc-history-type]');
+        const refresh = view.querySelector('[data-npc-history-refresh]');
+        const status = view.querySelector('[data-npc-history-status]');
+        const errorBox = view.querySelector('[data-npc-history-error]');
+        const results = view.querySelector('[data-npc-history-results]');
+        const eventText = view.querySelector('[data-npc-history-event]');
+        const recipients = view.querySelector('[data-npc-history-recipients]');
+        const submit = view.querySelector('[data-npc-history-submit]');
+        const counter = view.querySelector('[data-npc-history-count]');
+        const chooseMessage = 'Choose a playthrough to load this NPC’s recent events.';
+        let pending = false;
+        let loaded = false;
+
+        const setStatus = (text) => { if (status) status.textContent = text; };
+        const setError = (text) => {
+            if (!errorBox) return;
+            errorBox.textContent = text;
+            errorBox.hidden = text === '';
+        };
+        const setPending = (value) => {
+            pending = value;
+            [refresh, submit, playthrough, typeSelect, recipients, eventText].forEach((control) => {
+                if (control) control.disabled = value;
+            });
+            if (results) results.querySelectorAll('[data-npc-history-delete]').forEach((button) => { button.disabled = value; });
+        };
+        const renderNotice = (message) => {
+            if (!results) return;
+            results.textContent = '';
+            const notice = document.createElement('p');
+            notice.className = 'npc-history-empty';
+            notice.textContent = message;
+            results.appendChild(notice);
+        };
+        const buildRow = (event) => {
+            const row = document.createElement('tr');
+            [
+                historyText(event.type),
+                historyText(event.data),
+                historyText(event.people),
+                historyText(event.game_time) || '—',
+                historyText(event.time_utc),
+                historyText(event.location) || '—',
+            ].forEach((value, index) => {
+                const cell = document.createElement('td');
+                if (index === 1) {
+                    const text = document.createElement('span');
+                    text.className = 'npc-history-event-text';
+                    text.textContent = value;
+                    cell.appendChild(text);
+                } else cell.textContent = value;
+                row.appendChild(cell);
+            });
+            const actions = document.createElement('td');
+            const rowId = Number(event.rowid);
+            if (event.deletable === true && Number.isInteger(rowId) && rowId > 0) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'npc-history-delete';
+                button.setAttribute('data-npc-history-delete', String(rowId));
+                button.setAttribute('aria-label', 'Delete event ' + rowId);
+                button.textContent = 'Delete';
+                actions.appendChild(button);
+            } else {
+                const locked = document.createElement('span');
+                locked.className = 'npc-history-locked';
+                locked.textContent = 'Not deletable';
+                actions.appendChild(locked);
+            }
+            row.appendChild(actions);
+            return row;
+        };
+        const renderEvents = (events) => {
+            if (!results) return;
+            results.textContent = '';
+            const table = document.createElement('table');
+            table.className = 'npc-history-table';
+            const head = document.createElement('thead');
+            const headRow = document.createElement('tr');
+            HISTORY_COLUMNS.forEach((label) => {
+                const cell = document.createElement('th');
+                cell.scope = 'col';
+                cell.textContent = label;
+                headRow.appendChild(cell);
+            });
+            head.appendChild(headRow);
+            const body = document.createElement('tbody');
+            events.forEach((event) => body.appendChild(buildRow(event)));
+            table.appendChild(head);
+            table.appendChild(body);
+            results.appendChild(table);
+        };
+        const setTypes = (types) => {
+            if (!typeSelect) return;
+            const current = typeSelect.value;
+            const names = types.map((type) => historyText(type)).filter((type) => type !== '');
+            typeSelect.textContent = '';
+            const all = document.createElement('option');
+            all.value = '';
+            all.textContent = 'All event types';
+            typeSelect.appendChild(all);
+            names.forEach((type) => {
+                const option = document.createElement('option');
+                option.value = type;
+                option.textContent = type;
+                typeSelect.appendChild(option);
+            });
+            typeSelect.value = names.includes(current) ? current : '';
+        };
+        const setRecipients = (profiles) => {
+            if (!recipients) return;
+            const selected = new Set([...recipients.selectedOptions].map((option) => option.value));
+            recipients.textContent = '';
+            profiles.forEach((profile) => {
+                const profileId = historyText(profile && profile.profile_id);
+                const name = historyText(profile && profile.name);
+                if (profileId === '' || name === '') return;
+                const option = document.createElement('option');
+                option.value = profileId;
+                option.textContent = name;
+                option.selected = selected.has(profileId);
+                recipients.appendChild(option);
+            });
+        };
+        const updateCounter = () => {
+            if (!counter || !eventText) return;
+            counter.textContent = `${[...eventText.value].length} of ${maxLength} characters.`;
+        };
+        const load = async () => {
+            if (pending) return false;
+            const playthroughId = playthrough ? playthrough.value : '';
+            if (!playthroughId) {
+                setError('');
+                setStatus(chooseMessage);
+                renderNotice(chooseMessage);
+                return false;
+            }
+            setPending(true);
+            setError('');
+            setStatus('Loading recent events.');
+            let ok = false;
+            try {
+                const url = new URL(endpoint, window.location.origin);
+                url.searchParams.set('playthrough_id', playthroughId);
+                url.searchParams.set('limit', String(limit));
+                const type = typeSelect ? typeSelect.value : '';
+                if (type) url.searchParams.set('type', type);
+                const payload = await historyRequest(url.toString(), { method: 'GET' });
+                const data = payload.data || {};
+                setTypes(Array.isArray(data.event_types) ? data.event_types : []);
+                setRecipients(Array.isArray(data.recipient_profiles) ? data.recipient_profiles : []);
+                const events = Array.isArray(data.events) ? data.events : [];
+                if (events.length === 0) renderNotice('No events are recorded for this NPC in the selected playthrough.');
+                else renderEvents(events);
+                setStatus(events.length === 0 ? 'No events recorded yet.' : `Showing ${events.length} recent event${events.length === 1 ? '' : 's'}.`);
+                loaded = true;
+                ok = true;
+            } catch (_error) {
+                renderNotice('Recent events are unavailable.');
+                setError('This NPC’s event history could not be loaded. Try Refresh.');
+                setStatus('');
+            } finally {
+                setPending(false);
+            }
+            return ok;
+        };
+        const save = async () => {
+            if (pending) return;
+            setError('');
+            const playthroughId = playthrough ? playthrough.value : '';
+            const text = eventText ? eventText.value.trim() : '';
+            const chosen = recipients ? [...recipients.selectedOptions].map((option) => option.value).filter(Boolean) : [];
+            if (!playthroughId) { setError('Choose a playthrough before adding an event.'); return; }
+            if (text === '') { setError('Enter the event text to record.'); if (eventText) eventText.focus(); return; }
+            if ([...text].length > maxLength) { setError(`Event text is limited to ${maxLength} characters.`); return; }
+            if (chosen.length > extraRecipients) { setError(`Choose at most ${extraRecipients} additional recipients.`); return; }
+            setPending(true);
+            setStatus('Saving event.');
+            let saved = false;
+            try {
+                await historyRequest(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                    body: JSON.stringify({ playthrough_id: playthroughId, event: text, recipient_profile_ids: chosen }),
+                });
+                saved = true;
+            } catch (_error) {
+                setError('The event could not be saved. Try again.');
+                setStatus('');
+            } finally {
+                setPending(false);
+            }
+            if (!saved) return;
+            if (eventText) eventText.value = '';
+            if (recipients) [...recipients.options].forEach((option) => { option.selected = false; });
+            updateCounter();
+            if (await load()) setStatus('Event saved. Recent events refreshed.');
+        };
+        const remove = async (rowId) => {
+            if (pending || !Number.isInteger(rowId) || rowId <= 0) return;
+            const playthroughId = playthrough ? playthrough.value : '';
+            if (!playthroughId) return;
+            if (!window.confirm('Delete this recorded event? This cannot be undone.')) return;
+            setPending(true);
+            setError('');
+            setStatus('Deleting event.');
+            let deleted = false;
+            try {
+                await historyRequest(`${endpoint}/${rowId}`, {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrf },
+                    body: JSON.stringify({ playthrough_id: playthroughId }),
+                });
+                deleted = true;
+            } catch (_error) {
+                setError('The event could not be deleted. Try Refresh.');
+                setStatus('');
+            } finally {
+                setPending(false);
+            }
+            if (deleted && await load()) setStatus('Event deleted. Recent events refreshed.');
+        };
+
+        if (refresh) refresh.addEventListener('click', () => { load(); });
+        if (playthrough) playthrough.addEventListener('change', () => { load(); });
+        if (typeSelect) typeSelect.addEventListener('change', () => { load(); });
+        if (submit) submit.addEventListener('click', () => { save(); });
+        if (eventText) eventText.addEventListener('input', updateCounter);
+        if (recipients) recipients.addEventListener('change', () => {
+            const chosen = [...recipients.selectedOptions].length;
+            setError(chosen > extraRecipients ? `Choose at most ${extraRecipients} additional recipients.` : '');
+        });
+        if (results) results.addEventListener('click', (event) => {
+            const button = event.target.closest('[data-npc-history-delete]');
+            if (!button || button.disabled) return;
+            remove(Number(button.getAttribute('data-npc-history-delete')));
+        });
+        updateCounter();
+
+        return { open: () => { if (!loaded && !pending) load(); } };
+    };
+
+    /** Load one NPC's event history the first time its History tab is opened, never on page load. */
+    const openHistoryPanel = (modal) => {
+        const view = modal && modal.querySelector('[data-npc-history-view]');
+        if (!view) return;
+        let controller = historyControllers.get(view);
+        if (!controller) {
+            controller = createHistoryController(view);
+            historyControllers.set(view, controller);
+        }
+        controller.open();
+    };
+
     let activeModal = null;
     let lastTrigger = null;
     const closeModal = (modal) => {
@@ -63,9 +343,11 @@
         if (event.target.matches('[data-npc-modal]')) closeModal(event.target);
         const history = event.target.closest('[data-npc-history]');
         if (history) {
+            event.preventDefault();
             const modal = history.closest('[data-npc-modal]');
-            const revisions = modal && modal.querySelector('.revision-actions');
-            if (revisions) revisions.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const tablist = modal && modal.querySelector('[data-npc-editor-tabs]');
+            const activate = tablist ? tabActivators.get(tablist) : null;
+            if (activate) activate('history', true);
         }
     });
 
@@ -82,8 +364,11 @@
                 if (active && focus) button.focus();
             });
             panels.forEach((panel) => { panel.hidden = panel.getAttribute('data-npc-editor-panel') !== name; });
-            try { window.localStorage.setItem('almsivi-npc-editor-tab', name); } catch (_error) {}
+            if (name === 'history') openHistoryPanel(modal);
+            // History is read on demand, so it never becomes the remembered default tab.
+            else try { window.localStorage.setItem('almsivi-npc-editor-tab', name); } catch (_error) {}
         };
+        tabActivators.set(tablist, activate);
         buttons.forEach((button) => button.addEventListener('click', () => activate(button.getAttribute('data-npc-editor-tab') || 'general')));
         tablist.addEventListener('keydown', (event) => {
             if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
@@ -94,10 +379,25 @@
         });
         let initial = 'general';
         try { initial = window.localStorage.getItem('almsivi-npc-editor-tab') || initial; } catch (_error) {}
-        if (!buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
+        if (initial === 'history' || !buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
         activate(initial);
     });
     document.addEventListener('keydown', (event) => {
+        if (event.key === 'Tab' && activeModal) {
+            const focusable = [...activeModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+                .filter((element) => element.getClientRects().length > 0);
+            if (focusable.length > 0) {
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (!activeModal.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last)) {
+                    event.preventDefault();
+                    first.focus();
+                } else if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                }
+            }
+        }
         if (event.key === 'Escape' && activeModal) closeModal(activeModal);
         const card = event.target.closest('.npc-card[data-npc-modal-target]');
         if (card && (event.key === 'Enter' || event.key === ' ')) {

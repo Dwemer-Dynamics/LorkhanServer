@@ -44,8 +44,33 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 .biography-page .content-section p,
 .biography-page .database-section p { color: #aaa; line-height: 1.5; }
 .biography-page .content-section code { color: #eee; }
-.biography-page .placeholder-field { margin-top: 16px; }
-.biography-page .placeholder-field > label { display: block; margin-bottom: 6px; color: #f5f1e8; font-size: 13px; font-weight: 600; }
+.biography-page .biography-field { margin-top: 16px; }
+.biography-page .biography-field > label { display: block; margin-bottom: 6px; color: #f5f1e8; font-size: 13px; font-weight: 600; }
+.biography-page .biography-installation { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 12px; }
+.biography-page .biography-installation .biography-field { flex: 1 1 260px; }
+.biography-page .biography-installation select { width: 100%; }
+.biography-page select {
+    min-height: 36px;
+    padding: 8px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #181818;
+    color: #f5f1e8;
+    font-size: 13px;
+}
+
+.biography-page .biography-tips {
+    margin-top: 16px;
+    padding: 8px 12px;
+    border: 1px solid #3a3a3a;
+    border-left: 3px solid rgb(242, 124, 17);
+    border-radius: 4px;
+    background: rgba(26, 26, 26, .6);
+}
+
+.biography-page .biography-tips > summary { color: rgb(242, 124, 17); cursor: pointer; font-size: .95em; }
+.biography-page .biography-tips ul { margin: 8px 0 0; padding-left: 20px; }
+.biography-page .biography-tips li { margin: 6px 0; color: #aaa; line-height: 1.5; overflow-wrap: break-word; }
 .biography-page input[type="file"],
 .biography-page input[type="text"],
 .biography-page textarea {
@@ -168,6 +193,8 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 @media (max-width: 480px) {
     .biography-page .content-section h1,
     .biography-page .database-section > h1 { font-size: 1.3em; }
+    .biography-page .biography-installation { flex-direction: column; align-items: stretch; }
+    .biography-page .biography-installation .action-button { width: 100%; }
     .biography-page .button-group { flex-direction: column; }
     .biography-page .button-group .action-button,
     .biography-page .button-group .btn-danger { width: 100%; }

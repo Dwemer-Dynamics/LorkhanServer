@@ -64,6 +64,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--reviewed", type=Path, action="append", default=[])
     parser.add_argument("--content-file", action="append", default=[],
                         help="Content filename in OpenMW load order; repeatable. Defaults to the three official masters.")
+    parser.add_argument("--data-dir", type=Path,
+                        help="Directory containing the selected content files; defaults to the generator data directory.")
+    parser.add_argument("--allow-unseeded-locked-catalog", action="store_true",
+                        help="Validate unseeded rows as an already-reviewed base catalog while requiring every seed.")
     parser.add_argument("--output-dir", type=Path, required=True)
     return parser.parse_args()
 
@@ -83,7 +87,7 @@ def main() -> int:
     content_files = tuple(args.content_file or generator.CONTENT_FILES)
     if len({value.casefold() for value in content_files}) != len(content_files):
         raise ValueError("--content-file values must be unique")
-    records, _ = generator.extract_records(generator.DEFAULT_DATA_DIR, content_files)
+    records, _ = generator.extract_records(args.data_dir or generator.DEFAULT_DATA_DIR, content_files)
     seeds = [row for row in generator.validate_seed_document(read_json(args.seeds), ontology, records) if row["topic"] not in exclusions]
     by_topic = {row["topic"]: row for row in seeds}
     errors: list[str] = []
@@ -93,8 +97,14 @@ def main() -> int:
         topic = str(article.get("topic", ""))
         seed = by_topic.get(topic)
         if seed is None:
-            errors.append(f"unknown topic: {topic}")
-            continue
+            if not args.allow_unseeded_locked_catalog:
+                errors.append(f"unknown topic: {topic}")
+                continue
+            seed = {
+                "topic": topic, "title": article.get("title", topic),
+                "category": article.get("category"), "mod_source": article.get("mod_source"),
+                "basic_mode": "common" if article.get("knowledge_class_basic") == ["common"] else "selective",
+            }
         errors.extend(f"{topic}: {error}" for error in generator.validate_article(article, seed, ontology))
         record_linked += bool(article.get("record_links"))
         for value in [topic, *article.get("aliases", [])]:
@@ -103,8 +113,9 @@ def main() -> int:
             if owner is not None and owner != topic:
                 errors.append(f"alias collision: {value!r} belongs to {owner} and {topic}")
             aliases[key] = topic
-    if len(articles) != len(seeds):
-        errors.append(f"coverage mismatch: articles={len(articles)} seeds={len(seeds)}")
+    missing_seeds = sorted(set(by_topic) - {str(row.get("topic", "")) for row in articles})
+    if missing_seeds:
+        errors.append(f"coverage mismatch: {len(missing_seeds)} seeded topics are absent from the catalog")
     if hashlib.sha256(articles_path.read_bytes()).hexdigest() != manifest.get("articles_sha256"):
         errors.append("articles checksum mismatch")
     if hashlib.sha256(args.editorial_decisions.read_bytes()).hexdigest() != manifest.get("editorial_decisions_sha256"):

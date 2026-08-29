@@ -30,7 +30,7 @@ final class CanonicalResponseNormalizer
             $listener = $utterance['addressee'];
             $rechatTarget = is_array($rechat['rechat_target_hint'] ?? null)
                 ? $rechat['rechat_target_hint'] : $speaker;
-            $text = $utterance['text'];
+            $text = $utterance['_history_text'];
             $lines[] = [
                 'schema' => 'almsivi.response.line.v1',
                 'line_id' => Uuid::v4(),
@@ -40,8 +40,8 @@ final class CanonicalResponseNormalizer
                 'speaker_identity' => $speaker,
                 'action' => 'say',
                 'text' => $text,
-                'subtitle' => $text,
-                'tts_text' => $text,
+                'subtitle' => $utterance['_subtitle'],
+                'tts_text' => $utterance['_tts_text'],
                 'request_id' => $requestId,
                 'utterance_id' => Uuid::v4(),
                 'listener' => $this->displayName($listener),

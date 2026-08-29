@@ -83,7 +83,14 @@ context carries chain/origin IDs, monotonic depth and previous speaker/listener 
 accepts it only in the same active session/generation, stores one scoped chain, discards provider
 actions, and closes or cancels the chain at its configured depth, on new player input, or on failure.
 The client submits continuation only after every preceding utterance is terminal and the final
-delivery result is `played`.
+delivery result is `played`. A newer client may also submit an optional, unique, bounded
+`participant_states` list covering the previous speaker and candidates. Each row must match an identity
+already present in the turn and use `active`, `busy`, `sleeping`, `unconscious`, or `inactive`. The
+server requires fresh proof for the previous speaker, excludes missing/busy/unconscious/inactive
+candidates, allows a sleeping actor only when directly addressed, and rechecks the selected NPC's
+effective `behavior.rechat` setting. Omitting the list preserves the existing client contract.
+Close mode rechat stays inside the submitted turn audience, names that bounded audience in the
+current-turn prompt, and preserves it on every reply. Whisper never admits a rechat continuation.
 
 ## Actions
 
@@ -116,16 +123,24 @@ Controls are authenticated and generation-scoped. They expose no credentials or 
 its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile
 bindings use stable OpenMW identity within one installation/playthrough; special player/narrator profiles are
 excluded from the binding list. Narrator generation accepts only the installation narrator ID returned by the
-same authenticated control query. The selected actor profile may
-change profile/prompt sources, but session-profile memory and relationship scope is retained. Turn
+same authenticated control query. The selected actor profile owns relationship and manual-memory
+context; source-derived memories additionally require witnessed-source eligibility. An unbound target
+does not inherit another actor's relationships or manual memories from the session profile. Turn
 acceptance freezes the assembled prompt and provider slot snapshot so later admin edits cannot alter an
 already accepted job.
 
 The controls response also returns a strict `almsivi.effective-settings.v1` snapshot for the active target.
-It contains the resolved memory, narrator, safety, and routing values, their Global/Core Profile/NPC source
-map, bound profile revisions, and a deterministic change token. Client-local presentation settings are not
-part of this target-effective document. Layered rechat enable/depth is included; timer scheduling,
-boredom, greetings, combat barks, ITT, and Background Life are excluded. STT is an installation-global connector and never participates in the layered profile resolver.
+It contains resolved rechat, memory, narrator, safety, and client-visible routing values, their
+Global/Core Profile/NPC source map, bound profile revisions, and a deterministic change token.
+The unchanged v1 wire shape retains compiled presentation and disabled legacy behavior defaults for
+strict older parsers. These compatibility fields never replace local OpenMW preferences or enable
+timer scheduling, boredom, greetings, combat barks, ITT, or Background Life. The Lua bridge receives
+only the seven playback-gated rechat fields from behavior; its safety gates require both local and
+server permission. Server-only Oghma tags, diary settings, and Oghma/profile/diary-generation routes
+are not exposed.
+The source map omits excluded/internal paths and compatibility-only defaults. Model-slot driver
+labels are the v1 categories `mock` or `configured`, not provider credentials or endpoints.
+STT is an installation-global connector and never participates in the layered profile resolver.
 
 Client returns exactly one terminal status: `succeeded`, `failed`, `rejected`, `timed_out` or
 `cancelled`, plus stable reason code, bounded observed fields and completion timestamp. Server states
@@ -151,6 +166,36 @@ source response remain auditable after bytes expire according to retention polic
 
 ## Local management operations
 
+Narratives can queue one manually requested diary through the authenticated browser form or
+`POST /manage/api/v1/narratives/generate`. The request supplies installation, profile, playthrough,
+and a UUID request ID. The selected profile must explicitly enable manual diary generation and resolve
+a dedicated diary provider from its Core Profile/NPC inheritance; the default is disabled and a missing
+route fails closed. Queueing reads only visible witnessed event projections for that actor and
+playthrough, excludes undelivered chat, and bounds input to the configured 1-100 turns, 64 KiB of
+context, and 128 KiB total provider input. The durable `narrative.generate` job freezes the profile and
+provider revisions, source turn IDs, instruction, and context. Replaying the same request is idempotent;
+a semantic mismatch is rejected. A successful worker writes one scoped `diary` narrative with exact
+provenance. `include_in_context` defaults on; disabling it removes only diary narratives from prompt
+context. Saving settings never calls a provider or queues work. No timer, sleep, wait, Background Life,
+automatic narrator/player diary, or physical OpenMW book path is introduced.
+
+Relationship management uses native source records scoped to installation, owning profile and
+playthrough. New records require an actor kind, record ID, content file and runtime RefNum; display
+names and current cells are not identity keys. Concurrent creates for the same scope and stable
+identity are serialized and return `relationship_already_exists` instead of silently updating a row.
+Edits must supply `relationship_id` and positive integer `expected_revision`; deletions require the
+same revision fence. A stale write returns HTTP 409 to management API callers. Browser forms return
+to the same page or embedded frame with the latest values and a conflict notice. An ID-based edit
+preserves the stored identity, including incomplete legacy identities, without guessing replacements.
+
+Migration 063 preserves existing duplicate/legacy records and audit entries. It starts revisions at
+1 and advances them for every database update. Rollback is refused after any record has been edited.
+The Relationship Audit page reads actual before/after history, including soft-deleted relationships,
+and shows at most 100 current records and 100 recent changes for the selected installation. New audit
+sequence values order same-timestamp writes; historical timestamp ties cannot recover an unknown
+original order. The compatibility NPC projection is not authoritative relationship storage. This
+foundation adds no automatic evaluation, provider calls or relationship-specific lock policy.
+
 The CHIM-style Control Panel uses ALMSIVI-native data rather than the Herika/Dialectic database
 manager. Server Logs reads only fixed ALMSIVI worker and Apache files, caps each tail at 256 KiB and
 200 lines, and redacts common credential forms before rendering. Database Manager exposes applied
@@ -168,6 +213,21 @@ credentials are excluded. Active speech connectors, profile-assigned TTS connect
 selected by an active session or assigned to a profile cannot be deleted until their use is removed.
 Prompt Manager uses the same ownership-free JSON boundary for individual prompt export, import, and
 same-installation cloning; imports still pass normal prompt validation and become independent revisions.
+Core Profile settings presets use `almsivi.core-profile-settings.v1` and carry only a name plus the
+validated `settings_overrides` tree. Import creates a new unassigned, non-default Core Profile with no
+slot, prompt text, connector routing, identifiers, revision history, or NPC assignments.
+Global Settings presets use `almsivi.global-settings-preset.v1` and carry one strict
+`almsivi.client-settings.v1` document plus a display name and export timestamp. Import applies that
+document as a new revision of the selected installation's singleton Global Settings resource. The
+portable file excludes installation ownership, revision history, Core/NPC overrides, connector routing,
+API keys, Oghma catalog/access settings, Auto Lock Profile, and NPC assignments. Restoring an earlier
+Global Settings revision also creates a new revision; local OpenMW HUD, transcript, and TTS preferences
+remain client-owned even though the strict compatibility document retains their fields.
+Revisioned Prompt documents may set `format` to `xml` or `markdown`; an absent value keeps the
+existing XML presentation. The selected prompt revision owns and freezes this choice. Compact Markdown
+changes ordinary context presentation only: the typed JSON response contract, negotiated action contract,
+and the frozen `oghma-parity-v1` fragment remain structured XML, while trace inclusion continues to use
+the canonical ordered XML sections.
 Action Editor exposes labelled policy enable, maximum-tier, and per-action permission controls over the
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.

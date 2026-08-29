@@ -60,6 +60,9 @@ final class EffectiveSettingsResolver
         'llm_experimental_configuration_id' => 'uuid_or_empty',
         'llm_fallback_configuration_id' => 'uuid_or_empty',
         'oghma_configuration_id' => 'uuid_or_empty',
+        'profile_generation_configuration_id' => 'uuid_or_empty',
+        'relationship_configuration_id' => 'uuid_or_empty',
+        'diary_generation_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
@@ -71,6 +74,45 @@ final class EffectiveSettingsResolver
         return self::DEFAULT_SETTINGS;
     }
 
+    /** Project internal settings into the unchanged strict v1 controls contract. */
+    public static function controlsProjection(array $resolved): array
+    {
+        $settings = self::DEFAULT_SETTINGS;
+        unset($settings['schema']);
+        $rechatFields = array_fill_keys(['rechat', 'rechat_max_depth', 'rechat_probability_percent',
+            'rechat_mode', 'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'], true);
+        foreach (['behavior', 'memory', 'narrator', 'safety'] as $section) {
+            $allowed = $section === 'behavior' ? $rechatFields : $settings[$section];
+            $settings[$section] = array_replace($settings[$section],
+                array_intersect_key($resolved['settings'][$section], $allowed));
+        }
+        // Presentation and legacy behavior fields are inert v1 compatibility defaults.
+        // They are never projected into Lua; the client's local preferences remain authoritative.
+        $routing = array_intersect_key($resolved['routing'], array_fill_keys([
+            'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
+            'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
+            'llm_fallback_configuration_id', 'tts_configuration_id',
+            'llm_randomizer_enabled', 'llm_fallback_enabled',
+        ], true));
+        $routing += ['llm_randomizer_enabled' => false, 'llm_fallback_enabled' => false];
+        $sources = [];
+        foreach ($settings as $section => $values) {
+            if ($section === 'presentation') continue;
+            foreach ($values as $field => $_) {
+                if ($section === 'behavior' && !isset($rechatFields[$field])) continue;
+                $path = 'settings.' . $section . '.' . $field;
+                $source = $resolved['sources'][$path] ?? null;
+                if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+            }
+        }
+        foreach ($routing as $field => $_) {
+            $path = 'routing.' . $field;
+            $source = $resolved['sources'][$path] ?? 'default';
+            if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+        }
+        return ['settings' => $settings, 'routing' => $routing, 'source_map' => $sources];
+    }
+
     /**
      * @param array<string,mixed> $globalSettings
      * @param array<string,mixed> $coreProfileContent
@@ -80,14 +122,17 @@ final class EffectiveSettingsResolver
     public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = []): array
     {
         $settings = self::DEFAULT_SETTINGS;
+        $settings['diary'] = DiaryGenerationPolicy::defaults();
         $sources = [];
         $this->markLeaves($settings, 'default', 'settings', $sources);
 
         if ($globalSettings !== []) {
             self::validateGlobalSettings($globalSettings);
             $settings = $globalSettings;
+            $settings['diary'] = DiaryGenerationPolicy::defaults();
             $sources = [];
             $this->markLeaves($settings, 'global', 'settings', $sources);
+            $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         }
         $settings['memory']['oghma_knowledge_tags'] = '';
         $sources['settings.memory.oghma_knowledge_tags'] = 'server_default';
@@ -97,6 +142,8 @@ final class EffectiveSettingsResolver
             $sources['settings.oghma.' . $field] = array_key_exists($field, $oghmaGlobal) ? 'global' : 'default';
         }
 
+        $settings['relationship'] = ['update_chance_percent'=>0, 'locked'=>false];
+        $this->markLeaves($settings['relationship'], 'default', 'settings.relationship', $sources);
         $routing = [];
         foreach ([['core_profile', $coreProfileContent], ['npc', $npcProfileContent]] as [$source, $content]) {
             if (!is_array($content) || ($content !== [] && array_is_list($content))) throw new InvalidArgumentException('invalid_settings_layer');
@@ -184,6 +231,15 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if(array_key_exists('relationship',$validation)){
+            self::validateSettingsShape(['relationship'=>$validation['relationship']],
+                ['relationship'=>['update_chance_percent'=>0,'locked'=>false]],true);
+            unset($validation['relationship']);
+        }
+        if(array_key_exists('diary',$validation)){
+            DiaryGenerationPolicy::validateOverrides($validation['diary']);
+            unset($validation['diary']);
+        }
         if(array_key_exists('oghma_knowledge_tags',$validation['memory']??[])){
             $value=$validation['memory']['oghma_knowledge_tags'];
             if(!is_string($value)||strlen($value)>4096||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_settings_overrides');
@@ -270,6 +326,7 @@ final class EffectiveSettingsResolver
             'behavior.combat_bark_period_seconds' => [5, 300],
             'memory.recent_turn_limit' => [1, 100],
             'memory.knowledge_limit' => [0, 20],
+            'relationship.update_chance_percent' => [0, 100],
             'presentation.transcript_rows' => [2, 20],
             'presentation.tts_volume_boost' => [1, 4],
         ];

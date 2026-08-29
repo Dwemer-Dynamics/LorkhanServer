@@ -1,0 +1,16 @@
+{
+  "format": "almsivi.tamriel-rebuilt-oghma-source-lock.v1",
+  "repository_head": "fa2fdca704a03ccb87e1ae9f9470143a33a03625",
+  "base_catalog": "morrowind-official-3e427-v5.16",
+  "base_articles_sha256": "e93bb84d254694bdfe9978296501e55299dca9cd633ea7fff313a3d5c42657f3",
+  "base_manifest_sha256": "540d4d59210742c4e0f091fcf1e99166f9f5cd95ddaf97282b68fec9fc7e8429",
+  "ontology_sha256": "55860171f0a443c9dc59fe8f1db7d3fd972468ab53be520ba04f821d98242c63",
+  "candidate_inventory_sha256": "ddefa91c1b53b3f68db64a2463d7600986bb1db2c872d4feac382b4ddd341452",
+  "content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+    "Tamriel_Data.esm": "e94ca3a5c62e0228ac3782e813cae58c4e10da2e9e8b7611e0a8f5ff9a98d06f",
+    "TR_Mainland.esm": "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b"
+  }
+}

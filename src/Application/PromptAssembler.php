@@ -11,6 +11,7 @@ use JsonException;
 final class PromptAssembler
 {
     private const ALGORITHM = 'chim-compact-roleplay-prompt-v2';
+    private const MARKDOWN_ALGORITHM = 'chim-compact-roleplay-prompt-v3-markdown';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -33,7 +34,7 @@ final class PromptAssembler
         'profile' => ['limit' => 1, 'bytes' => 12_288],
         'core_profile' => ['limit' => 1, 'bytes' => 65_536],
         'prompt' => ['limit' => 1, 'bytes' => 24_576],
-        'history' => ['limit' => 40, 'bytes' => 32_768],
+        'history' => ['limit' => 500, 'bytes' => 32_768],
         'memory' => ['limit' => 10, 'bytes' => 16_384],
         'relationship' => ['limit' => 10, 'bytes' => 8_192],
         'knowledge' => ['limit' => 10, 'bytes' => 24_576],
@@ -77,7 +78,7 @@ final class PromptAssembler
         $this->assertSourceScope($prompt, $turn, 'prompt');
 
         $history = $this->limitedSelection($selection, 'history');
-        $memory = $this->limitedSelection($selection, 'memory');
+        $memory = array_slice($this->selectedList($selection, array_key_exists('memory_candidates', $selection) ? 'memory_candidates' : 'memory'), 0, 500);
         $relationships = $this->limitedSelection($selection, 'relationship');
         $knowledge = $this->limitedSelection($selection, 'knowledge');
         $narrative = $this->limitedSelection($selection, 'narrative');
@@ -95,11 +96,14 @@ final class PromptAssembler
 
         $actorName = $this->actorName($turn, $profile);
         $playerName = $this->playerName($turn);
-        $final = $this->currentTurnMessage($turn, $actorName, $playerName);
-        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName);
+        $promptContent = is_array($prompt['content'] ?? null) ? $prompt['content'] : [];
+        $moodTemplates = $promptContent['player_mood_prompts'] ?? null;
+        $playerMoodCue = PlayerMoodPolicy::cue($turn['payload']['input']['mood'] ?? null, $moodTemplates, $playerName);
+        $final = $this->currentTurnMessage($turn, $actorName, $playerName, $moodTemplates);
+        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
-        $system = $this->systemPrompt(
+        $built = $this->systemPrompt(
             $turn,
             $profile,
             $coreProfile,
@@ -116,12 +120,28 @@ final class PromptAssembler
             $systemBudget,
         );
 
+        $system = $built['system'];
+        $traceSystem = $built['trace_system'];
+        $memoryState = $built['memory'];
         $messages = [['role' => 'system', 'content' => $system]];
         $messages[] = ['role' => 'user', 'content' => $final];
         $messages = $this->fitMessages($messages, $turn, $actorName, $playerName);
+        $system = $messages[0]['content'];
+
+        // Audit the first ten ranked candidates plus actual survivors, without writing 500 trace rows per turn.
+        $memoryTraceRows = [];
+        $memoryScores = [];
+        $memoryModels = [];
+        foreach ($memory as $index => $row) {
+            $id = $this->sourceId('memory', $row);
+            if ($index < 10 || isset($memoryState['texts'][$id])) $memoryTraceRows[] = $row;
+            if (isset($memoryState['texts'][$id])) $memoryScores[$id] = (float) ($row['_prompt_score'] ?? 0);
+            if (isset($row['_model_summary'])) $memoryModels[$id] = $row['_model_summary'];
+        }
+        $memory = $memoryTraceRows;
 
         $includedHistory = [];
-        if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $system) === 1) {
+        if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $traceSystem) === 1) {
             foreach ($historyMessages as $message) $includedHistory[$message['_source_id']] = true;
         }
 
@@ -142,17 +162,41 @@ final class PromptAssembler
             'action_result' => $actions,
             'turn' => [['id' => $turn['turn_id'], 'content' => $this->turnTraceContent($turn)]],
         ];
-        $sources = $this->traceSources($rows, $turn, $includedHistory, $system);
-        $sections = $this->traceSections($system, $rows, $turn);
+        $sources = $this->traceSources($rows, $turn, $includedHistory, $traceSystem, $memoryState);
+        $sections = $this->traceSections($traceSystem, $rows, $turn);
+        $memoryIncluded = str_contains($traceSystem, '<memory_context><item>');
+        $memoryRetrieval = $selection['memory_retrieval'] ?? null;
+        if (is_array($memoryRetrieval)) {
+            $memoryRetrieval['result_ids'] = $memoryIncluded ? array_keys($memoryState['texts']) : [];
+            $memoryRetrieval['scores'] = $memoryIncluded ? $memoryScores : [];
+            $memoryRetrieval['reasons'] = [];
+            foreach ($memoryRetrieval['result_ids'] as $rank => $id) $memoryRetrieval['reasons'][$id] = [
+                'rank' => $rank + 1, 'reason' => $memoryState['reasons'][$id]]
+                + (isset($memoryModels[$id]) ? ['model_summary' => $memoryModels[$id]] : []);
+            $memoryRetrieval['selection'] = 'exact-rendered-coverage-v1';
+            $memoryRetrieval['coverage'] = $memoryState['counts'];
+            $memoryRetrieval['coverage']['selected'] = count($memoryRetrieval['result_ids']);
+            if (!$memoryIncluded) $memoryRetrieval['coverage']['covered_by_memory'] = 0;
+            if ($includedHistory === []) $memoryRetrieval['coverage']['covered_by_history'] = 0;
+            // Retrieval traces persist the reasons object, not arbitrary top-level metadata.
+            $memoryRetrieval['reasons']['_context'] = ['selection' => $memoryRetrieval['selection'],
+                'coverage' => $memoryRetrieval['coverage']];
+        }
+        $memorySources = array_values(array_filter($sources, static fn(array $source): bool => $source['source_kind'] === 'memory'));
+        if ($memorySources !== [] && count(array_filter($memorySources, static fn(array $source): bool => $source['reason'] === 'covered_by_history')) === count($memorySources)) {
+            foreach ($sections as &$section) if ($section['section_key'] === 'memory_context') $section['inclusion_reason'] = 'covered_by_history';
+            unset($section);
+        }
         $truncated = false;
         foreach (['history', 'memory', 'relationship', 'knowledge', 'narrative'] as $kind) {
             $truncated = $truncated || count($rows[$kind]) < count($this->selectedList($selection, $kind));
         }
-        foreach ($sources as $source) $truncated = $truncated || $source['reason'] !== 'included';
+        foreach ($sources as $source) $truncated = $truncated || !in_array($source['reason'], ['included', 'covered_by_history', 'covered_by_memory'], true);
 
         $providerInput = $this->providerInput($turn, $assembled, $messages);
         $trace = [
-            'algorithm' => self::ALGORITHM,
+            'algorithm' => $built['format'] === 'markdown' ? self::MARKDOWN_ALGORITHM : self::ALGORITHM,
+            'prompt_format' => $built['format'],
             'input_sha256' => hash('sha256', $assembled),
             'input_bytes' => strlen($assembled),
             'truncated' => $truncated,
@@ -165,8 +209,9 @@ final class PromptAssembler
             'settings_sources' => $selection['effective_settings']['sources'] ?? [],
             'prompt_configuration_id' => $this->sourceId('prompt', $prompt),
             'prompt_revision' => $this->requiredRevision($prompt),
-            'memory_retrieval' => $selection['memory_retrieval'] ?? null,
+            'memory_retrieval' => $memoryRetrieval,
             'knowledge_retrieval' => $selection['knowledge_retrieval'] ?? null,
+            'player_mood_cue' => $playerMoodCue,
             'sources' => $sources,
             'sections' => $sections,
         ];
@@ -217,7 +262,7 @@ final class PromptAssembler
         string $actorName,
         string $playerName,
         int $budget,
-    ): string {
+    ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
             . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
@@ -259,14 +304,19 @@ final class PromptAssembler
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
 
         $conversation = '';
+        $historyText = [];
         foreach ($historyMessages as $message) {
             $line = $message['role'] === 'assistant'
                 ? $actorName . ': ' . $message['content']
                 : $message['content'];
             $conversation .= $this->xmlTag('message', $line);
+            if ($message['_complete']) $historyText[] = $line;
         }
         $relationshipXml = $this->sourceItemsXml($relationships, 'relationship');
-        $memoryXml = $this->sourceItemsXml($memory, 'memory');
+        $memoryCandidates = array_map(fn(array $row): array => ['id' => $this->sourceId('memory', $row),
+            'text' => $this->canonical($this->sourceContent('memory', $row))], $memory);
+        $memoryState = MemoryPromptSelection::select($memoryCandidates, implode("\n", $historyText), $this->maxSourceBytes);
+        $memoryXml = $memoryState['xml'];
         $actionResults = $this->sourceItemsXml($actions, 'action_result');
         $capabilities = $turn['_negotiated_capabilities'] ?? [];
         $capabilityXml = '';
@@ -288,21 +338,105 @@ final class PromptAssembler
             'conversation_context' => $conversation,
             'audience_speaker_rules' => $this->xmlTag('rules', "Only speak as {$actorName}. Address the most recent speaker and never invent dialogue for {$playerName} or another actor."),
             'negotiated_actions' => $negotiatedActions,
-            'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName)),
+            'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName,
+                is_array($prompt['content'] ?? null) ? ($prompt['content']['player_mood_prompts'] ?? null) : null)),
         ];
-        $render = static function(array $bodies):string {
+        $renderXml = static function(array $bodies):string {
             $xml = '<roleplay_context>';
             foreach (self::SECTION_ORDER as $key => $_) $xml .= '<' . $key . '>' . $bodies[$key] . '</' . $key . '>';
             return $xml . '</roleplay_context>';
         };
-        $system = $render($sections);
+        $format = $this->promptFormat($prompt);
+        $traceSystem = $renderXml($sections);
+        $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
         foreach (['conversation_context','morrowind_context','memory_context','relationships_factions',
             'player_narrator_context','npc_context','audience_speaker_rules'] as $optional) {
             if (strlen($system) <= $budget) break;
             $sections[$optional] = '';
-            $system = $render($sections);
+            if ($optional === 'conversation_context') {
+                $memoryState = MemoryPromptSelection::select($memoryCandidates, '', $this->maxSourceBytes);
+                $sections['memory_context'] = $memoryState['xml'];
+            }
+            $traceSystem = $renderXml($sections);
+            $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
         }
-        return strlen($system) <= $budget ? $system : $this->minimalSystemPrompt($actorName, $playerName);
+        if (strlen($system) > $budget) $system = $traceSystem = $this->minimalSystemPrompt($actorName, $playerName);
+        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState, 'format' => $format];
+    }
+
+    /** Read the presentation choice frozen into the selected prompt revision. */
+    private function promptFormat(array $prompt): string
+    {
+        $content = $prompt['content'] ?? [];
+        $format = is_array($content) && !array_is_list($content) ? ($content['format'] ?? 'xml') : 'xml';
+        if (!is_string($format) || !in_array($format, ['xml', 'markdown'], true)) {
+            throw new InvalidArgumentException('invalid_prompt_format');
+        }
+        return $format;
+    }
+
+    /** Present ordinary context as compact Markdown while preserving typed and protected XML contracts verbatim. */
+    private function markdownSystemPrompt(array $sections): string
+    {
+        $parts = ['# Roleplay Context'];
+        foreach (self::SECTION_ORDER as $key => $_) {
+            $body = (string)($sections[$key] ?? '');
+            if ($body === '') continue;
+            $title = $this->promptLabel($key);
+            if (in_array($key, ['output_contract', 'oghma_context', 'negotiated_actions'], true)) {
+                $parts[] = '## ' . $title . "\n\n" . $body;
+                continue;
+            }
+            $parts[] = '## ' . $title . "\n\n" . $this->markdownXmlBody($body, 3);
+        }
+        return implode("\n\n", $parts);
+    }
+
+    /** Convert server-generated no-attribute XML nodes without rewriting their text. */
+    private function markdownXmlBody(string $xml, int $headingLevel): string
+    {
+        $nodes = $this->promptXmlNodes($xml);
+        if ($nodes === null) return $xml;
+        $parts = [];
+        foreach ($nodes as $node) {
+            $children = $this->promptXmlNodes($node['body']);
+            if ($children === null) {
+                $text = html_entity_decode(trim($node['body']), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                if ($text === '') continue;
+                $text = preg_replace('/\R/u', "\n  ", $text) ?? $text;
+                $parts[] = '- **' . $this->promptLabel($node['tag']) . ':** ' . $text;
+                continue;
+            }
+            $parts[] = str_repeat('#', min(6, $headingLevel)) . ' ' . $this->promptLabel($node['tag'])
+                . "\n\n" . $this->markdownXmlBody($node['body'], $headingLevel + 1);
+        }
+        return implode("\n\n", $parts);
+    }
+
+    /** Parse the exact compact XML emitted by this assembler; return null rather than guessing on mixed content. */
+    private function promptXmlNodes(string $xml): ?array
+    {
+        $nodes = [];
+        $offset = 0;
+        $length = strlen($xml);
+        while ($offset < $length) {
+            if (preg_match('/\G\s+/', $xml, $space, 0, $offset) === 1) {
+                $offset += strlen($space[0]);
+                continue;
+            }
+            if (preg_match('/\G<([A-Za-z][A-Za-z0-9_-]*)>(.*?)<\/\1>/s', $xml, $match, 0, $offset) !== 1) {
+                return null;
+            }
+            $nodes[] = ['tag' => strtolower($match[1]), 'body' => $match[2]];
+            $offset += strlen($match[0]);
+        }
+        return $nodes === [] ? null : $nodes;
+    }
+
+    private function promptLabel(string $value): string
+    {
+        $words = ucwords(str_replace(['_', '-'], ' ', strtolower($value)));
+        return str_replace(['Npc', 'Llm', 'Oghma'], ['NPC', 'LLM', 'Oghma'], $words);
     }
 
     private function minimalSystemPrompt(string $actorName, string $playerName): string
@@ -357,6 +491,8 @@ final class PromptAssembler
         $player = $turn['_player_profile'] ?? null;
         if (is_array($player) && !array_is_list($player)) {
             $content = is_array($player['content'] ?? null) && !array_is_list($player['content']) ? $player['content'] : [];
+            $biographyVisible = ($content['biography_known_by_all'] ?? true) !== false
+                || ($turn['payload']['target']['kind'] ?? null) === 'narrator';
             foreach ([
                 'basic_summary' => ['biography', 'background', 'basic_summary', 'persona'],
                 'personality' => ['personality'],
@@ -365,6 +501,7 @@ final class PromptAssembler
                 'goals' => ['goals'],
                 'notes' => ['notes'],
             ] as $tag => $keys) {
+                if ($tag === 'basic_summary' && !$biographyVisible) continue;
                 $value = $this->fieldText($content, $keys);
                 if ($value !== '') $xml .= $this->xmlTag($tag, $value);
             }
@@ -580,8 +717,8 @@ final class PromptAssembler
         return null;
     }
 
-    /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string}> */
-    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName): array
+    /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string,_complete:bool}> */
+    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates): array
     {
         if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
             $latestPlayerInput = null;
@@ -600,8 +737,9 @@ final class PromptAssembler
         foreach ($rows as $row) {
             $id = $this->sourceId('history', $row);
             $content = $row['content'] ?? null;
-            $message = $this->historyMessage($content, $turn, $actorName, $playerName);
+            $message = $this->historyMessage($content, $turn, $actorName, $playerName, $moodTemplates);
             if ($message === null) continue;
+            $message['_complete'] = strlen($message['content']) <= $this->maxSourceBytes;
             $message['content'] = $this->truncateUtf8($message['content'], $this->maxSourceBytes);
             if (str_starts_with($message['content'], '[Journal] ')) {
                 $semanticKey = mb_strtolower(preg_replace('/\s+/u', ' ', trim($message['content'])) ?? $message['content'], 'UTF-8');
@@ -614,11 +752,20 @@ final class PromptAssembler
             $messages[] = $message + ['_source_id' => $id];
             $messageIndexes[$messageKey] = array_key_last($messages);
         }
-        return array_slice(array_values($messages), -32);
+        // The repository already applies the profile's turn limit. Retain its newest messages
+        // within the existing byte budget instead of silently applying another fixed row cap.
+        $bounded=[];$bytes=0;
+        foreach(array_reverse(array_values($messages))as$message){
+            $line=$message['role']==='assistant'?$actorName.': '.$message['content']:$message['content'];
+            $size=strlen($this->xmlTag('message',$line));
+            if($bytes+$size>self::SECTIONS['history']['bytes'])break;
+            $bounded[]=$message;$bytes+=$size;
+        }
+        return array_reverse($bounded);
     }
 
     /** @return array{role:string,content:string}|null */
-    private function historyMessage(mixed $content, array $turn, string $actorName, string $playerName): ?array
+    private function historyMessage(mixed $content, array $turn, string $actorName, string $playerName, mixed $moodTemplates): ?array
     {
         if (is_string($content)) {
             $text = trim($content);
@@ -633,6 +780,10 @@ final class PromptAssembler
                 $text = trim((string) ($content['input']['text'] ?? ''));
                 if ($this->ignoredHistoryText($text)) return null;
                 $speaker = $this->identityName($content['speaker'] ?? null, $playerName);
+                $frozenCue = $content['input']['resolved_mood_cue'] ?? null;
+                $text = is_string($frozenCue)
+                    ? PlayerMoodPolicy::decorateWithCue($text, $frozenCue)
+                    : PlayerMoodPolicy::decorate($text, $content['input']['mood'] ?? null, $moodTemplates, $speaker);
                 return ['role' => 'user', 'content' => $speaker . ': ' . $text];
             }
             $details = $content['details'] ?? null;
@@ -672,8 +823,29 @@ final class PromptAssembler
         };
     }
 
-    private function currentTurnMessage(array $turn, string $actorName, string $playerName): string
+    private function currentTurnMessage(array $turn, string $actorName, string $playerName, mixed $moodTemplates): string
     {
+        $mode = $turn['payload']['context']['dialogueMode'] ?? null;
+        $closeCue = '';
+        if ($mode === 'Close') {
+            $audience = $turn['payload']['audience'] ?? [];
+            $audience = is_array($audience) && array_is_list($audience) ? $audience : [];
+            $closeActors = [];
+            foreach (array_merge(
+                [$turn['payload']['speaker'] ?? null, $turn['payload']['context']['rechat']['speaker'] ?? null],
+                $audience,
+                [$turn['payload']['target'] ?? null],
+            ) as $candidate) {
+                if (!is_array($candidate) || array_is_list($candidate)) continue;
+                foreach ($closeActors as $existing) if ($this->sameActor($candidate, $existing)) continue 2;
+                $closeActors[] = $candidate;
+            }
+            $names = array_map(fn(array $identity): string => $this->truncateUtf8(
+                $this->identityName($identity, 'Unknown'), 128,
+            ), $closeActors);
+            $closeCue = "\n\nClose mode audience: " . implode(', ', $names)
+                . '. Only these actors can hear or take part. Do not involve anyone outside this audience.';
+        }
         $rechat = $turn['payload']['context']['rechat'] ?? null;
         if (is_array($rechat) && !array_is_list($rechat)) {
             $previous = $this->identityName($rechat['speaker'] ?? null, $playerName);
@@ -693,12 +865,14 @@ final class PromptAssembler
             $closing = ($rechat['is_final_round'] ?? false) === true
                 ? "\n\n[This is your final response in this exchange. Conclude your current thought naturally — you are not leaving, just finishing what you were saying for now.]"
                 : '';
-            return $cue . "\n\n" . $listener . $closing;
+            return $cue . "\n\n" . $listener . $closing . $closeCue;
         }
         $text = trim((string) ($turn['payload']['input']['text'] ?? ''));
         if ($text === '') throw new InvalidArgumentException('invalid_turn_input');
+        $text = PlayerMoodPolicy::decorate($text, $turn['payload']['input']['mood'] ?? null, $moodTemplates, $playerName);
         $speaker = $playerName;
-        return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}.";
+        return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}."
+            . $closeCue;
     }
 
     private function ignoredHistoryText(string $text): bool
@@ -866,7 +1040,7 @@ final class PromptAssembler
     }
 
     /** @param array<string,list<array<string,mixed>>> $rows @return list<array<string,mixed>> */
-    private function traceSources(array $rows, array $turn, array $includedHistory, string $system): array
+    private function traceSources(array $rows, array $turn, array $includedHistory, string $system, array $memoryState): array
     {
         $sources = [];
         $ordinal = 0;
@@ -886,18 +1060,28 @@ final class PromptAssembler
                     : ($kind === 'turn' || (($sectionBodies[$section] ?? '') !== ''));
                 $includedBytes = $included ? min(strlen($content), $this->maxSourceBytes, self::SECTIONS[$kind]['bytes']) : 0;
                 $includedContent = $includedBytes > 0 ? $this->truncateUtf8($content, $includedBytes) : '';
+                $reason = !$included ? ($kind === 'history' ? 'section_limit' : 'byte_limit')
+                    : ($includedBytes < strlen($content) ? 'byte_limit' : 'included');
+                if ($kind === 'memory') {
+                    $included = ($sectionBodies[$section] ?? '') !== '' && isset($memoryState['texts'][$id]);
+                    $includedContent = $included ? $memoryState['texts'][$id] : '';
+                    $includedBytes = strlen($includedContent);
+                    $reason = $memoryState['reasons'][$id] ?? 'section_limit';
+                    if ($reason === 'empty') $reason = 'section_limit';
+                    if (!$included && ($sectionBodies[$section] ?? '') === ''
+                        && !($reason === 'covered_by_history' && $includedHistory !== [])) $reason = 'byte_limit';
+                }
                 $sources[] = [
                     'source_kind' => $kind,
                     'source_id' => $id,
                     'section_key' => $section,
                     'section_order' => self::SECTION_ORDER[$section],
-                    'source_table' => $this->sourceTable($kind),
+                    'source_table' => $kind === 'memory' && isset($item['_model_summary']) ? 'memory_model_summaries' : $this->sourceTable($kind),
                     'source_revision' => $this->sourceRevision($item),
                     'source_occurred_at' => $this->sourceTimestamp($item),
                     'playthrough_id' => $turn['playthrough_id'],
                     'included' => $included,
-                    'reason' => !$included ? ($kind === 'history' ? 'section_limit' : 'byte_limit')
-                        : ($includedBytes < strlen($content) ? 'byte_limit' : 'included'),
+                    'reason' => $reason,
                     'source_sha256' => hash('sha256', $content),
                     'source_bytes' => strlen($content),
                     'included_bytes' => $includedBytes,
@@ -1112,7 +1296,10 @@ final class PromptAssembler
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) {
             if (!array_key_exists($field, $source) || $source[$field] === null) continue;
             $expected = $turn[$field];
-            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge'], true)
+            if ($field === 'profile_id' && $kind === 'memory'
+                && is_string($turn['_selected_profile_id'] ?? null)
+                && $source[$field] === $turn['_selected_profile_id']) continue;
+            if ($field === 'profile_id' && in_array($kind, ['profile', 'prompt', 'knowledge', 'relationship'], true)
                 && is_string($turn['_selected_profile_id'] ?? null)) $expected = $turn['_selected_profile_id'];
             if (!is_string($source[$field]) || !hash_equals((string) $expected, $source[$field])) {
                 throw new InvalidArgumentException('prompt_source_scope_mismatch');
@@ -1147,7 +1334,7 @@ final class PromptAssembler
             'access_level'=>(string)($source['access_level']??'authorized'),'article'=>(string)($source['content']??'')];
         if (array_key_exists('content', $source)) return $source['content'];
         return match ($kind) {
-            'relationship' => $this->allow($source, ['actor_identity', 'disposition', 'affinity']),
+            'relationship' => $this->allow($source, ['actor_identity', 'disposition', 'affinity', 'relationship_type']),
             'action_result' => $this->allow($source, ['action_id', 'status', 'reason_code', 'observed', 'completed_at']),
             default => throw new InvalidArgumentException('prompt_source_content_required'),
         };

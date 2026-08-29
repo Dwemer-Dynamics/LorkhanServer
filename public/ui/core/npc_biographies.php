@@ -21,6 +21,13 @@ if (isset($_GET['template'])) {
 
 $rows = $uiRepository->rows('npc_biographies');
 
+$installations = $uiRepository->rows('installations');
+$requestedInstallation = (string) (is_string($_GET['installation_id'] ?? null) ? $_GET['installation_id'] : '');
+$installationId = (string) ($installations[0]['installation_id'] ?? '');
+foreach ($installations as $installation) {
+    if ($requestedInstallation !== '' && (string) $installation['installation_id'] === $requestedInstallation) $installationId = $requestedInstallation;
+}
+
 /** Normalize typed profile tag values for the copied Oghma Tags column. */
 function almsivi_biography_tags(array $content): array
 {
@@ -42,25 +49,67 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     </div>
     <p class="almsivi-status" id="biography-load-error" role="alert" hidden></p>
 
-    <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Biography saved.</div><?php endif; ?>
+    <?php if (isset($_GET['status'])):
+        $importCount = (int) (is_string($_GET['count'] ?? null) ? $_GET['count'] : 0);
+        $statusText = (is_string($_GET['status']) ? $_GET['status'] : '') === 'imported'
+            ? $importCount . ' biography ' . ($importCount === 1 ? 'template' : 'templates') . ' imported.'
+            : 'Biography saved.';
+    ?><div class="almsivi-status" role="status"><?php echo almsivi_ui_h($statusText); ?></div><?php endif; ?>
 
     <section class="content-section">
         <h1>Batch Upload</h1>
         <h3><strong>Please use stable OpenMW record IDs instead of display names.</strong></h3>
         <h4>Example: Fargoth uses the record ID <code>fargoth</code>.</h4>
-        <div class="placeholder-field">
-            <label>Select .csv file to upload: <?php echo almsivi_ui_feature_badge('config.biographies.import', true); ?></label>
-            <input type="file" accept=".csv" disabled aria-disabled="true">
-        </div>
-        <div class="button-group">
-            <button type="button" class="action-button upload-csv" disabled aria-disabled="true">Upload CSV <?php echo almsivi_ui_feature_badge('config.biographies.import', true); ?></button>
-            <button type="button" class="action-button" disabled aria-disabled="true">Download Example CSV <?php echo almsivi_ui_feature_badge('config.biographies.export', true); ?></button>
-            <button type="button" class="action-button" disabled aria-disabled="true">Export Custom NPCs <?php echo almsivi_ui_feature_badge('config.biographies.export', true); ?></button>
-        </div>
-        <p><strong>Relationships column:</strong> ALMSIVI preserves relationship data through its typed actor relationship repository rather than biography CSV prose.</p>
-        <p>Imported biographies resolve against stable <code>content_file</code> and <code>record_id</code> actor identity before creating a profile revision.</p>
-        <p>Factory and custom biography templates are stored separately from revisioned live NPC profiles. Use ALMSIVI NPCs to edit an encountered NPC without changing its source template.</p>
-        <p><strong>Export Custom NPCs:</strong> Portable typed exports are planned and will include actor identity plus the complete versioned profile document.</p>
+
+        <?php if ($installations === []): ?>
+            <p class="no-data">Connect OpenMW once before importing installation-scoped biographies.</p>
+            <div class="button-group">
+                <a class="action-button download-csv" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/biographies/example.csv'); ?>">Download Example CSV</a>
+            </div>
+        <?php else: ?>
+            <?php if (count($installations) > 1): ?>
+                <form class="biography-installation" method="get" action="<?php echo almsivi_ui_h($webRoot . '/ui/core/npc_biographies.php'); ?>">
+                    <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                    <div class="biography-field">
+                        <label for="biography-installation">Installation</label>
+                        <select id="biography-installation" name="installation_id">
+                            <?php foreach ($installations as $installation): ?>
+                                <option value="<?php echo almsivi_ui_h($installation['installation_id']); ?>"<?php echo (string) $installation['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo almsivi_ui_h(trim((string) ($installation['display_name'] ?? '')) !== '' ? $installation['display_name'] : $installation['installation_id']); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <button type="submit" class="action-button">Switch</button>
+                </form>
+            <?php endif; ?>
+
+            <form method="post" enctype="multipart/form-data" action="<?php echo almsivi_ui_h($managementBasePath . '/forms/biography-import'); ?>">
+                <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
+                <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                <div class="biography-field">
+                    <label for="biography-csv-file">Select .csv file to upload:</label>
+                    <input type="file" name="csv_file" id="biography-csv-file" accept=".csv,text/csv" required aria-describedby="biography-import-help">
+                </div>
+                <div class="button-group">
+                    <button type="submit" class="action-button upload-csv">Upload CSV</button>
+                    <a class="action-button download-csv" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/biographies/example.csv'); ?>">Download Example CSV</a>
+                    <a class="action-button export-csv" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/biographies/custom.csv?' . http_build_query(['installation_id' => $installationId])); ?>">Export Biography Templates</a>
+                </div>
+            </form>
+            <p id="biography-import-help">Each row is one reusable biography template for the selected installation, identified by <code>content_file</code> and <code>record_id</code>.</p>
+
+            <details class="biography-tips">
+                <summary>CSV format and what an import changes</summary>
+                <ul>
+                    <li><code>content_file</code> and <code>record_id</code> are the identity. Display names are never used as keys.</li>
+                    <li>A row creates a template or revises the matching custom one. NPCs already living in your game keep their own profiles.</li>
+                    <li>The whole file is validated and size-bounded first, so an import either applies completely or changes nothing.</li>
+                    <li><code>relationships</code> must be a JSON object such as <code>{"Player":{"aff":25,"type":"professional"}}</code>, or left empty.</li>
+                    <li>For a single NPC, ALMSIVI NPCs still exports and imports the complete profile as JSON.</li>
+                </ul>
+            </details>
+        <?php endif; ?>
+
         <div class="button-group">
             <button type="button" class="btn-danger" disabled aria-disabled="true">Factory Reset NPC Override Table <?php echo almsivi_ui_feature_badge('config.biographies.reset', true); ?></button>
         </div>

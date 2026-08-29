@@ -48,10 +48,11 @@ $products = new ProductRepository($db);
 $repo->ensureInstallation($installationId,$tokenHash,$macKey);
 (new DefaultConnectorProvisioner($db))->provision($installationId);
 $morrowindVoices=MorrowindVoiceCatalog::bundled();
+$rechatCoordinator = new RechatCoordinator($repo,$products);
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
     products:$products,promptAssembler:new PromptAssembler(),
-    morrowindVoices:$morrowindVoices,rechatCoordinator:new RechatCoordinator($repo,$products));
+    morrowindVoices:$morrowindVoices,rechatCoordinator:$rechatCoordinator);
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
@@ -112,16 +113,19 @@ $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($de
 $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
     'default connector provisioning was not idempotent');
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
-$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null) use ($db,$mediaStore): array {
+$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null,
+    ?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
+    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
-        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000,
-        sttProvider:$sttProvider),
+        provider:$provider,speechProvider:$speechProvider??($provider === null ? null : new MockSpeechProvider()),providerTimeoutMs:1000,
+        sttProvider:$sttProvider,translationProvider:$translationProvider),
         'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
-$runTurnWorker = function(Provider $provider) use($runWorker):array {
-    $turnStats=$runWorker(['turn.process'],$provider);
-    $runWorker(['speech.synthesize'],$provider);
+$runTurnWorker = function(Provider $provider,?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
+    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
+    $turnStats=$runWorker(['turn.process'],$provider,null,$translationProvider,$speechProvider);
+    $runWorker(['speech.synthesize'],$provider,null,$translationProvider,$speechProvider);
     return $turnStats;
 };
 
@@ -191,6 +195,47 @@ $products->selectConnector($installationId,'tts_provider',$profileTtsPreset['con
 $products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Bosmer male biography template',
     'actor_identity'=>['kind'=>'template'],'content'=>['race'=>'Wood Elf','gender'=>'Male',
         'biography'=>'A Bosmer raised beneath the great graht-oaks.','personality'=>'Observant and quick-witted.']],$now);
+$biographyService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
+$portableBiographyRow=['content_file'=>'HTTP Portability.esp','record_id'=>'portable_biography_npc','name'=>'Portable Biography NPC',
+    'core'=>'A careful guide with strong local boundaries.','biography'=>'Portable biography v1.','appearance'=>'Travel-worn clothes.',
+    'personality'=>'Patient and observant.','relationships'=>'{"Player":{"aff":25}}','occupation'=>'Guide',
+    'skills'=>'Local geography.','speech_style'=>'Direct and calm.','goals'=>'Help respectful travellers.',
+    'oghma_tags'=>'Balmora, common','voice_id'=>'mw_dark_elf_female','gender'=>'Female','race'=>'Dark Elf'];
+$portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
+$portableTemplateId=$portableSaved[0]['profile_id'];$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
+$portableIdentity=json_decode((string)$portableTemplate['actor_identity'],true,16,JSON_THROW_ON_ERROR);
+$assert($portableSaved[0]['created']===true&&(int)$portableTemplate['current_revision']===1
+    &&($portableIdentity['kind']??null)==='template'
+    &&($portableTemplate['content']['oghma_knowledge_tags']??null)==='Balmora',
+    'portable biography import did not create one typed OpenMW template');
+$portableContent=$portableTemplate['content'];$portableContent['notes']='Preserve this nonportable field.';
+$portableContent['routing']=['llm_configuration_id'=>$profileModelSlot['configuration_id']];
+$products->revise('profile',$portableTemplateId,$portableContent,'manual template settings',$now);
+$portableBiographyRow['biography']='Portable biography v2.';$portableBiographyRow['voice_id']='';
+$portableSaved=$biographyService->importBiographyTemplates($installationId,[$portableBiographyRow]);
+$portableTemplate=$products->getRevisioned('profile',$portableTemplateId);
+$portableExport=array_values(array_filter($products->customBiographyTemplates($installationId),
+    static fn(array$row):bool=>$row['record_id']==='portable_biography_npc'));
+$assert($portableSaved[0]['created']===false&&$portableSaved[0]['revision']===3
+    &&($portableTemplate['content']['biography']??null)==='Portable biography v2.'
+    &&($portableTemplate['content']['notes']??null)==='Preserve this nonportable field.'
+    &&($portableTemplate['content']['routing']['llm_configuration_id']??null)===$profileModelSlot['configuration_id']
+    &&!isset($portableTemplate['content']['voice'])&&count($portableExport)===1
+    &&$portableExport[0]['oghma_tags']==='Balmora',
+    'biography re-import did not revise the same template while preserving nonportable settings');
+$portableTarget=['kind'=>'npc','record_id'=>'portable_biography_npc','refnum'=>['index'=>99,'content_file'=>0],
+    'content_file'=>'HTTP Portability.esp','cell'=>['kind'=>'interior','name'=>'Balmora'],
+    'display_name'=>'Portable Biography NPC'];
+$portableVoice=$morrowindVoices->resolve($portableTarget,['targetState'=>['identity'=>['race'=>'Dark Elf','gender'=>'Female']]]);
+$portableProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$portableTarget]],$portableVoice,$now);
+$portableProfile=$products->getRevisioned('profile',$portableProfileId);
+$portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],true,16,JSON_THROW_ON_ERROR);
+$assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
+    &&($portableActorIdentity['kind']??null)==='npc',
+    'first-seen OpenMW actor did not inherit the exact imported biography template');
+$products->deleteRevisioned('profile',$portableTemplateId,$now);
 $factoryDirectory=sys_get_temp_dir().'/almsivi-biography-factory-'.bin2hex(random_bytes(4));
 mkdir($factoryDirectory,0700,true);$factoryBiographies=$factoryDirectory.'/biographies.json';$factoryManifest=$factoryDirectory.'/manifest.json';
 $factoryRow=['npc_name'=>'factory_bosmer','oghma_knowledge_tags'=>'','core'=>'Factory Bosmer keeps a careful watch over Seyda Neen.',
@@ -221,7 +266,8 @@ $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_stati
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];
-$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]];
+$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','class'=>'Commoner','gender'=>'Male','is_male'=>true],
+    'factions'=>[['id'=>'fighters guild','rank'=>1,'reputation'=>4],['id'=>'former guild','rank'=>-1,'reputation'=>0]]]];
 $automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
 $assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
 $assert(($morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],
@@ -232,17 +278,69 @@ $exactFargothVoice=$products->preferExactProviderActorVoice($installationId,['ki
 $assert(($exactFargothVoice['id']??null)==='fargoth'&&($exactFargothVoice['source']??null)==='actor_provider_catalog'
     &&($exactFargothVoice['race']??null)==='wood elf'&&($exactFargothVoice['gender']??null)==='Male',
     'active provider exact actor voice did not override the race and gender fallback');
+$ruleCoreLow=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule low priority',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$ruleCoreHigh=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule high priority',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$emptyRuleMatch=array_fill_keys(['names','races','classes','genders','factions','content_files'],[]);
+$lowRule=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Automatic Bosmer by name',
+    'core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>10,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['automatic bosmer']])],$now);
+$highRule=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Exact OpenMW actor data',
+    'core_profile_id'=>$ruleCoreHigh['core_profile_id'],'priority'=>20,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
+        'factions'=>['Fighters Guild'],'content_files'=>['morrowind.esm']])],$now);
+$rulePlan=$products->profileAssignmentRulesPlan($installationId);
+$assert(array_column($rulePlan['rules'],'rule_id')===[$highRule['rule_id'],$lowRule['rule_id']]
+    &&in_array('fighters guild',array_map('strtolower',$rulePlan['options']['factions']),true),
+    'assignment rule plan did not retain priority or observed faction values');
 $automaticProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
-    'payload'=>['target'=>$automaticTarget]],$automaticVoice,$now);
+    'payload'=>['target'=>$automaticTarget,'context'=>$automaticContext]],$automaticVoice,$now);
 $automaticProfile=$products->getRevisioned('profile',$automaticProfileId);
 $assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
     &&($automaticProfile['content']['voice']['source']??null)==='morrowind_race_gender_catalog'
     &&($automaticProfile['content']['biography']??null)==='A Bosmer raised beneath the great graht-oaks.'
     &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.'
     &&str_contains((string)($automaticProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
-    &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback',
+    &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback'
+    &&($automaticProfile['core_profile_id']??null)===$ruleCoreHigh['core_profile_id'],
     'first-seen NPC profile did not retain its voice, biography template, and deterministic home locality');
+$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'rule_id'=>$highRule['rule_id'],
+    'description'=>'Exact OpenMW actor data retargeted','core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>20,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
+        'factions'=>['Fighters Guild'],'content_files'=>['morrowind.esm']])],$now);
+$existingAutomatic=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$automaticTarget,'context'=>$automaticContext]],$automaticVoice,$now);
+$assert($existingAutomatic===$automaticProfileId
+    &&($products->getRevisioned('profile',$existingAutomatic)['core_profile_id']??null)===$ruleCoreHigh['core_profile_id'],
+    'editing a rule reassigned an existing NPC profile');
+$tieTarget=$automaticTarget;$tieTarget['record_id']='rule_tie_npc';$tieTarget['refnum']['index']=106;$tieTarget['display_name']='Rule Tie NPC';
+$tieCoreOld=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule older tie winner',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$tieCoreNew=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule newer tie loser',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$tieOld=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Older tie',
+    'core_profile_id'=>$tieCoreOld['core_profile_id'],'priority'=>50,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Rule Tie NPC']])],$now);
+$tieNew=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Newer tie',
+    'core_profile_id'=>$tieCoreNew['core_profile_id'],'priority'=>50,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Rule Tie NPC']])],$now);
+$tieProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$tieTarget,'context'=>$automaticContext]],$automaticVoice,$now);
+$assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreOld['core_profile_id'],
+    'equal-priority assignment rules did not preserve the older rule');
+$ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$ruleOnly=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Rule-only Core Profile use',
+    'core_profile_id'=>$ruleOnlyCore['core_profile_id'],'priority'=>0,'enabled'=>false,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Never Seen NPC']])],$now);
+try{$products->deleteRevisioned('core_profile',$ruleOnlyCore['core_profile_id'],$now);throw new RuntimeException('rule-owned Core Profile deleted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='core_profile_in_use','rule target deletion guard failed');}
+$products->deleteProfileAssignmentRule($installationId,$ruleOnly['rule_id']);
+$products->deleteRevisioned('core_profile',$ruleOnlyCore['core_profile_id'],$now);
 $secondPlacement=$automaticTarget;$secondPlacement['refnum']['index']=103;
 $secondPlacement['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $secondPlacementProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
@@ -315,6 +413,8 @@ $narratorProfile=$products->createRevisioned('profile',['installation_id'=>$inst
 $controlsQuery=$fixture('controls-query');
 $controlsQuery['message_id']=$newUuid(6);$controlsQuery['request_id']=$newUuid(7);
 $controlsQuery['session_id']=$sessionId;$controlsQuery['generation']=7;
+$directControlSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Controls explicit connector',
+    'content'=>['driver'=>'openai-compatible','model'=>'controls-test','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']],$now);
 [$status,$controls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$controlsQuery);
 $assert($status===200&&$controls['schema']==='almsivi.controls.v1'
     &&in_array($modelSlot['configuration_id'],array_column($controls['model_slots'],'configuration_id'),true)
@@ -326,8 +426,14 @@ $assert($status===200&&$controls['schema']==='almsivi.controls.v1'
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
     &&($controls['effective_settings']['profile_id']??null)===null
     &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
-    &&!isset($controls['effective_settings']['settings']['behavior'],$controls['effective_settings']['settings']['presentation']),
+    &&isset($controls['effective_settings']['settings']['behavior'])
+    &&$controls['effective_settings']['settings']['presentation']===\ALMSIVIserver\Application\EffectiveSettingsResolver::defaults()['presentation']
+    &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
     'in-game controls query did not return safe model/profile choices');
+$controlSlots=array_column($controls['model_slots'],null,'configuration_id');
+$assert($controlSlots[$directControlSlot['configuration_id']]['driver']==='configured'
+    &&!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
+    'explicit connectors must retain their server-side driver and endpoint behind a v1 configured model slot');
 
 $selectModel=$fixture('controls-select');
 $selectModel['message_id']=$newUuid(8);$selectModel['request_id']=$newUuid(9);
@@ -363,7 +469,8 @@ $coreProfile=$products->defaultCoreProfileForInstallation($installationId);
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],[
     'schema'=>'almsivi.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
     'routing'=>['llm_configuration_id'=>$coreModelSlot['configuration_id']],
-    'settings_overrides'=>['behavior'=>['rechat'=>true],'memory'=>['knowledge_limit'=>0]],
+    'settings_overrides'=>['behavior'=>['rechat'=>true,'rechat_probability_percent'=>0,'open_rechat'=>false],
+        'memory'=>['knowledge_limit'=>0]],
 ],'integration layered settings',$now);
 $inheritedContent=$actorProfile['content'];$inheritedContent['routing']=[];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$inheritedContent,'inherit Core Profile routing',$now);
@@ -379,8 +486,13 @@ $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configur
     &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
     &&($effectiveControls['effective_settings']['core_profile_id']??null)===$coreProfile['core_profile_id']
     &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===0
+    &&($effectiveControls['effective_settings']['settings']['behavior']['rechat']??null)===true
+    &&($effectiveControls['effective_settings']['settings']['behavior']['rechat_probability_percent']??null)===0
+    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===false
     &&($effectiveControls['effective_settings']['source_map']['settings.memory.knowledge_limit']??null)==='core_profile',
     'Core Profile routing and typed setting overrides did not reach runtime resolution');
+$coreContent=$coreProfile['content'];$coreContent['settings_overrides']['behavior']=['rechat'=>true];
+$coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$coreContent,'restore rechat fixture probability',$now);
 $maskedContent=$actorProfile['content'];$maskedContent['routing']=['llm_configuration_id'=>''];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$maskedContent,'explicit NPC route disable',$now);
 $assert($products->providerContext($turnLike)===null,
@@ -436,10 +548,17 @@ $wrongNarrator['selection_id']=$actorProfile['profile_id'];
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
 $assert($status===422,'in-game narrator generation accepted a non-narrator profile');
 
+$turnMoodTemplates=\ALMSIVIserver\Application\PlayerMoodPolicy::defaultTemplates();
+$turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
+$turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
+    'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
+$turnProfileContent=$actorProfile['content'];$turnProfileContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$turnProfileContent,'route integration mood prompt',$now);
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
+$turn['payload']['input']['mood']=['kind'=>'playful'];
 // Turn-advertised capabilities cannot add a capability that was not negotiated; stored session policy is authoritative.
 $turn['runtime']['capabilities'] = ['dialogue.text'];
 [$status] = $call($router, 'POST', $base . '/turns', $jsonAuth, [], $turn);
@@ -449,6 +568,12 @@ $assert($status === 202 && $turnAccepted['event_cursor'] === 1, 'turn acceptance
 $snapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $snapshotStatement->execute(['turn'=>$turn['turn_id']]);
 $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$moodProjectionStatement=$db->prepare('SELECT e.data,m.payload,se.payload AS source_payload FROM eventlog e '
+    .'JOIN eventlog_metadata m ON m.rowid=e.rowid JOIN source_events se ON se.source_event_id=m.source_event_id '
+    .'WHERE m.turn_id=:turn AND e.type=\'inputtext\'');
+$moodProjectionStatement->execute(['turn'=>$turn['turn_id']]);$moodProjection=$moodProjectionStatement->fetch();
+$moodProjectionPayload=$moodProjection?json_decode((string)$moodProjection['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$moodSourcePayload=$moodProjection?json_decode((string)$moodProjection['source_payload'],true,64,JSON_THROW_ON_ERROR):[];
 $traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
@@ -468,7 +593,11 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&str_contains((string)($promptMessages[0]['content']??''),'<character>')
     &&str_contains((string)($promptMessages[0]['content']??''),'<general_instructions>')
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
-    &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me.')
+    &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
+    &&($snapshot['trace']['player_mood_cue']??null)==='(Player answers in a playful voice.)'
+    &&str_contains((string)($moodProjection['data']??''),'(Player answers in a playful voice.)')
+    &&($moodProjectionPayload['input']['resolved_mood_cue']??null)==='(Player answers in a playful voice.)'
+    &&!array_key_exists('resolved_mood_cue',$moodSourcePayload['payload']['input']??[])
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'CORE PROFILE INSTRUCTION SENTINEL')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
     &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
@@ -572,6 +701,628 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     &&(int)($deliveredMemory['current_revision']??0)===1
     &&($deliveredMemoryProvenance['status']??null)==='played',
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
+// Exercise the optional worker with a real played source; roll back only these synthetic fixtures.
+$db->beginTransaction();
+$relationships=new \ALMSIVIserver\Infrastructure\RelationshipEvaluationRepository($db);
+$assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
+$relationshipContent=$actorProfile['content'];
+$relationshipContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$relationshipContent['settings_overrides']['relationship']=['update_chance_percent'=>100,'locked'=>false];
+$relationshipContent['management']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'enable relationship test',$now);
+$relationshipJob=$relationships->enqueue($delivery['message_id']);
+$assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
+$relationshipProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;
+    public mixed $during=null;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor'])
+            ||($input['relationship_type']??null)!=='neutral'
+            ||!in_array('romantic',$input['available_relationship_types']??[],true))
+            throw new RuntimeException('relationship input missing');
+        if($this->during!==null)($this->during)();
+        return ['disposition_delta'=>4,'affinity_delta'=>2,'relationship_type'=>'romantic',
+            'reason'=>'A friendly played exchange.'];
+    }
+};
+$relationshipRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipEvaluateJobHandler(
+    $relationships,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
+$relationshipWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $relationshipRegistry,'relationship-integration',5,1,1,0,10,['relationship.evaluate']))->run();
+$db->exec('SAVEPOINT relationship_queued');
+$products->revise('provider',$profileModelSlot['configuration_id'],
+    array_replace($profileModelSlot['content'],['model'=>'later-model']), 'provider changed after enqueue',$now);
+$relationshipStats=$relationshipWorker();
+$relationshipReceipt=$db->query('SELECT * FROM relationship_evaluation_results')->fetch();
+$assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
+    &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
+    'played relationship worker did not persist one bounded result despite independent profile lock');
+$assert($products->relationships(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+    'playthrough_id'=>$session['playthrough_id']])[0]['relationship_type']==='neutral',
+    'low-affinity romantic proposal changed type or blocked safe score deltas');
+$assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationshipJob['job_id']
+    &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
+$assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
+    'queued relationship job did not keep its frozen provider revision');
+$db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
+    ->execute(['id'=>$relationshipJob['job_id']]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===1,
+    'a retried job reapplied an already committed relationship receipt');
+$db->exec('SAVEPOINT relationship_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/064_relationship_evaluation_results.down.sql'));
+    throw new RuntimeException('relationship downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
+    'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipContent['settings_overrides']['relationship']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock queued relationship',$now);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1,
+    'relationship lock failed to cancel queued provider work');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipProvider->during=static function()use($products,$actorProfile,$relationshipContent,$now):void{
+    $products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock during provider call',$now);
+};
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===2
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
+    'late relationship output survived a profile policy revision');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$relationshipProvider->during=static function()use($products,$actorProfile,$installationId,$session,$turn,$now):void{
+    $record=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+        'playthrough_id'=>$session['playthrough_id'],'actor_identity'=>$turn['payload']['speaker'],
+        'disposition'=>50,'affinity'=>30,'source_mode'=>'manual','reason'=>'Manual create during evaluation'],$now);
+    $products->deleteRelationship($record['relationship_id'],$now,1);
+};
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
+    'manual create/delete did not invalidate absent relationship snapshot');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');$relationshipProvider->during=null;
+$db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key")
+    ->execute(['key'=>'turn:'.$turn['turn_id']]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3,
+    'hidden source was sent to relationship provider');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
+$db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")
+    ->execute(['session'=>$sessionId]);
+$assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3,
+    'ended session reached relationship provider');
+$db->rollBack();
+// A manual build spans recent history, works offline at chance zero, and applies one atomic score set.
+$db->beginTransaction();
+$historyContent=$actorProfile['content'];$historyContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$historyContent['settings_overrides']['relationship']=['update_chance_percent'=>0,'locked'=>false];
+$historyContent['management']['locked']=true;
+$products->revise('profile',$actorProfile['profile_id'],$historyContent,'manual history fixture',$now);
+$historyTurn=$turn;$historyTurn['message_id']=$newUuid(5700);$historyTurn['turn_id']=$newUuid(5701);$historyTurn['request_id']=$newUuid(5702);
+$historyTurn['payload']['speaker']=$speechTarget;$historyTurn['payload']['input']['text']='Thank you for keeping your promise.';
+[$historyStatus]=$call($router,'POST',$base.'/turns',$headers($historyTurn['message_id']),[],$historyTurn);
+$assert($historyStatus===202&&$runTurnWorker(new MockProvider())['succeeded']===1,'second historical turn failed');
+$historyDialogue=$db->query("SELECT dialogue_message_id,speaker FROM dialogue_utterances WHERE turn_id='{$historyTurn['turn_id']}'")->fetch();
+$historyDelivery=$delivery;$historyDelivery['message_id']=$newUuid(5703);$historyDelivery['request_id']=$historyTurn['request_id'];
+$historyDelivery['turn_id']=$historyTurn['turn_id'];$historyDelivery['dialogue_message_id']=$historyDialogue['dialogue_message_id'];
+$historyDelivery['speaker']=json_decode($historyDialogue['speaker'],true,32,JSON_THROW_ON_ERROR);
+// This is a new playback receipt, not the first reply's earlier completion time.
+$historyDelivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
+[$historyStatus,$historyAck]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
+$assert($historyStatus===200,'second historical delivery failed: '.json_encode([$historyStatus,$historyAck]));
+$db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
+$builds=new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($db);
+$buildScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id']];
+$privateBuildNote='PLAYER-ONLY CUSTOM INFO';
+$products->setRelationship($buildScope+['actor_identity'=>$turn['payload']['speaker'],
+    'disposition'=>0,'affinity'=>0,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
+$omittedIdentity=$speechTarget;$omittedIdentity['refnum']['index']+=321;
+$products->setRelationship($buildScope+['actor_identity'=>$omittedIdentity,
+    'disposition'=>11,'affinity'=>12,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
+$buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest);
+$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
+try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_pending','unexpected pending-build error');}
+$buildProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2
+            ||!in_array('professional',$input['available_relationship_types']??[],true))throw new RuntimeException('history was reduced to one exchange or target');
+        if(str_contains(json_encode($input,JSON_THROW_ON_ERROR),'PLAYER-ONLY CUSTOM INFO'))throw new RuntimeException('private relationship text reached AI');
+        if($this->during!==null)($this->during)();
+        $result=['relationships'=>array_map(static fn(array $target):array=>['target_key'=>$target['target_key'],
+            'disposition'=>35,'affinity'=>20,'relationship_type'=>'professional',
+            'reason'=>'A pattern of kept promises.'],$input['interlocutors'])];
+        if($this->unknownTarget)$result['relationships'][1]['target_key']=str_repeat('f',64);
+        return $result;
+    }
+};
+$buildRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipBuildJobHandler(
+    $builds,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
+$buildWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $buildRegistry,'relationship-build-integration',5,1,1,0,10,['relationship.build']))->run();
+$db->exec('SAVEPOINT history_queued');
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
+$buildReceipt=$db->query('SELECT source_count,target_count,changed_count FROM relationship_build_results')->fetch();
+$assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2], 'history build did not atomically update both known targets');
+$privateRows=$products->exportScope($buildScope)['relationships'];
+$assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2,
+    'history build changed Custom Info on a selected or omitted relationship');
+$assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['relationship_type']==='professional'))===2,
+    'history build did not apply an allowlisted relationship type only to returned targets');
+$buildStatus=$builds->recentJobs($buildScope);
+$assert(count($buildStatus)===1&&$buildStatus[0]['outcome']==='succeeded'&&(int)$buildStatus[0]['changed_count']===2
+    &&$builds->recentJobs(array_replace($buildScope,['profile_id'=>$newUuid(5706)]))===[], 'history build status escaped its scope');
+$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id']&&$buildWorker()['claimed']===0,
+    'completed history request was reapplied');
+$db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
+    ->execute(['id'=>$buildJob['job_id']]);
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'committed history receipt was reapplied on retry');
+$db->exec('SAVEPOINT history_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/065_relationship_build_results.down.sql'));
+    throw new RuntimeException('history downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship build'),'unexpected history downgrade error');
+    $db->exec('ROLLBACK TO SAVEPOINT history_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($db,$historyDelivery):void{
+    $db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
+        ->execute(['key'=>'dialogue:'.$historyDelivery['dialogue_message_id']]);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===2
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'history suppressed during provider I/O still changed relationships');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($products,$buildScope,$speechTarget,$now):void{
+    $created=$products->setRelationship($buildScope+['actor_identity'=>$speechTarget,'disposition'=>90,'affinity'=>80,
+        'source_mode'=>'manual','reason'=>'User owns the newer edit'],$now);
+    $products->deleteRelationship($created['relationship_id'],$now,(int)$created['revision']);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'manual create/delete during history build did not cancel the whole result');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=static function()use($db,$sessionId):void{
+    $db->prepare("UPDATE sessions SET state='active',ended_at=NULL WHERE session_id=:id")->execute(['id'=>$sessionId]);
+};
+$assert($buildWorker()['succeeded']===1&&$buildProvider->calls===4
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'session lifecycle change during history build did not cancel the result');
+$db->exec('ROLLBACK TO SAVEPOINT history_queued');
+$buildProvider->during=null;$buildProvider->unknownTarget=true;
+$beforeRecords=$products->relationships($buildScope);$buildWorker();
+$assert($products->relationships($buildScope)===$beforeRecords
+    &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
+    'an invented target allowed a partial history update');
+$db->rollBack();
+// Explicit profile-text conversion is OpenMW-native, per-owner, retry-safe, and never exposes Custom Info.
+$db->beginTransaction();
+$conversionNpcIdentity=['kind'=>'npc','record_id'=>'conversion_friend','display_name'=>'Conversion Friend',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61001,'content_file'=>0]];
+$conversionOmittedIdentity=['kind'=>'creature','record_id'=>'conversion_omitted','display_name'=>'Conversion Omitted',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]];
+$conversionTarget=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Friend',
+    'actor_identity'=>$conversionNpcIdentity,'content'=>['biography'=>'Known conversion target.']],$now);
+$conversionOmitted=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Omitted',
+    'actor_identity'=>$conversionOmittedIdentity,'content'=>['biography'=>'Known omitted target.']],$now);
+$conversionPlayer=$products->getRevisioned('profile',(string)$playerProfile['profile_id']);
+$conversionText='Conversion Friend is a trusted ally. Conversion Omitted is still distrusted. '
+    .(string)$conversionPlayer['name'].' remains a complicated acquaintance. Unknown Conversion Stranger is irrelevant.';
+$conversionOwnerIdentity=['kind'=>'npc','record_id'=>'conversion_owner','display_name'=>'Conversion Owner',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61000,'content_file'=>0]];
+$conversionContent=['relationships'=>$conversionText,
+    'routing'=>['relationship_configuration_id'=>$profileModelSlot['configuration_id']],
+    'settings_overrides'=>['relationship'=>['update_chance_percent'=>0,'locked'=>false]],
+    'management'=>['locked'=>true]];
+$conversionOwner=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Owner',
+    'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
+$conversionScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
+$conversionRecordScope=$conversionScope+['profile_id'=>$conversionOwner['profile_id']];
+$conversions=new \ALMSIVIserver\Infrastructure\RelationshipConversionRepository($db);
+$conversionRequest=$newUuid(5800);$conversionSummary=$conversions->enqueue($conversionScope,$conversionRequest,'missing');
+$assert($conversionSummary['queued']===1&&$conversionSummary['existing']===0
+    &&$conversions->enqueue($conversionScope,$conversionRequest,'missing')==$conversionSummary,
+    'missing-mode conversion was not bounded and idempotent: '.json_encode($conversionSummary));
+try{$conversions->enqueue($conversionScope,$conversionRequest,'rebuild');throw new RuntimeException('conversion request mode changed');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_conversion_request_conflict','unexpected conversion request conflict');}
+$conversionProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;public string $phase='all';public mixed $during=null;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();$encoded=json_encode($input,JSON_THROW_ON_ERROR);
+        if(($input['generation_mode']??null)!=='relationship_text_conversion'||isset($input['exchanges'])
+            ||!str_contains((string)($input['relationship_text']??''),'Unknown Conversion Stranger')
+            ||str_contains($encoded,'CONVERSION PRIVATE CUSTOM INFO'))throw new RuntimeException('unsafe conversion model input');
+        if(count($input['interlocutors']??[])!==3||!in_array('professional',$input['available_relationship_types']??[],true))
+            throw new RuntimeException('conversion did not resolve the exact known actors: '.json_encode($input['interlocutors']??[]));
+        if($this->during!==null)($this->during)();$rows=[];
+        foreach($input['interlocutors']as$target){
+            if($this->phase==='omit'&&($target['identity']['display_name']??'')==='Conversion Omitted')continue;
+            $rows[]=['target_key'=>$target['target_key'],'disposition'=>$this->phase==='all'?10:40,
+                'affinity'=>$this->phase==='all'?20:50,'relationship_type'=>'professional',
+                'reason'=>'Explicit profile text names this actor.'];
+        }
+        if($this->phase==='invented')$rows[0]['target_key']=str_repeat('f',64);
+        return['relationships'=>$rows];
+    }
+};
+$conversionRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipConversionJobHandler(
+    $conversions,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
+$conversionWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $conversionRegistry,'relationship-conversion-integration',5,1,1,0,10,['relationship.convert']))->run();
+$firstConversionRun=$conversionWorker();
+$assert($firstConversionRun['succeeded']===1&&$conversionProvider->calls===1,
+    'explicit conversion did not run its durable job: '.json_encode([$firstConversionRun,$conversionProvider->calls,
+        $db->query("SELECT last_error_code,last_error_detail FROM durable_jobs WHERE job_type='relationship.convert'")->fetch()]));
+$conversionReceipt=$db->query('SELECT source_bytes,target_count,changed_count FROM relationship_conversion_results')->fetch();
+$conversionRows=$products->relationships($conversionRecordScope);
+$assert($conversionReceipt&&array_map('intval',array_values($conversionReceipt))===[strlen($conversionText),3,3]
+    &&count($conversionRows)===3
+    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['source_event_id']===null))===3
+    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['relationship_type']==='professional'))===3,
+    'conversion receipt or source ownership was incomplete');
+$assert((int)$db->query("SELECT count(*) FROM relationship_audit WHERE reason LIKE 'Relationship text conversion:%'")->fetchColumn()===3,
+    'conversion writes were not visibly attributed');
+$secondMissing=$conversions->enqueue($conversionScope,$newUuid(5801),'missing');
+$assert($secondMissing['queued']===0&&$secondMissing['existing']===1,'missing mode rebuilt an owner with active records');
+$privateConversionNote='CONVERSION PRIVATE CUSTOM INFO';
+foreach($conversionRows as$row)$products->setRelationship($conversionRecordScope+[
+    'relationship_id'=>$row['relationship_id'],'expected_revision'=>(int)$row['revision'],
+    'disposition'=>(int)$row['disposition'],'affinity'=>(int)$row['affinity'],'source_mode'=>'manual',
+    'custom_info'=>$privateConversionNote,'reason'=>'Attach private conversion note'],$now);
+$rebuildRequest=$newUuid(5802);$rebuildSummary=$conversions->enqueue($conversionScope,$rebuildRequest,'rebuild');
+$assert($rebuildSummary['queued']===1,'explicit rebuild did not queue the text owner');
+$conversionProvider->phase='omit';
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===2,'conversion rebuild did not finish');
+$rebuiltRows=$products->relationships($conversionRecordScope);$omittedRows=array_values(array_filter($rebuiltRows,
+    static fn(array$row):bool=>($row['actor_identity']['record_id']??'')==='conversion_omitted'));
+$selectedRows=array_values(array_filter($rebuiltRows,
+    static fn(array$row):bool=>($row['actor_identity']['record_id']??'')!=='conversion_omitted'));
+$assert(count($omittedRows)===1&&(int)$omittedRows[0]['disposition']===10&&(int)$omittedRows[0]['affinity']===20
+    &&count(array_filter($selectedRows,static fn(array$row):bool=>(int)$row['disposition']===40&&(int)$row['affinity']===50))===2
+    &&(int)$db->query("SELECT count(*) FROM relationship_records WHERE profile_id='{$conversionOwner['profile_id']}' "
+        ."AND playthrough_id='{$session['playthrough_id']}' AND custom_info='CONVERSION PRIVATE CUSTOM INFO'")->fetchColumn()===3,
+    'rebuild changed an omitted row or private Custom Info');
+$conversions->enqueue($conversionScope,$newUuid(5803),'rebuild');
+$db->exec('SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($products,$conversionTarget,$now):void{
+    $products->revise('profile',$conversionTarget['profile_id'],$conversionTarget['content']+['notes'=>'Changed during provider work'],
+        'target changed during conversion',$now);
+};
+$receiptCount=(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn();
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'target profile revision did not cancel late conversion output');
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($products,$conversionRecordScope,$now):void{
+    $row=array_values(array_filter($products->relationships($conversionRecordScope),
+        static fn(array$item):bool=>($item['actor_identity']['record_id']??'')==='conversion_friend'))[0];
+    $products->setRelationship($conversionRecordScope+['relationship_id'=>$row['relationship_id'],
+        'expected_revision'=>(int)$row['revision'],'disposition'=>77,'affinity'=>66,'source_mode'=>'manual',
+        'custom_info'=>'CONVERSION PRIVATE CUSTOM INFO','reason'=>'Manual ownership during conversion'],$now);
+};
+$manualEditRun=$conversionWorker();$manualEditReceipts=(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn();
+$assert($manualEditRun['succeeded']===1&&$conversionProvider->calls===4&&$manualEditReceipts===$receiptCount,
+    'manual relationship edit did not cancel late conversion output: '.json_encode([$manualEditRun,$conversionProvider->calls,$manualEditReceipts,$receiptCount]));
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($db,$sessionId):void{
+    $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:id")->execute(['id'=>$sessionId]);
+};
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===5
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'session lifecycle change did not cancel late conversion output');
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=null;$conversionProvider->phase='invented';$beforeConversion=$products->relationships($conversionRecordScope);
+$conversionWorker();
+$assert($products->relationships($conversionRecordScope)===$beforeConversion
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'an invented target allowed a partial profile-text conversion');
+$db->exec('SAVEPOINT conversion_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/067_relationship_text_conversion.down.sql'));
+    throw new RuntimeException('conversion downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship conversion'),
+    'unexpected conversion downgrade error');$db->exec('ROLLBACK TO SAVEPOINT conversion_downgrade');}
+$db->rollBack();
+// Exercise prompt privacy against real source projections without altering later turn fixtures.
+$db->beginTransaction();
+$memoryNow=(new \DateTimeImmutable('now'))->modify('+1 minute')->format('Y-m-d\TH:i:sP');
+$memoryService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($memoryNow)));
+$memoryProbe=$turn;$memoryProbe['turn_id']=$newUuid(3900);
+$bystander=$turn['payload']['target'];$bystander['refnum']['index']+=100;
+$bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
+$relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
+    'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
+$privateNote="PLAYER PRIVATE RELATIONSHIP NOTE\nKeep verbatim <&> 古";
+$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id'],'custom_info'=>$privateNote]);
+$assert($ownedRelationship['relationship_type']==='neutral','older relationship create did not retain the neutral type default');
+$db->exec('SAVEPOINT relationship_edits');
+$relationshipEdit=$relationshipInput+['profile_id'=>$actorProfile['profile_id'],'relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1];
+$relationshipEdit['disposition']=31;$relationshipEdit['relationship_type']='trusted_companion';unset($relationshipEdit['actor_identity']);
+$editedRelationship=$memoryService->setRelationship($relationshipEdit);
+$assert($editedRelationship['revision']===2&&$editedRelationship['disposition']===31
+    &&$editedRelationship['relationship_type']==='trusted_companion','relationship edit lost its revision fence or custom type');
+$db->exec('SAVEPOINT custom_info_edits');
+$privateScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
+$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===$privateNote,'older score-only edit cleared Custom Info');
+$derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mode'=>'derived','affinity'=>12,'custom_info'=>'AI overwrite']);
+$derivedEdit['reason']='A witnessed act increased trust';unset($derivedEdit['relationship_type']);
+$derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
+$derivedExport=$products->exportScope($privateScope)['relationships'][0];
+$derivedUi=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
+$derivedUi=array_values(array_filter($derivedUi,static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']))[0];
+$assert($derivedExport['custom_info']===$privateNote&&$derivedExport['relationship_type']==='trusted_companion'
+    &&(int)$derivedUi['strongest_positive_delta']===7,'derived writer replaced player text/type or lost its strongest affinity signal');
+$cleared=$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>$derivedSaved['revision'],'custom_info'=>'']));
+$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===''&&$cleared['custom_info_changed'],
+    'explicit manual clear did not persist');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_edits');
+foreach([
+    [['expected_revision'=>0],'invalid_relationship_revision'],
+    [['installation_id'=>$newUuid(3981)],'invalid_relationship_scope'],
+    [['source_event_id'=>$newUuid(3982)],'invalid_relationship_source'],
+    [['actor_identity'=>['record_id'=>'replacement_actor']],'relationship_identity_immutable'],
+] as [$changes,$expectedError]){
+    try{$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>2],$changes));throw new RuntimeException('invalid relationship edit accepted');}
+    catch(InvalidArgumentException $error){$assert($error->getMessage()===$expectedError,'wrong relationship validation failure');}
+}
+foreach(['edit','delete'] as $operation){
+    try{if($operation==='edit')$memoryService->setRelationship($relationshipEdit);else$memoryService->deleteRelationship($ownedRelationship['relationship_id'],1);
+        throw new RuntimeException('stale relationship edit was accepted');}
+    catch(RuntimeException $error){$assert($error->getMessage()==='relationship_revision_conflict','wrong stale relationship failure');}
+}
+$renamedRelationship=$relationshipInput+['profile_id'=>$actorProfile['profile_id']];
+$renamedRelationship['actor_identity']['display_name']='Renamed speaker';
+$renamedRelationship['actor_identity']['cell']=['kind'=>'interior','name'=>'A different cell'];
+try{$memoryService->setRelationship($renamedRelationship);throw new RuntimeException('renaming a relationship created a duplicate');}
+catch(RuntimeException $error){$assert($error->getMessage()==='relationship_already_exists','wrong duplicate relationship failure');}
+$renamedRelationship['actor_identity']['refnum']['index']+=200;
+$otherRelationship=$memoryService->setRelationship($renamedRelationship);
+$assert($otherRelationship['relationship_id']!==$ownedRelationship['relationship_id'],'distinct runtime actors collapsed into one relationship');
+$legacyId=$newUuid(3980);
+$db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) '
+    .'VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),-10,0,\'manual\')')->execute([
+        'id'=>$legacyId,'installation'=>$installationId,'profile'=>$actorProfile['profile_id'],'playthrough'=>$turn['playthrough_id'],
+        'identity'=>json_encode(['record_id'=>'legacy_actor','display_name'=>'Legacy actor'],JSON_THROW_ON_ERROR)]);
+$legacyEdit=$relationshipEdit;$legacyEdit['relationship_id']=$legacyId;
+$assert($memoryService->setRelationship($legacyEdit)['revision']===2,'legacy identity could not be edited by explicit record ID');
+$memoryService->deleteRelationship($ownedRelationship['relationship_id'],2);
+$relationshipUi=new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db);
+$currentRelationships=$relationshipUi->rows('relationships');
+$assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true)
+    &&in_array($legacyId,array_column($currentRelationships,'relationship_id'),true)
+    &&in_array($otherRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true),
+    'relationship manager collapsed legacy identities or retained a deleted record');
+$historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
+$assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
+    'private relationship text was copied into audit history');
+$db->exec('SAVEPOINT custom_info_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/066_relationship_custom_info.down.sql'));
+    throw new RuntimeException('downgrade discarded deleted relationship notes');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
+    'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
+$assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
+    &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31
+    &&$historyRows[1]['after_value']['relationship_type']==='trusted_companion',
+    'relationship history must retain ordered create, edit and delete audit records');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_edits');
+$memoryService->setRelationship($privateScope+['relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1,
+    'disposition'=>20,'affinity'=>5,'relationship_type'=>'trusted_companion','source_mode'=>'manual',
+    'reason'=>'Choose a custom relationship type']);
+$memoryService->setRelationship($relationshipInput+['profile_id'=>$turn['profile_id']]);
+$relationshipSelection=$products->promptContext($memoryProbe,$memoryNow);
+$assert(array_column($relationshipSelection['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
+    &&$products->promptContext($bystanderProbe,$memoryNow)['relationship']===[],
+    'relationships must belong to the selected NPC, not the session profile or an unbound same-name actor');
+$relationshipProbe=$memoryProbe;$relationshipProbe['_selected_profile_id']=$actorProfile['profile_id'];
+$relationshipPrompt=(new PromptAssembler())->assemble($relationshipProbe,$relationshipSelection);
+$assert(!str_contains(json_encode([$relationshipSelection,$relationshipPrompt],JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
+    'Custom Info leaked through prompt selection, text or trace');
+$assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'trusted_companion'),
+    'saved relationship type was omitted from the bounded prompt');
+$privateExport=$memoryService->exportPlaythrough($privateScope);
+$restorePlaythrough=$products->createRevisioned('playthrough',['installation_id'=>$installationId,
+    'profile_id'=>$actorProfile['profile_id'],'name'=>'Private note restore','content'=>[]],$memoryNow);
+$privateExport['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
+$db->exec('SAVEPOINT custom_info_restore');
+$memoryService->restorePlaythrough($privateExport);$memoryService->restorePlaythrough($privateExport);
+$restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
+$assert(count($restoredPrivate)===1&&$restoredPrivate[0]['custom_info']===$privateNote,'explicit restore lost or duplicated Custom Info');
+$restoredMemoryCount=(int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn();
+$olderPrivateExport=$privateExport;unset($olderPrivateExport['data']['relationships'][0]['custom_info'],
+    $olderPrivateExport['data']['relationships'][0]['relationship_type']);
+$memoryService->restorePlaythrough($olderPrivateExport);
+$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']===$privateNote
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['relationship_type']==='trusted_companion',
+    'older relationship backup cleared newer Custom Info or relationship type');
+$duplicateExport=$privateExport;$duplicateExport['data']['relationships'][]=$duplicateExport['data']['relationships'][0];
+try{$memoryService->restorePlaythrough($duplicateExport);throw new RuntimeException('duplicate relationship restore was accepted');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','duplicate relationship restore had wrong result');}
+$conflictingExport=$privateExport;$conflictingExport['data']['relationships'][0]['disposition']=-99;
+try{$memoryService->restorePlaythrough($conflictingExport);throw new RuntimeException('relationship restore overwrote local state');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','unexpected relationship restore conflict');}
+$assert((int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn()===$restoredMemoryCount
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['disposition']===$restoredPrivate[0]['disposition'],
+    'relationship restore conflict committed partial data');
+$products->deleteRelationship($restoredPrivate[0]['relationship_id'],$memoryNow,1);
+try{$memoryService->restorePlaythrough($privateExport);throw new RuntimeException('relationship restore resurrected a deleted record');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','deleted relationship restore had wrong result');}
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+unset($privateExport['data']['relationships'][0]['custom_info']);
+$memoryService->restorePlaythrough($privateExport);
+$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']==='',
+    'legacy export without Custom Info did not restore the empty default');
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+$legacyRestore=$privateExport;$legacyRestore['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
+$legacyRestore['data']=['memories'=>[],'narratives'=>[],'relationships'=>[[
+    'relationship_id'=>$newUuid(5810),'actor_identity'=>['record_id'=>'legacy_restore','display_name'=>'Legacy restore'],
+    'disposition'=>7,'affinity'=>8,'custom_info'=>'legacy private note',
+]]];
+$memoryService->restorePlaythrough($legacyRestore);$memoryService->restorePlaythrough($legacyRestore);
+$legacyRows=$products->exportScope($legacyRestore['scope'])['relationships'];
+$assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']==='legacy_restore'
+    &&$legacyRows[0]['custom_info']==='legacy private note'&&$legacyRows[0]['relationship_type']==='neutral',
+    'legacy relationship restore was not stable and idempotent');
+$db->exec('SAVEPOINT relationship_type_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/068_relationship_types.down.sql'));
+    throw new RuntimeException('relationship type downgrade discarded custom types');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
+    'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}
+$db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+$relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
+    static fn(array$row):bool=>$row['source_kind']==='relationship'));
+$assert(array_column($relationshipSources,'source_id')===[$ownedRelationship['relationship_id']],
+    'selected NPC relationships failed prompt scope validation or lost their source trace');
+$wrongOwnerSelection=$relationshipSelection;
+$wrongOwnerSelection['relationship']=$products->relationships($relationshipInput+['profile_id'=>$turn['profile_id']]);
+try{(new PromptAssembler())->assemble($relationshipProbe,$wrongOwnerSelection);
+    throw new RuntimeException('session-profile relationships passed selected-NPC prompt validation');}
+catch(InvalidArgumentException$error){$assert($error->getMessage()==='prompt_source_scope_mismatch',
+    'unexpected relationship scope validation error');}
+$db->exec('SAVEPOINT relationship_fallback');
+$db->prepare('DELETE FROM actor_profile_bindings WHERE installation_id=:installation AND playthrough_id=:playthrough AND profile_id=:profile')
+    ->execute(['installation'=>$installationId,'playthrough'=>$turn['playthrough_id'],'profile'=>$actorProfile['profile_id']]);
+$fallbackIdentity=$memoryProbe['payload']['target'];unset($fallbackIdentity['refnum']);
+$db->prepare('UPDATE profiles SET actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:profile')
+    ->execute(['identity'=>json_encode($fallbackIdentity,JSON_THROW_ON_ERROR),'profile'=>$actorProfile['profile_id']]);
+$fallbackProbe=$memoryProbe;$fallbackProbe['profile_id']=$actorProfile['profile_id'];
+$fallbackMemory=$memoryService->createMemory($relationshipInput+['profile_id'=>$actorProfile['profile_id'],
+    'tier'=>'recent','content'=>'EXACT OWNER MEMORY SENTINEL','provenance'=>['source'=>'manual']]);
+$mismatchedContext=$products->promptContext($fallbackProbe,$memoryNow);
+$assert($mismatchedContext['relationship']===[]
+    &&!in_array($fallbackMemory['memory_id'],array_column($mismatchedContext['memory'],'id'),true),
+    'an unbound actor with a different RefNum must not inherit the session profile relationships or manual memories');
+$fallbackProbe['payload']['target']=$fallbackIdentity;
+$fallbackProbe['payload']['target']['display_name']='Renamed NPC';
+$fallbackContext=$products->promptContext($fallbackProbe,$memoryNow);
+$assert(array_column($fallbackContext['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
+    &&in_array($fallbackMemory['memory_id'],array_column($fallbackContext['memory'],'id'),true),
+    'an exact-identity session profile must retain its own relationships and memories without a binding or matching display name');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_fallback');
+$visible=$products->promptContext($memoryProbe,$memoryNow)['memory'];
+$hidden=$products->promptContext($bystanderProbe,$memoryNow)['memory'];
+$assert(in_array($delivery['message_id'],array_column($visible,'source_event_id'),true)
+    &&!in_array($delivery['message_id'],array_column($hidden,'source_event_id'),true),
+    'session-scoped played memories leaked to an unwitnessing same-name NPC');
+$manualMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'NPC PRIVATE MEMORY SENTINEL',
+    'provenance'=>['source'=>'manual']]);
+$sessionMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SESSION PRIVATE MEMORY SENTINEL',
+    'provenance'=>['source'=>'manual']]);
+$sharedSource=$newUuid(3901);$sharedTurn=$newUuid(3902);
+$sharedPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
+    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL','mood'=>['kind'=>'playful']],
+    'context'=>['world'=>['cell'=>'History limit test cell']]];
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
+    . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'almsivi.turn.v1',:turn,CAST(:payload AS jsonb))")
+    ->execute(['id'=>$sharedSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$memoryNow,
+        'turn'=>$sharedTurn,'payload'=>json_encode($sharedPayload,JSON_THROW_ON_ERROR)]);
+(new EventLogRepository($db))->projectSource($sharedSource,$installationId,$sessionId,'turn.requested',$memoryNow,
+    null,$sharedTurn,null,$sharedPayload,['player_mood_cue'=>'(RANGROO sounds playful.)']);
+$sharedProjection=$db->prepare('SELECT e.data,m.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
+    .'WHERE m.source_event_id=:source AND e.type=\'inputtext\'');
+$sharedProjection->execute(['source'=>$sharedSource]);$sharedProjectionRow=$sharedProjection->fetch();
+$sharedProjectionPayload=$sharedProjectionRow?json_decode((string)$sharedProjectionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert($sharedProjectionRow&&str_contains((string)$sharedProjectionRow['data'],'(RANGROO sounds playful.)')
+    &&($sharedProjectionPayload['input']['text']??null)==='SHARED CONVERSATION SENTINEL'
+    &&($sharedProjectionPayload['input']['resolved_mood_cue']??null)==='(RANGROO sounds playful.)',
+    'the accepted player mood cue was not frozen into readable history while preserving authored source text');
+$sharedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SHARED MEMORY SENTINEL',
+    'source_event_id'=>$sharedSource,'provenance'=>['source'=>'turn.requested']]);
+$mixedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'mid','content'=>'MIXED PRIVATE SUMMARY SENTINEL',
+    'provenance'=>['source'=>'memory.consolidate','source_event_ids'=>[$sharedSource,$delivery['message_id']]]]);
+$visible=$products->promptContext($memoryProbe,$memoryNow);
+$hidden=$products->promptContext($bystanderProbe,$memoryNow);
+$visibleIds=array_column($visible['memory'],'id');$hiddenIds=array_column($hidden['memory'],'id');
+$assert(in_array($manualMemory['memory_id'],$visibleIds,true)
+    &&!in_array($sessionMemory['memory_id'],$visibleIds,true)
+    &&in_array($mixedMemory['memory_id'],$visibleIds,true)
+    &&in_array($sharedMemory['memory_id'],$hiddenIds,true)
+    &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
+    &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
+    'NPC-profile manual memory or all-source summary eligibility was not enforced');
+$semanticPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
+$semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
+    'name'=>'Semantic memory integration','content'=>$semanticPolicyContent]);
+$semanticVector=[1,0,0,0,0,0,0,0];
+$db->prepare('INSERT INTO memory_embeddings(memory_id,memory_revision,policy_configuration_id,policy_revision,dimensions,embedding,input_sha256,model,created_at)
+    VALUES(:memory,1,:policy,1,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
+        'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],
+        'embedding'=>json_encode($semanticVector,JSON_THROW_ON_ERROR),'sha'=>hash('sha256',$manualMemory['content']),
+        'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
+$semanticSignal=['status'=>'succeeded','policy_configuration_id'=>$semanticPolicy['configuration_id'],
+    'policy_revision'=>1,'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
+$semanticSelection=$products->promptContext($memoryProbe,$memoryNow,[],$semanticSignal);
+$semanticReasons=$semanticSelection['memory_retrieval']['reasons'];
+$fallbackSelection=$products->promptContext($memoryProbe,$memoryNow,[],
+    array_replace(array_diff_key($semanticSignal,['embedding'=>true]),['status'=>'failed']));
+$assert($semanticSelection['memory_retrieval']['algorithm']==='prompt-memory-lexical-0.75+minime-0.25+deterministic-fallback+tier-v1'
+    &&($semanticReasons[$manualMemory['memory_id']]['semantic_source']??null)==='minime'
+    &&($semanticReasons[$mixedMemory['memory_id']]['semantic_source']??null)==='deterministic-fallback'
+    &&($semanticReasons['_semantic']['status']??null)==='succeeded'
+    &&$fallbackSelection['memory_retrieval']['algorithm']==='prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1'
+    &&($fallbackSelection['memory_retrieval']['reasons']['_semantic']['status']??null)==='failed'
+    &&!str_contains(json_encode([$semanticSelection['memory'],$fallbackSelection['memory']],JSON_THROW_ON_ERROR),'_semantic_embedding'),
+    'semantic prompt ranking did not blend valid vectors, fall back per memory, or scrub internal projections');
+$memoryProbe['_selected_profile_id']=$actorProfile['profile_id'];
+$memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider_input']['_assembled_prompt'];
+$assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
+    'selected NPC-profile memory failed prompt scope validation');
+$bystanderProbe['payload']['ui_source']='almsivi_rechat';
+$modelProvider=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Model privacy fixture',
+    'content'=>['driver'=>'mock','model'=>'privacy-v1']]);
+$modelPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$modelProvider['configuration_id']];
+$modelPolicy=$memoryService->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Model privacy policy','content'=>$modelPolicyContent]);
+$db->prepare('INSERT INTO memory_model_summaries(memory_id,memory_revision,policy_configuration_id,policy_revision,provider_configuration_id,provider_revision,content,input_sha256,created_at)
+    VALUES(:memory,1,:policy,1,:provider,1,:content,:sha,:now)')->execute(['memory'=>$mixedMemory['memory_id'],
+        'policy'=>$modelPolicy['configuration_id'],'provider'=>$modelProvider['configuration_id'],'content'=>'MODEL MIXED MEMORY SENTINEL',
+        'sha'=>hash('sha256',$mixedMemory['content']),'now'=>$memoryNow]);
+$modelSelection=$products->promptContext($memoryProbe,$memoryNow);
+$modelPrompt=(new PromptAssembler())->assemble($memoryProbe,$modelSelection);
+$modelSources=array_column(array_filter($modelPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'),null,'source_id');
+$assert(str_contains($modelPrompt['provider_input']['_assembled_prompt'],'MODEL MIXED MEMORY SENTINEL')
+    &&$modelSources[$mixedMemory['memory_id']]['source_table']==='memory_model_summaries'
+    &&!in_array($mixedMemory['memory_id'],array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id'),true),
+    'model summary projection lost its original witness privacy or trace provenance');
+$modelPolicyContent['enabled']=false;
+$memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture off');
+$originalSelection=$products->promptContext($memoryProbe,$memoryNow);
+$originalRows=array_column($originalSelection['memory'],null,'id');
+$assert($originalRows[$mixedMemory['memory_id']]['content']==='MIXED PRIVATE SUMMARY SENTINEL',
+    'disabling model memory did not restore deterministic text');
+$modelPolicyContent['enabled']=true;
+$memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture on');
+$products->updateMemory($mixedMemory['memory_id'],'MIXED EDITED MEMORY SENTINEL',['edited'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
+$editedRows=array_column($products->promptContext($memoryProbe,$memoryNow)['memory'],null,'id');
+$assert($editedRows[$mixedMemory['memory_id']]['content']==='MIXED EDITED MEMORY SENTINEL'
+    &&!isset($editedRows[$mixedMemory['memory_id']]['_model_summary']),'an older model projection hid a manual memory edit');
+$rechatHistory=$products->promptContext($bystanderProbe,$memoryNow)['history'];
+$rechatHistoryText=json_encode(array_column($rechatHistory,'content'),JSON_THROW_ON_ERROR);
+$assert(str_contains($rechatHistoryText,'SHARED CONVERSATION SENTINEL')
+    &&!str_contains($rechatHistoryText,'Please follow me.'),
+    'rechat history bypassed the original conversation audience');
+$limitedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
+$limitedContent=$limitedProfile['content'];$limitedContent['settings_overrides']['memory']['recent_turn_limit']=1;
+$products->revise('profile',$actorProfile['profile_id'],$limitedContent,'test recent-turn limit',$memoryNow);
+$limitedHistory=$products->promptContext($memoryProbe,$memoryNow)['history'];
+$limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
+$assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
+    'profile recent-turn limit must count one conversation turn with both input and world context');
+$db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE source_event_id=:source AND projection_kind='turn'")
+    ->execute(['source'=>$sharedSource]);
+$hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');
+$assert(!in_array($sharedMemory['memory_id'],$hiddenIds,true),
+    'suppressed source conversation remained accessible through a derived memory');
+$narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
+    ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");
+for($i=0;$i<12;$i++)$narrativeInsert->execute(['id'=>$newUuid(3940+$i),'installation'=>$installationId,
+    'profile'=>$turn['profile_id'],'playthrough'=>$turn['playthrough_id'],'content'=>'NARRATIVE RECENCY '.$i,
+    'now'=>(new \DateTimeImmutable($memoryNow))->modify('+'.$i.' seconds')->format('Y-m-d\TH:i:sP')]);
+$narrativeSelection=$products->promptContext($memoryProbe,$memoryNow);
+$narrativePrompt=(new PromptAssembler())->assemble($memoryProbe,$narrativeSelection)['provider_input']['_assembled_prompt'];
+$assert(array_column($narrativeSelection['narrative'],'narrative_id')===array_map($newUuid,range(3951,3942))
+    &&str_contains($narrativePrompt,'NARRATIVE RECENCY 11')&&!str_contains($narrativePrompt,'NARRATIVE RECENCY 0'),
+    'prompt narrative budget must select the latest entries before the ten-record cap, not UUID order');
+$db->rollBack();
 $eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
     .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');
 $eventProjection->execute(['turn'=>$turn['turn_id']]);$eventProjectionRows=$eventProjection->fetchAll();
@@ -951,10 +1702,90 @@ $rechatTurn['payload']['ui_source']='almsivi_rechat';
 $rechatTurn['payload']['input']['text']='Please follow me again.';
 $rechatTurn['payload']['recent_action_results']=[];
 $rechatTurn['payload']['audience']=[$dialogueEvent['payload']['speaker'],$secondaryTarget];
+$rechatTurn['payload']['context']['dialogueMode']='Close';
 $rechatTurn['payload']['context']['rechat']=['speaker'=>$dialogueEvent['payload']['speaker'],
     'listener_hint'=>$turn['payload']['speaker'],'rechat_target_hint'=>$secondaryTarget,
     'origin_line'=>$turn['payload']['input']['text'],'rechat_depth'=>1,'chain_id'=>$rechatChainId,
     'origin_turn_id'=>$turn['turn_id']];
+$speakerIdentity=$dialogueEvent['payload']['speaker'];
+$thirdTarget=$secondaryTarget;$thirdTarget['record_id']='vivec_guard';$thirdTarget['display_name']='Vivec Guard';
+$thirdTarget['kind']='npc';$thirdTarget['refnum']['index']=114;
+$participantRow=static fn(array $identity,string $state):array=>['identity'=>$identity,'state'=>$state];
+$resolveRechatError=static function(array $message)use($rechatCoordinator):string{
+    try{$rechatCoordinator->resolve($message);return '';}
+    catch(DomainException $error){return $error->getMessage();}
+};
+
+$eligibleProbe=$rechatTurn;
+$eligibleProbe['payload']['audience']=[$speakerIdentity,$secondaryTarget,$thirdTarget];
+$eligibleProbe['payload']['context']['rechat']['participant_states']=[
+    ['state'=>'active','identity'=>$speakerIdentity],
+    $participantRow($secondaryTarget,'busy'),
+    $participantRow($thirdTarget,'active'),
+];
+$eligibleResolved=$rechatCoordinator->resolve($eligibleProbe);
+$assert($eligibleResolved['payload']['target']===$thirdTarget
+    &&$eligibleResolved['payload']['audience']===[$speakerIdentity,$secondaryTarget,$thirdTarget]
+    &&count($eligibleResolved['payload']['context']['rechat']['participant_states'])===3,
+    'fresh rechat eligibility did not skip a busy candidate or accept key-order-independent rows');
+
+$sleepingProbe=$eligibleProbe;
+$sleepingProbe['payload']['audience']=[$speakerIdentity,$secondaryTarget];
+$sleepingProbe['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'sleeping')];
+$sleepingResolved=$rechatCoordinator->resolve($sleepingProbe);
+$assert($sleepingResolved['payload']['target']===$secondaryTarget,
+    'directly addressed sleeping rechat target was rejected');
+$sleepingBystander=$eligibleProbe;
+$sleepingBystander['payload']['context']['rechat']['rechat_target_hint']=$thirdTarget;
+$sleepingBystander['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'sleeping'),
+    $participantRow($thirdTarget,'active')];
+$assert($rechatCoordinator->resolve($sleepingBystander)['payload']['target']===$thirdTarget,
+    'sleeping bystander was not excluded from rechat selection');
+
+foreach(['busy','unconscious','inactive'] as $blockedState){
+    $blockedSpeaker=$sleepingProbe;
+    $blockedSpeaker['payload']['context']['rechat']['participant_states'][0]['state']=$blockedState;
+    $assert($resolveRechatError($blockedSpeaker)==='rechat_no_responder',
+        'blocked previous speaker state was accepted: '.$blockedState);
+}
+$missingSpeaker=$sleepingProbe;
+$missingSpeaker['payload']['context']['rechat']['participant_states']=[$participantRow($secondaryTarget,'active')];
+$assert($resolveRechatError($missingSpeaker)==='invalid_rechat_context',
+    'participant snapshot without the previous speaker was accepted');
+$duplicateSnapshot=$sleepingProbe;
+$duplicateSnapshot['payload']['context']['rechat']['participant_states'][]=$participantRow($secondaryTarget,'active');
+$assert($resolveRechatError($duplicateSnapshot)==='invalid_rechat_context',
+    'duplicate participant state was accepted');
+$foreignSnapshot=$sleepingProbe;$foreignSnapshot['payload']['context']['rechat']['participant_states'][]=
+    $participantRow($thirdTarget,'active');
+$assert($resolveRechatError($foreignSnapshot)==='invalid_rechat_context',
+    'participant state outside the submitted rechat identities was accepted');
+$playerSnapshot=$sleepingProbe;$playerSnapshot['payload']['context']['rechat']['participant_states'][]=
+    $participantRow($turn['payload']['speaker'],'active');
+$assert($resolveRechatError($playerSnapshot)==='invalid_rechat_context',
+    'non-actor participant state was accepted');
+$legacyResolved=$rechatCoordinator->resolve($rechatTurn);
+$assert(!array_key_exists('participant_states',$legacyResolved['payload']['context']['rechat']),
+    'legacy rechat unexpectedly required or synthesized participant state');
+
+$disabledTarget=$thirdTarget;$disabledTarget['record_id']='disabled_rechat_actor';
+$disabledTarget['display_name']='Disabled Rechat Actor';$disabledTarget['refnum']['index']=115;
+$disabledProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Disabled rechat actor','actor_identity'=>['record_id'=>'disabled_rechat_actor'],
+    'content'=>['settings_overrides'=>['behavior'=>['rechat'=>false]]]],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $disabledTarget,$disabledProfile['profile_id'],$now);
+$disabledProbe=$rechatTurn;$disabledProbe['payload']['audience']=[$speakerIdentity,$disabledTarget];
+$disabledProbe['payload']['context']['rechat']['rechat_target_hint']=$disabledTarget;
+$disabledProbe['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($disabledTarget,'active')];
+$assert($resolveRechatError($disabledProbe)==='rechat_no_responder',
+    'selected responder with effective rechat disabled was accepted');
+
+$rechatTurn['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'active')];
 [$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
 $assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
 $rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
@@ -976,7 +1807,10 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
     &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
-    &&substr_count($rechatConversation,'Please follow me.')===1
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Close mode audience:')
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$secondaryTarget['display_name'])
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$speakerIdentity['display_name'])
+    &&!str_contains($rechatConversation,'Please follow me.')
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'
@@ -1078,6 +1912,105 @@ $assert($status===202&&$fallbackAttemptRows===[['state'=>'succeeded','operation'
 $fallbackOghmaWorker=$runTurnWorker(new MockProvider());
 $assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'fallback-grounded Oghma turn did not complete through the normal response pipeline');
+
+// Freeze NPC output translation at acceptance and keep stored history, subtitle, and TTS text independent.
+$translationEnabled=array_replace(\ALMSIVIserver\Application\TranslationPolicy::defaults(),[
+    'provider'=>'deepl','translate_text'=>true,'translate_audio'=>true,'source_language'=>'EN','target_language'=>'DE']);
+$translationSaved=$biographyService->createRevisioned('translation_policy',['installation_id'=>$installationId,
+    'name'=>'NPC Output Translation','content'=>$translationEnabled]);
+$translationTurn=$turn;$translationTurn['message_id']=$newUuid(860);$translationTurn['request_id']=$newUuid(861);
+$translationTurn['turn_id']=$newUuid(862);$translationTurn['payload']['input']['text']='[oghma: Vivec] Translate this reply.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($translationTurn['message_id']),[],$translationTurn);
+$translationSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$translationSnapshotStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationSnapshot=json_decode((string)$translationSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$biographyService->revise('translation_policy',$translationSaved['configuration_id'],
+    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
+$translationProvider=new class implements \ALMSIVIserver\Application\TranslationProvider {
+    public int$calls=0;
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+        ++$this->calls;$token->throwIfCancellationRequested();
+        if($sourceLanguage!=='EN'||$targetLanguage!=='DE')throw new RuntimeException('translation policy not frozen');
+        return array_map(static fn(string$text):string=>'DE: '.$text,$texts);
+    }
+};
+$translationStats=$runWorker(['turn.process'],new MockProvider(),null,$translationProvider);
+$translationResponseStatement=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
+$translationResponseStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationResponse=json_decode((string)$translationResponseStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$translationLine=$translationResponse['lines'][0];
+$translationDialogueStatement=$db->prepare('SELECT text,dialogue_message_id FROM dialogue_utterances WHERE turn_id=:turn');
+$translationDialogueStatement->execute(['turn'=>$translationTurn['turn_id']]);$translationDialogue=$translationDialogueStatement->fetch();
+$translationEventStatement=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='dialogue.complete'");
+$translationEventStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationEvent=json_decode((string)$translationEventStatement->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$translationJobStatement=$db->prepare("SELECT payload FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");
+$translationJobStatement->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
+$translationJobPayload=json_decode((string)$translationJobStatement->fetchColumn(),true,16,JSON_THROW_ON_ERROR);
+$translationAttemptStatement=$db->prepare("SELECT state,provider_name,operation,metadata FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
+$translationAttemptStatement->execute(['turn'=>$translationTurn['turn_id']]);$translationAttempt=$translationAttemptStatement->fetch();
+$translationAttemptMetadata=$translationAttempt?json_decode((string)$translationAttempt['metadata'],true,16,JSON_THROW_ON_ERROR):[];
+$expectedOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Translate this reply.';
+$expectedTranslation='DE: '.$expectedOriginal;
+$assert($status===202&&$translationStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationProvider->calls===1
+    &&($translationSnapshot['message']['_translation_policy']['revision']??null)===1
+    &&$translationLine['text']===$expectedOriginal&&$translationLine['subtitle']===$expectedTranslation
+    &&$translationLine['tts_text']===$expectedTranslation&&$translationDialogue['text']===$expectedOriginal
+    &&($translationEvent['text']??null)===$expectedTranslation&&($translationJobPayload['tts_text']??null)===$expectedTranslation
+    &&($translationAttempt['state']??null)==='succeeded'&&($translationAttempt['provider_name']??null)==='deepl'
+    &&($translationAttempt['operation']??null)==='translate_dialogue'
+    &&($translationAttemptMetadata['configuration_revision']??null)===1,
+    'accepted translation policy did not freeze or separate history, subtitle, TTS, and audit state: '.json_encode([
+        'status'=>$status,'stats'=>$translationStats,'calls'=>$translationProvider->calls,
+        'snapshot'=>$translationSnapshot['message']['_translation_policy']??null,'line'=>$translationLine,
+        'dialogue'=>$translationDialogue,'event'=>$translationEvent,'job'=>$translationJobPayload,
+        'attempt'=>$translationAttempt,'attempt_metadata'=>$translationAttemptMetadata,'expected'=>$expectedOriginal],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+$capturedSpeech=new class implements \ALMSIVIserver\Application\SpeechProvider {
+    public array$inputs=[];
+    public function synthesize(string$text,\ALMSIVIserver\Application\CancellationToken$cancellation,array$context=[]):array{
+        $this->inputs[]=$text;return(new MockSpeechProvider())->synthesize($text,$cancellation,$context);
+    }
+};
+$speechRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\SpeechSynthesizeJobHandler(
+    new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
+$translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
+    ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
+$translationTtsAttempt=$db->prepare("SELECT input_bytes FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts'");
+$translationTtsAttempt->execute(['turn'=>$translationTurn['turn_id']]);
+$assert($translationSpeechStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$capturedSpeech->inputs===[$expectedTranslation]
+    &&(int)$translationTtsAttempt->fetchColumn()===strlen($expectedTranslation),
+    'speech worker did not synthesize the TTS text frozen in the durable job payload');
+
+// A DeepL outage is audited but falls back to the original valid dialogue without failing the turn.
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],$translationEnabled,'enable failed translation probe');
+$translationFailureTurn=$turn;$translationFailureTurn['message_id']=$newUuid(863);$translationFailureTurn['request_id']=$newUuid(864);
+$translationFailureTurn['turn_id']=$newUuid(865);$translationFailureTurn['payload']['input']['text']='[oghma: Vivec] Keep the original reply.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($translationFailureTurn['message_id']),[],$translationFailureTurn);
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
+    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
+$unavailableTranslation=new class implements \ALMSIVIserver\Application\TranslationProvider {
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+        throw new RuntimeException('sensitive upstream detail');
+    }
+};
+$translationFailureStats=$runWorker(['turn.process'],new MockProvider(),null,$unavailableTranslation);
+$translationResponseStatement->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$translationFailureResponse=json_decode((string)$translationResponseStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$translationFailureAttempt=$db->prepare("SELECT state,error_code,error_detail FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
+$translationFailureAttempt->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$translationFailureOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Keep the original reply.';
+$assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationFailureResponse['ok']===true
+    &&$translationFailureResponse['lines'][0]['text']===$translationFailureOriginal
+    &&$translationFailureResponse['lines'][0]['subtitle']===$translationFailureOriginal
+    &&$translationFailureResponse['lines'][0]['tts_text']===$translationFailureOriginal
+    &&$translationFailureAttempt->fetch()===['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null],
+    'translation failure did not preserve original dialogue with a redacted failed provider attempt');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

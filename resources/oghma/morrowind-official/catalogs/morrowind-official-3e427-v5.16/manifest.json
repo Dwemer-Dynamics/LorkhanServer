@@ -1,0 +1,840 @@
+{
+  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "catalog_version": "morrowind-official-3e427-v5.16",
+  "row_count": 2566,
+  "articles_sha256": "e93bb84d254694bdfe9978296501e55299dca9cd633ea7fff313a3d5c42657f3",
+  "ontology_sha256": "55860171f0a443c9dc59fe8f1db7d3fd972468ab53be520ba04f821d98242c63",
+  "topic_seeds_sha256": "c2d0da8fe492712409ae0f51d0cea2b52ddcac6fd540e557bcae063c1074f05e",
+  "editorial_decisions_sha256": "dce02830137330512757b3d9a2a8f4a02318881f15a9eda0c979fc0a9cd0ec05",
+  "generator_sha256": "c342f3dfba41823d23e03051e612480963059191c28ed4bc8011c85c78a5ea7b",
+  "builder_sha256": "606e5039dc73d9f470cfa0301940c0ef4269ffd615fd17bc66d2a13608ae20e7",
+  "official_content_sha256": {
+    "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",
+    "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
+    "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357",
+    "TR_Mainland.esm": "661c96c6aa5e517d897f8b9de93c814d2aca16fd17b6e4ce7869486e3737064b"
+  },
+  "category_counts": {
+    "alchemy": 3,
+    "artifacts": 86,
+    "ascadian_isles": 47,
+    "ashlands": 43,
+    "azuras_coast": 61,
+    "bitter_coast": 27,
+    "books": 237,
+    "creatures": 81,
+    "cultures": 43,
+    "diseases": 26,
+    "equipment": 38,
+    "factions": 75,
+    "figures": 83,
+    "grazelands": 21,
+    "history": 58,
+    "ingredients": 110,
+    "locationother": 41,
+    "locations": 1059,
+    "lore": 33,
+    "magic": 26,
+    "molag_amur": 30,
+    "mournhold": 11,
+    "races": 33,
+    "red_mountain": 10,
+    "regions": 48,
+    "religion": 74,
+    "settlements": 82,
+    "sheogorad": 27,
+    "solstheim": 11,
+    "west_gash": 42
+  },
+  "alias_key_count": 5181,
+  "dropped_alias_collisions": [
+    {
+      "topic": "foyada_mamaea",
+      "alias": "Mamaea",
+      "owner": "mamaea",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "fort_moonmoth",
+      "alias": "Moonmoth Legion Fort",
+      "owner": "moonmoth_legion_fort",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "fort_buckmoth",
+      "alias": "Buckmoth Legion Fort",
+      "owner": "buckmoth_legion_fort",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "antecedents_of_dwemer_law",
+      "alias": "Antecedants of Dwemer Law",
+      "owner": "antecedants_of_dwemer_law",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "nchurdamz",
+      "alias": "Nchardumz",
+      "owner": "nchardumz",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "sewers_and_ruins",
+      "alias": "Old Mournhold",
+      "owner": "old_mournhold",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "caldera_ebony_mines",
+      "alias": "Caldera mine",
+      "owner": "caldera_mine",
+      "trusted_legacy": true,
+      "reason": "canonical_topic_priority"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_1",
+      "alias": "Thirty-Six Lessons of Vivec",
+      "owner": "thirty_six_lessons_of_vivec"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_13",
+      "alias": "36 Lessons of Vivec",
+      "owner": "36_lessons_of_vivec_sermon_1"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_16",
+      "alias": "Thirty-Six Lessons of Vivec",
+      "owner": "thirty_six_lessons_of_vivec"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_17",
+      "alias": "36 Lessons of Vivec",
+      "owner": "36_lessons_of_vivec_sermon_1"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_26",
+      "alias": "36 Lessons of Vivec",
+      "owner": "36_lessons_of_vivec_sermon_1"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_36",
+      "alias": "Thirty-Six Lessons of Vivec",
+      "owner": "thirty_six_lessons_of_vivec"
+    },
+    {
+      "topic": "36_lessons_of_vivec_sermon_8",
+      "alias": "36 Lessons of Vivec",
+      "owner": "36_lessons_of_vivec_sermon_1"
+    },
+    {
+      "topic": "biography_of_the_wolf_queen",
+      "alias": "Potema",
+      "owner": "potema"
+    },
+    {
+      "topic": "biography_of_the_wolf_queen",
+      "alias": "Wolf Queen of Solitude",
+      "owner": "potema"
+    },
+    {
+      "topic": "mystery_of_talara_part_5",
+      "alias": "Mera Llykith",
+      "owner": "mystery_of_talara_part_1"
+    },
+    {
+      "topic": "the_wolf_queen_book_iii",
+      "alias": "Waughin Jarth Wolf Queen",
+      "owner": "the_wolf_queen_book_ii"
+    },
+    {
+      "topic": "ancestors_and_the_dunmer",
+      "alias": "dunmer ghost fence",
+      "owner": "dunmer_funerary_rites"
+    },
+    {
+      "topic": "ancestors_and_the_dunmer",
+      "alias": "waiting door",
+      "owner": "dunmer_funerary_rites"
+    },
+    {
+      "topic": "antecedants_of_dwemer_law",
+      "alias": "Antecedents of Dwemer Law",
+      "owner": "antecedents_of_dwemer_law"
+    },
+    {
+      "topic": "for_my_gods_and_emperor",
+      "alias": "Imperial Cult doctrine",
+      "owner": "imperial_cult_doctrine"
+    },
+    {
+      "topic": "odral_s_history_of_the_empire_1",
+      "alias": "A Brief History of the Empire Part One",
+      "owner": "brief_history_of_the_empire_v_1"
+    },
+    {
+      "topic": "odral_s_history_of_the_empire_1",
+      "alias": "Stronach k'Thojj III",
+      "owner": "brief_history_of_the_empire_v_2"
+    },
+    {
+      "topic": "odral_s_history_of_the_empire_3",
+      "alias": "A Brief History of the Empire Part Three",
+      "owner": "brief_history_of_the_empire_v_3"
+    },
+    {
+      "topic": "poison_song_ii",
+      "alias": "Bristin Xel",
+      "owner": "poison_song_i"
+    },
+    {
+      "topic": "poison_song_iv",
+      "alias": "Bristin Xel",
+      "owner": "poison_song_i"
+    },
+    {
+      "topic": "poison_song_vi",
+      "alias": "Bristin Xel",
+      "owner": "poison_song_i"
+    },
+    {
+      "topic": "poison_song_vii",
+      "alias": "Bristin Xel",
+      "owner": "poison_song_i"
+    },
+    {
+      "topic": "words_of_clan_mother_ahnissi",
+      "alias": "Fadomai",
+      "owner": "padomay"
+    },
+    {
+      "topic": "words_of_clan_mother_ahnissi",
+      "alias": "Azurah",
+      "owner": "azurah"
+    },
+    {
+      "topic": "words_of_clan_mother_ahnissi",
+      "alias": "Lorkhaj",
+      "owner": "lorkhaj"
+    },
+    {
+      "topic": "words_of_clan_mother_ahnissi",
+      "alias": "Lunar Lattice",
+      "owner": "lunar_lattice"
+    },
+    {
+      "topic": "words_of_clan_mother_ahnissi",
+      "alias": "Ja-Kha'jay",
+      "owner": "lunar_lattice"
+    },
+    {
+      "topic": "2920_morning_star",
+      "alias": "Carlovac Townway 2920",
+      "owner": "2920_midyear"
+    },
+    {
+      "topic": "2920_sun_s_height",
+      "alias": "Carlovac Townway 2920",
+      "owner": "2920_midyear"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_1",
+      "alias": "Waughin Jarth",
+      "owner": "the_wolf_queen_book_vii"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_3",
+      "alias": "Waughin Jarth",
+      "owner": "the_wolf_queen_book_vii"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_3",
+      "alias": "Decumus Scotti",
+      "owner": "a_dance_in_fire_chapter_1"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_4",
+      "alias": "Waughin Jarth",
+      "owner": "the_wolf_queen_book_vii"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_4",
+      "alias": "Decumus Scotti",
+      "owner": "a_dance_in_fire_chapter_1"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_4",
+      "alias": "Wild Hunt",
+      "owner": "wild_hunt"
+    },
+    {
+      "topic": "a_dance_in_fire_chapter_6",
+      "alias": "Decumus Scotti",
+      "owner": "a_dance_in_fire_chapter_1"
+    },
+    {
+      "topic": "biography_of_barenziah_v_iii",
+      "alias": "Stern Gamboge",
+      "owner": "biography_of_barenziah_v_i"
+    },
+    {
+      "topic": "legions_of_the_dead",
+      "alias": "Sharn's Legions of the Dead",
+      "owner": "sharn_s_legions_of_the_dead"
+    },
+    {
+      "topic": "lives_of_the_saints",
+      "alias": "Dunmer saints",
+      "owner": "saints"
+    },
+    {
+      "topic": "saryoni_s_sermons_manuscript",
+      "alias": "Saryoni's Sermons",
+      "owner": "saryoni_s_sermons"
+    },
+    {
+      "topic": "tamrielic_lore",
+      "alias": "Famed Artifacts of Tamriel",
+      "owner": "famed_artifacts_of_tamriel"
+    },
+    {
+      "topic": "the_anticipations",
+      "alias": "Anticipations",
+      "owner": "good_daedra"
+    },
+    {
+      "topic": "the_anticipations",
+      "alias": "Good Daedra",
+      "owner": "good_daedra"
+    },
+    {
+      "topic": "the_pilgrim_s_path",
+      "alias": "Pilgrim's Path",
+      "owner": "pilgrimages"
+    },
+    {
+      "topic": "the_story_of_aevar_stone_singer",
+      "alias": "Aevar Stone-Singer",
+      "owner": "aevar_stone_singer"
+    },
+    {
+      "topic": "urshilaku",
+      "alias": "Urshilaku, Astral Burial",
+      "owner": "urshilaku_burial_caverns"
+    },
+    {
+      "topic": "ashimanu_egg_mine",
+      "alias": "Queen's Lair",
+      "owner": "shulk_egg_mine"
+    },
+    {
+      "topic": "hairat_vassamsi_egg_mine",
+      "alias": "Queen's Lair",
+      "owner": "shulk_egg_mine"
+    },
+    {
+      "topic": "koal_cave_entrance",
+      "alias": "Koal Cave",
+      "owner": "koal_cave"
+    },
+    {
+      "topic": "matus_akin_egg_mine",
+      "alias": "Queen's Lair",
+      "owner": "shulk_egg_mine"
+    },
+    {
+      "topic": "nchuleft_ruin",
+      "alias": "Nchuleft",
+      "owner": "nchuleft"
+    },
+    {
+      "topic": "pudai_egg_mine",
+      "alias": "Queen's Lair",
+      "owner": "shulk_egg_mine"
+    },
+    {
+      "topic": "sarimisun_assa_egg_mine",
+      "alias": "Queen's Lair",
+      "owner": "shulk_egg_mine"
+    },
+    {
+      "topic": "holamayan_monastery",
+      "alias": "holamayan",
+      "owner": "holamayan"
+    },
+    {
+      "topic": "mamaea",
+      "alias": "Foyada Mamaea",
+      "owner": "foyada_mamaea"
+    },
+    {
+      "topic": "mudan",
+      "alias": "Mudan Grotto",
+      "owner": "mudan_grotto"
+    },
+    {
+      "topic": "yansirramus",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "ashurnabitashpi",
+      "alias": "Assurnabitashpi",
+      "owner": "assurnabitashpi"
+    },
+    {
+      "topic": "hassour",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "sanit",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "addadshashanammu",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "assalkushalit",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "assarnatamat",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "dushariran",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "ebernanit",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "ibishammus",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "kaushtarari",
+      "alias": "Shrine",
+      "owner": "ashurnibibi"
+    },
+    {
+      "topic": "nund",
+      "alias": "cave east of Vivec",
+      "owner": "ansi"
+    },
+    {
+      "topic": "marsus_guar_hide",
+      "alias": "guar hide",
+      "owner": "guar_hide"
+    },
+    {
+      "topic": "treated_bittergreen_petals",
+      "alias": "bittergreen petals",
+      "owner": "bittergreen_petals"
+    },
+    {
+      "topic": "bad_daedra",
+      "alias": "Four Corners of the House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "bad_daedra",
+      "alias": "House of Troubles",
+      "owner": "house_of_troubles"
+    },
+    {
+      "topic": "queen_morgiah",
+      "alias": "Princess Morgiah",
+      "owner": "princess_morgiah"
+    },
+    {
+      "topic": "old_ebonheart",
+      "alias": "Ebonheart",
+      "owner": "ebonheart"
+    },
+    {
+      "topic": "poison_song",
+      "alias": "Bristin Xel Poison Song",
+      "owner": "poison_song_v"
+    },
+    {
+      "topic": "dhaunayne_aundae",
+      "alias": "Aundae Clan",
+      "owner": "aundae"
+    },
+    {
+      "topic": "dhaunayne_aundae",
+      "alias": "Ashmelech",
+      "owner": "ashmelech"
+    },
+    {
+      "topic": "keptu_quey",
+      "alias": "Quey",
+      "owner": "quey"
+    },
+    {
+      "topic": "keptu_quey",
+      "alias": "Cathnoquey",
+      "owner": "cathnoquey"
+    },
+    {
+      "topic": "the_towers",
+      "alias": "Velothi Tower",
+      "owner": "velothi_tower"
+    },
+    {
+      "topic": "mournhold_district",
+      "alias": "Mournhold",
+      "owner": "mournhold"
+    },
+    {
+      "topic": "ayleid",
+      "alias": "Heartland High Elves",
+      "owner": "ayleids"
+    },
+    {
+      "topic": "ayleid",
+      "alias": "Wild Elves",
+      "owner": "ayleids"
+    },
+    {
+      "topic": "the_armistice",
+      "alias": "Treaty of the Armistice",
+      "owner": "armistice"
+    },
+    {
+      "topic": "the_armistice",
+      "alias": "Armistice",
+      "owner": "armistice"
+    },
+    {
+      "topic": "the_ruins_of_kemel_ze",
+      "alias": "Kemel-Ze",
+      "owner": "kemel_ze"
+    },
+    {
+      "topic": "an_abandoned_shack",
+      "alias": "abandoned shack",
+      "owner": "abandoned_shack"
+    }
+  ],
+  "source_runs": [
+    {
+      "articles_sha256": "ebb9670c13b90dcbbe758e718284b33bf5b42dfe3d4fe3b919289a526fc20926",
+      "manifest_sha256": "0714de38e952d6ecbee2f74d9025f762c72e7822089d93cbed62cc38fab8bf70",
+      "row_count": 700,
+      "model": null,
+      "cost": 0.0,
+      "trusted_legacy": true
+    },
+    {
+      "articles_sha256": "b9d2cf08808a355e461a82ae503289caf515bb51ac64c77d07024dd423dfa552",
+      "manifest_sha256": "345ba3d6ecc31ea99221dd9c49caba1a63420e9534d4c68824e93474d31b2935",
+      "row_count": 100,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.5714260949999997,
+      "trusted_legacy": false
+    },
+    {
+      "articles_sha256": "73a3b655e8ce7b78cb4866ec2383c4dbdbc6ac070d2c469df77acbd0da95803c",
+      "manifest_sha256": "45b71dab1cb0a4cde40bd54e3921e8b5772f1dd0ab02c163e93d077ea2bcb7cd",
+      "row_count": 500,
+      "model": "z-ai/glm-5.1",
+      "cost": 2.2151525909999994,
+      "trusted_legacy": false
+    },
+    {
+      "articles_sha256": "a596afb1601ee1103caed43585c49c44bd70794c01cfd755fcab17798389effa",
+      "manifest_sha256": "94376e9a58b31864e849acabcab98314c2767a76f7a9b6577a32d4fdc9274084",
+      "row_count": 136,
+      "model": "z-ai/glm-5.1",
+      "cost": 0.35691751600000005,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "articles_sha256": "ee40b7bd33ad7384ecfae6cd18683daabd4c0947f9b7075532de7b72ee39bb8d",
+      "manifest_sha256": "8d5f675d1bd94ad38da32f5f31f9f560fe4884900348cabf891c5deeeedb4e54",
+      "row_count": 1160,
+      "model": "z-ai/glm-5.1",
+      "recorded_cost": 3.4047388351999985,
+      "cost_accounting_complete": false,
+      "untracked_provider_response_count": 344,
+      "mod_source": "TR_Mainland.esm",
+      "added_count": 1130,
+      "replaced_count": 27,
+      "covered_by_existing_count": 3
+    }
+  ],
+  "trusted_legacy_row_count": 700,
+  "reviewed_row_count": 2566,
+  "editorial_exclusions": [
+    {
+      "topic": "morvayn_manor",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article was dominated by mutable manor-cleansing state rather than durable regional knowledge."
+    },
+    {
+      "topic": "robot_arena",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described a mutable local incident at Ignatius Flaccus's residence."
+    },
+    {
+      "topic": "vassir_didanat_mine",
+      "reason": "quest_dominated_location",
+      "note": "Preserve the v3 editorial exclusion: the generated article chiefly described competing quest rewards and mutable ownership claims."
+    }
+  ],
+  "editorial_overrides": [
+    {
+      "topic": "children_of_the_sky",
+      "reason": "correct_typography",
+      "note": "Correct the generated spelling of Nordic without changing the article's official-book account."
+    },
+    {
+      "topic": "aevar_stone_singer",
+      "reason": "remove_quest_derived_detail",
+      "note": "Keep Aevar's account within the official Skaal tale and remove later artifact and Ritual of the Gifts details."
+    },
+    {
+      "topic": "akaviri_potentate",
+      "reason": "remove_misattributed_institution",
+      "note": "Remove a generated claim that wrongly attributed the Fighters and Mages Guilds' prominence to the Potentate."
+    },
+    {
+      "topic": "aldmeri_pantheon",
+      "reason": "separate_altmer_and_bosmer_traditions",
+      "note": "Restore Trinimac and remove Jone and Jode from the Altmeri list; they belong to the Bosmeri list in the source."
+    },
+    {
+      "topic": "tang_mo",
+      "reason": "remove_unanchored_current_state",
+      "note": "Present the reported Ka Po' Tun alliance as part of uncertain Akaviri accounts rather than mutable recent news."
+    },
+    {
+      "topic": "underking",
+      "reason": "anchor_to_3e427",
+      "note": "Remove the pre-Warp present-tense search for the Mantella and preserve the disputed identities and 3E 417 outcome."
+    },
+    {
+      "topic": "fall_of_the_snow_prince",
+      "reason": "describe_linked_book",
+      "note": "Correct a generated subject conflation that described the Snow Prince's equipment instead of the linked chronicle."
+    },
+    {
+      "topic": "snow_elves",
+      "reason": "remove_fourth_era_revelation",
+      "note": "Keep the article within knowledge available from Bloodmoon and remove the later Falmer-Dwemer revelation."
+    },
+    {
+      "topic": "tonal_architecture",
+      "reason": "remove_later_era_specificity",
+      "note": "Restrict the discipline to evidence in the official Morrowind texts and avoid presenting Kagrenac's disputed result as certain."
+    },
+    {
+      "topic": "mantella",
+      "reason": "anchor_to_3e427",
+      "note": "Include the 3E 417 resolution of the Mantella rather than leaving it hidden as an extant target."
+    },
+    {
+      "topic": "azurah",
+      "reason": "correct_cultural_identity",
+      "note": "Describe Azurah as the Khajiiti cultural understanding of Azura rather than a wholly separate entity."
+    },
+    {
+      "topic": "arcturian_heresy",
+      "reason": "correct_authorship_claim",
+      "note": "The Morrowind text has no named author; Ysmir Kingmaker appears as a heading, not a reliable attribution."
+    },
+    {
+      "topic": "wars_of_tiber_septim",
+      "reason": "correct_heresy_summary",
+      "note": "Correct the generated reversal of betrayal in the Arcturian Heresy."
+    },
+    {
+      "topic": "cephorus_septim",
+      "reason": "correct_era_wording",
+      "note": "Cephorus I lived in the early centuries of the Third Era, not its late period."
+    },
+    {
+      "topic": "thirsk_a_history",
+      "reason": "remove_comma_delimited_alias_collision",
+      "note": "The canonical topic already resolves the book title. Remove the generated comma-bearing alias so it cannot split into the settlement alias Thirsk and an unrelated fragment."
+    },
+    {
+      "topic": "blight_diseases",
+      "reason": "preserve_primary_blight_topic",
+      "note": "Reserve the generic phrase the Blight for the main blight phenomenon article while retaining the specific blight illness alias for this disease-family article."
+    },
+    {
+      "topic": "gilnyth_ancestral_tomb",
+      "uesp_revision_id": 3111524,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM prompt-identifier output with concise prose limited to the locked tomb summary."
+    },
+    {
+      "topic": "num_ittu_mine",
+      "uesp_revision_id": 3401460,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM prompt-identifier output with concise prose limited to the locked mine summary."
+    },
+    {
+      "topic": "riverbed_shipwreck",
+      "uesp_revision_id": 3081168,
+      "reason": "replace_prompt_identifier",
+      "note": "Replace repeated GLM title-only output with concise prose limited to the locked shipwreck summary."
+    }
+  ],
+  "generation_cost": 6.548235037199998,
+  "temporal_anchor": "3E 427",
+  "excluded": [
+    "ordinary_npcs",
+    "generic_item_variants",
+    "generic_potions_and_poisons",
+    "routine_spells",
+    "minor_quest_objects",
+    "walkthroughs",
+    "player_outcomes",
+    "fourth_era",
+    "dynamic_oghma"
+  ],
+  "advanced_class_counts": {
+    "alchemist": 113,
+    "altmer": 1,
+    "argonian": 3,
+    "ascadian_isles": 46,
+    "ashlander": 46,
+    "ashlands": 37,
+    "azuras_coast": 58,
+    "bitter_coast": 24,
+    "blacksmith": 44,
+    "blades": 5,
+    "blocked": 4,
+    "bosmer": 1,
+    "breton": 1,
+    "camonna_tong": 14,
+    "common": 2,
+    "daedra": 82,
+    "dark_brotherhood": 8,
+    "dunmer": 170,
+    "dwemer": 49,
+    "east_empire_company": 6,
+    "esoteric": 5,
+    "fighters_guild": 11,
+    "grazelands": 19,
+    "guard": 5,
+    "healer": 138,
+    "house_dagoth": 51,
+    "house_hlaalu": 114,
+    "house_redoran": 40,
+    "house_telvanni": 77,
+    "hunter": 145,
+    "imperial": 110,
+    "imperial_cult": 25,
+    "imperial_legion": 59,
+    "khajiit": 3,
+    "mage": 22,
+    "mages_guild": 29,
+    "merchant": 127,
+    "molag_amur": 29,
+    "morag_tong": 17,
+    "mournhold": 16,
+    "nord": 4,
+    "orc": 1,
+    "priest": 85,
+    "raven_rock": 1,
+    "red_mountain": 9,
+    "redguard": 1,
+    "sailor": 68,
+    "scholar": 838,
+    "sheogorad": 26,
+    "skaal": 5,
+    "solstheim": 15,
+    "thief": 3,
+    "thieves_guild": 9,
+    "traveler": 953,
+    "tribunal_temple": 166,
+    "twin_lamps": 7,
+    "warrior": 45,
+    "west_gash": 40
+  },
+  "basic_class_counts": {
+    "ascadian_isles": 152,
+    "ashlands": 127,
+    "azuras_coast": 123,
+    "bitter_coast": 89,
+    "blocked": 52,
+    "common": 1936,
+    "esoteric": 172,
+    "grazelands": 152,
+    "molag_amur": 201,
+    "mournhold": 1,
+    "red_mountain": 40,
+    "sheogorad": 155,
+    "solstheim": 2,
+    "traveler": 455,
+    "west_gash": 164
+  },
+  "classification_revision": {
+    "source_catalog_version": "morrowind-official-3e427-v5.11",
+    "source_manifest_sha256": "2ae36ecba64c98afdabdcbb9797ab15e3d9df4babda9edd6c7cd755cf843788c",
+    "source_articles_sha256": "eb5839a6c3d978f99cb9c36f91a0908397a9c2d4a6e52ec616551a0c5ac17922",
+    "policy": "frozen canonical vocabulary plus explicit organization signals"
+  },
+  "canonical_vocabulary_sha256": "cf474d88cdaaf40d67946915c1c9790a1665657a7ee4762d280a5e4eb93c35ac",
+  "alias_serialization": "comma-separated; internal commas encoded as underscores",
+  "geography_sha256": "986496dff712c8e814eff313c1b4d8cc6b451ca4aaf522d33c9f9fbff7d0b17f",
+  "geography_policy_sha256": "9306440e3fceff917ce841fb3166f168fedfd1342426d0107c261a787b628548",
+  "geography_ruleset": "official-cell-door-reference-v1",
+  "tamriel_rebuilt_topic_seeds_sha256": "e6a2e88240f09914d0126dbb3d89e5633391e9c56037ae3b2378072c1a5fc083",
+  "tamriel_rebuilt_review_manifest_sha256": "8d5f675d1bd94ad38da32f5f31f9f560fe4884900348cabf891c5deeeedb4e54",
+  "tamriel_rebuilt_assembler_sha256": "8ac90fa59395843f04e1cd3513a3c6135c4d89817d696b00ee3d32dc4b159b9a",
+  "tamriel_rebuilt_row_count": 1266,
+  "tamriel_rebuilt_coverage": "all released unique UESP place subjects backed by TR_Mainland.esm or a reviewed public place index; redirects, indexes, deprecated regions, testing pages, and unreleased missing pages are explicitly accounted for",
+  "generation_cost_accounting_complete": false,
+  "untracked_provider_response_count": 344,
+  "tamriel_rebuilt_inventory_builder_sha256": "5d7b696c10499d39796599baa08b5552e3cd04fc8afbcfa536686d6f0e44b91c",
+  "tamriel_rebuilt_location_coverage_sha256": "9307e16f5b38ebfd82335d50a28f8dc8c5eb51a883c805b5acd9c5fc7dc1cf12",
+  "tamriel_rebuilt_location_curation_sha256": "fe67937c0be7f94f0643ff394f1ae74a31af35024f4551f8170d616c09637c99",
+  "tamriel_rebuilt_location_source_subject_count": 1160,
+  "tamriel_rebuilt_location_row_count": 1157,
+  "tamriel_rebuilt_location_added_count": 1130,
+  "tamriel_rebuilt_location_replaced_count": 27,
+  "tamriel_rebuilt_location_existing_catalog_coverage": [
+    {
+      "topic": "tr_necrom",
+      "existing_topic": "necrom",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Necrom article."
+    },
+    {
+      "topic": "tr_padomaic_ocean",
+      "existing_topic": "padomaic_ocean",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Padomaic Ocean article."
+    },
+    {
+      "topic": "tr_sea_of_ghosts",
+      "existing_topic": "sea_of_ghosts",
+      "reason": "existing_canonical_subject",
+      "note": "The base catalog already provides the canonical Sea of Ghosts article."
+    }
+  ],
+  "tamriel_rebuilt_location_common_basic_count": 131,
+  "tamriel_rebuilt_location_unknown_basic_count": 1029,
+  "tamriel_rebuilt_location_missing_public_page_count": 3
+}

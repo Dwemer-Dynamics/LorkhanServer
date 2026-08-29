@@ -266,8 +266,10 @@ final class Repository
                     ->execute(['session'=>$m['session_id'],'generation'=>$m['generation']]);
             }
             $sourceKind=($m['payload']['ui_source']??null)==='almsivi_rechat'?'rechat':'turn.requested';
+            $projectionContext=['player_mood_cue'=>is_string($promptTrace['player_mood_cue']??null)
+                ?$promptTrace['player_mood_cue']:''];
             $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], $sourceKind, $m['created_at'],
-                $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
+                $m['schema'], $m['request_id'], $m['turn_id'], null, $m, $projectionContext);
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
@@ -455,7 +457,7 @@ final class Repository
                     'audience' => $audience, 'text' => $line['text'],
                     'speech_enabled' => ($line['metadata']['speech_enabled'] ?? true) !== false];
                 $dialogue = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'dialogue.complete', [
-                    'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $utterance['text'],
+                    'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $line['subtitle'],
                 ], $line['line_id']);
                 $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
                     . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
@@ -492,7 +494,7 @@ final class Repository
                     $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                         . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                         ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$dialogue['message_id'],
-                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']])]);
+                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id'],'tts_text'=>$line['tts_text']])]);
                 }
                 $currentSpeech = $speech[$index] ?? ($index === 0 && isset($speech['media_id']) ? $speech : null);
                 if ($currentSpeech !== null) {
@@ -704,6 +706,7 @@ final class Repository
                 $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                     . "VALUES(:job,'memory.derive',1,:key,CAST(:payload AS jsonb),3,40) ON CONFLICT(job_type,idempotency_key) DO NOTHING")
                     ->execute(['job'=>Uuid::v4(),'key'=>'memory:dialogue:'.$m['dialogue_message_id'],'payload'=>$this->encode($payload)]);
+                (new RelationshipEvaluationRepository($this->db))->enqueue($m['message_id']);
             }
             return['duplicate'=>false];
         });
@@ -1044,14 +1047,16 @@ final class Repository
     }
 
     private function source(string $id, string $installation, ?string $session, ?int $generation, string $kind, string $occurred,
-        string $schema, ?string $request, ?string $turn, ?string $action, array $payload): void
+        string $schema, ?string $request, ?string $turn, ?string $action, array $payload,
+        array $projectionContext = []): void
     {
         $stmt = $this->db->prepare('INSERT INTO source_events (source_event_id, installation_id, session_id, generation, event_kind, occurred_at, '
             . 'schema_name, request_id, turn_id, action_id, payload) VALUES (:id, :installation, :session, :generation, :kind, :occurred, '
             . ':schema, :request, :turn, :action, CAST(:payload AS jsonb))');
         $stmt->execute(['id' => $id, 'installation' => $installation, 'session' => $session, 'generation' => $generation, 'kind' => $kind,
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
-        $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload);
+        $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload,
+            $projectionContext);
     }
 
     private function eventLog(): EventLogRepository

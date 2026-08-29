@@ -166,21 +166,32 @@ final class OghmaGroundedRetriever
         $candidates = [];
         $rejected = [];
 
-        foreach ($index['entries'] as $entry) {
-            $pattern = '/(?<![\p{L}\p{N}])' . preg_quote($entry['phrase'], '/') . '(?![\p{L}\p{N}])/u';
-            if (preg_match_all($pattern, $normalized, $matches, PREG_OFFSET_CAPTURE) === false) {
-                continue;
-            }
-            foreach ($matches[0] as $match) {
-                $start = $this->characterOffset($normalized, (int)$match[1]);
-                if ($speakerLabelEnd > 0 && $start < $speakerLabelEnd) {
-                    $rejected[] = $this->rejection($entry, 'speaker_label', $start);
-                    continue;
+        preg_match_all('/[\p{L}\p{N}]+/u', $normalized, $tokenMatches, PREG_OFFSET_CAPTURE);
+        $tokens = $tokenMatches[0] ?? [];
+        foreach ($tokens as $tokenIndex => $token) {
+            $node = $index['exact_trie'] ?? [];
+            for ($endIndex = $tokenIndex, $tokenCount = count($tokens); $endIndex < $tokenCount; $endIndex++) {
+                $word = (string)$tokens[$endIndex][0];
+                if (!isset($node[$word])) break;
+                $node = $node[$word];
+                foreach ($node[''] ?? [] as $entry) {
+                    $start = $this->characterOffset($normalized, (int)$token[1]);
+                    $endByte = (int)$tokens[$endIndex][1] + strlen((string)$tokens[$endIndex][0]);
+                    $end = $this->characterOffset($normalized, $endByte);
+                    if ($speakerLabelEnd > 0 && $start < $speakerLabelEnd) {
+                        $rejected[] = $this->rejection($entry, 'speaker_label', $start);
+                        continue;
+                    }
+                    $candidate = $this->candidate(
+                        $entry,
+                        $entry['canonical'] ? 'exact canonical' : 'exact alias',
+                        $start,
+                        $end, 0, $entry['canonical'] ? 0.90 : 0.86,
+                        mb_substr($normalized, $start, $end - $start, 'UTF-8')
+                    );
+                    $candidate['score'] = $this->candidateScore($text, $candidate, $requestScore);
+                    $candidates[] = $candidate;
                 }
-                $candidate = $this->candidate($entry, $entry['canonical'] ? 'exact canonical' : 'exact alias', $start,
-                    $start + mb_strlen((string)$match[0], 'UTF-8'), 0, $entry['canonical'] ? 0.90 : 0.86);
-                $candidate['score'] = $this->candidateScore($text, $candidate, $requestScore);
-                $candidates[] = $candidate;
             }
         }
 
@@ -301,6 +312,8 @@ final class OghmaGroundedRetriever
 
         $entries = [];
         $byCompact = [];
+        $exactTrie = [];
+        $fuzzyBuckets = [];
         $phraseOwners = [];
         foreach ($phrases as $phrase => $owners) {
             $phrase = (string)$phrase;
@@ -321,6 +334,15 @@ final class OghmaGroundedRetriever
             ];
             $entries[] = $entry;
             $byCompact[$entry['compact']][] = $entry;
+            $node =& $exactTrie;
+            foreach (preg_split('/\s+/u', $entry['phrase']) ?: [] as $word) {
+                if (!isset($node[$word])) $node[$word] = [];
+                $node =& $node[$word];
+            }
+            $node[''][] = $entry;
+            unset($node);
+            $entry['phonetic'] = $this->phonetic($entry['compact']);
+            $fuzzyBuckets[strlen($entry['compact'])][] = $entry;
         }
         $relationalTagEntries = [];
         foreach ($tagPhrases as $phrase => $owners) {
@@ -330,7 +352,9 @@ final class OghmaGroundedRetriever
                 'owners'=>array_keys($owners['owners'] ?? []),
             ];
         }
-        return ['entries'=>$entries, 'by_compact'=>$byCompact, 'phrase_owners'=>$phraseOwners,
+        return ['entries'=>$entries, 'by_compact'=>$byCompact, 'exact_trie'=>$exactTrie,
+            'fuzzy_buckets'=>$fuzzyBuckets,
+            'phrase_owners'=>$phraseOwners,
             'relational_tag_entries'=>$relationalTagEntries];
     }
 
@@ -394,11 +418,7 @@ final class OghmaGroundedRetriever
     /** @return list<array<string,mixed>> */
     private function fuzzyCandidates(string $text, array $windows, array $index, float $requestScore): array
     {
-        $buckets = [];
-        foreach ($index['entries'] as $entry) {
-            $entry['phonetic'] = $this->phonetic($entry['compact']);
-            $buckets[strlen($entry['compact'])][] = $entry;
-        }
+        $buckets = $index['fuzzy_buckets'] ?? [];
         $candidates = [];
         foreach ($windows as $window) {
             $windowCompact = $window['compact'];
@@ -676,7 +696,8 @@ final class OghmaGroundedRetriever
     private function values(string $value): array
     {
         $result = [];
-        foreach (preg_split('/\s*,\s*/u', $value) ?: [] as $item) {
+        $separator = str_contains($value, '|') ? '/\s*\|\s*/u' : '/\s*[,;]\s*/u';
+        foreach (preg_split($separator, $value) ?: [] as $item) {
             $item = trim($item);
             if ($item !== '' && !in_array($item, $result, true)) $result[] = $item;
         }
