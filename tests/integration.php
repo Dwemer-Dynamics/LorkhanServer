@@ -598,10 +598,13 @@ $relationshipProvider=new class implements \ALMSIVIserver\Application\ProfileGen
     public mixed $during=null;
     public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
-        if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor']))
+        if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor'])
+            ||($input['relationship_type']??null)!=='neutral'
+            ||!in_array('romantic',$input['available_relationship_types']??[],true))
             throw new RuntimeException('relationship input missing');
         if($this->during!==null)($this->during)();
-        return ['disposition_delta'=>4,'affinity_delta'=>2,'reason'=>'A friendly played exchange.'];
+        return ['disposition_delta'=>4,'affinity_delta'=>2,'relationship_type'=>'romantic',
+            'reason'=>'A friendly played exchange.'];
     }
 };
 $relationshipRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipEvaluateJobHandler(
@@ -616,6 +619,9 @@ $relationshipReceipt=$db->query('SELECT * FROM relationship_evaluation_results')
 $assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
     &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
     'played relationship worker did not persist one bounded result despite independent profile lock');
+$assert($products->relationships(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
+    'playthrough_id'=>$session['playthrough_id']])[0]['relationship_type']==='neutral',
+    'low-affinity romantic proposal changed type or blocked safe score deltas');
 $assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationshipJob['job_id']
     &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
 $assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
@@ -698,11 +704,13 @@ $buildProvider=new class implements \ALMSIVIserver\Application\ProfileGeneration
     public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
     public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
-        if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2)throw new RuntimeException('history was reduced to one exchange or target');
+        if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2
+            ||!in_array('professional',$input['available_relationship_types']??[],true))throw new RuntimeException('history was reduced to one exchange or target');
         if(str_contains(json_encode($input,JSON_THROW_ON_ERROR),'PLAYER-ONLY CUSTOM INFO'))throw new RuntimeException('private relationship text reached AI');
         if($this->during!==null)($this->during)();
         $result=['relationships'=>array_map(static fn(array $target):array=>['target_key'=>$target['target_key'],
-            'disposition'=>35,'affinity'=>20,'reason'=>'A pattern of kept promises.'],$input['interlocutors'])];
+            'disposition'=>35,'affinity'=>20,'relationship_type'=>'professional',
+            'reason'=>'A pattern of kept promises.'],$input['interlocutors'])];
         if($this->unknownTarget)$result['relationships'][1]['target_key']=str_repeat('f',64);
         return $result;
     }
@@ -718,6 +726,8 @@ $assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2]
 $privateRows=$products->exportScope($buildScope)['relationships'];
 $assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2,
     'history build changed Custom Info on a selected or omitted relationship');
+$assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['relationship_type']==='professional'))===2,
+    'history build did not apply an allowlisted relationship type only to returned targets');
 $buildStatus=$builds->recentJobs($buildScope);
 $assert(count($buildStatus)===1&&$buildStatus[0]['outcome']==='succeeded'&&(int)$buildStatus[0]['changed_count']===2
     &&$builds->recentJobs(array_replace($buildScope,['profile_id'=>$newUuid(5706)]))===[], 'history build status escaped its scope');
@@ -799,12 +809,14 @@ $conversionProvider=new class implements \ALMSIVIserver\Application\ProfileGener
         if(($input['generation_mode']??null)!=='relationship_text_conversion'||isset($input['exchanges'])
             ||!str_contains((string)($input['relationship_text']??''),'Unknown Conversion Stranger')
             ||str_contains($encoded,'CONVERSION PRIVATE CUSTOM INFO'))throw new RuntimeException('unsafe conversion model input');
-        if(count($input['interlocutors']??[])!==3)throw new RuntimeException('conversion did not resolve the exact known actors: '.json_encode($input['interlocutors']??[]));
+        if(count($input['interlocutors']??[])!==3||!in_array('professional',$input['available_relationship_types']??[],true))
+            throw new RuntimeException('conversion did not resolve the exact known actors: '.json_encode($input['interlocutors']??[]));
         if($this->during!==null)($this->during)();$rows=[];
         foreach($input['interlocutors']as$target){
             if($this->phase==='omit'&&($target['identity']['display_name']??'')==='Conversion Omitted')continue;
             $rows[]=['target_key'=>$target['target_key'],'disposition'=>$this->phase==='all'?10:40,
-                'affinity'=>$this->phase==='all'?20:50,'reason'=>'Explicit profile text names this actor.'];
+                'affinity'=>$this->phase==='all'?20:50,'relationship_type'=>'professional',
+                'reason'=>'Explicit profile text names this actor.'];
         }
         if($this->phase==='invented')$rows[0]['target_key']=str_repeat('f',64);
         return['relationships'=>$rows];
@@ -822,7 +834,8 @@ $conversionReceipt=$db->query('SELECT source_bytes,target_count,changed_count FR
 $conversionRows=$products->relationships($conversionRecordScope);
 $assert($conversionReceipt&&array_map('intval',array_values($conversionReceipt))===[strlen($conversionText),3,3]
     &&count($conversionRows)===3
-    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['source_event_id']===null))===3,
+    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['source_event_id']===null))===3
+    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['relationship_type']==='professional'))===3,
     'conversion receipt or source ownership was incomplete');
 $assert((int)$db->query("SELECT count(*) FROM relationship_audit WHERE reason LIKE 'Relationship text conversion:%'")->fetchColumn()===3,
     'conversion writes were not visibly attributed');
@@ -897,17 +910,24 @@ $relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['
     'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
 $privateNote="PLAYER PRIVATE RELATIONSHIP NOTE\nKeep verbatim <&> 古";
 $ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id'],'custom_info'=>$privateNote]);
+$assert($ownedRelationship['relationship_type']==='neutral','older relationship create did not retain the neutral type default');
 $db->exec('SAVEPOINT relationship_edits');
 $relationshipEdit=$relationshipInput+['profile_id'=>$actorProfile['profile_id'],'relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1];
-$relationshipEdit['disposition']=31;unset($relationshipEdit['actor_identity']);
+$relationshipEdit['disposition']=31;$relationshipEdit['relationship_type']='trusted_companion';unset($relationshipEdit['actor_identity']);
 $editedRelationship=$memoryService->setRelationship($relationshipEdit);
-$assert($editedRelationship['revision']===2&&$editedRelationship['disposition']===31,'relationship edit lost its revision fence');
+$assert($editedRelationship['revision']===2&&$editedRelationship['disposition']===31
+    &&$editedRelationship['relationship_type']==='trusted_companion','relationship edit lost its revision fence or custom type');
 $db->exec('SAVEPOINT custom_info_edits');
 $privateScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
 $assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===$privateNote,'older score-only edit cleared Custom Info');
-$derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mode'=>'derived','custom_info'=>'AI overwrite']);
+$derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mode'=>'derived','affinity'=>12,'custom_info'=>'AI overwrite']);
+$derivedEdit['reason']='A witnessed act increased trust';unset($derivedEdit['relationship_type']);
 $derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
-$assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===$privateNote,'derived writer replaced player text');
+$derivedExport=$products->exportScope($privateScope)['relationships'][0];
+$derivedUi=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
+$derivedUi=array_values(array_filter($derivedUi,static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']))[0];
+$assert($derivedExport['custom_info']===$privateNote&&$derivedExport['relationship_type']==='trusted_companion'
+    &&(int)$derivedUi['strongest_positive_delta']===7,'derived writer replaced player text/type or lost its strongest affinity signal');
 $cleared=$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>$derivedSaved['revision'],'custom_info'=>'']));
 $assert($products->exportScope($privateScope)['relationships'][0]['custom_info']===''&&$cleared['custom_info_changed'],
     'explicit manual clear did not persist');
@@ -957,9 +977,13 @@ try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/0
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
     'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
 $assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??false)===true
-    &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31,
+    &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31
+    &&$historyRows[1]['after_value']['relationship_type']==='trusted_companion',
     'relationship history must retain ordered create, edit and delete audit records');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_edits');
+$memoryService->setRelationship($privateScope+['relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1,
+    'disposition'=>20,'affinity'=>5,'relationship_type'=>'trusted_companion','source_mode'=>'manual',
+    'reason'=>'Choose a custom relationship type']);
 $memoryService->setRelationship($relationshipInput+['profile_id'=>$turn['profile_id']]);
 $relationshipSelection=$products->promptContext($memoryProbe,$memoryNow);
 $assert(array_column($relationshipSelection['relationship'],'relationship_id')===[$ownedRelationship['relationship_id']]
@@ -969,6 +993,8 @@ $relationshipProbe=$memoryProbe;$relationshipProbe['_selected_profile_id']=$acto
 $relationshipPrompt=(new PromptAssembler())->assemble($relationshipProbe,$relationshipSelection);
 $assert(!str_contains(json_encode([$relationshipSelection,$relationshipPrompt],JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
     'Custom Info leaked through prompt selection, text or trace');
+$assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'trusted_companion'),
+    'saved relationship type was omitted from the bounded prompt');
 $privateExport=$memoryService->exportPlaythrough($privateScope);
 $restorePlaythrough=$products->createRevisioned('playthrough',['installation_id'=>$installationId,
     'profile_id'=>$actorProfile['profile_id'],'name'=>'Private note restore','content'=>[]],$memoryNow);
@@ -978,10 +1004,12 @@ $memoryService->restorePlaythrough($privateExport);$memoryService->restorePlayth
 $restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
 $assert(count($restoredPrivate)===1&&$restoredPrivate[0]['custom_info']===$privateNote,'explicit restore lost or duplicated Custom Info');
 $restoredMemoryCount=(int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn();
-$olderPrivateExport=$privateExport;unset($olderPrivateExport['data']['relationships'][0]['custom_info']);
+$olderPrivateExport=$privateExport;unset($olderPrivateExport['data']['relationships'][0]['custom_info'],
+    $olderPrivateExport['data']['relationships'][0]['relationship_type']);
 $memoryService->restorePlaythrough($olderPrivateExport);
-$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']===$privateNote,
-    'older relationship backup cleared newer Custom Info');
+$assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']===$privateNote
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['relationship_type']==='trusted_companion',
+    'older relationship backup cleared newer Custom Info or relationship type');
 $duplicateExport=$privateExport;$duplicateExport['data']['relationships'][]=$duplicateExport['data']['relationships'][0];
 try{$memoryService->restorePlaythrough($duplicateExport);throw new RuntimeException('duplicate relationship restore was accepted');}
 catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','duplicate relationship restore had wrong result');}
@@ -1008,7 +1036,13 @@ $legacyRestore['data']=['memories'=>[],'narratives'=>[],'relationships'=>[[
 $memoryService->restorePlaythrough($legacyRestore);$memoryService->restorePlaythrough($legacyRestore);
 $legacyRows=$products->exportScope($legacyRestore['scope'])['relationships'];
 $assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']==='legacy_restore'
-    &&$legacyRows[0]['custom_info']==='legacy private note','legacy relationship restore was not stable and idempotent');
+    &&$legacyRows[0]['custom_info']==='legacy private note'&&$legacyRows[0]['relationship_type']==='neutral',
+    'legacy relationship restore was not stable and idempotent');
+$db->exec('SAVEPOINT relationship_type_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/068_relationship_types.down.sql'));
+    throw new RuntimeException('relationship type downgrade discarded custom types');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
+    'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
     static fn(array$row):bool=>$row['source_kind']==='relationship'));

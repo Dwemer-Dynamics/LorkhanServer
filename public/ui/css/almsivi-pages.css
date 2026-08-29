@@ -914,6 +914,7 @@ body.hub-page > main {
     outline-offset: 2px;
 }
 .management-form .relationship-custom-info-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
+.management-form .relationship-type-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
 
 .management-form button {
     justify-self: start;

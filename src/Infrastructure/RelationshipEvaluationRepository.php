@@ -4,6 +4,7 @@ namespace ALMSIVIserver\Infrastructure;
 use PDO;
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\RelationshipEvaluationPolicy;
+use ALMSIVIserver\Application\RelationshipType;
 
 /** Database fences for optional evaluations of witnessed, fully played exchanges. */
 final class RelationshipEvaluationRepository
@@ -25,8 +26,10 @@ final class RelationshipEvaluationRepository
                 AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
             $provider->execute(['provider'=>$policy['provider_configuration_id'],'installation'=>$source['installation_id']]);
             $providerRevision=$provider->fetchColumn();if($providerRevision===false)return null;
+            $types=$this->typeCatalog($source);
             $payload=array_intersect_key($source,array_fill_keys(['source_event_id','turn_id','session_id','installation_id','profile_id','playthrough_id'],true))
-                +$policy+['provider_revision'=>(int)$providerRevision,'relationship_fence'=>$records['fence']];
+                +$policy+['provider_revision'=>(int)$providerRevision,'relationship_fence'=>$records['fence']]
+                +$types;
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
                 VALUES(:id,'relationship.evaluate',1,:key,CAST(:payload AS jsonb),3,20) ON CONFLICT(job_type,idempotency_key) DO NOTHING");
             $insert->execute(['id'=>Uuid::v4(),'key'=>$key,'payload'=>json_encode($payload,JSON_THROW_ON_ERROR)]);
@@ -52,11 +55,16 @@ final class RelationshipEvaluationRepository
         foreach($policy as$field=>$value)if(($payload[$field]??null)!==$value)return null;
         $records=$this->records($source);
         if($records===null||!hash_equals($payload['relationship_fence'],$records['fence']))return null;
+        $types=$this->typeCatalog($source);
+        if(($payload['relationship_types']??null)!==$types['relationship_types']
+            ||!hash_equals((string)($payload['relationship_types_sha256']??''),$types['relationship_types_sha256']))return null;
         $record=$records['record'];
         return ['source'=>$source,'record'=>$record,'model'=>[
             'generation_mode'=>'relationship_evaluation','owner'=>$source['owner_identity'],'interlocutor'=>$source['target_identity'],
             'input'=>$source['input_text'],'played_reply'=>$source['reply'],
             'disposition'=>(int)($record['disposition']??0),'affinity'=>(int)($record['affinity']??0),
+            'relationship_type'=>(string)($record['relationship_type']??'neutral'),
+            'available_relationship_types'=>$types['relationship_types'],
         ]];
     }
 
@@ -70,10 +78,13 @@ final class RelationshipEvaluationRepository
             $record=$input['record'];$beforeDisposition=(int)($record['disposition']??0);$beforeAffinity=(int)($record['affinity']??0);
             $disposition=max(-100,min(100,$beforeDisposition+$output['disposition_delta']));
             $affinity=max(-100,min(100,$beforeAffinity+$output['affinity_delta']));
+            $beforeType=(string)($record['relationship_type']??'neutral');
+            $relationshipType=RelationshipType::model($output['relationship_type']??null,
+                $payload['relationship_types'],$affinity,$output['reason'],$beforeType)??$beforeType;
             $relationshipId=$record['relationship_id']??null;
-            if($disposition!==$beforeDisposition||$affinity!==$beforeAffinity){
+            if($disposition!==$beforeDisposition||$affinity!==$beforeAffinity||$relationshipType!==$beforeType){
                 $write=array_intersect_key($source,array_fill_keys(['installation_id','profile_id','playthrough_id'],true))
-                    +['disposition'=>$disposition,'affinity'=>$affinity,'source_mode'=>'derived',
+                    +['disposition'=>$disposition,'affinity'=>$affinity,'relationship_type'=>$relationshipType,'source_mode'=>'derived',
                         'source_event_id'=>$source['source_event_id'],'reason'=>$output['reason']];
                 if($record===null)$write['actor_identity']=$source['target_identity'];
                 else $write+=['relationship_id'=>$relationshipId,'expected_revision'=>(int)$record['revision']];
@@ -164,7 +175,7 @@ final class RelationshipEvaluationRepository
     /** Include deleted rows in the fence so transient manual create/delete cycles cannot be overwritten. */
     public function records(array $source):?array
     {
-        $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity FROM relationship_records '
+        $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity,relationship_type FROM relationship_records '
             .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
             .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
             .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
@@ -176,6 +187,17 @@ final class RelationshipEvaluationRepository
         $active=array_values(array_filter($rows,static fn(array $row):bool=>$row['deleted_at']===null));
         if(count($active)>1)return null;
         return ['fence'=>hash('sha256',json_encode($rows,JSON_THROW_ON_ERROR)),'record'=>$active[0]??null];
+    }
+
+    /** Freeze built-in and player-created labels across provider work for one relationship owner. */
+    public function typeCatalog(array $scope):array
+    {
+        $query=$this->db->prepare('SELECT DISTINCT relationship_type FROM relationship_records '
+            .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL');
+        $query->execute(['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id'],'playthrough'=>$scope['playthrough_id']]);
+        $types=RelationshipType::available($query->fetchAll(PDO::FETCH_COLUMN));
+        return ['relationship_types'=>$types,
+            'relationship_types_sha256'=>hash('sha256',json_encode($types,JSON_THROW_ON_ERROR))];
     }
 
     public function lockIdentity(array $source):void

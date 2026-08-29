@@ -398,6 +398,8 @@ relationship_page,body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?em
 relationship_create=next((f for f in relationship_page.forms if f['action'].endswith('/forms/relationships')),None)
 assert relationship_create is not None,body
 assert re.search(r'id="relationship-custom-info"[^>]*></textarea>',body)
+assert body.count('id="relationship-type-options"')==1 and relationship_create['fields']['relationship_type']=='neutral'
+assert 'sent to AI and shown in prompts, unlike Custom Info' in body
 private_relationship_note='{"token":"private reminder","text":"<&> 古"}'
 build_query=urllib.parse.urlencode(dict(installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,embed='1'))
 build_page,build_body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?'+build_query))
@@ -415,22 +417,29 @@ relationship_identity={'kind':'npc','record_id':'http_relationship_actor','displ
     'content_file':'Morrowind.esm','refnum':{'index':98765,'content_file':0},'cell':{'kind':'interior','name':'HTTP fixture'}}
 relationship_values=dict(relationship_create['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,
     playthrough_id=playthrough_id,actor_profile_id='',content_json=json.dumps(relationship_identity),disposition='10',affinity='5',reason='HTTP relationship create',custom_info=private_relationship_note)
+relationship_values['relationship_type']='professional'
 r=request(relationship_create['action'],'POST',dict(relationship_values,disposition='not-a-number')); assert r.status==422
+r=request(relationship_create['action'],'POST',dict(relationship_values,relationship_type='two words')); assert r.status==422
 r=request(relationship_create['action'],'POST',dict(relationship_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 r=request(relationship_create['action'],'POST',relationship_values); relationship_page,body=parse(r)
 assert r.status==200 and 'embed=1' in r.geturl() and 'HTTP relationship actor' in body,(r.status,r.geturl(),body)
 relationship_edit=next(f for f in relationship_page.forms if f['action'].endswith('/forms/relationships') and f['fields'].get('relationship_id'))
-relationship_id=relationship_edit['fields']['relationship_id']; assert relationship_edit['fields']['expected_revision']=='1'
+relationship_id=relationship_edit['fields']['relationship_id']; assert relationship_edit['fields']['expected_revision']=='1' and relationship_edit['fields']['relationship_type']=='professional'
 custom_info_pattern=r'<textarea id="custom-info-'+relationship_id+r'"[^>]*>\n(.*?)</textarea>'
 assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note
 renamed_identity=dict(relationship_identity,display_name='Renamed HTTP actor')
 r=request(relationship_create['action'],'POST',dict(relationship_values,content_json=json.dumps(renamed_identity))); body=r.read().decode()
 assert r.status==200 and 'relationship_already_exists' in r.geturl() and 'already has a relationship' in body
-r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,disposition='20',affinity='6',reason='HTTP relationship edit')); relationship_page,body=parse(r)
+score_only=dict(relationship_edit['fields'],_csrf=csrf,disposition='20',affinity='6',reason='HTTP relationship edit')
+score_only.pop('relationship_type')
+r=request(relationship_edit['action'],'POST',score_only); relationship_page,body=parse(r)
 latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
-assert latest_edit['fields']['expected_revision']=='2' and latest_edit['fields']['disposition']=='20'
+assert latest_edit['fields']['expected_revision']=='2' and latest_edit['fields']['disposition']=='20' and latest_edit['fields']['relationship_type']=='professional'
 assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note # Older score-only forms preserve it.
 assert 'private reminder' not in body.split('id="relationship-history"',1)[1] and 'Custom Info updated' in body
+r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,relationship_type='trusted_companion',reason='Choose custom type')); relationship_page,body=parse(r)
+latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+assert latest_edit['fields']['relationship_type']=='trusted_companion' and 'type trusted_companion' in body
 assert request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info='x'*2001)).status==422
 assert request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,**{'custom_info[]':'invalid'})).status==422
 private_relationship_note='\nKeep <&> 古\nTrailing spaces  '
@@ -438,7 +447,8 @@ r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,cus
 assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note
 private_relationship_backup=json.loads(request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json').read())
 exported_relationships=private_relationship_backup['data']['relationships']
-assert next(row for row in exported_relationships if row['relationship_id']==relationship_id)['custom_info']==private_relationship_note
+exported_relationship=next(row for row in exported_relationships if row['relationship_id']==relationship_id)
+assert exported_relationship['custom_info']==private_relationship_note and exported_relationship['relationship_type']=='trusted_companion'
 latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
 r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info='')); relationship_page,body=parse(r)
 assert re.search(custom_info_pattern,body,re.S)[1]==''
@@ -463,7 +473,7 @@ relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
 assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
-assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body and 'Recent changes (5 shown)' in body
+assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body and 'Recent changes (6 shown)' in body
 backup_response=request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))

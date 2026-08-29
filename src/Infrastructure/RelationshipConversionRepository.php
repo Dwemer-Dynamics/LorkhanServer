@@ -4,6 +4,7 @@ namespace ALMSIVIserver\Infrastructure;
 
 use ALMSIVIserver\Application\OperationCancelled;
 use ALMSIVIserver\Application\RelationshipBuildPolicy;
+use ALMSIVIserver\Application\RelationshipType;
 use PDO;
 
 /** Explicitly convert bounded profile relationship text without inventing OpenMW actors. */
@@ -53,13 +54,14 @@ final class RelationshipConversionRepository
                 $targetSet=$this->targets($scope,$owner,$candidates);$targets=$targetSet['targets'];
                 if($targets===[]){++$summary['no_targets'];continue;}
                 if(count($targets)>20)throw new \InvalidArgumentException('relationship_conversion_too_many_targets');
-                if(strlen(json_encode($this->model($owner,$targetSet['people']),JSON_THROW_ON_ERROR))>65536)
+                $types=$this->evaluations->typeCatalog($scope+['profile_id'=>$owner['profile_id']]);
+                if(strlen(json_encode($this->model($owner,$targetSet['people'],$types['relationship_types']),JSON_THROW_ON_ERROR))>65536)
                     throw new \InvalidArgumentException('relationship_conversion_too_large');
                 $prepared[]=$scope+$state+$policy+[
                     'profile_id'=>$owner['profile_id'],'profile_revision'=>$owner['profile_revision'],
                     'owner_identity'=>$owner['identity'],'source_text_sha256'=>hash('sha256',$text),'request_id'=>$requestId,
                     'mode'=>$mode,'provider_revision'=>(int)$providerRevision,'targets'=>$targets,
-                ];
+                ]+$types;
                 if(count($prepared)>100)throw new \InvalidArgumentException('relationship_conversion_too_many_owners');
             }
             $summary['queued']=count($prepared);$summary['skipped']=count($owners)-$summary['queued'];
@@ -90,6 +92,9 @@ final class RelationshipConversionRepository
         $policy=$this->evaluations->policy($payload['installation_id'],$payload['profile_id']);
         if($policy===null||$policy['locked']||$policy['provider_configuration_id']==='')return false;
         foreach($policy as$field=>$value)if(($payload[$field]??null)!==$value)return false;
+        $types=$this->evaluations->typeCatalog($payload);
+        if(($payload['relationship_types']??null)!==$types['relationship_types']
+            ||!hash_equals((string)($payload['relationship_types_sha256']??''),$types['relationship_types_sha256']))return false;
         return true;
     }
 
@@ -104,9 +109,9 @@ final class RelationshipConversionRepository
             if($state===null||!hash_equals($target['relationship_fence'],$state['fence']))return null;
             $record=$state['record'];$records[$key]=$record;
             $people[]=['target_key'=>$key,'identity'=>$target['identity'],'disposition'=>(int)($record['disposition']??0),
-                'affinity'=>(int)($record['affinity']??0)];
+                'affinity'=>(int)($record['affinity']??0),'relationship_type'=>(string)($record['relationship_type']??'neutral')];
         }
-        $model=$this->model($owner,$people);
+        $model=$this->model($owner,$people,$payload['relationship_types']);
         if(strlen(json_encode($model,JSON_THROW_ON_ERROR))>65536)return null;
         return ['model'=>$model,'records'=>$records,'targets'=>$targets,'source_bytes'=>strlen($owner['relationship_text'])];
     }
@@ -124,9 +129,13 @@ final class RelationshipConversionRepository
             $changed=0;$products=new ProductRepository($this->db);
             foreach($output['relationships']as$row){
                 $target=$targets[$row['target_key']];$record=$input['records'][$row['target_key']];
-                if((int)($record['disposition']??0)===$row['disposition']&&(int)($record['affinity']??0)===$row['affinity'])continue;
+                $beforeType=(string)($record['relationship_type']??'neutral');
+                $relationshipType=RelationshipType::model($row['relationship_type']??null,
+                    $payload['relationship_types'],$row['affinity'],$row['reason'],$beforeType)??$beforeType;
+                if((int)($record['disposition']??0)===$row['disposition']&&(int)($record['affinity']??0)===$row['affinity']
+                    &&$relationshipType===$beforeType)continue;
                 $write=array_intersect_key($payload,array_fill_keys(['installation_id','profile_id','playthrough_id'],true))
-                    +['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'source_mode'=>'derived',
+                    +['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'relationship_type'=>$relationshipType,'source_mode'=>'derived',
                         'reason'=>'Relationship text conversion: '.trim($row['reason'])];
                 if($record===null)$write['actor_identity']=$target['identity'];
                 else $write+=['relationship_id'=>$record['relationship_id'],'expected_revision'=>(int)$record['revision']];
@@ -199,15 +208,17 @@ final class RelationshipConversionRepository
             $targets[$key]=['profile_id'=>$candidate['profile_id'],'profile_revision'=>(int)$candidate['current_revision'],
                 'identity'=>$identity,'relationship_fence'=>$state['fence']];
             $record=$state['record'];$people[$key]=['target_key'=>$key,'identity'=>$identity,
-                'disposition'=>(int)($record['disposition']??0),'affinity'=>(int)($record['affinity']??0)];
+                'disposition'=>(int)($record['disposition']??0),'affinity'=>(int)($record['affinity']??0),
+                'relationship_type'=>(string)($record['relationship_type']??'neutral')];
         }
         ksort($targets);ksort($people);return['targets'=>$targets,'people'=>array_values($people)];
     }
 
-    private function model(array $owner,array $people):array
+    private function model(array $owner,array $people,array $types):array
     {
         return ['generation_mode'=>'relationship_text_conversion','owner'=>$owner['identity'],
-            'relationship_text'=>$owner['relationship_text'],'interlocutors'=>$people];
+            'relationship_text'=>$owner['relationship_text'],'interlocutors'=>$people,
+            'available_relationship_types'=>$types];
     }
 
     private function targetsByPayload(array $payload):?array

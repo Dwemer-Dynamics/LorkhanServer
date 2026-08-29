@@ -8,6 +8,8 @@ $selected=is_string($_GET['installation_id']??null)?$_GET['installation_id']:'';
 if(!isset($installations[$selected]))$selected=(string)(array_key_first($installations)??'');
 $rows=$selected===''?[]:$uiRepository->rows('relationships',$selected);
 $history=$selected===''?[]:$uiRepository->rows('relationship_logs',$selected);
+$relationshipTypes=\ALMSIVIserver\Application\RelationshipType::available(array_values(array_filter(
+    array_column($rows,'relationship_type'),'is_string')));
 $owners=[];$actors=[];$playthroughs=[];$buildOwners=[];
 foreach($selected===''?[]:$uiRepository->rows('relationship_profiles',$selected) as $row){
     $identity=$row['actor_identity']??[];
@@ -59,8 +61,15 @@ function almsivi_relationship_state(mixed $value):string
     if(!is_array($value)||$value===[])return 'No previous state';
     if(($value['deleted']??false)===true)return 'Deleted';
     return 'Disposition '.($value['disposition']??'—').'; affinity '.($value['affinity']??'—')
+        .(isset($value['relationship_type'])?'; type '.(string)$value['relationship_type']:'')
         .(isset($value['revision'])?' (r'.$value['revision'].')':'')
         .(($value['custom_info_changed']??false)===true?'; Custom Info updated':'');
+}
+
+/** Present a canonical lowercase type without rewriting a player-created label. */
+function almsivi_relationship_type_label(string $type):string
+{
+    return ucfirst($type===''?'neutral':$type);
 }
 
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
@@ -120,6 +129,8 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             <details><summary>Exact actor identity</summary><label for="relationship-identity">Runtime identity JSON</label>
                 <textarea id="relationship-identity" name="content_json" placeholder="Paste a copied runtime identity"></textarea>
             </details>
+            <label for="relationship-type">Relationship Type</label><input id="relationship-type" name="relationship_type" type="text" list="relationship-type-options" maxlength="50" autocapitalize="none" autocorrect="off" spellcheck="false" value="neutral" required aria-describedby="relationship-type-help">
+            <small id="relationship-type-help" class="relationship-type-help">Choose a listed type or enter a short custom label. Saved lowercase, sent to AI and shown in prompts, unlike Custom Info.</small>
             <label for="relationship-disposition">Disposition</label><input id="relationship-disposition" name="disposition" type="number" min="-100" max="100" value="0" required>
             <label for="relationship-affinity">Affinity</label><input id="relationship-affinity" name="affinity" type="number" min="-100" max="100" value="0" required>
             <label for="relationship-reason">Reason</label><input id="relationship-reason" name="reason" maxlength="1024" value="Manual relationship" required>
@@ -136,7 +147,11 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
     <?php foreach($rows as $row): $id=(string)$row['relationship_id'];$revision=(int)$row['revision']; ?>
         <article class="profile-card"><header><div><h3><?php echo almsivi_ui_h($row['actor']); ?></h3>
             <p><?php echo almsivi_ui_h($row['owner'].' · '.$row['playthrough']); ?></p></div><span class="status-badge">r<?php echo $revision; ?></span></header>
-            <p>Disposition: <?php echo (int)$row['disposition']; ?> · Affinity: <?php echo (int)$row['affinity']; ?></p>
+            <p>Type: <?php echo almsivi_ui_h(almsivi_relationship_type_label((string)$row['relationship_type'])); ?> · Disposition: <?php echo (int)$row['disposition']; ?> · Affinity: <?php echo (int)$row['affinity']; ?></p>
+            <?php if($row['strongest_positive_delta']!==null||$row['strongest_negative_delta']!==null): ?><div class="relationship-signals">
+                <?php if($row['strongest_positive_delta']!==null): ?><p><strong>Strongest affinity increase:</strong> +<?php echo (int)$row['strongest_positive_delta']; ?> · <?php echo almsivi_ui_h($row['strongest_positive_reason'].' · '.substr((string)$row['strongest_positive_at'],0,10)); ?></p><?php endif; ?>
+                <?php if($row['strongest_negative_delta']!==null): ?><p><strong>Strongest affinity decrease:</strong> <?php echo (int)$row['strongest_negative_delta']; ?> · <?php echo almsivi_ui_h($row['strongest_negative_reason'].' · '.substr((string)$row['strongest_negative_at'],0,10)); ?></p><?php endif; ?>
+            </div><?php endif; ?>
             <details><summary>Actor identity</summary><pre><?php echo almsivi_ui_h(json_encode($row['actor_identity'],JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)); ?></pre></details>
             <details><summary>Edit relationship</summary>
                 <form class="management-form" aria-label="Edit relationship with <?php echo almsivi_ui_h($row['actor'].' · '.$row['owner'].' · '.$row['playthrough']); ?>" method="post" action="<?php echo almsivi_ui_h($managementBasePath.'/forms/relationships'); ?>">
@@ -146,6 +161,8 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
                     <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
                     <input type="hidden" name="expected_revision" value="<?php echo $revision; ?>">
                     <input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
+                    <label for="type-<?php echo almsivi_ui_h($id); ?>">Relationship Type</label><input id="type-<?php echo almsivi_ui_h($id); ?>" name="relationship_type" type="text" list="relationship-type-options" maxlength="50" autocapitalize="none" autocorrect="off" spellcheck="false" value="<?php echo almsivi_ui_h($row['relationship_type']); ?>" required aria-describedby="type-help-<?php echo almsivi_ui_h($id); ?>">
+                    <small id="type-help-<?php echo almsivi_ui_h($id); ?>" class="relationship-type-help">Choose a listed type or enter a short custom label. Saved lowercase, sent to AI and shown in prompts, unlike Custom Info.</small>
                     <label for="disposition-<?php echo almsivi_ui_h($id); ?>">Disposition</label><input id="disposition-<?php echo almsivi_ui_h($id); ?>" name="disposition" type="number" min="-100" max="100" value="<?php echo (int)$row['disposition']; ?>" required>
                     <label for="affinity-<?php echo almsivi_ui_h($id); ?>">Affinity</label><input id="affinity-<?php echo almsivi_ui_h($id); ?>" name="affinity" type="number" min="-100" max="100" value="<?php echo (int)$row['affinity']; ?>" required>
                     <label for="reason-<?php echo almsivi_ui_h($id); ?>">Reason</label><input id="reason-<?php echo almsivi_ui_h($id); ?>" name="reason" maxlength="1024" value="Manual edit" required>
@@ -186,5 +203,6 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         ?></div>
     </section>
     <?php endif; ?>
+    <datalist id="relationship-type-options"><?php foreach($relationshipTypes as $type): ?><option value="<?php echo almsivi_ui_h($type); ?>"><?php endforeach; ?></datalist>
 </main>
 <?php include __DIR__.'/tmpl/footer.html'; ?>

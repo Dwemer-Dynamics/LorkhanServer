@@ -11,13 +11,19 @@ final class RelationshipEvaluationPolicy
     public static function output(array $output):array
     {
         $keys=array_keys($output);sort($keys);
-        if($keys!==['affinity_delta','disposition_delta','reason'])throw new InvalidArgumentException('invalid_relationship_output');
+        if($keys!==['affinity_delta','disposition_delta','reason']
+            &&$keys!==['affinity_delta','disposition_delta','reason','relationship_type'])
+            throw new InvalidArgumentException('invalid_relationship_output');
         foreach(['affinity_delta','disposition_delta']as$field){
             if(!is_int($output[$field])||$output[$field]<-10||$output[$field]>10)
                 throw new InvalidArgumentException('invalid_relationship_output');
         }
         if(!is_string($output['reason'])||trim($output['reason'])===''||strlen($output['reason'])>1024
             ||str_contains($output['reason'],"\0")||!mb_check_encoding($output['reason'],'UTF-8'))
+            throw new InvalidArgumentException('invalid_relationship_output');
+        if(array_key_exists('relationship_type',$output)
+            &&(!is_string($output['relationship_type'])||strlen($output['relationship_type'])>50
+                ||str_contains($output['relationship_type'],"\0")||!mb_check_encoding($output['relationship_type'],'UTF-8')))
             throw new InvalidArgumentException('invalid_relationship_output');
         $output['reason']=trim($output['reason']);return $output;
     }

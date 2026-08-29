@@ -4,6 +4,7 @@ namespace ALMSIVIserver\Infrastructure;
 
 use ALMSIVIserver\Application\OperationCancelled;
 use ALMSIVIserver\Application\RelationshipBuildPolicy;
+use ALMSIVIserver\Application\RelationshipType;
 use PDO;
 
 /** Explicit history builds preserve source, scope, lifecycle and manual-edit ownership. */
@@ -61,7 +62,9 @@ final class RelationshipBuildRepository
             if($snapshot===null)throw new \InvalidArgumentException('relationship_build_no_history');
             $payload=$scope+$state+$policy+['request_id'=>$requestId,'history_limit'=>$limit,
                 'provider_revision'=>(int)$providerRevision,'source_ids'=>$snapshot['source_ids'],
-                'source_hashes'=>$snapshot['source_hashes'],'targets'=>$snapshot['targets']];
+                'source_hashes'=>$snapshot['source_hashes'],'targets'=>$snapshot['targets'],
+                'relationship_types'=>$snapshot['relationship_types'],
+                'relationship_types_sha256'=>$snapshot['relationship_types_sha256']];
             $id=Uuid::v4();
             $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority)
                 VALUES(:id,'relationship.build',1,:key,CAST(:payload AS jsonb),3,20)")
@@ -93,7 +96,9 @@ final class RelationshipBuildRepository
         if(!$this->current($payload))return null;
         try{$snapshot=$this->snapshot($payload,$payload['source_ids']);}catch(\InvalidArgumentException){return null;}
         if($snapshot===null||$snapshot['source_ids']!==$payload['source_ids']
-            ||$snapshot['source_hashes']!=$payload['source_hashes']||$snapshot['targets']!=$payload['targets'])return null;
+            ||$snapshot['source_hashes']!=$payload['source_hashes']||$snapshot['targets']!=$payload['targets']
+            ||$snapshot['relationship_types']!==($payload['relationship_types']??null)
+            ||!hash_equals($snapshot['relationship_types_sha256'],(string)($payload['relationship_types_sha256']??'')))return null;
         return $snapshot;
     }
 
@@ -111,9 +116,13 @@ final class RelationshipBuildRepository
             $changed=0;$products=new ProductRepository($this->db);
             foreach($output['relationships'] as $row){
                 $target=$targets[$row['target_key']];$record=$input['records'][$row['target_key']];
-                if((int)($record['disposition']??0)===$row['disposition']&&(int)($record['affinity']??0)===$row['affinity'])continue;
+                $beforeType=(string)($record['relationship_type']??'neutral');
+                $relationshipType=RelationshipType::model($row['relationship_type']??null,
+                    $payload['relationship_types'],$row['affinity'],$row['reason'],$beforeType)??$beforeType;
+                if((int)($record['disposition']??0)===$row['disposition']&&(int)($record['affinity']??0)===$row['affinity']
+                    &&$relationshipType===$beforeType)continue;
                 $write=array_intersect_key($payload,array_fill_keys(['installation_id','profile_id','playthrough_id'],true))
-                    +['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'source_mode'=>'derived',
+                    +['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],'relationship_type'=>$relationshipType,'source_mode'=>'derived',
                         'source_event_id'=>$target['source_event_id'],'reason'=>'Manual history build: '.trim($row['reason'])];
                 if($record===null)$write['actor_identity']=$target['identity'];
                 else $write+=['relationship_id'=>$record['relationship_id'],'expected_revision'=>(int)$record['revision']];
@@ -187,10 +196,13 @@ final class RelationshipBuildRepository
         if($exchanges===[])return null;
         $people=[];
         foreach($targets as $key=>$target)$people[]=['target_key'=>$key,'identity'=>$target['identity'],
-            'disposition'=>(int)($records[$key]['disposition']??0),'affinity'=>(int)($records[$key]['affinity']??0)];
-        $model=['generation_mode'=>'relationship_build','owner'=>$owner,'interlocutors'=>$people,'exchanges'=>$exchanges];
+            'disposition'=>(int)($records[$key]['disposition']??0),'affinity'=>(int)($records[$key]['affinity']??0),
+            'relationship_type'=>(string)($records[$key]['relationship_type']??'neutral')];
+        $types=$this->evaluations->typeCatalog($scope);
+        $model=['generation_mode'=>'relationship_build','owner'=>$owner,'interlocutors'=>$people,
+            'available_relationship_types'=>$types['relationship_types'],'exchanges'=>$exchanges];
         if(strlen(json_encode($model,JSON_THROW_ON_ERROR))>65536)throw new \InvalidArgumentException('relationship_build_too_large');
-        return ['source_ids'=>array_keys($hashes),'source_hashes'=>$hashes,'targets'=>$targets,'records'=>$records,'model'=>$model];
+        return ['source_ids'=>array_keys($hashes),'source_hashes'=>$hashes,'targets'=>$targets,'records'=>$records,'model'=>$model]+$types;
     }
 
     private function transaction(callable $work):mixed

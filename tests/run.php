@@ -102,6 +102,19 @@ foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reas
     try{\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
     catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
 }
+$availableTypes=\ALMSIVIserver\Application\RelationshipType::available(['trusted_companion','romance']);
+$check(\ALMSIVIserver\Application\RelationshipType::manual(' Married ')==='romantic'
+    &&in_array('trusted_companion',$availableTypes,true)
+    &&\ALMSIVIserver\Application\RelationshipType::model('trusted_companion',$availableTypes,40,'Earned trust')==='trusted_companion'
+    &&\ALMSIVIserver\Application\RelationshipType::model('invented_by_model',$availableTypes,90,'Invented')===null
+    &&\ALMSIVIserver\Application\RelationshipType::model('romantic',$availableTypes,55,'Too soon')===null
+    &&\ALMSIVIserver\Application\RelationshipType::model('romantic',$availableTypes,56,'A defining confession')==='romantic'
+    &&\ALMSIVIserver\Application\RelationshipType::model('crush',$availableTypes,10,'Changed nuance','romantic')==='crush',
+    'relationship types canonicalize manual aliases and fence model choices');
+foreach([null,'two words','-enemy',str_repeat('x',51)]as$invalidType){
+    try{\ALMSIVIserver\Application\RelationshipType::manual($invalidType);$check(false,'invalid manual relationship type accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid manual relationship type rejected');}
+}
 $buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
 $check(\ALMSIVIserver\Application\RelationshipCustomInfo::validate('')===''
     &&\ALMSIVIserver\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
@@ -119,6 +132,11 @@ foreach([[$legacyRelationshipIdentity,false],[['kind'=>'invented','record_id'=>'
 }
 $check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
     'history build accepts bounded absolute scores');
+$typedBuildRow=$buildRow+['relationship_type'=>'rival'];
+$check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$typedBuildRow]])===['relationships'=>[$typedBuildRow]]
+    &&\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput+['relationship_type'=>'suspicious'])
+        ===$relationshipOutput+['relationship_type'=>'suspicious'],
+    'relationship workers accept one optional bounded type proposal');
 foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],
     ['relationships'=>[array_replace($buildRow,['target_key'=>'Fargoth'])]],['relationships'=>[],'action'=>'follow']] as $invalidBuild){
     try{\ALMSIVIserver\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}

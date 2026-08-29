@@ -1287,6 +1287,7 @@ final class ManagementRouter
     private function saveRelationship(array $values,array $scope,array $identity):array
     {
         $input=$scope+['source_mode'=>'manual','reason'=>$values['reason']??'management'];
+        if(array_key_exists('relationship_type',$values))$input['relationship_type']=$values['relationship_type'];
         if(array_key_exists('custom_info',$values)){
             $input['custom_info']=$values['custom_info'];
             if(is_string($input['custom_info']))$input['custom_info']=str_replace("\r\n","\n",$input['custom_info']);

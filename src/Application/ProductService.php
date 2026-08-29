@@ -224,6 +224,7 @@ final class ProductService
         }
         foreach (['disposition', 'affinity'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < -100 || $input[$field] > 100) throw new InvalidArgumentException('invalid_relationship_value');
         if (!in_array($input['source_mode'] ?? null, ['derived', 'manual'], true)) throw new InvalidArgumentException('invalid_source_mode');
+        if (array_key_exists('relationship_type', $input)) $input['relationship_type']=RelationshipType::manual($input['relationship_type']);
         if (isset($input['source_event_id'])) $this->uuid((string)$input['source_event_id']);
         $input['reason']=$input['reason']??'updated';
         $this->boundedString($input,'reason',1,1024);
