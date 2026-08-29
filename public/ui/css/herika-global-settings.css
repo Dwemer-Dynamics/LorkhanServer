@@ -8,14 +8,14 @@ body.global-settings-page-shell > main.global-settings-page { width: 100%; max-w
 .global-settings-page .page-header-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-left: auto; }
 .global-settings-page .settings-tabs { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 8px; margin-bottom: 10px; padding: 8px; border: 1px solid #3a3a3a; border-radius: 10px; background: rgba(30,30,30,.92); }
 .global-settings-page .settings-tab { position: relative; min-height: 40px; padding: 8px 12px; border: 1px solid #444; border-radius: 7px; background: #303030; color: #ddd; font-weight: 700; cursor: pointer; }
-body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,17) !important; background: rgba(92,53,25,.95) !important; color: #fff !important; box-shadow: inset 0 0 0 1px rgba(242,124,17,.28),0 0 12px rgba(242,124,17,.24) !important; transform: translateY(-1px) !important; }
+body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,90) !important; background: rgba(83,68,34,.95) !important; color: #fff !important; box-shadow: inset 0 0 0 1px rgba(188,157,90,.28),0 0 12px rgba(188,157,90,.24) !important; transform: translateY(-1px) !important; }
 .global-settings-page .content-grid { display: grid; grid-template-columns: 1fr; gap: 14px; margin-bottom: 24px; }
 .global-settings-page .content-section { padding: 14px; border: 1px solid #3a3a3a; border-radius: 10px; background: linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98)); box-shadow: 0 2px 8px rgba(0,0,0,.15),inset 0 1px rgba(255,255,255,.03); }
 .global-settings-page .content-section[hidden] { display: none !important; }
-.global-settings-page .content-section h2 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(242,124,17,.2); color: #f5f1e8; font: 400 1.18em/1.2 MagicCards,serif; word-spacing: 7px; text-shadow: 1px 1px 2px rgba(0,0,0,.5); }
+.global-settings-page .content-section h2 { margin: 0 0 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(188,157,90,.2); color: #f5f1e8; font: 400 1.18em/1.2 MagicCards,serif; word-spacing: 7px; text-shadow: 1px 1px 2px rgba(0,0,0,.5); }
 .global-settings-page .content-section h2.subsection-heading { margin-top: 14px; }
 .global-settings-page .provider-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
-.global-settings-page .provider-subsection-title { margin: 8px 0 2px; padding: 4px 2px 8px; border-bottom: 1px solid rgba(242,124,17,.2); color: #f5f1e8; font: 400 1.05em/1.2 MagicCards,serif; word-spacing: 6px; }
+.global-settings-page .provider-subsection-title { margin: 8px 0 2px; padding: 4px 2px 8px; border-bottom: 1px solid rgba(188,157,90,.2); color: #f5f1e8; font: 400 1.05em/1.2 MagicCards,serif; word-spacing: 6px; }
 .global-settings-page .provider-card { display: grid; grid-template-columns: minmax(220px,280px) minmax(420px,720px) minmax(200px,1fr); gap: 12px 16px; align-items: center; padding: 12px 14px; border: 1px solid #3a3a3a; border-radius: 8px; background: linear-gradient(135deg,rgba(42,42,42,.95),rgba(34,34,34,.95)); box-shadow: 0 2px 4px rgba(0,0,0,.15),inset 0 1px rgba(255,255,255,.02); }
 .global-settings-page .connector-placeholder-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
 .global-settings-page .connector-placeholder-grid .provider-card { grid-template-columns: 1fr; align-content: start; align-items: start; }
@@ -55,7 +55,7 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,1
 .global-settings-page .gs-disclosure { margin-top: 8px; border: 1px solid #3a3a3a; border-radius: 8px; background: rgba(26,26,26,.55); }
 .global-settings-page .gs-disclosure > summary { padding: 8px 12px; border-radius: 8px; color: #e0e0e0; font-size: 13px; font-weight: 700; list-style: none; cursor: pointer; }
 .global-settings-page .gs-disclosure > summary::-webkit-details-marker { display: none; }
-.global-settings-page .gs-disclosure > summary::before { display: inline-block; width: 14px; color: rgb(242,124,17); content: "\25B8"; }
+.global-settings-page .gs-disclosure > summary::before { display: inline-block; width: 14px; color: rgb(188,157,90); content: "\25B8"; }
 .global-settings-page .gs-disclosure[open] > summary::before { content: "\25BE"; }
 .global-settings-page .gs-disclosure-body { display: grid; gap: 10px; padding: 0 12px 12px; }
 .global-settings-page .gs-field { display: grid; min-width: 0; gap: 4px; }
@@ -69,7 +69,7 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,1
 .global-settings-page .gs-revision-no { color: #f5f1e8; font-weight: 700; white-space: nowrap; }
 .global-settings-page .gs-revision-reason { min-width: 0; flex: 1 1 180px; color: #bbb; overflow-wrap: anywhere; }
 .global-settings-page .gs-revision-time { color: #9c9c9c; overflow-wrap: anywhere; }
-.global-settings-page .gs-current-tag { padding: 1px 7px; border: 1px solid rgba(242,124,17,.45); border-radius: 999px; background: rgba(92,53,25,.65); color: #fff; font-size: 11px; white-space: nowrap; }
+.global-settings-page .gs-current-tag { padding: 1px 7px; border: 1px solid rgba(188,157,90,.45); border-radius: 999px; background: rgba(83,68,34,.65); color: #fff; font-size: 11px; white-space: nowrap; }
 .global-settings-page .gs-rollback-form { display: grid; gap: 10px; }
-.global-settings-page .gs-portability a:focus-visible,.global-settings-page .gs-portability button:focus-visible,.global-settings-page .gs-portability summary:focus-visible,.global-settings-page .gs-portability input:focus-visible,.global-settings-page .gs-portability select:focus-visible,.global-settings-page .gs-portability textarea:focus-visible { outline: 2px solid rgb(242,124,17); outline-offset: 2px; }
+.global-settings-page .gs-portability a:focus-visible,.global-settings-page .gs-portability button:focus-visible,.global-settings-page .gs-portability summary:focus-visible,.global-settings-page .gs-portability input:focus-visible,.global-settings-page .gs-portability select:focus-visible,.global-settings-page .gs-portability textarea:focus-visible { outline: 2px solid rgb(188,157,90); outline-offset: 2px; }
 @media (max-width: 720px) { .global-settings-page .gs-portability-actions { width: 100%; margin-left: 0; } .global-settings-page .gs-portability-actions > * { flex: 1 1 auto; } .global-settings-page .gs-portability-head { align-items: flex-start; } }

@@ -74,7 +74,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .<?= $prefix ?>ovr-title {
     font-weight: 700;
-    color: rgb(242, 124, 17);
+    color: rgb(188, 157, 90);
     font-size: 16px;
 }
 <?php endif; ?>
@@ -167,8 +167,8 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 .btn-add-<?= $prefix ?>ovr {
     padding: 8px <?= $isProfileMode ? '14px' : '12px' ?>;
     border-radius: 6px;
-    border: 1px solid <?= $isProfileMode ? 'rgb(242, 124, 17)' : '#4a4a4a' ?>;
-    background: rgb(242, 124, 17);
+    border: 1px solid <?= $isProfileMode ? 'rgb(188, 157, 90)' : '#4a4a4a' ?>;
+    background: rgb(188, 157, 90);
     color: #111;
     cursor: pointer;
     font-weight: 700;
@@ -182,7 +182,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .btn-add-<?= $prefix ?>ovr:hover {
     <?php if ($isProfileMode): ?>
-    background: rgb(255, 140, 30);
+    background: rgb(217, 193, 140);
     transform: translateY(-1px);
     <?php else: ?>
     opacity: 0.9;
@@ -220,7 +220,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .<?= $prefix ?>ovr-modal-title {
     font-weight: 700;
-    color: rgb(242, 124, 17);
+    color: rgb(188, 157, 90);
     font-size: <?= $isProfileMode ? '16px' : '18px' ?>;
 }
 
@@ -269,7 +269,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .<?= $prefix ?>ovr-setting-option:hover {
     background: <?= $isProfileMode ? '#2a2a2a' : '#333333' ?>;
-    <?php if ($isProfileMode): ?>border-color: rgb(242, 124, 17);<?php endif; ?>
+    <?php if ($isProfileMode): ?>border-color: rgb(188, 157, 90);<?php endif; ?>
 }
 
 .<?= $prefix ?>ovr-setting-name {
@@ -293,7 +293,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .<?= $prefix ?>ovr-input-label {
     font-weight: <?= $isProfileMode ? '700' : '600' ?>;
-    color: rgb(242, 124, 17);
+    color: rgb(188, 157, 90);
     margin-bottom: 6px;
     display: block;
     font-size: 14px;
@@ -311,7 +311,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 
 .<?= $prefix ?>ovr-input:focus {
     outline: none;
-    border-color: rgb(242, 124, 17);
+    border-color: rgb(188, 157, 90);
 }
 
 <?php if ($isNpcMode): ?>
@@ -324,7 +324,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
 }
 
 .advanced-json-toggle:hover {
-    color: rgb(242, 124, 17);
+    color: rgb(188, 157, 90);
 }
 
 .advanced-json-content {
@@ -622,7 +622,7 @@ $schema = is_array($settingsCatalog) ? $settingsCatalog : [];
                 if (filteredKeys.length === 0) continue;
                 
                 hasResults = true;
-                html += `<div style="margin-top:${html?'16px':'0'}; margin-bottom:8px; color:rgb(242, 124, 17); font-weight:700; font-size:14px;">${category}</div>`;
+                html += `<div style="margin-top:${html?'16px':'0'}; margin-bottom:8px; color:rgb(188, 157, 90); font-weight:700; font-size:14px;">${category}</div>`;
                 
                 filteredKeys.forEach(key => {
                     const schema = SCHEMA[key];

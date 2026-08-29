@@ -12,11 +12,11 @@
     --lorkhan-border-soft: #343434;
     --lorkhan-text: #f5f1e8;
     --lorkhan-text-muted: #aaa69e;
-    --lorkhan-accent: #ffb641;
-    --lorkhan-accent-bright: #ffd27a;
-    --lorkhan-accent-dark: #805814;
-    --lorkhan-accent-soft: rgba(255, 182, 65, 0.13);
-    --lorkhan-gold: #ffd27a;
+    --lorkhan-accent: #bc9d5a;
+    --lorkhan-accent-bright: #d9c18c;
+    --lorkhan-accent-dark: #655229;
+    --lorkhan-accent-soft: rgba(188, 157, 90, 0.13);
+    --lorkhan-gold: #cbb078;
     --lorkhan-success: #42a36d;
     --lorkhan-success-dark: #176529;
     --lorkhan-danger: #c65353;
@@ -29,6 +29,7 @@
     --lorkhan-control-sm: 30px;
     --lorkhan-control: 36px;
     --lorkhan-control-lg: 44px;
+    --lorkhan-brand-mark: 44px;
     --lorkhan-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
 }
 
@@ -167,7 +168,7 @@ body :focus-visible {
 }
 
 .lorkhan-card-selected {
-    border-color: rgba(255, 182, 65, 0.55);
+    border-color: rgba(188, 157, 90, 0.55);
     background: #3f321e;
     box-shadow: inset 3px 0 var(--lorkhan-accent);
 }
@@ -206,7 +207,7 @@ body :focus-visible {
 }
 
 .lorkhan-badge-accent {
-    border-color: rgba(255, 182, 65, 0.4);
+    border-color: rgba(188, 157, 90, 0.4);
     background: var(--lorkhan-accent-soft);
     color: var(--lorkhan-accent-bright);
 }
@@ -288,7 +289,7 @@ body .btn-action,
 body .primary-button,
 body .btn-snqe-create,
 body .btn-snqe-generate {
-    border-color: #d67118 !important;
+    border-color: #bc9d5a !important;
     background: var(--lorkhan-accent-dark) !important;
     color: #fff7ec !important;
 }
@@ -603,7 +604,7 @@ body .speaker-item:hover {
 
 body .conn-card.active,
 body .conn-li.active {
-    border-color: rgba(255, 182, 65, 0.65) !important;
+    border-color: rgba(188, 157, 90, 0.65) !important;
     background: #3f321e !important;
     background-image: none !important;
     box-shadow: inset 3px 0 var(--lorkhan-accent) !important;
@@ -632,7 +633,7 @@ body .filter-chip-row label {
 body .filter-chip-row label:hover,
 body .filter-chip-row input[type="radio"]:checked + label,
 body .filter-chip-row input[type="checkbox"]:checked + label {
-    border-color: rgba(255, 182, 65, 0.65) !important;
+    border-color: rgba(188, 157, 90, 0.65) !important;
     background: #3f321e !important;
     background-image: none !important;
     color: var(--lorkhan-accent-bright) !important;
@@ -730,7 +731,7 @@ body .log-section:hover {
 }
 
 body .npc-divider {
-    background: rgba(255, 182, 65, 0.28) !important;
+    background: rgba(188, 157, 90, 0.28) !important;
     background-image: none !important;
 }
 
@@ -751,7 +752,7 @@ body #rel_build_bar {
 }
 
 body .kag-msg.assistant {
-    background: #4a3323 !important;
+    background: #4a3e23 !important;
     background-image: none !important;
 }
 
@@ -883,14 +884,14 @@ body .tab-button.active,
 body .tab-btn.active,
 body .filter-btn.active,
 body .filter-button.active {
-    border-color: rgba(255, 182, 65, 0.7) !important;
+    border-color: rgba(188, 157, 90, 0.7) !important;
     background: #3f321e !important;
     color: var(--lorkhan-accent-bright) !important;
     box-shadow: inset 0 -2px var(--lorkhan-accent) !important;
 }
 
 body .tab-button:hover:not(.active) {
-    border-color: rgba(255, 182, 65, 0.45) !important;
+    border-color: rgba(188, 157, 90, 0.45) !important;
     background: #38332f !important;
     background-image: none !important;
     color: var(--lorkhan-accent-bright) !important;
@@ -924,7 +925,7 @@ body .dropdown-item:focus {
 
 body .lorkhan-navbar-wrapper .brand-menu .dropdown-item.active,
 body .lorkhan-navbar-wrapper .brand-menu .dropdown-item[aria-current="page"] {
-    border-color: rgba(255, 182, 65, 0.58) !important;
+    border-color: rgba(188, 157, 90, 0.58) !important;
     background: #3f321e !important;
     background-image: none !important;
     color: var(--lorkhan-accent-bright) !important;
@@ -935,6 +936,9 @@ body .lorkhan-navbar .navbar-brand,
 body .lorkhan-navbar .navbar-brand:hover,
 body .lorkhan-navbar .navbar-brand:focus,
 body .lorkhan-navbar .navbar-brand:active {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     margin: 0 !important;
     padding: 0 !important;
     border: 0 !important;
@@ -944,10 +948,37 @@ body .lorkhan-navbar .navbar-brand:active {
     box-shadow: none !important;
 }
 
+body .lorkhan-navbar .navbar-brand img {
+    flex: 0 0 auto;
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+/* Square LORKHAN mark: fix the box height and let the intrinsic 1:1 ratio set
+   the width, so it never distorts, clips, or grows the bar. */
+body .lorkhan-navbar .navbar-brand .brand-mark-img {
+    width: auto;
+    height: var(--lorkhan-brand-mark, 44px);
+    object-fit: contain;
+}
+
+@media (max-width: 576px) {
+    body .lorkhan-navbar .navbar-brand,
+    body .lorkhan-navbar .navbar-brand:hover,
+    body .lorkhan-navbar .navbar-brand:focus,
+    body .lorkhan-navbar .navbar-brand:active {
+        gap: 8px;
+    }
+
+    body .lorkhan-navbar .navbar-brand .brand-mark-img {
+        height: 34px;
+    }
+}
+
 body .lorkhan-navbar-wrapper .dropdown-item:hover,
 body .lorkhan-navbar-wrapper .dropdown-option:hover,
 body .lorkhan-navbar-wrapper .profile-select-btn:hover {
-    border-color: rgba(255, 182, 65, 0.45) !important;
+    border-color: rgba(188, 157, 90, 0.45) !important;
     background: #34302d !important;
     background-image: none !important;
     color: var(--lorkhan-accent-bright) !important;

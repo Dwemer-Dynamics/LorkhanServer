@@ -107,7 +107,7 @@ final class ManagementView
             . '<div class="container-fluid mx-1"><div class="navbar-content-wrapper"><div class="navbar-center dropdown">'
             . '<button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">'
             . '<img src="' . $this->e($root) . '/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">'
-            . '<img src="' . $this->e($root) . '/ui/images/lorkhan-logo.svg" alt="LORKHAN Server"></button>'
+            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="1254" height="1254" alt="LORKHAN Server"></button>'
             . '<ul class="dropdown-menu brand-menu">' . $items . '</ul></div></div></div></nav></div>';
     }
 

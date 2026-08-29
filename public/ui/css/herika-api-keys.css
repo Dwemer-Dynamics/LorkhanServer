@@ -50,12 +50,12 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .provider-title { display: flex; align-items: center; gap: 10px; color: #e0e0e0; }
 .api-keys-page .provider-icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; background: linear-gradient(135deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, .9)); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); font-size: 16px; }
 .api-keys-page .provider-links { display: flex; align-items: center; gap: 10px; }
-.api-keys-page .provider-links a { color: rgb(242, 124, 17); font-size: 12px; text-decoration: underline; }
+.api-keys-page .provider-links a { color: rgb(188, 157, 90); font-size: 12px; text-decoration: underline; }
 .api-keys-page .provider-body { display: flex; align-items: center; gap: 8px; }
 
 .api-keys-page .provider-card input[type="password"],
 .api-keys-page .provider-card input[type="text"] { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .8); color: #e9efff; transition: all .2s ease; }
-.api-keys-page .provider-card input:focus { border-color: rgba(242, 124, 17, .5); outline: none; background: rgba(34, 34, 34, .9); box-shadow: 0 0 0 3px rgba(242, 124, 17, .1); }
+.api-keys-page .provider-card input:focus { border-color: rgba(188, 157, 90, .5); outline: none; background: rgba(34, 34, 34, .9); box-shadow: 0 0 0 3px rgba(188, 157, 90, .1); }
 .api-keys-page .provider-card input:disabled { filter: none !important; opacity: .72 !important; }
 .api-keys-page .provider-subtext { margin-top: 8px; color: #bdbdbd; font-size: 12px; }
 .api-keys-page .provider-subtext .desc { margin: 0 0 2px; color: #cfcfcf; font-size: 12px !important; line-height: 18px !important; }

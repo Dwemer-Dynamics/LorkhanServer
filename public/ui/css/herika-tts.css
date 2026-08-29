@@ -29,7 +29,7 @@ body.tts-page-shell > main.tts-page.embedded { padding-top: 10px; }
 }
 
 .tts-page .page-subtitle { color: #bbb; }
-.tts-page .notice { margin-bottom: 14px; padding: 10px 12px; border: 1px solid rgba(242, 124, 17, .25); border-radius: 8px; background: rgba(42, 42, 42, .9); color: #e7cfac; }
+.tts-page .notice { margin-bottom: 14px; padding: 10px 12px; border: 1px solid rgba(188, 157, 90, .25); border-radius: 8px; background: rgba(42, 42, 42, .9); color: #e7cfac; }
 
 .tts-page .layout {
     display: grid;
@@ -64,7 +64,7 @@ body.tts-page-shell > main.tts-page.embedded { padding-top: 10px; }
 }
 
 .tts-page .conn-card:hover { border-color: #4a4a4a; background: linear-gradient(135deg, rgba(58, 58, 58, .95), rgba(48, 48, 48, .98)); box-shadow: 0 3px 8px rgba(0, 0, 0, .2); transform: translateY(-2px); }
-.tts-page .conn-card.active { outline: 2px solid rgb(242, 124, 17); background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98)); box-shadow: 0 4px 12px rgba(242, 124, 17, .3); }
+.tts-page .conn-card.active { outline: 2px solid rgb(188, 157, 90); background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98)); box-shadow: 0 4px 12px rgba(188, 157, 90, .3); }
 .tts-page .conn-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
 .tts-page .conn-card .title { color: #e9efff; font-family: MagicCards, serif; font-size: 1.05em; word-spacing: 6px; }
 .tts-page .conn-badge { padding: 2px 8px; border: 1px solid #4a4a4a; border-radius: 999px; color: #9fb1c9; font-size: 11px; }
@@ -92,10 +92,10 @@ body.tts-page-shell > main.tts-page.embedded { padding-top: 10px; }
 .tts-page .sidebar-action-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .tts-page .sidebar-action-grid > a { width: 100%; }
 .tts-page .sidebar-action-grid .btn-save { border: 1px solid #27853d; background: #2f7f57; }
-.tts-page .sidebar-action-grid .btn-primary { border: 1px solid #d16a05; background: #b45500; }
+.tts-page .sidebar-action-grid .btn-primary { border: 1px solid #bc9d5a; background: #655229; }
 .tts-page .editor-toolbar > .btn-save,
 .tts-page .editor-toolbar > a.btn-save { border: 1px solid #27853d; background: #2f7f57; }
-body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-color: #d16a05 !important; background: #b45500 !important; color: #fff !important; }
+body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-color: #bc9d5a !important; background: #655229 !important; color: #fff !important; }
 .tts-page .editor-toolbar form .btn-danger,
 .tts-page .editor-toolbar .toolbar-disabled .btn-danger { border: 1px solid #ba4d5f; background: #a33f50; }
 
@@ -123,12 +123,12 @@ body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-c
 
 .tts-page .field-block input:focus,
 .tts-page .field-block select:focus,
-.tts-page .field-block textarea:focus { outline: none; border-color: rgba(242, 124, 17, .45); box-shadow: 0 0 0 3px rgba(242, 124, 17, .09); }
+.tts-page .field-block textarea:focus { outline: none; border-color: rgba(188, 157, 90, .45); box-shadow: 0 0 0 3px rgba(188, 157, 90, .09); }
 .tts-page .field-block textarea { min-height: 90px; resize: vertical; }
 .tts-page .field-help { margin-top: 5px; color: #8fa0bb; font-size: 12px; line-height: 1.45; }
 .tts-page .orm-note { margin-bottom: 12px; padding: 6px 10px; border-bottom: 1px dashed rgba(138, 155, 182, .25); border-radius: 8px; background: #0c0f14; color: #97a6ba; font-size: 12px; }
-.tts-page .meta-group { margin-top: 8px; padding-top: 16px; border-top: 1px solid rgba(242, 124, 17, .12); }
-.tts-page .meta-group h3 { margin: 0 0 14px; color: #f3d6a8; font: 400 1.2em MagicCards, serif; word-spacing: 6px; }
+.tts-page .meta-group { margin-top: 8px; padding-top: 16px; border-top: 1px solid rgba(188, 157, 90, .12); }
+.tts-page .meta-group h3 { margin: 0 0 14px; color: #e2d5b9; font: 400 1.2em MagicCards, serif; word-spacing: 6px; }
 .tts-page .settings-empty-note { padding: 10px 12px; border: 1px dashed rgba(138, 155, 182, .25); border-radius: 8px; background: #0c0f14; color: #97a6ba; font-size: 12px; }
 .tts-page .boolean-field { display: flex !important; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .82); }
 .tts-page .advanced-json { margin-top: 12px; }

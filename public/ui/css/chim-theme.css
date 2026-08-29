@@ -19,11 +19,11 @@
     --chim-border-soft: #343434;
     --chim-text: #f5f1e8;
     --chim-text-muted: #aaa69e;
-    --chim-accent: #f27c11;
-    --chim-accent-bright: #ff9738;
-    --chim-accent-dark: #a95109;
-    --chim-accent-soft: rgba(242, 124, 17, 0.13);
-    --chim-gold: #ddb574;
+    --chim-accent: #bc9d5a;
+    --chim-accent-bright: #d9c18c;
+    --chim-accent-dark: #655229;
+    --chim-accent-soft: rgba(188, 157, 90, 0.13);
+    --chim-gold: #cbb078;
     --chim-success: #42a36d;
     --chim-success-dark: #176529;
     --chim-danger: #c65353;
@@ -36,6 +36,7 @@
     --chim-control-sm: 30px;
     --chim-control: 36px;
     --chim-control-lg: 44px;
+    --chim-brand-mark: 44px;
     --chim-shadow: 0 4px 14px rgba(0, 0, 0, 0.16);
 }
 
@@ -174,7 +175,7 @@ body :focus-visible {
 }
 
 .chim-card-selected {
-    border-color: rgba(242, 124, 17, 0.55);
+    border-color: rgba(188, 157, 90, 0.55);
     background: #342b24;
     box-shadow: inset 3px 0 var(--chim-accent);
 }
@@ -213,7 +214,7 @@ body :focus-visible {
 }
 
 .chim-badge-accent {
-    border-color: rgba(242, 124, 17, 0.4);
+    border-color: rgba(188, 157, 90, 0.4);
     background: var(--chim-accent-soft);
     color: var(--chim-accent-bright);
 }
@@ -295,7 +296,7 @@ body .btn-action,
 body .primary-button,
 body .btn-snqe-create,
 body .btn-snqe-generate {
-    border-color: #d67118 !important;
+    border-color: #bc9d5a !important;
     background: var(--chim-accent-dark) !important;
     color: #fff7ec !important;
 }
@@ -610,7 +611,7 @@ body .speaker-item:hover {
 
 body .conn-card.active,
 body .conn-li.active {
-    border-color: rgba(242, 124, 17, 0.65) !important;
+    border-color: rgba(188, 157, 90, 0.65) !important;
     background: #342b24 !important;
     background-image: none !important;
     box-shadow: inset 3px 0 var(--chim-accent) !important;
@@ -639,7 +640,7 @@ body .filter-chip-row label {
 body .filter-chip-row label:hover,
 body .filter-chip-row input[type="radio"]:checked + label,
 body .filter-chip-row input[type="checkbox"]:checked + label {
-    border-color: rgba(242, 124, 17, 0.65) !important;
+    border-color: rgba(188, 157, 90, 0.65) !important;
     background: #3a2d23 !important;
     background-image: none !important;
     color: var(--chim-accent-bright) !important;
@@ -737,7 +738,7 @@ body .log-section:hover {
 }
 
 body .npc-divider {
-    background: rgba(242, 124, 17, 0.28) !important;
+    background: rgba(188, 157, 90, 0.28) !important;
     background-image: none !important;
 }
 
@@ -758,7 +759,7 @@ body #rel_build_bar {
 }
 
 body .kag-msg.assistant {
-    background: #4a3323 !important;
+    background: #4a3e23 !important;
     background-image: none !important;
 }
 
@@ -890,14 +891,14 @@ body .tab-button.active,
 body .tab-btn.active,
 body .filter-btn.active,
 body .filter-button.active {
-    border-color: rgba(242, 124, 17, 0.7) !important;
+    border-color: rgba(188, 157, 90, 0.7) !important;
     background: #3a2d23 !important;
     color: var(--chim-accent-bright) !important;
     box-shadow: inset 0 -2px var(--chim-accent) !important;
 }
 
 body .tab-button:hover:not(.active) {
-    border-color: rgba(242, 124, 17, 0.45) !important;
+    border-color: rgba(188, 157, 90, 0.45) !important;
     background: #38332f !important;
     background-image: none !important;
     color: var(--chim-accent-bright) !important;
@@ -931,7 +932,7 @@ body .dropdown-item:focus {
 
 body .chim-navbar-wrapper .brand-menu .dropdown-item.active,
 body .chim-navbar-wrapper .brand-menu .dropdown-item[aria-current="page"] {
-    border-color: rgba(242, 124, 17, 0.58) !important;
+    border-color: rgba(188, 157, 90, 0.58) !important;
     background: #3a2d23 !important;
     background-image: none !important;
     color: var(--chim-accent-bright) !important;
@@ -954,7 +955,7 @@ body .chim-navbar .navbar-brand:active {
 body .chim-navbar-wrapper .dropdown-item:hover,
 body .chim-navbar-wrapper .dropdown-option:hover,
 body .chim-navbar-wrapper .profile-select-btn:hover {
-    border-color: rgba(242, 124, 17, 0.45) !important;
+    border-color: rgba(188, 157, 90, 0.45) !important;
     background: #34302d !important;
     background-image: none !important;
     color: var(--chim-accent-bright) !important;
