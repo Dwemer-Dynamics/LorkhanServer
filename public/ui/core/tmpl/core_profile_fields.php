@@ -62,7 +62,7 @@ $numberField = static function (string $section, string $field, string $label, s
     ?>
     <div class="setting-row">
         <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>"<?php echo $section === 'relationship' ? ' aria-label="' . almsivi_ui_h($label) . '"' : ''; ?> value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></div>
+        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>"<?php echo in_array($section, ['relationship', 'diary'], true) ? ' aria-label="' . almsivi_ui_h($label) . '"' : ''; ?> value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></div>
     </div>
     <?php
 };
@@ -139,10 +139,11 @@ $disabledNumberField = static function (string $section, string $field, string $
         <section class="profile-toggle-group">
             <h3 class="profile-toggle-group-title">Diary</h3>
             <div class="profile-toggle-grid">
+                <?php $toggleCard('setting_diary_enabled', '&#x1F4D3;', 'Manual Diary Generation', 'Off by default. On lets Narratives queue one requested diary for NPCs using this profile.', $overrides['diary']['enabled'] ?? null); ?>
+                <?php $toggleCard('setting_diary_include_in_context', '&#x1F4D6;', 'Diary In Context', 'On by default. Off hides scoped diary narratives from this profile roleplay context.', $overrides['diary']['include_in_context'] ?? null); ?>
                 <?php $placeholderCard('&#x1F4D9;', 'Auto Diary', 'Generate nearby NPC diaries during sleep or wait.', 'config.profiles.auto-diary'); ?>
                 <?php $placeholderCard('&#x23F3;', 'Auto Diary Wait', 'Include wait events when Auto Diary is enabled.', 'config.profiles.auto-diary'); ?>
                 <?php $placeholderCard('&#x1F4D5;', 'Physical Diary', 'Create a physical in-game diary that can be read.', 'config.profiles.physical-diary'); ?>
-                <?php $placeholderCard('&#x1F4D6;', 'Include Latest Diary Entry', 'Include the NPC latest diary entry in response context.', 'config.profiles.latest-diary'); ?>
             </div>
         </section>
         <section class="profile-toggle-group">
@@ -179,7 +180,7 @@ $disabledNumberField = static function (string $section, string $field, string $
                 <?php $routeSelect('oghma_configuration_id', 'Oghma Extractor', '&#x1F4DA;', 'Fallback connector used only when local catalog grounding cannot resolve an explicit lore request.', $llm); ?>
                 <?php $routeSelect('profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'Connector for requested NPC and narrator profile generation and player speech-style analysis.', $llm, 'Use server runtime', 'Applies to newly queued generation jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <?php $routeSelect('relationship_configuration_id', 'Relationship LLM', '&#x1F91D;', 'Connector for relationship updates after fully played conversations.', $llm, 'Disabled', 'No connector means no evaluation. Saving never calls a provider.'); ?>
-                <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F4D3;</span><span>Diary LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.diary-llm', true); ?></div><div class="setting-desc">Connector used for diary generation.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Active narrative pipeline</option></select></div></div>
+                <?php $routeSelect('diary_generation_configuration_id', 'Diary LLM', '&#x1F4D3;', 'Connector for diary generation that a person explicitly requests from Narratives.', $llm, 'Disabled', 'Disabled refuses manual diary requests. Applies to newly queued diary jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>
         </section>
@@ -225,6 +226,14 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $disabledSelectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Controlled by local OpenMW settings.', $overrides['presentation']['show_status_hud'] ?? null, 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
+        </div></section>
+        <section class="profile-settings-group profile-diary-settings"><h3 class="profile-settings-heading">Diary</h3><div class="provider-card">
+            <?php $numberField('diary', 'context_turn_limit', 'Diary Context Turns', 'Maximum witnessed turns frozen into one manual diary request, from 1 to 100. Blank uses the server default of 20.', 1, 100); ?>
+            <div class="setting-row profile-setting-stacked">
+                <div><label class="setting-key" for="profile-diary-prompt">Diary Instruction</label><div class="setting-desc">Profile-specific instruction sent with a manual diary request. Blank inherits the server default instruction.</div></div>
+                <div class="setting-control"><textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help"><?php echo almsivi_ui_h($overrides['diary']['prompt'] ?? ''); ?></textarea></div>
+            </div>
+            <p class="setting-desc" id="profile-diary-prompt-help">Turn Manual Diary Generation on and choose a Diary LLM before requesting a diary from Narratives. Saving this page never calls a provider.</p>
         </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Narrator</h3><div class="provider-card">
             <?php $selectSetting('setting_narrator_enabled', 'Enable Narrator', 'Allow inherited narrator events for this profile.', $overrides['narrator']['enabled'] ?? null); ?>

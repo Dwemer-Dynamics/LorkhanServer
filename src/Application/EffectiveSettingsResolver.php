@@ -62,6 +62,7 @@ final class EffectiveSettingsResolver
         'oghma_configuration_id' => 'uuid_or_empty',
         'profile_generation_configuration_id' => 'uuid_or_empty',
         'relationship_configuration_id' => 'uuid_or_empty',
+        'diary_generation_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
@@ -121,14 +122,17 @@ final class EffectiveSettingsResolver
     public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = []): array
     {
         $settings = self::DEFAULT_SETTINGS;
+        $settings['diary'] = DiaryGenerationPolicy::defaults();
         $sources = [];
         $this->markLeaves($settings, 'default', 'settings', $sources);
 
         if ($globalSettings !== []) {
             self::validateGlobalSettings($globalSettings);
             $settings = $globalSettings;
+            $settings['diary'] = DiaryGenerationPolicy::defaults();
             $sources = [];
             $this->markLeaves($settings, 'global', 'settings', $sources);
+            $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
         }
         $settings['memory']['oghma_knowledge_tags'] = '';
         $sources['settings.memory.oghma_knowledge_tags'] = 'server_default';
@@ -231,6 +235,10 @@ final class EffectiveSettingsResolver
             self::validateSettingsShape(['relationship'=>$validation['relationship']],
                 ['relationship'=>['update_chance_percent'=>0,'locked'=>false]],true);
             unset($validation['relationship']);
+        }
+        if(array_key_exists('diary',$validation)){
+            DiaryGenerationPolicy::validateOverrides($validation['diary']);
+            unset($validation['diary']);
         }
         if(array_key_exists('oghma_knowledge_tags',$validation['memory']??[])){
             $value=$validation['memory']['oghma_knowledge_tags'];

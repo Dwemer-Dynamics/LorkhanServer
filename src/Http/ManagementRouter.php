@@ -147,6 +147,7 @@ final class ManagementRouter
         if($r->method==='GET'&&$path==='/api/v1/knowledge/search')return Response::json(200,$this->service->searchKnowledge($this->scopeQuery($r),(string)($r->query['q']??''),(int)($r->query['limit']??10)));
         if($r->method==='PATCH'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->service->updateKnowledge($m[1],$this->json($r)));
         if($r->method==='DELETE'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m)){$this->repository->deleteKnowledge($m[1],gmdate('Y-m-d\TH:i:s\Z'));return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&$path==='/api/v1/narratives/generate')return Response::json(202,$this->repository->enqueueDiaryGeneration($this->json($r)));
         if($path==='/api/v1/narratives')return$r->method==='POST'?Response::json(201,$this->service->createNarrative($this->json($r))):Response::json(200,['items'=>$this->repository->narratives($this->scopeQuery($r))]);
         if($r->method==='GET'&&$path==='/api/v1/playthrough-export')return Response::json(200,$this->service->exportPlaythrough($this->scopeQuery($r)));
         if($r->method==='POST'&&$path==='/api/v1/playthrough-restore')return Response::json(200,$this->service->restorePlaythrough($this->json($r)));
@@ -317,6 +318,7 @@ final class ManagementRouter
             'narratives'=>$this->service->createNarrative($scope+['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
             'narrative-revise'=>$this->service->updateNarrative($this->need($v,'narrative_id'),['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
             'narrative-delete'=>$this->deleteNarrativeDocument($v),
+            'narrative-generate'=>$this->repository->enqueueDiaryGeneration($scope+['request_id'=>trim((string)($v['request_id']??''))?:Uuid::v4()]),
             'configuration-backup'=>$this->createConfigurationBackup($v,$scope),
             'configuration-restore'=>$this->restoreConfigurationBackup($v,$scope),
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
@@ -337,13 +339,14 @@ final class ManagementRouter
             return$this->redirect($this->uiPath('memory').'&'.http_build_query($query));
         }
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
+        if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
             'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete','narrative-generate'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -1204,7 +1207,8 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
+            'relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
         foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
@@ -1217,6 +1221,7 @@ final class ManagementRouter
         $booleanFields=[
             'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
             'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],
+            'diary'=>['enabled','include_in_context'],
             'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled'],
         ];
@@ -1226,6 +1231,7 @@ final class ManagementRouter
         $integerFields=[
             'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
             'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],
+            'diary'=>['context_turn_limit'],
             'oghma'=>['topic_count','result_limit','extractor_timeout_ms'],
         ];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
@@ -1236,6 +1242,8 @@ final class ManagementRouter
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$key='setting_narrator_'.$field;$value=trim((string)($values[$key]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
+        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
 
         return['schema'=>'almsivi.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];
@@ -1277,9 +1285,11 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
+            'relationship_configuration_id','diary_generation_configuration_id'];
         if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
-            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)||array_key_exists('relationship_configuration_id',$values)||isset($values['llm_routing_fields'])){
+            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)
+            ||array_key_exists('relationship_configuration_id',$values)||array_key_exists('diary_generation_configuration_id',$values)||isset($values['llm_routing_fields'])){
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
             foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
                 if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
@@ -1293,7 +1303,12 @@ final class ManagementRouter
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
         }
         if(array_filter(array_keys($values),static fn(string$key):bool=>str_starts_with($key,'setting_'))!==[]){
-            $overrides=$this->profileSettingsOverrides($values);if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
+            $existingOverrides=is_array($content['settings_overrides']??null)&&!array_is_list($content['settings_overrides'])?$content['settings_overrides']:[];
+            $overrides=$this->profileSettingsOverrides($values);
+            if(!array_key_exists('setting_diary_enabled',$values)&&!array_key_exists('setting_diary_include_in_context',$values)
+                &&!array_key_exists('setting_diary_context_turn_limit',$values)&&!array_key_exists('setting_diary_prompt',$values)
+                &&is_array($existingOverrides['diary']??null))$overrides['diary']=$existingOverrides['diary'];
+            if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
         }
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
@@ -1305,13 +1320,15 @@ final class ManagementRouter
     private function profileSettingsOverrides(array $values):array
     {
         $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],'diary'=>['enabled','include_in_context'],
+            'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled']];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
         $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
+            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],'diary'=>['context_turn_limit'],
+            'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
         $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
@@ -1319,6 +1336,8 @@ final class ManagementRouter
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
+        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
         return$overrides;
     }
 

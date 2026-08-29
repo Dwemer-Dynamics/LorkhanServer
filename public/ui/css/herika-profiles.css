@@ -702,6 +702,21 @@ body.profiles-page-shell > main.profiles-page {
     border-bottom: 0;
 }
 
+.profiles-page .setting-row.profile-setting-stacked {
+    grid-template-columns: minmax(0, 1fr);
+    align-items: stretch;
+    gap: 6px;
+}
+
+.profiles-page .setting-row.profile-setting-stacked .setting-control {
+    margin-top: 0;
+}
+
+.profiles-page .setting-row.profile-setting-stacked textarea {
+    min-height: 66px;
+    resize: vertical;
+}
+
 .profiles-page .profile-settings-group {
     min-width: 0;
 }
@@ -773,6 +788,7 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 @container (max-width: 540px) {
+    .profiles-page .profile-diary-settings .setting-row,
     .profiles-page .profile-relationship-settings .setting-row { grid-template-columns: 1fr; gap: 0; }
     .profiles-page .profile-editor-toolbar { position: static; }
     .profiles-page .profile-core-grid,

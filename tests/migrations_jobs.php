@@ -1026,6 +1026,81 @@ foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$n
 $modeRouteStats=(new Worker($jobs,$generationRegistry,'profile-modes-route-test',5,2,2,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $check($modeRouteStats['succeeded']===2,'narrator or player speech-style generation ignored its routed connector');
 
+// Queue one manual diary only after an explicit opt-in, a dedicated connector route, and witnessed context exist.
+$diaryConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Diary connector',
+    'content'=>['driver'=>'mock','model'=>'diary-v1']]);
+$diaryCoreContent=['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+$diaryCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Manual diary core','content'=>$diaryCoreContent]);
+$diaryActor=['kind'=>'npc','record_id'=>'diary_test','content_file'=>'Morrowind.esm','display_name'=>'Diary NPC'];
+$diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Diary NPC',
+    'core_profile_id'=>$diaryCore['core_profile_id'],'actor_identity'=>$diaryActor,
+    'content'=>['biography'=>'Witnesses events in Balmora.']]);
+$diaryScope=['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'request_id'=>Uuid::v4()];
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('default diary policy queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_disabled','manual diary did not default off');}
+$jobsBeforeDiarySave=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn();
+$diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'include_in_context'=>true,'context_turn_limit'=>12,
+    'prompt'=>'Record only witnessed events.'];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'opt in without a connector');
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('diary without connector queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_connector_unavailable','manual diary accepted no connector');}
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn()===$jobsBeforeDiarySave,
+    'saving diary settings called a provider or queued work');
+$diaryTurn=Uuid::v4();
+$diaryEvent=$db->prepare("INSERT INTO eventlog(type,data,gamets,localts,ts,people,location) VALUES('inputtext',:data,42,1700000100,1700000100000,'|Diary NPC|','Balmora') RETURNING rowid");
+$diaryEvent->execute(['data'=>'Nerevarine: We reached Balmora before dusk.']);$diaryRowId=(int)$diaryEvent->fetchColumn();
+$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,turn_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,:turn,'diary_test',:key,CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)")
+    ->execute(['rowid'=>$diaryRowId,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],
+        'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
+        'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
+$diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'route future manual diaries');
+$diaryJob=$products->enqueueDiaryGeneration($diaryScope);
+$diaryPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$diaryJob['job_id']}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$check($diaryPayload['profile_revision']===1&&$diaryPayload['provider_revision']===1
+    &&$diaryPayload['source_turn_ids']===[$diaryTurn]&&count($diaryPayload['input']['witnessed_context'])===1
+    &&!isset($diaryPayload['input']['endpoint'],$diaryPayload['input']['api_key']),
+    'manual diary request was not idempotent, revision-frozen, bounded, or secret-free');
+$diaryConnectorRows=(new ManagementUiRepository($db))->rows('llm');
+$diaryConnectorRow=array_values(array_filter($diaryConnectorRows,static fn(array$row):bool=>
+    $row['configuration_id']===$diaryConnector['configuration_id']))[0];
+$check((int)$diaryConnectorRow['queued_job_usage']===1&&(int)$diaryConnectorRow['profile_usage']===1,
+    'manual diary connector use was not visible to connector management');
+$service->revise('provider',$diaryConnector['configuration_id'],['driver'=>'mock','model'=>'diary-v2'],'new diary connector revision');
+$diaryCoreContent['routing']=[];$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'leave queued diary frozen');
+$diaryReplay=$products->enqueueDiaryGeneration($diaryScope);
+$check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id']===$diaryJob['narrative_id']
+    &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
+try{$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);throw new RuntimeException('queued diary connector deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued diary deletion guard failed');}
+$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+    $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
+$diaryStats=(new Worker($jobs,$diaryRegistry,'manual-diary-test',5,1,1,0,10,['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
+$diaryRow=$db->query("SELECT kind,title,content,provenance FROM narrative_records WHERE narrative_id='{$diaryJob['narrative_id']}'")->fetch();
+$diaryProvenance=json_decode((string)$diaryRow['provenance'],true,32,JSON_THROW_ON_ERROR);
+$diaryAttempt=$db->query("SELECT operation,model,config_revision,state FROM provider_attempts WHERE job_id='{$diaryJob['job_id']}'")->fetch();
+$check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['title']==='Diary NPC diary'
+    &&str_contains($diaryRow['content'],'1 witnessed Morrowind event')
+    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===1
+    &&$diaryProvenance['provider_revision']===1&&$diaryProvenance['source_turn_ids']===[$diaryTurn]
+    &&$diaryAttempt['operation']==='generate_diary'&&$diaryAttempt['model']==='diary-v1'
+    &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',
+    'manual diary worker did not use the frozen provider revision or persist exact scoped provenance');
+$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);
+$service->createNarrative(['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'kind'=>'summary','title'=>'Still included','content'=>'A bounded summary.',
+    'provenance'=>['source'=>'authored-test']]);
+$diaryCoreContent['settings_overrides']['diary']['include_in_context']=false;
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'hide diary narratives from prompts');
+$products->bindActorProfile(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']],
+    $diaryActor,$diaryProfile['profile_id'],$clock->iso());
+$diaryPromptContext=$products->promptContext(['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'session_id'=>'20000000-0000-4000-8000-000000000099',
+    'payload'=>['target'=>$diaryActor]],$clock->iso());
+$check(array_column($diaryPromptContext['narrative'],'kind')===['summary'],
+    'diary context opt-out removed non-diary narratives or retained the generated diary');
+
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';
 $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
     'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,

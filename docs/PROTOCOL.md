@@ -136,7 +136,8 @@ The unchanged v1 wire shape retains compiled presentation and disabled legacy be
 strict older parsers. These compatibility fields never replace local OpenMW preferences or enable
 timer scheduling, boredom, greetings, combat barks, ITT, or Background Life. The Lua bridge receives
 only the seven playback-gated rechat fields from behavior; its safety gates require both local and
-server permission. Server-only Oghma tags and Oghma/profile-generation routes are not exposed.
+server permission. Server-only Oghma tags, diary settings, and Oghma/profile/diary-generation routes
+are not exposed.
 The source map omits excluded/internal paths and compatibility-only defaults. Model-slot driver
 labels are the v1 categories `mock` or `configured`, not provider credentials or endpoints.
 STT is an installation-global connector and never participates in the layered profile resolver.
@@ -164,6 +165,19 @@ max is 32 MiB. Generated media has quota/expiry. Metadata and
 source response remain auditable after bytes expire according to retention policy.
 
 ## Local management operations
+
+Narratives can queue one manually requested diary through the authenticated browser form or
+`POST /manage/api/v1/narratives/generate`. The request supplies installation, profile, playthrough,
+and a UUID request ID. The selected profile must explicitly enable manual diary generation and resolve
+a dedicated diary provider from its Core Profile/NPC inheritance; the default is disabled and a missing
+route fails closed. Queueing reads only visible witnessed event projections for that actor and
+playthrough, excludes undelivered chat, and bounds input to the configured 1-100 turns, 64 KiB of
+context, and 128 KiB total provider input. The durable `narrative.generate` job freezes the profile and
+provider revisions, source turn IDs, instruction, and context. Replaying the same request is idempotent;
+a semantic mismatch is rejected. A successful worker writes one scoped `diary` narrative with exact
+provenance. `include_in_context` defaults on; disabling it removes only diary narratives from prompt
+context. Saving settings never calls a provider or queues work. No timer, sleep, wait, Background Life,
+automatic narrator/player diary, or physical OpenMW book path is introduced.
 
 Relationship management uses native source records scoped to installation, owning profile and
 playthrough. New records require an actor kind, record ID, content file and runtime RefNum; display

@@ -372,7 +372,13 @@ assert r.status==200 and conversion_url.path.endswith('/ui/core/npc_master.php')
 assert conversion_params.get('q')==[profile_name] and conversion_params.get('initial')==['H'] and conversion_params.get('fav')==['1'] and conversion_params.get('lock')==['1'] and conversion_params.get('page')==['2']
 assert conversion_params.get('installation_id')==[valid['installation_id']] and conversion_params.get('status',[None])[0] in ('relationship_conversion_requested','relationship_conversion_no_eligible')
 assert ('role="status"' in conversion_body or 'role="alert"' in conversion_body) and len(VoiceProvider.llm_requests)==provider_calls_before_conversion
-narratives,_=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
+narratives,narrative_body=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
+generate_diary=next(f for f in narratives.forms if f['action'].endswith('/forms/narrative-generate'))
+assert all(field in generate_diary['fields'] for field in ['installation_id','profile_id','playthrough_id'])
+assert 'Request a diary' in narrative_body and 'never generates a diary on a timer' in narrative_body and 'Diary generation queued.' not in narrative_body
+provider_calls_before_diary=len(VoiceProvider.llm_requests)
+r=request(generate_diary['action'],'POST',dict(generate_diary['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id)); diary_error=r.read().decode()
+assert r.status==422 and 'diary_generation_disabled' in diary_error and len(VoiceProvider.llm_requests)==provider_calls_before_diary,(r.status,diary_error)
 create_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narratives'))
 narrative_title='HTTP diary '+uuid.uuid4().hex; narrative_text='Arrived in Seyda Neen.'
 values=dict(create_narrative['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,kind='diary',title=narrative_title,content=narrative_text,provenance='management-http')
@@ -622,18 +628,26 @@ core_body=request('/ALMSIVIserver/ui/core/core_profiles.php?edit='+core_edit.gro
 core_page=Page(); core_page.feed(core_body)
 assert 'aria-labelledby="relationship_configuration_id-label"' in core_body
 assert 'aria-label="Relationship Update Chance"' in core_body and 'for="relationship-lock"' in core_body
+assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Manual Diary Generation' in core_body
+assert 'Generate nearby NPC diaries during sleep or wait.' in core_body and 'Create a physical in-game diary that can be read.' in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_values=dict(core_form['fields'],_csrf=csrf,relationship_configuration_id=slot_id,
-    setting_relationship_update_chance_percent='100',setting_relationship_locked='1')
+    setting_relationship_update_chance_percent='100',setting_relationship_locked='1',diary_generation_configuration_id=slot_id,
+    setting_diary_enabled='1',setting_diary_include_in_context='0',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 assert core_saved['fields']['relationship_configuration_id']==slot_id and core_saved['fields']['setting_relationship_update_chance_percent']=='100'
 assert core_saved['fields']['setting_relationship_locked']=='1',core_saved
+assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
+assert core_saved['fields']['setting_diary_include_in_context']=='0' and core_saved['fields']['setting_diary_context_turn_limit']=='12'
+assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help">Record only witnessed events.</textarea>' in core_body
+assert len(VoiceProvider.llm_requests)==provider_calls_before_diary,core_saved
 core_preset_response=request('/ALMSIVIserver/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
 assert core_preset['schema']=='almsivi.core-profile-settings.v1' and core_preset['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+assert core_preset['settings_overrides']['diary']=={'enabled':True,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
@@ -645,7 +659,9 @@ imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page
 imported_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
 assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
 assert imported_form['fields']['setting_relationship_update_chance_percent']=='100' and imported_form['fields']['setting_relationship_locked']=='1'
-assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','tts_configuration_id'])
+assert imported_form['fields']['setting_diary_enabled']=='1' and imported_form['fields']['setting_diary_include_in_context']=='0'
+assert imported_form['fields']['setting_diary_context_turn_limit']=='12' and '>Record only witnessed events.</textarea>' in body
+assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
 assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
 invalid_preset=dict(core_preset,unexpected='rejected')
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_preset))); body=r.read().decode()
@@ -654,8 +670,9 @@ secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
 assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
 r=request('/ALMSIVIserver/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
-core_reset=dict(core_saved['fields'],_csrf=csrf,relationship_configuration_id='',
-    setting_relationship_update_chance_percent='',setting_relationship_locked='inherit')
+core_reset=dict(core_saved['fields'],_csrf=csrf,relationship_configuration_id='',diary_generation_configuration_id='',
+    setting_relationship_update_chance_percent='',setting_relationship_locked='inherit',setting_diary_enabled='inherit',
+    setting_diary_include_in_context='inherit',setting_diary_context_turn_limit='',setting_diary_prompt='')
 assert request(core_form['action'],'POST',core_reset).status==200
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 routing_form=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-create'))

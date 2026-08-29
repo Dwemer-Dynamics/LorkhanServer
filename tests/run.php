@@ -147,6 +147,28 @@ $conversionMock=(new \ALMSIVIserver\Application\MockProfileGenerationProvider())
 $check($conversionMock===['relationships'=>[]]
     &&in_array('relationship.convert',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'relationship text conversion is not registered as a bounded first-party job');
+$diaryDefaults=\ALMSIVIserver\Application\DiaryGenerationPolicy::defaults();
+$diaryOverrides=['enabled'=>true,'include_in_context'=>false,'context_turn_limit'=>12,'prompt'=>'Remember only what was witnessed.'];
+$diaryMock=(new \ALMSIVIserver\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
+$check($diaryDefaults['enabled']===false&&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
+    &&\ALMSIVIserver\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
+    &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
+    &&in_array('narrative.generate',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'manual diary generation is opt-in, bounded, deterministic under the mock provider, and registered as durable work');
+foreach([
+    ['enabled'=>'true'],['include_in_context'=>1],['context_turn_limit'=>0],['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
+]as$invalidDiary){
+    try{\ALMSIVIserver\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid diary settings rejected');}
+}
+foreach([
+    ['title'=>'','content'=>'entry'],['title'=>'entry','content'=>''],['title'=>str_repeat('x',257),'content'=>'entry'],
+    ['title'=>'entry','content'=>'entry','action'=>'wait'],
+]as$invalidDiaryOutput){
+    try{\ALMSIVIserver\Application\DiaryGenerationPolicy::output($invalidDiaryOutput);$check(false,'invalid diary provider output accepted');}
+    catch(RuntimeException){$check(true,'invalid diary provider output rejected');}
+}
 $memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
 $check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
     'model memory defaults can stay off without a provider');
@@ -794,10 +816,19 @@ $check($relationshipResolved['settings']['relationship']===['update_chance_perce
 try{EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['update_chance_percent'=>101]]);
     $check(false,'relationship chance outside 0-100 rejected');}
 catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 rejected');}
+$diaryResolved=(new EffectiveSettingsResolver())->resolve([],['routing'=>[
+    'diary_generation_configuration_id'=>'00000000-0000-4000-8000-000000000555'],
+    'settings_overrides'=>['diary'=>$diaryOverrides]],[]);
+$check($diaryResolved['settings']['diary']===$diaryOverrides
+    &&$diaryResolved['routing']['diary_generation_configuration_id']==='00000000-0000-4000-8000-000000000555'
+    &&$diaryResolved['sources']['settings.diary.enabled']==='core_profile',
+    'manual diary policy and dedicated connector route inherit through effective server settings');
 $projectionInput=$effective;
 $projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
 $projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';
 $projectionInput['routing']['relationship_configuration_id']='00000000-0000-4000-8000-000000000444';
+$projectionInput['routing']['diary_generation_configuration_id']='00000000-0000-4000-8000-000000000555';
+$projectionInput['settings']['diary']=$diaryOverrides;
 $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
 $check($projection['settings']['behavior']['rechat']===false
     &&$projection['settings']['memory']['knowledge_limit']===0&&$projection['routing']['llm_configuration_id']===''
@@ -808,6 +839,7 @@ $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!isset($projection['routing']['oghma_configuration_id'])
     &&!isset($projection['routing']['profile_generation_configuration_id'])
     &&!isset($projection['routing']['relationship_configuration_id'])&&!isset($projection['settings']['relationship'])
+    &&!isset($projection['routing']['diary_generation_configuration_id'])&&!isset($projection['settings']['diary'])
     &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'

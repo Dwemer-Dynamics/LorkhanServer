@@ -357,6 +357,90 @@ final class ProductRepository
             'content'=>\ALMSIVIserver\Application\LlmConnector::validate($this->json($row['content']))];
     }
 
+    /** Queue one user-requested diary from bounded witnessed context; no provider call occurs here. */
+    public function enqueueDiaryGeneration(array $scope):array
+    {
+        foreach(['installation_id','profile_id','playthrough_id','request_id']as$field)
+            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \InvalidArgumentException('invalid_diary_generation_scope');
+        return$this->transaction(function()use($scope):array{
+            $key='narrative.generate:'.$scope['request_id'];
+            $replay=$this->db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='narrative.generate' AND idempotency_key=:key");
+            $replay->execute(['key'=>$key]);
+            if($job=$replay->fetch()){$payload=$this->json($job['payload']);unset($job['payload']);
+                foreach(['request_id','installation_id','profile_id','playthrough_id']as$field)
+                    if(($payload[$field]??null)!==$scope[$field])throw new \InvalidArgumentException('diary_generation_request_conflict');
+                return$job+['request_id'=>$scope['request_id'],'narrative_id'=>$payload['narrative_id'],
+                    'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id'],
+                    'provider_revision'=>$payload['provider_revision'],'source_count'=>count($payload['source_turn_ids']??[])];}
+            $profileStatement=$this->db->prepare('SELECT p.current_revision,r.content,p.actor_identity,p.name FROM profiles p '
+                .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL FOR SHARE OF p');
+            $profileStatement->execute(['profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);$profile=$profileStatement->fetch();
+            if(!$profile)throw new \InvalidArgumentException('invalid_diary_generation_scope');
+            $playthroughStatement=$this->db->prepare('SELECT playthrough_id FROM playthroughs WHERE playthrough_id=:playthrough '
+                .'AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+            $playthroughStatement->execute(['playthrough'=>$scope['playthrough_id'],'installation'=>$scope['installation_id']]);
+            if(!$playthroughStatement->fetchColumn())throw new \InvalidArgumentException('invalid_diary_generation_scope');
+            $effective=$this->effectiveSettingsForProfile($scope['installation_id'],$scope['profile_id']);
+            $diary=$effective['settings']['diary']??[];
+            if(($diary['enabled']??false)!==true)throw new \InvalidArgumentException('diary_generation_disabled');
+            $configurationId=(string)($effective['routing']['diary_generation_configuration_id']??'');
+            if($configurationId==='')throw new \InvalidArgumentException('diary_generation_connector_unavailable');
+            $providerStatement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets WHERE configuration_id=:configuration "
+                ."AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
+            $providerStatement->execute(['configuration'=>$configurationId,'installation'=>$scope['installation_id']]);$provider=$providerStatement->fetch();
+            if(!$provider)throw new \InvalidArgumentException('diary_generation_connector_unavailable');
+            $identity=$this->json($profile['actor_identity']);$actor=[];
+            foreach(['kind','record_id','content_file','refnum']as$field)if(array_key_exists($field,$identity))$actor[$field]=$identity[$field];
+            if(!isset($actor['kind']))$actor['kind']='actor';
+            $actorJson=$this->encode($actor);$audienceJson=$this->encode([$actor]);
+            $limit=(int)($diary['context_turn_limit']??20);$candidateLimit=min(300,max(20,$limit*4));
+            $historyStatement=$this->db->prepare("SELECT m.turn_id,m.created_at,e.type,e.data,e.people,e.location,e.gamets,m.speaker,m.target "
+                ."FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation "
+                ."AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book') "
+                ."AND (e.type<>'chat' OR e.delivery_state IN ('emitted','spoken','played')) "
+                ."AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb)) "
+                ."ORDER BY m.created_at DESC,e.rowid DESC LIMIT :limit");
+            $historyStatement->bindValue(':installation',$scope['installation_id']);$historyStatement->bindValue(':playthrough',$scope['playthrough_id']);
+            $historyStatement->bindValue(':speaker',$actorJson);$historyStatement->bindValue(':target',$actorJson);$historyStatement->bindValue(':audience',$audienceJson);
+            $historyStatement->bindValue(':limit',$candidateLimit,\PDO::PARAM_INT);$historyStatement->execute();
+            $context=[];$turns=[];$sourceIds=[];$bytes=0;
+            foreach($historyStatement->fetchAll()as$row){$turnId=(string)($row['turn_id']??'');$turnKey=$turnId!==''?$turnId:'event:'.count($context);
+                if(!isset($turns[$turnKey])&&count($turns)>=$limit)continue;$turns[$turnKey]=true;if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
+                $speaker=$this->json($row['speaker']);$target=$this->json($row['target']);$item=array_filter([
+                    'turn_id'=>$turnId===''?null:$turnId,'at'=>(string)$row['created_at'],'type'=>(string)$row['type'],
+                    'speaker'=>$speaker['display_name']??$speaker['record_id']??null,'target'=>$target['display_name']??$target['record_id']??null,
+                    'content'=>mb_strcut(trim((string)$row['data']),0,4096,'UTF-8'),'location'=>trim((string)($row['location']??''))?:null,
+                    'game_time'=>(int)($row['gamets']??0)?:null,'people'=>trim((string)($row['people']??''))?:null,
+                ],static fn(mixed$value):bool=>$value!==null&&$value!=='');$encoded=$this->encode($item);
+                if($bytes+strlen($encoded)>65_536)continue;$bytes+=strlen($encoded);$context[]=$item;}
+            if($context===[])throw new \InvalidArgumentException('diary_generation_no_context');$context=array_reverse($context);
+            $profileContent=$this->json($profile['content']);$profileInput=[];
+            foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','gender','race']as$field)
+                if(is_string($profileContent[$field]??null)&&trim($profileContent[$field])!=='')$profileInput[$field]=mb_strcut(trim($profileContent[$field]),0,8192,'UTF-8');
+            $input=['generation_mode'=>'diary_generation','name'=>(string)$profile['name'],'actor_identity'=>$actor,
+                'profile'=>$profileInput,'witnessed_context'=>$context,'instruction'=>(string)$diary['prompt']];
+            if(strlen($this->encode($input))>131_072)throw new \InvalidArgumentException('diary_generation_too_large');
+            $payload=['request_id'=>$scope['request_id'],'narrative_id'=>Uuid::v4(),'installation_id'=>$scope['installation_id'],
+                'profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id'],'profile_revision'=>(int)$profile['current_revision'],
+                'provider_configuration_id'=>(string)$provider['configuration_id'],'provider_revision'=>(int)$provider['current_revision'],
+                'source_turn_ids'=>array_keys($sourceIds),'input'=>$input];
+            $jobId=Uuid::v4();
+            $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+                ."VALUES(:job,'narrative.generate',1,:key,CAST(:payload AS jsonb),3,55) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
+            if(!$job){$existing=$this->db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='narrative.generate' AND idempotency_key=:key");
+                $existing->execute(['key'=>$key]);$job=$existing->fetch();if(!$job)throw new RuntimeException('diary_generation_queue_failed');
+                $existingPayload=$this->json($job['payload']);unset($job['payload']);
+                foreach(['request_id','installation_id','profile_id','playthrough_id']as$field)
+                    if(($existingPayload[$field]??null)!==$scope[$field])throw new \InvalidArgumentException('diary_generation_request_conflict');
+                $payload=$existingPayload;}
+            return$job+['request_id'=>$scope['request_id'],'narrative_id'=>$payload['narrative_id'],'profile_revision'=>$payload['profile_revision'],
+                'provider_configuration_id'=>$payload['provider_configuration_id'],'provider_revision'=>$payload['provider_revision'],
+                'source_count'=>count($payload['source_turn_ids']??[])];
+        });
+    }
+
     /** Queue generation only for the profile currently bound to this active session target. */
     public function enqueueBoundProfileGeneration(array $session,array $target,string $profileId):array
     {
@@ -507,16 +591,16 @@ final class ProductRepository
             if($kind==='provider'){
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
                 $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
-                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
                 $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id) LIMIT 1");
+                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id) LIMIT 1");
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
             }
             if($kind==='prompt'){
@@ -1763,6 +1847,15 @@ SQL);
             str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
         $narratives=$this->narratives($scope);
+        if($activeProfileId!==$scope['profile_id']){
+            $narrativeScope=$scope;$narrativeScope['profile_id']=$activeProfileId;
+            foreach($this->narratives($narrativeScope)as$row)$narratives[$row['narrative_id']]=$row;
+            $narratives=array_values($narratives);usort($narratives,static fn(array$a,array$b):int=>
+                strcmp((string)$b['created_at'],(string)$a['created_at'])?:strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
+            $narratives=array_slice($narratives,0,100);
+        }
+        if(($effective['settings']['diary']['include_in_context']??true)!==true)
+            $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>($row['kind']??null)!=='diary'));
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
         $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());
