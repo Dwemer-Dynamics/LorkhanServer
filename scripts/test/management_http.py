@@ -673,7 +673,7 @@ core_list,core_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php'))
 core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
 assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
 assert 'settings overrides only' in core_body
-assert 'Rules <span class="feature-state-badge feature-state-planned' in core_body and 'id="profile-connector-test-open"' in core_body
+assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-open"' in core_body
 core_import_page,core_import_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php?import=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
 assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
@@ -716,6 +716,30 @@ assert r.status==422 and bulk_error['error']=='invalid_connector_kind',bulk_erro
 r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',bulk_values,csrf); bulk_result=json.loads(r.read().decode())['result']
 assert r.status==200 and bulk_result['job_key']=='provider:'+slot_id and bulk_result['status']=='pass' and bulk_result['message'].startswith('1 valid utterance'),bulk_result
 assert len(VoiceProvider.llm_requests)==connector_plan_calls,bulk_result
+rules_path='/ALMSIVIserver/manage/api/v1/profile-assignment-rules'
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert rules_plan['rules']==[] and any(profile['core_profile_id']==core_edit.group(1) for profile in rules_plan['core_profiles']),rules_plan
+rule_match={'names':['HTTP Rule NPC','http rule npc'],'races':['Dark Elf'],'classes':['Commoner'],'genders':['Female'],
+    'factions':['fighters guild'],'content_files':['Morrowind.esm']}
+rule_values={'operation':'save','installation_id':valid['installation_id'],'rule_id':None,'description':'HTTP assignment rule',
+    'core_profile_id':core_edit.group(1),'priority':25,'enabled':True,'match':rule_match}
+r=json_request(rules_path,'POST',rule_values); rule_error=json.loads(r.read().decode())
+assert r.status==401 and rule_error['error']=='unauthorized',rule_error
+invalid_rule=dict(rule_values,match={key:[] for key in rule_match})
+r=json_request(rules_path,'POST',invalid_rule,csrf); rule_error=json.loads(r.read().decode())
+assert r.status==422 and rule_error['error']=='profile_assignment_rule_match_required',rule_error
+r=json_request(rules_path,'POST',rule_values,csrf); saved_rule=json.loads(r.read().decode())
+assert r.status==200 and saved_rule['saved'] is True and re.fullmatch(r'[0-9a-f-]{36}',saved_rule['rule_id']),saved_rule
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert len(rules_plan['rules'])==1 and rules_plan['rules'][0]['rule_id']==saved_rule['rule_id'] and rules_plan['rules'][0]['priority']==25,rules_plan
+assert rules_plan['rules'][0]['match']['names']==['HTTP Rule NPC'] and 'fighters guild' in rules_plan['options']['factions'],rules_plan
+revised_rule=dict(rule_values,rule_id=saved_rule['rule_id'],description='HTTP assignment rule revised',priority=30,enabled=False)
+r=json_request(rules_path,'POST',revised_rule,csrf); assert r.status==200,(r.status,r.read().decode())
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert rules_plan['rules'][0]['description']=='HTTP assignment rule revised' and rules_plan['rules'][0]['enabled'] is False,rules_plan
+r=json_request(rules_path,'POST',{'operation':'delete','installation_id':valid['installation_id'],'rule_id':saved_rule['rule_id']},csrf)
+assert r.status==200 and json.loads(r.read().decode())=={'deleted':True}
+assert json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())['rules']==[]
 core_preset_response=request('/ALMSIVIserver/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']

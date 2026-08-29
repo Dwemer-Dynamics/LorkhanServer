@@ -16,6 +16,7 @@ use Throwable;
 
 final class ProductRepository
 {
+    private const PROFILE_RULE_MATCH_FIELDS=['names','races','classes','genders','factions','content_files'];
     private ?MorrowindGeographyCatalog $morrowindGeography=null;
 
     public function __construct(private readonly PDO $db) {}
@@ -301,6 +302,88 @@ final class ProductRepository
         }
         if(count($jobs)>100)throw new InvalidArgumentException('profile_connector_test_too_many_connectors');
         return['profiles'=>$profileRows,'jobs'=>array_values($jobs)];
+    }
+
+    /** Return bounded rules and observed OpenMW values without changing an NPC or contacting a provider. */
+    public function profileAssignmentRulesPlan(string $installationId):array
+    {
+        $exists=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation');
+        $exists->execute(['installation'=>$installationId]);if(!$exists->fetchColumn())throw new RuntimeException('not_found');
+        $cores=$this->db->prepare('SELECT core_profile_id,label,default_npc FROM core_profiles '
+            .'WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY default_npc DESC,lower(label),core_profile_id LIMIT 100');
+        $cores->execute(['installation'=>$installationId]);$coreRows=array_map(static fn(array$row):array=>[
+            'core_profile_id'=>(string)$row['core_profile_id'],'label'=>(string)$row['label'],
+            'default_npc'=>filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)],$cores->fetchAll());
+        $rules=$this->db->prepare('SELECT r.rule_id,r.description,r.core_profile_id,c.label AS core_profile_label,r.priority,r.enabled,r.matchers '
+            .'FROM profile_assignment_rules r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id '
+            .'AND c.installation_id=r.installation_id AND c.deleted_at IS NULL WHERE r.installation_id=:installation '
+            .'ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+        $rules->execute(['installation'=>$installationId]);$ruleRows=[];$options=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
+        foreach($rules->fetchAll()as$row){$match=$this->normalizeProfileRuleMatch($this->json($row['matchers']));
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)foreach($match[$field]as$value)$options[$field][mb_strtolower($value,'UTF-8')]=$value;
+            $ruleRows[]=['rule_id'=>(string)$row['rule_id'],'description'=>(string)$row['description'],
+                'core_profile_id'=>(string)$row['core_profile_id'],'core_profile_label'=>(string)$row['core_profile_label'],
+                'priority'=>(int)$row['priority'],'enabled'=>filter_var($row['enabled'],FILTER_VALIDATE_BOOL),'match'=>$match];}
+        $profiles=$this->db->prepare('SELECT p.name,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r '
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation '
+            ."AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') LIMIT 1000");
+        $profiles->execute(['installation'=>$installationId]);
+        foreach($profiles->fetchAll()as$row){$identity=$this->json($row['actor_identity']);$content=$this->json($row['content']);
+            $this->addProfileRuleOption($options['names'],$identity['display_name']??$row['name']??null);
+            $this->addProfileRuleOption($options['races'],$content['race']??null);
+            $this->addProfileRuleOption($options['classes'],$content['class']??null);
+            $this->addProfileRuleOption($options['genders'],$content['gender']??null);
+            $this->addProfileRuleOption($options['content_files'],$identity['content_file']??null);}
+        $turns=$this->db->prepare('SELECT t.target,t.context FROM turns t JOIN sessions s ON s.session_id=t.session_id '
+            .'WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 1000');
+        $turns->execute(['installation'=>$installationId]);
+        foreach($turns->fetchAll()as$row){$target=$this->json($row['target']);$context=$this->json($row['context']);
+            $observed=$this->profileRuleActorValues($target,$context);
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)foreach($observed[$field]as$value)$this->addProfileRuleOption($options[$field],$value);}
+        foreach($options as&$values){$values=array_values($values);natcasesort($values);$values=array_slice(array_values($values),0,500);}unset($values);
+        return['rules'=>$ruleRows,'core_profiles'=>$coreRows,'options'=>$options];
+    }
+
+    /** Create or update one installation-owned exact-match assignment rule. */
+    public function saveProfileAssignmentRule(array $input,string $now):array
+    {
+        $installation=trim((string)($input['installation_id']??''));$core=trim((string)($input['core_profile_id']??''));
+        $description=trim((string)($input['description']??''));$priority=filter_var($input['priority']??null,FILTER_VALIDATE_INT);
+        $ruleId=$input['rule_id']??null;$ruleId=is_string($ruleId)&&trim($ruleId)!==''?trim($ruleId):null;
+        if(!Uuid::isValid($installation))throw new InvalidArgumentException('invalid_installation_id');
+        if(!Uuid::isValid($core))throw new InvalidArgumentException('invalid_core_profile_id');
+        if($ruleId!==null&&!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
+        if($description===''||strlen($description)>200||preg_match('/[\x00-\x1F\x7F]/',$description)===1)throw new InvalidArgumentException('invalid_rule_description');
+        if($priority===false||$priority< -100000||$priority>100000)throw new InvalidArgumentException('invalid_rule_priority');
+        $match=$this->normalizeProfileRuleMatch($input['match']??null,true);$enabled=($input['enabled']??false)===true;
+        return$this->transaction(function()use($installation,$core,$description,$priority,$ruleId,$match,$enabled,$now):array{
+            $target=$this->db->prepare('SELECT 1 FROM core_profiles WHERE core_profile_id=:core AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+            $target->execute(['core'=>$core,'installation'=>$installation]);if(!$target->fetchColumn())throw new InvalidArgumentException('core_profile_scope_mismatch');
+            $id=$ruleId??Uuid::v4();
+            if($ruleId===null){$count=$this->db->prepare('SELECT count(*) FROM profile_assignment_rules WHERE installation_id=:installation');
+                $count->execute(['installation'=>$installation]);if((int)$count->fetchColumn()>=100)throw new InvalidArgumentException('profile_assignment_rule_limit');
+                $this->db->prepare('INSERT INTO profile_assignment_rules '
+                    .'(rule_id,installation_id,core_profile_id,description,priority,enabled,matchers,updated_at) '
+                    .'VALUES(:id,:installation,:core,:description,:priority,:enabled,CAST(:matchers AS jsonb),:now)')
+                    ->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                        'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
+            }else{$update=$this->db->prepare('UPDATE profile_assignment_rules SET core_profile_id=:core,description=:description,'
+                    .'priority=:priority,enabled=:enabled,matchers=CAST(:matchers AS jsonb),updated_at=:now '
+                    .'WHERE rule_id=:id AND installation_id=:installation');
+                $update->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                    'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
+                if($update->rowCount()!==1)throw new RuntimeException('not_found');}
+            return['rule_id'=>$id,'saved'=>true];
+        });
+    }
+
+    /** Delete one rule without revisiting NPCs that it previously matched. */
+    public function deleteProfileAssignmentRule(string $installationId,string $ruleId):void
+    {
+        if(!Uuid::isValid($installationId))throw new InvalidArgumentException('invalid_installation_id');
+        if(!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
+        $delete=$this->db->prepare('DELETE FROM profile_assignment_rules WHERE rule_id=:id AND installation_id=:installation');
+        $delete->execute(['id'=>$ruleId,'installation'=>$installationId]);if($delete->rowCount()!==1)throw new RuntimeException('not_found');
     }
 
     /** Queue one idempotent generation job for the profile's current revision. */
@@ -624,9 +707,13 @@ final class ProductRepository
             [$table,$key]=$this->revisionMeta($kind);
             if($kind==='profile')$this->db->prepare('DELETE FROM actor_profile_bindings WHERE profile_id=:id')->execute(['id'=>$id]);
             if($kind==='core_profile'){
-                $usage=$this->db->prepare('SELECT c.default_npc,(SELECT count(*) FROM profiles p WHERE p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL) AS profiles FROM core_profiles c WHERE c.core_profile_id=:id AND c.deleted_at IS NULL FOR UPDATE');
+                $usage=$this->db->prepare('SELECT c.default_npc,'
+                    .'(SELECT count(*) FROM profiles p WHERE p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL) AS profiles,'
+                    .'(SELECT count(*) FROM profile_assignment_rules r WHERE r.core_profile_id=c.core_profile_id) AS assignment_rules '
+                    .'FROM core_profiles c WHERE c.core_profile_id=:id AND c.deleted_at IS NULL FOR UPDATE');
                 $usage->execute(['id'=>$id]);$row=$usage->fetch();if(!$row)throw new RuntimeException('not_found');
-                if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0)throw new \InvalidArgumentException('core_profile_in_use');
+                if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0||(int)$row['assignment_rules']>0)
+                    throw new \InvalidArgumentException('core_profile_in_use');
             }
             if($kind==='provider'){
                 $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
@@ -848,10 +935,11 @@ final class ProductRepository
                     $nameExists->execute(['installation'=>$turn['installation_id'],'name'=>$name]);
                     if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
                         $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
-                    $created=$this->createRevisioned('profile',['installation_id'=>$turn['installation_id'],
-                    'name'=>$name,'actor_identity'=>$target,
-                    'content'=>$seed,
-                    'change_reason'=>'automatic Morrowind actor discovery'],$now);$profileId=(string)$created['profile_id'];}
+                    $coreProfileId=$this->matchingCoreProfileForTurn($turn,$target);
+                    $createInput=['installation_id'=>$turn['installation_id'],'name'=>$name,'actor_identity'=>$target,
+                        'content'=>$seed,'change_reason'=>'automatic Morrowind actor discovery'];
+                    if($coreProfileId!==null)$createInput['core_profile_id']=$coreProfileId;
+                    $created=$this->createRevisioned('profile',$createInput,$now);$profileId=(string)$created['profile_id'];}
                 $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],
                     $target,$profileId,$now);
                 $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
@@ -2059,6 +2147,73 @@ SQL);
             $target=$turn['payload']['target']??[];if(is_array($target)){ $cell=$target['cell']??null;if(is_array($cell))$add($locations,$cell['name']??null);}
         }
         return['race'=>$races,'location'=>array_values(array_unique(array_merge($locations,$regions)))];
+    }
+
+    /** Select the first enabled rule whose exact OpenMW values all match this newly discovered actor. */
+    private function matchingCoreProfileForTurn(array $turn,array $target):?string
+    {
+        $context=is_array($turn['payload']['context']??null)&&!array_is_list($turn['payload']['context'])
+            ?$turn['payload']['context']:[];
+        $actor=$this->profileRuleActorValues($target,$context);$normalized=[];
+        foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)$normalized[$field]=array_map(
+            static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$actor[$field]);
+        $rules=$this->db->prepare('SELECT r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
+            .'ON c.core_profile_id=r.core_profile_id AND c.installation_id=r.installation_id AND c.deleted_at IS NULL '
+            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+        $rules->execute(['installation'=>$turn['installation_id']]);
+        foreach($rules->fetchAll()as$rule){try{$match=$this->normalizeProfileRuleMatch($this->json($rule['matchers']),true);}
+            catch(InvalidArgumentException){continue;}$matches=true;
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){if($match[$field]===[])continue;
+                $wanted=array_map(static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$match[$field]);
+                if(array_intersect($wanted,$normalized[$field])===[]){$matches=false;break;}}
+            if($matches)return(string)$rule['core_profile_id'];
+        }
+        return null;
+    }
+
+    /** Extract only the bounded actor fields that assignment rules are allowed to inspect. */
+    private function profileRuleActorValues(array $target,array $context):array
+    {
+        $values=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
+        $this->addProfileRuleOption($values['names'],$target['display_name']??null);
+        $this->addProfileRuleOption($values['content_files'],$target['content_file']??null);
+        $state=is_array($context['targetState']??null)&&!array_is_list($context['targetState'])?$context['targetState']:[];
+        $identity=is_array($state['identity']??null)&&!array_is_list($state['identity'])?$state['identity']:[];
+        $this->addProfileRuleOption($values['races'],$identity['race']??$state['race']??null);
+        $this->addProfileRuleOption($values['classes'],$identity['class']??$state['class']??null);
+        $this->addProfileRuleOption($values['genders'],$identity['gender']??$state['gender']??null);
+        $factions=$state['factions']??[];if(is_array($factions))foreach(array_slice($factions,0,64)as$faction){
+            if(is_string($faction))$this->addProfileRuleOption($values['factions'],$faction);
+            elseif(is_array($faction)&&!array_is_list($faction)&&(!isset($faction['rank'])||(int)$faction['rank']>=0))
+                $this->addProfileRuleOption($values['factions'],$faction['id']??null);
+        }
+        foreach($values as&$field)$field=array_values($field);unset($field);return$values;
+    }
+
+    /** Validate the stable rule document and normalize case-insensitive duplicates. */
+    private function normalizeProfileRuleMatch(mixed $value,bool $requirePopulated=false):array
+    {
+        if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_rule_match');
+        $keys=array_keys($value);sort($keys,SORT_STRING);$expected=self::PROFILE_RULE_MATCH_FIELDS;sort($expected,SORT_STRING);
+        if($keys!==$expected)throw new InvalidArgumentException('invalid_rule_match');
+        $result=[];$total=0;
+        foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){$items=$value[$field];
+            if(!is_array($items)||!array_is_list($items)||count($items)>32)throw new InvalidArgumentException('invalid_rule_match');
+            $clean=[];foreach($items as$item){if(!is_string($item))throw new InvalidArgumentException('invalid_rule_match');
+                $item=trim($item);if($item===''||strlen($item)>256||preg_match('/[\x00-\x1F\x7F]/',$item)===1)
+                    throw new InvalidArgumentException('invalid_rule_match');
+                $key=mb_strtolower($item,'UTF-8');if(!isset($clean[$key]))$clean[$key]=$item;}
+            $result[$field]=array_values($clean);$total+=count($result[$field]);}
+        if($requirePopulated&&$total===0)throw new InvalidArgumentException('profile_assignment_rule_match_required');
+        return$result;
+    }
+
+    /** Add one safe display option keyed by its case-insensitive exact value. */
+    private function addProfileRuleOption(array &$options,mixed $value):void
+    {
+        if(!is_string($value))return;$value=trim($value);
+        if($value===''||strlen($value)>256||preg_match('/[\x00-\x1F\x7F]/',$value)===1)return;
+        $key=mb_strtolower($value,'UTF-8');if(!isset($options[$key]))$options[$key]=$value;
     }
 
     private function canonicalRace(mixed $race):?string

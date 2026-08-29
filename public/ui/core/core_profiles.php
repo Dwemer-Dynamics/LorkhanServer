@@ -68,6 +68,15 @@ foreach ($profiles as $profile) {
     if ($slot >= 1 && $slot <= 4) $usedProfileSlots[$slot] = (string) $profile['core_profile_id'];
 }
 
+$ruleMatchFields = [
+    ['key' => 'names', 'label' => 'Names', 'add' => 'Add a name', 'hint' => 'The NPC name as OpenMW reports it.'],
+    ['key' => 'races', 'label' => 'Races', 'add' => 'Add a race', 'hint' => 'The race recorded for the NPC.'],
+    ['key' => 'classes', 'label' => 'Classes', 'add' => 'Add a class', 'hint' => 'The class recorded for the NPC.'],
+    ['key' => 'genders', 'label' => 'Genders', 'add' => 'Add a gender', 'hint' => 'The gender recorded for the NPC.'],
+    ['key' => 'factions', 'label' => 'Factions', 'add' => 'Add a faction', 'hint' => 'An OpenMW textual faction ID, not a numeric ID.'],
+    ['key' => 'content_files', 'label' => 'Content Files', 'add' => 'Add a content file', 'hint' => 'The content file the NPC record comes from.'],
+];
+
 $additionalStylesheets = ['herika-profiles.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-profiles.css')];
 $includeManagementStyles = false;
 include dirname(__DIR__) . '/tmpl/head.html';
@@ -94,7 +103,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div class="sidebar-action-grid">
                     <a class="btn-save" href="<?php echo almsivi_ui_h($queryFor(['create' => '1'])); ?>">New</a>
                     <a class="btn-primary" href="<?php echo almsivi_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.import')['description']); ?>">Import</a>
-                    <?php echo almsivi_ui_placeholder_control('Rules', 'config.profiles.rules'); ?>
+                    <button class="btn-primary" id="profile-rules-open" type="button" data-profile-rules-open aria-haspopup="dialog" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.rules')['description']); ?>">Rules</button>
                     <button class="btn-primary" id="profile-connector-test-open" type="button" data-profile-test-open aria-haspopup="dialog" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.test')['description']); ?>">Test</button>
                 </div>
 
@@ -223,8 +232,94 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </div>
             </div>
         </div>
+
+        <div class="profile-rules-overlay" data-profile-rules-overlay hidden>
+            <div class="profile-rules-shell" role="dialog" aria-modal="true" aria-labelledby="profile-rules-title" aria-describedby="profile-rules-intro" data-profile-rules-dialog data-profile-rules-endpoint="<?php echo almsivi_ui_h($managementBasePath . '/api/v1/profile-assignment-rules'); ?>" data-profile-rules-csrf="<?php echo almsivi_ui_h($csrf); ?>" data-profile-rules-installation="<?php echo almsivi_ui_h($installationId); ?>">
+                <div class="modal-header profile-rules-header">
+                    <h2 class="modal-title" id="profile-rules-title">Core Profile Assignment Rules</h2>
+                    <button class="profile-rules-dismiss" type="button" data-profile-rules-close aria-label="Close assignment rules">&#215;</button>
+                </div>
+                <div class="modal-body profile-rules-body">
+                    <p class="profile-rules-intro" id="profile-rules-intro">A rule runs only when a previously unknown NPC is first discovered. NPCs already assigned to a Core Profile, and any Core Profile you set by hand, are never changed by a rule.</p>
+                    <p class="hint profile-rules-help">Every field you fill in a rule must match. Several values in one field mean any of them. Text is compared without regard to capitals and must match in full. If more than one enabled rule matches, the highest priority wins, and the older rule wins a tie.</p>
+                    <p class="profile-rules-status" data-profile-rules-status role="status" aria-live="polite">Loading assignment rules.</p>
+
+                    <div class="profile-rules-list-view" data-profile-rules-list-view>
+                        <p class="profile-rules-order" data-profile-rules-order hidden>Listed in the order they are checked, highest priority first.</p>
+                        <div class="profile-rules-list" data-profile-rules-list></div>
+                    </div>
+
+                    <form class="profile-rules-form" id="profile-rules-form" data-profile-rules-form novalidate hidden>
+                        <h3 class="profile-rules-form-title" data-profile-rules-form-title>New assignment rule</h3>
+                        <p class="profile-rules-error" data-profile-rules-error role="alert" hidden></p>
+                        <div class="profile-rules-fields">
+                            <div class="profile-rules-field profile-rules-field-wide">
+                                <label for="profile-rules-description">Description</label>
+                                <input id="profile-rules-description" type="text" maxlength="200" autocomplete="off" aria-required="true" aria-describedby="profile-rules-description-hint" data-profile-rules-description>
+                                <p class="hint" id="profile-rules-description-hint">A short name so you can recognise this rule in the list.</p>
+                            </div>
+                            <div class="profile-rules-field">
+                                <label for="profile-rules-profile">Core Profile to assign</label>
+                                <select id="profile-rules-profile" aria-required="true" aria-describedby="profile-rules-profile-hint" data-profile-rules-profile></select>
+                                <p class="hint" id="profile-rules-profile-hint">The Core Profile given to a matching new NPC.</p>
+                            </div>
+                            <div class="profile-rules-field">
+                                <label for="profile-rules-priority">Priority</label>
+                                <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>
+                                <p class="hint" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
+                            </div>
+                            <div class="profile-rules-field profile-rules-field-check">
+                                <div class="profile-rules-check-line">
+                                    <input id="profile-rules-enabled" type="checkbox" aria-describedby="profile-rules-enabled-hint" data-profile-rules-enabled>
+                                    <label for="profile-rules-enabled">Enabled</label>
+                                </div>
+                                <p class="hint" id="profile-rules-enabled-hint">A disabled rule is kept but never checked.</p>
+                            </div>
+                        </div>
+
+                        <fieldset class="profile-rules-match">
+                            <legend>Match fields</legend>
+                            <p class="hint profile-rules-match-hint">Fill at least one field. An empty field is ignored.</p>
+                            <div class="profile-rules-match-grid">
+                                <?php foreach ($ruleMatchFields as $matchField): $matchBase = 'profile-rules-' . str_replace('_', '-', $matchField['key']); ?>
+                                    <fieldset class="profile-rules-match-field" data-profile-rules-match="<?php echo almsivi_ui_h($matchField['key']); ?>">
+                                        <legend><?php echo almsivi_ui_h($matchField['label']); ?></legend>
+                                        <p class="hint" id="<?php echo almsivi_ui_h($matchBase); ?>-hint"><?php echo almsivi_ui_h($matchField['hint']); ?></p>
+                                        <div class="profile-rules-match-add">
+                                            <label for="<?php echo almsivi_ui_h($matchBase); ?>-input"><?php echo almsivi_ui_h($matchField['add']); ?></label>
+                                            <input id="<?php echo almsivi_ui_h($matchBase); ?>-input" type="text" maxlength="256" autocomplete="off" list="<?php echo almsivi_ui_h($matchBase); ?>-options" aria-describedby="<?php echo almsivi_ui_h($matchBase); ?>-hint" data-profile-rules-match-input>
+                                            <datalist id="<?php echo almsivi_ui_h($matchBase); ?>-options" data-profile-rules-options></datalist>
+                                            <button class="btn-base" type="button" data-profile-rules-match-add>Add</button>
+                                        </div>
+                                        <ul class="profile-rules-match-values" aria-label="<?php echo almsivi_ui_h($matchField['label']); ?> in this rule" data-profile-rules-match-values hidden></ul>
+                                        <p class="profile-rules-match-empty" data-profile-rules-match-empty>Nothing added, so this field is ignored.</p>
+                                    </fieldset>
+                                <?php endforeach; ?>
+                            </div>
+                        </fieldset>
+
+                        <div class="profile-rules-confirm" role="group" aria-label="Confirm deleting this rule" data-profile-rules-confirm hidden>
+                            <p class="profile-rules-confirm-text" data-profile-rules-confirm-text></p>
+                            <div class="profile-rules-confirm-actions">
+                                <button class="btn-danger" type="button" data-profile-rules-confirm-delete>Yes, delete this rule</button>
+                                <button class="btn-base" type="button" data-profile-rules-confirm-cancel>Keep this rule</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer profile-rules-footer">
+                    <button class="btn-save" type="button" data-profile-rules-new hidden>New rule</button>
+                    <button class="btn-base" type="button" data-profile-rules-reload hidden>Reload</button>
+                    <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
+                    <button class="btn-danger" type="button" data-profile-rules-delete hidden>Delete rule</button>
+                    <button class="btn-base" type="button" data-profile-rules-cancel hidden>Cancel</button>
+                    <button class="btn-base" type="button" data-profile-rules-close>Close</button>
+                </div>
+            </div>
+        </div>
     <?php endif; ?>
 </main>
 <?php if ($importMode): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
+<?php if ($installations !== []): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/profile-assignment-rules.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-assignment-rules.js'); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

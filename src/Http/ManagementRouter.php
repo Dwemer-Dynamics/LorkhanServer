@@ -137,6 +137,15 @@ final class ManagementRouter
                 default=>throw new InvalidArgumentException('invalid_hidden_type_action')};
             return Response::json(200,['ok'=>true,'hidden_types'=>$hidden]);
         }
+        if($path==='/api/v1/profile-assignment-rules'){
+            if($r->method==='GET')return Response::json(200,$this->repository->profileAssignmentRulesPlan($this->queryUuid($r,'installation_id')));
+            if($r->method==='POST'){$body=$this->json($r);$operation=(string)($body['operation']??'');
+                if($operation==='save')return Response::json(200,$this->repository->saveProfileAssignmentRule($body,gmdate('Y-m-d\TH:i:s\Z')));
+                if($operation==='delete'){$this->repository->deleteProfileAssignmentRule((string)($body['installation_id']??''),(string)($body['rule_id']??''));
+                    return Response::json(200,['deleted'=>true]);}
+                throw new InvalidArgumentException('invalid_profile_assignment_rule_operation');
+            }
+        }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
         if($path==='/api/v1/profile-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));

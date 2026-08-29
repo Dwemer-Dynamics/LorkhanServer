@@ -222,7 +222,8 @@ $assert(($factoryProfile['content']['biography']??null)===$factoryRow['npc_stati
 unlink($factoryBiographies);unlink($factoryManifest);rmdir($factoryDirectory);
 $automaticTarget=['kind'=>'npc','record_id'=>'automatic_bosmer','refnum'=>['index'=>101,'content_file'=>0],
     'content_file'=>'Morrowind.esm','cell'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],'display_name'=>'Automatic Bosmer'];
-$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','gender'=>'Male','is_male'=>true]]];
+$automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','class'=>'Commoner','gender'=>'Male','is_male'=>true],
+    'factions'=>[['id'=>'fighters guild','rank'=>1,'reputation'=>4],['id'=>'former guild','rank'=>-1,'reputation'=>0]]]];
 $automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
 $assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
 $assert(($morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],
@@ -233,17 +234,69 @@ $exactFargothVoice=$products->preferExactProviderActorVoice($installationId,['ki
 $assert(($exactFargothVoice['id']??null)==='fargoth'&&($exactFargothVoice['source']??null)==='actor_provider_catalog'
     &&($exactFargothVoice['race']??null)==='wood elf'&&($exactFargothVoice['gender']??null)==='Male',
     'active provider exact actor voice did not override the race and gender fallback');
+$ruleCoreLow=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule low priority',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$ruleCoreHigh=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule high priority',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$emptyRuleMatch=array_fill_keys(['names','races','classes','genders','factions','content_files'],[]);
+$lowRule=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Automatic Bosmer by name',
+    'core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>10,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['automatic bosmer']])],$now);
+$highRule=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Exact OpenMW actor data',
+    'core_profile_id'=>$ruleCoreHigh['core_profile_id'],'priority'=>20,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
+        'factions'=>['Fighters Guild'],'content_files'=>['morrowind.esm']])],$now);
+$rulePlan=$products->profileAssignmentRulesPlan($installationId);
+$assert(array_column($rulePlan['rules'],'rule_id')===[$highRule['rule_id'],$lowRule['rule_id']]
+    &&in_array('fighters guild',array_map('strtolower',$rulePlan['options']['factions']),true),
+    'assignment rule plan did not retain priority or observed faction values');
 $automaticProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
     'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
-    'payload'=>['target'=>$automaticTarget]],$automaticVoice,$now);
+    'payload'=>['target'=>$automaticTarget,'context'=>$automaticContext]],$automaticVoice,$now);
 $automaticProfile=$products->getRevisioned('profile',$automaticProfileId);
 $assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
     &&($automaticProfile['content']['voice']['source']??null)==='morrowind_race_gender_catalog'
     &&($automaticProfile['content']['biography']??null)==='A Bosmer raised beneath the great graht-oaks.'
     &&($automaticProfile['content']['personality']??null)==='Observant and quick-witted.'
     &&str_contains((string)($automaticProfile['content']['oghma_knowledge_tags']??''),'bitter_coast')
-    &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback',
+    &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback'
+    &&($automaticProfile['core_profile_id']??null)===$ruleCoreHigh['core_profile_id'],
     'first-seen NPC profile did not retain its voice, biography template, and deterministic home locality');
+$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'rule_id'=>$highRule['rule_id'],
+    'description'=>'Exact OpenMW actor data retargeted','core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>20,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
+        'factions'=>['Fighters Guild'],'content_files'=>['morrowind.esm']])],$now);
+$existingAutomatic=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$automaticTarget,'context'=>$automaticContext]],$automaticVoice,$now);
+$assert($existingAutomatic===$automaticProfileId
+    &&($products->getRevisioned('profile',$existingAutomatic)['core_profile_id']??null)===$ruleCoreHigh['core_profile_id'],
+    'editing a rule reassigned an existing NPC profile');
+$tieTarget=$automaticTarget;$tieTarget['record_id']='rule_tie_npc';$tieTarget['refnum']['index']=106;$tieTarget['display_name']='Rule Tie NPC';
+$tieCoreOld=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule older tie winner',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$tieCoreNew=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule newer tie loser',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$tieOld=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Older tie',
+    'core_profile_id'=>$tieCoreOld['core_profile_id'],'priority'=>50,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Rule Tie NPC']])],$now);
+$tieNew=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Newer tie',
+    'core_profile_id'=>$tieCoreNew['core_profile_id'],'priority'=>50,'enabled'=>true,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Rule Tie NPC']])],$now);
+$tieProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
+    'installation_id'=>$installationId,'profile_id'=>$session['profile_id'],'playthrough_id'=>$session['playthrough_id'],
+    'payload'=>['target'=>$tieTarget,'context'=>$automaticContext]],$automaticVoice,$now);
+$assert(($products->getRevisioned('profile',$tieProfileId)['core_profile_id']??null)===$tieCoreOld['core_profile_id'],
+    'equal-priority assignment rules did not preserve the older rule');
+$ruleOnlyCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Rule deletion guard',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]]],$now);
+$ruleOnly=$products->saveProfileAssignmentRule(['installation_id'=>$installationId,'description'=>'Rule-only Core Profile use',
+    'core_profile_id'=>$ruleOnlyCore['core_profile_id'],'priority'=>0,'enabled'=>false,
+    'match'=>array_replace($emptyRuleMatch,['names'=>['Never Seen NPC']])],$now);
+try{$products->deleteRevisioned('core_profile',$ruleOnlyCore['core_profile_id'],$now);throw new RuntimeException('rule-owned Core Profile deleted');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='core_profile_in_use','rule target deletion guard failed');}
+$products->deleteProfileAssignmentRule($installationId,$ruleOnly['rule_id']);
+$products->deleteRevisioned('core_profile',$ruleOnlyCore['core_profile_id'],$now);
 $secondPlacement=$automaticTarget;$secondPlacement['refnum']['index']=103;
 $secondPlacement['cell']=['kind'=>'interior','name'=>'Balmora, Guild of Mages'];
 $secondPlacementProfileId=$products->ensureMorrowindActorProfile(['session_id'=>$sessionId,'generation'=>7,
