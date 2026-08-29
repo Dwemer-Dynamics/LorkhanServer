@@ -22,6 +22,28 @@ $oghmaSettings = $installationId === ''
     ? ['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>true,'location_context_enabled'=>true,'topic_count'=>1,'result_limit'=>3,'extractor_enabled'=>false,'extractor_timeout_ms'=>1500]
     : $productRepository->oghmaSettings($installationId);
 
+$globalSettingsRow = null;
+if ($installationId !== '') {
+    foreach ($uiRepository->rows('global_settings') as $row) {
+        if (hash_equals((string) ($row['installation_id'] ?? ''), $installationId)) { $globalSettingsRow = $row; break; }
+    }
+}
+$settingsConfigurationId = (string) ($globalSettingsRow['configuration_id'] ?? $stored['configuration_id'] ?? '');
+$settingsRevision = (int) ($globalSettingsRow['current_revision'] ?? $stored['current_revision'] ?? 0);
+$settingsSavedAt = trim((string) ($globalSettingsRow['created_at'] ?? ''));
+$revisionHistory = is_array($globalSettingsRow['revisions'] ?? null) ? $globalSettingsRow['revisions'] : [];
+$hasStoredSettings = $settingsConfigurationId !== '' && $settingsRevision > 0;
+$earlierRevisions = array_values(array_filter(
+    $revisionHistory,
+    static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
+));
+$portableScopeNote = 'A portable file and a restore both cover the typed Global Settings document only. Neither carries or changes installation identity, revision history, Core Profile or NPC overrides, connector routing, API keys, Oghma catalog and access settings, Auto Lock Profile, or NPC assignments. Local OpenMW HUD, transcript, and TTS preferences stay client-local even though compatibility fields exist in the strict document.';
+$statusMessages = [
+    'saved' => 'Global settings saved to the database.',
+    'imported' => 'Preset imported as a new Global Settings revision.',
+    'rolled-back' => 'Earlier revision restored as a new Global Settings revision.',
+];
+
 $sections = [
     'prompt-rechat' => [
         'Prompt & Rechat' => [
@@ -105,8 +127,87 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         </div>
     </header>
 
-    <?php if (isset($_GET['status'])): ?><div class="result-ok">Global settings saved to the database.</div><?php endif; ?>
+    <?php if (isset($_GET['status'])): $statusKey = is_string($_GET['status']) ? $_GET['status'] : ''; ?><div class="result-ok" role="status"><?php echo almsivi_ui_h($statusMessages[$statusKey] ?? $statusMessages['saved']); ?></div><?php endif; ?>
     <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo almsivi_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
+
+    <?php if ($installations !== []): ?>
+    <section class="gs-portability" aria-labelledby="gs-portability-title">
+        <div class="gs-portability-head">
+            <h2 class="gs-portability-title" id="gs-portability-title">Portable Global Settings</h2>
+            <?php if ($hasStoredSettings): ?>
+            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo almsivi_ui_h($settingsSavedAt); ?><?php endif; ?></span>
+            <?php else: ?>
+            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
+            <?php endif; ?>
+            <div class="gs-portability-actions">
+                <?php if ($hasStoredSettings): ?>
+                <a class="btn-action-blue" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/global-settings/' . $settingsConfigurationId . '.json'); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.globals.export')['description']); ?>">Export Settings</a>
+                <?php endif; ?>
+            </div>
+        </div>
+        <p class="gs-portability-note" id="gs-portability-scope"><?php echo almsivi_ui_h($portableScopeNote); ?></p>
+
+        <details class="gs-disclosure">
+            <summary>Import a settings preset</summary>
+            <form class="gs-disclosure-body" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/global-settings-import">
+                <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <div class="gs-field">
+                    <label for="gs-preset-file">Preset file</label>
+                    <input id="gs-preset-file" type="file" accept="application/json,.json" data-json-import-target="gs-preset-json" aria-describedby="gs-import-help gs-portability-scope">
+                </div>
+                <div class="gs-field">
+                    <label for="gs-preset-json">Preset JSON</label>
+                    <textarea id="gs-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="gs-import-help gs-portability-scope"></textarea>
+                </div>
+                <p class="gs-help" id="gs-import-help">Choosing a file fills the box above; the browser accepts JSON files up to 1 MiB. Pasting the document instead works the same way. Importing saves a new Global Settings revision for the selected installation and replaces every value in the typed document, so review the file before importing.</p>
+                <div class="gs-actions-row"><button type="submit" class="btn-action-blue" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.globals.import')['description']); ?>">Import Preset</button></div>
+            </form>
+        </details>
+
+        <details class="gs-disclosure">
+            <summary>Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></summary>
+            <div class="gs-disclosure-body">
+                <?php if (!$hasStoredSettings): ?>
+                <p class="gs-help">No Global Settings revision is saved for this installation yet. Save All creates the first revision, and history and Export become available after that.</p>
+                <?php else: ?>
+                <ul class="gs-revision-list">
+                    <?php foreach ($revisionHistory as $revision): if (!is_array($revision)) continue; $revisionNumber = (int) ($revision['revision'] ?? 0); ?>
+                    <li>
+                        <span class="gs-revision-no">Revision <?php echo $revisionNumber; ?></span>
+                        <?php if ($revisionNumber === $settingsRevision): ?><span class="gs-current-tag">Current</span><?php endif; ?>
+                        <span class="gs-revision-reason"><?php echo almsivi_ui_h(trim((string) ($revision['reason'] ?? '')) !== '' ? (string) $revision['reason'] : 'No revision note'); ?></span>
+                        <span class="gs-revision-time"><?php echo almsivi_ui_h((string) ($revision['created_at'] ?? '')); ?></span>
+                    </li>
+                    <?php endforeach; ?>
+                    <?php if ($revisionHistory === []): ?><li><span class="gs-revision-no">Revision <?php echo $settingsRevision; ?></span><span class="gs-current-tag">Current</span><span class="gs-revision-reason">No revision history is recorded for this document.</span></li><?php endif; ?>
+                </ul>
+                <?php if ($earlierRevisions === []): ?>
+                <p class="gs-help">Revision <?php echo $settingsRevision; ?> is the only saved revision, so there is nothing earlier to restore.</p>
+                <?php else: ?>
+                <form class="gs-rollback-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/global-settings-rollback">
+                    <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                    <input type="hidden" name="configuration_id" value="<?php echo almsivi_ui_h($settingsConfigurationId); ?>">
+                    <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                    <div class="gs-field">
+                        <label for="gs-rollback-revision">Restore revision</label>
+                        <select id="gs-rollback-revision" name="revision" aria-describedby="gs-rollback-help gs-portability-scope">
+                            <?php foreach ($earlierRevisions as $revision): $revisionNumber = (int) $revision['revision']; ?>
+                            <option value="<?php echo $revisionNumber; ?>">Revision <?php echo $revisionNumber; ?><?php $reason = trim((string) ($revision['reason'] ?? '')); if ($reason !== ''): ?> &mdash; <?php echo almsivi_ui_h($reason); ?><?php endif; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <p class="gs-help" id="gs-rollback-help">Only revisions earlier than the current one can be restored. Restoring copies that document into a new revision on top of revision <?php echo $settingsRevision; ?>; nothing is deleted and no earlier revision is removed from this list.</p>
+                    <div class="gs-actions-row"><button type="submit" class="btn-action-blue" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.globals.revision-history')['description']); ?>">Restore Revision</button></div>
+                </form>
+                <?php endif; ?>
+                <?php endif; ?>
+            </div>
+        </details>
+    </section>
+    <?php endif; ?>
 
     <nav class="settings-tabs" role="tablist" aria-label="Global settings categories">
         <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge'] as $tabId => $tabLabel): ?>
@@ -167,4 +268,5 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/global-settings.js?v=<?php echo almsivi_ui_h((string) filemtime(__DIR__ . '/js/global-settings.js')); ?>"></script>
+<?php if ($installations !== []): ?><script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

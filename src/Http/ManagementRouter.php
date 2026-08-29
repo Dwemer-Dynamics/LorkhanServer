@@ -78,6 +78,7 @@ final class ManagementRouter
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
@@ -259,6 +260,8 @@ final class ManagementRouter
             'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
+            'global-settings-import'=>$this->importGlobalSettings($v,$scope),
+            'global-settings-rollback'=>$this->rollbackGlobalSettings($v,$scope),
             'memory-policy'=>$this->saveMemoryPolicy($v,$scope),
             'memory-summarize'=>$this->requestMemorySummary($v,$scope),
             'memory-embedding-policy'=>$this->saveMemoryEmbeddingPolicy($v,$scope),
@@ -319,6 +322,8 @@ final class ManagementRouter
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
+        if(in_array($domain,['global-settings-import','global-settings-rollback'],true))return$this->redirect(
+            $this->globalSettingsPageLocation($v,$domain==='global-settings-import'?'imported':'rolled-back'));
         if(in_array($domain,['memory-policy','memory-summarize'],true)){
             $query=['status'=>$domain==='memory-policy'?'saved':'summary-requested',
                 'policy_installation_id'=>$scope['installation_id']];
@@ -507,6 +512,14 @@ final class ManagementRouter
         return$this->uiPath('descriptions').'?'.http_build_query($query);
     }
 
+    /** Return to the selected Global Settings document without nesting the configuration hub inside its iframe. */
+    private function globalSettingsPageLocation(array $values,string $status):string
+    {
+        $query=['installation_id'=>$this->need($values,'installation_id'),'status'=>$status];
+        if(($values['embed']??null)==='1')$query['embed']='1';
+        return$this->webRoot().'/ui/global_settings.php?'.http_build_query($query);
+    }
+
     private function authenticatedSession(Request $r):?string{$t=BrowserSession::parse($r->header('Cookie'));return$t!==null&&$this->management->validate($t)?$t:null;}
     /** Start a local browser session transparently so the UI stays open while form writes remain CSRF-protected. */
     private function openBrowserSession(string $target):Response{$c=$this->management->createSession($this->sessionTtl);return$this->redirect($target,['Set-Cookie'=>[BrowserSession::cookie($c['session'],$this->sessionTtl,$this->webRoot()),BrowserSession::csrfCookie($c['csrf'],$this->sessionTtl,$this->webRoot())],'X-CSRF-Token'=>$c['csrf']]);}
@@ -682,6 +695,56 @@ final class ManagementRouter
             'name'=>$name,'default_npc'=>false,'slot'=>null,
             'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
         ]);
+    }
+
+    /** Download one strict Global Settings revision without installation ownership or audit history. */
+    private function exportGlobalSettings(string $configurationId):Response
+    {
+        $this->uuid($configurationId,'configuration_id');
+        if($this->repository->resourceKind($configurationId)!=='global_settings')throw new RuntimeException('not_found');
+        $row=$this->repository->getRevisioned('global_settings',$configurationId);
+        $settings=EffectiveSettingsResolver::validateGlobalSettings(is_array($row['content']??null)?$row['content']:[]);
+        if($this->containsSecretKey($settings))throw new RuntimeException('global_settings_export_rejected');
+        $document=['schema'=>'almsivi.global-settings-preset.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'settings'=>$settings];
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-global-settings.json"',
+                'X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Apply one ownership-free Global Settings preset as a new revision of the selected installation singleton. */
+    private function importGlobalSettings(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['exported_at','name','schema','settings']
+            ||($document['schema']??null)!=='almsivi.global-settings-preset.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException('invalid_global_settings_preset');
+        $name=trim((string)($document['name']??''));
+        if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings_preset');
+        $settings=EffectiveSettingsResolver::validateGlobalSettings($document['settings']);
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $existing=$this->repository->globalSettingsForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('global_settings',[
+            'installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings,
+            'change_reason'=>'imported portable Global Settings',
+        ]);
+        return$this->service->revise('global_settings',(string)$existing['configuration_id'],$settings,
+            'imported portable Global Settings');
+    }
+
+    /** Restore an earlier Global Settings document only inside its owning installation. */
+    private function rollbackGlobalSettings(array $values,array $scope):array
+    {
+        $configurationId=$this->need($values,'configuration_id');$this->uuid($configurationId,'configuration_id');
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $existing=$this->repository->globalSettingsForInstallation($installation);
+        $revision=filter_var($values['revision']??null,FILTER_VALIDATE_INT);
+        if($existing===null||!hash_equals((string)$existing['configuration_id'],$configurationId)
+            ||$revision===false||$revision<1||$revision>=(int)$existing['current_revision'])
+            throw new InvalidArgumentException('invalid_global_settings_revision');
+        return$this->service->rollback('global_settings',$configurationId,(int)$revision,'management Global Settings restore');
     }
 
     /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */

@@ -169,6 +169,8 @@ player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); asse
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
+global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
+assert 'data-json-import-target="gs-preset-json"' in text and 'typed Global Settings document only' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
 assert global_settings_form['fields'].get('oghma_enabled')=='1' and 'oghma_extractor_enabled' not in global_settings_form['fields'] and global_settings_form['fields'].get('oghma_topic_count')=='1' and global_settings_form['fields'].get('oghma_result_limit')=='3' and global_settings_form['fields'].get('oghma_extractor_timeout_ms')=='1500',global_settings_form['fields']
 assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
@@ -389,6 +391,31 @@ r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert
 globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
 assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" aria-label="Rechat"' in body and 'name="rechat" value="1" disabled' not in body and 'name="auto_lock_profile" value="1" checked' in body
 assert all('<h2>'+section+'</h2>' in body for section in ['Memory','Misc','Quests','Translation']) and all(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','translation_provider']) and 'Background Life Trigger Time' not in body
+global_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
+global_export_match=re.search(r'/manage/exports/global-settings/([0-9a-f-]{36})\.json',body); assert global_export_match,body
+global_configuration_id=global_export_match.group(1)
+global_preset_response=request('/ALMSIVIserver/manage/exports/global-settings/'+global_configuration_id+'.json')
+global_preset=json.loads(global_preset_response.read().decode())
+assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','name','schema','settings']
+assert global_preset['schema']=='almsivi.global-settings-preset.v1' and global_preset['settings']['schema']=='almsivi.client-settings.v1'
+assert global_preset['settings']['memory']['knowledge_limit']==6 and not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','oghma','auto_lock_profile','npc_assignments'])
+invalid_global_preset=dict(global_preset,unexpected='rejected')
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_global_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
+secret_global_preset=dict(global_preset,settings=dict(global_preset['settings'],api_key='never'))
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_global_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
+global_preset['settings']['memory']['knowledge_limit']=9
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(global_preset))); imported_page,imported_body=parse(r)
+assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit" value="9"' in imported_body,(r.status,r.geturl(),imported_body)
+assert 'name="auto_lock_profile" value="1" checked' in imported_body and 'name="oghma_result_limit" value="3"' in imported_body
+global_rollback=next(f for f in imported_page.forms if f['action'].endswith('/forms/global-settings-rollback'))
+assert global_rollback['fields']['configuration_id']==global_configuration_id and int(global_rollback['fields']['revision'])>=1
+r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf)); rolled_page,rolled_body=parse(r)
+assert r.status==200 and 'status=rolled-back' in r.geturl() and 'name="knowledge_limit" value="6"' in rolled_body,(r.status,r.geturl(),rolled_body)
+assert 'Earlier revision restored as a new Global Settings revision.' in rolled_body
+r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf,configuration_id=str(uuid.uuid4()))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.status,invalid_body)
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex

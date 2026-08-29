@@ -202,6 +202,13 @@ same-installation cloning; imports still pass normal prompt validation and becom
 Core Profile settings presets use `almsivi.core-profile-settings.v1` and carry only a name plus the
 validated `settings_overrides` tree. Import creates a new unassigned, non-default Core Profile with no
 slot, prompt text, connector routing, identifiers, revision history, or NPC assignments.
+Global Settings presets use `almsivi.global-settings-preset.v1` and carry one strict
+`almsivi.client-settings.v1` document plus a display name and export timestamp. Import applies that
+document as a new revision of the selected installation's singleton Global Settings resource. The
+portable file excludes installation ownership, revision history, Core/NPC overrides, connector routing,
+API keys, Oghma catalog/access settings, Auto Lock Profile, and NPC assignments. Restoring an earlier
+Global Settings revision also creates a new revision; local OpenMW HUD, transcript, and TTS preferences
+remain client-owned even though the strict compatibility document retains their fields.
 Action Editor exposes labelled policy enable, maximum-tier, and per-action permission controls over the
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.
