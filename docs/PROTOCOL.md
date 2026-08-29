@@ -89,6 +89,8 @@ already present in the turn and use `active`, `busy`, `sleeping`, `unconscious`,
 server requires fresh proof for the previous speaker, excludes missing/busy/unconscious/inactive
 candidates, allows a sleeping actor only when directly addressed, and rechecks the selected NPC's
 effective `behavior.rechat` setting. Omitting the list preserves the existing client contract.
+Close mode rechat stays inside the submitted turn audience, names that bounded audience in the
+current-turn prompt, and preserves it on every reply. Whisper never admits a rechat continuation.
 
 ## Actions
 

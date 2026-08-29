@@ -734,6 +734,27 @@ final class PromptAssembler
 
     private function currentTurnMessage(array $turn, string $actorName, string $playerName): string
     {
+        $mode = $turn['payload']['context']['dialogueMode'] ?? null;
+        $closeCue = '';
+        if ($mode === 'Close') {
+            $audience = $turn['payload']['audience'] ?? [];
+            $audience = is_array($audience) && array_is_list($audience) ? $audience : [];
+            $closeActors = [];
+            foreach (array_merge(
+                [$turn['payload']['speaker'] ?? null, $turn['payload']['context']['rechat']['speaker'] ?? null],
+                $audience,
+                [$turn['payload']['target'] ?? null],
+            ) as $candidate) {
+                if (!is_array($candidate) || array_is_list($candidate)) continue;
+                foreach ($closeActors as $existing) if ($this->sameActor($candidate, $existing)) continue 2;
+                $closeActors[] = $candidate;
+            }
+            $names = array_map(fn(array $identity): string => $this->truncateUtf8(
+                $this->identityName($identity, 'Unknown'), 128,
+            ), $closeActors);
+            $closeCue = "\n\nClose mode audience: " . implode(', ', $names)
+                . '. Only these actors can hear or take part. Do not involve anyone outside this audience.';
+        }
         $rechat = $turn['payload']['context']['rechat'] ?? null;
         if (is_array($rechat) && !array_is_list($rechat)) {
             $previous = $this->identityName($rechat['speaker'] ?? null, $playerName);
@@ -753,12 +774,13 @@ final class PromptAssembler
             $closing = ($rechat['is_final_round'] ?? false) === true
                 ? "\n\n[This is your final response in this exchange. Conclude your current thought naturally — you are not leaving, just finishing what you were saying for now.]"
                 : '';
-            return $cue . "\n\n" . $listener . $closing;
+            return $cue . "\n\n" . $listener . $closing . $closeCue;
         }
         $text = trim((string) ($turn['payload']['input']['text'] ?? ''));
         if ($text === '') throw new InvalidArgumentException('invalid_turn_input');
         $speaker = $playerName;
-        return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}.";
+        return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}."
+            . $closeCue;
     }
 
     private function ignoredHistoryText(string $text): bool

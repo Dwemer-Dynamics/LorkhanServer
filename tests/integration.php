@@ -1576,6 +1576,7 @@ $rechatTurn['payload']['ui_source']='almsivi_rechat';
 $rechatTurn['payload']['input']['text']='Please follow me again.';
 $rechatTurn['payload']['recent_action_results']=[];
 $rechatTurn['payload']['audience']=[$dialogueEvent['payload']['speaker'],$secondaryTarget];
+$rechatTurn['payload']['context']['dialogueMode']='Close';
 $rechatTurn['payload']['context']['rechat']=['speaker'=>$dialogueEvent['payload']['speaker'],
     'listener_hint'=>$turn['payload']['speaker'],'rechat_target_hint'=>$secondaryTarget,
     'origin_line'=>$turn['payload']['input']['text'],'rechat_depth'=>1,'chain_id'=>$rechatChainId,
@@ -1680,6 +1681,9 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
     &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Close mode audience:')
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$secondaryTarget['display_name'])
+    &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$speakerIdentity['display_name'])
     &&!str_contains($rechatConversation,'Please follow me.')
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
