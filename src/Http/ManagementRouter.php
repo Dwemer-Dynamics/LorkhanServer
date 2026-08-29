@@ -9,6 +9,7 @@ use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\NeverCancelledToken;
+use ALMSIVIserver\Application\PlayerMoodPolicy;
 use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
@@ -632,12 +633,19 @@ final class ManagementRouter
         return$this->service->revise($kind,$this->need($values,'configuration_id'),$content,$this->need($values,'change_reason'));
     }
 
-    /** Store the selected presentation mode with the revisioned prompt document. */
+    /** Store labelled format and player-mood controls with the revisioned prompt document. */
     private function promptFormContent(array $values,array $content):array
     {
         $format=$values['prompt_format']??($content['format']??'xml');
         if(!is_string($format)||!in_array($format,['xml','markdown'],true))throw new InvalidArgumentException('invalid_prompt_format');
         $content['format']=$format;
+        $defaults=PlayerMoodPolicy::defaultTemplates();$current=$content['player_mood_prompts']??$defaults;
+        if(!is_array($current)||array_is_list($current))$current=$defaults;
+        $hasMoodFields=false;$templates=[];
+        foreach($defaults as$key=>$default){$field='player_mood_prompt_'.$key;
+            if(array_key_exists($field,$values))$hasMoodFields=true;
+            $templates[$key]=array_key_exists($field,$values)?(string)$values[$field]:(string)($current[$key]??$default);}
+        if($hasMoodFields)$content['player_mood_prompts']=PlayerMoodPolicy::validateTemplates($templates);
         return$content;
     }
 

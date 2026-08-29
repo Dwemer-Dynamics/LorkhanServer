@@ -382,11 +382,19 @@ final class EventLogRepository
 
     /** Project only roleplay-relevant typed source records into the CHIM event log. */
     public function projectSource(string $sourceId, string $installationId, ?string $sessionId, string $kind,
-        string $occurredAt, ?string $requestId, ?string $turnId, ?string $actionId, array $payload): void
+        string $occurredAt, ?string $requestId, ?string $turnId, ?string $actionId, array $payload,
+        array $projectionContext = []): void
     {
         if ($sessionId === null) return;
         $scope = $this->scopeForSession($sessionId);
         $body = is_array($payload['payload'] ?? null) ? $payload['payload'] : $payload;
+        $moodCue = $projectionContext['player_mood_cue'] ?? null;
+        if (($kind === 'turn.requested' || $kind === 'rechat') && is_string($moodCue)
+            && mb_check_encoding($moodCue, 'UTF-8') && mb_strlen($moodCue, 'UTF-8') <= 1024
+            && !str_contains($moodCue, "\n") && !str_contains($moodCue, "\r") && !str_contains($moodCue, "\0")
+            && trim($moodCue) !== '') {
+            $body['input']['resolved_mood_cue'] = trim($moodCue);
+        }
         $speaker = $this->object($body['speaker'] ?? []);
         $target = $this->object($body['target'] ?? []);
         $audience = $this->list($body['audience'] ?? []);
@@ -402,7 +410,9 @@ final class EventLogRepository
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;
             $type = $kind === 'rechat' ? 'rechat' : 'inputtext';
-            $projectedText=PlayerMoodPolicy::decorate($text,$input['mood']??null);
+            $projectedText=isset($input['resolved_mood_cue'])
+                ?PlayerMoodPolicy::decorateWithCue($text,$input['resolved_mood_cue'])
+                :PlayerMoodPolicy::decorate($text,$input['mood']??null);
             $this->insert($common + ['type'=>$type,'data'=>$this->displayName($speaker,'Player').': '.$projectedText,
                 'projection_kind'=>'turn','projection_key'=>'turn:'.($turnId ?? $sourceId),'delivery_state'=>null,'utterance_id'=>null]);
             return;

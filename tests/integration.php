@@ -451,10 +451,17 @@ $wrongNarrator['selection_id']=$actorProfile['profile_id'];
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
 $assert($status===422,'in-game narrator generation accepted a non-narrator profile');
 
+$turnMoodTemplates=\ALMSIVIserver\Application\PlayerMoodPolicy::defaultTemplates();
+$turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
+$turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
+    'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
+$turnProfileContent=$actorProfile['content'];$turnProfileContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$turnProfileContent,'route integration mood prompt',$now);
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $turn['payload']['target']=$controlsQuery['target'];
 $turn['payload']['input']['text'] = 'Please follow me.';
+$turn['payload']['input']['mood']=['kind'=>'playful'];
 // Turn-advertised capabilities cannot add a capability that was not negotiated; stored session policy is authoritative.
 $turn['runtime']['capabilities'] = ['dialogue.text'];
 [$status] = $call($router, 'POST', $base . '/turns', $jsonAuth, [], $turn);
@@ -464,6 +471,12 @@ $assert($status === 202 && $turnAccepted['event_cursor'] === 1, 'turn acceptance
 $snapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
 $snapshotStatement->execute(['turn'=>$turn['turn_id']]);
 $snapshot=json_decode((string)$snapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$moodProjectionStatement=$db->prepare('SELECT e.data,m.payload,se.payload AS source_payload FROM eventlog e '
+    .'JOIN eventlog_metadata m ON m.rowid=e.rowid JOIN source_events se ON se.source_event_id=m.source_event_id '
+    .'WHERE m.turn_id=:turn AND e.type=\'inputtext\'');
+$moodProjectionStatement->execute(['turn'=>$turn['turn_id']]);$moodProjection=$moodProjectionStatement->fetch();
+$moodProjectionPayload=$moodProjection?json_decode((string)$moodProjection['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$moodSourcePayload=$moodProjection?json_decode((string)$moodProjection['source_payload'],true,64,JSON_THROW_ON_ERROR):[];
 $traceStatement=$db->prepare('SELECT core_profile_id,core_profile_revision,effective_settings_sha256,settings_sources FROM prompt_traces WHERE turn_id=:turn');
 $traceStatement->execute(['turn'=>$turn['turn_id']]);$layerTrace=$traceStatement->fetch();
 $traceSources=$layerTrace?json_decode((string)$layerTrace['settings_sources'],true,64,JSON_THROW_ON_ERROR):[];
@@ -479,7 +492,11 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&str_contains((string)($promptMessages[0]['content']??''),'<character>')
     &&str_contains((string)($promptMessages[0]['content']??''),'<general_instructions>')
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
-    &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me.')
+    &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
+    &&($snapshot['trace']['player_mood_cue']??null)==='(Player answers in a playful voice.)'
+    &&str_contains((string)($moodProjection['data']??''),'(Player answers in a playful voice.)')
+    &&($moodProjectionPayload['input']['resolved_mood_cue']??null)==='(Player answers in a playful voice.)'
+    &&!array_key_exists('resolved_mood_cue',$moodSourcePayload['payload']['input']??[])
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'CORE PROFILE INSTRUCTION SENTINEL')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
     &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
@@ -1095,14 +1112,15 @@ $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_
     ->execute(['id'=>$sharedSource,'installation'=>$installationId,'session'=>$sessionId,'now'=>$memoryNow,
         'turn'=>$sharedTurn,'payload'=>json_encode($sharedPayload,JSON_THROW_ON_ERROR)]);
 (new EventLogRepository($db))->projectSource($sharedSource,$installationId,$sessionId,'turn.requested',$memoryNow,
-    null,$sharedTurn,null,$sharedPayload);
+    null,$sharedTurn,null,$sharedPayload,['player_mood_cue'=>'(RANGROO sounds playful.)']);
 $sharedProjection=$db->prepare('SELECT e.data,m.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
     .'WHERE m.source_event_id=:source AND e.type=\'inputtext\'');
 $sharedProjection->execute(['source'=>$sharedSource]);$sharedProjectionRow=$sharedProjection->fetch();
 $sharedProjectionPayload=$sharedProjectionRow?json_decode((string)$sharedProjectionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
-$assert($sharedProjectionRow&&str_contains((string)$sharedProjectionRow['data'],'(speaks in a playful tone.)')
-    &&($sharedProjectionPayload['input']['text']??null)==='SHARED CONVERSATION SENTINEL',
-    'player mood cue was not projected readably while preserving authored source text');
+$assert($sharedProjectionRow&&str_contains((string)$sharedProjectionRow['data'],'(RANGROO sounds playful.)')
+    &&($sharedProjectionPayload['input']['text']??null)==='SHARED CONVERSATION SENTINEL'
+    &&($sharedProjectionPayload['input']['resolved_mood_cue']??null)==='(RANGROO sounds playful.)',
+    'the accepted player mood cue was not frozen into readable history while preserving authored source text');
 $sharedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
     'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SHARED MEMORY SENTINEL',
     'source_event_id'=>$sharedSource,'provenance'=>['source'=>'turn.requested']]);

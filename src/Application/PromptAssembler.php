@@ -96,8 +96,11 @@ final class PromptAssembler
 
         $actorName = $this->actorName($turn, $profile);
         $playerName = $this->playerName($turn);
-        $final = $this->currentTurnMessage($turn, $actorName, $playerName);
-        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName);
+        $promptContent = is_array($prompt['content'] ?? null) ? $prompt['content'] : [];
+        $moodTemplates = $promptContent['player_mood_prompts'] ?? null;
+        $playerMoodCue = PlayerMoodPolicy::cue($turn['payload']['input']['mood'] ?? null, $moodTemplates, $playerName);
+        $final = $this->currentTurnMessage($turn, $actorName, $playerName, $moodTemplates);
+        $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
         $built = $this->systemPrompt(
@@ -208,6 +211,7 @@ final class PromptAssembler
             'prompt_revision' => $this->requiredRevision($prompt),
             'memory_retrieval' => $memoryRetrieval,
             'knowledge_retrieval' => $selection['knowledge_retrieval'] ?? null,
+            'player_mood_cue' => $playerMoodCue,
             'sources' => $sources,
             'sections' => $sections,
         ];
@@ -336,7 +340,8 @@ final class PromptAssembler
             'conversation_context' => $conversation,
             'audience_speaker_rules' => $this->xmlTag('rules', "Only speak as {$actorName}. Address the most recent speaker and never invent dialogue for {$playerName} or another actor."),
             'negotiated_actions' => $negotiatedActions,
-            'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName)),
+            'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName,
+                is_array($prompt['content'] ?? null) ? ($prompt['content']['player_mood_prompts'] ?? null) : null)),
         ];
         $renderXml = static function(array $bodies):string {
             $xml = '<roleplay_context>';
@@ -712,7 +717,7 @@ final class PromptAssembler
     }
 
     /** @param list<array<string,mixed>> $rows @return list<array{role:string,content:string,_source_id:string,_complete:bool}> */
-    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName): array
+    private function historyMessages(array $rows, array $turn, string $actorName, string $playerName, mixed $moodTemplates): array
     {
         if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
             $latestPlayerInput = null;
@@ -731,7 +736,7 @@ final class PromptAssembler
         foreach ($rows as $row) {
             $id = $this->sourceId('history', $row);
             $content = $row['content'] ?? null;
-            $message = $this->historyMessage($content, $turn, $actorName, $playerName);
+            $message = $this->historyMessage($content, $turn, $actorName, $playerName, $moodTemplates);
             if ($message === null) continue;
             $message['_complete'] = strlen($message['content']) <= $this->maxSourceBytes;
             $message['content'] = $this->truncateUtf8($message['content'], $this->maxSourceBytes);
@@ -759,7 +764,7 @@ final class PromptAssembler
     }
 
     /** @return array{role:string,content:string}|null */
-    private function historyMessage(mixed $content, array $turn, string $actorName, string $playerName): ?array
+    private function historyMessage(mixed $content, array $turn, string $actorName, string $playerName, mixed $moodTemplates): ?array
     {
         if (is_string($content)) {
             $text = trim($content);
@@ -774,7 +779,10 @@ final class PromptAssembler
                 $text = trim((string) ($content['input']['text'] ?? ''));
                 if ($this->ignoredHistoryText($text)) return null;
                 $speaker = $this->identityName($content['speaker'] ?? null, $playerName);
-                $text = PlayerMoodPolicy::decorate($text, $content['input']['mood'] ?? null);
+                $frozenCue = $content['input']['resolved_mood_cue'] ?? null;
+                $text = is_string($frozenCue)
+                    ? PlayerMoodPolicy::decorateWithCue($text, $frozenCue)
+                    : PlayerMoodPolicy::decorate($text, $content['input']['mood'] ?? null, $moodTemplates, $speaker);
                 return ['role' => 'user', 'content' => $speaker . ': ' . $text];
             }
             $details = $content['details'] ?? null;
@@ -814,7 +822,7 @@ final class PromptAssembler
         };
     }
 
-    private function currentTurnMessage(array $turn, string $actorName, string $playerName): string
+    private function currentTurnMessage(array $turn, string $actorName, string $playerName, mixed $moodTemplates): string
     {
         $mode = $turn['payload']['context']['dialogueMode'] ?? null;
         $closeCue = '';
@@ -860,7 +868,7 @@ final class PromptAssembler
         }
         $text = trim((string) ($turn['payload']['input']['text'] ?? ''));
         if ($text === '') throw new InvalidArgumentException('invalid_turn_input');
-        $text = PlayerMoodPolicy::decorate($text, $turn['payload']['input']['mood'] ?? null);
+        $text = PlayerMoodPolicy::decorate($text, $turn['payload']['input']['mood'] ?? null, $moodTemplates, $playerName);
         $speaker = $playerName;
         return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}."
             . $closeCue;

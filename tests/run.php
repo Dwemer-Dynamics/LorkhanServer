@@ -350,6 +350,18 @@ $check(PlayerMoodPolicy::decorate('Come here',$moodTurn['payload']['input']['moo
     ==='Come here (speaks in a playful tone.)'
     &&PlayerMoodPolicy::decorate('Come here',$customMoodTurn['payload']['input']['mood'])
     ==='Come here (speaks with quiet resolve.)','typed player moods resolve to bounded prompt cues');
+$editableMoodPrompts=PlayerMoodPolicy::defaultTemplates();
+$editableMoodPrompts['playful']='({PLAYER_NAME} sounds {MOOD}.)';
+$editableMoodPrompts['custom']='({PLAYER_NAME} speaks {CUSTOM_MOOD}.)';
+$check(PlayerMoodPolicy::cue(['kind'=>'playful'],$editableMoodPrompts,'RANGROO')==='(RANGROO sounds playful.)'
+    &&PlayerMoodPolicy::cue(['kind'=>'custom','custom'=>'with quiet resolve'],$editableMoodPrompts,'RANGROO')
+        ==='(RANGROO speaks with quiet resolve.)',
+    'revision-owned player mood prompts resolve only documented placeholders');
+foreach([array_merge($editableMoodPrompts,['invented'=>'unsafe']),array_merge($editableMoodPrompts,['happy'=>"two\nlines"]),
+    array_merge($editableMoodPrompts,['happy'=>'{UNKNOWN}'])]as$invalidMoodPrompts){
+    try{PlayerMoodPolicy::validateTemplates($invalidMoodPrompts);$check(false,'invalid player mood prompts rejected');}
+    catch(InvalidArgumentException $exception){$check(str_starts_with($exception->getMessage(),'invalid_player_mood_prompt'),'invalid player mood prompts rejected');}
+}
 foreach ([
     ['kind'=>'unknown'],
     ['kind'=>'happy','custom'=>'extra'],
@@ -407,12 +419,15 @@ $check(str_contains((string)$systemMessage['content'],'Curious &amp; wary &lt;Bo
     &&!str_contains((string)$systemMessage['content'],'<name>Nerevarine</name>')
     &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
     'XML escaping, live player identity, and disabled narrator filtering are stable');
-$moodPromptTurn=$promptTurn;$moodPromptTurn['payload']['input']['mood']=['kind'=>'suspicious'];
-$moodPrompt=(new PromptAssembler(4096,1024))->assemble($moodPromptTurn,$promptSelection)['provider_input'];
-$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (speaks in a suspicious tone.)')
+$moodPromptTurn=$promptTurn;$moodPromptTurn['payload']['input']['mood']=['kind'=>'playful'];
+$moodPromptSelection=$promptSelection;$moodPromptSelection['prompt']['content']['player_mood_prompts']=$editableMoodPrompts;
+$moodAssembled=(new PromptAssembler(4096,1024))->assemble($moodPromptTurn,$moodPromptSelection);
+$moodPrompt=$moodAssembled['provider_input'];
+$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (RANGROO sounds playful.)')
     &&($moodPrompt['payload']['input']['text']??null)==='Hello'
-    &&($moodPrompt['payload']['input']['mood']['kind']??null)==='suspicious',
-    'player mood cues decorate the model prompt while authored input stays intact');
+    &&($moodPrompt['payload']['input']['mood']['kind']??null)==='playful'
+    &&($moodAssembled['trace']['player_mood_cue']??null)==='(RANGROO sounds playful.)',
+    'player mood cues decorate the model prompt, freeze the resolved cue, and keep authored input intact');
 $contextTurn=$promptTurn;
 $contextTurn['payload']['context']=[
     'world'=>['cell'=>'Seyda Neen','cell_identity'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],

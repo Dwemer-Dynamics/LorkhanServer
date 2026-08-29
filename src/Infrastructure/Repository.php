@@ -266,8 +266,10 @@ final class Repository
                     ->execute(['session'=>$m['session_id'],'generation'=>$m['generation']]);
             }
             $sourceKind=($m['payload']['ui_source']??null)==='almsivi_rechat'?'rechat':'turn.requested';
+            $projectionContext=['player_mood_cue'=>is_string($promptTrace['player_mood_cue']??null)
+                ?$promptTrace['player_mood_cue']:''];
             $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], $sourceKind, $m['created_at'],
-                $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
+                $m['schema'], $m['request_id'], $m['turn_id'], null, $m, $projectionContext);
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
@@ -1036,14 +1038,16 @@ final class Repository
     }
 
     private function source(string $id, string $installation, ?string $session, ?int $generation, string $kind, string $occurred,
-        string $schema, ?string $request, ?string $turn, ?string $action, array $payload): void
+        string $schema, ?string $request, ?string $turn, ?string $action, array $payload,
+        array $projectionContext = []): void
     {
         $stmt = $this->db->prepare('INSERT INTO source_events (source_event_id, installation_id, session_id, generation, event_kind, occurred_at, '
             . 'schema_name, request_id, turn_id, action_id, payload) VALUES (:id, :installation, :session, :generation, :kind, :occurred, '
             . ':schema, :request, :turn, :action, CAST(:payload AS jsonb))');
         $stmt->execute(['id' => $id, 'installation' => $installation, 'session' => $session, 'generation' => $generation, 'kind' => $kind,
             'occurred' => $occurred, 'schema' => $schema, 'request' => $request, 'turn' => $turn, 'action' => $action, 'payload' => $this->encode($payload)]);
-        $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload);
+        $this->eventLog()->projectSource($id, $installation, $session, $kind, $occurred, $request, $turn, $action, $payload,
+            $projectionContext);
     }
 
     private function eventLog(): EventLogRepository
