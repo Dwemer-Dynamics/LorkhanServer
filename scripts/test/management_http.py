@@ -915,8 +915,31 @@ if create_player is not None:
     player_id=match.group(1)
     edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',personality='Patient',goals='Find Fargoth.',change_reason='HTTP parity test')
+    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',personality='Patient',goals='Find Fargoth.',profile_generation_configuration_id=slot_id,change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
+    edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+    player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))
+    player_preset_response=request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json')
+    player_preset=json.loads(player_preset_response.read().decode())
+    assert player_preset_response.status==200 and sorted(player_preset)==['exported_at','schema','settings']
+    assert player_preset['schema']=='almsivi.player-profile-settings.v1' and player_preset['settings']['personality']=='Patient'
+    assert sorted(player_preset['settings'])==['appearance','biography','goals','notes','personality','speech_style']
+    assert not any(key in player_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing','latest_context'])
+    invalid_player_preset=dict(player_preset,unexpected='rejected')
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_player_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    secret_player_preset=dict(player_preset,settings=dict(player_preset['settings'],api_key='never'))
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_player_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    player_preset['settings']['personality']='Portable and patient'
+    player_preset['settings']['goals']=''
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(player_preset))); imported_body=r.read().decode()
+    assert r.status==200 and 'status=imported' in r.geturl() and 'Portable player settings imported as a new player profile revision.' in imported_body and 'Portable and patient' in imported_body,(r.status,r.geturl(),imported_body)
+    imported_player=json.loads(request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
+    assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient'
+    imported_player_page,_=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+    imported_player_form=next(f for f in imported_player_page.forms if f['action'].endswith('/forms/player-profile-revise'))
+    assert imported_player_form['fields']['profile_generation_configuration_id']==slot_id
     r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':player_id}); assert r.status==200
 else:
     assert any(f['action'].endswith('/forms/player-profile-revise') for f in player.forms),'existing player profile is not editable'
@@ -933,5 +956,28 @@ narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
 generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate')),None)
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
+narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',profile_generation_configuration_id=slot_id,change_reason='HTTP narrator portability route')
+r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
+narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
+generate_narrator=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate'))
+narrator_import=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-settings-import'))
+narrator_id=generate_narrator['fields']['profile_id']
+narrator_preset_response=request('/ALMSIVIserver/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
+narrator_preset=json.loads(narrator_preset_response.read().decode())
+assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
+assert narrator_preset['schema']=='almsivi.narrator-profile-settings.v1' and sorted(narrator_preset['settings'])==['biography','book_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_events','random_events','speech_style','voice','welcome_events']
+assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
+invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_narrator_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+narrator_preset['settings']['personality']='Portable narrator persona'
+narrator_preset['settings']['inline_narration_mode']='Text Only'
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset))); imported_body=r.read().decode()
+assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),imported_body)
+imported_narrator_page,imported_narrator_body=parse(request('/ALMSIVIserver/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
+assert 'Portable narrator settings imported as a new narrator profile revision.' in imported_narrator_body and 'Portable narrator persona' in imported_narrator_body,imported_narrator_body
+imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert '<option selected>Text Only</option>' in imported_narrator_body and imported_narrator_form['fields']['profile_generation_configuration_id']==slot_id,imported_narrator_form['fields']
 r=request('/ALMSIVIserver/manage/login'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 print('browser-like management HTTP forms passed')

@@ -84,7 +84,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </div>
         </div>
 
-        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Player profile saved.</div><?php endif; ?>
+        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Portable player settings imported as a new player profile revision.' : 'Player profile saved.'; ?></div><?php endif; ?>
 
         <?php if ($installations === []): ?>
             <section class="content-section"><div class="no-data">Connect OpenMW once before creating the player profile.</div></section>
@@ -189,6 +189,34 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <?php if ($profile !== null): ?><span class="revision-meta">Revision <?php echo almsivi_ui_h($profile['current_revision']); ?> &middot; <?php echo almsivi_ui_h($profile['input_count']); ?> observed player messages</span><?php endif; ?>
             </form>
 
+            <?php if ($profile !== null): ?>
+                <details class="player-portability">
+                    <summary class="player-portability-summary"><span class="player-portability-summary-icon">&#x25B6;</span><span>Portable Player Settings</span></summary>
+                    <div class="player-portability-body">
+                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, personality, speech style, goals, and notes only.</p>
+                        <div class="player-portability-actions">
+                            <a class="btn-portable" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/player-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.player.export')['description']); ?>">Export Settings</a>
+                        </div>
+                        <form class="player-portability-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/player-profile-settings-import">
+                            <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                            <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                            <div class="field-block">
+                                <label for="player-preset-file">Preset file</label>
+                                <input id="player-preset-file" type="file" accept="application/json,.json" data-json-import-target="player-preset-json" aria-describedby="player-portability-scope player-portability-help">
+                            </div>
+                            <div class="field-block">
+                                <label for="player-preset-json">Preset JSON</label>
+                                <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
+                            </div>
+                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, and playthrough context, or the excluded autochat, TTS, and diary controls.</p>
+                            <div class="player-portability-actions">
+                                <button type="submit" class="btn-portable" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+            <?php endif; ?>
+
             <div class="full-width-section"><h2 class="full-width-title">&#x1F4CA; Player Statistics</h2></div>
             <?php if ($acceptedAt !== ''): ?><p class="context-meta">Latest OpenMW player context accepted <?php echo almsivi_ui_h($acceptedAt); ?></p><?php endif; ?>
 
@@ -237,4 +265,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
+<?php if ($profile !== null): ?><script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

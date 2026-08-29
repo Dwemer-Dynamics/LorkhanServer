@@ -79,6 +79,8 @@ final class ManagementRouter
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
+            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
             if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
@@ -267,10 +269,12 @@ final class ManagementRouter
             'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->profileContent($v)]),
             'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->profileContent($v),$this->need($v,'change_reason')),
+            'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
             'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id')),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]),
             'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
+            'narrator-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'narrator'),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
             'global-settings-import'=>$this->importGlobalSettings($v,$scope),
@@ -355,6 +359,10 @@ final class ManagementRouter
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
             'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
+        if($domain==='player-profile-settings-import')return$this->redirect($this->uiPath('player').'?'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'status'=>'imported']));
+        if($domain==='narrator-profile-settings-import')return$this->redirect($this->uiPath('narrator').'&'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'status'=>'imported']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
@@ -738,6 +746,88 @@ final class ManagementRouter
             'name'=>$name,'default_npc'=>false,'slot'=>null,
             'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
         ]);
+    }
+
+    /** Download the editable, ownership-free portion of the Player or Narrator singleton. */
+    private function exportSpecialProfileSettings(string $profileId,string $kind):Response
+    {
+        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $identity=$row['actor_identity']??[];
+        if(is_string($identity)){
+            try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
+        }
+        if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
+        if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
+        $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
+        $document=['schema'=>'almsivi.'.$kind.'-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
+        if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-'.$kind.'-settings.json"',
+                'X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Merge one strict portable preset into the selected installation singleton as a new revision. */
+    private function importSpecialProfileSettings(array $values,array $scope,string $kind):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        $error='invalid_'.$kind.'_profile_settings_preset';
+        if($keys!==['exported_at','schema','settings']
+            ||($document['schema']??null)!=='almsivi.'.$kind.'-profile-settings.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException($error);
+        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error);
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
+        if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
+        $content=is_array($profile['content']??null)?$profile['content']:[];
+        foreach($settings as$field=>$value){
+            if($field==='voice'){
+                if($value['id']==='')unset($content['voice']);else$content['voice']=$value;
+            }elseif(is_string($value)&&$value==='')unset($content[$field]);else$content[$field]=$value;
+        }
+        return$this->service->revise('profile',(string)$profile['profile_id'],$content,'imported portable '.$kind.' settings');
+    }
+
+    /** Build a complete portable field map so empty values can be cleared during a round trip. */
+    private function portableSpecialProfileSettings(array $content,string $kind):array
+    {
+        if($kind==='player'){
+            $settings=[];foreach(['appearance','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
+        }else{
+            $settings=[];foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
+                $settings[$field]=($content[$field]??false)===true;
+            $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
+            foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
+            $voice=is_array($content['voice']??null)?$content['voice']:[];
+            $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
+        }
+        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export');
+    }
+
+    /** Enforce the exact Player or Narrator preset keys and bounded scalar values. */
+    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error):array
+    {
+        $textFields=$kind==='player'
+            ?['appearance','biography','personality','speech_style','goals','notes']
+            :['prompt_head','core','biography','personality','speech_style','goals','notes'];
+        $expected=$textFields;
+        if($kind==='narrator')$expected=array_merge($expected,
+            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice']);
+        $keys=array_keys($settings);sort($keys);sort($expected);if($keys!==$expected)throw new InvalidArgumentException($error);
+        foreach($textFields as$field){$value=$settings[$field];
+            if(!is_string($value)||strlen($value)>65_536||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException($error);}
+        if($kind==='player')return$settings;
+        foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
+            if(!is_bool($settings[$field]))throw new InvalidArgumentException($error);
+        if(!is_string($settings['inline_narration_mode'])
+            ||!in_array($settings['inline_narration_mode'],['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException($error);
+        $voice=$settings['voice'];$voiceKeys=is_array($voice)?array_keys($voice):[];sort($voiceKeys);
+        if(!is_array($voice)||array_is_list($voice)||$voiceKeys!==['id','language']
+            ||!is_string($voice['id'])||strlen($voice['id'])>512||!mb_check_encoding($voice['id'],'UTF-8')
+            ||!is_string($voice['language'])||$voice['language']===''||strlen($voice['language'])>35||!mb_check_encoding($voice['language'],'UTF-8'))
+            throw new InvalidArgumentException($error);
+        return$settings;
     }
 
     /** Download one strict Global Settings revision without installation ownership or audit history. */
