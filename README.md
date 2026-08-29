@@ -11,7 +11,7 @@ relationships, knowledge, narrative, durable jobs, diagnostics/backups, and the
 CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
 Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
 server credential storage, and mock providers remain available for deterministic tests. Default
-Windows/WSL URL: `http://127.0.0.1:8089/LORKHANserver/ui/home.php`. Apache and PostgreSQL are access-controlled for
+Direct WSL URL: `http://127.0.0.1:8090/LORKHANserver/ui/home.php`. The DwemerDistro Launcher exposes the Windows route on `http://127.0.0.1:7514`. Apache and PostgreSQL are access-controlled for
 the local machine and are not exposed as a public service.
 
 ## Responsibilities

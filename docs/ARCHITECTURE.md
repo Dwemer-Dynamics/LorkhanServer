@@ -3,7 +3,7 @@
 ## System boundary
 
 LORKHANserver is a single-user local-first web application in WSL2. Apache serves the browser UI and
-strict game API on `127.0.0.1:8089`; PHP owns validation/application services; PostgreSQL/pgvector
+strict game API on WSL port `8090`, exposed to Windows through the launcher's `127.0.0.1:7514` loopback proxy; PHP owns validation/application services; PostgreSQL/pgvector
 owns durable state; supervised CLI workers own derived memory/profile/relationship jobs. Provider
 calls are outbound server-side only.
 

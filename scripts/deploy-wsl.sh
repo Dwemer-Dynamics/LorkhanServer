@@ -7,7 +7,7 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 source_root=${1:-}
-http_port=${LORKHAN_HTTP_PORT:-8089}
+http_port=${LORKHAN_HTTP_PORT:-8090}
 if [[ -z ${source_root} || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-wsl.sh <absolute-LORKHANserver-source-path>" >&2
     exit 2
@@ -22,8 +22,8 @@ if [[ ! ${http_port} =~ ^[0-9]+$ ]] || (( http_port < 1024 || http_port > 65535 
     exit 2
 fi
 case " ${http_port} " in
-    ' 8020 '|' 8021 '|' 8022 '|' 8023 '|' 8024 '|' 8082 '|' 8085 '|' 8086 '|' 12346 ')
-        echo "Port ${http_port} is reserved by another Dwemer service. LORKHAN uses dedicated port 8089 by default." >&2
+    ' 8020 '|' 8021 '|' 8022 '|' 8023 '|' 8024 '|' 8082 '|' 8085 '|' 8086 '|' 8089 '|' 12346 ')
+  echo "Port ${http_port} is reserved by another Dwemer service. LORKHAN uses dedicated port 8090 by default." >&2
         exit 2
         ;;
 esac

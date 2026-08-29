@@ -29,7 +29,7 @@ flowchart LR
     L <--> N
   end
   subgraph WSL["WSL2"]
-    A["Apache :8089"] --> H["PHP application"]
+    A["Apache :8090"] --> H["PHP application"]
     H <--> D["PostgreSQL/pgvector"]
     H <--> M["private media"]
     W["systemd workers"] <--> D
@@ -51,7 +51,7 @@ flowchart LR
 1. Install/verify WSL stack and immutable LORKHANserver release.
 2. Create least-privilege database roles, migrate and seed safe defaults/mock providers.
 3. Start supervised workers and verify heartbeat.
-4. Bind Apache loopback port 8089 and prove WSL plus Windows localhost reachability.
+4. Bind Apache port 8090 in WSL and prove Windows reachability through the launcher's loopback port 7514.
 5. Generate pairing token and import native profile snippet.
 6. In browser Quickstart, choose mock or configured providers, create/bind profile/playthrough and
    enable desired action tiers.
