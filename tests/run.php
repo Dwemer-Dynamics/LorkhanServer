@@ -503,6 +503,15 @@ $check(array_column($providerMessages,'role')===array_column($assembled['provide
     'OpenAI-compatible provider sends the frozen split messages with its action contract inside the XML root');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
 $validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello, outlander.']],'action'=>null]);
+$decodeProviderContent=new ReflectionMethod($actionProvider,'decodeStructuredContent');
+$wrappedProviderResult=$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"Wrapped hello."}],"action":{"name":"ai.follow","parameters":{"distance":192}}}]');
+$validateProviderResult->invoke($actionProvider,$wrappedProviderResult);
+$check($wrappedProviderResult['utterances'][0]['text']==='Wrapped hello.'&&($wrappedProviderResult['action']['name']??null)==='ai.follow',
+    'OpenAI-compatible provider unwraps one structured response object from a top-level array');
+try{$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"First"}],"action":null},{"utterances":[{"text":"Second"}],"action":null}]');
+    $check(false,'provider accepted a multi-object top-level response array');
+}catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+    'provider rejects ambiguous multi-object top-level response arrays');}
 try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outlander.'],'action'=>null]);
     $check(false,'provider accepted string utterances outside the typed response contract');
 }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',

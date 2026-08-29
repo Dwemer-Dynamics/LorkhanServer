@@ -117,14 +117,25 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
         foreach ($visible->push('', true) as $text) $onDialogueDelta($text);
+        $result = $this->decodeStructuredContent($content);
+        $this->validateResultShape($result);
+        return $this->normalizeAction($result, $turn);
+    }
+
+    /** Decode the strict response while tolerating one common one-item transport wrapper. */
+    private function decodeStructuredContent(string $content): array
+    {
         try {
             $result = json_decode($content, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             throw new RuntimeException('provider_invalid_output');
         }
+        if (is_array($result) && array_is_list($result) && count($result) === 1
+            && is_array($result[0]) && !array_is_list($result[0])) {
+            $result = $result[0];
+        }
         if (!is_array($result) || array_is_list($result)) throw new RuntimeException('provider_invalid_output');
-        $this->validateResultShape($result);
-        return $this->normalizeAction($result, $turn);
+        return $result;
     }
 
     /** Enforce the typed utterance envelope before a provider attempt can be marked successful. */
