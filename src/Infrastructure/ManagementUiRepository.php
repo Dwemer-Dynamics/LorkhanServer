@@ -231,6 +231,7 @@ SQL);
                 . "GROUP BY trace.prompt_trace_id ORDER BY trace.created_at DESC LIMIT 100",
             'responses' => "SELECT COALESCE(s.speaker,'Unknown') AS speaker,s.speech AS text,m.delivery_state,m.created_at AS emitted_at FROM public.speech s LEFT JOIN almsivi_internal.speech_metadata m ON m.rowid=s.rowid ORDER BY s.rowid DESC LIMIT 100",
             'memory_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
+            'memory_embedding_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_embedding_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
             'memories' => "SELECT metadata.memory_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,metadata.tier,m.message AS content,"
                 . "generated.content AS summary_content,"
                 . "(source.derivation_key IS NOT NULL AND source.tier IN ('mid','long') AND source.deleted_at IS NULL "

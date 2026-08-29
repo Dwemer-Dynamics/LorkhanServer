@@ -258,6 +258,8 @@ final class ManagementRouter
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
             'memory-policy'=>$this->saveMemoryPolicy($v,$scope),
             'memory-summarize'=>$this->requestMemorySummary($v,$scope),
+            'memory-embedding-policy'=>$this->saveMemoryEmbeddingPolicy($v,$scope),
+            'memory-embedding-backfill'=>$this->requestMemoryEmbeddingBackfill($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
             'biography-template-revise'=>$this->repository->saveBiographyTemplate($v),
             'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
@@ -319,6 +321,12 @@ final class ManagementRouter
                 'policy_installation_id'=>$scope['installation_id']];
             if($domain==='memory-summarize'&&($result['state']??'')==='dead')$query['status']='summary-failed';
             return $this->redirect($this->uiPath('memory').'&'.http_build_query($query));
+        }
+        if(in_array($domain,['memory-embedding-policy','memory-embedding-backfill'],true)){
+            $query=['status'=>$domain==='memory-embedding-policy'?'embedding-saved':
+                (($result['queued']??0)>0?'embeddings-queued':'embedding-backfill-empty'),
+                'policy_installation_id'=>$scope['installation_id'],'queued'=>(int)($result['queued']??0)];
+            return$this->redirect($this->uiPath('memory').'&'.http_build_query($query));
         }
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
@@ -860,7 +868,7 @@ final class ManagementRouter
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
-        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy'];
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
                 ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
@@ -877,6 +885,12 @@ final class ManagementRouter
             $provider=$row['content']['provider_configuration_id'];
             if(++$memoryPolicies>1||$row['profile_id']!==null
                 ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
+        }
+        $embeddingPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='memory_embedding_policy')continue;
+            \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+            if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
         }
         if($this->containsSecretKey($document))throw new RuntimeException('backup_integrity_failed');
     }
@@ -987,6 +1001,34 @@ final class ManagementRouter
         if($existing['content']===$content)return$existing;
         return$this->service->revise('memory_policy',$existing['configuration_id'],$content,
             trim((string)($values['change_reason']??'Memory policy update'))?:'Memory policy update');
+    }
+
+    /** Save the opt-in MiniMe policy without contacting its endpoint or scheduling historical work. */
+    private function saveMemoryEmbeddingPolicy(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $timeout=filter_var($values['timeout_ms']??null,FILTER_VALIDATE_INT);
+        if($timeout===false)throw new InvalidArgumentException('invalid_memory_embedding_timeout');
+        $content=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate([
+            'schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,
+            'enabled'=>isset($values['enabled']),'endpoint'=>trim((string)($values['endpoint']??'')),
+            'timeout_ms'=>$timeout,
+        ]);
+        $existing=$this->repository->memoryEmbeddingPolicyForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('memory_embedding_policy',[
+            'installation_id'=>$installation,'name'=>'Semantic memory retrieval','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('memory_embedding_policy',$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'Semantic memory policy update'))?:'Semantic memory policy update');
+    }
+
+    /** Queue one bounded page of missing current memory vectors only after an explicit browser action. */
+    private function requestMemoryEmbeddingBackfill(array $values,array $scope):array
+    {
+        $limit=filter_var($values['limit']??100,FILTER_VALIDATE_INT);
+        if($limit===false||$limit<1||$limit>500)throw new InvalidArgumentException('invalid_memory_embedding_limit');
+        return$this->repository->enqueueMemoryEmbeddings(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$limit);
     }
 
     /** Create or revise the one typed global-settings document owned by an installation. */

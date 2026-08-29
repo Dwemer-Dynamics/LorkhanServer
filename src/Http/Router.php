@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
+use ALMSIVIserver\Application\MemoryEmbeddingPolicy;
+use ALMSIVIserver\Application\MiniMeEmbeddingProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
@@ -169,7 +171,8 @@ final class Router
                         (string)$m['installation_id'],(array)$m['payload']['target'],$resolvedVoice);
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
-                $selection = $this->products->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'),$this->oghmaExtraction($m));
+                $oghmaExtraction=$this->oghmaExtraction($m);$semanticMemory=$this->semanticMemory($m);
+                $selection = $this->products->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
                 if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
@@ -229,6 +232,32 @@ final class Router
         }catch(Throwable){
             try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
             return$result;
+        }
+    }
+
+    /** Add one explicit MiniMe query signal; unavailable service falls back to local deterministic ranking. */
+    private function semanticMemory(array $turn):array
+    {
+        if($this->products===null)return[];
+        $runtime=$this->products->memoryEmbeddingRuntime((string)$turn['installation_id']);
+        if(($runtime['status']??null)!=='ready'||!is_array($runtime['policy']??null))return[];
+        $policy=$runtime['policy'];$content=$policy['content'];$base=[
+            'status'=>'failed','policy_configuration_id'=>$policy['configuration_id'],
+            'policy_revision'=>(int)$policy['current_revision'],'model'=>MemoryEmbeddingPolicy::MODEL,
+        ];
+        $query=MemoryEmbeddingPolicy::queryText($turn);$attempt=Uuid::v4();
+        try{
+            $this->providerAttempts?->start($attempt,'embedding','minime','query_memory',1,
+                $turn['request_id']??null,$turn['turn_id']??null,model:MemoryEmbeddingPolicy::MODEL,
+                configRevision:'r'.(int)$policy['current_revision'],inputBytes:strlen($query),
+                metadata:['policy_configuration_id'=>$policy['configuration_id']]);
+            $provider=new MiniMeEmbeddingProvider($content['endpoint'],$content['timeout_ms']);
+            $embedding=$provider->embed($query,new NeverCancelledToken());
+            $encoded=json_encode($embedding,JSON_THROW_ON_ERROR);$this->providerAttempts?->finish($attempt,'succeeded',strlen($encoded));
+            return array_replace($base,['status'=>'succeeded','embedding'=>$embedding]);
+        }catch(Throwable){
+            try{$this->providerAttempts?->finish($attempt,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+            return$base;
         }
     }
 

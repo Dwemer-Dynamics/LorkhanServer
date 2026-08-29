@@ -14,4 +14,10 @@
 .memory-policy-scope select{flex:1;max-width:420px}
 .memory-model-text p{overflow-wrap:anywhere}
 .memory-summary-request{margin:8px 0}
+.memory-policy-columns{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:12px;align-items:start;margin-bottom:12px;min-width:0}
+.memory-policy-columns>.memory-policy-card{margin-bottom:0;height:100%}
+.memory-embedding-backfill{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:0}
+.memory-policy-card .memory-embedding-backfill input[type=number]{width:96px;flex:none}
+.memory-embedding-backfill .memory-policy-hint{flex:1 0 100%;margin:0}
 @media(max-width:600px){.memory-policy-card .management-form{grid-template-columns:minmax(0,1fr)}.memory-policy-card .management-form>button{grid-column:1}.memory-policy-card .memory-policy-toggle{display:flex;align-items:flex-start}.memory-policy-card .memory-policy-toggle input{flex:none;margin-top:4px}}
+@media(max-width:600px){.memory-policy-columns{grid-template-columns:minmax(0,1fr)}.memory-embedding-backfill{align-items:stretch;flex-direction:column}.memory-policy-card .memory-embedding-backfill input[type=number]{width:100%}.memory-embedding-backfill button{align-self:flex-start}.memory-embedding-backfill .memory-policy-hint{flex:0 0 auto;width:100%}}

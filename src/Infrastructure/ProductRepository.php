@@ -23,8 +23,10 @@ final class ProductRepository
     public function createRevisioned(string $kind, array $input, string $now): array
     {
         return $this->transaction(function () use ($kind, $input, $now): array {
+            if(in_array($kind,['memory_policy','memory_embedding_policy'],true)){
+                if(isset($input['profile_id']))throw new \InvalidArgumentException($kind.'_is_installation_scoped');
+            }
             if($kind==='memory_policy'){
-                if(isset($input['profile_id']))throw new \InvalidArgumentException('memory_policy_is_installation_scoped');
                 (new MemorySummaryRepository($this->db))->assertProvider($input['installation_id'],$input['content']);
             }
             $id = Uuid::v4();
@@ -50,7 +52,8 @@ final class ProductRepository
                 $this->revision('playthrough_revisions', 'playthrough_id', $id, 1, $input['content'], $reason, $now);
             } else {
                 $configKind = match ($kind) {
-                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy' => $kind,
+                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy',
+                    'memory_embedding_policy' => $kind,
                     default => throw new RuntimeException('invalid_resource_kind'),
                 };
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
@@ -957,7 +960,9 @@ final class ProductRepository
         $id=Uuid::v4();
         $this->db->prepare('INSERT INTO memory_records (memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')
             ->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id'],'playthrough'=>$input['playthrough_id'],'tier'=>$input['tier'],'content'=>$input['content'],'terms'=>$this->pgArray($terms),'vector'=>$this->encode($vector),'source'=>$input['source_event_id'] ?? null,'provenance'=>$this->encode($input['provenance']),'occurred'=>$input['occurred_at'] ?? $now,'expires'=>$input['expires_at'] ?? null,'now'=>$now]);
-        return $this->memory($id);
+        $memory=$this->memory($id);
+        (new MemoryEmbeddingRepository($this->db))->enqueue($input['installation_id'],$id,(int)$memory['current_revision']);
+        return$memory;
     }
 
     public function memory(string $id): array
@@ -968,6 +973,21 @@ final class ProductRepository
     public function memorySummaryPolicyForInstallation(string $installation):?array
     {
         return (new MemorySummaryRepository($this->db))->policy($installation);
+    }
+
+    public function memoryEmbeddingPolicyForInstallation(string $installation):?array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->policy($installation);
+    }
+
+    public function memoryEmbeddingRuntime(string $installation):array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->runtime($installation);
+    }
+
+    public function enqueueMemoryEmbeddings(string $installation,int $limit=100):array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->enqueueBatch($installation,$limit);
     }
 
     public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit):array
@@ -991,7 +1011,9 @@ final class ProductRepository
     {
         $this->db->prepare('UPDATE memory_records SET content=:content,lexical_terms=CAST(:terms AS text[]),fake_vector=CAST(:vector AS jsonb),updated_at=:now WHERE memory_id=:id AND deleted_at IS NULL')
             ->execute(['content'=>$content,'terms'=>$this->pgArray($terms),'vector'=>$this->encode($vector),'now'=>$now,'id'=>$id]);
-        return $this->memory($id);
+        $memory=$this->memory($id);
+        (new MemoryEmbeddingRepository($this->db))->enqueue((string)$memory['installation_id'],$id,(int)$memory['current_revision']);
+        return$memory;
     }
 
     public function deleteMemory(string $id,string $now): void {$this->db->prepare('UPDATE memory_records SET deleted_at=:now WHERE memory_id=:id')->execute(['now'=>$now,'id'=>$id]);}
@@ -1013,27 +1035,42 @@ final class ProductRepository
     }
 
     /** Keep manual memories with their NPC profile and require witnessed provenance for derived rows. */
-    private function promptMemoryCandidates(array $turn, array $actorKey, string $activeProfileId, bool $ownsProfile, string $now): array
+    private function promptMemoryCandidates(array $turn,array $actorKey,string $activeProfileId,bool $ownsProfile,
+        string $now,array $semantic=[]):array
     {
         $statement = $this->db->prepare("SELECT m.memory_id AS id,m.profile_id,m.tier,m.content,m.lexical_terms,m.fake_vector,
             m.provenance,m.source_event_id,m.derivation_key,m.occurred_at,m.updated_at,m.current_revision,
             summary.content AS model_summary,summary.provider_configuration_id,summary.provider_revision,summary.input_sha256,
-            summary.policy_configuration_id,summary.policy_revision
+            summary.policy_configuration_id,summary.policy_revision,embedding.embedding AS semantic_embedding,
+            embedding.model AS semantic_model
             FROM memory_records m LEFT JOIN memory_model_summaries summary
                 ON summary.memory_id=m.memory_id AND summary.memory_revision=m.current_revision
                 AND EXISTS(SELECT 1 FROM configuration_sets c JOIN configuration_revisions r
                     ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.configuration_id=summary.policy_configuration_id AND c.installation_id=m.installation_id
                         AND c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->'enabled'='true'::jsonb)
+            LEFT JOIN memory_embeddings embedding ON embedding.memory_id=m.memory_id
+                AND embedding.memory_revision=m.current_revision
+                AND embedding.policy_configuration_id=CAST(:embedding_policy AS uuid)
+                AND embedding.policy_revision=:embedding_policy_revision
             WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough
                 AND m.profile_id IN (:session_profile,:actor_profile) AND m.deleted_at IS NULL
                 AND (m.expires_at IS NULL OR m.expires_at>:now) ORDER BY m.occurred_at DESC,m.memory_id LIMIT 500");
         $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
-            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now]);
+            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now,
+            'embedding_policy'=>is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+                &&is_string($semantic['policy_configuration_id']??null)
+                ?$semantic['policy_configuration_id']:'00000000-0000-0000-0000-000000000000',
+            'embedding_policy_revision'=>is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+                &&is_int($semantic['policy_revision']??null)?$semantic['policy_revision']:0]);
         $candidates = [];
         $sourceIds = [];
         foreach ($statement->fetchAll() as $row) {
             $memory = $this->decodeMemory($row);
+            if(is_string($row['semantic_embedding']??null)){
+                $memory['_semantic_embedding']=$this->json($row['semantic_embedding']);
+                $memory['_semantic_model']=(string)$row['semantic_model'];
+            }
             if(is_string($row['model_summary'])){
                 $memory['content']=$row['model_summary'];
                 $memory['_model_summary']=['memory_revision'=>(int)$row['current_revision'],
@@ -1480,9 +1517,11 @@ SQL);
                         'profile'=>$row['profile_id'],'kind'=>$row['kind'],'name'=>$row['name'],'now'=>$now]);}
                 $this->revision('configuration_revisions','configuration_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['configurations']++;}
 
-            foreach($document['data']['configurations']as$row)if($row['kind']==='memory_policy'){
-                if($row['profile_id']!==null)throw new \InvalidArgumentException('memory_policy_is_installation_scoped');
-                (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
+            foreach($document['data']['configurations']as$row)if(in_array($row['kind'],['memory_policy','memory_embedding_policy'],true)){
+                if($row['profile_id']!==null)throw new \InvalidArgumentException($row['kind'].'_is_installation_scoped');
+                if($row['kind']==='memory_policy')
+                    (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
+                else \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
             }
             $this->db->prepare('DELETE FROM installation_provider_selections WHERE installation_id=:installation')
                 ->execute(['installation'=>$installation]);
@@ -1680,7 +1719,7 @@ SQL);
             .'WHERE effective_rank=1 ORDER BY created_at DESC,document_id';
     }
 
-    public function promptContext(array $turn,string $now,array $oghmaExtraction=[]): array
+    public function promptContext(array $turn,string $now,array $oghmaExtraction=[],array $semanticMemory=[]): array
     {
         $scope = ['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
         $selectedProfileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
@@ -1742,7 +1781,7 @@ SQL);
         $relationships=$ownsProfile?$this->relationships($relationshipScope):[];
         usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
         $memorySelection=$this->selectPromptMemories($turn,$scope,
-            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now),$now);
+            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory);
         $memories=$memorySelection['rows'];
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $historyStatement=$this->db->prepare(<<<'SQL'
@@ -1917,19 +1956,16 @@ SQL);
     }
 
     /** Rank turn memories deterministically and persist why each prompt source was selected. */
-    private function selectPromptMemories(array $turn,array $scope,array $memories,string $now):array
+    private function selectPromptMemories(array $turn,array $scope,array $memories,string $now,array $semantic=[]):array
     {
-        $query=trim((string)($turn['payload']['input']['text']??''));
-        if($query===''){
-            $target=$turn['payload']['target']??[];
-            $name=is_array($target)?trim((string)($target['display_name']??$target['record_id']??'')):'';
-            $query='Continue the current conversation'.($name===''?'':' with '.$name);
-        }
-        $query=mb_strcut($query,0,4096,'UTF-8');
+        $query=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::queryText($turn);
+        $queryEmbedding=is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+            ?$semantic['embedding']:null;
         foreach($memories as&$memory){
-            $base=DeterministicRetrieval::score($query,$memory['lexical_terms'],$memory['fake_vector']);
+            $score=DeterministicRetrieval::promptScore($query,$memory['lexical_terms'],$memory['fake_vector'],
+                $queryEmbedding,is_array($memory['_semantic_embedding']??null)?$memory['_semantic_embedding']:null);
             $tierBoost=match($memory['tier']??null){'recent'=>0.15,'mid'=>0.08,'long'=>0.03,default=>0.0};
-            $memory['_prompt_score']=$base+$tierBoost;
+            $memory['_prompt_score']=$score['score']+$tierBoost;$memory['_retrieval_score']=$score;
         }
         unset($memory);
         usort($memories,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])
@@ -1939,12 +1975,21 @@ SQL);
         $scores=[];$reasons=[];
         foreach($selected as$rank=>&$memory){
             $scores[$memory['id']]=$memory['_prompt_score'];
-            $reasons[$memory['id']]=['rank'=>$rank+1,'tier'=>$memory['tier'],'reason'=>'deterministic relevance plus tier recency'];
-            unset($memory['_prompt_score']);
+            $signal=$memory['_retrieval_score'];$reasons[$memory['id']]=['rank'=>$rank+1,'tier'=>$memory['tier'],
+                'lexical_score'=>$signal['lexical_score'],'semantic_score'=>$signal['semantic_score'],
+                'semantic_source'=>$signal['source'],'reason'=>'bounded relevance plus tier recency'];
+            unset($memory['_prompt_score'],$memory['_retrieval_score'],$memory['_semantic_embedding'],$memory['_semantic_model']);
         }
         unset($memory);
+        foreach($memories as&$memory)unset($memory['_retrieval_score'],$memory['_semantic_embedding'],$memory['_semantic_model']);
+        unset($memory);
+        if(($semantic['status']??'unconfigured')!=='unconfigured')$reasons['_semantic']=[
+            'status'=>(string)$semantic['status'],'policy_configuration_id'=>$semantic['policy_configuration_id']??null,
+            'policy_revision'=>$semantic['policy_revision']??null,'model'=>$semantic['model']??null];
         return['rows'=>$selected,'candidates'=>$memories,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
-            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1',
+            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>$queryEmbedding===null
+                ?'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1'
+                :'prompt-memory-lexical-0.75+minime-0.25+deterministic-fallback+tier-v1',
             'created_at'=>$now,'prompt_section'=>'memory_context','scope'=>$scope]];
     }
 
@@ -2207,7 +2252,7 @@ SQL);
             ->execute(['installation'=>$row['installation_id'],'key'=>$key,'default'=>$default,'custom'=>$custom,
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}

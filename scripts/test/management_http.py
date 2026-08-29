@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, html.parser, http.cookiejar, http.server, io, json, re, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
+import atexit, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 base=sys.argv[1].rstrip('/')
 provider_host=sys.argv[2] if len(sys.argv)>2 else '127.0.0.1'
@@ -9,12 +9,17 @@ opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 class VoiceProvider(http.server.BaseHTTPRequestHandler):
     uploads=[]
     llm_requests=[]
+    embedding_requests=[]
     def do_GET(self):
         if self.path.startswith('/speakers_list'):
             payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
     def do_POST(self):
+        if self.path=='/embed':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.embedding_requests.append(body)
+            payload=json.dumps({'embedding':[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]}).encode()
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path=='/llm/chat/completions':
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.llm_requests.append((dict(self.headers),body))
             content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body['model']!='invalid-output' else {'unexpected':'not dialogue'})
@@ -33,6 +38,12 @@ voice_provider=http.server.ThreadingHTTPServer(('0.0.0.0',0),VoiceProvider)
 threading.Thread(target=voice_provider.serve_forever,daemon=True).start()
 atexit.register(voice_provider.server_close)
 atexit.register(voice_provider.shutdown)
+repository_root=pathlib.Path(__file__).resolve().parents[2]
+embedding_probe=subprocess.run(['php','-r',
+    "require $argv[1].'/src/Autoload.php'; $provider=new ALMSIVIserver\\Application\\MiniMeEmbeddingProvider($argv[2],1250); echo json_encode($provider->embed('Vivec remembers Red Mountain.',new ALMSIVIserver\\Application\\NeverCancelledToken()));",
+    str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)],capture_output=True,text=True,timeout=5)
+assert embedding_probe.returncode==0 and json.loads(embedding_probe.stdout)==[1,0,0,0,0,0,0,0] and VoiceProvider.embedding_requests==[{'text':'Vivec remembers Red Mountain.'}],(embedding_probe.returncode,embedding_probe.stdout,embedding_probe.stderr,VoiceProvider.embedding_requests)
+VoiceProvider.embedding_requests.clear()
 
 class Page(html.parser.HTMLParser):
     def __init__(self):
@@ -109,6 +120,14 @@ assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live
 journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
+embedding_policy=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-policy'))
+assert embedding_policy['fields'].get('timeout_ms')=='1500' and embedding_policy['fields'].get('endpoint')=='' and 'enabled' not in embedding_policy['fields'],embedding_policy
+embedding_values=dict(embedding_policy['fields'],_csrf=csrf,enabled='1',endpoint='http://'+provider_host+':'+str(voice_provider.server_port),timeout_ms='1250')
+r=request(embedding_policy['action'],'POST',embedding_values); body=r.read().decode()
+assert r.status==200 and 'status=embedding-saved' in r.geturl() and 'Use MiniMe semantic retrieval' in body and 'value="1250"' in body and ' checked' in body,(r.status,r.geturl(),body)
+memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory')); embedding_backfill=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-backfill'))
+r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],_csrf=csrf,limit='100')); body=r.read().decode()
+assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
 relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal:</strong>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h2>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Manage narratives' in text
 narratives_page,text=parse(request('/ALMSIVIserver/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>Narratives</h1>' in text and 'Create narrative' in text

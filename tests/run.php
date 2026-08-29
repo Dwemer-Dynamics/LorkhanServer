@@ -155,6 +155,31 @@ foreach([array_replace($memoryPolicy,['enabled'=>true]),array_replace($memoryPol
     try{\ALMSIVIserver\Application\MemorySummaryPolicy::validate($invalidPolicy);$check(false,'invalid model memory policy accepted');}
     catch(InvalidArgumentException){$check(true,'invalid model memory policy rejected');}
 }
+$embeddingPolicy=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::defaults();
+$loopbackEmbeddingPolicy=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085/','timeout_ms'=>1500];
+$check(\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($embeddingPolicy)===$embeddingPolicy
+    &&\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($loopbackEmbeddingPolicy)['endpoint']==='http://127.0.0.1:8085'
+    &&in_array('memory.embed',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'semantic memory is opt-in, accepts loopback MiniMe, and registers bounded durable work');
+foreach([
+    array_replace($embeddingPolicy,['enabled'=>true]),
+    array_replace($embeddingPolicy,['endpoint'=>'http://192.168.1.5:8085']),
+    array_replace($embeddingPolicy,['endpoint'=>'https://user:pass@example.com']),
+    array_replace($embeddingPolicy,['timeout_ms'=>5001]),
+]as$invalidEmbeddingPolicy){
+    try{\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($invalidEmbeddingPolicy);
+        $check(false,'invalid semantic memory policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid semantic memory policy rejected');}
+}
+$semanticScore=\ALMSIVIserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0]);
+$fallbackScore=\ALMSIVIserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0],[1,0]);
+$check($semanticScore===['score'=>1.0,'lexical_score'=>1.0,'semantic_score'=>1.0,'source'=>'minime']
+    &&$fallbackScore['source']==='deterministic-fallback'
+    &&$fallbackScore['score']===\ALMSIVIserver\Application\DeterministicRetrieval::score('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0]),
+    'semantic recall uses cosine only for matching vectors and preserves exact deterministic fallback');
 foreach([['summary'=>''],['summary'=>str_repeat('古',1400)],['summary'=>"bad\0text"],['summary'=>'fact','action'=>'follow']]as$invalidSummary){
     try{\ALMSIVIserver\Application\MemorySummaryPolicy::summary($invalidSummary);$check(false,'invalid model summary accepted');}
     catch(InvalidArgumentException){$check(true,'invalid model summary rejected');}

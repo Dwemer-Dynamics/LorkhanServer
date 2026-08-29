@@ -1225,6 +1225,58 @@ $check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory
 $summaryPolicyContent['enabled']=false;
 $service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'leave model fixture disabled');
 
+$embeddingRepository=new \ALMSIVIserver\Infrastructure\MemoryEmbeddingRepository($db);
+$embeddingPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
+$embeddingPolicy=$service->createRevisioned('memory_embedding_policy',['installation_id'=>$legacyInstallation,
+    'name'=>'Semantic memory retrieval','content'=>$embeddingPolicyContent]);
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed'")->fetchColumn()===0,
+    'saving semantic memory policy queued historical provider work');
+$embeddingJob=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$embeddingReplay=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$check(($embeddingJob['created']??false)===true&&($embeddingReplay['created']??true)===false
+    &&$embeddingJob['job_id']===$embeddingReplay['job_id'],'semantic memory enqueue was not idempotent');
+$embeddingProvider=new class implements \ALMSIVIserver\Application\EmbeddingProvider {
+    public int $calls=0;
+    public function embed(string $text,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if($text==='')throw new RuntimeException('missing embedding input');
+        return[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+    }
+    public function model():string{return'test-minime-v1';}
+};
+$embeddingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemoryEmbedJobHandler($embeddingRepository,
+    new ProviderAttemptRepository($db),$embeddingProvider)]);
+$embeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory',5,1,1,0,10,['memory.embed'],
+    static fn(int $microseconds):mixed=>null))->run();
+$storedEmbedding=$db->query("SELECT dimensions,embedding,input_sha256,model FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}'")->fetch();
+$check($embeddingStats['succeeded']===1&&$embeddingProvider->calls===1&&(int)$storedEmbedding['dimensions']===8
+    &&json_decode((string)$storedEmbedding['embedding'],true,16,JSON_THROW_ON_ERROR)===[1,0,0,0,0,0,0,0]
+    &&$storedEmbedding['input_sha256']===hash('sha256',$summaryMemory['content'])
+    &&$storedEmbedding['model']==='test-minime-v1'
+    &&$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
+    'semantic memory worker did not persist one frozen revision projection');
+$products->updateMemory($summaryMemory['memory_id'],'Semantic revision changed.',['semantic','revision'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
+$queuedRevision=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed' AND state='queued' "
+    ."AND payload->>'memory_id'='{$summaryMemory['memory_id']}' AND payload->>'memory_revision'='2'")->fetchColumn();
+$embeddingPolicyContent['enabled']=false;
+$service->revise('memory_embedding_policy',$embeddingPolicy['configuration_id'],$embeddingPolicyContent,'disable semantic memory');
+$attemptsBeforeDisabled=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='embed_memory'")->fetchColumn();
+$disabledEmbeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory-disabled',5,1,1,0,10,['memory.embed'],
+    static fn(int $microseconds):mixed=>null))->run();
+$check($queuedRevision===1&&$disabledEmbeddingStats['succeeded']===1&&$embeddingProvider->calls===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='embed_memory'")->fetchColumn()===$attemptsBeforeDisabled
+    &&(int)$db->query("SELECT count(*) FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}' AND memory_revision=2")->fetchColumn()===0,
+    'disabling semantic memory did not cancel queued provider work or preserve the deterministic fallback');
+$db->beginTransaction();$db->exec('SAVEPOINT semantic_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/069_semantic_memory_embeddings.down.sql'));
+    throw new RuntimeException('semantic memory downgrade discarded data');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove semantic memory support'),'unexpected semantic downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT semantic_downgrade');}
+$check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()===1,'guarded semantic downgrade changed projections');
+$db->rollBack();
+
 $failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
 $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
     ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);

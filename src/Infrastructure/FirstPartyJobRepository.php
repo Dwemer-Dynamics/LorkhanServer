@@ -63,6 +63,7 @@ final class FirstPartyJobRepository
         if ($statement->rowCount() !== 1) {
             throw new RuntimeException('memory_identity_conflict');
         }
+        $this->enqueueMemoryEmbedding($memoryId,(string)$memory['installation_id']);
     }
 
     /** Chain delivered recent memories into bounded event-driven middle/long consolidation. */
@@ -226,6 +227,7 @@ final class FirstPartyJobRepository
             'derivation' => $memory['derivation_key'],
         ]);
         if ($statement->rowCount() === 1) {
+            $this->enqueueMemoryEmbedding((string)$memory['memory_id'],(string)$memory['installation_id']);
             return;
         }
         $existing = $this->db->prepare('SELECT installation_id,profile_id,playthrough_id,derivation_key FROM memory_records WHERE memory_id=:id');
@@ -256,6 +258,7 @@ final class FirstPartyJobRepository
             $update->execute(['terms' => $this->pgArray(DeterministicRetrieval::terms($content)),
                 'vector' => $this->encode(DeterministicRetrieval::fakeVector($content)), 'now' => $now, 'id' => $row['memory_id']]);
             $count += $update->rowCount();
+            if($update->rowCount()===1)$this->enqueueMemoryEmbedding((string)$row['memory_id'],$scope['installation_id']);
         }
         return $count;
     }
@@ -370,6 +373,14 @@ final class FirstPartyJobRepository
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
         $statement->execute();
         return $statement->rowCount();
+    }
+
+    /** Queue semantic work only after an opted-in policy exists; ordinary memory writes stay local. */
+    private function enqueueMemoryEmbedding(string $memoryId,string $installation):void
+    {
+        $query=$this->db->prepare('SELECT current_revision FROM memory_records WHERE memory_id=:memory AND deleted_at IS NULL');
+        $query->execute(['memory'=>$memoryId]);$revision=$query->fetchColumn();
+        if($revision!==false)(new MemoryEmbeddingRepository($this->db))->enqueue($installation,$memoryId,(int)$revision);
     }
 
     /** @param array<string,mixed> $value @return array{installation:string,profile:string,playthrough:string} */

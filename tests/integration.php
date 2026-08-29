@@ -1111,6 +1111,30 @@ $assert(in_array($manualMemory['memory_id'],$visibleIds,true)
     &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
     &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
     'NPC-profile manual memory or all-source summary eligibility was not enforced');
+$semanticPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
+$semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
+    'name'=>'Semantic memory integration','content'=>$semanticPolicyContent]);
+$semanticVector=[1,0,0,0,0,0,0,0];
+$db->prepare('INSERT INTO memory_embeddings(memory_id,memory_revision,policy_configuration_id,policy_revision,dimensions,embedding,input_sha256,model,created_at)
+    VALUES(:memory,1,:policy,1,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
+        'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],
+        'embedding'=>json_encode($semanticVector,JSON_THROW_ON_ERROR),'sha'=>hash('sha256',$manualMemory['content']),
+        'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
+$semanticSignal=['status'=>'succeeded','policy_configuration_id'=>$semanticPolicy['configuration_id'],
+    'policy_revision'=>1,'model'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
+$semanticSelection=$products->promptContext($memoryProbe,$memoryNow,[],$semanticSignal);
+$semanticReasons=$semanticSelection['memory_retrieval']['reasons'];
+$fallbackSelection=$products->promptContext($memoryProbe,$memoryNow,[],
+    array_replace(array_diff_key($semanticSignal,['embedding'=>true]),['status'=>'failed']));
+$assert($semanticSelection['memory_retrieval']['algorithm']==='prompt-memory-lexical-0.75+minime-0.25+deterministic-fallback+tier-v1'
+    &&($semanticReasons[$manualMemory['memory_id']]['semantic_source']??null)==='minime'
+    &&($semanticReasons[$mixedMemory['memory_id']]['semantic_source']??null)==='deterministic-fallback'
+    &&($semanticReasons['_semantic']['status']??null)==='succeeded'
+    &&$fallbackSelection['memory_retrieval']['algorithm']==='prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1'
+    &&($fallbackSelection['memory_retrieval']['reasons']['_semantic']['status']??null)==='failed'
+    &&!str_contains(json_encode([$semanticSelection['memory'],$fallbackSelection['memory']],JSON_THROW_ON_ERROR),'_semantic_embedding'),
+    'semantic prompt ranking did not blend valid vectors, fall back per memory, or scrub internal projections');
 $memoryProbe['_selected_profile_id']=$actorProfile['profile_id'];
 $memoryPrompt=(new PromptAssembler())->assemble($memoryProbe,$visible)['provider_input']['_assembled_prompt'];
 $assert(str_contains($memoryPrompt,'NPC PRIVATE MEMORY SENTINEL'),
