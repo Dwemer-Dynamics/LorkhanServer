@@ -55,7 +55,8 @@ final class SpeechSynthesizeJobHandler implements JobHandler
         $provider=$preset===null?$this->defaultProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
         if($provider===null)return;
 
-        $providerName=match(true){$provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+        $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
+            $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
             $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];

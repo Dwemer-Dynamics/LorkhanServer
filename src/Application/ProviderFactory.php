@@ -138,17 +138,17 @@ final class ProviderFactory
         $host=is_array($parts)?(string)($parts['host']??''):'';$loopback=($parts['scheme']??null)==='http';
         $apiKey=self::environment((string)$definition['credential_environment'],$config);
         $voiceReferenceRoot=(string)($config['voice_storage_path']??'/var/lib/almsiviserver/voices');
-        if(in_array($driver,['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'],true)
-            &&!($driver==='pockettts'&&(str_contains($endpoint,':8086')||str_contains($endpoint,'/v1/audio/speech')))){
+        if($driver==='pockettts')return new PocketTtsSpeechProvider($endpoint,(string)($content['model']?:'pocket-tts'),
+            (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms'],
+            is_dir($voiceReferenceRoot)?$voiceReferenceRoot:null);
+        if(in_array($driver,['omnivoice','chatterbox','xtts-fastapi','xtts'],true)){
             return new XttsCompatibleSpeechProvider($endpoint,$driver,(string)$content['voice'],(string)$content['language'],
                 (array)$content['options'],$apiKey,(int)$content['timeout_ms']);
         }
-        if(in_array($driver,['pockettts','openai','kokoro','koboldcpp'],true)){
-            $url=rtrim($endpoint,'/');if($driver==='pockettts'&&!str_ends_with($url,'/v1/audio/speech'))$url.='/v1/audio/speech';
+        if(in_array($driver,['openai','kokoro','koboldcpp'],true)){
+            $url=rtrim($endpoint,'/');
             return new OpenAiCompatibleSpeechProvider($url,[$host],(string)($content['model']?:'tts-1'),
-                (string)$content['voice'],$apiKey,(int)$content['timeout_ms'],$loopback,
-                $driver==='pockettts'&&is_dir($voiceReferenceRoot)?$voiceReferenceRoot:null,
-                $driver==='pockettts'?(string)$content['language']:null);
+                (string)$content['voice'],$apiKey,(int)$content['timeout_ms'],$loopback);
         }
         if(in_array($driver,['melotts','mimic3','piper-tts','stylettsv2'],true)){
             return new LocalSpeechConnectorProvider($endpoint,$driver,(string)$content['voice'],

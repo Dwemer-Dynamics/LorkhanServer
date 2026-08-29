@@ -13,6 +13,7 @@ use ALMSIVIserver\Application\CloudSpeechConnectorProvider;
 use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
 use ALMSIVIserver\Application\CanonicalResponseNormalizer;
 use ALMSIVIserver\Application\MockSpeechProvider;
+use ALMSIVIserver\Application\PocketTtsSpeechProvider;
 use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
 use ALMSIVIserver\Application\MockOghmaTopicExtractor;
 use ALMSIVIserver\Application\MorrowindGeographyCatalog;
@@ -714,6 +715,43 @@ $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')===''&&(fileperms($cr
 unlink($credentialPath);rmdir($credentialRoot);
 $preset=ConnectorCatalog::validate('tts_provider',['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8020','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]);
 $check($preset['driver']==='pockettts' && $preset['timeout_ms']===30000, 'speech connector preset validation is strict and normalized');
+$pocketPreset=static fn(string$endpoint):array=>['kind'=>'tts_provider','content'=>['driver'=>'pockettts','endpoint'=>$endpoint,
+    'model'=>'pocket-tts','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
+$check(ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8024')) instanceof PocketTtsSpeechProvider
+    &&ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8086')) instanceof PocketTtsSpeechProvider,
+    'PocketTTS selected connectors use one runtime-compatible adapter for both API families');
+$pocketAttempts=[];$pocketDetections=[];
+$unavailableProvider=new class implements \ALMSIVIserver\Application\SpeechProvider {
+    public function synthesize(string$text,\ALMSIVIserver\Application\CancellationToken$cancellation,array$context=[]):array
+    {throw new RuntimeException('provider_unavailable');}
+};
+$workingProvider=new MockSpeechProvider();
+$pocketFallback=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider,$workingProvider):\ALMSIVIserver\Application\SpeechProvider{
+        $pocketAttempts[]=$endpoint.'|'.$mode;return str_contains($endpoint,':8086')?$workingProvider:$unavailableProvider;},
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+        $pocketDetections[]=$endpoint;return str_contains($endpoint,':8086')?'audio_cpp':'';});
+$fallbackSpeech=$pocketFallback->synthesize('fallback route',new NeverCancelledToken());
+$check(substr($fallbackSpeech['bytes'],0,4)==='RIFF'
+    &&$pocketAttempts===['http://127.0.0.1:8024|standard','http://127.0.0.1:8086|audio_cpp']
+    &&$pocketDetections===['http://127.0.0.1:8024','http://127.0.0.1:8086'],
+    'unavailable known PocketTTS ports retry the first detected compatible same-host runtime');
+$pocketAttempts=[];$pocketDetections=[];
+$pocketHealthyFailure=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider):\ALMSIVIserver\Application\SpeechProvider{
+        $pocketAttempts[]=$endpoint.'|'.$mode;return$unavailableProvider;},
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+        $pocketDetections[]=$endpoint;return'standard';});
+try{$pocketHealthyFailure->synthesize('do not reroute',new NeverCancelledToken());$check(false,'healthy PocketTTS errors stay on the configured runtime');}
+catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'
+    &&$pocketAttempts===['http://127.0.0.1:8024|standard']&&$pocketDetections===['http://127.0.0.1:8024'],
+    'a detected configured PocketTTS service does not reroute valid provider failures');}
+$customPortDetections=0;$pocketCustomPort=new PocketTtsSpeechProvider('http://127.0.0.1:8999','pocket-tts','default','en',[], '',30000,null,
+    static fn(string$endpoint,string$mode):\ALMSIVIserver\Application\SpeechProvider=>$unavailableProvider,
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$customPortDetections):string{$customPortDetections++;return'';});
+try{$pocketCustomPort->synthesize('custom port',new NeverCancelledToken());$check(false,'custom PocketTTS ports remain authoritative');}
+catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'&&$customPortDetections===0,
+    'custom PocketTTS ports never trigger known-port discovery');}
 $localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
 foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
