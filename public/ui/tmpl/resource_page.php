@@ -1164,19 +1164,24 @@ function almsivi_ui_configuration_cards(array $rows,string $kind,string $managem
 function almsivi_ui_action_policy_form(?array $row,array $actions,array $installationOptions,array $profileOptions,string $managementBasePath,string $csrf):void
 {
     $create=$row===null;$content=$create?[]:(is_array($row['content']??null)?$row['content']:[]);$token=$create?'create':(string)($row['configuration_id']??'policy');
-    $explicit=is_array($content['actions']??null)&&!array_is_list($content['actions'])?$content['actions']:null;
     $allow=is_array($content['allowed_actions']??null)&&array_is_list($content['allowed_actions'])?$content['allowed_actions']:null;
     $deny=is_array($content['denied_actions']??null)&&array_is_list($content['denied_actions'])?$content['denied_actions']:[];
+    // Resolve legacy lists and partial action maps with the same deny-first semantics as runtime.
+    foreach(($content['actions']??[])as$name=>$allowed){if($allowed){$allow??=[];$allow[]=$name;}else$deny[]=$name;}
     echo '<form class="management-form action-policy-form" method="post" action="'.almsivi_ui_h($managementBasePath.'/forms/'.($create?'action-policy-controls-create':'action-policy-controls-revise')).'"><fieldset><legend>'.($create?'Create action policy with controls':'Edit action permissions').'</legend>';
     if($create){echo '<label for="action-policy-installation-'.$token.'">Installation</label><select id="action-policy-installation-'.$token.'" name="installation_id" required>';foreach($installationOptions as$id=>$label)echo '<option value="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</option>';echo '</select><label for="action-policy-profile-'.$token.'">Profile scope</label><select id="action-policy-profile-'.$token.'" name="profile_id"><option value="">Installation-wide</option>';foreach($profileOptions as$id=>$label)echo '<option value="'.almsivi_ui_h($id).'">'.almsivi_ui_h($label).'</option>';echo '</select><small>Profile policies take precedence over installation-wide policies.</small><label for="action-policy-name-'.$token.'">Policy name</label><input id="action-policy-name-'.$token.'" name="name" required>';}
     else echo '<input type="hidden" name="configuration_id" value="'.almsivi_ui_h($row['configuration_id']??'').'">';
     echo '<label class="action-policy-master" for="action-policy-enabled-'.$token.'"><input id="action-policy-enabled-'.$token.'" type="checkbox" name="enabled" value="1"'.(($content['enabled']??true)?' checked':'').'> Enable actions for this policy</label>';
     echo '<label for="action-policy-tier-'.$token.'">Maximum action tier</label><select id="action-policy-tier-'.$token.'" name="max_tier">';$maxTier=(int)($content['max_tier']??3);foreach([0=>'Tier 0 - inspect only',1=>'Tier 1 - movement and social',2=>'Tier 2 - confirmed inventory or combat',3=>'Tier 3 - reserved high risk']as$value=>$label)echo '<option value="'.$value.'"'.($maxTier===$value?' selected':'').'>'.almsivi_ui_h($label).'</option>';echo '</select>';
-    echo '<fieldset class="action-policy-grid"><legend>Allowed actions</legend>';
+    $catalog=[];
     foreach($actions as$action){$enabledValue=$action['enabled']??false;if(!in_array($enabledValue,[true,1,'1','t','true'],true))continue;$name=(string)($action['action_name']??'');if($name==='')continue;
-        $checked=$explicit!==null?(($explicit[$name]??true)===true):($allow===null?!in_array($name,$deny,true):in_array($name,$allow,true)&&!in_array($name,$deny,true));$id='action-policy-'.$token.'-'.substr(hash('sha256',$name),0,12);
-        echo '<label class="action-policy-toggle" for="'.almsivi_ui_h($id).'"><input id="'.almsivi_ui_h($id).'" type="checkbox" name="allowed_actions[]" value="'.almsivi_ui_h($name).'"'.($checked?' checked':'').'><span><strong>'.almsivi_ui_h($name).'</strong><small>Tier '.almsivi_ui_h($action['tier']??'').' · '.almsivi_ui_h($action['description']??'').'</small></span></label>';}
-    echo '</fieldset>';
+        $checked=($allow===null||in_array($name,$allow,true))&&!in_array($name,$deny,true);
+        $catalog[]=['name'=>$name,'checked'=>$checked,'tier'=>(string)($action['tier']??''),'description'=>(string)($action['description']??'')];}
+    $selectedCount=count(array_filter($catalog,static fn(array$entry):bool=>$entry['checked']));
+    echo '<fieldset class="action-policy-selection" data-action-policy-controls><legend>Allowed actions</legend><div class="action-policy-bulk" data-action-bulk data-action-bulk-class="btn-base"><output class="action-policy-count" data-action-selected-count>'.$selectedCount.' of '.count($catalog).' selected</output></div><div class="action-policy-grid">';
+    foreach($catalog as$entry){$id='action-policy-'.$token.'-'.substr(hash('sha256',$entry['name']),0,12);
+        echo '<label class="action-policy-toggle" for="'.almsivi_ui_h($id).'"><input id="'.almsivi_ui_h($id).'" type="checkbox" name="allowed_actions[]" value="'.almsivi_ui_h($entry['name']).'"'.($entry['checked']?' checked':'').'><span><strong>'.almsivi_ui_h($entry['name']).'</strong><small>Tier '.almsivi_ui_h($entry['tier']).' · '.almsivi_ui_h($entry['description']).'</small></span></label>';}
+    echo '</div></fieldset>';
     if(!$create)echo '<label for="action-policy-reason-'.$token.'">Change reason</label><input id="action-policy-reason-'.$token.'" name="change_reason" value="management action editor" required>';
     echo '<input type="hidden" name="_csrf" value="'.almsivi_ui_h($csrf).'"><button class="btn-base btn-primary" type="submit">'.($create?'Create policy':'Save action permissions').'</button></fieldset></form>';
 }
@@ -1330,4 +1335,5 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script>
+<?php if ($view === 'actions'): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/action-editor.js?v=<?php echo almsivi_ui_h((string) filemtime(dirname(__DIR__) . '/js/action-editor.js')); ?>" defer></script><?php endif; ?>
 <?php include $uiRootDir . '/tmpl/footer.html'; ?>

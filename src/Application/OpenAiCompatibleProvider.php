@@ -156,6 +156,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     /** Prefer the frozen CHIM-style split messages while retaining old snapshot compatibility. */
     private function promptMessages(array $turn): array
     {
+        $contract = '<action_contract>' . htmlspecialchars((new ActionPolicyValidator())->promptContract($turn),
+            ENT_QUOTES | ENT_XML1, 'UTF-8') . '</action_contract>';
         $messages = $turn['_prompt']['_messages'] ?? null;
         if (is_array($messages) && array_is_list($messages) && count($messages) >= 2 && count($messages) <= 64) {
             $safe = [];
@@ -170,10 +172,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 $safe[] = ['role' => $message['role'], 'content' => $message['content']];
             }
             if ($safe !== [] && $safe[0]['role'] === 'system' && $safe[array_key_last($safe)]['role'] === 'user') {
-                $contract = '<action_contract>action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. Allowed actions are null; inspect.report or inventory.inspect with empty parameters; ai.follow with distance 192; ai.stop, ai.approach, or ai.face with empty parameters; ai.wait with duration_seconds in whole-hour multiples from 3600..86400; ai.wander with integer distance 0..2048 and duration_seconds in whole-hour multiples from 3600..86400; ai.travel or ai.escort with destination_x, destination_y, destination_z, and destination_cell; combat.start or combat.stop with empty parameters; animation.play with group idle2 through idle9; item.use with inventory content_file and record_id; item.equip with inventory content_file, record_id, and equipment slot; or item.unequip with an equipment slot.</action_contract>';
                 $actionClosing = '</negotiated_actions>';
                 $closing = '</roleplay_context>';
                 if (str_contains($safe[0]['content'], '<action_contract>')) {
+                    $safe[0]['content'] = preg_replace_callback('#<action_contract>.*?</action_contract>#s',
+                        static fn(): string => $contract, $safe[0]['content']) ?? $safe[0]['content'];
                     return $safe;
                 }
                 if (str_contains($safe[0]['content'], $actionClosing)) {
@@ -191,7 +194,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $prompt = json_encode($turn['payload'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
         return [
-            ['role' => 'system', 'content' => 'You roleplay Morrowind characters. Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON.'],
+            ['role' => 'system', 'content' => 'You roleplay Morrowind characters. Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON. ' . $contract],
             ['role' => 'user', 'content' => $prompt],
         ];
     }
