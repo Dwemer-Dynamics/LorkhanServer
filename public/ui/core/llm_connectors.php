@@ -69,11 +69,12 @@ const ALMSIVI_LLM_SAMPLING_FIELDS = [
     ['repetition_penalty', 'Repetition penalty', 'number', 0, 2, '0.01', 'Penalises repeated spans across the whole response.'],
 ];
 
-/** Boolean override fields: name, label, inherit-option label, help. */
+/** Boolean override fields: name, label, inherit-option label, help, optional feature id. */
 const ALMSIVI_LLM_BOOLEAN_FIELDS = [
     ['stream', 'Streaming', 'Default', 'Dialogue only. Default is on for direct connectors; configured connectors inherit the runtime.'],
     ['json_mode', 'JSON mode', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. ALMSIVI validates responses even when this is off.'],
     ['disable_reasoning', 'Disable reasoning', 'Inherit', 'Asks the provider to skip reasoning output. Configured connectors inherit the server runtime; direct connectors are off unless set. This does not clean reasoning tags out of a response.'],
+    ['reasoning_model', 'Reasoning Model Fix', 'Inherit', 'Removes one leading <think>, <thinking>, or <reasoning> block from a response before ALMSIVI parses the JSON. Off unless set, or unless a configured runtime supplies it. Disable reasoning is the separate setting that asks the provider not to produce reasoning at all; this one only cleans a block that was already returned, and JSON and result checks still apply.', 'config.llm.reasoning-fix'],
 ];
 
 /** Merge the shipped UI bounds with the server-owned rules once the backend class is present. */
@@ -121,12 +122,13 @@ function almsivi_llm_number_field(array $field, array $options, string $formId, 
 function almsivi_llm_boolean_field(array $field, array $options, string $formId, bool $active): void
 {
     [$name, $label, $inheritLabel, $help] = $field;
+    $featureId = (string) ($field[4] ?? '');
     $stored = $options[$name] ?? null;
     $current = $stored === true ? 'true' : ($stored === false ? 'false' : '');
     $id = 'llm_option_' . $name;
     ?>
     <div class="llm-option-field">
-        <label for="<?php echo almsivi_ui_h($id); ?>"><?php echo almsivi_ui_h($label); ?></label>
+        <label for="<?php echo almsivi_ui_h($id); ?>"><?php echo almsivi_ui_h($label); ?><?php if ($featureId !== '') echo ' ' . almsivi_ui_feature_badge($featureId, true); ?></label>
         <select id="<?php echo almsivi_ui_h($id); ?>" name="option_<?php echo almsivi_ui_h($name); ?>"
                 aria-describedby="<?php echo almsivi_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo almsivi_ui_h($formId); ?>">
             <option value=""<?php echo $current === '' ? ' selected' : ''; ?>><?php echo almsivi_ui_h($inheritLabel); ?></option>
@@ -373,7 +375,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <details class="llm-legacy-panel">
                                 <summary>Herika controls ALMSIVI does not implement <?php echo almsivi_ui_feature_badge('config.llm.legacy-controls', true); ?></summary>
                                 <p class="llm-help">These controls exist in the Herika editor this page was copied from. They are listed so nothing looks silently missing. None of them is wired up, and none is a hidden default.</p>
-                                <?php almsivi_llm_legacy_row('Reasoning Model Fix', 'config.llm.reasoning-fix'); ?>
                                 <?php almsivi_llm_legacy_row('JSON Schema and Prefill JSON', 'config.llm.json-schema'); ?>
                                 <?php almsivi_llm_legacy_row('Remove Action Prompt', 'config.llm.action-prompt'); ?>
                                 <?php almsivi_llm_legacy_row('Include Body Parameters (YAML)', 'config.llm.body-parameters'); ?>

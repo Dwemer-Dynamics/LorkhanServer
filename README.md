@@ -46,7 +46,8 @@ Blank sampling fields use the provider's defaults for direct connectors, or inhe
 for configured connectors. Explicit zero and false values are preserved. Provider support varies;
 an unsupported parameter may cause a test failure. See the [OpenRouter parameter reference](https://openrouter.ai/docs/api_reference/parameters).
 Streaming affects dialogue only. Turning JSON mode off removes the provider hint, not ALMSIVI's
-strict response validation. Arbitrary request bodies, JSON prefill, and reasoning-tag cleanup remain unsupported.
+strict response validation. Reasoning Model Fix can remove one leading balanced reasoning-tag block before
+that validation; it is opt-in and separate from Disable reasoning. Arbitrary request bodies and JSON prefill remain unsupported.
 
 API Keys manages Default, OpenAI LLM, OpenRouter LLM, and Custom LLM keys separately. Existing default
 and speech key values are not moved. Direct connectors start without a key. Export/import clears

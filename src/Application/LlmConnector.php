@@ -31,6 +31,7 @@ final class LlmConnector
         'stream' => ['type' => 'boolean'],
         'json_mode' => ['type' => 'boolean'],
         'disable_reasoning' => ['type' => 'boolean'],
+        'reasoning_model' => ['type' => 'boolean'],
     ];
 
     public static function validate(array $content): array

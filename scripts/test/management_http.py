@@ -801,13 +801,13 @@ r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=
 headers,sent=VoiceProvider.llm_requests[-1]
 assert 'Authorization' not in headers and sent['temperature']==0 and sent['top_p']==0 and sent['max_completion_tokens']==64 and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
 r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'ALMSIVI_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
-direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',change_reason='Exercise explicit key and streaming')
+direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',option_reasoning_model='true',change_reason='Exercise explicit key, streaming, and reasoning cleanup')
 r=request('/ALMSIVIserver/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
 assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)
 direct_export=json.loads(request('/ALMSIVIserver/manage/exports/providers/'+direct_id+'.json').read().decode())
-assert direct_export['content']['credential']=='none' and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
+assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
 direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'
 r=request('/ALMSIVIserver/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(direct_export)}); body=r.read().decode(); assert r.status==200,(r.status,body)
 portable_id=connector_editor_id(body,direct_export['name'])

@@ -212,9 +212,10 @@ $check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
     &&LlmConnector::requestOptions([],0.7,false)===['temperature'=>0.7,'response_format'=>['type'=>'json_object']],
     'legacy LLM slots retain their content and request defaults without materialized overrides');
 $directLlm=['driver'=>'openai-compatible','model'=>'local-model','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions',
-    'options'=>['temperature'=>0,'top_p'=>0,'stream'=>false,'json_mode'=>false,'disable_reasoning'=>false]];
+    'options'=>['temperature'=>0,'top_p'=>0,'stream'=>false,'json_mode'=>false,'disable_reasoning'=>false,'reasoning_model'=>true]];
 $validatedLlm=LlmConnector::validate($directLlm);
 $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
+    &&$validatedLlm['options']['reasoning_model']===true
     &&LlmConnector::requestOptions($validatedLlm['options'],null,true)===['temperature'=>0,'top_p'=>0]
     &&LlmConnector::requestOptions([],null,false)===['response_format'=>['type'=>'json_object']],
     'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
@@ -516,6 +517,28 @@ $wrappedProviderResult=$decodeProviderContent->invoke($actionProvider,'[{"uttera
 $validateProviderResult->invoke($actionProvider,$wrappedProviderResult);
 $check($wrappedProviderResult['utterances'][0]['text']==='Wrapped hello.'&&($wrappedProviderResult['action']['name']??null)==='ai.follow',
     'OpenAI-compatible provider unwraps one structured response object from a top-level array');
+$reasoningProvider=new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',['api.openai.com'],
+    'gpt-test','test-key',30_000,false,['reasoning_model'=>true]);
+$decodeReasoningContent=new ReflectionMethod($reasoningProvider,'decodeStructuredContent');
+$reasoningResult=$decodeReasoningContent->invoke($reasoningProvider,
+    " \n<THINK>considering a response</think>\n{\"utterances\":[{\"text\":\"After thought\"}],\"action\":null}");
+$check($reasoningResult['utterances'][0]['text']==='After thought',
+    'opted-in provider removes one leading balanced reasoning block before strict JSON decoding');
+try{$decodeProviderContent->invoke($actionProvider,
+        '<think>not enabled</think>{"utterances":[{"text":"No"}],"action":null}');
+    $check(false,'provider cleaned a reasoning block without an explicit connector override');
+}catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+    'reasoning cleanup stays disabled when the connector override is absent');}
+foreach([
+    '<think>unfinished{"utterances":[{"text":"No"}],"action":null}',
+    'prose<think>hidden</think>{"utterances":[{"text":"No"}],"action":null}',
+    '<think>first</think><reasoning>second</reasoning>{"utterances":[{"text":"No"}],"action":null}',
+]as$invalidReasoning){
+    try{$decodeReasoningContent->invoke($reasoningProvider,$invalidReasoning);
+        $check(false,'provider accepted malformed or ambiguous reasoning output');
+    }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+        'provider rejects malformed, non-leading, and repeated reasoning blocks');}
+}
 try{$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"First"}],"action":null},{"utterances":[{"text":"Second"}],"action":null}]');
     $check(false,'provider accepted a multi-object top-level response array');
 }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',

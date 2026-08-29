@@ -125,6 +125,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     /** Decode the strict response while tolerating one common one-item transport wrapper. */
     private function decodeStructuredContent(string $content): array
     {
+        $content = ReasoningOutputCleaner::clean($content, ($this->options['reasoning_model'] ?? false) === true);
         try {
             $result = json_decode($content, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {

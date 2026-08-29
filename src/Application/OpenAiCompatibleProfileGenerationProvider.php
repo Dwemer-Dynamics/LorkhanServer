@@ -60,6 +60,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         }finally{curl_close($handle);}
         try{$decoded=json_decode($response,true,64,JSON_THROW_ON_ERROR);$content=$decoded['choices'][0]['message']['content']??null;
             if(!is_string($content)||$content==='')throw new RuntimeException('provider_invalid_output');
+            $content=ReasoningOutputCleaner::clean($content,($this->options['reasoning_model']??false)===true);
             $result=json_decode($content,true,16,JSON_THROW_ON_ERROR);
         }catch(\JsonException){throw new RuntimeException('provider_invalid_output');}
         if(!is_array($result)||array_is_list($result)){throw new RuntimeException('provider_invalid_output');}
