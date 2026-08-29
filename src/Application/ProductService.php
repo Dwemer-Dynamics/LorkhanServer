@@ -358,6 +358,8 @@ final class ProductService
         if ($kind === 'profile') return $this->validateProfile($content);
         if ($kind === 'core_profile') return EffectiveSettingsResolver::validateCoreProfile($content);
         if($kind==='prompt'){
+            if(array_key_exists('format',$content)&&(!is_string($content['format'])
+                ||!in_array($content['format'],['xml','markdown'],true)))throw new InvalidArgumentException('invalid_prompt_format');
             $encoded=json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
             if(strlen($encoded)>65_536)throw new InvalidArgumentException('invalid_prompt_content');
             return$content;

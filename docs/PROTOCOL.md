@@ -209,6 +209,11 @@ portable file excludes installation ownership, revision history, Core/NPC overri
 API keys, Oghma catalog/access settings, Auto Lock Profile, and NPC assignments. Restoring an earlier
 Global Settings revision also creates a new revision; local OpenMW HUD, transcript, and TTS preferences
 remain client-owned even though the strict compatibility document retains their fields.
+Revisioned Prompt documents may set `format` to `xml` or `markdown`; an absent value keeps the
+existing XML presentation. The selected prompt revision owns and freezes this choice. Compact Markdown
+changes ordinary context presentation only: the typed JSON response contract, negotiated action contract,
+and the frozen `oghma-parity-v1` fragment remain structured XML, while trace inclusion continues to use
+the canonical ordered XML sections.
 Action Editor exposes labelled policy enable, maximum-tier, and per-action permission controls over the
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.

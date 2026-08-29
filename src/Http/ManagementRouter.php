@@ -294,13 +294,13 @@ final class ManagementRouter
             'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
             'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id'),$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id')),
             'description-reset'=>$this->resetDescriptions($v,$scope),
-            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
+            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->promptFormContent($v,$content)]),
             'prompt-clone'=>$this->clonePrompt($v),
             'prompt-import'=>$this->importPrompt($v,$scope),
             'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$content]),
             'action-policy-controls-create'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$this->actionPolicyFormContent($v)]),
             'action-policy-controls-revise'=>$this->service->revise('action_policy',$this->need($v,'configuration_id'),$this->actionPolicyFormContent($v),$this->need($v,'change_reason')),
-            'configuration-revise'=>$this->service->revise($this->configurationKind($v),$this->need($v,'configuration_id'),$content,$this->need($v,'change_reason')),
+            'configuration-revise'=>$this->reviseConfiguration($v,$content),
             'configuration-rollback'=>$this->service->rollback($this->configurationKind($v),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
             'configuration-delete'=>$this->service->deleteRevisioned($this->configurationKind($v),$this->need($v,'configuration_id')),
             'playthroughs'=>$this->service->createRevisioned('playthrough',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
@@ -604,6 +604,23 @@ final class ManagementRouter
         $kind=$this->need($values,'kind');
         if(!in_array($kind,['prompt','action_policy'],true))throw new InvalidArgumentException('invalid_configuration_kind');
         return$kind;
+    }
+
+    /** Apply the labelled prompt format control only to Prompt Manager revisions. */
+    private function reviseConfiguration(array $values,array $content):array
+    {
+        $kind=$this->configurationKind($values);
+        if($kind==='prompt')$content=$this->promptFormContent($values,$content);
+        return$this->service->revise($kind,$this->need($values,'configuration_id'),$content,$this->need($values,'change_reason'));
+    }
+
+    /** Store the selected presentation mode with the revisioned prompt document. */
+    private function promptFormContent(array $values,array $content):array
+    {
+        $format=$values['prompt_format']??($content['format']??'xml');
+        if(!is_string($format)||!in_array($format,['xml','markdown'],true))throw new InvalidArgumentException('invalid_prompt_format');
+        $content['format']=$format;
+        return$content;
     }
 
     /** Convert labelled action toggles into a complete policy over the immutable OpenMW action catalog. */

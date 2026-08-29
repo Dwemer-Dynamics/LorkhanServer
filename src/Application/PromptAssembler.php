@@ -11,6 +11,7 @@ use JsonException;
 final class PromptAssembler
 {
     private const ALGORITHM = 'chim-compact-roleplay-prompt-v2';
+    private const MARKDOWN_ALGORITHM = 'chim-compact-roleplay-prompt-v3-markdown';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -117,6 +118,7 @@ final class PromptAssembler
         );
 
         $system = $built['system'];
+        $traceSystem = $built['trace_system'];
         $memoryState = $built['memory'];
         $messages = [['role' => 'system', 'content' => $system]];
         $messages[] = ['role' => 'user', 'content' => $final];
@@ -136,7 +138,7 @@ final class PromptAssembler
         $memory = $memoryTraceRows;
 
         $includedHistory = [];
-        if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $system) === 1) {
+        if (preg_match('#<conversation_context>(.+)</conversation_context>#s', $traceSystem) === 1) {
             foreach ($historyMessages as $message) $includedHistory[$message['_source_id']] = true;
         }
 
@@ -157,9 +159,9 @@ final class PromptAssembler
             'action_result' => $actions,
             'turn' => [['id' => $turn['turn_id'], 'content' => $this->turnTraceContent($turn)]],
         ];
-        $sources = $this->traceSources($rows, $turn, $includedHistory, $system, $memoryState);
-        $sections = $this->traceSections($system, $rows, $turn);
-        $memoryIncluded = str_contains($system, '<memory_context><item>');
+        $sources = $this->traceSources($rows, $turn, $includedHistory, $traceSystem, $memoryState);
+        $sections = $this->traceSections($traceSystem, $rows, $turn);
+        $memoryIncluded = str_contains($traceSystem, '<memory_context><item>');
         $memoryRetrieval = $selection['memory_retrieval'] ?? null;
         if (is_array($memoryRetrieval)) {
             $memoryRetrieval['result_ids'] = $memoryIncluded ? array_keys($memoryState['texts']) : [];
@@ -190,7 +192,8 @@ final class PromptAssembler
 
         $providerInput = $this->providerInput($turn, $assembled, $messages);
         $trace = [
-            'algorithm' => self::ALGORITHM,
+            'algorithm' => $built['format'] === 'markdown' ? self::MARKDOWN_ALGORITHM : self::ALGORITHM,
+            'prompt_format' => $built['format'],
             'input_sha256' => hash('sha256', $assembled),
             'input_bytes' => strlen($assembled),
             'truncated' => $truncated,
@@ -335,12 +338,14 @@ final class PromptAssembler
             'negotiated_actions' => $negotiatedActions,
             'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName)),
         ];
-        $render = static function(array $bodies):string {
+        $renderXml = static function(array $bodies):string {
             $xml = '<roleplay_context>';
             foreach (self::SECTION_ORDER as $key => $_) $xml .= '<' . $key . '>' . $bodies[$key] . '</' . $key . '>';
             return $xml . '</roleplay_context>';
         };
-        $system = $render($sections);
+        $format = $this->promptFormat($prompt);
+        $traceSystem = $renderXml($sections);
+        $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
         foreach (['conversation_context','morrowind_context','memory_context','relationships_factions',
             'player_narrator_context','npc_context','audience_speaker_rules'] as $optional) {
             if (strlen($system) <= $budget) break;
@@ -349,10 +354,86 @@ final class PromptAssembler
                 $memoryState = MemoryPromptSelection::select($memoryCandidates, '', $this->maxSourceBytes);
                 $sections['memory_context'] = $memoryState['xml'];
             }
-            $system = $render($sections);
+            $traceSystem = $renderXml($sections);
+            $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
         }
-        return ['system' => strlen($system) <= $budget ? $system : $this->minimalSystemPrompt($actorName, $playerName),
-            'memory' => $memoryState];
+        if (strlen($system) > $budget) $system = $traceSystem = $this->minimalSystemPrompt($actorName, $playerName);
+        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState, 'format' => $format];
+    }
+
+    /** Read the presentation choice frozen into the selected prompt revision. */
+    private function promptFormat(array $prompt): string
+    {
+        $content = $prompt['content'] ?? [];
+        $format = is_array($content) && !array_is_list($content) ? ($content['format'] ?? 'xml') : 'xml';
+        if (!is_string($format) || !in_array($format, ['xml', 'markdown'], true)) {
+            throw new InvalidArgumentException('invalid_prompt_format');
+        }
+        return $format;
+    }
+
+    /** Present ordinary context as compact Markdown while preserving typed and protected XML contracts verbatim. */
+    private function markdownSystemPrompt(array $sections): string
+    {
+        $parts = ['# Roleplay Context'];
+        foreach (self::SECTION_ORDER as $key => $_) {
+            $body = (string)($sections[$key] ?? '');
+            if ($body === '') continue;
+            $title = $this->promptLabel($key);
+            if (in_array($key, ['output_contract', 'oghma_context', 'negotiated_actions'], true)) {
+                $parts[] = '## ' . $title . "\n\n" . $body;
+                continue;
+            }
+            $parts[] = '## ' . $title . "\n\n" . $this->markdownXmlBody($body, 3);
+        }
+        return implode("\n\n", $parts);
+    }
+
+    /** Convert server-generated no-attribute XML nodes without rewriting their text. */
+    private function markdownXmlBody(string $xml, int $headingLevel): string
+    {
+        $nodes = $this->promptXmlNodes($xml);
+        if ($nodes === null) return $xml;
+        $parts = [];
+        foreach ($nodes as $node) {
+            $children = $this->promptXmlNodes($node['body']);
+            if ($children === null) {
+                $text = html_entity_decode(trim($node['body']), ENT_QUOTES | ENT_XML1, 'UTF-8');
+                if ($text === '') continue;
+                $text = preg_replace('/\R/u', "\n  ", $text) ?? $text;
+                $parts[] = '- **' . $this->promptLabel($node['tag']) . ':** ' . $text;
+                continue;
+            }
+            $parts[] = str_repeat('#', min(6, $headingLevel)) . ' ' . $this->promptLabel($node['tag'])
+                . "\n\n" . $this->markdownXmlBody($node['body'], $headingLevel + 1);
+        }
+        return implode("\n\n", $parts);
+    }
+
+    /** Parse the exact compact XML emitted by this assembler; return null rather than guessing on mixed content. */
+    private function promptXmlNodes(string $xml): ?array
+    {
+        $nodes = [];
+        $offset = 0;
+        $length = strlen($xml);
+        while ($offset < $length) {
+            if (preg_match('/\G\s+/', $xml, $space, 0, $offset) === 1) {
+                $offset += strlen($space[0]);
+                continue;
+            }
+            if (preg_match('/\G<([A-Za-z][A-Za-z0-9_-]*)>(.*?)<\/\1>/s', $xml, $match, 0, $offset) !== 1) {
+                return null;
+            }
+            $nodes[] = ['tag' => strtolower($match[1]), 'body' => $match[2]];
+            $offset += strlen($match[0]);
+        }
+        return $nodes === [] ? null : $nodes;
+    }
+
+    private function promptLabel(string $value): string
+    {
+        $words = ucwords(str_replace(['_', '-'], ' ', strtolower($value)));
+        return str_replace(['Npc', 'Llm', 'Oghma'], ['NPC', 'LLM', 'Oghma'], $words);
     }
 
     private function minimalSystemPrompt(string $actorName, string $playerName): string

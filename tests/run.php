@@ -408,6 +408,27 @@ $check(str_contains($knowledgePrompt,'<oghma_context><oghma contract="oghma-pari
     &&str_contains($knowledgePrompt,'<article topic="sixth_house" source="conversation" access="denied">')
     &&str_contains($knowledgePrompt,'<denial reason="knowledge_classes_not_authorized" />'),
     'authorized and denied Oghma knowledge use the parity XML prompt section');
+$markdownSelection=$knowledgeSelection;
+$markdownSelection['prompt']['content']['format']='markdown';
+$markdownAssembled=(new PromptAssembler(16384,1024))->assemble($promptTurn,$markdownSelection);
+$markdownPrompt=$markdownAssembled['provider_input']['_assembled_prompt'];
+$protectedOghma=(new PromptAssembler())->oghmaKnowledgeFragment($knowledgeSelection['knowledge'],'fallback_grounded');
+$check(str_contains($markdownPrompt,"# Roleplay Context\n\n## Output Contract\n\n<response_contract>")
+    &&str_contains($markdownPrompt,'## NPC Context')
+    &&str_contains($markdownPrompt,'- **Roleplay Instructions:** You are Fargoth')
+    &&str_contains($markdownPrompt,"## Oghma Context\n\n".$protectedOghma)
+    &&str_contains($markdownPrompt,'<action_contract>')
+    &&!str_contains($markdownPrompt,'<roleplay_context>')
+    &&!str_contains($markdownPrompt,'<npc_context>')
+    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v3-markdown'
+    &&$markdownAssembled['trace']['prompt_format']==='markdown'
+    &&array_column($markdownAssembled['trace']['sections'],'section_key')===array_column($assembled['trace']['sections'],'section_key'),
+    'prompt-owned Markdown changes ordinary presentation while preserving typed and Oghma XML contracts');
+try{
+    $invalidFormat=$promptSelection;$invalidFormat['prompt']['content']['format']='html';
+    (new PromptAssembler())->assemble($promptTurn,$invalidFormat);
+    $check(false,'assembler accepted an unknown prompt presentation format');
+}catch(InvalidArgumentException$error){$check($error->getMessage()==='invalid_prompt_format','assembler rejects unknown prompt presentation formats');}
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')

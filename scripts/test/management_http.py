@@ -753,8 +753,12 @@ for connector_id in [direct_id,portable_id]:
 r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'delete','variable':'ALMSIVI_LLM_CUSTOM_API_KEY'}); assert 'Managed credential removed.' in r.read().decode()
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
 prompt_form=next(f for f in prompts.forms if f['action'].endswith('/forms/prompts'))
+assert prompt_form['fields'].get('prompt_format')=='xml' and 'Compact Markdown only changes presentation' in body and 'protected Oghma context stay structured' in body
 prompt_name='HTTP prompt '+uuid.uuid4().hex
-values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,content_json='{"instruction":"Speak like a Morrowind NPC."}')
+invalid_prompt_name=prompt_name+' invalid'
+r=request(prompt_form['action'],'POST',dict(prompt_form['fields'],_csrf=csrf,name=invalid_prompt_name,prompt_format='html',content_json='{"instruction":"Rejected format."}')); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_prompt_format' in invalid_body and invalid_prompt_name not in invalid_body,(r.status,invalid_body)
+values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,prompt_format='markdown',content_json='{"instruction":"Speak like a Morrowind NPC."}')
 r=request(prompt_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl())
 match=re.search(re.escape(prompt_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
 prompt_id=match.group(1)
@@ -771,10 +775,11 @@ r=request(profile_prompt['action'],'POST',values); body=r.read().decode(); asser
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); assert '1 explicit profile assignments' in body and 'Assigned prompts cannot be deleted.' in body,body
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); body=r.read().decode(); assert r.status==422 and 'prompt_in_use' in body,(r.status,r.geturl(),body)
 page,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); revise=next(f for f in page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
+assert revise['fields'].get('prompt_format')=='markdown' and '&quot;format&quot;' not in body,revise['fields']
 values=dict(revise['fields'],_csrf=csrf,kind='prompt',content_json='{"instruction":"Speak briefly in character."}',change_reason='HTTP prompt test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Speak briefly in character.' in body
 prompt_export_response=request('/ALMSIVIserver/manage/exports/prompts/'+prompt_id+'.json'); prompt_export=json.loads(prompt_export_response.read().decode())
-assert prompt_export_response.status==200 and prompt_export['schema']=='almsivi.prompt-export.v1' and 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
+assert prompt_export_response.status==200 and prompt_export['schema']=='almsivi.prompt-export.v1' and prompt_export['content']['format']=='markdown' and 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
 prompts,_=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
 clone_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('configuration_id')==prompt_id)
 clone_name=prompt_name+' clone'; r=request(clone_prompt['action'],'POST',dict(clone_prompt['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
@@ -786,6 +791,9 @@ import_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prom
 r=request(import_prompt['action'],'POST',dict(import_prompt['fields'],_csrf=csrf,installation_id=valid['installation_id'],prompt_json=json.dumps(prompt_export))); body=r.read().decode()
 assert r.status==200 and prompt_export['name'] in body,(r.status,r.geturl(),body)
 import_match=re.search(re.escape(prompt_export['name'])+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert import_match,body
+imported_page,imported_body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
+imported_prompt_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==import_match.group(1))
+assert imported_prompt_form['fields'].get('prompt_format')=='markdown' and '&quot;format&quot;' not in imported_body
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':import_match.group(1),'kind':'prompt'}); assert r.status==200
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 profile_prompt=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==prompt_profile_id)
