@@ -27,7 +27,10 @@ foreach($backupRows as$backup){$scope=is_array($backup['scope']??null)?$backup['
     if($id!=='')$configurationBackupOptions[$id]=(string)($installationOptions[$scope['installation_id']??'']??($scope['installation_id']??'Installation')).' - '.(string)($backup['created_at']??$id);}
 $profileRowsForOptions=array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'));
 $profileOptions=[];$actionProfileOptions=[];foreach($profileRowsForOptions as$profile){$id=(string)($profile['profile_id']??'');if($id==='')continue;$label=(string)($profile['name']??$id);$profileOptions[$id]=$label;$identity=is_array($profile['actor_identity']??null)?$profile['actor_identity']:[];if(($identity['kind']??'')!=='template')$actionProfileOptions[$id]=$label;}
-$playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$playthrough){$id=(string)($playthrough['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($playthrough['playthrough']??$id);}
+$playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$playthrough){$id=(string)($playthrough['playthrough_id']??'');if($id==='')continue;
+    $label=(string)($playthrough['playthrough']??$id);$installation=(string)($playthrough['installation_id']??'');
+    if(count($installationOptions)>1)$label=(string)($installationOptions[$installation]??substr($installation,0,8)).' - '.$label;
+    $playthroughOptions[$id]=$label;}
 $sessionOptions=[];foreach($uiRepository->rows('active_sessions')as$session){$id=(string)($session['session_id']??'');if($id!=='')$sessionOptions[$id]=(string)($session['label']??$id);}
 $routingViews=['characters','profiles','narrator'];
 $llmRoutingRows=in_array($view,$routingViews,true)?$uiRepository->rows('llm'):[];
@@ -439,6 +442,29 @@ function almsivi_ui_filter_profiles(array $rows):array
     return$filtered;
 }
 
+/** Explain the immediate queue decision without implying that background jobs already finished. */
+function almsivi_ui_relationship_conversion_notice(array $query):?array
+{
+    $status=(string)($query['status']??'');$count=static fn(string$key):int=>max(0,min(1000,(int)($query[$key]??0)));
+    $queued=$count('queued');$skipped=$count('skipped');$details=[];
+    foreach(['no_text'=>'no Relationships text','existing'=>'existing records','locked'=>'Relationship Lock on',
+        'no_connector'=>'Relationship LLM disabled','no_targets'=>'no known actor match','pending'=>'work already pending']as$key=>$label){
+        $value=$count($key);if($value>0)$details[]=$value.' '.$label;}
+    $counts=' Queued '.$queued.' NPC'.($queued===1?'':'s').'; skipped '.$skipped;
+    if($details!==[])$counts.=' ('.implode(', ',$details).')';$counts.='.';
+    return match($status){
+        'relationship_conversion_requested'=>['status','Relationship conversion requested.'.$counts.' Reload Workers & Jobs for current status.'],
+        'relationship_conversion_no_eligible'=>['alert','No eligible NPC relationship text was queued.'.$counts],
+        'relationship_conversion_request_conflict'=>['alert','That request was already used with different settings. Reload the page and try again.'],
+        'relationship_conversion_too_large'=>['alert','A Relationships text document or its bounded model input is too large to convert.'],
+        'relationship_conversion_too_many_owners'=>['alert','This installation has too many NPC profiles for one conversion request.'],
+        'relationship_conversion_too_many_candidates'=>['alert','This installation has too many known actor profiles for one conversion request.'],
+        'relationship_conversion_too_many_targets'=>['alert','One NPC profile names more known actors than a single conversion job can safely process.'],
+        'relationship_conversion_ambiguous_records'=>['alert','More than one saved relationship record matches a target. Review current records before converting.'],
+        default=>null,
+    };
+}
+
 /** Render the searchable NPC-manager controls without exposing profile content in the query string. */
 function almsivi_ui_profile_filters(array $rows):void
 {
@@ -793,7 +819,7 @@ function almsivi_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
 }
 
 /** Render the CHIM NPC-page composition while retaining ALMSIVI's typed, revisioned operations. */
-function almsivi_ui_character_manager(array $rows,array $observedNpcs,array $profilePreferenceRows,array $installationOptions,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,array $coreProfileRows,ProductRepository $productRepository,array $forms,string $managementBasePath,string $csrf):void
+function almsivi_ui_character_manager(array $rows,array $observedNpcs,array $profilePreferenceRows,array $installationOptions,array $playthroughOptions,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,array $coreProfileRows,ProductRepository $productRepository,array $forms,string $managementBasePath,string $csrf):void
 {
     $filtered=almsivi_ui_filter_profiles($rows);$totalRows=count($filtered);$perPage=12;$totalPages=max(1,(int)ceil($totalRows/$perPage));
     $page=max(1,min($totalPages,(int)($_GET['page']??1)));$pageRows=array_slice($filtered,($page-1)*$perPage,$perPage);
@@ -807,10 +833,15 @@ function almsivi_ui_character_manager(array $rows,array $observedNpcs,array $pro
     $coreProfileOptions=[];foreach($coreProfileRows as$coreProfileRow){$id=(string)($coreProfileRow['core_profile_id']??'');if($id!=='')$coreProfileOptions[$id]=(string)($coreProfileRow['label']??$id);}
     $profileOptions=[];foreach($rows as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
     $favoriteOnly=(string)($_GET['fav']??'')==='1';$lockedOnly=(string)($_GET['lock']??'')==='1';
-    $hidden=function(array$omit=[])use($query,$profileFilter,$state,$initial,$favoriteOnly,$lockedOnly):void{foreach(['embed'=>($_GET['embed']??'')==='1'?'1':'','q'=>$query,'profile'=>$profileFilter,'state'=>$state==='all'?'':$state,'initial'=>$initial,'fav'=>$favoriteOnly?'1':'','lock'=>$lockedOnly?'1':'']as$name=>$value)if($value!==''&&!in_array($name,$omit,true))echo'<input type="hidden" name="'.almsivi_ui_h($name).'" value="'.almsivi_ui_h($value).'">';};
+    $installationFilter=(string)($_GET['installation_id']??'');if(!isset($installationOptions[$installationFilter]))$installationFilter='';
+    $uiState=['embed'=>($_GET['embed']??'')==='1'?'1':'','q'=>$query,'profile'=>$profileFilter,
+        'state'=>$state==='all'?'':$state,'initial'=>$initial,'fav'=>$favoriteOnly?'1':'','lock'=>$lockedOnly?'1':'',
+        'page'=>$page>1?(string)$page:'','installation_id'=>$installationFilter];
+    $hidden=function(array$omit=[])use($uiState):void{foreach($uiState as$name=>$value)if($value!==''&&!in_array($name,$omit,true))echo'<input type="hidden" name="'.almsivi_ui_h($name).'" value="'.almsivi_ui_h($value).'">';};
+    $postState=[];foreach($uiState as$name=>$value)if($value!=='')$postState['ui_'.$name]=$value;
     echo'<section class="npc-manager-shell"><div class="pagination npc-toolbar"><div class="npc-toolbar-main"><div class="npc-toolbar-actions">';
-    foreach([['npc-create-modal','+ Create NPC','',true],['npc-import-modal','&#128229; Import NPC','Import an ALMSIVI profile from JSON',true],['npc-relationships-modal','&#128279; Build Relationships '.almsivi_ui_feature_badge('config.npc.relationship-builder',true),'Bulk relationship text conversion is planned',false],['npc-switch-modal','&#128256; Mass Switch Profile','Switch OpenMW bindings',true],['npc-unlock-modal','&#128275; Unlock All Profiles','Unlock NPC profiles',true],['npc-delete-all-modal','&#10060; Delete All Profiles','Delete all unlocked NPC profiles',true]]as$index=>$button)
-        echo'<button type="button" class="npc-toolbar-btn npc-toolbar-btn-uniform '.($index===5?'npc-toolbar-btn-danger':'npc-toolbar-btn-action').'"'.($button[3]?' data-npc-modal-target="'.$button[0].'"':' disabled aria-disabled="true"').' '.($button[2]!==''?' title="'.almsivi_ui_h($button[2]).'"':'').'>'.$button[1].'</button>';
+    foreach([['npc-create-modal','+ Create NPC','',true],['npc-import-modal','&#128229; Import NPC','Import an ALMSIVI profile from JSON',true],['npc-relationships-modal','&#128279; Build Relationships','Convert saved profile Relationships text into relationship records',true],['npc-generate-modal','&#10024; Generate Profiles','Generate unlocked NPC profiles with AI',true],['npc-switch-modal','&#128256; Mass Switch Profile','Switch OpenMW bindings',true],['npc-unlock-modal','&#128275; Unlock All Profiles','Unlock NPC profiles',true],['npc-delete-all-modal','&#10060; Delete All Profiles','Delete all unlocked NPC profiles',true]]as$index=>$button)
+        echo'<button type="button" class="npc-toolbar-btn npc-toolbar-btn-uniform '.($index===6?'npc-toolbar-btn-danger':'npc-toolbar-btn-action').'"'.($button[3]?' data-npc-modal-target="'.$button[0].'"':' disabled aria-disabled="true"').($button[2]!==''?' title="'.almsivi_ui_h($button[2]).'"':'').'>'.$button[1].'</button>';
     echo'</div><form class="npc-toolbar-tools" method="get" data-npc-filter-form>';$hidden(['q','profile']);
     echo'<label class="visually-hidden" for="npc_search">Search NPCs</label><input id="npc_search" type="text" name="q" maxlength="100" placeholder="Search..." aria-label="Search NPCs" value="'.almsivi_ui_h($query).'">';
     echo'<label class="visually-hidden" for="npc_profile_filter">Filter by Core Profile</label><select id="npc_profile_filter" name="profile" aria-label="Filter by Core Profile"><option value="">All Profiles</option>';foreach($coreProfileOptions as$id=>$label)echo'<option value="'.almsivi_ui_h($id).'"'.($profileFilter===$id?' selected':'').'>'.almsivi_ui_h($label).'</option>';echo'</select></form></div>';
@@ -841,7 +872,16 @@ function almsivi_ui_character_manager(array $rows,array $observedNpcs,array $pro
     echo'<details class="npc-observed-picker"><summary>Observed OpenMW NPCs <span class="npc-toolbar-count">'.count($observedNpcs).'</span></summary>';almsivi_ui_observed_npcs($observedNpcs,$managementBasePath,$csrf);echo'</details></div></section></div>';
     echo'<div class="npc-modal-overlay" id="npc-import-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-import-title"><header><h2 id="npc-import-title">Import NPC</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';almsivi_ui_management_form(['route'=>'profile-import','id'=>'npc-profile-import','legend'=>'Import ALMSIVI profile','fields'=>[['installation_id','Installation','select','',$installationOptions],['profile_json','Portable ALMSIVI profile JSON','jsonfile']]],$managementBasePath,$csrf);echo'</div></section></div>';
     $relationshipUrl=preg_replace('#/manage$#','/ui/relationship_logs.php',$managementBasePath)?:'/ALMSIVIserver/ui/relationship_logs.php';
-    echo'<div class="npc-modal-overlay" id="npc-relationships-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-relationships-title"><header><h2 id="npc-relationships-title">&#128279; Build Relationships</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Bulk conversion of relationship text is not available yet. Use Build with AI in an NPC editor to analyze its played conversation history.</p><p>Existing ALMSIVI relationship records remain available in the relationship log.</p><a class="btn-base btn-primary" href="'.almsivi_ui_h($relationshipUrl).'" target="_blank" rel="noopener">Open Relationship Logs</a><hr><h3>Generate NPC Profiles</h3><p>Generate AI profile revisions for unlocked NPCs already observed by ALMSIVI.</p>';
+    $jobsUrl=preg_replace('#/manage$#','/ui/jobs.php',$managementBasePath)?:'/ALMSIVIserver/ui/jobs.php';
+    echo'<div class="npc-modal-overlay" id="npc-relationships-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-relationships-title"><header><h2 id="npc-relationships-title">&#128279; Build Relationships</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Convert the Relationships text saved on NPC profiles into typed relationship records for one playthrough.</p><p>This uses each NPC&#39;s saved Relationship LLM and can cost provider tokens. It reads only Relationships text. It never reads Custom Info, and Custom Info on existing records is never changed.</p><p>Only this explicit form queues provider work. Opening this page or saving an NPC profile does not call a provider.</p>';
+    if($playthroughOptions!==[])almsivi_ui_management_form(['route'=>'relationship-text-convert','id'=>'npc-relationship-convert','legend'=>'Build relationships','hidden'=>$postState+['request_id'=>\ALMSIVIserver\Infrastructure\Uuid::v4()],
+        'fields'=>[['playthrough_id','Playthrough','select','',$playthroughOptions],
+            ['mode','Conversion mode','select','missing',['missing'=>'Only NPCs without relationship records','rebuild'=>'Rebuild matched relationship scores']],
+            ['confirm','Type Build to confirm']]],$managementBasePath,$csrf);
+    else echo'<p class="empty-state">Create a playthrough before converting relationship text.</p>';
+    echo'<details><summary>How this works</summary><p>The default mode leaves every NPC that already has a relationship record alone. Rebuild mode may update the scores of explicitly matched records; omitted records and Custom Info remain unchanged.</p><p>NPCs whose Relationship LLM is Disabled or whose Relationship Lock is on are skipped. Targets must match OpenMW actors ALMSIVI already knows. Unmatched names are skipped instead of invented, and relationships are never inferred between two other characters.</p><p>Each eligible NPC runs as a bounded background job. Reload Workers &amp; Jobs for current status; this page does not poll or refresh automatically.</p></details><p>This differs from Build with AI on Relationship Audit, which analyzes played conversations instead of profile text.</p><div class="connector-actions"><a class="btn-base btn-primary" href="'.almsivi_ui_h($relationshipUrl).'" target="_blank" rel="noopener">Open Relationship Logs</a><a class="btn-base" href="'.almsivi_ui_h($jobsUrl).'" target="_blank" rel="noopener">Open Workers &amp; Jobs</a></div>';
+    echo'</div></section></div>';
+    echo'<div class="npc-modal-overlay" id="npc-generate-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-generate-title"><header><h2 id="npc-generate-title">&#10024; Generate NPC Profiles</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Generate AI profile revisions for unlocked NPCs already observed by ALMSIVI. This is separate from relationship conversion and can cost provider tokens.</p>';
     almsivi_ui_management_form(['route'=>'profile-bulk-generate','id'=>'npc-bulk-generate','legend'=>'Generate unlocked NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['confirm','Type Generate to confirm']]],$managementBasePath,$csrf);
     echo'</div></section></div>';
     echo'<div class="npc-modal-overlay" id="npc-switch-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-switch-title"><header><h2 id="npc-switch-title">&#128256; Mass Switch Profile</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';if(count($profileOptions)>=2){$ids=array_keys($profileOptions);almsivi_ui_management_form(['route'=>'profile-bulk-switch','id'=>'npc-bulk-switch','legend'=>'Switch bound NPC profiles','fields'=>[['installation_id','Installation','select','',$installationOptions],['source_profile_id','From profile','select',$ids[0],$profileOptions],['target_profile_id','To profile','select',$ids[1],$profileOptions],['include_locked','Include a locked source profile','checkbox','1',[],false],['confirm','Type Switch to confirm']]],$managementBasePath,$csrf);}else echo'<p>At least two NPC profiles are required before OpenMW bindings can be switched.</p>';echo'</div></section></div>';
@@ -1275,13 +1315,15 @@ if($view==='characters')$additionalStylesheets[]='herika-npcs.css?v='.(string)fi
 $includeManagementStyles=false;
 include $uiRootDir . '/tmpl/head.html';
 if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
+$relationshipConversionNotice=$view==='characters'?almsivi_ui_relationship_conversion_notice($_GET):null;
 ?>
 <main class="management-page">
+    <?php if ($relationshipConversionNotice !== null): ?><p class="<?php echo $relationshipConversionNotice[0] === 'status' ? 'page-status' : 'page-error'; ?>" role="<?php echo $relationshipConversionNotice[0]; ?>"><?php echo almsivi_ui_h($relationshipConversionNotice[1]); ?></p><?php endif; ?>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'saved'): ?><p class="page-status" role="status"><?php echo $view === 'characters' ? 'NPC profile change saved.' : 'Changes saved.'; ?></p><?php endif; ?>
     <?php if (isset($_GET['status']) && $_GET['status'] === 'tested'): ?><p class="page-status" role="status">Connector test passed<?php echo isset($_GET['detail']) ? ': ' . almsivi_ui_h($_GET['detail']) : '.'; ?></p><?php endif; ?>
     <?php if (isset($_GET['error'])): ?><p class="page-error" role="alert"><?php echo almsivi_ui_h($_GET['error']); ?></p><?php endif; ?>
     <?php if ($view === 'characters'): ?>
-    <?php almsivi_ui_character_manager($rows,$observedNpcs,$profilePreferenceRows,$installationOptions,$voiceOptions,$promptRoutingRows,$llmRoutingRows,$ttsRoutingRows,$coreProfileRows,$productRepository,$forms,$managementBasePath,$csrf); ?>
+    <?php almsivi_ui_character_manager($rows,$observedNpcs,$profilePreferenceRows,$installationOptions,$playthroughOptions,$voiceOptions,$promptRoutingRows,$llmRoutingRows,$ttsRoutingRows,$coreProfileRows,$productRepository,$forms,$managementBasePath,$csrf); ?>
     <?php elseif ($view === 'profiles'): ?>
     <?php almsivi_ui_profiles_page($rows,$forms,$voiceOptions,$promptRoutingRows,$llmRoutingRows,$ttsRoutingRows,$descriptions[$view],$managementBasePath,$csrf); ?>
     <?php elseif ($view === 'player'): ?>

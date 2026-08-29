@@ -34,6 +34,8 @@ final class FirstPartyJobHandlerFactory
         return array_merge($handlers, [
             new RelationshipBuildJobHandler(new \ALMSIVIserver\Infrastructure\RelationshipBuildRepository($db),$products,
                 new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
+            new RelationshipConversionJobHandler(new \ALMSIVIserver\Infrastructure\RelationshipConversionRepository($db),$products,
+                new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new RelationshipEvaluateJobHandler(new \ALMSIVIserver\Infrastructure\RelationshipEvaluationRepository($db),$products,
                 new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$providerConfig),
             new MemorySummaryJobHandler(new \ALMSIVIserver\Infrastructure\MemorySummaryRepository($db),$products,
@@ -68,6 +70,7 @@ final class FirstPartyJobHandlerFactory
             MemorySummaryJobHandler::TYPE,
             RelationshipEvaluateJobHandler::TYPE,
             RelationshipBuildJobHandler::TYPE,
+            RelationshipConversionJobHandler::TYPE,
             MemoryRebuildJobHandler::TYPE,
             NarrativeJobHandler::SUMMARY_TYPE,
             NarrativeJobHandler::DIARY_TYPE,

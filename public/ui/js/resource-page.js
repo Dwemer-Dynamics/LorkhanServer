@@ -98,6 +98,21 @@
         activate(initial);
     });
     document.addEventListener('keydown', (event) => {
+        if (event.key === 'Tab' && activeModal) {
+            const focusable = [...activeModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
+                .filter((element) => element.getClientRects().length > 0);
+            if (focusable.length > 0) {
+                const first = focusable[0];
+                const last = focusable[focusable.length - 1];
+                if (!activeModal.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last)) {
+                    event.preventDefault();
+                    first.focus();
+                } else if (event.shiftKey && document.activeElement === first) {
+                    event.preventDefault();
+                    last.focus();
+                }
+            }
+        }
         if (event.key === 'Escape' && activeModal) closeModal(activeModal);
         const card = event.target.closest('.npc-card[data-npc-modal-target]');
         if (card && (event.key === 'Enter' || event.key === ' ')) {

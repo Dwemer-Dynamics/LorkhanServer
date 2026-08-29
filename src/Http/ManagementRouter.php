@@ -173,6 +173,29 @@ final class ManagementRouter
             }
             return $this->redirect($this->relationshipPageLocation($v,$status).'#relationship-builder');
         }
+        if($domain==='relationship-text-convert'){
+            if(!hash_equals('Build',$this->need($v,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+            $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
+            $mode=$this->need($v,'mode');
+            if(!in_array($mode,['missing','rebuild'],true))throw new InvalidArgumentException('invalid_relationship_conversion_request');
+            $playthrough=$scope['playthrough_id']??throw new InvalidArgumentException('invalid_playthrough_id');
+            try{$playthroughRow=$this->repository->getRevisioned('playthrough',$playthrough);}
+            catch(RuntimeException $error){
+                if($error->getMessage()!=='not_found')throw$error;
+                throw new InvalidArgumentException('invalid_relationship_conversion_scope');
+            }
+            $scope=['installation_id'=>(string)$playthroughRow['installation_id'],'playthrough_id'=>$playthrough];
+            try{
+                $summary=$this->repository->enqueueRelationshipConversion($scope,$request,$mode);
+                $status=$summary['queued']>0?'relationship_conversion_requested':'relationship_conversion_no_eligible';
+            }catch(InvalidArgumentException $error){
+                $status=$error->getMessage();$summary=[];
+                if(!in_array($status,['relationship_conversion_request_conflict','relationship_conversion_too_large',
+                    'relationship_conversion_too_many_owners','relationship_conversion_too_many_candidates',
+                    'relationship_conversion_too_many_targets','relationship_conversion_ambiguous_records'],true))throw $error;
+            }
+            return $this->redirect($this->characterPageLocation($v,$status,$summary));
+        }
         if($domain==='connector-test'){
             $detail=$this->testConnector($v);
             $target=(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors');
@@ -1296,6 +1319,24 @@ final class ManagementRouter
             if(is_string($values[$field]??null))$query[$field]=$values[$field];
         if(($values['embed']??null)==='1')$query['embed']='1';
         return $this->webRoot().'/ui/relationship_logs.php?'.http_build_query($query);
+    }
+
+    /** Keep the current NPC filters visible after the explicit conversion request. */
+    private function characterPageLocation(array $values,string $status,array $summary=[]):string
+    {
+        $query=['status'=>$status];
+        foreach(['embed','fav','lock']as$field)if(($values['ui_'.$field]??null)==='1')$query[$field]='1';
+        $search=mb_substr(trim((string)($values['ui_q']??'')),0,100);
+        if($search!==''&&mb_check_encoding($search,'UTF-8'))$query['q']=$search;
+        $state=(string)($values['ui_state']??'');if(in_array($state,['favorites','locked','unlocked','generated'],true))$query['state']=$state;
+        $initial=strtoupper((string)($values['ui_initial']??''));if(preg_match('/^[A-Z]$/D',$initial)===1)$query['initial']=$initial;
+        foreach(['profile','installation_id']as$field){$id=(string)($values['ui_'.$field]??'');
+            if(preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/D',$id)===1)$query[$field]=$id;}
+        $page=filter_var($values['ui_page']??null,FILTER_VALIDATE_INT);
+        if($page!==false&&$page>1&&$page<=100000)$query['page']=$page;
+        foreach(['queued','skipped','no_text','existing','locked','no_connector','no_targets','pending']as$field)
+            if(isset($summary[$field]))$query[$field]=(int)$summary[$field];
+        return $this->uiPath('characters').'?'.http_build_query($query);
     }
 
     private function relationshipRevision(array $values):int

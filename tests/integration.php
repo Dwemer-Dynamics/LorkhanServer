@@ -762,6 +762,130 @@ $assert($products->relationships($buildScope)===$beforeRecords
     &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
     'an invented target allowed a partial history update');
 $db->rollBack();
+// Explicit profile-text conversion is OpenMW-native, per-owner, retry-safe, and never exposes Custom Info.
+$db->beginTransaction();
+$conversionNpcIdentity=['kind'=>'npc','record_id'=>'conversion_friend','display_name'=>'Conversion Friend',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61001,'content_file'=>0]];
+$conversionOmittedIdentity=['kind'=>'creature','record_id'=>'conversion_omitted','display_name'=>'Conversion Omitted',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61002,'content_file'=>0]];
+$conversionTarget=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Friend',
+    'actor_identity'=>$conversionNpcIdentity,'content'=>['biography'=>'Known conversion target.']],$now);
+$conversionOmitted=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Omitted',
+    'actor_identity'=>$conversionOmittedIdentity,'content'=>['biography'=>'Known omitted target.']],$now);
+$conversionPlayer=$products->getRevisioned('profile',(string)$playerProfile['profile_id']);
+$conversionText='Conversion Friend is a trusted ally. Conversion Omitted is still distrusted. '
+    .(string)$conversionPlayer['name'].' remains a complicated acquaintance. Unknown Conversion Stranger is irrelevant.';
+$conversionOwnerIdentity=['kind'=>'npc','record_id'=>'conversion_owner','display_name'=>'Conversion Owner',
+    'content_file'=>'Morrowind.esm','refnum'=>['index'=>61000,'content_file'=>0]];
+$conversionContent=['relationships'=>$conversionText,
+    'routing'=>['relationship_configuration_id'=>$profileModelSlot['configuration_id']],
+    'settings_overrides'=>['relationship'=>['update_chance_percent'=>0,'locked'=>false]],
+    'management'=>['locked'=>true]];
+$conversionOwner=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Owner',
+    'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
+$conversionScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
+$conversionRecordScope=$conversionScope+['profile_id'=>$conversionOwner['profile_id']];
+$conversions=new \ALMSIVIserver\Infrastructure\RelationshipConversionRepository($db);
+$conversionRequest=$newUuid(5800);$conversionSummary=$conversions->enqueue($conversionScope,$conversionRequest,'missing');
+$assert($conversionSummary['queued']===1&&$conversionSummary['existing']===0
+    &&$conversions->enqueue($conversionScope,$conversionRequest,'missing')==$conversionSummary,
+    'missing-mode conversion was not bounded and idempotent: '.json_encode($conversionSummary));
+try{$conversions->enqueue($conversionScope,$conversionRequest,'rebuild');throw new RuntimeException('conversion request mode changed');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_conversion_request_conflict','unexpected conversion request conflict');}
+$conversionProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public int $calls=0;public string $phase='all';public mixed $during=null;
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();$encoded=json_encode($input,JSON_THROW_ON_ERROR);
+        if(($input['generation_mode']??null)!=='relationship_text_conversion'||isset($input['exchanges'])
+            ||!str_contains((string)($input['relationship_text']??''),'Unknown Conversion Stranger')
+            ||str_contains($encoded,'CONVERSION PRIVATE CUSTOM INFO'))throw new RuntimeException('unsafe conversion model input');
+        if(count($input['interlocutors']??[])!==3)throw new RuntimeException('conversion did not resolve the exact known actors: '.json_encode($input['interlocutors']??[]));
+        if($this->during!==null)($this->during)();$rows=[];
+        foreach($input['interlocutors']as$target){
+            if($this->phase==='omit'&&($target['identity']['display_name']??'')==='Conversion Omitted')continue;
+            $rows[]=['target_key'=>$target['target_key'],'disposition'=>$this->phase==='all'?10:40,
+                'affinity'=>$this->phase==='all'?20:50,'reason'=>'Explicit profile text names this actor.'];
+        }
+        if($this->phase==='invented')$rows[0]['target_key']=str_repeat('f',64);
+        return['relationships'=>$rows];
+    }
+};
+$conversionRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\RelationshipConversionJobHandler(
+    $conversions,$products,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
+$conversionWorker=static fn()=> (new \ALMSIVIserver\Application\Worker(new \ALMSIVIserver\Infrastructure\JobRepository($db),
+    $conversionRegistry,'relationship-conversion-integration',5,1,1,0,10,['relationship.convert']))->run();
+$firstConversionRun=$conversionWorker();
+$assert($firstConversionRun['succeeded']===1&&$conversionProvider->calls===1,
+    'explicit conversion did not run its durable job: '.json_encode([$firstConversionRun,$conversionProvider->calls,
+        $db->query("SELECT last_error_code,last_error_detail FROM durable_jobs WHERE job_type='relationship.convert'")->fetch()]));
+$conversionReceipt=$db->query('SELECT source_bytes,target_count,changed_count FROM relationship_conversion_results')->fetch();
+$conversionRows=$products->relationships($conversionRecordScope);
+$assert($conversionReceipt&&array_map('intval',array_values($conversionReceipt))===[strlen($conversionText),3,3]
+    &&count($conversionRows)===3
+    &&count(array_filter($conversionRows,static fn(array$row):bool=>$row['source_event_id']===null))===3,
+    'conversion receipt or source ownership was incomplete');
+$assert((int)$db->query("SELECT count(*) FROM relationship_audit WHERE reason LIKE 'Relationship text conversion:%'")->fetchColumn()===3,
+    'conversion writes were not visibly attributed');
+$secondMissing=$conversions->enqueue($conversionScope,$newUuid(5801),'missing');
+$assert($secondMissing['queued']===0&&$secondMissing['existing']===1,'missing mode rebuilt an owner with active records');
+$privateConversionNote='CONVERSION PRIVATE CUSTOM INFO';
+foreach($conversionRows as$row)$products->setRelationship($conversionRecordScope+[
+    'relationship_id'=>$row['relationship_id'],'expected_revision'=>(int)$row['revision'],
+    'disposition'=>(int)$row['disposition'],'affinity'=>(int)$row['affinity'],'source_mode'=>'manual',
+    'custom_info'=>$privateConversionNote,'reason'=>'Attach private conversion note'],$now);
+$rebuildRequest=$newUuid(5802);$rebuildSummary=$conversions->enqueue($conversionScope,$rebuildRequest,'rebuild');
+$assert($rebuildSummary['queued']===1,'explicit rebuild did not queue the text owner');
+$conversionProvider->phase='omit';
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===2,'conversion rebuild did not finish');
+$rebuiltRows=$products->relationships($conversionRecordScope);$omittedRows=array_values(array_filter($rebuiltRows,
+    static fn(array$row):bool=>($row['actor_identity']['record_id']??'')==='conversion_omitted'));
+$selectedRows=array_values(array_filter($rebuiltRows,
+    static fn(array$row):bool=>($row['actor_identity']['record_id']??'')!=='conversion_omitted'));
+$assert(count($omittedRows)===1&&(int)$omittedRows[0]['disposition']===10&&(int)$omittedRows[0]['affinity']===20
+    &&count(array_filter($selectedRows,static fn(array$row):bool=>(int)$row['disposition']===40&&(int)$row['affinity']===50))===2
+    &&(int)$db->query("SELECT count(*) FROM relationship_records WHERE profile_id='{$conversionOwner['profile_id']}' "
+        ."AND playthrough_id='{$session['playthrough_id']}' AND custom_info='CONVERSION PRIVATE CUSTOM INFO'")->fetchColumn()===3,
+    'rebuild changed an omitted row or private Custom Info');
+$conversions->enqueue($conversionScope,$newUuid(5803),'rebuild');
+$db->exec('SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($products,$conversionTarget,$now):void{
+    $products->revise('profile',$conversionTarget['profile_id'],$conversionTarget['content']+['notes'=>'Changed during provider work'],
+        'target changed during conversion',$now);
+};
+$receiptCount=(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn();
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===3
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'target profile revision did not cancel late conversion output');
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($products,$conversionRecordScope,$now):void{
+    $row=array_values(array_filter($products->relationships($conversionRecordScope),
+        static fn(array$item):bool=>($item['actor_identity']['record_id']??'')==='conversion_friend'))[0];
+    $products->setRelationship($conversionRecordScope+['relationship_id'=>$row['relationship_id'],
+        'expected_revision'=>(int)$row['revision'],'disposition'=>77,'affinity'=>66,'source_mode'=>'manual',
+        'custom_info'=>'CONVERSION PRIVATE CUSTOM INFO','reason'=>'Manual ownership during conversion'],$now);
+};
+$manualEditRun=$conversionWorker();$manualEditReceipts=(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn();
+$assert($manualEditRun['succeeded']===1&&$conversionProvider->calls===4&&$manualEditReceipts===$receiptCount,
+    'manual relationship edit did not cancel late conversion output: '.json_encode([$manualEditRun,$conversionProvider->calls,$manualEditReceipts,$receiptCount]));
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=static function()use($db,$sessionId):void{
+    $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:id")->execute(['id'=>$sessionId]);
+};
+$assert($conversionWorker()['succeeded']===1&&$conversionProvider->calls===5
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'session lifecycle change did not cancel late conversion output');
+$db->exec('ROLLBACK TO SAVEPOINT conversion_queued');
+$conversionProvider->during=null;$conversionProvider->phase='invented';$beforeConversion=$products->relationships($conversionRecordScope);
+$conversionWorker();
+$assert($products->relationships($conversionRecordScope)===$beforeConversion
+    &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
+    'an invented target allowed a partial profile-text conversion');
+$db->exec('SAVEPOINT conversion_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/067_relationship_text_conversion.down.sql'));
+    throw new RuntimeException('conversion downgrade discarded receipts');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship conversion'),
+    'unexpected conversion downgrade error');$db->exec('ROLLBACK TO SAVEPOINT conversion_downgrade');}
+$db->rollBack();
 // Exercise prompt privacy against real source projections without altering later turn fixtures.
 $db->beginTransaction();
 $memoryNow=(new \DateTimeImmutable('now'))->modify('+1 minute')->format('Y-m-d\TH:i:sP');

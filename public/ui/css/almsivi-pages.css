@@ -879,6 +879,10 @@ body.hub-page > main {
     outline: 2px solid var(--almsivi-accent, #ffb641);
     outline-offset: 2px;
 }
+#npc-relationships-modal :is(select, input, button, summary, a):focus-visible {
+    outline: 3px solid var(--focus-ring, #6dd5ed);
+    outline-offset: 2px;
+}
 @media (max-width: 700px) {
     .management-form.relationship-build-form { grid-template-columns: minmax(0, 1fr); }
 }

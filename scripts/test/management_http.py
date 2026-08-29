@@ -332,6 +332,25 @@ values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=p
 r=request(create_playthrough['action'],'POST',values); body=r.read().decode(); assert r.status==200 and playthrough_name in body and all(label in body for label in ['Sessions','Turns','Responses','Memories','Relationships','Narratives','Knowledge']),(r.status,r.geturl(),body)
 match=re.search(r'<h2>'+re.escape(playthrough_name)+r'</h2>.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
 playthrough_id=match.group(1)
+provider_calls_before_conversion=len(VoiceProvider.llm_requests)
+conversion_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,conversion_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+conversion_query))
+conversion_form=next(f for f in characters.forms if f['action'].endswith('/forms/relationship-text-convert'))
+assert 'data-npc-modal-target="npc-relationships-modal"' in conversion_body and 'id="npc-generate-modal"' in conversion_body
+assert 'Bulk relationship text conversion is planned' not in conversion_body and 'never reads Custom Info' in conversion_body
+assert conversion_form['fields']['playthrough_id']==playthrough_id and conversion_form['fields']['mode']=='missing' and uuid.UUID(conversion_form['fields']['request_id'])
+assert len(VoiceProvider.llm_requests)==provider_calls_before_conversion # Rendering never calls the Relationship LLM.
+conversion_values=dict(conversion_form['fields'],_csrf=csrf,confirm='Build',ui_page='2')
+r=request(conversion_form['action'],'POST',dict(conversion_values,confirm='wrong')); assert r.status==422 and 'confirmation_mismatch' in r.read().decode()
+r=request(conversion_form['action'],'POST',dict(conversion_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+r=request(conversion_form['action'],'POST',dict(conversion_values,request_id=str(uuid.uuid4()),playthrough_id=str(uuid.uuid4()))); assert r.status==422
+r=request(conversion_form['action'],'POST',dict(conversion_values,request_id=str(uuid.uuid4()),mode='transitive')); assert r.status==422
+r=request(conversion_form['action'],'POST',conversion_values); conversion_result,conversion_body=parse(r)
+conversion_url=urllib.parse.urlparse(r.geturl()); conversion_params=urllib.parse.parse_qs(conversion_url.query)
+assert r.status==200 and conversion_url.path.endswith('/ui/core/npc_master.php') and conversion_params.get('embed')==['1']
+assert conversion_params.get('q')==[profile_name] and conversion_params.get('initial')==['H'] and conversion_params.get('fav')==['1'] and conversion_params.get('lock')==['1'] and conversion_params.get('page')==['2']
+assert conversion_params.get('installation_id')==[valid['installation_id']] and conversion_params.get('status',[None])[0] in ('relationship_conversion_requested','relationship_conversion_no_eligible')
+assert ('role="status"' in conversion_body or 'role="alert"' in conversion_body) and len(VoiceProvider.llm_requests)==provider_calls_before_conversion
 narratives,_=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
 create_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narratives'))
 narrative_title='HTTP diary '+uuid.uuid4().hex; narrative_text='Arrived in Seyda Neen.'

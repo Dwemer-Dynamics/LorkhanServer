@@ -124,6 +124,11 @@ foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_repla
     try{\ALMSIVIserver\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}
     catch(InvalidArgumentException){$check(true,'unsafe history build rejected');}
 }
+$conversionMock=(new \ALMSIVIserver\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'relationship_text_conversion'],new \ALMSIVIserver\Application\NeverCancelledToken());
+$check($conversionMock===['relationships'=>[]]
+    &&in_array('relationship.convert',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'relationship text conversion is not registered as a bounded first-party job');
 $memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
 $check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
     'model memory defaults can stay off without a provider');
