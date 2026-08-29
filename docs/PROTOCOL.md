@@ -83,7 +83,12 @@ context carries chain/origin IDs, monotonic depth and previous speaker/listener 
 accepts it only in the same active session/generation, stores one scoped chain, discards provider
 actions, and closes or cancels the chain at its configured depth, on new player input, or on failure.
 The client submits continuation only after every preceding utterance is terminal and the final
-delivery result is `played`.
+delivery result is `played`. A newer client may also submit an optional, unique, bounded
+`participant_states` list covering the previous speaker and candidates. Each row must match an identity
+already present in the turn and use `active`, `busy`, `sleeping`, `unconscious`, or `inactive`. The
+server requires fresh proof for the previous speaker, excludes missing/busy/unconscious/inactive
+candidates, allows a sleeping actor only when directly addressed, and rechecks the selected NPC's
+effective `behavior.rechat` setting. Omitting the list preserves the existing client contract.
 
 ## Actions
 

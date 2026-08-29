@@ -48,10 +48,11 @@ $products = new ProductRepository($db);
 $repo->ensureInstallation($installationId,$tokenHash,$macKey);
 (new DefaultConnectorProvisioner($db))->provision($installationId);
 $morrowindVoices=MorrowindVoiceCatalog::bundled();
+$rechatCoordinator = new RechatCoordinator($repo,$products);
 $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rateLimitRequests: 1000,
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
     products:$products,promptAssembler:new PromptAssembler(),
-    morrowindVoices:$morrowindVoices,rechatCoordinator:new RechatCoordinator($repo,$products));
+    morrowindVoices:$morrowindVoices,rechatCoordinator:$rechatCoordinator);
 $base = '/ALMSIVIserver/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
@@ -1579,6 +1580,85 @@ $rechatTurn['payload']['context']['rechat']=['speaker'=>$dialogueEvent['payload'
     'listener_hint'=>$turn['payload']['speaker'],'rechat_target_hint'=>$secondaryTarget,
     'origin_line'=>$turn['payload']['input']['text'],'rechat_depth'=>1,'chain_id'=>$rechatChainId,
     'origin_turn_id'=>$turn['turn_id']];
+$speakerIdentity=$dialogueEvent['payload']['speaker'];
+$thirdTarget=$secondaryTarget;$thirdTarget['record_id']='vivec_guard';$thirdTarget['display_name']='Vivec Guard';
+$thirdTarget['kind']='npc';$thirdTarget['refnum']['index']=114;
+$participantRow=static fn(array $identity,string $state):array=>['identity'=>$identity,'state'=>$state];
+$resolveRechatError=static function(array $message)use($rechatCoordinator):string{
+    try{$rechatCoordinator->resolve($message);return '';}
+    catch(DomainException $error){return $error->getMessage();}
+};
+
+$eligibleProbe=$rechatTurn;
+$eligibleProbe['payload']['audience']=[$speakerIdentity,$secondaryTarget,$thirdTarget];
+$eligibleProbe['payload']['context']['rechat']['participant_states']=[
+    ['state'=>'active','identity'=>$speakerIdentity],
+    $participantRow($secondaryTarget,'busy'),
+    $participantRow($thirdTarget,'active'),
+];
+$eligibleResolved=$rechatCoordinator->resolve($eligibleProbe);
+$assert($eligibleResolved['payload']['target']===$thirdTarget
+    &&$eligibleResolved['payload']['audience']===[$speakerIdentity,$secondaryTarget,$thirdTarget]
+    &&count($eligibleResolved['payload']['context']['rechat']['participant_states'])===3,
+    'fresh rechat eligibility did not skip a busy candidate or accept key-order-independent rows');
+
+$sleepingProbe=$eligibleProbe;
+$sleepingProbe['payload']['audience']=[$speakerIdentity,$secondaryTarget];
+$sleepingProbe['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'sleeping')];
+$sleepingResolved=$rechatCoordinator->resolve($sleepingProbe);
+$assert($sleepingResolved['payload']['target']===$secondaryTarget,
+    'directly addressed sleeping rechat target was rejected');
+$sleepingBystander=$eligibleProbe;
+$sleepingBystander['payload']['context']['rechat']['rechat_target_hint']=$thirdTarget;
+$sleepingBystander['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'sleeping'),
+    $participantRow($thirdTarget,'active')];
+$assert($rechatCoordinator->resolve($sleepingBystander)['payload']['target']===$thirdTarget,
+    'sleeping bystander was not excluded from rechat selection');
+
+foreach(['busy','unconscious','inactive'] as $blockedState){
+    $blockedSpeaker=$sleepingProbe;
+    $blockedSpeaker['payload']['context']['rechat']['participant_states'][0]['state']=$blockedState;
+    $assert($resolveRechatError($blockedSpeaker)==='rechat_no_responder',
+        'blocked previous speaker state was accepted: '.$blockedState);
+}
+$missingSpeaker=$sleepingProbe;
+$missingSpeaker['payload']['context']['rechat']['participant_states']=[$participantRow($secondaryTarget,'active')];
+$assert($resolveRechatError($missingSpeaker)==='invalid_rechat_context',
+    'participant snapshot without the previous speaker was accepted');
+$duplicateSnapshot=$sleepingProbe;
+$duplicateSnapshot['payload']['context']['rechat']['participant_states'][]=$participantRow($secondaryTarget,'active');
+$assert($resolveRechatError($duplicateSnapshot)==='invalid_rechat_context',
+    'duplicate participant state was accepted');
+$foreignSnapshot=$sleepingProbe;$foreignSnapshot['payload']['context']['rechat']['participant_states'][]=
+    $participantRow($thirdTarget,'active');
+$assert($resolveRechatError($foreignSnapshot)==='invalid_rechat_context',
+    'participant state outside the submitted rechat identities was accepted');
+$playerSnapshot=$sleepingProbe;$playerSnapshot['payload']['context']['rechat']['participant_states'][]=
+    $participantRow($turn['payload']['speaker'],'active');
+$assert($resolveRechatError($playerSnapshot)==='invalid_rechat_context',
+    'non-actor participant state was accepted');
+$legacyResolved=$rechatCoordinator->resolve($rechatTurn);
+$assert(!array_key_exists('participant_states',$legacyResolved['payload']['context']['rechat']),
+    'legacy rechat unexpectedly required or synthesized participant state');
+
+$disabledTarget=$thirdTarget;$disabledTarget['record_id']='disabled_rechat_actor';
+$disabledTarget['display_name']='Disabled Rechat Actor';$disabledTarget['refnum']['index']=115;
+$disabledProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Disabled rechat actor','actor_identity'=>['record_id'=>'disabled_rechat_actor'],
+    'content'=>['settings_overrides'=>['behavior'=>['rechat'=>false]]]],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $disabledTarget,$disabledProfile['profile_id'],$now);
+$disabledProbe=$rechatTurn;$disabledProbe['payload']['audience']=[$speakerIdentity,$disabledTarget];
+$disabledProbe['payload']['context']['rechat']['rechat_target_hint']=$disabledTarget;
+$disabledProbe['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($disabledTarget,'active')];
+$assert($resolveRechatError($disabledProbe)==='rechat_no_responder',
+    'selected responder with effective rechat disabled was accepted');
+
+$rechatTurn['payload']['context']['rechat']['participant_states']=[
+    $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'active')];
 [$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
 $assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
 $rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
