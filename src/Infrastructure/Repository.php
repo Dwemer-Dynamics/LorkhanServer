@@ -393,6 +393,15 @@ final class Repository
             || (int) $row['generation'] !== $generation;
     }
 
+    /** Resolve prompt-visible actions through the same catalog and policy used at execution. */
+    public function allowedPromptActions(string $sessionId, int $generation): array
+    {
+        // Preserve ingress stale/closed-session errors before the catalog's active-session read.
+        $this->session($sessionId, $generation);
+        if ($this->actionCatalog === null || $this->actionPolicy === null) return [];
+        return $this->actionPolicy->allowedDefinitions($this->actionCatalog->loadForSession($sessionId, $generation));
+    }
+
     /** @return array<string,mixed> */
     public function turnMessage(string $turnId): array
     {

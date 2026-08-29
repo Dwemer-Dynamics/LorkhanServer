@@ -107,6 +107,23 @@ final class ActionPolicyValidator
         return $allowed;
     }
 
+    /** Render only server-filtered definitions; old snapshots and rechat fail closed to dialogue. */
+    public function promptContract(array $turn): string
+    {
+        $definitions = $turn['_allowed_action_definitions'] ?? [];
+        if (($turn['payload']['ui_source'] ?? null) === 'almsivi_rechat' || $definitions === []) {
+            return 'action must be null. No actions are available for this turn.';
+        }
+        $actions = [];
+        foreach ($definitions as $definition) {
+            $actions[] = $definition['name'] . ' parameters: '
+                . json_encode($definition['parameter_schema'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+        }
+        return 'action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. '
+            . 'Only the following actions are allowed. Parameters must match the listed JSON schemas. '
+            . implode('; ', $actions);
+    }
+
     /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>} */
     private function normalizePolicy(mixed $content): array
     {

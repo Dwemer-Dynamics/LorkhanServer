@@ -59,6 +59,8 @@ class Page(html.parser.HTMLParser):
             if 'dropdown-item' in a.get('class','').split(): self.current+=a.get('aria-current')=='page'
         if tag=='form': self.form={'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
         if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type')!='checkbox' or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
+        if self.form is not None and tag=='input' and a.get('type')=='checkbox' and a.get('name') and 'checked' in a:
+            self.form.setdefault('checked',{}).setdefault(a['name'],[]).append(a.get('value',''))
         if self.form is not None and tag=='select' and a.get('name') and 'disabled' not in a: self.select_name=a['name']
         if self.form is not None and tag=='option' and self.select_name and (self.select_name not in self.form['fields'] or 'selected' in a):
             self.form['fields'][self.select_name]=a.get('value','')
@@ -988,6 +990,17 @@ values=dict(revise_policy['fields'],_csrf=csrf,enabled='1',max_tier='0',change_r
 r=request(revise_policy['action'],'POST',values); body=r.read().decode(); revised_actions=Page(); revised_actions.feed(body)
 saved_policy=next(f for f in revised_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
 assert r.status==200 and saved_policy['fields'].get('max_tier')=='0' and saved_policy['fields'].get('allowed_actions[]')=='inspect.report',(r.status,r.geturl(),saved_policy)
+for policy_content,expected in [
+    ({'allowed_actions':['inspect.report']},['inspect.report']),
+    ({'allowed_actions':['inspect.report'],'denied_actions':['inspect.report'],
+      'actions':{'inspect.report':True,'inventory.inspect':True,'ai.follow':False}},['inventory.inspect']),
+]:
+    r=request('/ALMSIVIserver/manage/forms/configuration-revise','POST',{'_csrf':csrf,'kind':'action_policy',
+        'configuration_id':policy_id,'content_json':json.dumps(dict(policy_content,enabled=True,max_tier=2)),
+        'change_reason':'Verify legacy policy controls'})
+    legacy_actions,_=parse(r)
+    legacy_policy=next(f for f in legacy_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
+    assert r.status==200 and legacy_policy.get('checked',{}).get('allowed_actions[]',[])==expected,(r.status,legacy_policy)
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
 assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'

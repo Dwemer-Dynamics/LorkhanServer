@@ -1286,6 +1286,24 @@ body.hub-page > main {
     border: 1px solid var(--almsivi-border, #444);
 }
 
+.action-policy-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 10px;
+}
+
+.action-policy-bulk button {
+    padding: 6px 10px;
+    font-size: .8rem;
+}
+
+.action-policy-count {
+    color: var(--almsivi-muted, #aaa);
+    font-size: .8rem;
+}
+
 .action-policy-toggle,
 .action-policy-master {
     display: flex;

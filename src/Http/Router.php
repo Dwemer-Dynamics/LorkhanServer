@@ -165,6 +165,10 @@ final class Router
 
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
+            if ($providerInput !== null) {
+                $providerInput['_allowed_action_definitions'] = ($m['payload']['ui_source'] ?? null) === 'almsivi_rechat'
+                    ? [] : $this->repository->allowedPromptActions($m['session_id'], $m['generation']);
+            }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
                 $resolvedVoice=$this->morrowindVoices?->resolve((array)$m['payload']['target'],(array)$m['payload']['context']);

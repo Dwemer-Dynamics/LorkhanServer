@@ -6,6 +6,7 @@ require dirname(__DIR__) . '/src/Autoload.php';
 require __DIR__ . '/Support/StateStore.php';
 
 use ALMSIVIserver\Config\Settings;
+use ALMSIVIserver\Application\ActionPolicyValidator;
 use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Application\CredentialStore;
 use ALMSIVIserver\Application\LlmConnector;
@@ -513,6 +514,44 @@ $check(array_column($providerMessages,'role')===array_column($assembled['provide
     &&str_ends_with($providerMessages[0]['content'],'</roleplay_context>'),
     'OpenAI-compatible provider sends the frozen split messages with its action contract inside the XML root');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
+$policy = new ActionPolicyValidator();
+$actionDefinitions = [];
+foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $name=>$tier) {
+    $actionDefinitions[] = ['name'=>$name, 'tier'=>$tier, 'client_capability'=>'action.'.$name,
+        'parameter_schema'=>['type'=>'object', 'additionalProperties'=>false]];
+}
+$actionContext = ['definitions'=>$actionDefinitions,
+    'session'=>['capabilities'=>['action.inspect.report','action.ai.follow','action.ai.stop'],
+        'enabled_actions'=>array_column($actionDefinitions,'name')],
+    'policy'=>['content'=>['max_tier'=>1,'denied_actions'=>['ai.stop']]]];
+$allowedActions = $policy->allowedDefinitions($actionContext);
+$check(array_column($allowedActions,'name')===['inspect.report','ai.follow'],
+    'prompt actions intersect negotiated capabilities, enabled actions, and policy');
+$actionTurn = $promptTurn;
+$actionTurn['_allowed_action_definitions'] = $allowedActions;
+$actionTurn['_prompt'] = (new PromptAssembler())->assemble($actionTurn,$promptSelection)['provider_input'];
+$filteredMessages = (new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
+$check(str_contains($filteredMessages[0]['content'],'ai.follow parameters:')
+    &&!str_contains($filteredMessages[0]['content'],'ai.stop')
+    &&!str_contains($filteredMessages[0]['content'],'item.use')
+    &&str_contains($filteredMessages[0]['content'],'additionalProperties'),
+    'assembler and provider expose only filtered catalog parameter schemas');
+$actionContext['policy']['content']=['enabled'=>false];
+$check($policy->allowedDefinitions($actionContext)===[]
+    &&str_contains($policy->promptContract([]),'action must be null'),
+    'disabled policies and snapshots without server action authority fail closed');
+$actionTurn['payload']['ui_source']='almsivi_rechat';
+$rechatMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
+$check(str_contains($rechatMessages[0]['content'],'action must be null')
+    &&!str_contains($rechatMessages[0]['content'],'ai.follow parameters:'),
+    'rechat cannot inherit an action contract from a prior turn');
+$legacyMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
+    ['_prompt'=>$actionTurn['_prompt']]);
+$rawMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,[]);
+$check(!str_contains($legacyMessages[0]['content'],'ai.follow parameters:')
+    &&str_contains($legacyMessages[0]['content'],'action must be null')
+    &&str_contains($rawMessages[0]['content'],'action must be null'),
+    'legacy and raw provider fallbacks do not restore the old unrestricted action list');
 $validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello, outlander.']],'action'=>null]);
 $decodeProviderContent=new ReflectionMethod($actionProvider,'decodeStructuredContent');
 $wrappedProviderResult=$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"Wrapped hello."}],"action":{"name":"ai.follow","parameters":{"distance":192}}}]');
@@ -601,7 +640,7 @@ $check(substr_count($coveredPrompt['provider_input']['_assembled_prompt'],'Fargo
     &&$coveredPrompt['trace']['memory_retrieval']['result_ids']===[], 'fully retained history covers a memory without a false inclusion trace');
 $restoredHistory=$coveredHistory;
 $restoredHistory['history'][]=['history_id'=>'history-pressure','content'=>['kind'=>'speech','text'=>str_repeat('H',1000),'speaker'=>'Guard']];
-$restoredPrompt=(new PromptAssembler(4096,1024))->assemble($promptTurn,$restoredHistory);
+$restoredPrompt=(new PromptAssembler(3072,1024))->assemble($promptTurn,$restoredHistory);
 $check(str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<conversation_context></conversation_context>')
     &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<memory_context><item>Fargoth: I have not seen it.</item>'),
     'dropping history for the total prompt budget restores its otherwise-covered memory');
