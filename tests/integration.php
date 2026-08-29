@@ -1088,7 +1088,7 @@ $sessionMemory=$memoryService->createMemory(['installation_id'=>$installationId,
     'provenance'=>['source'=>'manual']]);
 $sharedSource=$newUuid(3901);$sharedTurn=$newUuid(3902);
 $sharedPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
-    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL'],
+    'audience'=>[$bystander],'input'=>['text'=>'SHARED CONVERSATION SENTINEL','mood'=>['kind'=>'playful']],
     'context'=>['world'=>['cell'=>'History limit test cell']]];
 $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,turn_id,payload) "
     . "VALUES(:id,:installation,:session,7,'turn.requested',:now,'almsivi.turn.v1',:turn,CAST(:payload AS jsonb))")
@@ -1096,6 +1096,13 @@ $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_
         'turn'=>$sharedTurn,'payload'=>json_encode($sharedPayload,JSON_THROW_ON_ERROR)]);
 (new EventLogRepository($db))->projectSource($sharedSource,$installationId,$sessionId,'turn.requested',$memoryNow,
     null,$sharedTurn,null,$sharedPayload);
+$sharedProjection=$db->prepare('SELECT e.data,m.payload FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
+    .'WHERE m.source_event_id=:source AND e.type=\'inputtext\'');
+$sharedProjection->execute(['source'=>$sharedSource]);$sharedProjectionRow=$sharedProjection->fetch();
+$sharedProjectionPayload=$sharedProjectionRow?json_decode((string)$sharedProjectionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert($sharedProjectionRow&&str_contains((string)$sharedProjectionRow['data'],'(speaks in a playful tone.)')
+    &&($sharedProjectionPayload['input']['text']??null)==='SHARED CONVERSATION SENTINEL',
+    'player mood cue was not projected readably while preserving authored source text');
 $sharedMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
     'playthrough_id'=>$turn['playthrough_id'],'tier'=>'recent','content'=>'SHARED MEMORY SENTINEL',
     'source_event_id'=>$sharedSource,'provenance'=>['source'=>'turn.requested']]);

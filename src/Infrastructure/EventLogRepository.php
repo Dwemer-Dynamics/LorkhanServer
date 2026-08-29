@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace ALMSIVIserver\Infrastructure;
 
+use ALMSIVIserver\Application\PlayerMoodPolicy;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -245,7 +246,8 @@ final class EventLogRepository
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;
             $type = $kind === 'rechat' ? 'rechat' : 'inputtext';
-            $this->insert($common + ['type'=>$type,'data'=>$this->displayName($speaker,'Player').': '.$text,
+            $projectedText=PlayerMoodPolicy::decorate($text,$input['mood']??null);
+            $this->insert($common + ['type'=>$type,'data'=>$this->displayName($speaker,'Player').': '.$projectedText,
                 'projection_kind'=>'turn','projection_key'=>'turn:'.($turnId ?? $sourceId),'delivery_state'=>null,'utterance_id'=>null]);
             return;
         }

@@ -23,6 +23,7 @@ use ALMSIVIserver\Application\StreamingDialogueText;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\PlayerMoodPolicy;
 use ALMSIVIserver\Application\MemoryPromptSelection;
 use ALMSIVIserver\Application\InlineNarrationRouter;
 use ALMSIVIserver\Application\DialoguePlanner;
@@ -341,6 +342,25 @@ $secondaryTarget['display_name']='Mudcrab';$secondaryTarget['kind']='creature';$
 $directActionTurn['payload']['action_request']=['name'=>'combat.start','tier'=>2,'parameters'=>[],'target'=>$secondaryTarget];
 $validator->validate($directActionTurn,'almsivi.turn.v1');
 $check(true,'typed player action request validates inside turn envelope');
+$moodTurn=$directActionTurn;$moodTurn['payload']['input']['mood']=['kind'=>'playful'];
+$validator->validate($moodTurn,'almsivi.turn.v1');
+$customMoodTurn=$directActionTurn;$customMoodTurn['payload']['input']['mood']=['kind'=>'custom','custom'=>'with quiet resolve'];
+$validator->validate($customMoodTurn,'almsivi.turn.v1');
+$check(PlayerMoodPolicy::decorate('Come here',$moodTurn['payload']['input']['mood'])
+    ==='Come here (speaks in a playful tone.)'
+    &&PlayerMoodPolicy::decorate('Come here',$customMoodTurn['payload']['input']['mood'])
+    ==='Come here (speaks with quiet resolve.)','typed player moods resolve to bounded prompt cues');
+foreach ([
+    ['kind'=>'unknown'],
+    ['kind'=>'happy','custom'=>'extra'],
+    ['kind'=>'custom'],
+    ['kind'=>'custom','custom'=>"two\nlines"],
+    ['kind'=>'custom','custom'=>str_repeat('x',81)],
+] as $invalidMood) {
+    try{$invalidMoodTurn=$directActionTurn;$invalidMoodTurn['payload']['input']['mood']=$invalidMood;
+        $validator->validate($invalidMoodTurn,'almsivi.turn.v1');$check(false,'invalid player mood rejected');}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','invalid player mood rejected');}
+}
 try{
     $invalidDirectAction=$directActionTurn;$invalidDirectAction['payload']['action_request']['name']='../execute';
     $validator->validate($invalidDirectAction,'almsivi.turn.v1');
@@ -387,6 +407,12 @@ $check(str_contains((string)$systemMessage['content'],'Curious &amp; wary &lt;Bo
     &&!str_contains((string)$systemMessage['content'],'<name>Nerevarine</name>')
     &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
     'XML escaping, live player identity, and disabled narrator filtering are stable');
+$moodPromptTurn=$promptTurn;$moodPromptTurn['payload']['input']['mood']=['kind'=>'suspicious'];
+$moodPrompt=(new PromptAssembler(4096,1024))->assemble($moodPromptTurn,$promptSelection)['provider_input'];
+$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (speaks in a suspicious tone.)')
+    &&($moodPrompt['payload']['input']['text']??null)==='Hello'
+    &&($moodPrompt['payload']['input']['mood']['kind']??null)==='suspicious',
+    'player mood cues decorate the model prompt while authored input stays intact');
 $contextTurn=$promptTurn;
 $contextTurn['payload']['context']=[
     'world'=>['cell'=>'Seyda Neen','cell_identity'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],

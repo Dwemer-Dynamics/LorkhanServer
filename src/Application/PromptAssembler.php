@@ -774,6 +774,7 @@ final class PromptAssembler
                 $text = trim((string) ($content['input']['text'] ?? ''));
                 if ($this->ignoredHistoryText($text)) return null;
                 $speaker = $this->identityName($content['speaker'] ?? null, $playerName);
+                $text = PlayerMoodPolicy::decorate($text, $content['input']['mood'] ?? null);
                 return ['role' => 'user', 'content' => $speaker . ': ' . $text];
             }
             $details = $content['details'] ?? null;
@@ -859,6 +860,7 @@ final class PromptAssembler
         }
         $text = trim((string) ($turn['payload']['input']['text'] ?? ''));
         if ($text === '') throw new InvalidArgumentException('invalid_turn_input');
+        $text = PlayerMoodPolicy::decorate($text, $turn['payload']['input']['mood'] ?? null);
         $speaker = $playerName;
         return $speaker . ': ' . $text . "\n\nRespond as {$actorName}. Write {$actorName}'s next dialogue line; do not write dialogue for {$speaker}."
             . $closeCue;
