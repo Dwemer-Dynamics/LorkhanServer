@@ -6,10 +6,14 @@ namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\DeterministicRetrieval;
 use ALMSIVIserver\Application\ConnectorCatalog;
+use ALMSIVIserver\Application\EffectiveSettingsResolver;
+use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\NeverCancelledToken;
+use ALMSIVIserver\Application\PlayerMoodPolicy;
 use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
@@ -23,6 +27,8 @@ use Throwable;
 final class ManagementRouter
 {
     private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
+    private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
+        'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
     private const UI_PAGES=[
         'quickstart'=>'/ui/home.php',
         'roleplay'=>'/ui/events-memories.php',
@@ -75,6 +81,10 @@ final class ManagementRouter
             $session=$this->authenticatedSession($r);
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/player-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'player');
+            if($r->method==='GET'&&preg_match('#^/exports/narrator-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportSpecialProfileSettings($m[1],'narrator');
+            if($r->method==='GET'&&preg_match('#^/exports/global-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportGlobalSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
@@ -82,6 +92,8 @@ final class ManagementRouter
             if($r->method==='GET'&&preg_match('#^/exports/backups/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->downloadConfigurationBackup($m[1]);
             if($r->method==='GET'&&$path==='/exports/descriptions/example.csv')return$this->exampleDescriptionsCsv();
             if($r->method==='GET'&&$path==='/exports/descriptions/custom.csv')return$this->exportDescriptionsCsv($this->queryUuid($r,'installation_id'));
+            if($r->method==='GET'&&$path==='/exports/biographies/example.csv')return$this->exampleBiographiesCsv();
+            if($r->method==='GET'&&$path==='/exports/biographies/custom.csv')return$this->exportBiographiesCsv($this->queryUuid($r,'installation_id'));
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['almsivi_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','almsivi_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
@@ -89,12 +101,31 @@ final class ManagementRouter
             if($r->method==='POST'&&preg_match('#^/forms/([a-z-]+)$#D',$path,$m))return$this->submit($m[1],$r);
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
-        catch(RuntimeException $e){$status=$e->getMessage()==='unauthorized'?401:404;if($status===401&&$this->htmlRequest($r))return$this->redirect($this->uiPath('quickstart'));return Response::json($status,['error'=>$e->getMessage()]);}
+        catch(RuntimeException $e){
+            if($e->getMessage()==='relationship_restore_conflict')
+                return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),409):Response::json(409,['error'=>$e->getMessage()]);
+            if(in_array($e->getMessage(),['relationship_revision_conflict','relationship_already_exists'],true)){
+                if($this->htmlRequest($r))return $this->redirect($this->relationshipPageLocation($this->form($r),$e->getMessage()));
+                return Response::json(409,['error'=>$e->getMessage()]);
+            }
+            $status=$e->getMessage()==='unauthorized'?401:404;if($status===401&&$this->htmlRequest($r))return$this->redirect($this->uiPath('quickstart'));return Response::json($status,['error'=>$e->getMessage()]);
+        }
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
     private function api(Request $r,string $path):Response
     {
+        if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
+            $events=$this->eventLogRepository??throw new RuntimeException('not_found');
+            if($r->method==='GET'&&!isset($m[2]))return Response::json(200,['data'=>$events->profileHistory(
+                $m[1],$this->queryUuid($r,'playthrough_id'),isset($r->query['type'])?(string)$r->query['type']:null,
+                (int)($r->query['limit']??100))]);
+            if(($r->method==='POST'&&!isset($m[2]))||($r->method==='DELETE'&&isset($m[2]))){
+                $body=$this->json($r);$playthrough=(string)($body['playthrough_id']??'');$this->uuid($playthrough,'playthrough_id');
+                if($r->method==='POST')return Response::json(201,['data'=>$events->injectProfileEvent($m[1],$playthrough,$body)]);
+                return Response::json(200,['data'=>$events->suppressProfileEvent($m[1],$playthrough,(int)$m[2])]);
+            }
+        }
         if($path==='/api/v1/eventlog'){
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET')return Response::json(200,$events->page($r->query));
@@ -111,7 +142,20 @@ final class ManagementRouter
                 default=>throw new InvalidArgumentException('invalid_hidden_type_action')};
             return Response::json(200,['ok'=>true,'hidden_types'=>$hidden]);
         }
+        if($path==='/api/v1/profile-assignment-rules'){
+            if($r->method==='GET')return Response::json(200,$this->repository->profileAssignmentRulesPlan($this->queryUuid($r,'installation_id')));
+            if($r->method==='POST'){$body=$this->json($r);$operation=(string)($body['operation']??'');
+                if($operation==='save')return Response::json(200,$this->repository->saveProfileAssignmentRule($body,gmdate('Y-m-d\TH:i:s\Z')));
+                if($operation==='delete'){$this->repository->deleteProfileAssignmentRule((string)($body['installation_id']??''),(string)($body['rule_id']??''));
+                    return Response::json(200,['deleted'=>true]);}
+                throw new InvalidArgumentException('invalid_profile_assignment_rule_operation');
+            }
+        }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
+        if($path==='/api/v1/profile-connector-tests'){
+            if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
+            if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
+        }
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
@@ -135,6 +179,7 @@ final class ManagementRouter
         if($r->method==='GET'&&$path==='/api/v1/knowledge/search')return Response::json(200,$this->service->searchKnowledge($this->scopeQuery($r),(string)($r->query['q']??''),(int)($r->query['limit']??10)));
         if($r->method==='PATCH'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->service->updateKnowledge($m[1],$this->json($r)));
         if($r->method==='DELETE'&&preg_match('#^/api/v1/knowledge/([0-9a-f-]{36})$#D',$path,$m)){$this->repository->deleteKnowledge($m[1],gmdate('Y-m-d\TH:i:s\Z'));return Response::json(200,['deleted'=>true]);}
+        if($r->method==='POST'&&$path==='/api/v1/narratives/generate')return Response::json(202,$this->repository->enqueueDiaryGeneration($this->json($r)));
         if($path==='/api/v1/narratives')return$r->method==='POST'?Response::json(201,$this->service->createNarrative($this->json($r))):Response::json(200,['items'=>$this->repository->narratives($this->scopeQuery($r))]);
         if($r->method==='GET'&&$path==='/api/v1/playthrough-export')return Response::json(200,$this->service->exportPlaythrough($this->scopeQuery($r)));
         if($r->method==='POST'&&$path==='/api/v1/playthrough-restore')return Response::json(200,$this->service->restorePlaythrough($this->json($r)));
@@ -146,8 +191,47 @@ final class ManagementRouter
 
     private function submit(string $domain,Request $r):Response
     {
-        $v=$this->form($r);$scope=$this->scopeForm($v);$content=$this->jsonField($v,'content_json');
+        $v=$this->form($r);$scope=$this->scopeForm($v);
+        $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
+        if($domain==='relationship-history-build'){
+            $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
+            $limit=filter_var($v['history_limit']??null,FILTER_VALIDATE_INT);
+            if($limit===false||$limit<1||$limit>100)throw new InvalidArgumentException('invalid_relationship_build_request');
+            try{
+                $this->repository->enqueueRelationshipBuild($scope,$request,$limit);
+                $status='relationship_build_requested';
+            }catch(InvalidArgumentException $error){
+                $status=$error->getMessage();
+                if(!in_array($status,['relationship_build_pending','relationship_build_locked','relationship_build_no_connector',
+                    'relationship_build_no_history','relationship_build_ambiguous_owner','relationship_build_ambiguous_records',
+                    'relationship_build_too_large','relationship_build_request_conflict'],true))throw $error;
+            }
+            return $this->redirect($this->relationshipPageLocation($v,$status).'#relationship-builder');
+        }
+        if($domain==='relationship-text-convert'){
+            if(!hash_equals('Build',$this->need($v,'confirm')))throw new InvalidArgumentException('confirmation_mismatch');
+            $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
+            $mode=$this->need($v,'mode');
+            if(!in_array($mode,['missing','rebuild'],true))throw new InvalidArgumentException('invalid_relationship_conversion_request');
+            $playthrough=$scope['playthrough_id']??throw new InvalidArgumentException('invalid_playthrough_id');
+            try{$playthroughRow=$this->repository->getRevisioned('playthrough',$playthrough);}
+            catch(RuntimeException $error){
+                if($error->getMessage()!=='not_found')throw$error;
+                throw new InvalidArgumentException('invalid_relationship_conversion_scope');
+            }
+            $scope=['installation_id'=>(string)$playthroughRow['installation_id'],'playthrough_id'=>$playthrough];
+            try{
+                $summary=$this->repository->enqueueRelationshipConversion($scope,$request,$mode);
+                $status=$summary['queued']>0?'relationship_conversion_requested':'relationship_conversion_no_eligible';
+            }catch(InvalidArgumentException $error){
+                $status=$error->getMessage();$summary=[];
+                if(!in_array($status,['relationship_conversion_request_conflict','relationship_conversion_too_large',
+                    'relationship_conversion_too_many_owners','relationship_conversion_too_many_candidates',
+                    'relationship_conversion_too_many_targets','relationship_conversion_ambiguous_records'],true))throw $error;
+            }
+            return $this->redirect($this->characterPageLocation($v,$status,$summary));
+        }
         if($domain==='connector-test'){
             $detail=$this->testConnector($v);
             $target=(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors');
@@ -172,6 +256,10 @@ final class ManagementRouter
             $saved=$this->service->importItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->descriptionCsvRows($r));
             return$this->redirect($this->descriptionPageLocation($scope['installation_id'],'imported',count($saved)));
         }
+        if($domain==='biography-import'){
+            $saved=$this->service->importBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->biographyCsvRows($r));
+            return$this->redirect($this->biographyPageLocation($v,'imported',count($saved)));
+        }
         if($domain==='knowledge-import'){
             $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$inputs=[];
             foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
@@ -184,7 +272,7 @@ final class ManagementRouter
             if(($v['embed']??'')==='1')$query['embed']='1';
             return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query($query));
         }
-        match($domain){
+        $result=match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
             'profile-template-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'actor_identity'=>$this->templateIdentity($v),'content'=>$this->profileContent($v)]),
@@ -194,20 +282,29 @@ final class ManagementRouter
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-settings-import'=>$this->importCoreProfileSettings($v,$scope),
             'core-profile-save'=>$this->saveCoreProfile($v),
             'core-profile-revise'=>$this->service->revise('core_profile',$this->need($v,'core_profile_id'),$this->coreProfileContent($v),$this->need($v,'change_reason')),
             'core-profile-default'=>$this->makeDefaultCoreProfile($v),
             'core-profile-rollback'=>$this->service->rollback('core_profile',$this->need($v,'core_profile_id'),(int)($v['revision']??0),'management rollback'),
             'core-profile-delete'=>$this->service->deleteRevisioned('core_profile',$this->need($v,'core_profile_id')),
             'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
-                'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->profileContent($v)]),
-            'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->profileContent($v),$this->need($v,'change_reason')),
+                'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->playerContent($v)]),
+            'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->playerContent($v),$this->need($v,'change_reason')),
+            'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
             'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id')),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]),
             'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
+            'narrator-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'narrator'),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
+            'global-settings-import'=>$this->importGlobalSettings($v,$scope),
+            'global-settings-rollback'=>$this->rollbackGlobalSettings($v,$scope),
+            'memory-policy'=>$this->saveMemoryPolicy($v,$scope),
+            'memory-summarize'=>$this->requestMemorySummary($v,$scope),
+            'memory-embedding-policy'=>$this->saveMemoryEmbeddingPolicy($v,$scope),
+            'memory-embedding-backfill'=>$this->requestMemoryEmbeddingBackfill($v,$scope),
             'profile-biography-revise'=>$this->reviseNpcProfile($v),
             'biography-template-revise'=>$this->repository->saveBiographyTemplate($v),
             'profile-rollback'=>$this->service->rollback('profile',$this->need($v,'profile_id'),(int)($v['revision']??0),'management rollback'),
@@ -236,13 +333,13 @@ final class ManagementRouter
             'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
             'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id'),$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id')),
             'description-reset'=>$this->resetDescriptions($v,$scope),
-            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
+            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->promptFormContent($v,$content)]),
             'prompt-clone'=>$this->clonePrompt($v),
             'prompt-import'=>$this->importPrompt($v,$scope),
             'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$content]),
             'action-policy-controls-create'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$this->actionPolicyFormContent($v)]),
             'action-policy-controls-revise'=>$this->service->revise('action_policy',$this->need($v,'configuration_id'),$this->actionPolicyFormContent($v),$this->need($v,'change_reason')),
-            'configuration-revise'=>$this->service->revise($this->configurationKind($v),$this->need($v,'configuration_id'),$content,$this->need($v,'change_reason')),
+            'configuration-revise'=>$this->reviseConfiguration($v,$content),
             'configuration-rollback'=>$this->service->rollback($this->configurationKind($v),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
             'configuration-delete'=>$this->service->deleteRevisioned($this->configurationKind($v),$this->need($v,'configuration_id')),
             'playthroughs'=>$this->service->createRevisioned('playthrough',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
@@ -251,24 +348,51 @@ final class ManagementRouter
             'memory-revise'=>$this->reviseMemory($v),
             'memory-delete'=>$this->repository->deleteMemory($this->need($v,'memory_id'),gmdate('Y-m-d\TH:i:s\Z')),
             'memory-rebuild'=>$this->repository->rebuildMemories($scope,gmdate('Y-m-d\TH:i:s\Z')),
-            'relationships'=>$this->service->setRelationship($scope+['actor_identity'=>$content,'disposition'=>(int)($v['disposition']??0),'affinity'=>(int)($v['affinity']??0),'source_mode'=>'manual','reason'=>$v['reason']??'management']),
-            'relationship-delete'=>$this->repository->deleteRelationship($this->need($v,'relationship_id'),gmdate('Y-m-d\TH:i:s\Z')),
+            'relationships'=>$this->saveRelationship($v,$scope,$content),
+            'relationship-delete'=>$this->service->deleteRelationship($this->need($v,'relationship_id'),$this->relationshipRevision($v)),
             'knowledge'=>$this->service->ingestKnowledge($scope+$this->knowledgeFormInput($v)),
             'knowledge-revise'=>$this->service->updateKnowledge($this->need($v,'document_id'),$this->knowledgeFormInput($v)),
             'knowledge-delete'=>$this->deleteKnowledgeDocument($v),
             'narratives'=>$this->service->createNarrative($scope+['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
             'narrative-revise'=>$this->service->updateNarrative($this->need($v,'narrative_id'),['kind'=>$v['kind']??'narrator','title'=>$this->need($v,'title'),'content'=>$this->need($v,'content'),'provenance'=>['source'=>$this->need($v,'provenance')]]),
             'narrative-delete'=>$this->deleteNarrativeDocument($v),
+            'narrative-generate'=>$this->repository->enqueueDiaryGeneration($scope+['request_id'=>trim((string)($v['request_id']??''))?:Uuid::v4()]),
             'configuration-backup'=>$this->createConfigurationBackup($v,$scope),
             'configuration-restore'=>$this->restoreConfigurationBackup($v,$scope),
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
+        if(in_array($domain,['global-settings-import','global-settings-rollback'],true))return$this->redirect(
+            $this->globalSettingsPageLocation($v,$domain==='global-settings-import'?'imported':'rolled-back'));
+        if(in_array($domain,['memory-policy','memory-summarize'],true)){
+            $query=['status'=>$domain==='memory-policy'?'saved':'summary-requested',
+                'policy_installation_id'=>$scope['installation_id']];
+            if($domain==='memory-summarize'&&($result['state']??'')==='dead')$query['status']='summary-failed';
+            return $this->redirect($this->uiPath('memory').'&'.http_build_query($query));
+        }
+        if(in_array($domain,['memory-embedding-policy','memory-embedding-backfill'],true)){
+            $query=['status'=>$domain==='memory-embedding-policy'?'embedding-saved':
+                (($result['queued']??0)>0?'embeddings-queued':'embedding-backfill-empty'),
+                'policy_installation_id'=>$scope['installation_id'],'queued'=>(int)($result['queued']??0)];
+            return$this->redirect($this->uiPath('memory').'&'.http_build_query($query));
+        }
+        if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
+        if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
+        if($domain==='player-profile-settings-import')return$this->redirect($this->uiPath('player').'?'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'status'=>'imported']));
+        if($domain==='narrator-profile-settings-import')return$this->redirect($this->uiPath('narrator').'&'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'status'=>'imported']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
-        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
+        if(in_array($domain,['profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite',
+            'profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate',
+            'profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'],true))
+            return$this->redirect($this->characterPageLocation($v,'saved'));
+        $target=match($domain){'prompts','prompt-clone','prompt-import'=>'prompts-actions','action-policies','action-policy-controls-create','action-policy-controls-revise'=>'action-editor','configuration-revise','configuration-rollback','configuration-delete'=>(($v['kind']??'')==='action_policy'?'action-editor':'prompts-actions'),'narratives','narrative-revise','narrative-delete','narrative-generate'=>'narrative-autonomy','configuration-backup','configuration-restore'=>'database-manager','retention'=>'backup-health','providers','provider-revise','provider-rollback','provider-delete','provider-clone','provider-import'=>'providers','tts-providers'=>'tts-connectors','stt-providers'=>'stt-connectors','connector-default-voice'=>'tts-studio','connector-selection','connector-revise','connector-rollback','connector-delete','connector-clone','connector-import'=>(($v['kind']??'')==='stt_provider'?'stt-connectors':'tts-connectors'),'core-profile-create','core-profile-revise','core-profile-default','core-profile-rollback','core-profile-delete'=>'profiles','profile-import','profile-clone','profile-create','profile-revise','profile-toggle-favorite','profile-toggle-lock','profile-rollback','profile-delete','profile-generate','profile-bulk-generate','profile-bulk-unlock','profile-bulk-delete','profile-bulk-switch','profile-auto-lock'=>'characters','player-profile-create','player-profile-revise','player-speech-style-generate'=>'player','narrator-profile-create','narrator-profile-revise','narrator-profile-generate'=>'narrator','profile-biography-revise','biography-template-revise','biography-import'=>'npc-biographies','description-save','description-delete','description-reset'=>'descriptions','memory-revise','memory-delete','memory-rebuild'=>'memory','relationship-delete'=>'relationships','knowledge','knowledge-revise','knowledge-delete'=>'knowledge','playthroughs','playthrough-import'=>'playthrough-form',default=>$domain};
         $joiner=str_contains($this->uiPath($target),'?')?'&':'?';
         return$this->redirect($this->uiPath($target).$joiner.'status=saved');
     }
@@ -387,6 +511,60 @@ final class ManagementRouter
         return$this->csvResponse('custom_descriptions_export_'.gmdate('Y-m-d_H-i-s').'.csv',$this->repository->customItemDescriptions($installationId));
     }
 
+    /** Parse one bounded ALMSIVI biography CSV before any profile revision is written. */
+    private function biographyCsvRows(Request $request):array
+    {
+        $file=$request->files['csv_file']??null;
+        if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('biography_csv_missing');
+        $size=(int)($file['size']??0);if($size<1||$size>$this->maxJsonBytes)throw new InvalidArgumentException('biography_csv_size');
+        if(strtolower(pathinfo((string)($file['name']??''),PATHINFO_EXTENSION))!=='csv')throw new InvalidArgumentException('biography_csv_type');
+        $handle=fopen((string)$file['tmp_name'],'rb');if($handle===false)throw new InvalidArgumentException('biography_csv_unreadable');
+        try{
+            $header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('biography_csv_header');
+            if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0])??(string)$header[0];
+            $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
+            if($header!==self::BIOGRAPHY_CSV_HEADER)throw new InvalidArgumentException('biography_csv_header');
+            $rows=[];
+            while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){
+                if($values===[null]||count($values)===0)continue;
+                if(count($values)!==count(self::BIOGRAPHY_CSV_HEADER))throw new InvalidArgumentException('biography_csv_columns');
+                if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('biography_csv_encoding');
+                $rows[]=array_combine(self::BIOGRAPHY_CSV_HEADER,array_map('strval',$values));
+                if(count($rows)>1000)throw new InvalidArgumentException('biography_csv_rows');
+            }
+        }finally{fclose($handle);}
+        if($rows===[])throw new InvalidArgumentException('biography_csv_empty');return$rows;
+    }
+
+    private function exampleBiographiesCsv():Response
+    {
+        return$this->biographyCsvResponse('example_biographies.csv',[[
+            'content_file'=>'Morrowind.esm','record_id'=>'fargoth','name'=>'Fargoth',
+            'core'=>'A nervous Bosmer commoner who wants to recover his missing possessions.',
+            'biography'=>'Fargoth lives in Seyda Neen and has had trouble with the local guards.',
+            'appearance'=>'A slight Bosmer wearing common clothes.','personality'=>'Nervous, friendly, and grateful.',
+            'relationships'=>'{}','occupation'=>'Commoner','skills'=>'Sneaking and light commerce.',
+            'speech_style'=>'Hesitant and earnest.','goals'=>'Recover what was taken and stay out of trouble.',
+            'oghma_tags'=>'Seyda Neen, Bosmer','voice_id'=>'','gender'=>'Male','race'=>'Wood Elf',
+        ]]);
+    }
+
+    private function exportBiographiesCsv(string $installationId):Response
+    {
+        return$this->biographyCsvResponse('custom_biographies_export_'.gmdate('Y-m-d_H-i-s').'.csv',
+            $this->repository->customBiographyTemplates($installationId));
+    }
+
+    /** Encode a round-trip-safe UTF-8 biography CSV in the exact ALMSIVI field order. */
+    private function biographyCsvResponse(string $filename,array $rows):Response
+    {
+        $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');
+        fwrite($stream,"\xEF\xBB\xBF");fputcsv($stream,self::BIOGRAPHY_CSV_HEADER,',','"','\\');
+        foreach($rows as$row)fputcsv($stream,array_map(static fn(string$field):string=>(string)($row[$field]??''),self::BIOGRAPHY_CSV_HEADER),',','"','\\');
+        rewind($stream);$body=stream_get_contents($stream);fclose($stream);if(!is_string($body))throw new RuntimeException('csv_unavailable');
+        return new Response(200,$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'"','X-Content-Type-Options'=>'nosniff']);
+    }
+
     /** Encode spreadsheet-safe UTF-8 CSV with the established CHIM column order. */
     private function csvResponse(string $filename,array $rows):Response
     {
@@ -435,6 +613,21 @@ final class ManagementRouter
     {
         $query=['installation_id'=>$installationId,'status'=>$status];if($count>0)$query['count']=$count;
         return$this->uiPath('descriptions').'?'.http_build_query($query);
+    }
+
+    private function biographyPageLocation(array $values,string $status,int $count=0):string
+    {
+        $query=['installation_id'=>$this->need($values,'installation_id'),'status'=>$status];
+        if($count>0)$query['count']=$count;if(($values['embed']??null)==='1')$query['embed']='1';
+        return$this->webRoot().'/ui/core/npc_biographies.php?'.http_build_query($query);
+    }
+
+    /** Return to the selected Global Settings document without nesting the configuration hub inside its iframe. */
+    private function globalSettingsPageLocation(array $values,string $status):string
+    {
+        $query=['installation_id'=>$this->need($values,'installation_id'),'status'=>$status];
+        if(($values['embed']??null)==='1')$query['embed']='1';
+        return$this->webRoot().'/ui/global_settings.php?'.http_build_query($query);
     }
 
     private function authenticatedSession(Request $r):?string{$t=BrowserSession::parse($r->header('Cookie'));return$t!==null&&$this->management->validate($t)?$t:null;}
@@ -489,9 +682,30 @@ final class ManagementRouter
     private function providerFormContent(array $values):array
     {
         $driver=$this->need($values,'driver');$model=$this->need($values,'model');
-        if($driver==='configured')return['driver'=>'configured','model'=>$model];
         if($driver==='mock')return['driver'=>'mock','model'=>$model,'mock_prefix'=>trim((string)($values['mock_prefix']??''))];
-        throw new InvalidArgumentException('invalid_provider_driver');
+        $content=['driver'=>$driver,'model'=>$model];
+        if($driver==='openai-compatible')$content+=['endpoint'=>$this->need($values,'endpoint'),
+            'credential'=>$values['credential']??'none'];
+        if(isset($values['timeout_ms'])&&$values['timeout_ms']!==''){
+            $timeout=filter_var($values['timeout_ms'],FILTER_VALIDATE_INT);
+            if($timeout===false)throw new InvalidArgumentException('invalid_provider_timeout');
+            $content['timeout_ms']=$timeout;
+        }
+        $options=[];
+        foreach(LlmConnector::OPTION_RULES as$name=>$rule){
+            $key='option_'.$name;if(!array_key_exists($key,$values)||$values[$key]==='')continue;
+            $raw=$values[$key];
+            if($rule['type']==='boolean'){
+                if(!in_array($raw,['true','false'],true))throw new InvalidArgumentException('invalid_provider_option_'.$name);
+                $options[$name]=$raw==='true';
+            }else{
+                $value=filter_var($raw,$rule['type']==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
+                if($value===false)throw new InvalidArgumentException('invalid_provider_option_'.$name);
+                $options[$name]=$value;
+            }
+        }
+        if($options!==[])$content['options']=$options;
+        return LlmConnector::validate($content);
     }
 
     /** Restrict generic revision controls to the two JSON-backed management editors. */
@@ -500,6 +714,30 @@ final class ManagementRouter
         $kind=$this->need($values,'kind');
         if(!in_array($kind,['prompt','action_policy'],true))throw new InvalidArgumentException('invalid_configuration_kind');
         return$kind;
+    }
+
+    /** Apply the labelled prompt format control only to Prompt Manager revisions. */
+    private function reviseConfiguration(array $values,array $content):array
+    {
+        $kind=$this->configurationKind($values);
+        if($kind==='prompt')$content=$this->promptFormContent($values,$content);
+        return$this->service->revise($kind,$this->need($values,'configuration_id'),$content,$this->need($values,'change_reason'));
+    }
+
+    /** Store labelled format and player-mood controls with the revisioned prompt document. */
+    private function promptFormContent(array $values,array $content):array
+    {
+        $format=$values['prompt_format']??($content['format']??'xml');
+        if(!is_string($format)||!in_array($format,['xml','markdown'],true))throw new InvalidArgumentException('invalid_prompt_format');
+        $content['format']=$format;
+        $defaults=PlayerMoodPolicy::defaultTemplates();$current=$content['player_mood_prompts']??$defaults;
+        if(!is_array($current)||array_is_list($current))$current=$defaults;
+        $hasMoodFields=false;$templates=[];
+        foreach($defaults as$key=>$default){$field='player_mood_prompt_'.$key;
+            if(array_key_exists($field,$values))$hasMoodFields=true;
+            $templates[$key]=array_key_exists($field,$values)?(string)$values[$field]:(string)($current[$key]??$default);}
+        if($hasMoodFields)$content['player_mood_prompts']=PlayerMoodPolicy::validateTemplates($templates);
+        return$content;
     }
 
     /** Convert labelled action toggles into a complete policy over the immutable OpenMW action catalog. */
@@ -559,12 +797,190 @@ final class ManagementRouter
             'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
     }
 
-    /** Download one portable model slot without installation ownership, revision history, endpoints, or credentials. */
+    /** Download only the validated settings overrides from one Core Profile. */
+    private function exportCoreProfileSettings(string $coreProfileId):Response
+    {
+        $this->uuid($coreProfileId,'core_profile_id');$row=$this->repository->getRevisioned('core_profile',$coreProfileId);
+        $content=EffectiveSettingsResolver::validateCoreProfile(is_array($row['content']??null)?$row['content']:[]);
+        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
+        if($this->containsSecretKey($overrides))throw new RuntimeException('core_profile_settings_export_rejected');
+        $document=['schema'=>'almsivi.core-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'settings_overrides'=>$overrides===[]?(object)[]:$overrides];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');
+        if($filename==='')$filename='almsivi-core-profile';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'-settings.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Import a strict settings-only preset as a new unassigned Core Profile. */
+    private function importCoreProfileSettings(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['exported_at','name','schema','settings_overrides']
+            ||($document['schema']??null)!=='almsivi.core-profile-settings.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings_overrides']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException('invalid_core_profile_settings_preset');
+        $name=trim((string)($document['name']??''));
+        if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_core_profile_settings_preset');
+        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($document['settings_overrides']);
+        return$this->service->createRevisioned('core_profile',[
+            'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$name,'default_npc'=>false,'slot'=>null,
+            'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
+        ]);
+    }
+
+    /** Download the editable, ownership-free portion of the Player or Narrator singleton. */
+    private function exportSpecialProfileSettings(string $profileId,string $kind):Response
+    {
+        $this->uuid($profileId,'profile_id');$row=$this->repository->getRevisioned('profile',$profileId);
+        $identity=$row['actor_identity']??[];
+        if(is_string($identity)){
+            try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
+        }
+        if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
+        if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
+        $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
+        $schema=$kind==='player'?'almsivi.player-profile-settings.v2':'almsivi.narrator-profile-settings.v1';
+        $document=['schema'=>$schema,'exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
+        if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-'.$kind.'-settings.json"',
+                'X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Merge one strict portable preset into the selected installation singleton as a new revision. */
+    private function importSpecialProfileSettings(array $values,array $scope,string $kind):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        $error='invalid_'.$kind.'_profile_settings_preset';
+        $schema=$document['schema']??null;
+        $validSchema=$kind==='player'
+            ?in_array($schema,['almsivi.player-profile-settings.v1','almsivi.player-profile-settings.v2'],true)
+            :$schema==='almsivi.narrator-profile-settings.v1';
+        if($keys!==['exported_at','schema','settings']
+            ||!$validSchema
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException($error);
+        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,$schema==='almsivi.player-profile-settings.v2');
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
+        if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
+        $content=is_array($profile['content']??null)?$profile['content']:[];
+        foreach($settings as$field=>$value){
+            if($field==='voice'){
+                if($value['id']==='')unset($content['voice']);else$content['voice']=$value;
+            }elseif(is_string($value)&&$value==='')unset($content[$field]);else$content[$field]=$value;
+        }
+        return$this->service->revise('profile',(string)$profile['profile_id'],$content,'imported portable '.$kind.' settings');
+    }
+
+    /** Build a complete portable field map so empty values can be cleared during a round trip. */
+    private function portableSpecialProfileSettings(array $content,string $kind):array
+    {
+        if($kind==='player'){
+            $settings=[];foreach(['appearance','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
+            $settings['biography_known_by_all']=($content['biography_known_by_all']??true)!==false;
+        }else{
+            $settings=[];foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
+                $settings[$field]=($content[$field]??false)===true;
+            $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
+            foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
+            $voice=is_array($content['voice']??null)?$content['voice']:[];
+            $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
+        }
+        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export',$kind==='player');
+    }
+
+    /** Enforce the exact Player or Narrator preset keys and bounded scalar values. */
+    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error,bool $includePlayerVisibility=false):array
+    {
+        $textFields=$kind==='player'
+            ?['appearance','biography','personality','speech_style','goals','notes']
+            :['prompt_head','core','biography','personality','speech_style','goals','notes'];
+        $expected=$textFields;
+        if($kind==='player'&&$includePlayerVisibility)$expected[]='biography_known_by_all';
+        if($kind==='narrator')$expected=array_merge($expected,
+            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice']);
+        $keys=array_keys($settings);sort($keys);sort($expected);if($keys!==$expected)throw new InvalidArgumentException($error);
+        foreach($textFields as$field){$value=$settings[$field];
+            if(!is_string($value)||strlen($value)>65_536||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException($error);}
+        if($kind==='player'){
+            if($includePlayerVisibility&&!is_bool($settings['biography_known_by_all']))throw new InvalidArgumentException($error);
+            return$settings;
+        }
+        foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
+            if(!is_bool($settings[$field]))throw new InvalidArgumentException($error);
+        if(!is_string($settings['inline_narration_mode'])
+            ||!in_array($settings['inline_narration_mode'],['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException($error);
+        $voice=$settings['voice'];$voiceKeys=is_array($voice)?array_keys($voice):[];sort($voiceKeys);
+        if(!is_array($voice)||array_is_list($voice)||$voiceKeys!==['id','language']
+            ||!is_string($voice['id'])||strlen($voice['id'])>512||!mb_check_encoding($voice['id'],'UTF-8')
+            ||!is_string($voice['language'])||$voice['language']===''||strlen($voice['language'])>35||!mb_check_encoding($voice['language'],'UTF-8'))
+            throw new InvalidArgumentException($error);
+        return$settings;
+    }
+
+    /** Download one strict Global Settings revision without installation ownership or audit history. */
+    private function exportGlobalSettings(string $configurationId):Response
+    {
+        $this->uuid($configurationId,'configuration_id');
+        if($this->repository->resourceKind($configurationId)!=='global_settings')throw new RuntimeException('not_found');
+        $row=$this->repository->getRevisioned('global_settings',$configurationId);
+        $settings=EffectiveSettingsResolver::validateGlobalSettings(is_array($row['content']??null)?$row['content']:[]);
+        if($this->containsSecretKey($settings))throw new RuntimeException('global_settings_export_rejected');
+        $document=['schema'=>'almsivi.global-settings-preset.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'settings'=>$settings];
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="almsivi-global-settings.json"',
+                'X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Apply one ownership-free Global Settings preset as a new revision of the selected installation singleton. */
+    private function importGlobalSettings(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['exported_at','name','schema','settings']
+            ||($document['schema']??null)!=='almsivi.global-settings-preset.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException('invalid_global_settings_preset');
+        $name=trim((string)($document['name']??''));
+        if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings_preset');
+        $settings=EffectiveSettingsResolver::validateGlobalSettings($document['settings']);
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $existing=$this->repository->globalSettingsForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('global_settings',[
+            'installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings,
+            'change_reason'=>'imported portable Global Settings',
+        ]);
+        return$this->service->revise('global_settings',(string)$existing['configuration_id'],$settings,
+            'imported portable Global Settings');
+    }
+
+    /** Restore an earlier Global Settings document only inside its owning installation. */
+    private function rollbackGlobalSettings(array $values,array $scope):array
+    {
+        $configurationId=$this->need($values,'configuration_id');$this->uuid($configurationId,'configuration_id');
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $existing=$this->repository->globalSettingsForInstallation($installation);
+        $revision=filter_var($values['revision']??null,FILTER_VALIDATE_INT);
+        if($existing===null||!hash_equals((string)$existing['configuration_id'],$configurationId)
+            ||$revision===false||$revision<1||$revision>=(int)$existing['current_revision'])
+            throw new InvalidArgumentException('invalid_global_settings_revision');
+        return$this->service->rollback('global_settings',$configurationId,(int)$revision,'management Global Settings restore');
+    }
+
+    /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */
     private function exportProvider(string $configurationId):Response
     {
         $this->uuid($configurationId,'configuration_id');$row=$this->repository->getRevisioned('provider',$configurationId);
         $content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('provider_export_rejected');
+        $content=LlmConnector::validate($content);
+        if($content['driver']==='openai-compatible')$content['credential']='none';
         $document=['schema'=>'almsivi.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='almsivi-model-slot';
@@ -587,12 +1003,12 @@ final class ManagementRouter
         if($keys!==['content','exported_at','name','schema']||($document['schema']??null)!=='almsivi.provider-export.v1'
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
-        $content=$document['content'];$driver=$content['driver']??null;$contentKeys=array_keys($content);sort($contentKeys);
-        $minimal=['driver','model'];$withPrefix=['driver','mock_prefix','model'];sort($minimal);sort($withPrefix);
-        if(!in_array($driver,['configured','mock'],true)||($driver==='configured'?$contentKeys!==$minimal:!in_array($contentKeys,[$minimal,$withPrefix],true)))throw new InvalidArgumentException('invalid_provider_export');
+        $content=LlmConnector::validate($document['content']);
+        // Imported endpoints must not silently acquire an existing local API key.
+        if($content['driver']==='openai-compatible')$content['credential']='none';
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_provider_export');
         return$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
-            'name'=>$name,'content'=>$this->providerFormContent($content)]);
+            'name'=>$name,'content'=>$content]);
     }
 
     /** Download one portable prompt without installation ownership, revision history, or secret-like fields. */
@@ -780,7 +1196,7 @@ final class ManagementRouter
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
-        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings'];
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
                 ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
@@ -790,6 +1206,26 @@ final class ManagementRouter
         $selectionKinds=[];foreach($data['connector_selections']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             $kind=$row['provider_kind']??null;$id=$row['configuration_id']??null;if($keys!==['configuration_id','provider_kind']||!in_array($kind,['tts_provider','stt_provider'],true)
                 ||!is_string($id)||($configurationKinds[$id]??null)!==$kind||isset($selectionKinds[$kind]))throw new RuntimeException('backup_integrity_failed');$selectionKinds[$kind]=true;}
+        $memoryPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='memory_policy')continue;
+            \ALMSIVIserver\Application\MemorySummaryPolicy::validate($row['content']);
+            $provider=$row['content']['provider_configuration_id'];
+            if(++$memoryPolicies>1||$row['profile_id']!==null
+                ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
+        }
+        $embeddingPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='memory_embedding_policy')continue;
+            \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+            if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
+        }
+        $translationPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='translation_policy')continue;
+            TranslationPolicy::validate($row['content']);
+            if(++$translationPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
+        }
         if($this->containsSecretKey($document))throw new RuntimeException('backup_integrity_failed');
     }
 
@@ -877,10 +1313,63 @@ final class ManagementRouter
         return$content;
     }
 
+    /** Validate the manual request before it reaches database UUID and revision predicates. */
+    private function requestMemorySummary(array $values,array $scope):array
+    {
+        $id=$this->need($values,'memory_id');$this->uuid($id,'memory_id');
+        $revision=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1||$revision>2147483647)throw new InvalidArgumentException('invalid_memory_revision');
+        return$this->repository->enqueueMemorySummary(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$id,$revision);
+    }
+
+    /** Save the opt-in model policy without scheduling historical work or contacting a provider. */
+    private function saveMemoryPolicy(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $content=['schema'=>'almsivi.memory-policy.v1','enabled'=>isset($values['enabled']),
+            'provider_configuration_id'=>trim((string)($values['provider_configuration_id']??''))];
+        $existing=$this->repository->memorySummaryPolicyForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('memory_policy',
+            ['installation_id'=>$installation,'name'=>'Model memory','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('memory_policy',$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'Memory policy update'))?:'Memory policy update');
+    }
+
+    /** Save the opt-in MiniMe policy without contacting its endpoint or scheduling historical work. */
+    private function saveMemoryEmbeddingPolicy(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $timeout=filter_var($values['timeout_ms']??null,FILTER_VALIDATE_INT);
+        if($timeout===false)throw new InvalidArgumentException('invalid_memory_embedding_timeout');
+        $content=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate([
+            'schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,
+            'enabled'=>isset($values['enabled']),'endpoint'=>trim((string)($values['endpoint']??'')),
+            'timeout_ms'=>$timeout,
+        ]);
+        $existing=$this->repository->memoryEmbeddingPolicyForInstallation($installation);
+        if($existing===null)return$this->service->createRevisioned('memory_embedding_policy',[
+            'installation_id'=>$installation,'name'=>'Semantic memory retrieval','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('memory_embedding_policy',$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'Semantic memory policy update'))?:'Semantic memory policy update');
+    }
+
+    /** Queue one bounded page of missing current memory vectors only after an explicit browser action. */
+    private function requestMemoryEmbeddingBackfill(array $values,array $scope):array
+    {
+        $limit=filter_var($values['limit']??100,FILTER_VALIDATE_INT);
+        if($limit===false||$limit<1||$limit>500)throw new InvalidArgumentException('invalid_memory_embedding_limit');
+        return$this->repository->enqueueMemoryEmbeddings(
+            $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$limit);
+    }
+
     /** Create or revise the one typed global-settings document owned by an installation. */
     private function saveGlobalSettings(array $values,array $scope):array
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $this->saveTranslationPolicy($values,$installation);
         $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
         $this->repository->setOghmaSettings($installation,[
             'enabled'=>isset($values['oghma_enabled']),
@@ -895,6 +1384,27 @@ final class ManagementRouter
         $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
+    }
+
+    /** Save the server-only translation sidecar without placing provider details in client settings. */
+    private function saveTranslationPolicy(array $values,string $installation):array
+    {
+        $provider=strtolower(trim((string)($values['translation_provider']??'none')));
+        $active=$provider==='deepl';
+        $content=TranslationPolicy::validate([
+            'schema'=>'almsivi.translation-policy.v1','provider'=>$provider,
+            'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
+            'save_translated_text'=>$active&&isset($values['translation_save_text']),
+            'source_language'=>trim((string)($values['translation_source_language']??'')),
+            'target_language'=>trim((string)($values['translation_target_language']??'')),
+            'endpoint'=>trim((string)($values['translation_endpoint_url']??TranslationPolicy::FREE_ENDPOINT)),
+        ]);
+        $existing=$this->repository->translationPolicyForInstallation($installation);
+        if($existing['configuration_id']===null)return$this->service->createRevisioned('translation_policy',[
+            'installation_id'=>$installation,'name'=>'NPC Output Translation','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('translation_policy',(string)$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'management translation policy'))?:'management translation policy');
     }
 
     /** Create one typed Core Profile between installation defaults and NPC overrides. */
@@ -931,7 +1441,8 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
+            'relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
         foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
@@ -943,7 +1454,8 @@ final class ManagementRouter
         $overrides=[];
         $booleanFields=[
             'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'narrator'=>['enabled','context_visibility'],
+            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],
+            'diary'=>['enabled','include_in_context'],
             'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled'],
         ];
@@ -952,7 +1464,8 @@ final class ManagementRouter
             $overrides[$section][$field]=$value==='1';}
         $integerFields=[
             'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit'],
+            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],
+            'diary'=>['context_turn_limit'],
             'oghma'=>['topic_count','result_limit','extractor_timeout_ms'],
         ];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
@@ -963,6 +1476,8 @@ final class ManagementRouter
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$key='setting_narrator_'.$field;$value=trim((string)($values[$key]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
+        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
 
         return['schema'=>'almsivi.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];
@@ -1004,9 +1519,11 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id'];
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
+            'relationship_configuration_id','diary_generation_configuration_id'];
         if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
-            ||array_key_exists('prompt_configuration_id',$values)||isset($values['llm_routing_fields'])){
+            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)
+            ||array_key_exists('relationship_configuration_id',$values)||array_key_exists('diary_generation_configuration_id',$values)||isset($values['llm_routing_fields'])){
             $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
             foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
                 if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
@@ -1020,7 +1537,12 @@ final class ManagementRouter
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
         }
         if(array_filter(array_keys($values),static fn(string$key):bool=>str_starts_with($key,'setting_'))!==[]){
-            $overrides=$this->profileSettingsOverrides($values);if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
+            $existingOverrides=is_array($content['settings_overrides']??null)&&!array_is_list($content['settings_overrides'])?$content['settings_overrides']:[];
+            $overrides=$this->profileSettingsOverrides($values);
+            if(!array_key_exists('setting_diary_enabled',$values)&&!array_key_exists('setting_diary_include_in_context',$values)
+                &&!array_key_exists('setting_diary_context_turn_limit',$values)&&!array_key_exists('setting_diary_prompt',$values)
+                &&is_array($existingOverrides['diary']??null))$overrides['diary']=$existingOverrides['diary'];
+            if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
         }
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
@@ -1028,17 +1550,31 @@ final class ManagementRouter
         return$content;
     }
 
+    /** Add the player-only biography audience flag to the shared bounded profile document. */
+    private function playerContent(array $values):array
+    {
+        $content=$this->profileContent($values);
+        if(!array_key_exists('biography_known_by_all',$values))return$content;
+        $value=$values['biography_known_by_all'];
+        if(is_bool($value))$content['biography_known_by_all']=$value;
+        elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
+        else throw new InvalidArgumentException('invalid_biography_visibility');
+        return$content;
+    }
+
     /** Parse optional per-NPC setting values; absent keys continue to inherit from the Core Profile. */
     private function profileSettingsOverrides(array $values):array
     {
         $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'narrator'=>['enabled','context_visibility'],'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
+            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],'diary'=>['enabled','include_in_context'],
+            'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
             'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled']];
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
         $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'memory'=>['recent_turn_limit','knowledge_limit'],'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
+            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],'diary'=>['context_turn_limit'],
+            'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
         $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
@@ -1046,6 +1582,8 @@ final class ManagementRouter
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
         foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
+        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
+        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
         return$overrides;
     }
 
@@ -1157,6 +1695,20 @@ final class ManagementRouter
         return$this->diagnoseProvider(ProviderFactory::dialogueForSlot($this->providerConfig,$slot));
     }
 
+    /** Run one explicitly requested Core Profile connector check and return only its redacted outcome. */
+    private function runProfileConnectorTest(array $values):array
+    {
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $kind=$this->need($values,'kind');if(!in_array($kind,['provider','tts_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
+        $preset=$this->repository->getRevisioned($kind,$configuration);
+        if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        $detail=$kind==='provider'
+            ?$this->testProvider(['installation_id'=>$installation,'configuration_id'=>$configuration])
+            :$this->testConnector(['installation_id'=>$installation,'configuration_id'=>$configuration,'kind'=>'tts_provider']);
+        return['job_key'=>$kind.':'.$configuration,'kind'=>$kind,'configuration_id'=>$configuration,'status'=>'pass','message'=>$detail];
+    }
+
     /** Validate one dialogue provider against the common utterance contract without saving its output. */
     private function diagnoseProvider(Provider $provider):string
     {
@@ -1169,6 +1721,70 @@ final class ManagementRouter
         if(!is_array($utterances)||$utterances===[]||count($utterances)>4||!is_string($utterances[0]['text']??null)||trim($utterances[0]['text'])==='')
             throw new RuntimeException('provider_invalid_output');
         return count($utterances).' valid utterance'.(count($utterances)===1?'':'s').' in '.(int)round((microtime(true)-$started)*1000).' ms';
+    }
+
+    /** Keep form number parsing strict and separate new identities from revisioned edits. */
+    private function saveRelationship(array $values,array $scope,array $identity):array
+    {
+        $input=$scope+['source_mode'=>'manual','reason'=>$values['reason']??'management'];
+        if(array_key_exists('relationship_type',$values))$input['relationship_type']=$values['relationship_type'];
+        if(array_key_exists('custom_info',$values)){
+            $input['custom_info']=$values['custom_info'];
+            if(is_string($input['custom_info']))$input['custom_info']=str_replace("\r\n","\n",$input['custom_info']);
+        }
+        foreach(['disposition','affinity'] as $field){
+            $number=filter_var($values[$field]??null,FILTER_VALIDATE_INT);
+            if($number===false)throw new InvalidArgumentException('invalid_relationship_value');
+            $input[$field]=$number;
+        }
+        if(isset($values['relationship_id'])&&$values['relationship_id']!==''){
+            $input['relationship_id']=$this->need($values,'relationship_id');
+            $input['expected_revision']=$this->relationshipRevision($values);
+        }else{
+            if(isset($values['actor_profile_id'])&&$values['actor_profile_id']!==''){
+                $id=$this->need($values,'actor_profile_id');$this->uuid($id,'actor_profile_id');
+                $profile=$this->repository->getRevisioned('profile',$id);
+                if($profile['installation_id']!==($scope['installation_id']??null))throw new InvalidArgumentException('invalid_actor_profile');
+                $identity=is_array($profile['actor_identity'])?$profile['actor_identity']:json_decode($profile['actor_identity'],true,32,JSON_THROW_ON_ERROR);
+            }
+            $input['actor_identity']=$identity;
+        }
+        return $this->service->setRelationship($input);
+    }
+
+    /** Return to the same standalone page or iframe after saving or refreshing a conflict. */
+    private function relationshipPageLocation(array $values,string $status):string
+    {
+        $query=['status'=>$status];
+        foreach(['installation_id','profile_id','playthrough_id','history_limit'] as $field)
+            if(is_string($values[$field]??null))$query[$field]=$values[$field];
+        if(($values['embed']??null)==='1')$query['embed']='1';
+        return $this->webRoot().'/ui/relationship_logs.php?'.http_build_query($query);
+    }
+
+    /** Keep the current NPC filters visible after the explicit conversion request. */
+    private function characterPageLocation(array $values,string $status,array $summary=[]):string
+    {
+        $query=['status'=>$status];
+        foreach(['embed','fav','lock']as$field)if(($values['ui_'.$field]??null)==='1')$query[$field]='1';
+        $search=mb_substr(trim((string)($values['ui_q']??'')),0,100);
+        if($search!==''&&mb_check_encoding($search,'UTF-8'))$query['q']=$search;
+        $state=(string)($values['ui_state']??'');if(in_array($state,['favorites','locked','unlocked','generated'],true))$query['state']=$state;
+        $initial=strtoupper((string)($values['ui_initial']??''));if(preg_match('/^[A-Z]$/D',$initial)===1)$query['initial']=$initial;
+        foreach(['profile','installation_id']as$field){$id=(string)($values['ui_'.$field]??'');
+            if(preg_match('/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/D',$id)===1)$query[$field]=$id;}
+        $page=filter_var($values['ui_page']??null,FILTER_VALIDATE_INT);
+        if($page!==false&&$page>1&&$page<=100000)$query['page']=$page;
+        foreach(['queued','skipped','no_text','existing','locked','no_connector','no_targets','pending']as$field)
+            if(isset($summary[$field]))$query[$field]=(int)$summary[$field];
+        return $this->uiPath('characters').'?'.http_build_query($query);
+    }
+
+    private function relationshipRevision(array $values):int
+    {
+        $revision=filter_var($values['expected_revision']??null,FILTER_VALIDATE_INT);
+        if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_relationship_revision');
+        return $revision;
     }
 
     /** Rebuild one edited memory's deterministic retrieval fields before saving it. */

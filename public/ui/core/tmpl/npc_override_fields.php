@@ -20,7 +20,7 @@ $npcDisabledNumber=static function(string$section,string$field,string$label,stri
 <input type="hidden" name="llm_routing_fields" value="1">
 <fieldset class="almsivi-group"><legend>NPC connector overrides</legend><div class="almsivi-form-grid">
     <?php $npcRoute('prompt_configuration_id','Dialogue prompt',$prompts);$npcRoute('llm_configuration_id','Standard LLM',$llm);$npcRoute('llm_fast_configuration_id','Fast LLM',$llm);$npcRoute('llm_powerful_configuration_id','Powerful LLM',$llm);$npcRoute('llm_experimental_configuration_id','Experimental LLM',$llm);$npcRoute('llm_fallback_configuration_id','Fallback LLM',$llm);$npcRoute('oghma_configuration_id','Oghma extractor',$llm);$npcRoute('tts_configuration_id','TTS connector',$tts); ?>
-    <label>Diary LLM <?php echo almsivi_ui_feature_badge('config.profiles.diary-llm',true); ?><select disabled aria-disabled="true"><option>Active narrative pipeline</option></select></label>
+    <label>Diary LLM <?php echo almsivi_ui_feature_badge('config.profiles.diary-llm',true); ?><select disabled aria-disabled="true"><option>Inherited from Core Profile</option></select></label>
     <label>Formatter LLM <?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm',true); ?><select disabled aria-disabled="true"><option>Not configured</option></select></label>
     <?php $npcBool('llm_randomizer_enabled','LLM randomizer',$routing['llm_randomizer_enabled']??null);$npcBool('llm_fallback_enabled','Fallback retry',$routing['llm_fallback_enabled']??null); ?>
 </div></fieldset>

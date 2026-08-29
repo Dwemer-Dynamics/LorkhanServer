@@ -9,12 +9,14 @@ use ALMSIVIserver\Application\MorrowindGeographyCatalog;
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
 use ALMSIVIserver\Application\DeterministicRetrieval;
 use ALMSIVIserver\Application\OghmaGroundedRetriever;
+use InvalidArgumentException;
 use PDO;
 use RuntimeException;
 use Throwable;
 
 final class ProductRepository
 {
+    private const PROFILE_RULE_MATCH_FIELDS=['names','races','classes','genders','factions','content_files'];
     private ?MorrowindGeographyCatalog $morrowindGeography=null;
 
     public function __construct(private readonly PDO $db) {}
@@ -23,6 +25,12 @@ final class ProductRepository
     public function createRevisioned(string $kind, array $input, string $now): array
     {
         return $this->transaction(function () use ($kind, $input, $now): array {
+            if(in_array($kind,['memory_policy','memory_embedding_policy','translation_policy'],true)){
+                if(isset($input['profile_id']))throw new \InvalidArgumentException($kind.'_is_installation_scoped');
+            }
+            if($kind==='memory_policy'){
+                (new MemorySummaryRepository($this->db))->assertProvider($input['installation_id'],$input['content']);
+            }
             $id = Uuid::v4();
             $reason = (string) ($input['change_reason'] ?? 'created');
             if ($kind === 'core_profile') {
@@ -46,7 +54,8 @@ final class ProductRepository
                 $this->revision('playthrough_revisions', 'playthrough_id', $id, 1, $input['content'], $reason, $now);
             } else {
                 $configKind = match ($kind) {
-                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings' => $kind,
+                    'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy',
+                    'memory_embedding_policy', 'translation_policy' => $kind,
                     default => throw new RuntimeException('invalid_resource_kind'),
                 };
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
@@ -70,6 +79,16 @@ final class ProductRepository
     {
         $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='global_settings' AND c.deleted_at IS NULL LIMIT 1");
         $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();if(!$row)return null;$row['content']=$this->json($row['content']);return$row;
+    }
+
+    /** Return the current server-only NPC translation policy, or its safe disabled default. */
+    public function translationPolicyForInstallation(string $installationId):array
+    {
+        $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='translation_policy' AND c.deleted_at IS NULL LIMIT 1");
+        $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();
+        if(!$row)return['configuration_id'=>null,'current_revision'=>0,'content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()];
+        $row['current_revision']=(int)$row['current_revision'];
+        $row['content']=\ALMSIVIserver\Application\TranslationPolicy::validate($this->json($row['content']));return$row;
     }
 
     /** Return or create the single installation default used when an NPC has no explicit Core Profile. */
@@ -211,6 +230,10 @@ final class ProductRepository
             $stmt->execute(['id'=>$id]);
             $current = $stmt->fetchColumn();
             if ($current === false) throw new RuntimeException('not_found');
+            if($kind==='memory_policy'){
+                $policy=$this->getRevisioned($kind,$id);
+                (new MemorySummaryRepository($this->db))->assertProvider($policy['installation_id'],$content);
+            }
             $next = (int)$current + 1;
             $this->revision($revisions, $key, $id, $next, $content, $reason, $now);
             $this->db->prepare("UPDATE {$table} SET current_revision=:revision WHERE {$key}=:id")->execute(['revision'=>$next,'id'=>$id]);
@@ -252,18 +275,139 @@ final class ProductRepository
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
     }
 
+    /** Build the deduplicated, read-only connector test plan shown by the Core Profiles UI. */
+    public function coreProfileConnectorTestPlan(string $installationId):array
+    {
+        $profiles=$this->db->prepare('SELECT c.core_profile_id,c.label,c.default_npc,r.content FROM core_profiles c '
+            .'JOIN core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision '
+            .'WHERE c.installation_id=:installation AND c.deleted_at IS NULL ORDER BY c.default_npc DESC,lower(c.label),c.core_profile_id LIMIT 100');
+        $profiles->execute(['installation'=>$installationId]);
+        $configurations=$this->db->prepare("SELECT configuration_id,kind,name FROM configuration_sets WHERE installation_id=:installation AND kind IN ('provider','tts_provider') AND deleted_at IS NULL");
+        $configurations->execute(['installation'=>$installationId]);$labels=[];
+        foreach($configurations->fetchAll()as$row)$labels[(string)$row['kind'].':'.(string)$row['configuration_id']]=(string)$row['name'];
+        $definitions=[
+            ['tts_configuration_id','TTS Connector','tts_provider'],
+            ['llm_configuration_id','Standard LLM','provider'],
+            ['llm_fast_configuration_id','Fast LLM','provider'],
+            ['llm_powerful_configuration_id','Powerful LLM','provider'],
+            ['llm_experimental_configuration_id','Experimental LLM','provider'],
+            ['llm_fallback_configuration_id','Fallback LLM','provider'],
+            ['oghma_configuration_id','Oghma Extractor','provider'],
+            ['profile_generation_configuration_id','Profile Generation LLM','provider'],
+            ['relationship_configuration_id','Relationship LLM','provider'],
+            ['diary_generation_configuration_id','Diary LLM','provider'],
+        ];
+        $jobs=[];$profileRows=[];
+        foreach($profiles->fetchAll()as$profile){$content=$this->json($profile['content']);$routing=is_array($content['routing']??null)?$content['routing']:[];$slots=[];
+            foreach($definitions as[$field,$label,$kind]){$configurationId=trim((string)($routing[$field]??''));
+                if($configurationId===''){$slots[]=['field'=>$field,'label'=>$label,'kind'=>$kind,'configuration_id'=>null,'job_key'=>null,
+                    'status'=>'skipped','message'=>'No connector selected'];continue;}
+                $jobKey=$kind.':'.$configurationId;$configurationLabel=$labels[$jobKey]??'Unavailable connector';
+                $jobs[$jobKey]=['job_key'=>$jobKey,'kind'=>$kind,'configuration_id'=>$configurationId,'label'=>$configurationLabel];
+                $slots[]=['field'=>$field,'label'=>$label,'kind'=>$kind,'configuration_id'=>$configurationId,'job_key'=>$jobKey,
+                    'status'=>'pending','message'=>'Waiting to test '.$configurationLabel];
+            }
+            $profileRows[]=['id'=>(string)$profile['core_profile_id'],'label'=>(string)$profile['label'],
+                'default_npc'=>filter_var($profile['default_npc'],FILTER_VALIDATE_BOOL),'slots'=>$slots];
+        }
+        if(count($jobs)>100)throw new InvalidArgumentException('profile_connector_test_too_many_connectors');
+        return['profiles'=>$profileRows,'jobs'=>array_values($jobs)];
+    }
+
+    /** Return bounded rules and observed OpenMW values without changing an NPC or contacting a provider. */
+    public function profileAssignmentRulesPlan(string $installationId):array
+    {
+        $exists=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation');
+        $exists->execute(['installation'=>$installationId]);if(!$exists->fetchColumn())throw new RuntimeException('not_found');
+        $cores=$this->db->prepare('SELECT core_profile_id,label,default_npc FROM core_profiles '
+            .'WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY default_npc DESC,lower(label),core_profile_id LIMIT 100');
+        $cores->execute(['installation'=>$installationId]);$coreRows=array_map(static fn(array$row):array=>[
+            'core_profile_id'=>(string)$row['core_profile_id'],'label'=>(string)$row['label'],
+            'default_npc'=>filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)],$cores->fetchAll());
+        $rules=$this->db->prepare('SELECT r.rule_id,r.description,r.core_profile_id,c.label AS core_profile_label,r.priority,r.enabled,r.matchers '
+            .'FROM profile_assignment_rules r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id '
+            .'AND c.installation_id=r.installation_id AND c.deleted_at IS NULL WHERE r.installation_id=:installation '
+            .'ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+        $rules->execute(['installation'=>$installationId]);$ruleRows=[];$options=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
+        foreach($rules->fetchAll()as$row){$match=$this->normalizeProfileRuleMatch($this->json($row['matchers']));
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)foreach($match[$field]as$value)$options[$field][mb_strtolower($value,'UTF-8')]=$value;
+            $ruleRows[]=['rule_id'=>(string)$row['rule_id'],'description'=>(string)$row['description'],
+                'core_profile_id'=>(string)$row['core_profile_id'],'core_profile_label'=>(string)$row['core_profile_label'],
+                'priority'=>(int)$row['priority'],'enabled'=>filter_var($row['enabled'],FILTER_VALIDATE_BOOL),'match'=>$match];}
+        $profiles=$this->db->prepare('SELECT p.name,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r '
+            .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation '
+            ."AND p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') LIMIT 1000");
+        $profiles->execute(['installation'=>$installationId]);
+        foreach($profiles->fetchAll()as$row){$identity=$this->json($row['actor_identity']);$content=$this->json($row['content']);
+            $this->addProfileRuleOption($options['names'],$identity['display_name']??$row['name']??null);
+            $this->addProfileRuleOption($options['races'],$content['race']??null);
+            $this->addProfileRuleOption($options['classes'],$content['class']??null);
+            $this->addProfileRuleOption($options['genders'],$content['gender']??null);
+            $this->addProfileRuleOption($options['content_files'],$identity['content_file']??null);}
+        $turns=$this->db->prepare('SELECT t.target,t.context FROM turns t JOIN sessions s ON s.session_id=t.session_id '
+            .'WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 1000');
+        $turns->execute(['installation'=>$installationId]);
+        foreach($turns->fetchAll()as$row){$target=$this->json($row['target']);$context=$this->json($row['context']);
+            $observed=$this->profileRuleActorValues($target,$context);
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)foreach($observed[$field]as$value)$this->addProfileRuleOption($options[$field],$value);}
+        foreach($options as&$values){$values=array_values($values);natcasesort($values);$values=array_slice(array_values($values),0,500);}unset($values);
+        return['rules'=>$ruleRows,'core_profiles'=>$coreRows,'options'=>$options];
+    }
+
+    /** Create or update one installation-owned exact-match assignment rule. */
+    public function saveProfileAssignmentRule(array $input,string $now):array
+    {
+        $installation=trim((string)($input['installation_id']??''));$core=trim((string)($input['core_profile_id']??''));
+        $description=trim((string)($input['description']??''));$priority=filter_var($input['priority']??null,FILTER_VALIDATE_INT);
+        $ruleId=$input['rule_id']??null;$ruleId=is_string($ruleId)&&trim($ruleId)!==''?trim($ruleId):null;
+        if(!Uuid::isValid($installation))throw new InvalidArgumentException('invalid_installation_id');
+        if(!Uuid::isValid($core))throw new InvalidArgumentException('invalid_core_profile_id');
+        if($ruleId!==null&&!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
+        if($description===''||strlen($description)>200||preg_match('/[\x00-\x1F\x7F]/',$description)===1)throw new InvalidArgumentException('invalid_rule_description');
+        if($priority===false||$priority< -100000||$priority>100000)throw new InvalidArgumentException('invalid_rule_priority');
+        $match=$this->normalizeProfileRuleMatch($input['match']??null,true);$enabled=($input['enabled']??false)===true;
+        return$this->transaction(function()use($installation,$core,$description,$priority,$ruleId,$match,$enabled,$now):array{
+            $target=$this->db->prepare('SELECT 1 FROM core_profiles WHERE core_profile_id=:core AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+            $target->execute(['core'=>$core,'installation'=>$installation]);if(!$target->fetchColumn())throw new InvalidArgumentException('core_profile_scope_mismatch');
+            $id=$ruleId??Uuid::v4();
+            if($ruleId===null){$count=$this->db->prepare('SELECT count(*) FROM profile_assignment_rules WHERE installation_id=:installation');
+                $count->execute(['installation'=>$installation]);if((int)$count->fetchColumn()>=100)throw new InvalidArgumentException('profile_assignment_rule_limit');
+                $this->db->prepare('INSERT INTO profile_assignment_rules '
+                    .'(rule_id,installation_id,core_profile_id,description,priority,enabled,matchers,updated_at) '
+                    .'VALUES(:id,:installation,:core,:description,:priority,:enabled,CAST(:matchers AS jsonb),:now)')
+                    ->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                        'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
+            }else{$update=$this->db->prepare('UPDATE profile_assignment_rules SET core_profile_id=:core,description=:description,'
+                    .'priority=:priority,enabled=:enabled,matchers=CAST(:matchers AS jsonb),updated_at=:now '
+                    .'WHERE rule_id=:id AND installation_id=:installation');
+                $update->execute(['id'=>$id,'installation'=>$installation,'core'=>$core,'description'=>$description,'priority'=>$priority,
+                    'enabled'=>$enabled?'true':'false','matchers'=>$this->encode($match),'now'=>$now]);
+                if($update->rowCount()!==1)throw new RuntimeException('not_found');}
+            return['rule_id'=>$id,'saved'=>true];
+        });
+    }
+
+    /** Delete one rule without revisiting NPCs that it previously matched. */
+    public function deleteProfileAssignmentRule(string $installationId,string $ruleId):void
+    {
+        if(!Uuid::isValid($installationId))throw new InvalidArgumentException('invalid_installation_id');
+        if(!Uuid::isValid($ruleId))throw new InvalidArgumentException('invalid_rule_id');
+        $delete=$this->db->prepare('DELETE FROM profile_assignment_rules WHERE rule_id=:id AND installation_id=:installation');
+        $delete->execute(['id'=>$ruleId,'installation'=>$installationId]);if($delete->rowCount()!==1)throw new RuntimeException('not_found');
+    }
+
     /** Queue one idempotent generation job for the profile's current revision. */
     public function enqueueProfileGeneration(string $profileId):array
     {
         return$this->transaction(function()use($profileId):array{
-            $select=$this->db->prepare('SELECT p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('profile_not_generatable');
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)throw new \InvalidArgumentException('profile_locked');
             $revision=(int)$row['current_revision'];$key='profile:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision];
         });
@@ -291,14 +435,14 @@ final class ProductRepository
     public function enqueueNarratorProfileGeneration(string $profileId):array
     {
         return$this->transaction(function()use($profileId):array{
-            $select=$this->db->prepare('SELECT p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE OF p');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(($identity['kind']??null)!=='narrator')throw new \InvalidArgumentException('profile_not_narrator');
             $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
             if(($management['locked']??false)===true)throw new \InvalidArgumentException('profile_locked');
             $revision=(int)$row['current_revision'];$key='narrator-profile:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'narrator_profile'])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'narrator_profile'))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'narrator_profile'];
         });
@@ -314,9 +458,119 @@ final class ProductRepository
             if($this->recentPlayerInputs((string)$row['installation_id'],1)===[])throw new \InvalidArgumentException('player_inputs_unavailable');
             $revision=(int)$row['current_revision'];$key='player-speech-style:'.$profileId.':revision:'.$revision;$jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
-            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode(['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'player_speech_style'])]);$job=$insert->fetch();
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'player_speech_style'))]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}
             if(!$job)throw new RuntimeException('profile_generation_queue_failed');return$job+['profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>'player_speech_style'];
+        });
+    }
+
+    /** Freeze the inherited generation route as IDs only; no endpoint or key material enters a job payload. */
+    private function profileGenerationPayload(string $installationId,string $profileId,int $revision,?string $mode=null):array
+    {
+        $payload=['profile_id'=>$profileId,'base_revision'=>$revision];if($mode!==null)$payload['mode']=$mode;
+        $routing=$this->effectiveSettingsForProfile($installationId,$profileId)['routing'];
+        $configurationId=(string)($routing['profile_generation_configuration_id']??'');
+        if($configurationId==='')return$payload;
+        $statement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets "
+            ."WHERE configuration_id=:configuration AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
+        $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId]);$connector=$statement->fetch();
+        if(!$connector)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
+        return$payload+['provider_configuration_id'=>(string)$connector['configuration_id'],'provider_revision'=>(int)$connector['current_revision']];
+    }
+
+    /** Load the exact revision queued for a task while enforcing installation and live-connector ownership. */
+    public function providerRevisionForInstallation(string $installationId,string $configurationId,int $revision):array
+    {
+        $statement=$this->db->prepare("SELECT c.configuration_id,r.revision,r.content FROM configuration_sets c "
+            ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=:revision "
+            ."WHERE c.configuration_id=:configuration AND c.installation_id=:installation AND c.kind='provider' AND c.deleted_at IS NULL");
+        $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId,'revision'=>$revision]);$row=$statement->fetch();
+        if(!$row)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
+        return['configuration_id'=>(string)$row['configuration_id'],'revision'=>(int)$row['revision'],
+            'content'=>\ALMSIVIserver\Application\LlmConnector::validate($this->json($row['content']))];
+    }
+
+    /** Queue one user-requested diary from bounded witnessed context; no provider call occurs here. */
+    public function enqueueDiaryGeneration(array $scope):array
+    {
+        foreach(['installation_id','profile_id','playthrough_id','request_id']as$field)
+            if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \InvalidArgumentException('invalid_diary_generation_scope');
+        return$this->transaction(function()use($scope):array{
+            $key='narrative.generate:'.$scope['request_id'];
+            $replay=$this->db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='narrative.generate' AND idempotency_key=:key");
+            $replay->execute(['key'=>$key]);
+            if($job=$replay->fetch()){$payload=$this->json($job['payload']);unset($job['payload']);
+                foreach(['request_id','installation_id','profile_id','playthrough_id']as$field)
+                    if(($payload[$field]??null)!==$scope[$field])throw new \InvalidArgumentException('diary_generation_request_conflict');
+                return$job+['request_id'=>$scope['request_id'],'narrative_id'=>$payload['narrative_id'],
+                    'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id'],
+                    'provider_revision'=>$payload['provider_revision'],'source_count'=>count($payload['source_turn_ids']??[])];}
+            $profileStatement=$this->db->prepare('SELECT p.current_revision,r.content,p.actor_identity,p.name FROM profiles p '
+                .'JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL FOR SHARE OF p');
+            $profileStatement->execute(['profile'=>$scope['profile_id'],'installation'=>$scope['installation_id']]);$profile=$profileStatement->fetch();
+            if(!$profile)throw new \InvalidArgumentException('invalid_diary_generation_scope');
+            $playthroughStatement=$this->db->prepare('SELECT playthrough_id FROM playthroughs WHERE playthrough_id=:playthrough '
+                .'AND installation_id=:installation AND deleted_at IS NULL FOR SHARE');
+            $playthroughStatement->execute(['playthrough'=>$scope['playthrough_id'],'installation'=>$scope['installation_id']]);
+            if(!$playthroughStatement->fetchColumn())throw new \InvalidArgumentException('invalid_diary_generation_scope');
+            $effective=$this->effectiveSettingsForProfile($scope['installation_id'],$scope['profile_id']);
+            $diary=$effective['settings']['diary']??[];
+            if(($diary['enabled']??false)!==true)throw new \InvalidArgumentException('diary_generation_disabled');
+            $configurationId=(string)($effective['routing']['diary_generation_configuration_id']??'');
+            if($configurationId==='')throw new \InvalidArgumentException('diary_generation_connector_unavailable');
+            $providerStatement=$this->db->prepare("SELECT configuration_id,current_revision FROM configuration_sets WHERE configuration_id=:configuration "
+                ."AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL FOR SHARE");
+            $providerStatement->execute(['configuration'=>$configurationId,'installation'=>$scope['installation_id']]);$provider=$providerStatement->fetch();
+            if(!$provider)throw new \InvalidArgumentException('diary_generation_connector_unavailable');
+            $identity=$this->json($profile['actor_identity']);$actor=[];
+            foreach(['kind','record_id','content_file','refnum']as$field)if(array_key_exists($field,$identity))$actor[$field]=$identity[$field];
+            if(!isset($actor['kind']))$actor['kind']='actor';
+            $actorJson=$this->encode($actor);$audienceJson=$this->encode([$actor]);
+            $limit=(int)($diary['context_turn_limit']??20);$candidateLimit=min(300,max(20,$limit*4));
+            $historyStatement=$this->db->prepare("SELECT m.turn_id,m.created_at,e.type,e.data,e.people,e.location,e.gamets,m.speaker,m.target "
+                ."FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation "
+                ."AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book') "
+                ."AND (e.type<>'chat' OR e.delivery_state IN ('emitted','spoken','played')) "
+                ."AND (m.speaker @> CAST(:speaker AS jsonb) OR m.target @> CAST(:target AS jsonb) OR m.audience @> CAST(:audience AS jsonb)) "
+                ."ORDER BY m.created_at DESC,e.rowid DESC LIMIT :limit");
+            $historyStatement->bindValue(':installation',$scope['installation_id']);$historyStatement->bindValue(':playthrough',$scope['playthrough_id']);
+            $historyStatement->bindValue(':speaker',$actorJson);$historyStatement->bindValue(':target',$actorJson);$historyStatement->bindValue(':audience',$audienceJson);
+            $historyStatement->bindValue(':limit',$candidateLimit,\PDO::PARAM_INT);$historyStatement->execute();
+            $context=[];$turns=[];$sourceIds=[];$bytes=0;
+            foreach($historyStatement->fetchAll()as$row){$turnId=(string)($row['turn_id']??'');$turnKey=$turnId!==''?$turnId:'event:'.count($context);
+                if(!isset($turns[$turnKey])&&count($turns)>=$limit)continue;$turns[$turnKey]=true;if($turnId!==''&&Uuid::isValid($turnId))$sourceIds[$turnId]=true;
+                $speaker=$this->json($row['speaker']);$target=$this->json($row['target']);$item=array_filter([
+                    'turn_id'=>$turnId===''?null:$turnId,'at'=>(string)$row['created_at'],'type'=>(string)$row['type'],
+                    'speaker'=>$speaker['display_name']??$speaker['record_id']??null,'target'=>$target['display_name']??$target['record_id']??null,
+                    'content'=>mb_strcut(trim((string)$row['data']),0,4096,'UTF-8'),'location'=>trim((string)($row['location']??''))?:null,
+                    'game_time'=>(int)($row['gamets']??0)?:null,'people'=>trim((string)($row['people']??''))?:null,
+                ],static fn(mixed$value):bool=>$value!==null&&$value!=='');$encoded=$this->encode($item);
+                if($bytes+strlen($encoded)>65_536)continue;$bytes+=strlen($encoded);$context[]=$item;}
+            if($context===[])throw new \InvalidArgumentException('diary_generation_no_context');$context=array_reverse($context);
+            $profileContent=$this->json($profile['content']);$profileInput=[];
+            foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','gender','race']as$field)
+                if(is_string($profileContent[$field]??null)&&trim($profileContent[$field])!=='')$profileInput[$field]=mb_strcut(trim($profileContent[$field]),0,8192,'UTF-8');
+            $input=['generation_mode'=>'diary_generation','name'=>(string)$profile['name'],'actor_identity'=>$actor,
+                'profile'=>$profileInput,'witnessed_context'=>$context,'instruction'=>(string)$diary['prompt']];
+            if(strlen($this->encode($input))>131_072)throw new \InvalidArgumentException('diary_generation_too_large');
+            $payload=['request_id'=>$scope['request_id'],'narrative_id'=>Uuid::v4(),'installation_id'=>$scope['installation_id'],
+                'profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id'],'profile_revision'=>(int)$profile['current_revision'],
+                'provider_configuration_id'=>(string)$provider['configuration_id'],'provider_revision'=>(int)$provider['current_revision'],
+                'source_turn_ids'=>array_keys($sourceIds),'input'=>$input];
+            $jobId=Uuid::v4();
+            $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+                ."VALUES(:job,'narrative.generate',1,:key,CAST(:payload AS jsonb),3,55) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
+            if(!$job){$existing=$this->db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='narrative.generate' AND idempotency_key=:key");
+                $existing->execute(['key'=>$key]);$job=$existing->fetch();if(!$job)throw new RuntimeException('diary_generation_queue_failed');
+                $existingPayload=$this->json($job['payload']);unset($job['payload']);
+                foreach(['request_id','installation_id','profile_id','playthrough_id']as$field)
+                    if(($existingPayload[$field]??null)!==$scope[$field])throw new \InvalidArgumentException('diary_generation_request_conflict');
+                $payload=$existingPayload;}
+            return$job+['request_id'=>$scope['request_id'],'narrative_id'=>$payload['narrative_id'],'profile_revision'=>$payload['profile_revision'],
+                'provider_configuration_id'=>$payload['provider_configuration_id'],'provider_revision'=>$payload['provider_revision'],
+                'source_count'=>count($payload['source_turn_ids']??[])];
         });
     }
 
@@ -463,16 +717,27 @@ final class ProductRepository
             [$table,$key]=$this->revisionMeta($kind);
             if($kind==='profile')$this->db->prepare('DELETE FROM actor_profile_bindings WHERE profile_id=:id')->execute(['id'=>$id]);
             if($kind==='core_profile'){
-                $usage=$this->db->prepare('SELECT c.default_npc,(SELECT count(*) FROM profiles p WHERE p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL) AS profiles FROM core_profiles c WHERE c.core_profile_id=:id AND c.deleted_at IS NULL FOR UPDATE');
+                $usage=$this->db->prepare('SELECT c.default_npc,'
+                    .'(SELECT count(*) FROM profiles p WHERE p.core_profile_id=c.core_profile_id AND p.deleted_at IS NULL) AS profiles,'
+                    .'(SELECT count(*) FROM profile_assignment_rules r WHERE r.core_profile_id=c.core_profile_id) AS assignment_rules '
+                    .'FROM core_profiles c WHERE c.core_profile_id=:id AND c.deleted_at IS NULL FOR UPDATE');
                 $usage->execute(['id'=>$id]);$row=$usage->fetch();if(!$row)throw new RuntimeException('not_found');
-                if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0)throw new \InvalidArgumentException('core_profile_in_use');
+                if(filter_var($row['default_npc'],FILTER_VALIDATE_BOOL)||(int)$row['profiles']>0||(int)$row['assignment_rules']>0)
+                    throw new \InvalidArgumentException('core_profile_in_use');
             }
             if($kind==='provider'){
+                $lock=$this->db->prepare("SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND deleted_at IS NULL FOR UPDATE");
+                $lock->execute(['id'=>$id]);if(!$lock->fetchColumn())throw new RuntimeException('not_found');
+                $queued=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND state IN ('queued','leased') AND payload->>'provider_configuration_id'=:id LIMIT 1");
+                $queued->execute(['id'=>$id]);if($queued->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
+                $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
+                    WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
+                $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
                 $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
+                $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id) LIMIT 1");
+                $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $core->execute(['id'=>$id]);if($core->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
             }
             if($kind==='prompt'){
@@ -680,10 +945,11 @@ final class ProductRepository
                     $nameExists->execute(['installation'=>$turn['installation_id'],'name'=>$name]);
                     if($nameExists->fetchColumn()){$suffix=' [Ref '.(string)($refnum['content_file']??'?').':'.(string)($refnum['index']??'?').']';
                         $name=mb_substr($name,0,max(0,256-mb_strlen($suffix))).$suffix;}
-                    $created=$this->createRevisioned('profile',['installation_id'=>$turn['installation_id'],
-                    'name'=>$name,'actor_identity'=>$target,
-                    'content'=>$seed,
-                    'change_reason'=>'automatic Morrowind actor discovery'],$now);$profileId=(string)$created['profile_id'];}
+                    $coreProfileId=$this->matchingCoreProfileForTurn($turn,$target);
+                    $createInput=['installation_id'=>$turn['installation_id'],'name'=>$name,'actor_identity'=>$target,
+                        'content'=>$seed,'change_reason'=>'automatic Morrowind actor discovery'];
+                    if($coreProfileId!==null)$createInput['core_profile_id']=$coreProfileId;
+                    $created=$this->createRevisioned('profile',$createInput,$now);$profileId=(string)$created['profile_id'];}
                 $this->bindActorProfile(['installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id']],
                     $target,$profileId,$now);
                 $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
@@ -916,7 +1182,9 @@ final class ProductRepository
         $id=Uuid::v4();
         $this->db->prepare('INSERT INTO memory_records (memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')
             ->execute(['id'=>$id,'installation'=>$input['installation_id'],'profile'=>$input['profile_id'],'playthrough'=>$input['playthrough_id'],'tier'=>$input['tier'],'content'=>$input['content'],'terms'=>$this->pgArray($terms),'vector'=>$this->encode($vector),'source'=>$input['source_event_id'] ?? null,'provenance'=>$this->encode($input['provenance']),'occurred'=>$input['occurred_at'] ?? $now,'expires'=>$input['expires_at'] ?? null,'now'=>$now]);
-        return $this->memory($id);
+        $memory=$this->memory($id);
+        (new MemoryEmbeddingRepository($this->db))->enqueue($input['installation_id'],$id,(int)$memory['current_revision']);
+        return$memory;
     }
 
     public function memory(string $id): array
@@ -924,11 +1192,50 @@ final class ProductRepository
         $stmt=$this->db->prepare('SELECT * FROM memory_records WHERE memory_id=:id AND deleted_at IS NULL');$stmt->execute(['id'=>$id]);$row=$stmt->fetch();if(!$row)throw new RuntimeException('not_found');return $this->decodeMemory($row);
     }
 
+    public function memorySummaryPolicyForInstallation(string $installation):?array
+    {
+        return (new MemorySummaryRepository($this->db))->policy($installation);
+    }
+
+    public function memoryEmbeddingPolicyForInstallation(string $installation):?array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->policy($installation);
+    }
+
+    public function memoryEmbeddingRuntime(string $installation):array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->runtime($installation);
+    }
+
+    public function enqueueMemoryEmbeddings(string $installation,int $limit=100):array
+    {
+        return (new MemoryEmbeddingRepository($this->db))->enqueueBatch($installation,$limit);
+    }
+
+    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit):array
+    {
+        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit);
+    }
+
+    public function enqueueRelationshipConversion(array $scope,string $requestId,string $mode):array
+    {
+        return (new RelationshipConversionRepository($this->db))->enqueue($scope,$requestId,$mode);
+    }
+
+    public function enqueueMemorySummary(string $installation,string $memoryId,int $revision):array
+    {
+        if($revision<1)throw new \InvalidArgumentException('invalid_memory_revision');
+        return (new MemorySummaryRepository($this->db))->enqueue($installation,$memoryId,$revision)
+            ??throw new \InvalidArgumentException('memory_summary_unavailable');
+    }
+
     public function updateMemory(string $id,string $content,array $terms,array $vector,string $now): array
     {
         $this->db->prepare('UPDATE memory_records SET content=:content,lexical_terms=CAST(:terms AS text[]),fake_vector=CAST(:vector AS jsonb),updated_at=:now WHERE memory_id=:id AND deleted_at IS NULL')
             ->execute(['content'=>$content,'terms'=>$this->pgArray($terms),'vector'=>$this->encode($vector),'now'=>$now,'id'=>$id]);
-        return $this->memory($id);
+        $memory=$this->memory($id);
+        (new MemoryEmbeddingRepository($this->db))->enqueue((string)$memory['installation_id'],$id,(int)$memory['current_revision']);
+        return$memory;
     }
 
     public function deleteMemory(string $id,string $now): void {$this->db->prepare('UPDATE memory_records SET deleted_at=:now WHERE memory_id=:id')->execute(['now'=>$now,'id'=>$id]);}
@@ -947,6 +1254,106 @@ final class ProductRepository
     public function memoryCandidates(array $scope,string $now): array
     {
         $stmt=$this->db->prepare('SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at,updated_at,current_revision FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL AND (expires_at IS NULL OR expires_at>:now) ORDER BY occurred_at DESC LIMIT 500');$stmt->execute($this->scopeParams($scope)+['now'=>$now]);return array_map(fn($r)=>$this->decodeMemory($r),$stmt->fetchAll());
+    }
+
+    /** Keep manual memories with their NPC profile and require witnessed provenance for derived rows. */
+    private function promptMemoryCandidates(array $turn,array $actorKey,string $activeProfileId,bool $ownsProfile,
+        string $now,array $semantic=[]):array
+    {
+        $statement = $this->db->prepare("SELECT m.memory_id AS id,m.profile_id,m.tier,m.content,m.lexical_terms,m.fake_vector,
+            m.provenance,m.source_event_id,m.derivation_key,m.occurred_at,m.updated_at,m.current_revision,
+            summary.content AS model_summary,summary.provider_configuration_id,summary.provider_revision,summary.input_sha256,
+            summary.policy_configuration_id,summary.policy_revision,embedding.embedding AS semantic_embedding,
+            embedding.model AS semantic_model
+            FROM memory_records m LEFT JOIN memory_model_summaries summary
+                ON summary.memory_id=m.memory_id AND summary.memory_revision=m.current_revision
+                AND EXISTS(SELECT 1 FROM configuration_sets c JOIN configuration_revisions r
+                    ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
+                    WHERE c.configuration_id=summary.policy_configuration_id AND c.installation_id=m.installation_id
+                        AND c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->'enabled'='true'::jsonb)
+            LEFT JOIN memory_embeddings embedding ON embedding.memory_id=m.memory_id
+                AND embedding.memory_revision=m.current_revision
+                AND embedding.policy_configuration_id=CAST(:embedding_policy AS uuid)
+                AND embedding.policy_revision=:embedding_policy_revision
+            WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough
+                AND m.profile_id IN (:session_profile,:actor_profile) AND m.deleted_at IS NULL
+                AND (m.expires_at IS NULL OR m.expires_at>:now) ORDER BY m.occurred_at DESC,m.memory_id LIMIT 500");
+        $statement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+            'session_profile'=>$turn['profile_id'],'actor_profile'=>$activeProfileId,'now'=>$now,
+            'embedding_policy'=>is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+                &&is_string($semantic['policy_configuration_id']??null)
+                ?$semantic['policy_configuration_id']:'00000000-0000-0000-0000-000000000000',
+            'embedding_policy_revision'=>is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+                &&is_int($semantic['policy_revision']??null)?$semantic['policy_revision']:0]);
+        $candidates = [];
+        $sourceIds = [];
+        foreach ($statement->fetchAll() as $row) {
+            $memory = $this->decodeMemory($row);
+            if(is_string($row['semantic_embedding']??null)){
+                $memory['_semantic_embedding']=$this->json($row['semantic_embedding']);
+                $memory['_semantic_model']=(string)$row['semantic_model'];
+            }
+            if(is_string($row['model_summary'])){
+                $memory['content']=$row['model_summary'];
+                $memory['_model_summary']=['memory_revision'=>(int)$row['current_revision'],
+                    'provider_configuration_id'=>$row['provider_configuration_id'],'provider_revision'=>(int)$row['provider_revision'],
+                    'policy_configuration_id'=>$row['policy_configuration_id'],'policy_revision'=>(int)$row['policy_revision'],
+                    'input_sha256'=>$row['input_sha256']];
+            }
+            $ids = $this->memorySourceIds($memory);
+            if ($ids === null) continue;
+            if ($ids === [] && (!$ownsProfile || $memory['profile_id'] !== $activeProfileId
+                || $memory['derivation_key'] !== null
+                || in_array($memory['provenance']['source'] ?? null, ['dialogue.delivery','memory.consolidate'], true))) continue;
+            $memory['_source_event_ids'] = $ids;
+            $candidates[] = $memory;
+            foreach ($ids as $id) $sourceIds[$id] = true;
+        }
+        if ($sourceIds === []) return $candidates;
+
+        // One bounded lookup for all candidate sources; use only the principal event projection,
+        // so hiding a conversation cannot be bypassed through its weather/location side records.
+        $sources = $this->db->prepare(<<<'SQL'
+SELECT se.source_event_id
+FROM source_events se
+LEFT JOIN dialogue_delivery_results d ON d.source_event_id=se.source_event_id
+JOIN eventlog_metadata m ON m.projection_key=CASE se.event_kind
+    WHEN 'dialogue.delivery' THEN 'dialogue:'||d.dialogue_message_id::text
+    WHEN 'turn.requested' THEN 'turn:'||COALESCE(se.turn_id,se.source_event_id)::text
+    WHEN 'action.result' THEN 'action-result:'||se.source_event_id::text
+    WHEN 'location' THEN 'location:'||se.source_event_id::text
+    WHEN 'death' THEN 'death:'||se.source_event_id::text
+    WHEN 'narration' THEN 'narration:'||se.source_event_id::text END
+  AND m.projection_kind=CASE se.event_kind
+    WHEN 'dialogue.delivery' THEN 'dialogue' WHEN 'turn.requested' THEN 'turn'
+    WHEN 'action.result' THEN 'action' ELSE 'world' END
+WHERE se.source_event_id=ANY(CAST(:sources AS uuid[])) AND se.installation_id=:installation
+  AND m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
+  AND m.turn_id IS DISTINCT FROM :current_turn
+  AND (se.event_kind<>'dialogue.delivery' OR d.status='played')
+  AND (m.speaker @> CAST(:actor AS jsonb) OR m.target @> CAST(:actor AS jsonb)
+       OR m.audience @> CAST(:audience AS jsonb))
+SQL);
+        $sources->execute(['sources'=>$this->pgArray(array_keys($sourceIds)),'installation'=>$turn['installation_id'],
+            'playthrough'=>$turn['playthrough_id'],'current_turn'=>$turn['turn_id']??null,
+            'actor'=>$this->encode($actorKey),'audience'=>$this->encode([$actorKey])]);
+        $witnessed = array_fill_keys($sources->fetchAll(PDO::FETCH_COLUMN), true);
+        return array_values(array_filter($candidates, static function(array $memory) use ($witnessed): bool {
+            foreach ($memory['_source_event_ids'] as $id) if (!isset($witnessed[$id])) return false;
+            return true;
+        }));
+    }
+
+    /** Flatten and bound source references; malformed provenance never grants prompt access. */
+    private function memorySourceIds(array $memory): ?array
+    {
+        $ids = $memory['provenance']['source_event_ids'] ?? [];
+        if (!is_array($ids) || !array_is_list($ids) || count($ids) > 64) return null;
+        if ($memory['source_event_id'] !== null) $ids[] = $memory['source_event_id'];
+        foreach ($ids as $id) {
+            if (!is_string($id) || preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D', $id) !== 1) return null;
+        }
+        return array_values(array_unique($ids));
     }
 
     public function createKnowledge(array $input,array $terms,string $now): array
@@ -1002,28 +1409,107 @@ final class ProductRepository
         $id=Uuid::v4();$ids=array_column($rows,'id');$scores=[];foreach($rows as $r)$scores[$r['id']]=$r['score'];$this->db->prepare('INSERT INTO retrieval_traces (retrieval_trace_id,installation_id,profile_id,playthrough_id,domain,query,result_ids,scores,algorithm,created_at) VALUES (:id,:installation,:profile,:playthrough,:domain,:query,CAST(:ids AS uuid[]),CAST(:scores AS jsonb),:algorithm,:now)')->execute(['id'=>$id,'installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null,'domain'=>$domain,'query'=>$query,'ids'=>$this->pgArray($ids),'scores'=>$this->encode($scores),'algorithm'=>'lexical-0.75+fake-vector-0.25-v1','now'=>$now]);return ['trace_id'=>$id,'algorithm'=>'lexical-0.75+fake-vector-0.25-v1','results'=>$rows];
     }
 
+    /** Create once by stable identity; updates address a specific row and its observed revision. */
     public function setRelationship(array $input,string $now):array
     {
-        $identity=$this->encode($input['actor_identity']);return $this->transaction(function()use($input,$now,$identity){$find=$this->db->prepare('SELECT * FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND actor_identity=CAST(:identity AS jsonb) AND deleted_at IS NULL FOR UPDATE');$find->execute($this->scopeParams($input)+['identity'=>$identity]);$before=$find->fetch();$id=$before['relationship_id']??Uuid::v4();if($before){$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,source_mode=:mode,source_event_id=:source,updated_at=:now WHERE relationship_id=:id')->execute(['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'mode'=>$input['source_mode'],'source'=>$input['source_event_id']??null,'now'=>$now,'id'=>$id]);}else{$this->db->prepare('INSERT INTO relationship_records (relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode,source_event_id,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),:disposition,:affinity,:mode,:source,:now)')->execute($this->scopeParams($input)+['id'=>$id,'identity'=>$this->encode($input['actor_identity']),'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'mode'=>$input['source_mode'],'source'=>$input['source_event_id']??null,'now'=>$now]);}$after=['disposition'=>$input['disposition'],'affinity'=>$input['affinity']];$this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,source_event_id,created_at) VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:source,:now)')->execute(['audit'=>Uuid::v4(),'id'=>$id,'mode'=>$input['source_mode'],'before'=>$this->encode($before?['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity']]:[]),'after'=>$this->encode($after),'reason'=>$input['reason']??'updated','source'=>$input['source_event_id']??null,'now'=>$now]);return ['relationship_id'=>$id]+$after+['source_mode'=>$input['source_mode']];});
+        // Derived writers cannot replace player text, even if a provider invents this field.
+        if(($input['source_mode']??null)!=='manual')unset($input['custom_info']);
+        elseif(array_key_exists('custom_info',$input))
+            $input['custom_info']=\ALMSIVIserver\Application\RelationshipCustomInfo::validate($input['custom_info']);
+        if(array_key_exists('relationship_type',$input))
+            $input['relationship_type']=\ALMSIVIserver\Application\RelationshipType::manual($input['relationship_type']);
+        return $this->transaction(function()use($input,$now):array{
+            $scope=$this->scopeParams($input);
+            $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id '
+                .'WHERE p.profile_id=:profile AND p.installation_id=:installation AND t.playthrough_id=:playthrough AND p.deleted_at IS NULL AND t.deleted_at IS NULL');
+            $owner->execute($scope);if(!$owner->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_scope');
+            if(isset($input['source_event_id'])){
+                $source=$this->db->prepare('SELECT 1 FROM source_events e JOIN sessions s ON s.session_id=e.session_id '
+                    .'WHERE e.source_event_id=:source AND e.installation_id=:installation AND s.playthrough_id=:playthrough');
+                $source->execute(['source'=>$input['source_event_id'],'installation'=>$scope['installation'],'playthrough'=>$scope['playthrough']]);
+                if(!$source->fetchColumn())throw new \InvalidArgumentException('invalid_relationship_source');
+            }
+            $before=false;
+            if(isset($input['relationship_id'])){
+                $find=$this->db->prepare('SELECT * FROM relationship_records WHERE relationship_id=:id AND installation_id=:installation '
+                    .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL FOR UPDATE');
+                $find->execute($scope+['id'=>$input['relationship_id']]);$before=$find->fetch();
+                if(!$before)throw new RuntimeException('not_found');
+                if((int)$before['revision']!==($input['expected_revision']??null))throw new RuntimeException('relationship_revision_conflict');
+                if(isset($input['actor_identity'])&&$this->actorKey($input['actor_identity'])!==$this->actorKey($this->json($before['actor_identity'])))
+                    throw new \InvalidArgumentException('relationship_identity_immutable');
+                $id=(string)$before['relationship_id'];
+                $save=$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,relationship_type=:type,source_mode=:mode,'
+                    .'source_event_id=:source,custom_info=:custom,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
+                $params=['id'=>$id,'revision'=>$input['expected_revision']];
+            }else{
+                $identity=$this->encode($input['actor_identity']);
+                // Serialize absent-row creation; an ordinary row lock cannot protect a missing identity.
+                $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
+                $lock->execute(['key'=>'relationship:'.implode(':',$scope).':'.$this->actorKey($input['actor_identity'])]);
+                $find=$this->db->prepare('SELECT relationship_id FROM relationship_records WHERE installation_id=:installation '
+                    .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL '
+                    .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
+                    .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) LIMIT 1');
+                $find->execute($scope+['identity'=>$identity,'exact_identity'=>$identity]);
+                if($find->fetchColumn())throw new RuntimeException('relationship_already_exists');
+                $id=Uuid::v4();
+                $save=$this->db->prepare('INSERT INTO relationship_records (relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
+                    .'disposition,affinity,relationship_type,source_mode,source_event_id,custom_info,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+                    .':disposition,:affinity,:type,:mode,:source,:custom,:now) RETURNING revision');
+                $params=$scope+['id'=>$id,'identity'=>$identity];
+            }
+            $customInfo=$input['custom_info']??($before['custom_info']??'');
+            $relationshipType=$input['relationship_type']??($before['relationship_type']??'neutral');
+            $save->execute($params+['custom'=>$customInfo,'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'type'=>$relationshipType,'mode'=>$input['source_mode'],
+                'source'=>$input['source_event_id']??null,'now'=>$now]);
+            $revision=$save->fetchColumn();if($revision===false)throw new RuntimeException('relationship_revision_conflict');
+            $after=['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'relationship_type'=>$relationshipType,'revision'=>(int)$revision];
+            if($customInfo!==($before['custom_info']??''))$after['custom_info_changed']=true;
+            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,source_event_id,created_at) '
+                .'VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:source,:now)')->execute([
+                    'audit'=>Uuid::v4(),'id'=>$id,'mode'=>$input['source_mode'],
+                    'before'=>$this->encode($before?['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity'],
+                        'relationship_type'=>(string)$before['relationship_type'],'revision'=>(int)$before['revision']]:[]),
+                    'after'=>$this->encode($after),'reason'=>$input['reason']??'updated','source'=>$input['source_event_id']??null,'now'=>$now]);
+            return ['relationship_id'=>$id]+$after+['source_mode'=>$input['source_mode']];
+        });
     }
 
-    /** Soft-delete one relationship and preserve the state change in its audit history. */
-    public function deleteRelationship(string $id,string $now):void
+    /** Soft-delete exactly the revision shown to the editor, keeping its audit history. */
+    public function deleteRelationship(string $id,string $now,int $expectedRevision):void
     {
-        $this->transaction(function()use($id,$now):void{$find=$this->db->prepare('SELECT disposition,affinity FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL FOR UPDATE');
+        $this->transaction(function()use($id,$now,$expectedRevision):void{
+            $find=$this->db->prepare('SELECT disposition,affinity,relationship_type,revision FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL FOR UPDATE');
             $find->execute(['id'=>$id]);$before=$find->fetch();if(!$before)throw new RuntimeException('not_found');
-            $this->db->prepare('UPDATE relationship_records SET deleted_at=:now,updated_at=:now WHERE relationship_id=:id')->execute(['now'=>$now,'id'=>$id]);
-            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,created_at) VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:now)')
-                ->execute(['audit'=>Uuid::v4(),'id'=>$id,'mode'=>'manual','before'=>$this->encode(['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity']]),'after'=>$this->encode(['deleted'=>true]),'reason'=>'management delete','now'=>$now]);});
+            if((int)$before['revision']!==$expectedRevision)throw new RuntimeException('relationship_revision_conflict');
+            $save=$this->db->prepare('UPDATE relationship_records SET deleted_at=:now,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
+            $save->execute(['now'=>$now,'id'=>$id,'revision'=>$expectedRevision]);$revision=$save->fetchColumn();
+            if($revision===false)throw new RuntimeException('relationship_revision_conflict');
+            $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,created_at) '
+                .'VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:now)')->execute([
+                    'audit'=>Uuid::v4(),'id'=>$id,'mode'=>'manual',
+                    'before'=>$this->encode(['disposition'=>(int)$before['disposition'],'affinity'=>(int)$before['affinity'],
+                        'relationship_type'=>(string)$before['relationship_type'],'revision'=>(int)$before['revision']]),
+                    'after'=>$this->encode(['deleted'=>true,'revision'=>(int)$revision]),'reason'=>'management delete','now'=>$now]);
+        });
     }
 
-    public function relationships(array $scope):array{$s=$this->db->prepare('SELECT * FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);return $r;},$s->fetchAll());}
+    /** Runtime readers never load Custom Info; only management rows and explicit exports may expose it. */
+    public function relationships(array $scope):array
+    {
+        $s=$this->db->prepare('SELECT relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,relationship_type,'
+            .'source_mode,source_event_id,updated_at,deleted_at,revision FROM relationship_records WHERE installation_id=:installation '
+            .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100');
+        $s->execute($this->scopeParams($scope));
+        return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);return $r;},$s->fetchAll());
+    }
 
     public function createNarrative(array $input,string $now):array{$id=Uuid::v4();$this->db->prepare('INSERT INTO narrative_records (narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now)')->execute($this->scopeParams($input)+['id'=>$id,'kind'=>$input['kind'],'title'=>$input['title'],'content'=>$input['content'],'provenance'=>$this->encode($input['provenance']),'now'=>$now]);return ['narrative_id'=>$id]+$input;}
     public function updateNarrative(string $id,array $input,string $now):array{$statement=$this->db->prepare('UPDATE narrative_records SET kind=:kind,title=:title,content=:content,provenance=CAST(:provenance AS jsonb),updated_at=:now WHERE narrative_id=:id AND deleted_at IS NULL RETURNING narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,updated_at');
         $statement->execute(['id'=>$id,'kind'=>$input['kind'],'title'=>$input['title'],'content'=>$input['content'],'provenance'=>$this->encode($input['provenance']),'now'=>$now]);$row=$statement->fetch();if(!$row)throw new RuntimeException('not_found');$row['provenance']=$this->json($row['provenance']);return$row;}
     public function deleteNarrative(string $id,string $now):void{$this->db->prepare('UPDATE narrative_records SET deleted_at=:now,updated_at=:now WHERE narrative_id=:id')->execute(['now'=>$now,'id'=>$id]);}
-    public function narratives(array $scope):array{$s=$this->db->prepare('SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
+    public function narratives(array $scope):array{$s=$this->db->prepare('SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC,narrative_id LIMIT 100');$s->execute($this->scopeParams($scope));return array_map(function($r){$r['provenance']=$this->json($r['provenance']);return $r;},$s->fetchAll());}
 
     public function exportScope(array $scope):array
     {
@@ -1037,8 +1523,70 @@ final class ProductRepository
     {
         return$this->transaction(function()use($document,$now):array{$counts=['memories'=>0,'relationships'=>0,'narratives'=>0];$scope=$document['scope'];$key=hash('sha256',$this->encode($document));
             foreach($document['data']['memories'] as$i=>$r){$id=$this->deterministicUuid('restore:memory:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM memory_records WHERE memory_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn()){$this->db->prepare('INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'tier'=>$r['tier'],'content'=>$r['content'],'terms'=>$this->pgArray($r['lexical_terms']),'vector'=>$this->encode(\ALMSIVIserver\Application\DeterministicRetrieval::fakeVector($r['content'])),'source'=>$r['source_event_id']??null,'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'occurred'=>$r['occurred_at'],'expires'=>$r['expires_at']??null,'now'=>$now]);}$counts['memories']++;}
-            foreach($document['data']['relationships'] as$i=>$r){$id=$this->deterministicUuid('restore:relationship:'.$key.':'.$i);$this->db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode,source_event_id,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),:disposition,:affinity,:mode,:source,:now) ON CONFLICT(relationship_id) DO NOTHING')->execute($this->scopeParams($scope)+['id'=>$id,'identity'=>$this->encode($r['actor_identity']),'disposition'=>(int)$r['disposition'],'affinity'=>(int)$r['affinity'],'mode'=>$r['source_mode']??'manual','source'=>$r['source_event_id']??null,'now'=>$now]);$counts['relationships']++;}
+            $relationships=$document['data']['relationships'];
+            usort($relationships,fn(array$a,array$b):int=>$this->restoreRelationshipKey($a)<=>$this->restoreRelationshipKey($b));
+            $previous=null;foreach($relationships as$r){
+                $restoreKey=$this->restoreRelationshipKey($r);
+                if($restoreKey===$previous)throw new RuntimeException('relationship_restore_conflict');
+                $this->restoreRelationship($scope,$r,$now);$counts['relationships']++;$previous=$restoreKey;
+            }
             foreach($document['data']['narratives'] as$i=>$r){$id=$this->deterministicUuid('restore:narrative:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM narrative_records WHERE narrative_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn())$this->db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'kind'=>$r['kind'],'title'=>$r['title'],'content'=>$r['content'],'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'now'=>$now]);$counts['narratives']++;}return$counts;});
+    }
+
+    private function restoreRelationshipKey(array $row):string
+    {
+        $identity=$row['actor_identity'];
+        return isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum'])
+            ?'stable:'.$this->actorKey($identity):'legacy:'.$row['relationship_id'];
+    }
+
+    /** Reconcile one imported relationship without overwriting a local edit or resurrecting a deletion. */
+    private function restoreRelationship(array $scope,array $row,string $now):void
+    {
+        $identity=$row['actor_identity'];$identityJson=$this->encode($identity);
+        $custom=array_key_exists('custom_info',$row)
+            ?\ALMSIVIserver\Application\RelationshipCustomInfo::validate($row['custom_info']):null;
+        $relationshipType=array_key_exists('relationship_type',$row)
+            ?\ALMSIVIserver\Application\RelationshipType::manual($row['relationship_type']):null;
+        $stable=isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum']);
+        $existing=[];
+        if($stable){
+            $id=Uuid::v4();$lockKey='relationship:'.implode(':',$this->scopeParams($scope)).':'.$this->actorKey($identity);
+            $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');$lock->execute(['key'=>$lockKey]);
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,deleted_at FROM relationship_records '
+                .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
+                .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
+                .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
+                .'ORDER BY relationship_id LIMIT 101 FOR UPDATE');
+            $query->execute($this->scopeParams($scope)+['identity'=>$identityJson,'exact_identity'=>$identityJson]);
+            $existing=$query->fetchAll();
+        }else{
+            $id=$this->deterministicUuid('restore:relationship:'.implode(':',$this->scopeParams($scope)).':'.$row['relationship_id']);
+            $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
+            $lock->execute(['key'=>'restore-relationship:'.$id]);
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,deleted_at FROM relationship_records '
+                .'WHERE relationship_id=:id FOR UPDATE');$query->execute(['id'=>$id]);$existing=$query->fetchAll();
+        }
+        $active=array_values(array_filter($existing,static fn(array$value):bool=>$value['deleted_at']===null));
+        if(count($active)>1||($existing!==[]&&$active===[]))throw new RuntimeException('relationship_restore_conflict');
+        if($active!==[]){
+            $saved=$active[0];
+            if((int)$saved['disposition']!==(int)$row['disposition']||(int)$saved['affinity']!==(int)$row['affinity']
+                ||($relationshipType!==null&&(string)$saved['relationship_type']!==$relationshipType)
+                ||($custom!==null&&(string)$saved['custom_info']!==$custom))throw new RuntimeException('relationship_restore_conflict');
+            return;
+        }
+        $this->db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
+            .'disposition,affinity,relationship_type,source_mode,custom_info,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+            .':disposition,:affinity,:type,\'manual\',:custom,:now)')->execute($this->scopeParams($scope)+[
+                'id'=>$id,'identity'=>$identityJson,'disposition'=>$row['disposition'],'affinity'=>$row['affinity'],
+                'type'=>$relationshipType??'neutral','custom'=>$custom??'','now'=>$now]);
+        $after=['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],
+            'relationship_type'=>$relationshipType??'neutral','revision'=>1];
+        if($custom!==null&&$custom!=='')$after['custom_info_changed']=true;
+        $this->db->prepare('INSERT INTO relationship_audit(audit_id,relationship_id,mode,before_value,after_value,reason,created_at) '
+            .'VALUES(:audit,:id,\'manual\',\'{}\'::jsonb,CAST(:after AS jsonb),\'Manual backup restore\',:now)')->execute([
+                'audit'=>Uuid::v4(),'id'=>$id,'after'=>$this->encode($after),'now'=>$now]);
     }
 
     /** Return only safe, displayable in-game controls for this active session and actor. */
@@ -1051,7 +1599,7 @@ final class ProductRepository
         $modelSlots=[];
         foreach($providers->fetchAll() as$row){$content=$this->json($row['content']);$modelSlots[]=[
             'configuration_id'=>(string)$row['configuration_id'],'name'=>(string)$row['name'],
-            'revision'=>(int)$row['current_revision'],'driver'=>(string)($content['driver']??'mock'),
+            'revision'=>(int)$row['current_revision'],'driver'=>($content['driver']??'mock')==='mock'?'mock':'configured',
             'model'=>(string)($content['model']??'deterministic-mock-v1')];}
         $profiles=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles "
             ."WHERE installation_id=:installation AND deleted_at IS NULL "
@@ -1065,28 +1613,13 @@ final class ProductRepository
         $effective=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
         $profile=is_array($effective['npc_profile']??null)?$effective['npc_profile']:null;
         $core=is_array($effective['core_profile']??null)?$effective['core_profile']:null;
-        $sourceMap=array_filter($effective['sources']??[],static fn(mixed $source,string $path):bool=>is_string($source)
-            &&(str_starts_with($path,'settings.memory.')||str_starts_with($path,'settings.narrator.')
-                ||str_starts_with($path,'settings.safety.')||str_starts_with($path,'routing.')),ARRAY_FILTER_USE_BOTH);
-        $routing=$effective['routing'];
-        foreach(['llm_randomizer_enabled','llm_fallback_enabled'] as $flag){
-            if(!array_key_exists($flag,$routing))$routing[$flag]=false;
-            if(!array_key_exists('routing.'.$flag,$sourceMap))$sourceMap['routing.'.$flag]='default';
-        }
         $effectiveSettings=[
             'schema'=>'almsivi.effective-settings.v1',
             'profile_id'=>$profile===null?null:(string)$profile['profile_id'],
             'profile_revision'=>$profile===null?null:(int)($profile['revision']??$profile['current_revision']??0),
             'core_profile_id'=>$core===null?null:(string)$core['core_profile_id'],
             'core_profile_revision'=>$core===null?null:(int)($core['revision']??$core['current_revision']??0),
-            'settings'=>[
-                'memory'=>$effective['settings']['memory'],
-                'narrator'=>$effective['settings']['narrator'],
-                'safety'=>$effective['settings']['safety'],
-            ],
-            'routing'=>$routing,
-            'source_map'=>$sourceMap,
-        ];
+        ]+EffectiveSettingsResolver::controlsProjection($effective);
         $effectiveSettings['change_token']=hash('sha256',$this->encodeCanonical($effectiveSettings));
         return ['model_slots'=>$modelSlots,'profiles'=>$profileRows,
             'selected_model_slot_id'=>$selectedModel,
@@ -1206,6 +1739,13 @@ final class ProductRepository
                         'profile'=>$row['profile_id'],'kind'=>$row['kind'],'name'=>$row['name'],'now'=>$now]);}
                 $this->revision('configuration_revisions','configuration_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['configurations']++;}
 
+            foreach($document['data']['configurations']as$row)if(in_array($row['kind'],['memory_policy','memory_embedding_policy','translation_policy'],true)){
+                if($row['profile_id']!==null)throw new \InvalidArgumentException($row['kind'].'_is_installation_scoped');
+                if($row['kind']==='memory_policy')
+                    (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
+                elseif($row['kind']==='memory_embedding_policy')\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+                else \ALMSIVIserver\Application\TranslationPolicy::validate($row['content']);
+            }
             $this->db->prepare('DELETE FROM installation_provider_selections WHERE installation_id=:installation')
                 ->execute(['installation'=>$installation]);
             $insert=$this->db->prepare('INSERT INTO installation_provider_selections(installation_id,provider_kind,configuration_id,updated_at) '
@@ -1402,7 +1942,7 @@ final class ProductRepository
             .'WHERE effective_rank=1 ORDER BY created_at DESC,document_id';
     }
 
-    public function promptContext(array $turn,string $now,array $oghmaExtraction=[]): array
+    public function promptContext(array $turn,string $now,array $oghmaExtraction=[],array $semanticMemory=[]): array
     {
         $scope = ['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
         $selectedProfileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
@@ -1436,8 +1976,6 @@ final class ProductRepository
             $coreContent=is_array($coreProfile['content']??null)?$coreProfile['content']:[];
             $coreProfile['content']=['prompt'=>(string)($coreContent['prompt']??'')];
         }
-        $memorySelection=$this->selectPromptMemories($turn,$scope,$this->memoryCandidates($scope,$now),$now);
-        $memories=$memorySelection['rows'];
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
         $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
             $this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),
@@ -1447,8 +1985,16 @@ final class ProductRepository
         $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
             str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
-        $relationships=$this->relationships($scope);usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
-        $narratives=$this->narratives($scope);usort($narratives,fn($a,$b)=>strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
+        $narratives=$this->narratives($scope);
+        if($activeProfileId!==$scope['profile_id']){
+            $narrativeScope=$scope;$narrativeScope['profile_id']=$activeProfileId;
+            foreach($this->narratives($narrativeScope)as$row)$narratives[$row['narrative_id']]=$row;
+            $narratives=array_values($narratives);usort($narratives,static fn(array$a,array$b):int=>
+                strcmp((string)$b['created_at'],(string)$a['created_at'])?:strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
+            $narratives=array_slice($narratives,0,100);
+        }
+        if(($effective['settings']['diary']['include_in_context']??true)!==true)
+            $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>($row['kind']??null)!=='diary'));
         $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
         $actions->execute(['session'=>$turn['session_id']]);
         $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());
@@ -1461,8 +2007,18 @@ final class ProductRepository
         }
         if(!isset($actorKey['record_id'],$actorKey['content_file']))throw new RuntimeException('invalid_actor_identity');
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
+        $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
+        // Relationship records describe their owning NPC, never a shared session or witness pool.
+        $relationshipScope=$scope;$relationshipScope['profile_id']=$activeProfileId;
+        $relationships=$ownsProfile?$this->relationships($relationshipScope):[];
+        usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
+        $memorySelection=$this->selectPromptMemories($turn,$scope,
+            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory);
+        $memories=$memorySelection['rows'];
+        $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
         $historyStatement=$this->db->prepare(<<<'SQL'
 SELECT 'event:'||e.rowid::text AS id,
+       m.turn_id,
        COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
        m.created_at AS sort_created_at,CASE WHEN e.type='chat' THEN 1 ELSE 0 END AS source_rank,e.rowid AS sort_id,
        CASE WHEN e.type='chat' THEN
@@ -1496,28 +2052,37 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
   AND m.turn_id IS DISTINCT FROM :current_turn
   AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
-  AND (CAST(:is_rechat AS boolean)=true OR m.speaker @> CAST(:event_speaker AS jsonb)
+  AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
        OR m.audience @> CAST(:event_audience AS jsonb))
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
-LIMIT 40
+LIMIT :candidate_limit
 SQL);
         $historyStatement->execute([
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
-            'is_rechat'=>(($turn['payload']['ui_source']??null)==='almsivi_rechat')?'true':'false',
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
+            'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
-        $history=[];foreach(array_reverse($historyStatement->fetchAll())as$row)$history[]=['id'=>(string)$row['id'],
-            'installation_id'=>$turn['installation_id'],'playthrough_id'=>$turn['playthrough_id'],
-            'created_at'=>(string)$row['sort_created_at'],'content'=>$this->json($row['content'])];
+        // Count conversation turns, not individual input, response, and world-event rows.
+        $history=[];$historyTurns=[];
+        foreach($historyStatement->fetchAll()as$row){
+            $turnKey=(string)($row['turn_id']??$row['id']);
+            if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
+            $historyTurns[$turnKey]=true;
+            $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],
+                'playthrough_id'=>$turn['playthrough_id'],'created_at'=>(string)$row['sort_created_at'],
+                'content'=>$this->json($row['content'])];
+        }
+        $history=array_reverse($history);
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
             'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
             'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
-            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),'memory_retrieval'=>$memorySelection['trace'],
+            'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
+            'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],
             'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
@@ -1595,6 +2160,73 @@ SQL);
         return['race'=>$races,'location'=>array_values(array_unique(array_merge($locations,$regions)))];
     }
 
+    /** Select the first enabled rule whose exact OpenMW values all match this newly discovered actor. */
+    private function matchingCoreProfileForTurn(array $turn,array $target):?string
+    {
+        $context=is_array($turn['payload']['context']??null)&&!array_is_list($turn['payload']['context'])
+            ?$turn['payload']['context']:[];
+        $actor=$this->profileRuleActorValues($target,$context);$normalized=[];
+        foreach(self::PROFILE_RULE_MATCH_FIELDS as$field)$normalized[$field]=array_map(
+            static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$actor[$field]);
+        $rules=$this->db->prepare('SELECT r.core_profile_id,r.matchers FROM profile_assignment_rules r JOIN core_profiles c '
+            .'ON c.core_profile_id=r.core_profile_id AND c.installation_id=r.installation_id AND c.deleted_at IS NULL '
+            .'WHERE r.installation_id=:installation AND r.enabled=true ORDER BY r.priority DESC,r.created_at,r.rule_id LIMIT 100');
+        $rules->execute(['installation'=>$turn['installation_id']]);
+        foreach($rules->fetchAll()as$rule){try{$match=$this->normalizeProfileRuleMatch($this->json($rule['matchers']),true);}
+            catch(InvalidArgumentException){continue;}$matches=true;
+            foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){if($match[$field]===[])continue;
+                $wanted=array_map(static fn(string$value):string=>mb_strtolower($value,'UTF-8'),$match[$field]);
+                if(array_intersect($wanted,$normalized[$field])===[]){$matches=false;break;}}
+            if($matches)return(string)$rule['core_profile_id'];
+        }
+        return null;
+    }
+
+    /** Extract only the bounded actor fields that assignment rules are allowed to inspect. */
+    private function profileRuleActorValues(array $target,array $context):array
+    {
+        $values=array_fill_keys(self::PROFILE_RULE_MATCH_FIELDS,[]);
+        $this->addProfileRuleOption($values['names'],$target['display_name']??null);
+        $this->addProfileRuleOption($values['content_files'],$target['content_file']??null);
+        $state=is_array($context['targetState']??null)&&!array_is_list($context['targetState'])?$context['targetState']:[];
+        $identity=is_array($state['identity']??null)&&!array_is_list($state['identity'])?$state['identity']:[];
+        $this->addProfileRuleOption($values['races'],$identity['race']??$state['race']??null);
+        $this->addProfileRuleOption($values['classes'],$identity['class']??$state['class']??null);
+        $this->addProfileRuleOption($values['genders'],$identity['gender']??$state['gender']??null);
+        $factions=$state['factions']??[];if(is_array($factions))foreach(array_slice($factions,0,64)as$faction){
+            if(is_string($faction))$this->addProfileRuleOption($values['factions'],$faction);
+            elseif(is_array($faction)&&!array_is_list($faction)&&(!isset($faction['rank'])||(int)$faction['rank']>=0))
+                $this->addProfileRuleOption($values['factions'],$faction['id']??null);
+        }
+        foreach($values as&$field)$field=array_values($field);unset($field);return$values;
+    }
+
+    /** Validate the stable rule document and normalize case-insensitive duplicates. */
+    private function normalizeProfileRuleMatch(mixed $value,bool $requirePopulated=false):array
+    {
+        if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_rule_match');
+        $keys=array_keys($value);sort($keys,SORT_STRING);$expected=self::PROFILE_RULE_MATCH_FIELDS;sort($expected,SORT_STRING);
+        if($keys!==$expected)throw new InvalidArgumentException('invalid_rule_match');
+        $result=[];$total=0;
+        foreach(self::PROFILE_RULE_MATCH_FIELDS as$field){$items=$value[$field];
+            if(!is_array($items)||!array_is_list($items)||count($items)>32)throw new InvalidArgumentException('invalid_rule_match');
+            $clean=[];foreach($items as$item){if(!is_string($item))throw new InvalidArgumentException('invalid_rule_match');
+                $item=trim($item);if($item===''||strlen($item)>256||preg_match('/[\x00-\x1F\x7F]/',$item)===1)
+                    throw new InvalidArgumentException('invalid_rule_match');
+                $key=mb_strtolower($item,'UTF-8');if(!isset($clean[$key]))$clean[$key]=$item;}
+            $result[$field]=array_values($clean);$total+=count($result[$field]);}
+        if($requirePopulated&&$total===0)throw new InvalidArgumentException('profile_assignment_rule_match_required');
+        return$result;
+    }
+
+    /** Add one safe display option keyed by its case-insensitive exact value. */
+    private function addProfileRuleOption(array &$options,mixed $value):void
+    {
+        if(!is_string($value))return;$value=trim($value);
+        if($value===''||strlen($value)>256||preg_match('/[\x00-\x1F\x7F]/',$value)===1)return;
+        $key=mb_strtolower($value,'UTF-8');if(!isset($options[$key]))$options[$key]=$value;
+    }
+
     private function canonicalRace(mixed $race):?string
     {
         if(!is_string($race)||trim($race)==='')return null;$value=trim($race);$key=mb_strtolower($value,'UTF-8');
@@ -1623,19 +2255,16 @@ SQL);
     }
 
     /** Rank turn memories deterministically and persist why each prompt source was selected. */
-    private function selectPromptMemories(array $turn,array $scope,array $memories,string $now):array
+    private function selectPromptMemories(array $turn,array $scope,array $memories,string $now,array $semantic=[]):array
     {
-        $query=trim((string)($turn['payload']['input']['text']??''));
-        if($query===''){
-            $target=$turn['payload']['target']??[];
-            $name=is_array($target)?trim((string)($target['display_name']??$target['record_id']??'')):'';
-            $query='Continue the current conversation'.($name===''?'':' with '.$name);
-        }
-        $query=mb_strcut($query,0,4096,'UTF-8');
+        $query=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::queryText($turn);
+        $queryEmbedding=is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
+            ?$semantic['embedding']:null;
         foreach($memories as&$memory){
-            $base=DeterministicRetrieval::score($query,$memory['lexical_terms'],$memory['fake_vector']);
+            $score=DeterministicRetrieval::promptScore($query,$memory['lexical_terms'],$memory['fake_vector'],
+                $queryEmbedding,is_array($memory['_semantic_embedding']??null)?$memory['_semantic_embedding']:null);
             $tierBoost=match($memory['tier']??null){'recent'=>0.15,'mid'=>0.08,'long'=>0.03,default=>0.0};
-            $memory['_prompt_score']=$base+$tierBoost;
+            $memory['_prompt_score']=$score['score']+$tierBoost;$memory['_retrieval_score']=$score;
         }
         unset($memory);
         usort($memories,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])
@@ -1645,12 +2274,21 @@ SQL);
         $scores=[];$reasons=[];
         foreach($selected as$rank=>&$memory){
             $scores[$memory['id']]=$memory['_prompt_score'];
-            $reasons[$memory['id']]=['rank'=>$rank+1,'tier'=>$memory['tier'],'reason'=>'deterministic relevance plus tier recency'];
-            unset($memory['_prompt_score']);
+            $signal=$memory['_retrieval_score'];$reasons[$memory['id']]=['rank'=>$rank+1,'tier'=>$memory['tier'],
+                'lexical_score'=>$signal['lexical_score'],'semantic_score'=>$signal['semantic_score'],
+                'semantic_source'=>$signal['source'],'reason'=>'bounded relevance plus tier recency'];
+            unset($memory['_prompt_score'],$memory['_retrieval_score'],$memory['_semantic_embedding'],$memory['_semantic_model']);
         }
         unset($memory);
-        return['rows'=>$selected,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
-            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1',
+        foreach($memories as&$memory)unset($memory['_retrieval_score'],$memory['_semantic_embedding'],$memory['_semantic_model']);
+        unset($memory);
+        if(($semantic['status']??'unconfigured')!=='unconfigured')$reasons['_semantic']=[
+            'status'=>(string)$semantic['status'],'policy_configuration_id'=>$semantic['policy_configuration_id']??null,
+            'policy_revision'=>$semantic['policy_revision']??null,'model'=>$semantic['model']??null];
+        return['rows'=>$selected,'candidates'=>$memories,'trace'=>['domain'=>'memory','query'=>$query,'result_ids'=>array_keys($scores),
+            'scores'=>$scores,'reasons'=>$reasons,'algorithm'=>$queryEmbedding===null
+                ?'prompt-memory-lexical-0.75+fake-vector-0.25+tier-v1'
+                :'prompt-memory-lexical-0.75+minime-0.25+deterministic-fallback+tier-v1',
             'created_at'=>$now,'prompt_section'=>'memory_context','scope'=>$scope]];
     }
 
@@ -1740,6 +2378,67 @@ SQL);
     {
         $statement=$this->db->prepare('SELECT content_file AS plugin,record_id AS baseid,display_name AS name,description FROM item_descriptions WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY lower(content_file),lower(record_id)');
         $statement->execute(['installation'=>$installationId]);return$statement->fetchAll();
+    }
+
+    /** Atomically create or revise installation-scoped biography templates by stable OpenMW identity. */
+    public function saveBiographyTemplates(string $installationId,array $inputs,string $now):array
+    {
+        return$this->transaction(function()use($installationId,$inputs,$now):array{
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')
+                ->execute(['key'=>'biography-import:'.$installationId]);
+            $defaultCore=(string)($this->defaultCoreProfileForInstallation($installationId,$now,true)['core_profile_id']
+                ??throw new RuntimeException('default_core_profile_required'));
+            $find=$this->db->prepare("SELECT p.profile_id,p.current_revision,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND lower(COALESCE(p.actor_identity->>'content_file',''))=lower(:content_file) AND lower(COALESCE(p.actor_identity->>'record_id',''))=lower(:record_id) ORDER BY p.created_at,p.profile_id FOR UPDATE OF p");
+            $nameConflict=$this->db->prepare('SELECT profile_id FROM profiles WHERE installation_id=:installation AND name=:name AND deleted_at IS NULL FOR UPDATE');
+            $saved=[];$portable=['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','oghma_knowledge_tags','gender','race','voice'];
+            foreach($inputs as$input){
+                $find->execute(['installation'=>$installationId,'content_file'=>$input['content_file'],'record_id'=>$input['record_id']]);
+                $matches=$find->fetchAll();if(count($matches)>1)throw new RuntimeException('ambiguous_biography_template');
+                $existing=$matches[0]??null;$nameConflict->execute(['installation'=>$installationId,'name'=>$input['name']]);
+                $named=$nameConflict->fetchColumn();
+                if($named!==false&&($existing===null||(string)$named!==(string)$existing['profile_id']))
+                    throw new \InvalidArgumentException('biography_template_name_conflict');
+                $identity=['kind'=>'template','display_name'=>$input['name'],'content_file'=>$input['content_file'],'record_id'=>$input['record_id']];
+                $content=$existing===null?[]:$this->json($existing['content']);
+                foreach($portable as$field)unset($content[$field]);
+                $content=array_replace($content,$input['content']);
+                if(strlen($this->encode($content))>131_072)throw new \InvalidArgumentException('invalid_profile_content');
+                if($existing===null){
+                    $id=Uuid::v4();
+                    $this->db->prepare('INSERT INTO profiles(profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES(:id,:installation,:name,CAST(:identity AS jsonb),:core_profile,:now)')
+                        ->execute(['id'=>$id,'installation'=>$installationId,'name'=>$input['name'],'identity'=>$this->encode($identity),'core_profile'=>$defaultCore,'now'=>$now]);
+                    $revision=1;
+                }else{
+                    $id=(string)$existing['profile_id'];$revision=(int)$existing['current_revision']+1;
+                    $this->db->prepare('UPDATE profiles SET name=:name,actor_identity=CAST(:identity AS jsonb) WHERE profile_id=:id')
+                        ->execute(['name'=>$input['name'],'identity'=>$this->encode($identity),'id'=>$id]);
+                }
+                $this->revision('profile_revisions','profile_id',$id,$revision,$content,'biography CSV import',$now);
+                if($existing!==null)$this->db->prepare('UPDATE profiles SET current_revision=:revision WHERE profile_id=:id')
+                    ->execute(['revision'=>$revision,'id'=>$id]);
+                $saved[]=['profile_id'=>$id,'revision'=>$revision,'created'=>$existing===null];
+            }
+            return$saved;
+        });
+    }
+
+    /** Return only reusable custom templates in the portable ALMSIVI biography CSV field order. */
+    public function customBiographyTemplates(string $installationId):array
+    {
+        $statement=$this->db->prepare("SELECT p.actor_identity->>'content_file' AS content_file,p.actor_identity->>'record_id' AS record_id,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND btrim(COALESCE(p.actor_identity->>'content_file',''))<>'' AND btrim(COALESCE(p.actor_identity->>'record_id',''))<>'' ORDER BY lower(p.actor_identity->>'content_file'),lower(p.actor_identity->>'record_id'),p.created_at,p.profile_id");
+        $statement->execute(['installation'=>$installationId]);$rows=[];
+        foreach($statement->fetchAll()as$row){
+            $content=$this->json($row['content']);$voice=$content['voice']??[];
+            $relationships=$content['relationships']??'{}';if(is_array($relationships))$relationships=$this->encode($relationships);
+            $tags=$content['oghma_knowledge_tags']??($content['oghma_tags']??'');if(is_array($tags))$tags=implode(', ',array_map('strval',$tags));
+            $rows[]=['content_file'=>(string)$row['content_file'],'record_id'=>(string)$row['record_id'],'name'=>(string)$row['name'],
+                'core'=>(string)($content['core']??''),'biography'=>(string)($content['biography']??''),'appearance'=>(string)($content['appearance']??''),
+                'personality'=>(string)($content['personality']??''),'relationships'=>(string)$relationships,'occupation'=>(string)($content['occupation']??''),
+                'skills'=>(string)($content['skills']??''),'speech_style'=>(string)($content['speech_style']??''),'goals'=>(string)($content['goals']??''),
+                'oghma_tags'=>(string)$tags,'voice_id'=>is_array($voice)?(string)($voice['id']??''):(string)$voice,
+                'gender'=>(string)($content['gender']??''),'race'=>(string)($content['race']??'')];
+        }
+        return$rows;
     }
 
     /** Soft-delete every active override for one installation so factory defaults become effective again. */
@@ -1913,11 +2612,11 @@ SQL);
             ->execute(['installation'=>$row['installation_id'],'key'=>$key,'default'=>$default,'custom'=>$custom,
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
-    private function actorKey(array $identity):string{return hash('sha256',$this->encodeCanonical(['kind'=>$identity['kind']??null,'record_id'=>$identity['record_id']??null,'content_file'=>$identity['content_file']??null,'refnum'=>$identity['refnum']??null]));}
+    public function actorKey(array $identity):string{return hash('sha256',$this->encodeCanonical(['kind'=>$identity['kind']??null,'record_id'=>$identity['record_id']??null,'content_file'=>$identity['content_file']??null,'refnum'=>$identity['refnum']??null]));}
     private function encodeCanonical(mixed $value):string{$sort=static function(mixed $item)use(&$sort):mixed{if(!is_array($item))return$item;if(array_is_list($item))return array_map($sort,$item);ksort($item,SORT_STRING);foreach($item as&$child)$child=$sort($child);return$item;};return json_encode($sort($value),JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);}
     private function withoutSecrets(array $value):array{foreach($value as$key=>&$item){if(is_string($key)&&preg_match('/(?:api[_-]?key|secret|password|authorization|access[_-]?token|refresh[_-]?token)/i',$key)===1){unset($value[$key]);continue;}if(is_array($item))$item=$this->withoutSecrets($item);}unset($item);return$value;}
     private function encode(array $v):string{return json_encode($v===[]?(object)[]:$v,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);}

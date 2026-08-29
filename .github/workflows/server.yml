@@ -37,8 +37,14 @@ jobs:
         run: php scripts/protocol/verify-local.php
       - name: Run unit and provider contract checks
         run: php tests/run.php
+      - name: Prepare strict response validation
+        run: |
+          python3 -m venv "$RUNNER_TEMP/response-validator"
+          "$RUNNER_TEMP/response-validator/bin/python" -m pip install 'jsonschema[format]==4.23.0'
       - name: Run disposable PostgreSQL integration, migrations, jobs, and backup restore
-        run: scripts/test/integration.sh
+        run: |
+          ALMSIVI_RESPONSE_CAPTURE="$RUNNER_TEMP/server-responses.jsonl" scripts/test/integration.sh
+          "$RUNNER_TEMP/response-validator/bin/python" scripts/test/validate-responses.py "$RUNNER_TEMP/server-responses.jsonl"
       - name: Run management HTTP and CSRF workflows
         run: scripts/test/management-http-integration.sh
       - name: Record scope honestly

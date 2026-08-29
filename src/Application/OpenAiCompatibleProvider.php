@@ -18,9 +18,13 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         private readonly string $apiKey,
         private readonly int $timeoutMs = 30_000,
         private readonly bool $disableReasoning = false,
+        private readonly array $options = [],
+        private readonly bool $allowLoopbackHttp = false,
+        private readonly bool $directConnection = false,
     ) {
-        OutboundUrlPolicy::validate($endpoint, $allowedHosts);
-        if ($model === '' || strlen($model) > 200 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
+        OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
+        LlmConnector::validateOptions($options);
+        if ($model === '' || strlen($model) > 256 || $timeoutMs < 1000 || $timeoutMs > 120_000) {
             throw new \InvalidArgumentException('invalid_openai_compatible_configuration');
         }
     }
@@ -34,18 +38,14 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     {
         $cancellation->throwIfCancellationRequested();
         $messages = $this->promptMessages($turn);
-        $request = [
+        $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning) + [
             'model' => $this->model,
-            'temperature' => 0.7,
-            'stream' => true,
-            'response_format' => ['type' => 'json_object'],
+            'stream' => $this->options['stream'] ?? true,
             'messages' => $messages,
         ];
-        if ($this->disableReasoning) {
-            $request['reasoning'] = ['exclude' => true, 'enabled' => false];
-        }
         $body = json_encode($request, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-        $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts));
+        $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
+        $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         $headers = ['Content-Type: application/json', 'Accept: text/event-stream, application/json'];
         if ($this->apiKey !== '') $headers[] = 'Authorization: Bearer ' . $this->apiKey;
@@ -54,7 +54,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $content = '';
         $streamed = false;
         $visible = new StreamingDialogueText();
-        curl_setopt_array($handle, [
+        curl_setopt_array($handle, $networkOptions + [
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => $body,
             CURLOPT_RETURNTRANSFER => false,
@@ -117,14 +117,26 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
         foreach ($visible->push('', true) as $text) $onDialogueDelta($text);
+        $result = $this->decodeStructuredContent($content);
+        $this->validateResultShape($result);
+        return $this->normalizeAction($result, $turn);
+    }
+
+    /** Decode the strict response while tolerating one common one-item transport wrapper. */
+    private function decodeStructuredContent(string $content): array
+    {
+        $content = ReasoningOutputCleaner::clean($content, ($this->options['reasoning_model'] ?? false) === true);
         try {
             $result = json_decode($content, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
             throw new RuntimeException('provider_invalid_output');
         }
+        if (is_array($result) && array_is_list($result) && count($result) === 1
+            && is_array($result[0]) && !array_is_list($result[0])) {
+            $result = $result[0];
+        }
         if (!is_array($result) || array_is_list($result)) throw new RuntimeException('provider_invalid_output');
-        $this->validateResultShape($result);
-        return $this->normalizeAction($result, $turn);
+        return $result;
     }
 
     /** Enforce the typed utterance envelope before a provider attempt can be marked successful. */
@@ -156,6 +168,8 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     /** Prefer the frozen CHIM-style split messages while retaining old snapshot compatibility. */
     private function promptMessages(array $turn): array
     {
+        $contract = '<action_contract>' . htmlspecialchars((new ActionPolicyValidator())->promptContract($turn),
+            ENT_QUOTES | ENT_XML1, 'UTF-8') . '</action_contract>';
         $messages = $turn['_prompt']['_messages'] ?? null;
         if (is_array($messages) && array_is_list($messages) && count($messages) >= 2 && count($messages) <= 64) {
             $safe = [];
@@ -170,10 +184,11 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 $safe[] = ['role' => $message['role'], 'content' => $message['content']];
             }
             if ($safe !== [] && $safe[0]['role'] === 'system' && $safe[array_key_last($safe)]['role'] === 'user') {
-                $contract = '<action_contract>action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. Allowed actions are null; inspect.report or inventory.inspect with empty parameters; ai.follow with distance 192; ai.stop, ai.approach, or ai.face with empty parameters; ai.wait with duration_seconds in whole-hour multiples from 3600..86400; ai.wander with integer distance 0..2048 and duration_seconds in whole-hour multiples from 3600..86400; ai.travel or ai.escort with destination_x, destination_y, destination_z, and destination_cell; combat.start or combat.stop with empty parameters; animation.play with group idle2 through idle9; item.use with inventory content_file and record_id; item.equip with inventory content_file, record_id, and equipment slot; or item.unequip with an equipment slot.</action_contract>';
                 $actionClosing = '</negotiated_actions>';
                 $closing = '</roleplay_context>';
                 if (str_contains($safe[0]['content'], '<action_contract>')) {
+                    $safe[0]['content'] = preg_replace_callback('#<action_contract>.*?</action_contract>#s',
+                        static fn(): string => $contract, $safe[0]['content']) ?? $safe[0]['content'];
                     return $safe;
                 }
                 if (str_contains($safe[0]['content'], $actionClosing)) {
@@ -191,7 +206,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $prompt = json_encode($turn['payload'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
         return [
-            ['role' => 'system', 'content' => 'You roleplay Morrowind characters. Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON.'],
+            ['role' => 'system', 'content' => 'You roleplay Morrowind characters. Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON. ' . $contract],
             ['role' => 'user', 'content' => $prompt],
         ];
     }

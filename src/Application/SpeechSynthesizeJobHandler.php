@@ -38,9 +38,13 @@ final class SpeechSynthesizeJobHandler implements JobHandler
             throw new \InvalidArgumentException('invalid_dialogue_message_id');
         if(!is_array($job)||!is_string($job['job_id']??null)||!is_string($job['lease_token']??null)||!is_int($job['attempt']??null))
             throw new \InvalidArgumentException('invalid_job_fence');
+        $ttsText=$payload['tts_text']??null;
+        if($ttsText!==null&&(!is_string($ttsText)||$ttsText===''||!mb_check_encoding($ttsText,'UTF-8')
+            ||mb_strlen($ttsText,'UTF-8')>4096||strlen($ttsText)>16_384))throw new \InvalidArgumentException('invalid_tts_text');
         $fence=['job_id'=>$job['job_id'],'lease_token'=>$job['lease_token'],'attempt'=>$job['attempt']];
         $dialogue=$this->repository->claimDialogueForSpeech($dialogueId,$fence);
         if($dialogue===null)return;
+        $ttsText??=(string)$dialogue['text'];
 
         $deadline=hrtime(true)+max(1,$this->timeoutMs)*1_000_000;
         $lastCheck=0;$cancelled=false;
@@ -55,19 +59,20 @@ final class SpeechSynthesizeJobHandler implements JobHandler
         $provider=$preset===null?$this->defaultProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
         if($provider===null)return;
 
-        $providerName=match(true){$provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+        $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
+            $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
             $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
         $attemptId=Uuid::v4();$mediaId=null;
         $attemptNumber=(($job['attempt']-1)*4)+(int)$dialogue['utterance_index'];
         $this->attempts?->start($attemptId,'tts',$providerName,'synthesize',$attemptNumber,
-            (string)$dialogue['request_id'],(string)$dialogue['turn_id'],$job['job_id'],inputBytes:strlen((string)$dialogue['text']),
+            (string)$dialogue['request_id'],(string)$dialogue['turn_id'],$job['job_id'],inputBytes:strlen($ttsText),
             metadata:['mode'=>$providerName,'job'=>true,'utterance_index'=>(int)$dialogue['utterance_index'],
                 'configuration_id'=>$preset['configuration_id']??null,'configuration_revision'=>$preset['revision']??null,
                 'profile_voice'=>isset($context['voice'])]);
         try{
-            $generated=$provider->synthesize((string)$dialogue['text'],$token,$context);
+            $generated=$provider->synthesize($ttsText,$token,$context);
             $token->throwIfCancellationRequested();
             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),'codec'=>$generated['codec'],

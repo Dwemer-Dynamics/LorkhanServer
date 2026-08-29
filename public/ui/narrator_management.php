@@ -21,6 +21,13 @@ $installationId = $requested !== '' && array_filter(
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
+$generationId = (string) ($routing['profile_generation_configuration_id'] ?? '');
+$generationValue = array_key_exists('profile_generation_configuration_id', $routing) && $generationId === '' ? '__disabled__' : $generationId;
+$generationOptions = ['' => 'Inherit Core Profile', '__disabled__' => 'Use server runtime'];
+foreach ($uiRepository->rows('llm') as $connector) {
+    if ((string) ($connector['installation_id'] ?? '') === $installationId) $generationOptions[(string) $connector['configuration_id']] = (string) $connector['name'];
+}
+if ($generationId !== '' && !isset($generationOptions[$generationId])) $generationOptions[$generationId] = 'Unavailable connector';
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
 
@@ -63,7 +70,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <p>Configure narrator behavior and settings</p>
         </div>
 
-        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Narrator profile saved.</div><?php endif; ?>
+        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Portable narrator settings imported as a new narrator profile revision.' : 'Narrator profile saved.'; ?></div><?php endif; ?>
 
         <?php if ($installations === []): ?>
             <section class="narrator-content-section">Connect OpenMW once before configuring narration.</section>
@@ -163,6 +170,13 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <div class="narrator-content-grid">
                     <section class="narrator-content-section">
                         <h2>Profile &amp; Voice</h2>
+                        <label for="narrator-generation-llm">Profile Generation LLM</label>
+                        <select id="narrator-generation-llm" name="profile_generation_configuration_id" aria-describedby="narrator-generation-help">
+                            <?php foreach ($generationOptions as $id => $label): ?>
+                                <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo $id === $generationValue ? ' selected' : ''; ?>><?php echo almsivi_ui_h($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="narrator-hint" id="narrator-generation-help">Applies to newly queued generation jobs. Queued jobs keep their frozen connector revision; saving never calls a provider.</span>
                         <div class="narrator-placeholder-field">
                             <label>Profile <?php echo almsivi_ui_feature_badge('config.narrator.profile-connectors', true); ?></label>
                             <select disabled aria-disabled="true"><option>ALMSIVI narrator profile</option></select>
@@ -249,6 +263,34 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </form>
 
             <?php if ($profile !== null): ?>
+                <details class="narrator-advanced-wrap narrator-portability">
+                    <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">&#x25B6;</span><span>Portable Narrator Settings</span></span></summary>
+                    <div class="narrator-advanced-panel">
+                        <p class="narrator-hint" id="narrator-portability-scope">A narrator preset carries narrator enablement, inline narration mode, narrator context visibility, the welcome, random, quest, and book event switches, the prompt head, core summary, background, personality, speech style, goals, and notes, and the narrator voice id and language. Provider and connector selections are never carried.</p>
+                        <div class="narrator-portability-actions">
+                            <a class="narrator-save-button narrator-portable-export" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/narrator-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.narrator.export')['description']); ?>">Export Settings</a>
+                        </div>
+                        <form class="narrator-portability-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/narrator-profile-settings-import">
+                            <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                            <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                            <div class="narrator-portability-field">
+                                <label for="narrator-preset-file">Preset file</label>
+                                <input id="narrator-preset-file" type="file" accept="application/json,.json" data-json-import-target="narrator-preset-json" aria-describedby="narrator-portability-scope narrator-portability-help">
+                            </div>
+                            <div class="narrator-portability-field">
+                                <label for="narrator-preset-json">Preset JSON</label>
+                                <textarea id="narrator-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="narrator-portability-scope narrator-portability-help"></textarea>
+                            </div>
+                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, or the excluded event tuning, bored event, dynamic profile, and diary controls.</p>
+                            <div class="narrator-portability-actions">
+                                <button type="submit" class="narrator-save-button" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+            <?php endif; ?>
+
+            <?php if ($profile !== null): ?>
                 <details class="narrator-advanced-wrap">
                     <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">&#x25B6;</span><span>AI Profile Generation</span></span></summary>
                     <div class="narrator-advanced-panel">
@@ -264,4 +306,5 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
+<?php if ($profile !== null): ?><script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

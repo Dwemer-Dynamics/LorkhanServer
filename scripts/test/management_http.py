@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-import atexit, html.parser, http.cookiejar, http.server, io, json, re, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
+import atexit, csv, html.parser, http.cookiejar, http.server, io, json, pathlib, re, subprocess, sys, threading, urllib.error, urllib.parse, urllib.request, uuid, zipfile
 
 base=sys.argv[1].rstrip('/')
 provider_host=sys.argv[2] if len(sys.argv)>2 else '127.0.0.1'
@@ -8,12 +8,26 @@ opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 class VoiceProvider(http.server.BaseHTTPRequestHandler):
     uploads=[]
+    llm_requests=[]
+    embedding_requests=[]
     def do_GET(self):
         if self.path.startswith('/speakers_list'):
             payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
     def do_POST(self):
+        if self.path=='/embed':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.embedding_requests.append(body)
+            payload=json.dumps({'embedding':[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]}).encode()
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
+        if self.path=='/llm/chat/completions':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.llm_requests.append((dict(self.headers),body))
+            content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body['model']!='invalid-output' else {'unexpected':'not dialogue'})
+            if body.get('stream'):
+                payload=('data: '+json.dumps({'choices':[{'delta':{'content':content}}]})+'\n\ndata: [DONE]\n\n').encode(); content_type='text/event-stream'
+            else:
+                payload=json.dumps({'choices':[{'message':{'content':content}}]}).encode(); content_type='application/json'
+            self.send_response(200); self.send_header('Content-Type',content_type); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path!='/upload_sample': self.send_error(404); return
         body=self.rfile.read(int(self.headers.get('Content-Length','0'))); self.uploads.append((dict(self.headers),body))
         payload=b'{"status":"ok"}'
@@ -24,6 +38,12 @@ voice_provider=http.server.ThreadingHTTPServer(('0.0.0.0',0),VoiceProvider)
 threading.Thread(target=voice_provider.serve_forever,daemon=True).start()
 atexit.register(voice_provider.server_close)
 atexit.register(voice_provider.shutdown)
+repository_root=pathlib.Path(__file__).resolve().parents[2]
+embedding_probe=subprocess.run(['php','-r',
+    "require $argv[1].'/src/Autoload.php'; $provider=new ALMSIVIserver\\Application\\MiniMeEmbeddingProvider($argv[2],1250); echo json_encode($provider->embed('Vivec remembers Red Mountain.',new ALMSIVIserver\\Application\\NeverCancelledToken()));",
+    str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)],capture_output=True,text=True,timeout=5)
+assert embedding_probe.returncode==0 and json.loads(embedding_probe.stdout)==[1,0,0,0,0,0,0,0] and VoiceProvider.embedding_requests==[{'text':'Vivec remembers Red Mountain.'}],(embedding_probe.returncode,embedding_probe.stdout,embedding_probe.stderr,VoiceProvider.embedding_requests)
+VoiceProvider.embedding_requests.clear()
 
 class Page(html.parser.HTMLParser):
     def __init__(self):
@@ -39,6 +59,8 @@ class Page(html.parser.HTMLParser):
             if 'dropdown-item' in a.get('class','').split(): self.current+=a.get('aria-current')=='page'
         if tag=='form': self.form={'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
         if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type')!='checkbox' or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
+        if self.form is not None and tag=='input' and a.get('type')=='checkbox' and a.get('name') and 'checked' in a:
+            self.form.setdefault('checked',{}).setdefault(a['name'],[]).append(a.get('value',''))
         if self.form is not None and tag=='select' and a.get('name') and 'disabled' not in a: self.select_name=a['name']
         if self.form is not None and tag=='option' and self.select_name and (self.select_name not in self.form['fields'] or 'selected' in a):
             self.form['fields'][self.select_name]=a.get('value','')
@@ -50,6 +72,15 @@ class Page(html.parser.HTMLParser):
 def request(path,method='GET',data=None,follow=True):
     body=None if data is None else urllib.parse.urlencode(data,doseq=True).encode()
     req=urllib.request.Request(base+path,data=body,method=method,headers={'Content-Type':'application/x-www-form-urlencoded'} if body else {})
+    try: return opener.open(req,timeout=5)
+    except urllib.error.HTTPError as e: return e
+
+def json_request(path,method='GET',data=None,csrf_token=None):
+    body=None if data is None else json.dumps(data).encode()
+    headers={'Accept':'application/json'}
+    if body is not None: headers['Content-Type']='application/json'
+    if csrf_token is not None: headers['X-CSRF-Token']=csrf_token
+    req=urllib.request.Request(base+path,data=body,method=method,headers=headers)
     try: return opener.open(req,timeout=5)
     except urllib.error.HTTPError as e: return e
 
@@ -100,6 +131,14 @@ assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live
 journal,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
+embedding_policy=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-policy'))
+assert embedding_policy['fields'].get('timeout_ms')=='1500' and embedding_policy['fields'].get('endpoint')=='' and 'enabled' not in embedding_policy['fields'],embedding_policy
+embedding_values=dict(embedding_policy['fields'],_csrf=csrf,enabled='1',endpoint='http://'+provider_host+':'+str(voice_provider.server_port),timeout_ms='1250')
+r=request(embedding_policy['action'],'POST',embedding_values); body=r.read().decode()
+assert r.status==200 and 'status=embedding-saved' in r.geturl() and 'Use MiniMe semantic retrieval' in body and 'value="1250"' in body and ' checked' in body,(r.status,r.geturl(),body)
+memories,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory')); embedding_backfill=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-backfill'))
+r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],_csrf=csrf,limit='100')); body=r.read().decode()
+assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
 relationships,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal:</strong>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h2>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Manage narratives' in text
 narratives_page,text=parse(request('/ALMSIVIserver/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>Narratives</h1>' in text and 'Create narrative' in text
@@ -137,16 +176,47 @@ assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in 
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/ALMSIVIserver/ui/core/npc_master.php').read().decode()
 keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'ALMSIVI_LLM_API_KEY' in text and 'type="password"' in text
+deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert deepl_key_input,text
+deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[ALMSIVI_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
+global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
+assert 'data-json-import-target="gs-preset-json"' in text and 'typed Global Settings document only' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
 assert global_settings_form['fields'].get('oghma_enabled')=='1' and 'oghma_extractor_enabled' not in global_settings_form['fields'] and global_settings_form['fields'].get('oghma_topic_count')=='1' and global_settings_form['fields'].get('oghma_result_limit')=='3' and global_settings_form['fields'].get('oghma_extractor_timeout_ms')=='1500',global_settings_form['fields']
 assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/ALMSIVIserver/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
 biographies,text=parse(request('/ALMSIVIserver/ui/core/npc_biographies.php'))
 assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
 assert any(f['action'].endswith('/forms/biography-template-revise') for f in biographies.forms),'factory biography templates are not editable'
+biography_import=next(f for f in biographies.forms if f['action'].endswith('/forms/biography-import'))
+biography_installation=biography_import['fields']['installation_id']
+biography_header=['content_file','record_id','name','core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race']
+def biography_csv(rows):
+    stream=io.StringIO(newline=''); writer=csv.writer(stream,lineterminator='\n'); writer.writerow(biography_header); writer.writerows(rows)
+    return stream.getvalue().encode()
+example=request('/ALMSIVIserver/manage/exports/biographies/example.csv'); example_body=example.read().decode('utf-8-sig')
+assert example.status==200 and next(csv.reader(io.StringIO(example_body)))==biography_header,example_body
+biography_suffix=uuid.uuid4().hex; biography_record='http_biography_'+biography_suffix; biography_name='HTTP Biography '+biography_suffix
+atomic_record='http_atomic_'+biography_suffix; invalid_record='http_invalid_'+biography_suffix
+atomic_rows=[
+    ['HTTP Test.esp',atomic_record,'HTTP Atomic '+biography_suffix,'Atomic core','Must not persist','','','{}','','','','','','','Female','Dark Elf'],
+    ['HTTP Test.esp',invalid_record,'HTTP Invalid '+biography_suffix,'Invalid core','Rejected','','','[]','','','','','','','Male','Wood Elf'],
+]
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv(atomic_rows)); body=r.read().decode()
+assert r.status==422 and 'invalid_biography_relationships' in body,(r.status,r.geturl(),body)
+exported=request('/ALMSIVIserver/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+assert atomic_record not in exported and invalid_record not in exported,exported
+biography_row=['HTTP Test.esp',biography_record,biography_name,'A careful OpenMW guide.','Imported biography v1.','Travel-worn clothes.','Patient and observant.','{"Player":{"aff":25}}','Guide','Local geography.','Direct and calm.','Help travellers.','Balmora, common','', 'Female','Dark Elf']
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv([biography_row])); body=r.read().decode()
+assert r.status==200 and 'status=imported' in r.geturl() and '1 biography template imported.' in body,(r.status,r.geturl(),body)
+biography_row[4]='Imported biography v2.'
+r=multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation,'embed':'0'},'csv_file','biographies.csv','text/csv',biography_csv([biography_row])); body=r.read().decode()
+assert r.status==200 and '1 biography template imported.' in body,(r.status,r.geturl(),body)
+exported=request('/ALMSIVIserver/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+export_rows=[row for row in csv.DictReader(io.StringIO(exported)) if row['record_id']==biography_record]
+assert len(export_rows)==1 and export_rows[0]['content_file']=='HTTP Test.esp' and export_rows[0]['biography']=='Imported biography v2.' and export_rows[0]['oghma_tags']=='Balmora',export_rows
 descriptions,text=parse(request('/ALMSIVIserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 assert request('/ALMSIVIserver/ui/server_plugins.php').status==404
 assert request('/ALMSIVIserver/manage/server-plugins').status==404
@@ -184,7 +254,7 @@ for path in [
 ]:
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
-profile_labels=['Voice sample','Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM','LLM randomizer','Fallback retry','TTS connector','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
+profile_labels=['Voice sample','Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM','Diary LLM','LLM randomizer','Fallback retry','TTS connector','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
@@ -199,7 +269,7 @@ form=next(f for f in profile.forms if f['action'].endswith('/forms/profile-creat
 invalid=dict(form['fields'],_csrf=csrf,installation_id='invalid',name='Test',voice_language='en')
 r=request(form['action'],'POST',invalid); _,text=parse(r); assert r.status==422 and 'role="alert"' in text
 profile_name='HTTP managed profile '+uuid.uuid4().hex
-valid=dict(form['fields'],_csrf=csrf,name=profile_name,voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
+valid=dict(form['fields'],_csrf=csrf,name=profile_name,record_id='http_managed_'+uuid.uuid4().hex,content_file='Morrowind.esm',refnum_index='62010',refnum_content_file='0',voice_id=batch_voice,voice_language='en',gender='Female',race='Dunmer',prompt_head='Stay grounded in TES3 lore.',core='A cautious Balmora guide.',biography='Created through the labelled management form.',personality='Preserved personality field.',skills='Local geography and alchemy.',emote_moods='calm, wary',setting_behavior_rechat='1',setting_behavior_rechat_max_depth='4',setting_behavior_auto_greeting='1',setting_behavior_boredom='1',setting_behavior_combat_barks='1',setting_behavior_rechat_delay_seconds='999',setting_presentation_show_status_hud='0')
 valid['installation_id']=auto_lock['fields']['installation_id']
 valid['favorite']='1'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
@@ -323,7 +393,77 @@ values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=p
 r=request(create_playthrough['action'],'POST',values); body=r.read().decode(); assert r.status==200 and playthrough_name in body and all(label in body for label in ['Sessions','Turns','Responses','Memories','Relationships','Narratives','Knowledge']),(r.status,r.geturl(),body)
 match=re.search(r'<h2>'+re.escape(playthrough_name)+r'</h2>.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
 playthrough_id=match.group(1)
-narratives,_=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
+state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile='',state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,state_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+state_query))
+core_match=re.search(r'name="core_profile_id" form="management-form-profile-'+re.escape(profile_id)+r'"[^>]*>.*?<option value="([0-9a-f-]{36})" selected',state_body,re.S)
+assert core_match,state_body
+state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile=core_match.group(1),state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,state_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+state_query))
+assert '&#128220; History' in state_body and 'data-npc-history-view' in state_body and 'data-npc-history-recipients' in state_body
+assert all(('name="ui_'+field+'"' in state_body) for field in ['embed','q','profile','state','initial','fav','lock','installation_id']),state_body
+revise=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
+state_values=dict(revise['fields'],_csrf=csrf,favorite='1',change_reason='HTTP list-state continuity',ui_page='2')
+r=request(revise['action'],'POST',state_values); state_url=urllib.parse.urlparse(r.geturl()); state_params=urllib.parse.parse_qs(state_url.query)
+assert r.status==200 and state_url.path.endswith('/ui/core/npc_master.php') and state_params.get('status')==['saved']
+assert state_params.get('embed')==['1'] and state_params.get('q')==[profile_name] and state_params.get('profile')==[core_match.group(1)]
+assert state_params.get('state')==['favorites'] and state_params.get('initial')==['H'] and state_params.get('fav')==['1'] and state_params.get('lock')==['1']
+assert state_params.get('installation_id')==[valid['installation_id']] and state_params.get('page')==['2'],state_params
+
+recipient_name='HTTP history recipient '+uuid.uuid4().hex
+recipient_values=dict(form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=recipient_name,
+    record_id='http_history_recipient_'+uuid.uuid4().hex,content_file='Morrowind.esm',refnum_index='62011',refnum_content_file='0',
+    voice_language='en',biography='Known recipient for the NPC history test.')
+r=request(form['action'],'POST',recipient_values); recipient_body=r.read().decode()
+assert r.status==200 and recipient_name in recipient_body,(r.status,r.geturl(),recipient_body)
+recipient_profile_id=selected_record_id(recipient_body,recipient_name)
+provider_calls_before_history=len(VoiceProvider.llm_requests)
+history_path='/ALMSIVIserver/manage/api/v1/profiles/'+profile_id+'/eventlog'
+history_query='?'+urllib.parse.urlencode(dict(playthrough_id=playthrough_id,limit='100'))
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and history['events']==[] and history['recipient_profiles'],history
+recipient_id=recipient_profile_id
+assert recipient_id in [recipient['profile_id'] for recipient in history['recipient_profiles']],history
+history_event='Met a known companion near Balmora. <&> 古'
+payload={'playthrough_id':playthrough_id,'event':history_event,'recipient_profile_ids':[recipient_id]}
+r=json_request(history_path,'POST',payload); assert r.status==401,(r.status,r.read().decode())
+r=json_request(history_path,'POST',payload,csrf); injected=json.loads(r.read().decode())['data']; history_row_id=injected['rowid']
+assert r.status==201 and history_row_id>0 and recipient_id in [recipient['profile_id'] for recipient in injected['recipients']],injected
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and [event['rowid'] for event in history['events']]==[history_row_id]
+assert history['events'][0]['data']=='('+history_event+')' and history['events'][0]['deletable'] is True and 'inputtext' in history['event_types'],history
+delete_path=history_path+'/'+str(history_row_id)
+r=json_request(delete_path,'DELETE',{'playthrough_id':playthrough_id}); assert r.status==401,(r.status,r.read().decode())
+r=json_request(delete_path,'DELETE',{'playthrough_id':playthrough_id},csrf); assert r.status==200,(r.status,r.read().decode())
+r=json_request(history_path+history_query); history=json.loads(r.read().decode())['data']
+assert r.status==200 and history['events']==[] and len(VoiceProvider.llm_requests)==provider_calls_before_history,history
+r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':recipient_profile_id}); assert r.status==200
+
+provider_calls_before_conversion=len(VoiceProvider.llm_requests)
+conversion_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
+characters,conversion_body=parse(request('/ALMSIVIserver/ui/core/npc_master.php?'+conversion_query))
+conversion_form=next(f for f in characters.forms if f['action'].endswith('/forms/relationship-text-convert'))
+assert 'data-npc-modal-target="npc-relationships-modal"' in conversion_body and 'id="npc-generate-modal"' in conversion_body
+assert 'Bulk relationship text conversion is planned' not in conversion_body and 'never reads Custom Info' in conversion_body
+assert conversion_form['fields']['playthrough_id']==playthrough_id and conversion_form['fields']['mode']=='missing' and uuid.UUID(conversion_form['fields']['request_id'])
+assert len(VoiceProvider.llm_requests)==provider_calls_before_conversion # Rendering never calls the Relationship LLM.
+conversion_values=dict(conversion_form['fields'],_csrf=csrf,confirm='Build',ui_page='2')
+r=request(conversion_form['action'],'POST',dict(conversion_values,confirm='wrong')); assert r.status==422 and 'confirmation_mismatch' in r.read().decode()
+r=request(conversion_form['action'],'POST',dict(conversion_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+r=request(conversion_form['action'],'POST',dict(conversion_values,request_id=str(uuid.uuid4()),playthrough_id=str(uuid.uuid4()))); assert r.status==422
+r=request(conversion_form['action'],'POST',dict(conversion_values,request_id=str(uuid.uuid4()),mode='transitive')); assert r.status==422
+r=request(conversion_form['action'],'POST',conversion_values); conversion_result,conversion_body=parse(r)
+conversion_url=urllib.parse.urlparse(r.geturl()); conversion_params=urllib.parse.parse_qs(conversion_url.query)
+assert r.status==200 and conversion_url.path.endswith('/ui/core/npc_master.php') and conversion_params.get('embed')==['1']
+assert conversion_params.get('q')==[profile_name] and conversion_params.get('initial')==['H'] and conversion_params.get('fav')==['1'] and conversion_params.get('lock')==['1'] and conversion_params.get('page')==['2']
+assert conversion_params.get('installation_id')==[valid['installation_id']] and conversion_params.get('status',[None])[0] in ('relationship_conversion_requested','relationship_conversion_no_eligible')
+assert ('role="status"' in conversion_body or 'role="alert"' in conversion_body) and len(VoiceProvider.llm_requests)==provider_calls_before_conversion
+narratives,narrative_body=parse(request('/ALMSIVIserver/ui/narrative_manager.php'))
+generate_diary=next(f for f in narratives.forms if f['action'].endswith('/forms/narrative-generate'))
+assert all(field in generate_diary['fields'] for field in ['installation_id','profile_id','playthrough_id'])
+assert 'Request a diary' in narrative_body and 'never generates a diary on a timer' in narrative_body and 'Diary generation queued.' not in narrative_body
+provider_calls_before_diary=len(VoiceProvider.llm_requests)
+r=request(generate_diary['action'],'POST',dict(generate_diary['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id)); diary_error=r.read().decode()
+assert r.status==422 and 'diary_generation_disabled' in diary_error and len(VoiceProvider.llm_requests)==provider_calls_before_diary,(r.status,diary_error)
 create_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narratives'))
 narrative_title='HTTP diary '+uuid.uuid4().hex; narrative_text='Arrived in Seyda Neen.'
 values=dict(create_narrative['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,kind='diary',title=narrative_title,content=narrative_text,provenance='management-http')
@@ -342,6 +482,44 @@ r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert
 globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
 assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" aria-label="Rechat"' in body and 'name="rechat" value="1" disabled' not in body and 'name="auto_lock_profile" value="1" checked' in body
 assert all('<h2>'+section+'</h2>' in body for section in ['Memory','Misc','Quests','Translation']) and all(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','translation_provider']) and 'Background Life Trigger Time' not in body
+assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
+assert '<option value="none" selected>None</option>' in body and '<option value="deepl">DeepL</option>' in body and 'name="translation_provider" data-translation-control="provider" aria-label="Provider"' in body
+assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body and '<option value="https://api.deepl.com/v2/translate">Pro account (api.deepl.com)</option>' in body
+assert 'translates NPC output only' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
+translation_values=dict(values,translation_provider='deepl',translation_text='1')
+r=request(settings_form['action'],'POST',translation_values); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_translation_activation' in invalid_body,(r.status,invalid_body)
+r=request(settings_form['action'],'POST',dict(translation_values,translation_target_language='de',translation_endpoint_url='https://api.deepl.com/v2/translate')); body=r.read().decode(); assert r.status==200,(r.status,body)
+_,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
+assert '<option value="deepl" selected>DeepL</option>' in body and 'name="translation_target_language" data-translation-control="target"' in body and 'value="DE"' in body and '<option value="https://api.deepl.com/v2/translate" selected>Pro account (api.deepl.com)</option>' in body
+r=request(settings_form['action'],'POST',dict(values,translation_provider='none')); assert r.status==200,r.status
+globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
+assert '<option value="none" selected>None</option>' in body and '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body
+global_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
+global_export_match=re.search(r'/manage/exports/global-settings/([0-9a-f-]{36})\.json',body); assert global_export_match,body
+global_configuration_id=global_export_match.group(1)
+global_preset_response=request('/ALMSIVIserver/manage/exports/global-settings/'+global_configuration_id+'.json')
+global_preset=json.loads(global_preset_response.read().decode())
+assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','name','schema','settings']
+assert global_preset['schema']=='almsivi.global-settings-preset.v1' and global_preset['settings']['schema']=='almsivi.client-settings.v1'
+assert global_preset['settings']['memory']['knowledge_limit']==6 and not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','oghma','auto_lock_profile','npc_assignments'])
+invalid_global_preset=dict(global_preset,unexpected='rejected')
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_global_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
+secret_global_preset=dict(global_preset,settings=dict(global_preset['settings'],api_key='never'))
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_global_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
+global_preset['settings']['memory']['knowledge_limit']=9
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(global_preset))); imported_page,imported_body=parse(r)
+assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit" value="9"' in imported_body,(r.status,r.geturl(),imported_body)
+assert 'name="auto_lock_profile" value="1" checked' in imported_body and 'name="oghma_result_limit" value="3"' in imported_body
+global_rollback=next(f for f in imported_page.forms if f['action'].endswith('/forms/global-settings-rollback'))
+assert global_rollback['fields']['configuration_id']==global_configuration_id and int(global_rollback['fields']['revision'])>=1
+r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf)); rolled_page,rolled_body=parse(r)
+assert r.status==200 and 'status=rolled-back' in r.geturl() and 'name="knowledge_limit" value="6"' in rolled_body,(r.status,r.geturl(),rolled_body)
+assert 'Earlier revision restored as a new Global Settings revision.' in rolled_body
+r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf,configuration_id=str(uuid.uuid4()))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.status,invalid_body)
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex
@@ -349,12 +527,103 @@ values=dict(create_memory['fields'],_csrf=csrf,installation_id=valid['installati
 r=request(create_memory['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=memory' in r.geturl() and memory_text in body,(r.status,r.geturl(),body)
 memory_match=re.search(re.escape(memory_text)+r'.*?name="memory_id" value="([0-9a-f-]{36})"',body,re.S); assert memory_match,body
 memory_id=memory_match.group(1)
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+summary_form=next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))
+assert 'enabled' not in summary_form['fields']
+summary_values=dict(summary_form['fields'],_csrf=csrf,installation_id=valid['installation_id'])
+r=request(summary_form['action'],'POST',dict(summary_values,enabled='1',provider_configuration_id='')); assert r.status==422
+r=request(summary_form['action'],'POST',dict(summary_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+assert 'enabled' not in next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))['fields']
+for changes in [{'memory_id':'not-a-uuid'},{'base_revision':'1.5'},{'base_revision':'0'},{}]:
+    r=request('/ALMSIVIserver/manage/forms/memory-summarize','POST',dict({'_csrf':csrf,'installation_id':valid['installation_id'],'memory_id':memory_id,'base_revision':'1'},**changes))
+    assert r.status==422,(r.status,r.read().decode()) # Manual memories are never model-summary inputs.
 memories,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memories-tab'))
 revise_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory-revise') and f['fields'].get('memory_id')==memory_id)
 revised_memory=memory_text+' revised'; r=request(revise_memory['action'],'POST',dict(revise_memory['fields'],_csrf=csrf,content=revised_memory)); body=r.read().decode(); assert r.status==200 and revised_memory in body,(r.status,r.geturl(),body)
 r=request('/ALMSIVIserver/manage/forms/memory-delete','POST',{'_csrf':csrf,'memory_id':memory_id}); body=r.read().decode(); assert r.status==200 and revised_memory not in body,(r.status,r.geturl())
 legacy_relationships,body=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=relationships-tab'))
 assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content active"' in body and '/forms/relationships' not in body,(legacy_relationships.current,body)
+relationship_page,body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?embed=1&installation_id='+valid['installation_id']))
+relationship_create=next((f for f in relationship_page.forms if f['action'].endswith('/forms/relationships')),None)
+assert relationship_create is not None,body
+assert re.search(r'id="relationship-custom-info"[^>]*></textarea>',body)
+assert body.count('id="relationship-type-options"')==1 and relationship_create['fields']['relationship_type']=='neutral'
+assert 'sent to AI and shown in prompts, unlike Custom Info' in body
+private_relationship_note='{"token":"private reminder","text":"<&> 古"}'
+build_query=urllib.parse.urlencode(dict(installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,embed='1'))
+build_page,build_body=parse(request('/ALMSIVIserver/ui/relationship_logs.php?'+build_query))
+build_form=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
+build_values=dict(build_form['fields'],_csrf=csrf,history_limit='25')
+assert build_form['fields']['history_limit']=='100' and uuid.UUID(build_values['request_id'])
+r=request(build_form['action'],'POST',build_values); build_page,build_body=parse(r)
+assert r.status==200 and 'relationship_build_no_connector' in r.geturl() and 'role="alert"' in build_body
+build_retry=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
+assert all(build_retry['fields'][key]==build_values[key] for key in ['installation_id','profile_id','playthrough_id','history_limit','embed'])
+assert request(build_form['action'],'POST',dict(build_values,history_limit='101')).status==422
+assert request(build_form['action'],'POST',dict(build_values,playthrough_id=str(uuid.uuid4()))).status==422
+r=request(build_form['action'],'POST',dict(build_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+relationship_identity={'kind':'npc','record_id':'http_relationship_actor','display_name':'HTTP relationship actor',
+    'content_file':'Morrowind.esm','refnum':{'index':98765,'content_file':0},'cell':{'kind':'interior','name':'HTTP fixture'}}
+relationship_values=dict(relationship_create['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,
+    playthrough_id=playthrough_id,actor_profile_id='',content_json=json.dumps(relationship_identity),disposition='10',affinity='5',reason='HTTP relationship create',custom_info=private_relationship_note)
+relationship_values['relationship_type']='professional'
+r=request(relationship_create['action'],'POST',dict(relationship_values,disposition='not-a-number')); assert r.status==422
+r=request(relationship_create['action'],'POST',dict(relationship_values,relationship_type='two words')); assert r.status==422
+r=request(relationship_create['action'],'POST',dict(relationship_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+r=request(relationship_create['action'],'POST',relationship_values); relationship_page,body=parse(r)
+assert r.status==200 and 'embed=1' in r.geturl() and 'HTTP relationship actor' in body,(r.status,r.geturl(),body)
+relationship_edit=next(f for f in relationship_page.forms if f['action'].endswith('/forms/relationships') and f['fields'].get('relationship_id'))
+relationship_id=relationship_edit['fields']['relationship_id']; assert relationship_edit['fields']['expected_revision']=='1' and relationship_edit['fields']['relationship_type']=='professional'
+custom_info_pattern=r'<textarea id="custom-info-'+relationship_id+r'"[^>]*>\n(.*?)</textarea>'
+assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note
+renamed_identity=dict(relationship_identity,display_name='Renamed HTTP actor')
+r=request(relationship_create['action'],'POST',dict(relationship_values,content_json=json.dumps(renamed_identity))); body=r.read().decode()
+assert r.status==200 and 'relationship_already_exists' in r.geturl() and 'already has a relationship' in body
+score_only=dict(relationship_edit['fields'],_csrf=csrf,disposition='20',affinity='6',reason='HTTP relationship edit')
+score_only.pop('relationship_type')
+r=request(relationship_edit['action'],'POST',score_only); relationship_page,body=parse(r)
+latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+assert latest_edit['fields']['expected_revision']=='2' and latest_edit['fields']['disposition']=='20' and latest_edit['fields']['relationship_type']=='professional'
+assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note # Older score-only forms preserve it.
+assert 'private reminder' not in body.split('id="relationship-history"',1)[1] and 'Custom Info updated' in body
+r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,relationship_type='trusted_companion',reason='Choose custom type')); relationship_page,body=parse(r)
+latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+assert latest_edit['fields']['relationship_type']=='trusted_companion' and 'type trusted_companion' in body
+assert request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info='x'*2001)).status==422
+assert request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,**{'custom_info[]':'invalid'})).status==422
+private_relationship_note='\nKeep <&> 古\nTrailing spaces  '
+r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info=private_relationship_note.replace('\n','\r\n'))); relationship_page,body=parse(r)
+assert html.unescape(re.search(custom_info_pattern,body,re.S)[1])==private_relationship_note
+private_relationship_backup=json.loads(request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json').read())
+exported_relationships=private_relationship_backup['data']['relationships']
+exported_relationship=next(row for row in exported_relationships if row['relationship_id']==relationship_id)
+assert exported_relationship['custom_info']==private_relationship_note and exported_relationship['relationship_type']=='trusted_companion'
+latest_edit=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+r=request(latest_edit['action'],'POST',dict(latest_edit['fields'],_csrf=csrf,custom_info='')); relationship_page,body=parse(r)
+assert re.search(custom_info_pattern,body,re.S)[1]==''
+try:
+    opener.open(urllib.request.Request(base+'/ALMSIVIserver/manage/api/v1/playthrough-restore',
+        data=json.dumps(private_relationship_backup).encode(),headers={'Content-Type':'application/json','X-CSRF-Token':csrf}),timeout=5)
+    raise AssertionError('conflicting relationship restore was accepted')
+except urllib.error.HTTPError as error:
+    assert error.code==409 and json.loads(error.read())['error']=='relationship_restore_conflict'
+r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,disposition='99',affinity='6',custom_info='Stale overwrite',reason='Stale edit')); body=r.read().decode()
+assert r.status==200 and 'relationship_revision_conflict' in r.geturl() and 'Unsaved edits were not kept' in body
+assert re.search(custom_info_pattern,body,re.S)[1]==''
+api_relationship={key:relationship_values[key] for key in ['installation_id','profile_id','playthrough_id']}
+api_relationship.update(relationship_id=relationship_id,expected_revision=1,disposition=99,affinity=0,source_mode='manual')
+try:
+    opener.open(urllib.request.Request(base+'/ALMSIVIserver/manage/api/v1/relationships',data=json.dumps(api_relationship).encode(),
+        headers={'Content-Type':'application/json','X-CSRF-Token':csrf}),timeout=5)
+    raise AssertionError('stale management API write accepted')
+except urllib.error.HTTPError as error:
+    assert error.code==409 and json.loads(error.read())['error']=='relationship_revision_conflict'
+relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationship-delete'))
+r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
+r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
+assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
+assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body and 'Recent changes (6 shown)' in body
 backup_response=request('/ALMSIVIserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='almsivi.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/ALMSIVIserver/ui/playthrough_manager.php'))
@@ -367,6 +636,17 @@ current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+pro
 values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
+summary_connectors,_=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?create=1'))
+summary_connector_form=next(f for f in summary_connectors.forms if f['action'].endswith('/forms/providers'))
+summary_connector_name='HTTP memory summary '+uuid.uuid4().hex
+r=request(summary_connector_form['action'],'POST',dict(summary_connector_form['fields'],_csrf=csrf,name=summary_connector_name,driver='mock',model='memory-http'))
+summary_connector_id=connector_editor_id(r.read().decode(),summary_connector_name)
+summary_values.update(provider_configuration_id=summary_connector_id,enabled='1')
+r=request(summary_form['action'],'POST',summary_values); policy_page,body=parse(r)
+assert r.status==200 and 'policy_installation_id='+valid['installation_id'] in r.geturl()
+assert next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))['fields']['enabled']=='1'
+assert any(f['action'].endswith('/forms/memory-rebuild') for f in policy_page.forms)
+r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':summary_connector_id}); assert r.status==422
 database,body=parse(request('/ALMSIVIserver/ui/database_manager.php'))
 backup_ids_before=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body))
 create_backup=next(f for f in database.forms if f['action'].endswith('/forms/configuration-backup'))
@@ -381,6 +661,9 @@ assert backup_response.status==200 and configuration_backup['schema']=='almsivi.
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
 assert all(row['core_profile_id'] in core_ids for row in configuration_backup['data']['profiles']),configuration_backup['data']['profiles']
 assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and 'api_key' not in json.dumps(configuration_backup).lower()
+saved_policy=next(row for row in configuration_backup['data']['configurations'] if row['kind']=='memory_policy')
+assert saved_policy['content']['enabled'] is True and saved_policy['content']['provider_configuration_id']==summary_connector_id
+summary_values.pop('enabled'); r=request(summary_form['action'],'POST',summary_values); assert r.status==200
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+profile_id+'.json').read().decode())
@@ -392,6 +675,11 @@ values=dict(restore_configuration['fields'],_csrf=csrf,installation_id=valid['in
 r=request(restore_configuration['action'],'POST',values); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body
 values['confirm']='Restore'; r=request(restore_configuration['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'restored ·' in body,(r.status,r.geturl(),body)
+policy_page,_=parse(request('/ALMSIVIserver/ui/events-memories.php?tab=memory'))
+restored_policy=next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))
+assert restored_policy['fields']['enabled']=='1' and restored_policy['fields']['provider_configuration_id']==summary_connector_id
+summary_values['provider_configuration_id']=''; r=request(summary_form['action'],'POST',summary_values); assert r.status==200
+r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':summary_connector_id}); assert r.status==200
 body=request('/ALMSIVIserver/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Changed after the configuration backup.' not in body
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':profile_id}); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 descriptions,body=parse(request('/ALMSIVIserver/ui/description_manager.php'))
@@ -425,19 +713,130 @@ r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf)); bo
 revise=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
 values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-v2',mock_prefix='[revised] ',change_reason='HTTP model-slot test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
+core_list,core_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php'))
+core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
+assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
+assert 'settings overrides only' in core_body
+assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-open"' in core_body
+core_import_page,core_import_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php?import=1'))
+core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
+assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
+# Legacy Core controls have separate known label gaps; validate the new relationship labels specifically.
+core_body=request('/ALMSIVIserver/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
+core_page=Page(); core_page.feed(core_body)
+assert 'aria-labelledby="relationship_configuration_id-label"' in core_body
+assert 'aria-label="Relationship Update Chance"' in core_body and 'for="relationship-lock"' in core_body
+assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Manual Diary Generation' in core_body
+assert 'Generate nearby NPC diaries during sleep or wait.' in core_body and 'Create a physical in-game diary that can be read.' in core_body
+core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
+core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,relationship_configuration_id=slot_id,
+    setting_relationship_update_chance_percent='100',setting_relationship_locked='1',diary_generation_configuration_id=slot_id,
+    setting_diary_enabled='1',setting_diary_include_in_context='0',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
+core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
+core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
+core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
+assert core_saved['fields']['relationship_configuration_id']==slot_id and core_saved['fields']['setting_relationship_update_chance_percent']=='100'
+assert core_saved['fields']['setting_relationship_locked']=='1',core_saved
+assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
+assert core_saved['fields']['setting_diary_include_in_context']=='0' and core_saved['fields']['setting_diary_context_turn_limit']=='12'
+assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help">Record only witnessed events.</textarea>' in core_body
+assert len(VoiceProvider.llm_requests)==provider_calls_before_diary,core_saved
+connector_plan_calls=len(VoiceProvider.llm_requests)
+connector_plan_response=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests?installation_id='+valid['installation_id'])
+connector_plan=json.loads(connector_plan_response.read().decode())
+assert connector_plan_response.status==200 and len(VoiceProvider.llm_requests)==connector_plan_calls,connector_plan
+matching_jobs=[job for job in connector_plan['jobs'] if job['configuration_id']==slot_id]
+assert len(matching_jobs)==1 and matching_jobs[0]['kind']=='provider' and matching_jobs[0]['label']==slot_name,connector_plan
+matching_profile=next(profile for profile in connector_plan['profiles'] if profile['id']==core_edit.group(1))
+matching_slots=[slot for slot in matching_profile['slots'] if slot['configuration_id']==slot_id]
+assert {slot['field'] for slot in matching_slots}=={'llm_configuration_id','llm_fast_configuration_id','relationship_configuration_id','diary_generation_configuration_id'} and len({slot['job_key'] for slot in matching_slots})==1,matching_slots
+assert any(job['configuration_id']==tts_id and job['kind']=='tts_provider' for job in connector_plan['jobs']),connector_plan
+assert not any(key in json.dumps(connector_plan).lower() for key in ['api_key','credential','endpoint','content']),connector_plan
+bulk_values={'installation_id':valid['installation_id'],'kind':'provider','configuration_id':slot_id}
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',bulk_values); bulk_error=json.loads(r.read().decode())
+assert r.status==401 and bulk_error['error']=='unauthorized',bulk_error
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',dict(bulk_values,kind='stt_provider'),csrf); bulk_error=json.loads(r.read().decode())
+assert r.status==422 and bulk_error['error']=='invalid_connector_kind',bulk_error
+r=json_request('/ALMSIVIserver/manage/api/v1/profile-connector-tests','POST',bulk_values,csrf); bulk_result=json.loads(r.read().decode())['result']
+assert r.status==200 and bulk_result['job_key']=='provider:'+slot_id and bulk_result['status']=='pass' and bulk_result['message'].startswith('1 valid utterance'),bulk_result
+assert len(VoiceProvider.llm_requests)==connector_plan_calls,bulk_result
+rules_path='/ALMSIVIserver/manage/api/v1/profile-assignment-rules'
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert rules_plan['rules']==[] and any(profile['core_profile_id']==core_edit.group(1) for profile in rules_plan['core_profiles']),rules_plan
+rule_match={'names':['HTTP Rule NPC','http rule npc'],'races':['Dark Elf'],'classes':['Commoner'],'genders':['Female'],
+    'factions':['fighters guild'],'content_files':['Morrowind.esm']}
+rule_values={'operation':'save','installation_id':valid['installation_id'],'rule_id':None,'description':'HTTP assignment rule',
+    'core_profile_id':core_edit.group(1),'priority':25,'enabled':True,'match':rule_match}
+r=json_request(rules_path,'POST',rule_values); rule_error=json.loads(r.read().decode())
+assert r.status==401 and rule_error['error']=='unauthorized',rule_error
+invalid_rule=dict(rule_values,match={key:[] for key in rule_match})
+r=json_request(rules_path,'POST',invalid_rule,csrf); rule_error=json.loads(r.read().decode())
+assert r.status==422 and rule_error['error']=='profile_assignment_rule_match_required',rule_error
+r=json_request(rules_path,'POST',rule_values,csrf); saved_rule=json.loads(r.read().decode())
+assert r.status==200 and saved_rule['saved'] is True and re.fullmatch(r'[0-9a-f-]{36}',saved_rule['rule_id']),saved_rule
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert len(rules_plan['rules'])==1 and rules_plan['rules'][0]['rule_id']==saved_rule['rule_id'] and rules_plan['rules'][0]['priority']==25,rules_plan
+assert rules_plan['rules'][0]['match']['names']==['HTTP Rule NPC'] and 'fighters guild' in rules_plan['options']['factions'],rules_plan
+revised_rule=dict(rule_values,rule_id=saved_rule['rule_id'],description='HTTP assignment rule revised',priority=30,enabled=False)
+r=json_request(rules_path,'POST',revised_rule,csrf); assert r.status==200,(r.status,r.read().decode())
+rules_plan=json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())
+assert rules_plan['rules'][0]['description']=='HTTP assignment rule revised' and rules_plan['rules'][0]['enabled'] is False,rules_plan
+r=json_request(rules_path,'POST',{'operation':'delete','installation_id':valid['installation_id'],'rule_id':saved_rule['rule_id']},csrf)
+assert r.status==200 and json.loads(r.read().decode())=={'deleted':True}
+assert json.loads(json_request(rules_path+'?installation_id='+valid['installation_id']).read().decode())['rules']==[]
+core_preset_response=request('/ALMSIVIserver/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
+core_preset=json.loads(core_preset_response.read().decode())
+assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
+assert core_preset['schema']=='almsivi.core-profile-settings.v1' and core_preset['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+assert core_preset['settings_overrides']['diary']=={'enabled':True,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
+assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
+core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
+body=r.read().decode(); assert r.status==200 and 'status=imported' in r.geturl() and core_preset['name'] in body,(r.status,r.geturl(),body)
+imported_id_match=re.search(r'core_profiles\.php\?[^"\']*edit=([0-9a-f-]{36})[^"\']*status=imported',r.geturl())
+if imported_id_match is None: imported_id_match=re.search(r'name="core_profile_id" value="([0-9a-f-]{36})"',body)
+assert imported_id_match,body
+imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page.feed(body)
+imported_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
+assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
+assert imported_form['fields']['setting_relationship_update_chance_percent']=='100' and imported_form['fields']['setting_relationship_locked']=='1'
+assert imported_form['fields']['setting_diary_enabled']=='1' and imported_form['fields']['setting_diary_include_in_context']=='0'
+assert imported_form['fields']['setting_diary_context_turn_limit']=='12' and '>Record only witnessed events.</textarea>' in body
+assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
+assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
+invalid_preset=dict(core_preset,unexpected='rejected')
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_preset))); body=r.read().decode()
+assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
+secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}})
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
+assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
+r=request('/ALMSIVIserver/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
+core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',relationship_configuration_id='',diary_generation_configuration_id='',
+    setting_relationship_update_chance_percent='',setting_relationship_locked='inherit',setting_diary_enabled='inherit',
+    setting_diary_include_in_context='inherit',setting_diary_context_turn_limit='',setting_diary_prompt='')
+assert request(core_form['action'],'POST',core_reset).status==200
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php'))
 routing_form=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-create'))
 routing_profile_name='HTTP routed profile '+uuid.uuid4().hex
 values=dict(routing_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=routing_profile_name,
     biography='Exercises CHIM-style model routing.',voice_language='en',llm_configuration_id=slot_id,
     llm_fast_configuration_id=slot_id,llm_powerful_configuration_id=slot_id,llm_experimental_configuration_id=slot_id,
-    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1')
+    llm_randomizer_enabled='1',llm_fallback_configuration_id=slot_id,llm_fallback_enabled='1',profile_generation_configuration_id=slot_id,relationship_configuration_id=slot_id,diary_generation_configuration_id=slot_id,
+    setting_relationship_update_chance_percent='100',setting_relationship_locked='1')
+provider_calls_before_routing_save=len(VoiceProvider.llm_requests)
 r=request(routing_form['action'],'POST',values); body=r.read().decode()
 routing_match=re.search(re.escape(routing_profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert routing_match,body
 routing_profile_id=routing_match.group(1)
 routing_page=Page(); routing_page.feed(body)
 saved_routing=next(f for f in routing_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
 saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); saved_routing_values=saved_routing_content.get('routing',{})
+assert saved_routing_values.get('profile_generation_configuration_id')==slot_id and 'Use server runtime' in body
+assert saved_routing_values['relationship_configuration_id']==slot_id
+assert saved_routing_values['diary_generation_configuration_id']==slot_id and 'Routes newly queued manual diary jobs for this NPC.' in body
+assert saved_routing_content['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Saving an NPC route never calls a provider.
+locked_build=dict(build_values,profile_id=routing_profile_id,request_id=str(uuid.uuid4()))
+r=request(build_form['action'],'POST',locked_build); assert r.status==200 and 'relationship_build_locked' in r.geturl()
 assert r.status==200 and saved_routing_values.get('llm_configuration_id')==slot_id and saved_routing_values.get('llm_fallback_configuration_id')==slot_id and saved_routing_values.get('llm_randomizer_enabled') is True and saved_routing_values.get('llm_fallback_enabled') is True,(r.status,r.geturl(),saved_routing)
 llm_page,body=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?selected='+slot_id))
 assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body
@@ -445,10 +844,25 @@ r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'co
 assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 profiles_page,_=parse(request('/ALMSIVIserver/ui/core/npc_master.php?selected='+routing_profile_id))
 clear_routing=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+assert {'profile_generation_configuration_id','diary_generation_configuration_id'} <= {control[2] for control in profiles_page.controls},'live NPC editor is missing a generation route'
+runtime_route=dict(clear_routing['fields'],_csrf=csrf,profile_generation_configuration_id='__disabled__',relationship_configuration_id='__disabled__',diary_generation_configuration_id='__disabled__',
+    setting_relationship_update_chance_percent='0',setting_relationship_locked='0',change_reason='Use runtime generator')
+r=request(clear_routing['action'],'POST',runtime_route); assert r.status==200
+runtime_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
+assert runtime_content['routing']['profile_generation_configuration_id']=='',runtime_content['routing']
+assert runtime_content['routing']['relationship_configuration_id']==''
+assert runtime_content['routing']['diary_generation_configuration_id']==''
+assert runtime_content['settings_overrides']['relationship']=={'update_chance_percent':0,'locked':False}
 values=dict(clear_routing['fields'],_csrf=csrf,llm_configuration_id='',llm_fast_configuration_id='',
-    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',change_reason='Clear routing')
+    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',profile_generation_configuration_id='',relationship_configuration_id='',diary_generation_configuration_id='',setting_relationship_update_chance_percent='',
+    setting_relationship_locked='inherit',change_reason='Clear routing')
 values.pop('llm_randomizer_enabled',None); values.pop('llm_fallback_enabled',None)
 r=request(clear_routing['action'],'POST',values); assert r.status==200
+inherited_content=json.loads(request('/ALMSIVIserver/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
+assert 'profile_generation_configuration_id' not in inherited_content.get('routing',{}),inherited_content.get('routing')
+assert 'relationship_configuration_id' not in inherited_content.get('routing',{})
+assert 'diary_generation_configuration_id' not in inherited_content.get('routing',{})
+assert 'relationship' not in inherited_content.get('settings_overrides',{})
 r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':routing_profile_id}); assert r.status==200
 provider_export_response=request('/ALMSIVIserver/manage/exports/providers/'+slot_id+'.json'); provider_export=json.loads(provider_export_response.read().decode())
 assert provider_export_response.status==200 and provider_export['schema']=='almsivi.provider-export.v1' and 'installation_id' not in provider_export and 'endpoint' not in provider_export and 'api_key' not in json.dumps(provider_export).lower()
@@ -465,10 +879,57 @@ assert r.status==200 and provider_export['name'] in body,(r.status,r.geturl(),bo
 import_provider_id=connector_editor_id(body,provider_export['name'])
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':import_provider_id}); assert r.status==200
 r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved')
+# Exercise the real adapter with a disposable local HTTP provider, never a paid endpoint.
+direct_name='HTTP direct '+uuid.uuid4().hex
+direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test',
+    'endpoint':'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions','credential':'none','timeout_ms':'4000',
+    'option_temperature':'0','option_top_p':'0','option_max_completion_tokens':'64','option_stream':'false','option_json_mode':'false'}
+r=request('/ALMSIVIserver/manage/forms/providers','POST',direct_values); body=r.read().decode(); assert r.status==200 and direct_name in body,(r.status,body)
+direct_id=connector_editor_id(body,direct_name)
+_,direct_editor=parse(request('/ALMSIVIserver/ui/core/llm_connectors.php?edit='+direct_id))
+assert re.search(r'id="llm_option_max_completion_tokens"[^>]*value="64"',direct_editor),direct_editor
+direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]
+assert 'Authorization' not in headers and sent['temperature']==0 and sent['top_p']==0 and sent['max_completion_tokens']==64 and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'ALMSIVI_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
+direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',option_reasoning_model='true',change_reason='Exercise explicit key, streaming, and reasoning cleanup')
+r=request('/ALMSIVIserver/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]
+assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)
+direct_export=json.loads(request('/ALMSIVIserver/manage/exports/providers/'+direct_id+'.json').read().decode())
+assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
+direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'
+r=request('/ALMSIVIserver/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(direct_export)}); body=r.read().decode(); assert r.status==200,(r.status,body)
+portable_id=connector_editor_id(body,direct_export['name'])
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',dict(direct_test,configuration_id=portable_id)); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+assert 'Authorization' not in VoiceProvider.llm_requests[-1][0],VoiceProvider.llm_requests[-1][0]
+r=request('/ALMSIVIserver/manage/forms/provider-rollback','POST',dict(direct_test,revision='1')); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+headers,sent=VoiceProvider.llm_requests[-1]; assert 'Authorization' not in headers and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+direct_values.update(model='invalid-output',credential='none',option_stream='false',option_json_mode='false',change_reason='Strict output still required')
+r=request('/ALMSIVIserver/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/ALMSIVIserver/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert 'status=tested' not in r.geturl() and 'provider_invalid_output' in body,(r.status,body)
+for connector_id in [direct_id,portable_id]:
+    r=request('/ALMSIVIserver/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':connector_id}); assert r.status==200
+r=request('/ALMSIVIserver/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'delete','variable':'ALMSIVI_LLM_CUSTOM_API_KEY'}); assert 'Managed credential removed.' in r.read().decode()
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
 prompt_form=next(f for f in prompts.forms if f['action'].endswith('/forms/prompts'))
+mood_keys=['happy','sad','angry','annoyed','scared','surprised','confused','suspicious','playful','flirty','custom']
+assert prompt_form['fields'].get('prompt_format')=='xml' and all(('player_mood_prompt_'+key) in prompt_form['fields'] for key in mood_keys)
+assert 'Compact Markdown only changes presentation' in body and 'protected Oghma context stay structured' in body and '{CUSTOM_MOOD}' in body
 prompt_name='HTTP prompt '+uuid.uuid4().hex
-values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,content_json='{"instruction":"Speak like a Morrowind NPC."}')
+invalid_prompt_name=prompt_name+' invalid'
+r=request(prompt_form['action'],'POST',dict(prompt_form['fields'],_csrf=csrf,name=invalid_prompt_name,prompt_format='html',content_json='{"instruction":"Rejected format."}')); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_prompt_format' in invalid_body and invalid_prompt_name not in invalid_body,(r.status,invalid_body)
+invalid_mood_name=prompt_name+' invalid mood'
+invalid_mood_values=dict(prompt_form['fields'],_csrf=csrf,name=invalid_mood_name,content_json='{"instruction":"Rejected mood."}')
+invalid_mood_values['player_mood_prompt_happy']='two\nlines'
+r=request(prompt_form['action'],'POST',invalid_mood_values); invalid_mood_body=r.read().decode()
+assert r.status==422 and 'invalid_player_mood_prompt_happy' in invalid_mood_body and invalid_mood_name not in invalid_mood_body,(r.status,invalid_mood_body)
+values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,prompt_format='markdown',content_json='{"instruction":"Speak like a Morrowind NPC."}')
+values['player_mood_prompt_playful']='({PLAYER_NAME} sounds {MOOD}.)'; values['player_mood_prompt_custom']='({PLAYER_NAME} speaks {CUSTOM_MOOD}.)'
 r=request(prompt_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl())
 match=re.search(re.escape(prompt_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
 prompt_id=match.group(1)
@@ -485,10 +946,15 @@ r=request(profile_prompt['action'],'POST',values); body=r.read().decode(); asser
 prompts,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); assert '1 explicit profile assignments' in body and 'Assigned prompts cannot be deleted.' in body,body
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); body=r.read().decode(); assert r.status==422 and 'prompt_in_use' in body,(r.status,r.geturl(),body)
 page,body=parse(request('/ALMSIVIserver/ui/prompts_manager.php')); revise=next(f for f in page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
+assert revise['fields'].get('prompt_format')=='markdown' and revise['fields'].get('player_mood_prompt_playful')=='({PLAYER_NAME} sounds {MOOD}.)'
+assert '&quot;format&quot;' not in body and '&quot;player_mood_prompts&quot;' not in body,revise['fields']
 values=dict(revise['fields'],_csrf=csrf,kind='prompt',content_json='{"instruction":"Speak briefly in character."}',change_reason='HTTP prompt test')
+values['player_mood_prompt_playful']='({PLAYER_NAME} answers in a {MOOD} way.)'
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Speak briefly in character.' in body
 prompt_export_response=request('/ALMSIVIserver/manage/exports/prompts/'+prompt_id+'.json'); prompt_export=json.loads(prompt_export_response.read().decode())
-assert prompt_export_response.status==200 and prompt_export['schema']=='almsivi.prompt-export.v1' and 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
+assert prompt_export_response.status==200 and prompt_export['schema']=='almsivi.prompt-export.v1' and prompt_export['content']['format']=='markdown'
+assert prompt_export['content']['player_mood_prompts']['playful']=='({PLAYER_NAME} answers in a {MOOD} way.)' and len(prompt_export['content']['player_mood_prompts'])==11
+assert 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
 prompts,_=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
 clone_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('configuration_id')==prompt_id)
 clone_name=prompt_name+' clone'; r=request(clone_prompt['action'],'POST',dict(clone_prompt['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
@@ -500,6 +966,10 @@ import_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prom
 r=request(import_prompt['action'],'POST',dict(import_prompt['fields'],_csrf=csrf,installation_id=valid['installation_id'],prompt_json=json.dumps(prompt_export))); body=r.read().decode()
 assert r.status==200 and prompt_export['name'] in body,(r.status,r.geturl(),body)
 import_match=re.search(re.escape(prompt_export['name'])+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert import_match,body
+imported_page,imported_body=parse(request('/ALMSIVIserver/ui/prompts_manager.php'))
+imported_prompt_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==import_match.group(1))
+assert imported_prompt_form['fields'].get('prompt_format')=='markdown' and imported_prompt_form['fields'].get('player_mood_prompt_playful')=='({PLAYER_NAME} answers in a {MOOD} way.)'
+assert '&quot;format&quot;' not in imported_body and '&quot;player_mood_prompts&quot;' not in imported_body
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':import_match.group(1),'kind':'prompt'}); assert r.status==200
 characters,_=parse(request('/ALMSIVIserver/ui/core/character_manager.php'))
 profile_prompt=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==prompt_profile_id)
@@ -520,8 +990,20 @@ values=dict(revise_policy['fields'],_csrf=csrf,enabled='1',max_tier='0',change_r
 r=request(revise_policy['action'],'POST',values); body=r.read().decode(); revised_actions=Page(); revised_actions.feed(body)
 saved_policy=next(f for f in revised_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
 assert r.status==200 and saved_policy['fields'].get('max_tier')=='0' and saved_policy['fields'].get('allowed_actions[]')=='inspect.report',(r.status,r.geturl(),saved_policy)
+for policy_content,expected in [
+    ({'allowed_actions':['inspect.report']},['inspect.report']),
+    ({'allowed_actions':['inspect.report'],'denied_actions':['inspect.report'],
+      'actions':{'inspect.report':True,'inventory.inspect':True,'ai.follow':False}},['inventory.inspect']),
+]:
+    r=request('/ALMSIVIserver/manage/forms/configuration-revise','POST',{'_csrf':csrf,'kind':'action_policy',
+        'configuration_id':policy_id,'content_json':json.dumps(dict(policy_content,enabled=True,max_tier=2)),
+        'change_reason':'Verify legacy policy controls'})
+    legacy_actions,_=parse(r)
+    legacy_policy=next(f for f in legacy_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
+    assert r.status==200 and legacy_policy.get('checked',{}).get('allowed_actions[]',[])==expected,(r.status,legacy_policy)
 r=request('/ALMSIVIserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'
 create_player=next((f for f in player.forms if f['action'].endswith('/forms/player-profile-create')),None)
 if create_player is not None:
     player_name='HTTP player '+uuid.uuid4().hex
@@ -536,12 +1018,49 @@ if create_player is not None:
     player_id=match.group(1)
     edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',personality='Patient',goals='Find Fargoth.',change_reason='HTTP parity test')
+    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',profile_generation_configuration_id=slot_id,change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
+    edit_page,body=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+    revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
+    assert revise['fields'].get('biography_known_by_all')=='0' and 'id="player-biography-known-by-all"' in body
+    player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))
+    player_preset_response=request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json')
+    player_preset=json.loads(player_preset_response.read().decode())
+    assert player_preset_response.status==200 and sorted(player_preset)==['exported_at','schema','settings']
+    assert player_preset['schema']=='almsivi.player-profile-settings.v2' and player_preset['settings']['personality']=='Patient'
+    assert sorted(player_preset['settings'])==['appearance','biography','biography_known_by_all','goals','notes','personality','speech_style']
+    assert player_preset['settings']['biography_known_by_all'] is False
+    assert not any(key in player_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing','latest_context'])
+    invalid_player_preset=dict(player_preset,unexpected='rejected')
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_player_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    secret_player_preset=dict(player_preset,settings=dict(player_preset['settings'],api_key='never'))
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_player_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    invalid_visibility_preset=dict(player_preset,settings=dict(player_preset['settings'],biography_known_by_all='false'))
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_visibility_preset))); invalid_body=r.read().decode()
+    assert r.status==422 and 'invalid_player_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+    legacy_player_preset=dict(player_preset,schema='almsivi.player-profile-settings.v1',settings=dict(player_preset['settings']))
+    legacy_player_preset['settings'].pop('biography_known_by_all'); legacy_player_preset['settings']['personality']='Legacy portable player'
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(legacy_player_preset))); legacy_body=r.read().decode()
+    assert r.status==200 and 'status=imported' in r.geturl() and 'Legacy portable player' in legacy_body,(r.status,r.geturl(),legacy_body)
+    legacy_imported=json.loads(request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
+    assert legacy_imported['schema']=='almsivi.player-profile-settings.v2' and legacy_imported['settings']['biography_known_by_all'] is False
+    player_preset['settings']['personality']='Portable and patient'
+    player_preset['settings']['goals']=''
+    player_preset['settings']['biography_known_by_all']=True
+    r=request(player_import['action'],'POST',dict(player_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(player_preset))); imported_body=r.read().decode()
+    assert r.status==200 and 'status=imported' in r.geturl() and 'Portable player settings imported as a new player profile revision.' in imported_body and 'Portable and patient' in imported_body,(r.status,r.geturl(),imported_body)
+    imported_player=json.loads(request('/ALMSIVIserver/manage/exports/player-profile-settings/'+player_id+'.json').read().decode())
+    assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient' and imported_player['settings']['biography_known_by_all'] is True
+    imported_player_page,_=parse(request('/ALMSIVIserver/ui/core/player_management.php'))
+    imported_player_form=next(f for f in imported_player_page.forms if f['action'].endswith('/forms/player-profile-revise'))
+    assert imported_player_form['fields']['profile_generation_configuration_id']==slot_id
     r=request('/ALMSIVIserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':player_id}); assert r.status==200
 else:
     assert any(f['action'].endswith('/forms/player-profile-revise') for f in player.forms),'existing player profile is not editable'
 narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
+assert 'profile_generation_configuration_id' in {control[2] for control in narrator_page.controls},'live narrator editor has no generation route'
 create_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-create')),None)
 if create_narrator is not None:
     narrator_name='HTTP narrator '+uuid.uuid4().hex
@@ -553,5 +1072,28 @@ narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
 generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate')),None)
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
+narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',profile_generation_configuration_id=slot_id,change_reason='HTTP narrator portability route')
+r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
+narrator_page,body=parse(request('/ALMSIVIserver/ui/narrator_management.php'))
+generate_narrator=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate'))
+narrator_import=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-settings-import'))
+narrator_id=generate_narrator['fields']['profile_id']
+narrator_preset_response=request('/ALMSIVIserver/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
+narrator_preset=json.loads(narrator_preset_response.read().decode())
+assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
+assert narrator_preset['schema']=='almsivi.narrator-profile-settings.v1' and sorted(narrator_preset['settings'])==['biography','book_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_events','random_events','speech_style','voice','welcome_events']
+assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
+invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_narrator_profile_settings_preset' in invalid_body,(r.status,invalid_body)
+narrator_preset['settings']['personality']='Portable narrator persona'
+narrator_preset['settings']['inline_narration_mode']='Text Only'
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset))); imported_body=r.read().decode()
+assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),imported_body)
+imported_narrator_page,imported_narrator_body=parse(request('/ALMSIVIserver/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
+assert 'Portable narrator settings imported as a new narrator profile revision.' in imported_narrator_body and 'Portable narrator persona' in imported_narrator_body,imported_narrator_body
+imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert '<option selected>Text Only</option>' in imported_narrator_body and imported_narrator_form['fields']['profile_generation_configuration_id']==slot_id,imported_narrator_form['fields']
 r=request('/ALMSIVIserver/manage/login'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 print('browser-like management HTTP forms passed')

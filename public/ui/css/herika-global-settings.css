@@ -29,6 +29,9 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,1
 .global-settings-page .provider-toggle { display: flex; flex: 0 0 auto; align-items: center; margin-left: auto; }
 .global-settings-page .provider-toggle input[type="checkbox"] { accent-color: #176529; cursor: pointer; transform: scale(1.6); transform-origin: center; }
 .global-settings-page .provider-help { min-width: 0; margin-top: 0; color: #bbb; font-size: 12px; line-height: 1.45; }
+.global-settings-page .gs-section-note { margin: -4px 0 12px; }
+.global-settings-page .provider-toggle input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .72; }
+.global-settings-page .provider-card.is-dependent-off > .provider-head,.global-settings-page .provider-card.is-dependent-off > .provider-help { opacity: .72; }
 .global-settings-page .btn-save-green,.global-settings-page .btn-action-blue { min-height: 40px !important; margin: 0 !important; padding: 10px 20px !important; border-radius: 8px !important; color: #fff !important; font-size: 14px !important; font-weight: 700; }
 .global-settings-page .btn-save-green { border: 1px solid rgba(72,187,120,.3) !important; background: linear-gradient(135deg,rgba(32,122,74,.9),rgba(23,101,57,.9)) !important; }
 .global-settings-page .btn-action-blue { border: 1px solid rgba(77,144,254,.42) !important; background: linear-gradient(135deg,rgba(34,84,173,.95),rgba(24,62,130,.98)) !important; }
@@ -40,3 +43,33 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,1
 @media (max-width: 1100px) { .global-settings-page .provider-card { grid-template-columns: minmax(180px,240px) minmax(300px,1fr); } .global-settings-page .provider-help { grid-column: 1 / -1; } }
 @media (max-width: 900px) { body.global-settings-page-shell > main.global-settings-page { padding-right: 5%; padding-left: 5%; } .global-settings-page .connector-placeholder-grid { grid-template-columns: 1fr; } }
 @media (max-width: 720px) { .global-settings-page .provider-card { grid-template-columns: 1fr; } .global-settings-page .provider-help { grid-column: auto; } .global-settings-page .page-header-actions { width: 100%; margin-left: 0; } }
+/* Portable Global Settings: export link, preset import, and revision history. */
+.global-settings-page .gs-portability { margin: 0 0 10px; padding: 10px 14px; border: 1px solid #3a3a3a; border-radius: 10px; background: linear-gradient(180deg,rgba(42,42,42,.95),rgba(28,28,28,.98)); box-shadow: 0 2px 8px rgba(0,0,0,.2); }
+.global-settings-page .gs-portability-head { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.global-settings-page h2.gs-portability-title { margin: 0; padding: 0; border: 0; color: #f5f1e8; font: 400 1.05em/1.25 MagicCards,serif; word-spacing: 6px; text-shadow: none; }
+.global-settings-page .gs-revision-chip { min-width: 0; padding: 3px 9px; border: 1px solid #444; border-radius: 999px; background: rgba(26,26,26,.8); color: #ddd; font-size: 12px; overflow-wrap: anywhere; }
+.global-settings-page .gs-revision-chip.is-empty { color: #bbb; }
+.global-settings-page .gs-portability-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-left: auto; }
+.global-settings-page a.btn-action-blue { display: inline-flex; align-items: center; justify-content: center; text-decoration: none; }
+.global-settings-page .gs-portability-note { margin: 8px 0 0; color: #bbb; font-size: 12px; line-height: 1.45; }
+.global-settings-page .gs-disclosure { margin-top: 8px; border: 1px solid #3a3a3a; border-radius: 8px; background: rgba(26,26,26,.55); }
+.global-settings-page .gs-disclosure > summary { padding: 8px 12px; border-radius: 8px; color: #e0e0e0; font-size: 13px; font-weight: 700; list-style: none; cursor: pointer; }
+.global-settings-page .gs-disclosure > summary::-webkit-details-marker { display: none; }
+.global-settings-page .gs-disclosure > summary::before { display: inline-block; width: 14px; color: rgb(242,124,17); content: "\25B8"; }
+.global-settings-page .gs-disclosure[open] > summary::before { content: "\25BE"; }
+.global-settings-page .gs-disclosure-body { display: grid; gap: 10px; padding: 0 12px 12px; }
+.global-settings-page .gs-field { display: grid; min-width: 0; gap: 4px; }
+.global-settings-page .gs-field > label { color: #e0e0e0; font-size: 13px; font-weight: 700; }
+.global-settings-page .gs-field input[type="file"],.global-settings-page .gs-field select,.global-settings-page .gs-field textarea { width: 100%; max-width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26,26,26,.8); color: #e9efff; font-size: 13px; }
+.global-settings-page .gs-field textarea { min-height: 120px; font-family: ui-monospace,Consolas,"Courier New",monospace; font-size: 12px; resize: vertical; }
+.global-settings-page .gs-help { margin: 0; color: #bbb; font-size: 12px; line-height: 1.45; }
+.global-settings-page .gs-actions-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.global-settings-page .gs-revision-list { display: grid; margin: 0; padding: 0; gap: 6px; list-style: none; }
+.global-settings-page .gs-revision-list li { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; padding: 6px 8px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26,26,26,.6); color: #ddd; font-size: 12px; }
+.global-settings-page .gs-revision-no { color: #f5f1e8; font-weight: 700; white-space: nowrap; }
+.global-settings-page .gs-revision-reason { min-width: 0; flex: 1 1 180px; color: #bbb; overflow-wrap: anywhere; }
+.global-settings-page .gs-revision-time { color: #9c9c9c; overflow-wrap: anywhere; }
+.global-settings-page .gs-current-tag { padding: 1px 7px; border: 1px solid rgba(242,124,17,.45); border-radius: 999px; background: rgba(92,53,25,.65); color: #fff; font-size: 11px; white-space: nowrap; }
+.global-settings-page .gs-rollback-form { display: grid; gap: 10px; }
+.global-settings-page .gs-portability a:focus-visible,.global-settings-page .gs-portability button:focus-visible,.global-settings-page .gs-portability summary:focus-visible,.global-settings-page .gs-portability input:focus-visible,.global-settings-page .gs-portability select:focus-visible,.global-settings-page .gs-portability textarea:focus-visible { outline: 2px solid rgb(242,124,17); outline-offset: 2px; }
+@media (max-width: 720px) { .global-settings-page .gs-portability-actions { width: 100%; margin-left: 0; } .global-settings-page .gs-portability-actions > * { flex: 1 1 auto; } .global-settings-page .gs-portability-head { align-items: flex-start; } }

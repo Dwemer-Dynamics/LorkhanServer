@@ -42,7 +42,8 @@ if ($selected !== null && $installationId !== '') {
     $coreContent = is_array($selected['content'] ?? null) ? $selected['content'] : [];
     $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $coreContent, []);
 }
-$showCreate = isset($_GET['create']) || $profiles === [];
+$importMode = isset($_GET['import']);
+$showCreate = !$importMode && (isset($_GET['create']) || $profiles === []);
 
 $pageUrl = $webRoot . '/ui/core/core_profiles.php';
 $queryFor = static function (array $values = []) use ($pageUrl, $installationId, $embedded): string {
@@ -55,17 +56,26 @@ $configurationLabels = [];
 foreach (array_merge($llm, $tts, $prompts) as $configuration) {
     $configurationLabels[(string) ($configuration['configuration_id'] ?? '')] = (string) ($configuration['name'] ?? '');
 }
-$profileRouteLabel = static function (array $profile, string $field) use ($configurationLabels): string {
+$profileRouteLabel = static function (array $profile, string $field, string $emptyLabel = 'Inherited') use ($configurationLabels): string {
     $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
     $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
     $id = trim((string) ($routing[$field] ?? ''));
-    return $id !== '' ? ($configurationLabels[$id] ?? 'Missing connector') : 'Inherited';
+    return $id !== '' ? ($configurationLabels[$id] ?? 'Missing connector') : $emptyLabel;
 };
 $usedProfileSlots = [];
 foreach ($profiles as $profile) {
     $slot = (int) ($profile['slot'] ?? 0);
     if ($slot >= 1 && $slot <= 4) $usedProfileSlots[$slot] = (string) $profile['core_profile_id'];
 }
+
+$ruleMatchFields = [
+    ['key' => 'names', 'label' => 'Names', 'add' => 'Add a name', 'hint' => 'The NPC name as OpenMW reports it.'],
+    ['key' => 'races', 'label' => 'Races', 'add' => 'Add a race', 'hint' => 'The race recorded for the NPC.'],
+    ['key' => 'classes', 'label' => 'Classes', 'add' => 'Add a class', 'hint' => 'The class recorded for the NPC.'],
+    ['key' => 'genders', 'label' => 'Genders', 'add' => 'Add a gender', 'hint' => 'The gender recorded for the NPC.'],
+    ['key' => 'factions', 'label' => 'Factions', 'add' => 'Add a faction', 'hint' => 'An OpenMW textual faction ID, not a numeric ID.'],
+    ['key' => 'content_files', 'label' => 'Content Files', 'add' => 'Add a content file', 'hint' => 'The content file the NPC record comes from.'],
+];
 
 $additionalStylesheets = ['herika-profiles.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-profiles.css')];
 $includeManagementStyles = false;
@@ -78,7 +88,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <p class="page-subtitle almsivi-page-head-note">Manage NPC profiles with LLM and TTS connectors</p>
     </div>
 
-    <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Core Profile change saved.</div><?php endif; ?>
+    <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Settings preset imported as a new unassigned Core Profile. Review it below.' : 'Core Profile change saved.'; ?></div><?php endif; ?>
     <?php if ($installations === []): ?>
         <section class="connector-card profiles-empty">Connect OpenMW once before creating Core Profiles.</section>
     <?php else: ?>
@@ -92,10 +102,15 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <aside class="llm-left">
                 <div class="sidebar-action-grid">
                     <a class="btn-save" href="<?php echo almsivi_ui_h($queryFor(['create' => '1'])); ?>">New</a>
-                    <?php echo almsivi_ui_placeholder_control('Import', 'config.profiles.import'); ?>
-                    <?php echo almsivi_ui_placeholder_control('Rules', 'config.profiles.rules'); ?>
-                    <?php echo almsivi_ui_placeholder_control('Test', 'config.profiles.test'); ?>
+                    <a class="btn-primary" href="<?php echo almsivi_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.import')['description']); ?>">Import</a>
+                    <button class="btn-primary" id="profile-rules-open" type="button" data-profile-rules-open aria-haspopup="dialog" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.rules')['description']); ?>">Rules</button>
+                    <button class="btn-primary" id="profile-connector-test-open" type="button" data-profile-test-open aria-haspopup="dialog" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.test')['description']); ?>">Test</button>
                 </div>
+
+                <details class="profile-preset-note">
+                    <summary>What a settings preset contains</summary>
+                    <p>Import and Export move Core Profile <strong>settings overrides only</strong>. A preset excludes prompt text, connector routing, identifiers, slots, default status, revision history, and NPC assignments.</p>
+                </details>
 
                 <div class="connector-card profile-slots">
                     <div class="connector-title" title="Can be assigned to NPCs in game through ALMSIVI profile controls">Profile Slots <span class="profile-info">&#x24D8;</span></div>
@@ -121,10 +136,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <span class="pf-line"><span class="pf-icon">&#x1F9EA;</span><span class="pf-key">Experimental LLM</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'llm_experimental_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F504;</span><span class="pf-key">Fallback LLM</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'llm_fallback_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F4AC;</span><span class="pf-key">Dialogue Prompt</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'prompt_configuration_id')); ?></span></span>
+                                    <span class="pf-line"><span class="pf-icon">&#x1F58B;&#xFE0F;</span><span class="pf-key">Profile Generation</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'profile_generation_configuration_id', 'Server runtime')); ?></span></span>
+                                    <span class="pf-line"><span class="pf-icon">&#x1F91D;</span><span class="pf-key">Relationship LLM</span><span class="pf-val"><?php echo almsivi_ui_h($profileRouteLabel($profile, 'relationship_configuration_id', 'Disabled')); ?></span></span>
                                 </span>
                             </a>
                             <div class="actions profile-card-actions">
-                                <?php echo almsivi_ui_placeholder_control('Export', 'config.profiles.export'); ?>
+                                <a class="btn-primary" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/core-profile-settings/' . (string) $profile['core_profile_id'] . '.json'); ?>" aria-label="Export settings preset for <?php echo almsivi_ui_h($profile['label']); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.export')['description']); ?>">Export</a>
                                 <?php if (!$defaultNpc && $usage === 0): ?>
                                     <form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/core-profile-delete" data-confirm="Delete this unused Core Profile?"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo almsivi_ui_h($profile['core_profile_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form>
                                 <?php else: ?>
@@ -139,7 +156,21 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
             <section class="llm-right">
                 <div class="form-container wide-centered">
-                <?php if ($showCreate):
+                <?php if ($importMode): ?>
+                    <form class="core-profile-form profile-import-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/core-profile-settings-import">
+                        <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                        <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Importing Preset</div><div class="profile-editor-toolbar-name">Core Profile Settings</div></div><div class="profile-import-toolbar-actions"><a class="btn-base" href="<?php echo almsivi_ui_h($queryFor([])); ?>">Cancel</a><button type="submit" class="btn-save">Import Preset</button></div></div>
+                        <div class="connector-card profile-import-card">
+                            <div class="connector-title">Settings Preset</div>
+                            <div class="profile-import-fields">
+                                <label for="core-profile-preset-file">Preset file<input id="core-profile-preset-file" type="file" accept="application/json,.json" data-json-import-target="core-profile-preset-json" aria-describedby="core-profile-import-help"></label>
+                                <label for="core-profile-preset-json">Preset JSON<textarea id="core-profile-preset-json" name="preset_json" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="core-profile-import-help"></textarea></label>
+                            </div>
+                            <p class="hint" id="core-profile-import-help">Importing creates a new unassigned Core Profile from settings overrides only. Prompt text, connector routing, identifiers, slots, default status, revision history, and NPC assignments are never carried by a preset, so set those on the new profile afterwards.</p>
+                        </div>
+                    </form>
+                <?php elseif ($showCreate):
                     $content = ['schema' => 'almsivi.core-profile.v1', 'prompt' => '', 'routing' => [], 'settings_overrides' => []];
                     $profileMeta = ['label' => '', 'slot' => null, 'default_npc' => false];
                     $coreProfileMode = 'create';
@@ -177,6 +208,118 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </div>
             </section>
         </div>
+
+        <div class="profile-test-overlay" data-profile-test-overlay hidden>
+            <div class="profile-test-shell" role="dialog" aria-modal="true" aria-labelledby="profile-test-title" aria-describedby="profile-test-warning" data-profile-test-dialog data-profile-test-endpoint="<?php echo almsivi_ui_h($managementBasePath . '/api/v1/profile-connector-tests'); ?>" data-profile-test-csrf="<?php echo almsivi_ui_h($csrf); ?>" data-profile-test-installation="<?php echo almsivi_ui_h($installationId); ?>">
+                <div class="modal-header profile-test-header">
+                    <h2 class="modal-title" id="profile-test-title">Test Core Profile Connectors</h2>
+                    <button class="profile-test-dismiss" type="button" data-profile-test-close aria-label="Close connector tests">&#215;</button>
+                </div>
+                <div class="modal-body profile-test-body">
+                    <p class="profile-test-warning" id="profile-test-warning"><strong>Running these tests contacts each configured connector.</strong> Deterministic mock connectors stay local. Each live connector receives one small request, so a paid provider may charge you for that usage. Nothing is sent until you press <strong>Run tests</strong>.</p>
+                    <p class="hint profile-test-help">Every connector is tested once, at most two at a time, and the result appears in each Core Profile slot that uses that connector. Test replies are never saved and never shown; only the short summary the server returns is displayed, with no credentials, endpoints, or provider output.</p>
+                    <p class="profile-test-scope" data-profile-test-scope></p>
+                    <div class="profile-test-counts" data-profile-test-counts role="group" aria-label="Connector test result totals"></div>
+                    <div class="profile-test-progress" data-profile-test-progress role="progressbar" aria-label="Connector tests completed" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden><span class="profile-test-progress-fill" id="profile-test-progress-fill" data-profile-test-progress-fill></span></div>
+                    <p class="profile-test-status" data-profile-test-status role="status" aria-live="polite">Loading the connector test plan.</p>
+                    <div class="profile-test-plan" data-profile-test-plan></div>
+                </div>
+                <div class="modal-footer profile-test-footer">
+                    <button class="btn-save" type="button" data-profile-test-run disabled>Run tests</button>
+                    <button class="btn-danger" type="button" data-profile-test-stop hidden>Stop queued tests</button>
+                    <button class="btn-base" type="button" data-profile-test-reload hidden>Reload plan</button>
+                    <button class="btn-base" type="button" data-profile-test-close>Close</button>
+                </div>
+            </div>
+        </div>
+
+        <div class="profile-rules-overlay" data-profile-rules-overlay hidden>
+            <div class="profile-rules-shell" role="dialog" aria-modal="true" aria-labelledby="profile-rules-title" aria-describedby="profile-rules-intro" data-profile-rules-dialog data-profile-rules-endpoint="<?php echo almsivi_ui_h($managementBasePath . '/api/v1/profile-assignment-rules'); ?>" data-profile-rules-csrf="<?php echo almsivi_ui_h($csrf); ?>" data-profile-rules-installation="<?php echo almsivi_ui_h($installationId); ?>">
+                <div class="modal-header profile-rules-header">
+                    <h2 class="modal-title" id="profile-rules-title">Core Profile Assignment Rules</h2>
+                    <button class="profile-rules-dismiss" type="button" data-profile-rules-close aria-label="Close assignment rules">&#215;</button>
+                </div>
+                <div class="modal-body profile-rules-body">
+                    <p class="profile-rules-intro" id="profile-rules-intro">A rule runs only when a previously unknown NPC is first discovered. NPCs already assigned to a Core Profile, and any Core Profile you set by hand, are never changed by a rule.</p>
+                    <p class="hint profile-rules-help">Every field you fill in a rule must match. Several values in one field mean any of them. Text is compared without regard to capitals and must match in full. If more than one enabled rule matches, the highest priority wins, and the older rule wins a tie.</p>
+                    <p class="profile-rules-status" data-profile-rules-status role="status" aria-live="polite">Loading assignment rules.</p>
+
+                    <div class="profile-rules-list-view" data-profile-rules-list-view>
+                        <p class="profile-rules-order" data-profile-rules-order hidden>Listed in the order they are checked, highest priority first.</p>
+                        <div class="profile-rules-list" data-profile-rules-list></div>
+                    </div>
+
+                    <form class="profile-rules-form" id="profile-rules-form" data-profile-rules-form novalidate hidden>
+                        <h3 class="profile-rules-form-title" data-profile-rules-form-title>New assignment rule</h3>
+                        <p class="profile-rules-error" data-profile-rules-error role="alert" hidden></p>
+                        <div class="profile-rules-fields">
+                            <div class="profile-rules-field profile-rules-field-wide">
+                                <label for="profile-rules-description">Description</label>
+                                <input id="profile-rules-description" type="text" maxlength="200" autocomplete="off" aria-required="true" aria-describedby="profile-rules-description-hint" data-profile-rules-description>
+                                <p class="hint" id="profile-rules-description-hint">A short name so you can recognise this rule in the list.</p>
+                            </div>
+                            <div class="profile-rules-field">
+                                <label for="profile-rules-profile">Core Profile to assign</label>
+                                <select id="profile-rules-profile" aria-required="true" aria-describedby="profile-rules-profile-hint" data-profile-rules-profile></select>
+                                <p class="hint" id="profile-rules-profile-hint">The Core Profile given to a matching new NPC.</p>
+                            </div>
+                            <div class="profile-rules-field">
+                                <label for="profile-rules-priority">Priority</label>
+                                <input id="profile-rules-priority" type="number" min="-100000" max="100000" step="1" inputmode="numeric" aria-describedby="profile-rules-priority-hint" data-profile-rules-priority>
+                                <p class="hint" id="profile-rules-priority-hint">A whole number. Higher numbers are checked first.</p>
+                            </div>
+                            <div class="profile-rules-field profile-rules-field-check">
+                                <div class="profile-rules-check-line">
+                                    <input id="profile-rules-enabled" type="checkbox" aria-describedby="profile-rules-enabled-hint" data-profile-rules-enabled>
+                                    <label for="profile-rules-enabled">Enabled</label>
+                                </div>
+                                <p class="hint" id="profile-rules-enabled-hint">A disabled rule is kept but never checked.</p>
+                            </div>
+                        </div>
+
+                        <fieldset class="profile-rules-match">
+                            <legend>Match fields</legend>
+                            <p class="hint profile-rules-match-hint">Fill at least one field. An empty field is ignored.</p>
+                            <div class="profile-rules-match-grid">
+                                <?php foreach ($ruleMatchFields as $matchField): $matchBase = 'profile-rules-' . str_replace('_', '-', $matchField['key']); ?>
+                                    <fieldset class="profile-rules-match-field" data-profile-rules-match="<?php echo almsivi_ui_h($matchField['key']); ?>">
+                                        <legend><?php echo almsivi_ui_h($matchField['label']); ?></legend>
+                                        <p class="hint" id="<?php echo almsivi_ui_h($matchBase); ?>-hint"><?php echo almsivi_ui_h($matchField['hint']); ?></p>
+                                        <div class="profile-rules-match-add">
+                                            <label for="<?php echo almsivi_ui_h($matchBase); ?>-input"><?php echo almsivi_ui_h($matchField['add']); ?></label>
+                                            <input id="<?php echo almsivi_ui_h($matchBase); ?>-input" type="text" maxlength="256" autocomplete="off" list="<?php echo almsivi_ui_h($matchBase); ?>-options" aria-describedby="<?php echo almsivi_ui_h($matchBase); ?>-hint" data-profile-rules-match-input>
+                                            <datalist id="<?php echo almsivi_ui_h($matchBase); ?>-options" data-profile-rules-options></datalist>
+                                            <button class="btn-base" type="button" data-profile-rules-match-add>Add</button>
+                                        </div>
+                                        <ul class="profile-rules-match-values" aria-label="<?php echo almsivi_ui_h($matchField['label']); ?> in this rule" data-profile-rules-match-values hidden></ul>
+                                        <p class="profile-rules-match-empty" data-profile-rules-match-empty>Nothing added, so this field is ignored.</p>
+                                    </fieldset>
+                                <?php endforeach; ?>
+                            </div>
+                        </fieldset>
+
+                        <div class="profile-rules-confirm" role="group" aria-label="Confirm deleting this rule" data-profile-rules-confirm hidden>
+                            <p class="profile-rules-confirm-text" data-profile-rules-confirm-text></p>
+                            <div class="profile-rules-confirm-actions">
+                                <button class="btn-danger" type="button" data-profile-rules-confirm-delete>Yes, delete this rule</button>
+                                <button class="btn-base" type="button" data-profile-rules-confirm-cancel>Keep this rule</button>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer profile-rules-footer">
+                    <button class="btn-save" type="button" data-profile-rules-new hidden>New rule</button>
+                    <button class="btn-base" type="button" data-profile-rules-reload hidden>Reload</button>
+                    <button class="btn-save" type="submit" form="profile-rules-form" data-profile-rules-save hidden>Save rule</button>
+                    <button class="btn-danger" type="button" data-profile-rules-delete hidden>Delete rule</button>
+                    <button class="btn-base" type="button" data-profile-rules-cancel hidden>Cancel</button>
+                    <button class="btn-base" type="button" data-profile-rules-close>Close</button>
+                </div>
+            </div>
+        </div>
     <?php endif; ?>
 </main>
+<?php if ($importMode): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
+<?php if ($installations !== []): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
+<?php if ($installations !== []): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/profile-assignment-rules.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-assignment-rules.js'); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

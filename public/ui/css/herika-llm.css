@@ -219,8 +219,7 @@ body.llm-page-shell > main.llm-page {
 
 .llm-page .two-col-llm { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
-.llm-page .form-container label:not(.llm-toggle-row),
-.llm-page .llm-field-heading,
+.llm-page .form-container label,
 .llm-page .llm-group-heading {
     display: block;
     margin: 8px 0 6px;
@@ -228,7 +227,6 @@ body.llm-page-shell > main.llm-page {
     font-weight: 600;
 }
 
-.llm-page .llm-field-heading,
 .llm-page .llm-group-heading {
     display: flex;
     align-items: center;
@@ -237,6 +235,7 @@ body.llm-page-shell > main.llm-page {
 }
 
 .llm-page .form-container input[type="text"],
+.llm-page .form-container input[type="url"],
 .llm-page .form-container input[type="number"],
 .llm-page .form-container select,
 .llm-page .form-container textarea {
@@ -266,39 +265,50 @@ body.llm-page-shell > main.llm-page {
 .llm-page .form-container select:disabled,
 .llm-page .form-container textarea:disabled { cursor: not-allowed; opacity: .68; }
 
-.llm-page .service-picker { display: flex; align-items: center; gap: 12px; margin: 6px 0 12px; }
-.llm-page .service-icons { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.llm-page .service-icon-shell { display: inline-flex; cursor: not-allowed; opacity: .55; }
-.llm-page .service-icon { width: 56px; height: 56px; object-fit: cover; border: 1px solid rgba(138, 155, 182, .3); border-radius: 8px; }
+/* Short field help sits under its control and is referenced with aria-describedby. */
+.llm-page .llm-help {
+    margin: 4px 0 10px;
+    color: #9fb1c9;
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 1.35;
+}
 
-.llm-page .llm-toggle-list { margin-top: 12px; }
-.llm-page .llm-toggle-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 0 0 8px;
-    padding: 9px 10px;
+/* Longer rules stay collapsed behind a keyboard-reachable summary instead of filling the form. */
+.llm-page .llm-help-details {
+    margin: 0 0 12px;
+    padding: 8px 10px;
     border: 1px solid #3a3a3a;
     border-radius: 8px;
     background: rgba(26, 26, 26, .55);
-    color: #fff;
 }
 
-.llm-page .llm-toggle-row > span:first-child { flex: 1; min-width: 0; }
-.llm-page .llm-toggle-row strong { display: block; font-size: 13px; }
-.llm-page .llm-toggle-row small,
-.llm-page .llm-slider-row small { display: block; margin-top: 2px; color: #9fb1c9; font-size: 11px; font-weight: 400; line-height: 1.25; }
-.llm-page .llm-toggle-row input[type="checkbox"] { width: 18px; height: 18px; flex: 0 0 18px; margin: 0; accent-color: #176529; }
+.llm-page .llm-help-details > summary { color: #e9efff; cursor: pointer; font-size: 12px; font-weight: 600; }
+.llm-page .llm-help-details > summary:focus-visible { outline: 2px solid rgba(242, 124, 17, .8); outline-offset: 2px; }
+.llm-page .llm-help-details ul { margin: 8px 0 0; padding-left: 18px; color: #9fb1c9; font-size: 12px; line-height: 1.4; }
+.llm-page .llm-help-details li { margin-bottom: 4px; }
+.llm-page .llm-help-details code { color: #d8c9a8; font-size: 11px; overflow-wrap: anywhere; }
 
-.llm-page .llm-slider-row { margin: 0 0 12px; }
-.llm-page .llm-slider-row > label { margin-bottom: 4px; }
-.llm-page .llm-slider-controls { display: grid; grid-template-columns: minmax(0, 1fr) 90px; align-items: center; gap: 8px; }
-.llm-page .llm-slider-controls:has(input:only-child) { grid-template-columns: 1fr; }
-.llm-page .llm-slider-controls input[type="range"] { width: 100%; }
-.llm-page .llm-slider-controls .inline-num { width: 90px; }
+/* Mode panels are toggled by public/ui/js/llm-connectors.js; saved values are never cleared. */
+.llm-page .llm-mode-panel[hidden] { display: none; }
 
-.llm-page .llm-advanced-panel,
-.llm-page .llm-body-parameters {
+.llm-page .llm-connection-panel {
+    margin: 4px 0 12px;
+    padding: 10px 12px;
+    border: 1px solid #3a3a3a;
+    border-radius: 10px;
+    background: rgba(26, 26, 26, .55);
+}
+
+.llm-page .llm-connection-panel > .llm-group-heading { margin-top: 0; }
+.llm-page .llm-connection-panel > .llm-help:last-child { margin-bottom: 0; }
+
+.llm-page .llm-option-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; }
+.llm-page .llm-option-field { min-width: 0; }
+.llm-page .llm-option-field > label { margin: 6px 0 0; font-size: 13px; }
+.llm-page .llm-option-field > .llm-help { margin-bottom: 8px; }
+
+.llm-page .llm-advanced-panel {
     margin-top: 12px;
     padding: 12px;
     border: 1px solid #3a3a3a;
@@ -306,9 +316,42 @@ body.llm-page-shell > main.llm-page {
     background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
 }
 
-.llm-page .llm-advanced-panel > p { margin: 0 0 10px; color: #9fb1c9; font-size: 12px; }
-.llm-page .llm-body-parameters textarea { min-height: 120px; resize: vertical; }
-.llm-page .llm-body-parameters > small { color: #9fb1c9; }
+.llm-page .llm-advanced-panel > .llm-group-heading { margin-top: 0; }
+
+/* Inherited Herika controls that ALMSIVI does not implement, grouped and clearly inert. */
+.llm-page .llm-legacy-panel {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border: 1px dashed #4a4a4a;
+    border-radius: 10px;
+    background: rgba(26, 26, 26, .45);
+}
+
+.llm-page .llm-legacy-panel > summary { color: #e9efff; cursor: pointer; font-weight: 600; }
+.llm-page .llm-legacy-panel > summary:focus-visible { outline: 2px solid rgba(242, 124, 17, .8); outline-offset: 2px; }
+.llm-page .llm-legacy-row { margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a3a3a; }
+.llm-page .llm-legacy-row .llm-help { margin-bottom: 0; }
+
+.llm-page .llm-legacy-name {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0 0 3px;
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.llm-page .llm-service-icons { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.llm-page .llm-service-icon {
+    width: 34px;
+    height: 34px;
+    border: 1px solid rgba(138, 155, 182, .3);
+    border-radius: 6px;
+    object-fit: cover;
+    opacity: .45;
+}
+
 .llm-page .llm-revisions { margin-top: 18px; padding-top: 12px; border-top: 1px solid #3a3a3a; }
 .llm-page .llm-revisions summary { color: #e9efff; cursor: pointer; font-weight: 600; }
 
@@ -327,6 +370,10 @@ body.llm-page-shell > main.llm-page {
     .llm-page .two-col-llm { grid-template-columns: 1fr; }
 }
 
+@media (max-width: 900px) {
+    .llm-page .llm-option-grid { grid-template-columns: minmax(0, 1fr); }
+}
+
 @media (max-width: 860px) {
     .llm-page .llm-layout { grid-template-columns: minmax(200px, 260px) 1fr; }
     .llm-page .llm-editor-toolbar { flex-wrap: wrap; }
@@ -335,7 +382,7 @@ body.llm-page-shell > main.llm-page {
 
 @media (max-width: 720px) {
     .llm-page .llm-layout { grid-template-columns: minmax(0, 1fr); }
-    .llm-page .llm-left { height: auto; max-height: none; }
+    .llm-page .llm-left { position: static !important; height: auto; min-height: 0; max-height: none; }
     .llm-page .conn-li .actions { flex-wrap: wrap; }
     .llm-page .conn-li .actions button { min-width: 0; max-width: 100%; }
 }

@@ -240,6 +240,35 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-advanced-placeholder p { margin: 0 0 12px; }
 .narrator-advanced-placeholder button:disabled { padding: 6px 12px; border: 1px solid #555; border-radius: 6px; background: #333; color: #999; cursor: not-allowed; }
 
+/* Portable narrator settings disclosure rendered outside the profile save form. */
+.narrator-portability > .narrator-advanced-summary:focus-visible { outline: 2px solid rgba(242, 124, 17, .6); outline-offset: -2px; }
+.narrator-portability .narrator-advanced-panel > .narrator-hint { margin-top: 0; }
+.narrator-portability-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
+.narrator-portability-actions .narrator-save-button { margin: 0; }
+.narrator-portable-export { border-color: rgba(120, 170, 235, .35); background: #1b4f8c; text-decoration: none; }
+.narrator-portable-export:hover { background: #2463ab; color: #fff; }
+.narrator-portability-form { margin-top: 16px; padding: 18px; border: 1px solid #3a3a3a; border-radius: 10px; background: linear-gradient(135deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); }
+.narrator-portability-field { margin-bottom: 12px; }
+.narrator-portability-field label { display: block; margin: 0 0 6px; color: rgb(242, 124, 17); font-size: 13px; font-weight: 600; }
+.narrator-portability-form input[type="file"],
+.narrator-portability-form textarea {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #3a3a3a;
+    border-radius: 6px;
+    background: rgba(26, 26, 26, .8);
+    color: #e9efff;
+    font-size: 13px;
+    transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.narrator-portability-form textarea { min-height: 140px; resize: vertical; font-family: inherit; }
+.narrator-portability-form textarea:focus { outline: none; border-color: rgba(242, 124, 17, .5); box-shadow: 0 0 0 3px rgba(242, 124, 17, .1); }
+.narrator-portability-form input[type="file"]:focus-visible { border-color: rgba(242, 124, 17, .5); box-shadow: 0 0 0 3px rgba(242, 124, 17, .1); }
+.narrator-portability-form > .narrator-hint { margin: 10px 0 0; }
+
 @media (max-width: 768px) {
     .narrator-content-grid { grid-template-columns: 1fr; }
     .narrator-page .page-header { padding: 15px; }
@@ -254,4 +283,6 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
     .narrator-toggle-label { font-size: 13px; }
     .narrator-toggle-row + .narrator-hint { margin-left: 0; }
     .narrator-field-chips { flex-direction: column; }
+    .narrator-portability-form { padding: 14px; }
+    .narrator-portability-actions { flex-direction: column; align-items: stretch; }
 }

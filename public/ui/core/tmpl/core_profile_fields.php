@@ -8,17 +8,23 @@ $profileMeta = is_array($profileMeta ?? null) ? $profileMeta : [];
 $creatingProfile = ($coreProfileMode ?? 'edit') === 'create';
 $profileIsDefault = filter_var($profileMeta['default_npc'] ?? false, FILTER_VALIDATE_BOOL);
 
-$routeSelect = static function (string $name, string $label, string $icon, string $description, array $rows) use ($routing): void {
+$routeSelect = static function (string $name, string $label, string $icon, string $description, array $rows, ?string $blankLabel = null, string $help = '') use ($routing): void {
+    $labelId = $blankLabel === null && $help === '' ? '' : $name . '-label';
+    $helpId = $help === '' ? '' : $name . '-help';
+    // Retain an unavailable generation route until the user explicitly chooses its replacement.
+    if ($blankLabel !== null && ($routing[$name] ?? '') !== '' && !in_array($routing[$name], array_column($rows, 'configuration_id'), true)) {
+        $rows[] = ['configuration_id' => $routing[$name], 'name' => 'Unavailable connector'];
+    }
     ?>
     <div class="connector-option-card">
-        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span></div>
+        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span<?php echo $labelId === '' ? '' : ' id="' . almsivi_ui_h($labelId) . '"'; ?>><?php echo almsivi_ui_h($label); ?></span></div>
         <div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div>
-        <div class="setting-control"><select name="<?php echo almsivi_ui_h($name); ?>">
-            <option value="">None / inherit</option>
+        <div class="setting-control"><select name="<?php echo almsivi_ui_h($name); ?>"<?php echo $labelId === '' ? '' : ' aria-labelledby="' . almsivi_ui_h($labelId) . '"'; ?><?php echo $helpId === '' ? '' : ' aria-describedby="' . almsivi_ui_h($helpId) . '"'; ?>>
+            <option value=""><?php echo almsivi_ui_h($blankLabel ?? 'None / inherit'); ?></option>
             <?php foreach ($rows as $row): $id = (string) $row['configuration_id']; ?>
                 <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo ($routing[$name] ?? null) === $id ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['name']); ?></option>
             <?php endforeach; ?>
-        </select></div>
+        </select><?php if ($helpId !== ''): ?><small class="hint" id="<?php echo almsivi_ui_h($helpId); ?>"><?php echo almsivi_ui_h($help); ?></small><?php endif; ?></div>
     </div>
     <?php
 };
@@ -56,7 +62,7 @@ $numberField = static function (string $section, string $field, string $label, s
     ?>
     <div class="setting-row">
         <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>" value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></div>
+        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>"<?php echo in_array($section, ['relationship', 'diary'], true) ? ' aria-label="' . almsivi_ui_h($label) . '"' : ''; ?> value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></div>
     </div>
     <?php
 };
@@ -133,10 +139,11 @@ $disabledNumberField = static function (string $section, string $field, string $
         <section class="profile-toggle-group">
             <h3 class="profile-toggle-group-title">Diary</h3>
             <div class="profile-toggle-grid">
+                <?php $toggleCard('setting_diary_enabled', '&#x1F4D3;', 'Manual Diary Generation', 'Off by default. On lets Narratives queue one requested diary for NPCs using this profile.', $overrides['diary']['enabled'] ?? null); ?>
+                <?php $toggleCard('setting_diary_include_in_context', '&#x1F4D6;', 'Diary In Context', 'On by default. Off hides scoped diary narratives from this profile roleplay context.', $overrides['diary']['include_in_context'] ?? null); ?>
                 <?php $placeholderCard('&#x1F4D9;', 'Auto Diary', 'Generate nearby NPC diaries during sleep or wait.', 'config.profiles.auto-diary'); ?>
                 <?php $placeholderCard('&#x23F3;', 'Auto Diary Wait', 'Include wait events when Auto Diary is enabled.', 'config.profiles.auto-diary'); ?>
                 <?php $placeholderCard('&#x1F4D5;', 'Physical Diary', 'Create a physical in-game diary that can be read.', 'config.profiles.physical-diary'); ?>
-                <?php $placeholderCard('&#x1F4D6;', 'Include Latest Diary Entry', 'Include the NPC latest diary entry in response context.', 'config.profiles.latest-diary'); ?>
             </div>
         </section>
         <section class="profile-toggle-group">
@@ -165,13 +172,15 @@ $disabledNumberField = static function (string $section, string $field, string $
         </section>
         <section class="connector-group-card">
             <h3 class="connector-group-title">Other Connectors</h3>
-            <div class="connector-group-subtitle">Voice, prompt, fallback, diary, and formatting services.</div>
+            <div class="connector-group-subtitle">Voice, prompt, fallback, generation, diary, and formatting services.</div>
             <div class="connector-group-fields">
                 <?php $routeSelect('tts_configuration_id', 'TTS Connector', '&#x1F50A;', 'Voice synthesis connector used for spoken output.', $tts); ?>
                 <?php $routeSelect('prompt_configuration_id', 'Dialogue Prompt', '&#x1F4AC;', 'Prompt template inherited by NPCs using this profile.', $prompts); ?>
                 <?php $routeSelect('llm_fallback_configuration_id', 'Fallback LLM', '&#x1F504;', 'Backup connector used when primary requests fail.', $llm); ?>
                 <?php $routeSelect('oghma_configuration_id', 'Oghma Extractor', '&#x1F4DA;', 'Fallback connector used only when local catalog grounding cannot resolve an explicit lore request.', $llm); ?>
-                <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F4D3;</span><span>Diary LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.diary-llm', true); ?></div><div class="setting-desc">Connector used for diary generation.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Active narrative pipeline</option></select></div></div>
+                <?php $routeSelect('profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'Connector for requested NPC and narrator profile generation and player speech-style analysis.', $llm, 'Use server runtime', 'Applies to newly queued generation jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
+                <?php $routeSelect('relationship_configuration_id', 'Relationship LLM', '&#x1F91D;', 'Connector for relationship updates after fully played conversations.', $llm, 'Disabled', 'No connector means no evaluation. Saving never calls a provider.'); ?>
+                <?php $routeSelect('diary_generation_configuration_id', 'Diary LLM', '&#x1F4D3;', 'Connector for diary generation that a person explicitly requests from Narratives.', $llm, 'Disabled', 'Disabled refuses manual diary requests. Applies to newly queued diary jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>
         </section>
@@ -218,12 +227,24 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
             <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
         </div></section>
+        <section class="profile-settings-group profile-diary-settings"><h3 class="profile-settings-heading">Diary</h3><div class="provider-card">
+            <?php $numberField('diary', 'context_turn_limit', 'Diary Context Turns', 'Maximum witnessed turns frozen into one manual diary request, from 1 to 100. Blank uses the server default of 20.', 1, 100); ?>
+            <div class="setting-row profile-setting-stacked">
+                <div><label class="setting-key" for="profile-diary-prompt">Diary Instruction</label><div class="setting-desc">Profile-specific instruction sent with a manual diary request. Blank inherits the server default instruction.</div></div>
+                <div class="setting-control"><textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help"><?php echo almsivi_ui_h($overrides['diary']['prompt'] ?? ''); ?></textarea></div>
+            </div>
+            <p class="setting-desc" id="profile-diary-prompt-help">Turn Manual Diary Generation on and choose a Diary LLM before requesting a diary from Narratives. Saving this page never calls a provider.</p>
+        </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Narrator</h3><div class="provider-card">
             <?php $selectSetting('setting_narrator_enabled', 'Enable Narrator', 'Allow inherited narrator events for this profile.', $overrides['narrator']['enabled'] ?? null); ?>
             <?php $selectSetting('setting_narrator_context_visibility', 'Narrator Context', 'Include narrator-visible context for this profile.', $overrides['narrator']['context_visibility'] ?? null); ?>
             <?php foreach (['welcome_events' => 'Welcome Events', 'random_events' => 'Random Events', 'quest_events' => 'Quest Events', 'book_events' => 'Book Events'] as $field => $label) $disabledSelectSetting('setting_narrator_' . $field, $label, 'Automatic narrator triggers are excluded from this milestone.', $overrides['narrator'][$field] ?? null, 'autonomy'); ?>
             <div class="setting-row"><div><div class="setting-key">Narrator Name</div><div class="setting-desc">Optional profile-specific narrator display name.</div></div><div class="setting-control"><input name="setting_narrator_name" maxlength="128" value="<?php echo almsivi_ui_h($overrides['narrator']['name'] ?? ''); ?>" placeholder="Inherit"></div></div>
             <div class="setting-row"><div><div class="setting-key">Inline Mode</div><div class="setting-desc">How narrator text is routed to dialogue output.</div></div><div class="setting-control"><select name="setting_narrator_inline_mode"><option value="">Inherit</option><?php foreach (['Disabled', 'Narrator', 'NPC', 'Text Only'] as $mode): ?><option<?php echo ($overrides['narrator']['inline_mode'] ?? null) === $mode ? ' selected' : ''; ?>><?php echo almsivi_ui_h($mode); ?></option><?php endforeach; ?></select></div></div>
+        </div></section>
+        <section class="profile-settings-group profile-relationship-settings"><h3 class="profile-settings-heading">Relationships</h3><div class="provider-card">
+            <?php $numberField('relationship', 'update_chance_percent', 'Relationship Update Chance', 'Default 0: no automatic evaluation. 100: every eligible played response. Saved relationships still appear in prompts.', 0, 100); ?>
+            <div class="setting-row"><div><label class="setting-key" for="relationship-lock">Relationship Lock</label><div class="setting-desc">Stop relationship evaluation. Separate from the NPC profile lock.</div></div><div class="setting-control"><select id="relationship-lock" name="setting_relationship_locked"><?php foreach (['inherit'=>'Inherit (unlocked)', '1'=>'Locked', '0'=>'Unlocked'] as $value=>$label): ?><option value="<?php echo $value; ?>"<?php echo ($overrides['relationship']['locked'] ?? null) === ($value === 'inherit' ? null : (string)$value === '1') ? ' selected' : ''; ?>><?php echo almsivi_ui_h($label); ?></option><?php endforeach; ?></select></div></div>
         </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Safety</h3><div class="provider-card">
             <?php $selectSetting('setting_safety_actions_enabled', 'Negotiated Actions', 'Allow bounded action negotiation.', $overrides['safety']['actions_enabled'] ?? null); ?>

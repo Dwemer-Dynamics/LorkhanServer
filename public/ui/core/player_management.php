@@ -20,7 +20,16 @@ $installationId = $requested !== '' && array_filter(
 ) ? $requested : (string) ($installations[0]['installation_id'] ?? '');
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
+$routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
+$generationId = (string) ($routing['profile_generation_configuration_id'] ?? '');
+$generationValue = array_key_exists('profile_generation_configuration_id', $routing) && $generationId === '' ? '__disabled__' : $generationId;
+$generationOptions = ['' => 'Inherit Core Profile', '__disabled__' => 'Use server runtime'];
+foreach ($uiRepository->rows('llm') as $connector) {
+    if ((string) ($connector['installation_id'] ?? '') === $installationId) $generationOptions[(string) $connector['configuration_id']] = (string) $connector['name'];
+}
+if ($generationId !== '' && !isset($generationOptions[$generationId])) $generationOptions[$generationId] = 'Unavailable connector';
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
+$biographyKnownByAll = ($content['biography_known_by_all'] ?? true) !== false;
 
 /** Normalize PostgreSQL JSON values used by the latest typed OpenMW context. */
 function almsivi_player_json_array(mixed $value): array
@@ -37,6 +46,15 @@ function almsivi_player_context_items(mixed $value): array
     $decoded = almsivi_player_json_array($value);
     $items = is_array($decoded['items'] ?? null) ? $decoded['items'] : $decoded;
     return array_is_list($items) ? array_values(array_filter($items, 'is_array')) : [];
+}
+
+/** Render one Herika-style live switch backed by the typed player profile document. */
+function almsivi_player_toggle(string $name, string $id, string $label, bool $checked, string $hint): void
+{
+    $hintId = $id . '-help';
+    echo '<input type="hidden" name="' . almsivi_ui_h($name) . '" value="0">'
+        . '<label class="toggle-row" for="' . almsivi_ui_h($id) . '"><span class="toggle-switch"><input id="' . almsivi_ui_h($id) . '" name="' . almsivi_ui_h($name) . '" type="checkbox" value="1"' . ($checked ? ' checked' : '') . ' aria-describedby="' . almsivi_ui_h($hintId) . '"><span class="toggle-slider"></span></span><span class="toggle-label">' . almsivi_ui_h($label) . '</span></label>'
+        . '<span class="hint" id="' . almsivi_ui_h($hintId) . '">' . almsivi_ui_h($hint) . '</span>';
 }
 
 /** Render a copied Herika switch that cannot mutate unsupported ALMSIVI state. */
@@ -76,7 +94,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </div>
         </div>
 
-        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Player profile saved.</div><?php endif; ?>
+        <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Portable player settings imported as a new player profile revision.' : 'Player profile saved.'; ?></div><?php endif; ?>
 
         <?php if ($installations === []): ?>
             <section class="content-section"><div class="no-data">Connect OpenMW once before creating the player profile.</div></section>
@@ -131,7 +149,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <label for="player-biography">Character Bio</label>
                         <textarea id="player-biography" name="biography" placeholder="Describe your character's background and story..."><?php echo almsivi_ui_h($content['biography'] ?? ''); ?></textarea>
                         <span class="hint">Backstory and character context stored in the versioned player profile.</span>
-                        <?php almsivi_player_placeholder_toggle('Player Biography Known by All', 'config.player.biography-visibility', 'Audience-specific biography visibility is planned; ALMSIVI currently includes the typed player profile through its normal prompt context.'); ?>
+                        <?php almsivi_player_toggle('biography_known_by_all', 'player-biography-known-by-all', 'Player Biography Known by All', $biographyKnownByAll, 'On, NPCs and the Narrator may receive this biography. Off, only the Narrator may receive it. This visibility setting is saved with the player profile and carried by portable player settings alongside appearance, biography, personality, speech style, goals, and notes.'); ?>
                         <details>
                             <summary>Additional typed player profile</summary>
                             <div class="field-block"><label for="player-personality">Personality</label><textarea id="player-personality" name="personality"><?php echo almsivi_ui_h($content['personality'] ?? ''); ?></textarea></div>
@@ -148,6 +166,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <label for="player-speech-style">Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo almsivi_ui_h($content['speech_style'] ?? ''); ?></textarea>
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>
+                        <label for="player-generation-llm">Profile Generation LLM</label>
+                        <select id="player-generation-llm" name="profile_generation_configuration_id" aria-describedby="player-generation-help">
+                            <?php foreach ($generationOptions as $id => $label): ?>
+                                <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo $id === $generationValue ? ' selected' : ''; ?>><?php echo almsivi_ui_h($label); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <span class="hint" id="player-generation-help">Applies to newly queued speech-style jobs. Queued jobs keep their frozen connector revision; saving never calls a provider.</span>
                         <div class="speech-style-tools">
                             <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
                                 <button type="submit" form="player-speech-ai-form" class="btn-ai-generate">AI Generate From Last 200 Inputs</button>
@@ -173,6 +198,34 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <button type="submit" class="btn-save">Save Player Settings</button>
                 <?php if ($profile !== null): ?><span class="revision-meta">Revision <?php echo almsivi_ui_h($profile['current_revision']); ?> &middot; <?php echo almsivi_ui_h($profile['input_count']); ?> observed player messages</span><?php endif; ?>
             </form>
+
+            <?php if ($profile !== null): ?>
+                <details class="player-portability">
+                    <summary class="player-portability-summary"><span class="player-portability-summary-icon">&#x25B6;</span><span>Portable Player Settings</span></summary>
+                    <div class="player-portability-body">
+                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only.</p>
+                        <div class="player-portability-actions">
+                            <a class="btn-portable" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/player-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.player.export')['description']); ?>">Export Settings</a>
+                        </div>
+                        <form class="player-portability-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/player-profile-settings-import">
+                            <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                            <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                            <div class="field-block">
+                                <label for="player-preset-file">Preset file</label>
+                                <input id="player-preset-file" type="file" accept="application/json,.json" data-json-import-target="player-preset-json" aria-describedby="player-portability-scope player-portability-help">
+                            </div>
+                            <div class="field-block">
+                                <label for="player-preset-json">Preset JSON</label>
+                                <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
+                            </div>
+                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, and playthrough context, or the excluded autochat, TTS, and diary controls.</p>
+                            <div class="player-portability-actions">
+                                <button type="submit" class="btn-portable" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
+                            </div>
+                        </form>
+                    </div>
+                </details>
+            <?php endif; ?>
 
             <div class="full-width-section"><h2 class="full-width-title">&#x1F4CA; Player Statistics</h2></div>
             <?php if ($acceptedAt !== ''): ?><p class="context-meta">Latest OpenMW player context accepted <?php echo almsivi_ui_h($acceptedAt); ?></p><?php endif; ?>
@@ -222,4 +275,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
+<?php if ($profile !== null): ?><script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

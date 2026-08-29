@@ -4,6 +4,8 @@ declare(strict_types=1);
 namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\MorrowindVoiceCatalog;
+use ALMSIVIserver\Application\MemoryEmbeddingPolicy;
+use ALMSIVIserver\Application\MiniMeEmbeddingProvider;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\PromptAssembler;
 use ALMSIVIserver\Application\Provider;
@@ -11,6 +13,7 @@ use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\SpeechProvider;
 use ALMSIVIserver\Application\SpeechToTextProvider;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProductRepository;
@@ -162,6 +165,10 @@ final class Router
 
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
+            if ($providerInput !== null) {
+                $providerInput['_allowed_action_definitions'] = ($m['payload']['ui_source'] ?? null) === 'almsivi_rechat'
+                    ? [] : $this->repository->allowedPromptActions($m['session_id'], $m['generation']);
+            }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
                 $resolvedVoice=$this->morrowindVoices?->resolve((array)$m['payload']['target'],(array)$m['payload']['context']);
@@ -169,7 +176,8 @@ final class Router
                         (string)$m['installation_id'],(array)$m['payload']['target'],$resolvedVoice);
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
-                $selection = $this->products->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'),$this->oghmaExtraction($m));
+                $oghmaExtraction=$this->oghmaExtraction($m);$semanticMemory=$this->semanticMemory($m);
+                $selection = $this->products->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
                 if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
@@ -181,6 +189,9 @@ final class Router
                 if($providerConfiguration!==null)$providerInput['_provider_configuration']=$providerConfiguration;
                 $fallbackConfiguration=$this->products->fallbackProviderContext($m,$providerConfiguration['configuration_id']??null);
                 if($fallbackConfiguration!==null)$providerInput['_fallback_provider_configuration']=$fallbackConfiguration;
+                $translation=$this->products->translationPolicyForInstallation((string)$m['installation_id']);
+                $providerInput['_translation_policy']=['configuration_id'=>$translation['configuration_id'],
+                    'revision'=>(int)$translation['current_revision'],'content'=>TranslationPolicy::validate($translation['content'])];
             }
             $body = ['schema' => 'almsivi.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
                 'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
@@ -229,6 +240,32 @@ final class Router
         }catch(Throwable){
             try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
             return$result;
+        }
+    }
+
+    /** Add one explicit MiniMe query signal; unavailable service falls back to local deterministic ranking. */
+    private function semanticMemory(array $turn):array
+    {
+        if($this->products===null)return[];
+        $runtime=$this->products->memoryEmbeddingRuntime((string)$turn['installation_id']);
+        if(($runtime['status']??null)!=='ready'||!is_array($runtime['policy']??null))return[];
+        $policy=$runtime['policy'];$content=$policy['content'];$base=[
+            'status'=>'failed','policy_configuration_id'=>$policy['configuration_id'],
+            'policy_revision'=>(int)$policy['current_revision'],'model'=>MemoryEmbeddingPolicy::MODEL,
+        ];
+        $query=MemoryEmbeddingPolicy::queryText($turn);$attempt=Uuid::v4();
+        try{
+            $this->providerAttempts?->start($attempt,'embedding','minime','query_memory',1,
+                $turn['request_id']??null,$turn['turn_id']??null,model:MemoryEmbeddingPolicy::MODEL,
+                configRevision:'r'.(int)$policy['current_revision'],inputBytes:strlen($query),
+                metadata:['policy_configuration_id'=>$policy['configuration_id']]);
+            $provider=new MiniMeEmbeddingProvider($content['endpoint'],$content['timeout_ms']);
+            $embedding=$provider->embed($query,new NeverCancelledToken());
+            $encoded=json_encode($embedding,JSON_THROW_ON_ERROR);$this->providerAttempts?->finish($attempt,'succeeded',strlen($encoded));
+            return array_replace($base,['status'=>'succeeded','embedding'=>$embedding]);
+        }catch(Throwable){
+            try{$this->providerAttempts?->finish($attempt,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+            return$base;
         }
     }
 

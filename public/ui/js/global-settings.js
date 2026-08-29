@@ -29,6 +29,30 @@ document.addEventListener('DOMContentLoaded', () => {
         url.searchParams.set('installation_id', event.target.value);
         window.location.assign(url.toString());
     });
+    const translationControls = Array.from(document.querySelectorAll('[data-translation-control]'));
+    if (translationControls.length > 0) {
+        const byRole = (role) => translationControls.filter((control) => control.dataset.translationControl === role);
+        const provider = byRole('provider')[0] || null;
+        const outputs = byRole('output');
+        const saveText = byRole('save')[0] || null;
+        const target = byRole('target')[0] || null;
+        const setEnabled = (control, enabled) => {
+            if (!control) return;
+            control.disabled = !enabled;
+            control.closest('.provider-card')?.classList.toggle('is-dependent-off', !enabled);
+        };
+        const sync = () => {
+            const active = provider !== null && provider.value === 'deepl';
+            translationControls.forEach((control) => { if (control !== provider && control !== saveText) setEnabled(control, active); });
+            const translating = active && outputs.some((output) => output.checked);
+            setEnabled(saveText, translating);
+            if (target) target.required = translating;
+        };
+        provider?.addEventListener('change', sync);
+        outputs.forEach((output) => output.addEventListener('change', sync));
+        sync();
+    }
+
     let initial = 'prompt-rechat';
     try { initial = sessionStorage.getItem('almsivi-global-settings-tab') || initial; } catch (_) {}
     activate(initial);

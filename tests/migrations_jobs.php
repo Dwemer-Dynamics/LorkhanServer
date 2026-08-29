@@ -63,6 +63,12 @@ $canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema
 $check($canonicalTurnColumns===['response_created_at','response_id','response_payload','runtime_generation']
     &&$canonicalDialogueColumns===['response_line_id','runtime_generation','utterance_id'],
     'canonical response projection columns are incomplete');
+$configurationKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.configuration_sets'::regclass AND conname='configuration_sets_kind_check'")->fetchColumn();
+$providerKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.provider_attempts'::regclass AND conname='provider_attempts_provider_kind_check'")->fetchColumn();
+$check(str_contains($configurationKindConstraint,"'translation_policy'")
+    &&str_contains($providerKindConstraint,"'translation'")
+    &&$db->query("SELECT to_regclass('almsivi_internal.one_translation_policy_per_installation') IS NOT NULL")->fetchColumn()===true,
+    'translation policy or provider audit constraints are incomplete');
 $eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
 $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
     'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
@@ -106,6 +112,21 @@ $check($runner->up() === [$latestVersion], 'up did not restore reverted migratio
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
 
+// The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
+$db->beginTransaction();
+$db->exec("INSERT INTO almsivi_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
+    ."VALUES('30000000-0000-4000-8000-000000000060','capacity-guard-fixture','legacy_snapshot',repeat('0',64),20000,'superseded',now(),now())");
+$db->exec('SAVEPOINT capacity_guard');
+try{$db->exec("UPDATE almsivi_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
+    throw new RuntimeException('biography capacity became unbounded');}
+catch(PDOException $error){$check($error->getCode()==='23514','unexpected biography capacity failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/060_biography_catalog_capacity.down.sql'));
+    throw new RuntimeException('larger biography catalog was rolled back');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore the 10,000-row biography limit'),'unexpected biography rollback failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
+$check((int)$db->query("SELECT row_count FROM almsivi_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
+    'refused rollback changed the biography catalog');
+$db->rollBack();
+
 // Upgrade a populated 004 database: preserve the legacy session while materializing scoped owners.
 $upgradeVersions = array_values(array_filter($expectedVersions, static fn(int $version): bool => $version > 4));
 $downVersions = array_reverse($upgradeVersions);
@@ -117,6 +138,27 @@ $check($runner->up() === $upgradeVersions, 'populated 004 upgrade did not apply 
 $check((int)$db->query("SELECT count(*) FROM sessions WHERE session_id='{$legacySession}'")->fetchColumn()===1, 'legacy session was lost');
 $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacyProfile}' AND installation_id='{$legacyInstallation}'")->fetchColumn()===1, 'legacy profile owner missing');
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
+// Upgrade relationship data without merging ambiguous identities or losing existing audit entries.
+$db->beginTransaction();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+$legacyRelationship=Uuid::v4();$legacyDuplicate=Uuid::v4();
+$legacyInsert=$db->prepare("INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) "
+    ."VALUES(:id,:installation,:profile,:playthrough,'{\"record_id\":\"legacy_duplicate\",\"display_name\":\"Legacy actor\"}',17,-3,'manual')");
+foreach([$legacyRelationship,$legacyDuplicate] as $id)$legacyInsert->execute(['id'=>$id,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough]);
+$db->exec("INSERT INTO relationship_audit(audit_id,relationship_id,mode,after_value,reason) VALUES('".Uuid::v4()."','{$legacyRelationship}','manual','{\"disposition\":17,\"affinity\":-3}','Legacy reason')");
+$legacyRows=$db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.up.sql'));
+$check($db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll()===$legacyRows
+    &&(int)$db->query('SELECT count(*) FROM relationship_records WHERE revision=1')->fetchColumn()===2
+    &&$db->query("SELECT reason FROM relationship_audit WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()==='Legacy reason',
+    'relationship upgrade changed legacy rows or history');
+$db->exec("UPDATE relationship_records SET disposition=18 WHERE relationship_id='{$legacyRelationship}'");
+$check((int)$db->query("SELECT revision FROM relationship_records WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()===2,'direct relationship writes bypass revision protection');
+$db->exec('SAVEPOINT relationship_rollback_guard');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+    throw new RuntimeException('edited relationship lost revision protection');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship revision protection'),'unexpected relationship rollback failure');$db->exec('ROLLBACK TO SAVEPOINT relationship_rollback_guard');}
+$db->rollBack();
 $journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
 $journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
 $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','journal projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:00Z')")
@@ -747,7 +789,7 @@ $npcProfile=$service->createRevisioned('profile',['installation_id'=>$installati
     'actor_identity'=>['kind'=>'npc','record_id'=>'nalcarya','display_name'=>'Nalcarya','content_file'=>'Morrowind.esm'],
     'content'=>['role'=>'npc','management'=>['locked'=>true,'favorite'=>false]],'change_reason'=>'created']);
 $npcScope=['installation_id'=>$installation,'profile_id'=>$npcProfile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id']];
-$relationship=$service->setRelationship($npcScope+['actor_identity'=>['record_id'=>'player','display_name'=>'Nerevarine'],'disposition'=>20,'affinity'=>5,
+$relationship=$service->setRelationship($npcScope+['actor_identity'=>['kind'=>'player','record_id'=>'player','display_name'=>'Nerevarine','content_file'=>'Morrowind.esm','refnum'=>['index'=>1,'content_file'=>0]],'disposition'=>20,'affinity'=>5,
     'source_mode'=>'manual','reason'=>'test']);
 $check($relationship['disposition'] === 20 && count($products->relationships($npcScope)) === 1, 'relationship audit foundation failed');
 $relationshipProjection=$db->prepare("SELECT npc.extended_data#>>'{relationships,player,disposition}' FROM npc_metadata metadata JOIN public.core_npc_master npc ON npc.id=metadata.npc_id WHERE metadata.source_profile_id=:profile");
@@ -771,6 +813,18 @@ $management->revokePairingToken($rotation['pairing_token_id']);
 $check((int)$db->query("SELECT count(*) FROM pairing_tokens WHERE pairing_token_id='".$rotation['pairing_token_id']."' AND state='revoked'")->fetchColumn()===1,'pairing token revocation failed');
 $check($management->authorizePairing('Bearer rotated') === false, 'revoked pairing token authorized');
 $eventLogs=new EventLogRepository($db);
+$historyOwnerIdentity=['kind'=>'npc','record_id'=>'history_owner','display_name'=>'History Owner','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62001,'content_file'=>0]];
+$historyRecipientIdentity=['kind'=>'npc','record_id'=>'history_recipient','display_name'=>'History Recipient','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62002,'content_file'=>0]];
+$historyOutsiderIdentity=['kind'=>'npc','record_id'=>'history_outsider','display_name'=>'History Outsider','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>62003,'content_file'=>0]];
+$historyOwner=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Owner',
+    'actor_identity'=>$historyOwnerIdentity,'content'=>['role'=>'npc']]);
+$historyRecipient=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Recipient',
+    'actor_identity'=>$historyRecipientIdentity,'content'=>['role'=>'npc']]);
+$historyOutsider=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'History Outsider',
+    'actor_identity'=>$historyOutsiderIdentity,'content'=>['role'=>'npc']]);
 $baseEventRow=(int)$db->query('SELECT COALESCE(max(rowid),0) FROM eventlog')->fetchColumn();
 $insertEvent=$db->prepare("INSERT INTO eventlog(type,data,sess,gamets,localts,ts,people) VALUES('death',:data,NULL,:gamets,:localts,:ts,'|Player|') RETURNING rowid");
 $insertMetadata=$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,'cursor_test',:key,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)");
@@ -814,6 +868,62 @@ $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quick
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
+$historyPath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
+$historyPayload=['playthrough_id'=>$playthrough['playthrough_id'],'event'=>'(History Owner gave History Recipient a kwama egg.)',
+    'recipient_profile_ids'=>[$historyRecipient['profile_id']]];
+$historyDenied=$managementRouter->dispatch(new Request('POST',$historyPath,['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
+$check($historyDenied->status===401,'NPC history injection accepted missing CSRF');
+$jobsBeforeHistory=(int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn();
+$attemptsBeforeHistory=(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn();
+$historyInjected=$managementRouter->dispatch(new Request('POST',$historyPath,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
+$historyInjectedBody=json_decode($historyInjected->body,true,32,JSON_THROW_ON_ERROR);
+$historyRowId=(int)($historyInjectedBody['data']['rowid']??0);
+$check($historyInjected->status===201&&$historyRowId>0
+    &&(int)$db->query('SELECT count(*) FROM durable_jobs')->fetchColumn()===$jobsBeforeHistory
+    &&(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn()===$attemptsBeforeHistory,
+    'explicit NPC history injection failed or triggered provider work');
+$historyQuery=['playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'100'];
+$ownerHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
+$ownerHistoryBody=json_decode($ownerHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$recipientHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
+    ['Cookie'=>$cookie],$historyQuery));
+$recipientHistoryBody=json_decode($recipientHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$outsiderHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
+    ['Cookie'=>$cookie],$historyQuery));
+$outsiderHistoryBody=json_decode($outsiderHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
+$check($ownerHistory->status===200&&$recipientHistory->status===200&&$outsiderHistory->status===200
+    &&array_column($ownerHistoryBody['events'],'rowid')===[$historyRowId]
+    &&array_column($recipientHistoryBody['events'],'rowid')===[$historyRowId]
+    &&$outsiderHistoryBody['events']===[]&&$ownerHistoryBody['events'][0]['deletable']===true
+    &&$ownerHistoryBody['events'][0]['data']==='(History Owner gave History Recipient a kwama egg.)'
+    &&in_array('inputtext',$ownerHistoryBody['event_types'],true),
+    'NPC history was not bounded to exact recipient identities');
+$filteredHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery+['type'=>'inputtext']));
+$hiddenHistoryType=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery+['type'=>'rechat']));
+$check($filteredHistory->status===200
+    &&array_column(json_decode($filteredHistory->body,true,32,JSON_THROW_ON_ERROR)['data']['events'],'rowid')===[$historyRowId]
+    &&$hiddenHistoryType->status===422,'NPC history event-type filter escaped the visible narrative types');
+$historyDeletePath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
+$historyDeleteDenied=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
+    ['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$check($historyDeleteDenied->status===401,'NPC history deletion accepted missing CSRF');
+$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$check($historyWrongOwner->status===422,'NPC history deletion escaped exact identity ownership');
+$historyDeleted=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
+    ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
+$historyAfterDelete=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
+$historySuppression=$db->query("SELECT suppression_reason FROM eventlog_metadata WHERE rowid={$historyRowId}")->fetchColumn();
+$check($historyDeleted->status===200&&$historySuppression==='npc_history_delete'
+    &&json_decode($historyAfterDelete->body,true,32,JSON_THROW_ON_ERROR)['data']['events']===[],
+    'NPC history delete did not soft-suppress only the injected projection');
+$historyForeignScope=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],
+    ['playthrough_id'=>$legacyPlaythrough,'limit'=>'100']));
+$check($historyForeignScope->status===422,'NPC history accepted a foreign playthrough');
+$service->deleteRevisioned('profile',$historyOwner['profile_id']);
+$service->deleteRevisioned('profile',$historyRecipient['profile_id']);
+$service->deleteRevisioned('profile',$historyOutsider['profile_id']);
 $eventlogResponse=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
 $eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
 $check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');
@@ -947,6 +1057,140 @@ $check($products->bulkDeleteUnlockedNpcProfiles($installation,$clock->iso())===1
     &&(int)$db->query("SELECT count(*) FROM actor_profile_bindings WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn()===0,
     'bulk delete did not remove only the unlocked NPC profile and its binding');
 $check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk unlock did not revise the locked NPC profile');
+
+// Route an existing manual generation job without changing later connector choices or using runtime credentials.
+$generationConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Generation connector',
+    'content'=>['driver'=>'mock','model'=>'generation-v1']]);
+$generationCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Generation core',
+    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],
+        'routing'=>['profile_generation_configuration_id'=>$generationConnector['configuration_id']]]]);
+$generationProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Routed generation NPC',
+    'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm'],
+    'content'=>['biography'=>'Unchanged until generation finishes.']]);
+$generationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$generationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$generationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$check($generationPayload==['profile_id'=>$generationProfile['profile_id'],'base_revision'=>1,
+    'provider_configuration_id'=>$generationConnector['configuration_id'],'provider_revision'=>1],
+    'generation job did not freeze only the inherited connector identity and revision');
+$service->revise('provider',$generationConnector['configuration_id'],['driver'=>'mock','model'=>'generation-v2'],'new connector revision');
+$sameGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$check($sameGenerationJob['job_id']===$generationJob['job_id'],'requeue replaced the frozen generation job');
+$service->revise('core_profile',$generationCore['core_profile_id'],array_replace($generationCore['content'],['routing'=>[]]),'use runtime for future jobs');
+try{$service->deleteRevisioned('provider',$generationConnector['configuration_id']);throw new RuntimeException('queued generation connector deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued generation deletion guard failed');}
+$generationRows=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('llm');
+$generationRow=array_values(array_filter($generationRows,static fn(array$row):bool=>$row['configuration_id']===$generationConnector['configuration_id']))[0];
+$check((int)$generationRow['queued_job_usage']===1,'queued generation use was not visible to connector management');
+$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+    $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
+$generationStats=(new Worker($jobs,$generationRegistry,'profile-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$generationAttempt=$db->query("SELECT model,config_revision,metadata FROM provider_attempts WHERE job_id='{$generationJob['job_id']}'")->fetch();
+$check($generationStats['succeeded']===1&&$generationAttempt['model']==='generation-v1'&&$generationAttempt['config_revision']==='1',
+    'generation ignored the queued revision or used the unrelated runtime');
+$generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
+$check((int)$generationCurrent['current_revision']===2&&str_contains($generationCurrent['content']['notes'],'Deterministic mock generation'),
+    'routed provider did not produce the profile revision');
+$service->revise('core_profile',$generationCore['core_profile_id'],$generationCore['content'],'restore inherited generator');
+$service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content']+['routing'=>['profile_generation_configuration_id'=>'']],'explicit runtime override');
+$runtimeGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
+$runtimeGenerationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$runtimeGenerationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$check(!array_key_exists('provider_configuration_id',$runtimeGenerationPayload),'explicit runtime override did not bypass the Core Profile generator');
+$runtimeGenerationStats=(new Worker($jobs,$firstPartyRegistry,'profile-runtime-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$check($runtimeGenerationStats['succeeded']===1,'runtime generation compatibility failed');
+$foreignGenerator=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Foreign generator',
+    'content'=>['driver'=>'mock','model'=>'foreign-model']]);
+$generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
+$generationCurrent['content']['routing']=['profile_generation_configuration_id'=>$foreignGenerator['configuration_id']];
+$service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content'],'invalid foreign route');
+try{$products->enqueueProfileGeneration($generationProfile['profile_id']);throw new RuntimeException('foreign generation connector accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','generation ownership check failed');}
+try{$products->providerRevisionForInstallation($installation,$foreignGenerator['configuration_id'],1);throw new RuntimeException('foreign generation revision loaded');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','worker revision ownership check failed');}
+foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$narratorProfile['profile_id'],'enqueueNarratorProfileGeneration']]as[$routedProfileId,$enqueueMethod]){
+    $routedProfile=$products->getRevisioned('profile',$routedProfileId);$routedContent=$routedProfile['content'];
+    $routedContent['routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
+    $service->revise('profile',$routedProfileId,$routedContent,'route existing generation mode');
+    $products->$enqueueMethod($routedProfileId);
+}
+$modeRouteStats=(new Worker($jobs,$generationRegistry,'profile-modes-route-test',5,2,2,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
+$check($modeRouteStats['succeeded']===2,'narrator or player speech-style generation ignored its routed connector');
+
+// Queue one manual diary only after an explicit opt-in, a dedicated connector route, and witnessed context exist.
+$diaryConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Diary connector',
+    'content'=>['driver'=>'mock','model'=>'diary-v1']]);
+$diaryCoreContent=['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+$diaryCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Manual diary core','content'=>$diaryCoreContent]);
+$diaryActor=['kind'=>'npc','record_id'=>'diary_test','content_file'=>'Morrowind.esm','display_name'=>'Diary NPC'];
+$diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Diary NPC',
+    'core_profile_id'=>$diaryCore['core_profile_id'],'actor_identity'=>$diaryActor,
+    'content'=>['biography'=>'Witnesses events in Balmora.']]);
+$diaryScope=['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'request_id'=>Uuid::v4()];
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('default diary policy queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_disabled','manual diary did not default off');}
+$jobsBeforeDiarySave=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn();
+$diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'include_in_context'=>true,'context_turn_limit'=>12,
+    'prompt'=>'Record only witnessed events.'];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'opt in without a connector');
+try{$products->enqueueDiaryGeneration($diaryScope);throw new RuntimeException('diary without connector queued work');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='diary_generation_connector_unavailable','manual diary accepted no connector');}
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='narrative.generate'")->fetchColumn()===$jobsBeforeDiarySave,
+    'saving diary settings called a provider or queued work');
+$diaryTurn=Uuid::v4();
+$diaryEvent=$db->prepare("INSERT INTO eventlog(type,data,gamets,localts,ts,people,location) VALUES('inputtext',:data,42,1700000100,1700000100000,'|Diary NPC|','Balmora') RETURNING rowid");
+$diaryEvent->execute(['data'=>'Nerevarine: We reached Balmora before dusk.']);$diaryRowId=(int)$diaryEvent->fetchColumn();
+$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,turn_id,projection_kind,projection_key,speaker,target,audience,payload) VALUES(:rowid,:installation,:playthrough,:profile,:turn,'diary_test',:key,CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb)")
+    ->execute(['rowid'=>$diaryRowId,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],
+        'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
+        'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
+$diaryProfileContent=$products->getRevisioned('profile',$diaryProfile['profile_id'])['content'];
+$diaryProfileContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
+$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'route future manual diaries for this NPC');
+$diaryJob=$products->enqueueDiaryGeneration($diaryScope);
+$diaryPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$diaryJob['job_id']}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$check($diaryPayload['profile_revision']===2&&$diaryPayload['provider_revision']===1
+    &&$diaryPayload['source_turn_ids']===[$diaryTurn]&&count($diaryPayload['input']['witnessed_context'])===1
+    &&!isset($diaryPayload['input']['endpoint'],$diaryPayload['input']['api_key']),
+    'manual diary request was not idempotent, revision-frozen, bounded, or secret-free');
+$diaryConnectorRows=(new ManagementUiRepository($db))->rows('llm');
+$diaryConnectorRow=array_values(array_filter($diaryConnectorRows,static fn(array$row):bool=>
+    $row['configuration_id']===$diaryConnector['configuration_id']))[0];
+$check((int)$diaryConnectorRow['queued_job_usage']===1&&(int)$diaryConnectorRow['profile_usage']===1,
+    'manual diary connector use was not visible to connector management');
+$service->revise('provider',$diaryConnector['configuration_id'],['driver'=>'mock','model'=>'diary-v2'],'new diary connector revision');
+$diaryProfileContent['routing']=[];$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'leave queued diary frozen');
+$diaryReplay=$products->enqueueDiaryGeneration($diaryScope);
+$check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id']===$diaryJob['narrative_id']
+    &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
+try{$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);throw new RuntimeException('queued diary connector deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued diary deletion guard failed');}
+$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+    $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
+$diaryStats=(new Worker($jobs,$diaryRegistry,'manual-diary-test',5,1,1,0,10,['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
+$diaryRow=$db->query("SELECT kind,title,content,provenance FROM narrative_records WHERE narrative_id='{$diaryJob['narrative_id']}'")->fetch();
+$diaryProvenance=json_decode((string)$diaryRow['provenance'],true,32,JSON_THROW_ON_ERROR);
+$diaryAttempt=$db->query("SELECT operation,model,config_revision,state FROM provider_attempts WHERE job_id='{$diaryJob['job_id']}'")->fetch();
+$check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['title']==='Diary NPC diary'
+    &&str_contains($diaryRow['content'],'1 witnessed Morrowind event')
+    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===2
+    &&$diaryProvenance['provider_revision']===1&&$diaryProvenance['source_turn_ids']===[$diaryTurn]
+    &&$diaryAttempt['operation']==='generate_diary'&&$diaryAttempt['model']==='diary-v1'
+    &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',
+    'manual diary worker did not use the frozen provider revision or persist exact scoped provenance');
+$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);
+$service->createNarrative(['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'kind'=>'summary','title'=>'Still included','content'=>'A bounded summary.',
+    'provenance'=>['source'=>'authored-test']]);
+$diaryCoreContent['settings_overrides']['diary']['include_in_context']=false;
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'hide diary narratives from prompts');
+$products->bindActorProfile(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']],
+    $diaryActor,$diaryProfile['profile_id'],$clock->iso());
+$diaryPromptContext=$products->promptContext(['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],
+    'playthrough_id'=>$playthrough['playthrough_id'],'session_id'=>'20000000-0000-4000-8000-000000000099',
+    'payload'=>['target'=>$diaryActor]],$clock->iso());
+$check(array_column($diaryPromptContext['narrative'],'kind')===['summary'],
+    'diary context opt-out removed non-diary narratives or retained the generated diary');
+
 $derivedMemoryId='30000000-0000-4000-8000-000000000001';
 $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
     'memory_id'=>$derivedMemoryId,'tier'=>'recent','content'=>'Deterministic derived memory.','source_event_id'=>$deliverySource,
@@ -954,18 +1198,19 @@ $derivedPayload=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyPro
 $derive=$firstPartyRegistry->for('memory.derive',1);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);$derive->handle($derivedPayload,'memory.derive:test',static fn():bool=>true);
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE memory_id='{$derivedMemoryId}'")->fetchColumn()===1, 'first-party memory derive was not idempotent');
 $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstallation,$legacyProfile,$legacyPlaythrough,$legacySession):void{
+    $memoryText='Played memory '.$ordinal.'.'.($ordinal>=15?str_repeat('古',3666):'');
     $source=Uuid::v4();$dialogue=Uuid::v4();$message=Uuid::v4();$memory=Uuid::v4();$turn=Uuid::v4();$request=Uuid::v4();$turnMessage=Uuid::v4();
     $occurred=sprintf('2026-01-01T00:00:%02dZ',$ordinal);
     $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
         ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
     $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
-        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>'Played memory '.$ordinal.'.']);
+        ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>$memoryText]);
     $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
         ->execute(['source'=>$source,'installation'=>$legacyInstallation,'session'=>$legacySession,'occurred'=>$occurred,'request'=>$request,'turn'=>$turn]);
     $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok',:occurred)")
         ->execute(['dialogue'=>$dialogue,'source'=>$source,'message'=>$message,'request'=>$request,'turn'=>$turn,'session'=>$legacySession,'occurred'=>$occurred]);
     $derive->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,
-        'memory_id'=>$memory,'tier'=>'recent','content'=>'Played memory '.$ordinal.'.','source_event_id'=>$source,
+        'memory_id'=>$memory,'tier'=>'recent','content'=>$memoryText,'source_event_id'=>$source,
         'occurred_at'=>$occurred,'provenance'=>['source'=>'dialogue.delivery','status'=>'played','source_event_ids'=>[$source]]],
         'memory.derive:played:'.$ordinal,static fn():bool=>true);
 };
@@ -977,7 +1222,7 @@ $check($fourStats['retried']===0&&$fourStats['dead']===0
     'four eligible recent memories did not produce exactly one middle memory');
 foreach(range(5,16)as$ordinal)$derivePlayedMemory($ordinal);
 $allStats=(new Worker($jobs,$firstPartyRegistry,'memory-consolidation-all',5,1,50,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
-$consolidated=$db->query("SELECT memory_id,tier,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
+$consolidated=$db->query("SELECT memory_id,tier,content,current_revision,provenance FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL ORDER BY tier,memory_id")->fetchAll();
 $middleRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='mid'));
 $longRows=array_values(array_filter($consolidated,static fn(array $row):bool=>$row['tier']==='long'));
 $check($allStats['retried']===0&&$allStats['dead']===0&&count($middleRows)===4&&count($longRows)===1,
@@ -988,6 +1233,17 @@ foreach($middleRows as$row){$provenance=json_decode((string)$row['provenance'],t
     &&count($provenance['source_memory_ids'])===4&&count($provenance['source_event_ids'])===4
     &&isset($provenance['source_range']['from'],$provenance['source_range']['to']),'middle-memory provenance is incomplete');}
 $longProvenance=json_decode((string)$longRows[0]['provenance'],true,64,JSON_THROW_ON_ERROR);
+$cappedSummaries=0;
+foreach($consolidated as$row){
+    $coverage=json_decode((string)$row['provenance'],true,64,JSON_THROW_ON_ERROR)['content_coverage'];
+    $capped=strlen($row['content'])>16380;
+    if($capped)++$cappedSummaries;
+    $check($coverage['algorithm']==='exact-content-v1'&&$coverage['content_sha256']===hash('sha256',$row['content'])
+        &&count($coverage['complete_source_memory_ids'])===($capped?3:4)
+        &&strlen($row['content'])<=16384&&mb_check_encoding($row['content'],'UTF-8'),
+        'consolidation coverage claimed a truncated source or lost valid UTF-8');
+}
+$check($cappedSummaries===2,'large recent sources did not exercise both consolidation tier caps');
 $check((int)$longRows[0]['current_revision']===1&&$longProvenance['source_tier']==='mid'
     &&count($longProvenance['source_memory_ids'])===4&&count($longProvenance['source_event_ids'])===16
     &&$longProvenance['source_range']['from']==='2026-01-01T00:00:04Z'
@@ -999,6 +1255,207 @@ $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$lega
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
     &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
     'memory consolidation replay was not idempotent');
+$summaryRepository=new \ALMSIVIserver\Infrastructure\MemorySummaryRepository($db);
+$summaryMemory=$middleRows[0];
+$check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null
+    &&(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
+    'default memory behavior queued paid generation');
+$summaryProvider=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Memory mock',
+    'content'=>['driver'=>'mock','model'=>'memory-mock-v1']]);
+$summaryPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$summaryProvider['configuration_id']];
+$summaryPolicy=$service->createRevisioned('memory_policy',['installation_id'=>$legacyInstallation,'name'=>'Model memory','content'=>$summaryPolicyContent]);
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
+    'saving memory policy queued historical generation');
+$summaryJob=$summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$summaryReplay=$summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$check($summaryJob['job_id']===$summaryReplay['job_id'],'memory summary enqueue was not idempotent');
+$service->revise('provider',$summaryProvider['configuration_id'],['driver'=>'mock','model'=>'memory-mock-v2'],'test frozen revision');
+$summaryStats=(new Worker($jobs,$firstPartyRegistry,'model-memory',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$summaryStored=$db->query("SELECT * FROM memory_model_summaries WHERE memory_id='{$summaryMemory['memory_id']}'")->fetch();
+$summaryOriginal=$products->memory($summaryMemory['memory_id']);
+$check($summaryStats['succeeded']===1&&(int)$summaryStored['provider_revision']===1
+    &&(int)$summaryOriginal['current_revision']===1&&$summaryOriginal['content']===$summaryMemory['content']
+    &&$summaryStored['input_sha256']===hash('sha256',$summaryMemory['content']),
+    'model summary changed the original or ignored the frozen provider revision');
+$check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
+    'completed model summary queued another provider call');
+$cancelMemory=$middleRows[1];
+$cancelJob=$summaryRepository->enqueue($legacyInstallation,$cancelMemory['memory_id'],1);
+$summaryPolicyContent['enabled']=false;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'disable model memory');
+$attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn();
+$cancelStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-disabled',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($cancelStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount,
+    'disabling model memory did not stop queued paid work');
+$summaryPolicyContent['enabled']=true;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'restore opt-in');
+$resumeJob=$summaryRepository->enqueue($legacyInstallation,$cancelMemory['memory_id'],1);
+$check($resumeJob['job_id']!==$cancelJob['job_id'],'re-enabling summaries could not enqueue previously skipped work');
+$resumeStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-resumed',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($resumeStats['succeeded']===1,'re-enabled model memory did not complete');
+$attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn();
+$editMemory=$middleRows[2];
+$editJob=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],1);
+$products->updateMemory($editMemory['memory_id'],'Manually corrected memory.',['corrected'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
+$editStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-edited',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($editStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount
+    &&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.',
+    'stale memory job called a provider or overwrote an edit');
+$liveMemory=$middleRows[3];
+$summaryRepository->enqueue($legacyInstallation,$liveMemory['memory_id'],1);
+$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function __construct(private $service,private string $policy,private array $content){}
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        $cancellation->throwIfCancellationRequested();$this->content['enabled']=false;
+        $this->service->revise('memory_policy',$this->policy,$this->content,'disabled during provider execution');
+        return ['summary'=>'This late output must be discarded.'];
+    }
+};
+$disablingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$disablingProvider)]);
+$duringStats=(new Worker($jobs,$disablingRegistry,'model-memory-disabled-during-call',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($duringStats['succeeded']===1
+    &&(int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$liveMemory['memory_id']}'")->fetchColumn()===0
+    &&$products->memory($liveMemory['memory_id'])['content']===$liveMemory['content'],
+    'disabling model memory during the call did not discard its output');
+$db->beginTransaction();$db->exec('SAVEPOINT model_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/062_model_memory_summaries.down.sql'));
+    throw new RuntimeException('model summary downgrade discarded data');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove model memory support'),'unexpected model downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT model_downgrade');}
+$check((int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===2,'guarded downgrade changed model summaries');
+$db->rollBack();
+$summaryPolicyContent['enabled']=true;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'enable future consolidation');
+foreach(range(17,20)as$ordinal)$derivePlayedMemory($ordinal);
+$beforeEnqueueFailure=(int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid'")->fetchColumn();
+$newRecent=$db->query("SELECT memory_id FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='recent' ORDER BY occurred_at DESC LIMIT 1")->fetchColumn();
+$db->exec("CREATE FUNCTION pg_temp.reject_model_enqueue() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''model enqueue test failure''; END'");
+$db->exec("CREATE TRIGGER reject_model_enqueue BEFORE INSERT ON durable_jobs FOR EACH ROW WHEN (NEW.job_type='memory.summarize') EXECUTE FUNCTION pg_temp.reject_model_enqueue()");
+try{(new \ALMSIVIserver\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
+    throw new RuntimeException('model enqueue failure was ignored');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'model enqueue test failure'),'unexpected model enqueue failure');}
+$db->exec('DROP TRIGGER reject_model_enqueue ON durable_jobs');
+$check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='mid'")->fetchColumn()===$beforeEnqueueFailure,
+    'failed model enqueue left a consolidated record that could not be retried');
+$autoConsolidation=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-consolidation',5,1,20,0,10,['memory.consolidate'],static fn(int $microseconds):mixed=>null))->run();
+$autoSummary=(new Worker($jobs,$firstPartyRegistry,'model-memory-auto-summary',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($autoConsolidation['dead']===0&&$autoSummary['succeeded']===1
+    &&(int)$db->query('SELECT count(*) FROM memory_model_summaries')->fetchColumn()===3,
+    'enabled future consolidation did not produce its model summary');
+try{$foreignPolicy=$summaryPolicyContent;$foreignPolicy['provider_configuration_id']=$providerConfig['configuration_id'];
+    $service->revise('memory_policy',$summaryPolicy['configuration_id'],$foreignPolicy,'reject foreign connector');
+    throw new RuntimeException('foreign memory connector accepted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='memory_provider_installation_mismatch','unexpected foreign memory connector error');}
+$summaryBackup=['installation_id'=>$legacyInstallation,'data'=>$products->configurationBackupState($legacyInstallation)];
+foreach($summaryBackup['data']['configurations']as&$configuration)if($configuration['kind']==='memory_policy')
+    $configuration['content']['provider_configuration_id']=$providerConfig['configuration_id'];
+unset($configuration);
+$policyBeforeRestore=$summaryRepository->policy($legacyInstallation);
+try{$products->restoreConfigurationBackup($summaryBackup,$clock->iso());throw new RuntimeException('foreign connector restored into memory policy');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='memory_provider_installation_mismatch','unexpected memory backup restore error');}
+$check($summaryRepository->policy($legacyInstallation)===$policyBeforeRestore,'rejected memory backup changed policy history');
+try{$service->deleteRevisioned('provider',$summaryProvider['configuration_id']);throw new RuntimeException('configured memory provider deleted');}
+catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected memory provider deletion error');}
+$failedSummary=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],2);
+$db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$failedSummary['job_id']]);
+$invalidSummaryProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
+};
+$invalidSummaryRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$invalidSummaryProvider)]);
+$failureStats=(new Worker($jobs,$invalidSummaryRegistry,'model-memory-invalid-output',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.'
+    &&(int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$editMemory['memory_id']}'")->fetchColumn()===0,
+    'invalid model output replaced the deterministic fallback');
+$leaseSummary=$summaryRepository->enqueue($legacyInstallation,$longRows[0]['memory_id'],1);
+$db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$leaseSummary['job_id']]);
+$leaseProvider=new class($db,$leaseSummary['job_id']) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+    public function __construct(private PDO $db,private string $job){}
+    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        $cancellation->throwIfCancellationRequested();
+        $this->db->prepare("UPDATE durable_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=:id")->execute(['id'=>$this->job]);
+        return ['summary'=>'Expired lease output'];
+    }
+};
+$leaseRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+    new ProviderAttemptRepository($db),[],$leaseProvider)]);
+(new Worker($jobs,$leaseRegistry,'model-memory-lease-lost',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$longRows[0]['memory_id']}'")->fetchColumn()===0,
+    'expired model worker persisted a late summary');
+(new Worker($jobs,$firstPartyRegistry,'model-memory-expired-cleanup',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
+$summaryPolicyContent['enabled']=false;
+$service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'leave model fixture disabled');
+
+$embeddingRepository=new \ALMSIVIserver\Infrastructure\MemoryEmbeddingRepository($db);
+$embeddingPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
+$embeddingPolicy=$service->createRevisioned('memory_embedding_policy',['installation_id'=>$legacyInstallation,
+    'name'=>'Semantic memory retrieval','content'=>$embeddingPolicyContent]);
+$check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed'")->fetchColumn()===0,
+    'saving semantic memory policy queued historical provider work');
+$embeddingJob=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$embeddingReplay=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
+$check(($embeddingJob['created']??false)===true&&($embeddingReplay['created']??true)===false
+    &&$embeddingJob['job_id']===$embeddingReplay['job_id'],'semantic memory enqueue was not idempotent');
+$embeddingProvider=new class implements \ALMSIVIserver\Application\EmbeddingProvider {
+    public int $calls=0;
+    public function embed(string $text,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+        ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if($text==='')throw new RuntimeException('missing embedding input');
+        return[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
+    }
+    public function model():string{return'test-minime-v1';}
+};
+$embeddingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemoryEmbedJobHandler($embeddingRepository,
+    new ProviderAttemptRepository($db),$embeddingProvider)]);
+$embeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory',5,1,1,0,10,['memory.embed'],
+    static fn(int $microseconds):mixed=>null))->run();
+$storedEmbedding=$db->query("SELECT dimensions,embedding,input_sha256,model FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}'")->fetch();
+$check($embeddingStats['succeeded']===1&&$embeddingProvider->calls===1&&(int)$storedEmbedding['dimensions']===8
+    &&json_decode((string)$storedEmbedding['embedding'],true,16,JSON_THROW_ON_ERROR)===[1,0,0,0,0,0,0,0]
+    &&$storedEmbedding['input_sha256']===hash('sha256',$summaryMemory['content'])
+    &&$storedEmbedding['model']==='test-minime-v1'
+    &&$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
+    'semantic memory worker did not persist one frozen revision projection');
+$products->updateMemory($summaryMemory['memory_id'],'Semantic revision changed.',['semantic','revision'],
+    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
+$queuedRevision=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed' AND state='queued' "
+    ."AND payload->>'memory_id'='{$summaryMemory['memory_id']}' AND payload->>'memory_revision'='2'")->fetchColumn();
+$embeddingPolicyContent['enabled']=false;
+$service->revise('memory_embedding_policy',$embeddingPolicy['configuration_id'],$embeddingPolicyContent,'disable semantic memory');
+$attemptsBeforeDisabled=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='embed_memory'")->fetchColumn();
+$disabledEmbeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory-disabled',5,1,1,0,10,['memory.embed'],
+    static fn(int $microseconds):mixed=>null))->run();
+$check($queuedRevision===1&&$disabledEmbeddingStats['succeeded']===1&&$embeddingProvider->calls===1
+    &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='embed_memory'")->fetchColumn()===$attemptsBeforeDisabled
+    &&(int)$db->query("SELECT count(*) FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}' AND memory_revision=2")->fetchColumn()===0,
+    'disabling semantic memory did not cancel queued provider work or preserve the deterministic fallback');
+$db->beginTransaction();$db->exec('SAVEPOINT semantic_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/069_semantic_memory_embeddings.down.sql'));
+    throw new RuntimeException('semantic memory downgrade discarded data');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove semantic memory support'),'unexpected semantic downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT semantic_downgrade');}
+$check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()===1,'guarded semantic downgrade changed projections');
+$db->rollBack();
+
+$translationPolicy=$service->createRevisioned('translation_policy',['installation_id'=>$legacyInstallation,
+    'name'=>'NPC Output Translation','content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()]);
+$check(($translationPolicy['current_revision']??null)===1
+    &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
+    'revisioned translation policy was not persisted as one installation-scoped document');
+$db->beginTransaction();$db->exec('SAVEPOINT translation_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/071_translation_policy.down.sql'));
+    throw new RuntimeException('translation downgrade discarded policy history');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove translation support'),'unexpected translation downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT translation_downgrade');}
+$check($products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
+    'guarded translation downgrade changed saved policy');
+$db->rollBack();
+
 $failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();
 $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES(:turn,:request,:message,:session,1,'text','en','failed memory source','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")
     ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);
@@ -1049,7 +1506,27 @@ $traceTurn='40000000-0000-4000-8000-000000000001';$continuationTurn='40000000-00
 foreach([[$traceTurn,'40000000-0000-4000-8000-000000000011','40000000-0000-4000-8000-000000000021'],[$continuationTurn,'40000000-0000-4000-8000-000000000012','40000000-0000-4000-8000-000000000022']] as [$turnId,$requestId,$messageId]){$db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','test','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:00Z')")->execute(['turn'=>$turnId,'request'=>$requestId,'message'=>$messageId,'session'=>$legacySession]);}
 $traceInput=['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough,'session_id'=>$legacySession,'turn_id'=>$traceTurn,'request_id'=>'40000000-0000-4000-8000-000000000011'];
 $traceMeta=['prompt_configuration_id'=>$legacyProfile,'prompt_revision'=>1,'algorithm'=>'deterministic-prompt-v1','input_sha256'=>hash('sha256','secret prompt body'),'input_bytes'=>18,'truncated'=>false,'sources'=>[['ordinal'=>0,'source_kind'=>'profile','source_id'=>$legacyProfile,'included'=>true,'reason'=>'included','source_sha256'=>hash('sha256','profile body'),'included_bytes'=>12]]];
+$traceMeta['sources'][]=['ordinal'=>1,'source_kind'=>'memory','source_id'=>$derivedMemoryId,'included'=>false,
+    'reason'=>'covered_by_history','source_sha256'=>hash('sha256','covered memory'),'included_bytes'=>0];
+$traceMeta['sources'][]=['ordinal'=>2,'source_kind'=>'memory','source_id'=>$longRows[0]['memory_id'],'included'=>false,
+    'reason'=>'covered_by_memory','source_sha256'=>hash('sha256','covered summary'),'included_bytes'=>0];
+$traceMeta['sections']=[['section_order'=>7,'section_key'=>'memory_context','source_refs'=>[],
+    'inclusion_reason'=>'covered_by_history','source_occurred_at'=>null,'source_characters'=>0,'estimated_tokens'=>0,
+    'redacted_preview'=>'','source_sha256'=>hash('sha256','')]];
+$traceMeta['memory_retrieval']=['query'=>'fixture','result_ids'=>[],'scores'=>[],'algorithm'=>'fixture',
+    'created_at'=>$clock->iso(),'prompt_section'=>'memory_context',
+    'reasons'=>['_context'=>['selection'=>'exact-rendered-coverage-v1','coverage'=>['selected'=>0]]]];
 $traceId=$products->recordPromptTrace($traceInput,$traceMeta,$clock->iso());
+$check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason IN('covered_by_history','covered_by_memory') AND included=false")->fetchColumn()===2
+    &&$db->query("SELECT reasons->'_context'->>'selection' FROM retrieval_traces WHERE turn_id='{$traceTurn}' AND domain='memory'")->fetchColumn()==='exact-rendered-coverage-v1',
+    'coverage source reasons or retrieval metadata were not persisted');
+$db->beginTransaction();
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.down.sql'));
+$check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason='section_limit'")->fetchColumn()===2
+    &&$db->query("SELECT inclusion_reason FROM prompt_trace_sections WHERE prompt_trace_id='{$traceId}'")->fetchColumn()==='empty',
+    'coverage migration rollback lost audit rows or left incompatible reasons');
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.up.sql'));
+$db->rollBack();
 $storedTrace=$db->query("SELECT input_sha256,input_bytes FROM prompt_traces WHERE prompt_trace_id='{$traceId}'")->fetch();
 $check($storedTrace['input_sha256']===hash('sha256','secret prompt body') && (int)$storedTrace['input_bytes']===18, 'prompt trace metadata was not persisted');
 $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE table_name='prompt_traces' AND column_name IN ('prompt','content','payload')")->fetchColumn()===0, 'prompt trace schema can persist raw prompts');

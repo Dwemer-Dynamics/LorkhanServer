@@ -219,8 +219,10 @@ SQL);
     }
 
     /** Return one of the allowlisted bounded datasets used by embedded management pages. */
-    public function rows(string $view): array
+    public function rows(string $view,?string $relationshipInstallationId=null): array
     {
+        $relationshipScoped=in_array($view,['relationships','relationship_logs','relationship_profiles'],true)&&$relationshipInstallationId!==null;
+        $relationshipFilter=$relationshipScoped?' AND r.installation_id=:relationship_installation':'';
         $sql = match ($view) {
             'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN almsivi_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
             'request_logs' => "SELECT trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.truncated,"
@@ -228,7 +230,18 @@ SQL);
                 . "trace.input_sha256,trace.created_at FROM prompt_traces trace JOIN prompt_trace_sections section ON section.prompt_trace_id=trace.prompt_trace_id "
                 . "GROUP BY trace.prompt_trace_id ORDER BY trace.created_at DESC LIMIT 100",
             'responses' => "SELECT COALESCE(s.speaker,'Unknown') AS speaker,s.speech AS text,m.delivery_state,m.created_at AS emitted_at FROM public.speech s LEFT JOIN almsivi_internal.speech_metadata m ON m.rowid=s.rowid ORDER BY s.rowid DESC LIMIT 100",
+            'memory_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
+            'memory_embedding_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_embedding_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
             'memories' => "SELECT metadata.memory_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,metadata.tier,m.message AS content,"
+                . "generated.content AS summary_content,"
+                . "(source.derivation_key IS NOT NULL AND source.tier IN ('mid','long') AND source.deleted_at IS NULL "
+                . "AND (source.expires_at IS NULL OR source.expires_at>clock_timestamp()) "
+                . "AND source.provenance->>'source'='memory.consolidate' AND source.provenance->>'provider'='first-party' "
+                . "AND source.provenance->>'model'='deterministic-extractive-v1') AS summarizable,"
+                . "(SELECT r.content->'enabled'='true'::jsonb FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
+                . "WHERE c.installation_id=metadata.installation_id AND c.kind='memory_policy' AND c.deleted_at IS NULL) AS summary_policy_enabled,"
+                . "CASE WHEN EXISTS(SELECT 1 FROM memory_model_summaries s WHERE s.memory_id=source.memory_id AND s.memory_revision=source.current_revision) THEN 'summarized' "
+                . "WHEN EXISTS(SELECT 1 FROM durable_jobs j WHERE j.job_type='memory.summarize' AND j.state IN ('queued','leased') AND j.payload->>'memory_id'=source.memory_id::text AND j.payload->>'memory_revision'=source.current_revision::text) THEN 'summary queued' ELSE '' END AS summary_state,"
                 . "jsonb_build_object('speaker',m.speaker,'listener',m.listener,'event',m.event,'momentum',m.momentum) AS provenance,"
                 . "source.current_revision,source.source_event_id,CASE WHEN source.source_event_id IS NULL THEN 'authored' "
                 . "WHEN delivery.status='played' THEN 'played dialogue' ELSE COALESCE(event.event_kind,'derived') END AS eligibility,"
@@ -237,10 +250,30 @@ SQL);
                 . "to_timestamp(m.localts) AS occurred_at,source.updated_at FROM public.memory m "
                 . "JOIN almsivi_internal.memory_metadata metadata ON metadata.rowid=m.rowid "
                 . "LEFT JOIN almsivi_internal.memory_records source ON source.memory_id=metadata.memory_id "
+                . "LEFT JOIN almsivi_internal.memory_model_summaries generated ON generated.memory_id=source.memory_id AND generated.memory_revision=source.current_revision "
                 . "LEFT JOIN almsivi_internal.source_events event ON event.source_event_id=source.source_event_id "
                 . "LEFT JOIN almsivi_internal.dialogue_delivery_results delivery ON delivery.source_event_id=source.source_event_id "
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
-            'relationships', 'relationship_logs' => "SELECT COALESCE(source.relationship_id::text,metadata.source_profile_id::text||':'||rel.key) AS relationship_id,metadata.installation_id,metadata.source_profile_id AS profile_id,source.playthrough_id,COALESCE(source.actor_identity,jsonb_build_object('record_id',rel.key,'display_name',rel.value->>'name')) AS actor_identity,COALESCE(rel.value->>'name',rel.key) AS actor,rel.value->>'disposition' AS disposition,rel.value->>'affinity' AS affinity,COALESCE(rel.value->>'source',source.source_mode) AS source_mode,source.updated_at FROM public.core_npc_master npc JOIN almsivi_internal.npc_metadata metadata ON metadata.npc_id=npc.id CROSS JOIN LATERAL jsonb_each(COALESCE(npc.extended_data->'relationships','{}'::jsonb)) rel LEFT JOIN almsivi_internal.relationship_records source ON source.profile_id=metadata.source_profile_id AND source.deleted_at IS NULL AND lower(COALESCE(source.actor_identity->>'record_id',source.actor_identity->>'display_name',''))=lower(rel.key) ORDER BY source.updated_at DESC NULLS LAST,npc.id,rel.key LIMIT 100",
+            'relationships' => "SELECT r.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,r.actor_identity,"
+                . "COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown actor') AS actor,"
+                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.relationship_type,r.custom_info,r.source_mode,r.revision,r.updated_at, "
+                . "positive.delta AS strongest_positive_delta,positive.reason AS strongest_positive_reason,positive.created_at AS strongest_positive_at, "
+                . "negative.delta AS strongest_negative_delta,negative.reason AS strongest_negative_reason,negative.created_at AS strongest_negative_at "
+                . "FROM relationship_records r JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "
+                . "LEFT JOIN LATERAL (SELECT (a.after_value->>'affinity')::int-COALESCE((a.before_value->>'affinity')::int,0) AS delta,a.reason,a.created_at "
+                . "FROM relationship_audit a WHERE a.relationship_id=r.relationship_id AND a.mode='derived' AND jsonb_typeof(a.after_value->'affinity')='number' "
+                . "AND (a.after_value->>'affinity')::int-COALESCE((a.before_value->>'affinity')::int,0)>0 ORDER BY delta DESC,a.audit_sequence DESC LIMIT 1) positive ON true "
+                . "LEFT JOIN LATERAL (SELECT (a.after_value->>'affinity')::int-COALESCE((a.before_value->>'affinity')::int,0) AS delta,a.reason,a.created_at "
+                . "FROM relationship_audit a WHERE a.relationship_id=r.relationship_id AND a.mode='derived' AND jsonb_typeof(a.after_value->'affinity')='number' "
+                . "AND (a.after_value->>'affinity')::int-COALESCE((a.before_value->>'affinity')::int,0)<0 ORDER BY delta,a.audit_sequence DESC LIMIT 1) negative ON true "
+                . "WHERE r.deleted_at IS NULL".$relationshipFilter." ORDER BY r.updated_at DESC,r.relationship_id LIMIT 100",
+            'relationship_logs' => "SELECT a.audit_id,a.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,"
+                . "p.name AS owner,t.name AS playthrough,r.actor_identity,a.mode AS source_mode,a.before_value,a.after_value,a.reason,a.source_event_id,a.created_at "
+                . "FROM relationship_audit a JOIN relationship_records r ON r.relationship_id=a.relationship_id "
+                . "JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "
+                . "WHERE true".$relationshipFilter." ORDER BY a.created_at DESC,a.audit_sequence DESC LIMIT 100",
+            'relationship_profiles' => "SELECT r.profile_id,r.name,r.actor_identity FROM profiles r "
+                . "WHERE r.deleted_at IS NULL".$relationshipFilter." ORDER BY r.name,r.profile_id LIMIT 500",
             'narratives' => "SELECT metadata.narrative_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,d.tags AS kind,d.topic AS title,d.content,jsonb_build_object('location',d.location,'people',d.people,'tags',d.tags) AS provenance,to_timestamp(d.localts) AS created_at FROM public.diarylog d JOIN almsivi_internal.diarylog_metadata metadata ON metadata.rowid=d.rowid ORDER BY d.localts DESC,d.rowid DESC LIMIT 100",
             'knowledge', 'worldknowledge' => "SELECT document_id,installation_id,profile_id,playthrough_id,topic,title,aliases,left(content,4000) AS content,knowledge_class,left(topic_desc_basic,4000) AS topic_desc_basic,knowledge_class_basic,tags,category,provenance,created_at FROM knowledge_documents WHERE deleted_at IS NULL ORDER BY lower(topic),document_id LIMIT 100",
             'journal' => "SELECT metadata.installation_id,session.profile_id,metadata.playthrough_id,q.id_quest AS quest_id,COALESCE(NULLIF(q.briefing2,''),NULLIF(q.briefing,''),q.data) AS journal_entry,NULL::text AS game_day,NULL::text AS game_month,NULL::text AS day_of_month,to_timestamp(q.localts) AS last_synced_at FROM public.questlog q JOIN almsivi_internal.questlog_metadata metadata ON metadata.rowid=q.rowid LEFT JOIN almsivi_internal.sessions session ON session.session_id=metadata.session_id ORDER BY q.localts DESC,q.rowid DESC LIMIT 100",
@@ -268,7 +301,7 @@ SQL);
                 . "SELECT DISTINCT ON (a.installation_id,lower(a.actor->>'content_file'),lower(a.actor->>'record_id')) a.installation_id,a.actor->>'display_name' AS display_name,a.actor->>'record_id' AS record_id,a.actor->>'content_file' AS content_file,a.actor->'refnum' AS refnum,a.accepted_at AS last_seen_at,"
                 . "(SELECT p.profile_id FROM profiles p WHERE p.installation_id=a.installation_id AND p.deleted_at IS NULL AND lower(COALESCE(p.actor_identity->>'record_id',''))=lower(a.actor->>'record_id') AND lower(COALESCE(p.actor_identity->>'content_file',''))=lower(a.actor->>'content_file') ORDER BY p.created_at LIMIT 1) AS profile_id "
                 . "FROM actors a WHERE a.actor->>'kind'='npc' AND COALESCE(a.actor->>'record_id','')<>'' ORDER BY a.installation_id,lower(a.actor->>'content_file'),lower(a.actor->>'record_id'),a.accepted_at DESC LIMIT 100",
-            'llm' => "SELECT metadata.configuration_id,metadata.installation_id,connector.label AS name,metadata.configuration_revision AS current_revision,connector.metadata AS content,(SELECT count(*)::int FROM almsivi_internal.sessions session WHERE session.provider_configuration_id=metadata.configuration_id AND session.state='active') AS active_session_usage,((SELECT count(*) FROM public.core_profiles profile WHERE connector.id IN (profile.llm_primary_id,profile.llm_secondary_id,profile.llm_tertiary_id,profile.llm_quaternary_id,profile.llm_formatter_id,profile.llm_fallback_id) OR profile.metadata#>>'{routing,oghma_configuration_id}'=metadata.configuration_id::text)+(SELECT count(*) FROM public.core_npc_master npc WHERE metadata.configuration_id::text IN (npc.extended_data#>>'{almsivi_profile,routing,llm_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_fast_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_powerful_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_experimental_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_fallback_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,oghma_configuration_id}')))::int AS profile_usage,current_revision.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM almsivi_internal.configuration_revisions history WHERE history.configuration_id=metadata.configuration_id) AS revisions FROM public.core_llm_connector connector JOIN almsivi_internal.llm_connector_metadata metadata ON metadata.connector_id=connector.id LEFT JOIN almsivi_internal.configuration_revisions current_revision ON current_revision.configuration_id=metadata.configuration_id AND current_revision.revision=metadata.configuration_revision ORDER BY connector.label LIMIT 100",
+            'llm' => "SELECT metadata.configuration_id,metadata.installation_id,connector.label AS name,metadata.configuration_revision AS current_revision,connector.metadata AS content,(SELECT count(*)::int FROM almsivi_internal.sessions session WHERE session.provider_configuration_id=metadata.configuration_id AND session.state='active') AS active_session_usage,(SELECT count(*)::int FROM almsivi_internal.durable_jobs job WHERE job.job_type IN ('profile.generate','memory.summarize','relationship.evaluate','relationship.build','relationship.convert','narrative.generate') AND job.state IN ('queued','leased') AND job.payload->>'provider_configuration_id'=metadata.configuration_id::text) AS queued_job_usage,(SELECT count(*)::int FROM almsivi_internal.configuration_sets c JOIN almsivi_internal.configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=metadata.configuration_id::text) AS memory_policy_usage,((SELECT count(*) FROM public.core_profiles profile WHERE connector.id IN (profile.llm_primary_id,profile.llm_secondary_id,profile.llm_tertiary_id,profile.llm_quaternary_id,profile.llm_formatter_id,profile.llm_fallback_id) OR profile.metadata#>>'{routing,oghma_configuration_id}'=metadata.configuration_id::text OR profile.metadata#>>'{routing,profile_generation_configuration_id}'=metadata.configuration_id::text OR profile.metadata#>>'{routing,relationship_configuration_id}'=metadata.configuration_id::text OR profile.metadata#>>'{routing,diary_generation_configuration_id}'=metadata.configuration_id::text)+(SELECT count(*) FROM public.core_npc_master npc WHERE metadata.configuration_id::text IN (npc.extended_data#>>'{almsivi_profile,routing,llm_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_fast_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_powerful_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_experimental_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,llm_fallback_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,oghma_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,profile_generation_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,relationship_configuration_id}',npc.extended_data#>>'{almsivi_profile,routing,diary_generation_configuration_id}')))::int AS profile_usage,current_revision.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM almsivi_internal.configuration_revisions history WHERE history.configuration_id=metadata.configuration_id) AS revisions FROM public.core_llm_connector connector JOIN almsivi_internal.llm_connector_metadata metadata ON metadata.connector_id=connector.id LEFT JOIN almsivi_internal.configuration_revisions current_revision ON current_revision.configuration_id=metadata.configuration_id AND current_revision.revision=metadata.configuration_revision ORDER BY connector.label LIMIT 100",
             'tts' => "SELECT metadata.configuration_id,metadata.installation_id,connector.label AS name,metadata.configuration_revision AS current_revision,connector.metadata AS content,(selection.configuration_id IS NOT NULL) AS active,((SELECT count(*) FROM public.core_profiles profile WHERE profile.tts_connector_id=connector.id)+(SELECT count(*) FROM public.core_npc_master npc WHERE npc.extended_data#>>'{almsivi_profile,routing,tts_configuration_id}'=metadata.configuration_id::text))::int AS profile_usage,current_revision.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM almsivi_internal.configuration_revisions history WHERE history.configuration_id=metadata.configuration_id) AS revisions FROM public.core_tts_connector connector JOIN almsivi_internal.tts_connector_metadata metadata ON metadata.connector_id=connector.id LEFT JOIN almsivi_internal.configuration_revisions current_revision ON current_revision.configuration_id=metadata.configuration_id AND current_revision.revision=metadata.configuration_revision LEFT JOIN almsivi_internal.installation_provider_selections selection ON selection.configuration_id=metadata.configuration_id AND selection.installation_id=metadata.installation_id AND selection.provider_kind='tts_provider' ORDER BY active DESC,connector.label LIMIT 100",
             'voice_catalog' => "SELECT v.configuration_id,v.voice_id,v.display_name,v.language,v.provider_status,v.custom_voice,v.discovered_at,c.installation_id,c.name AS connector_name FROM speech_connector_voices v JOIN configuration_sets c ON c.configuration_id=v.configuration_id WHERE c.kind='tts_provider' AND c.deleted_at IS NULL ORDER BY c.name,v.display_name,v.voice_id LIMIT 1024",
             'stt' => "SELECT c.configuration_id,c.installation_id,c.name,c.current_revision,r.content,(s.configuration_id IS NOT NULL) AS active,r.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM configuration_revisions history WHERE history.configuration_id=c.configuration_id) AS revisions FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision LEFT JOIN installation_provider_selections s ON s.configuration_id=c.configuration_id AND s.installation_id=c.installation_id AND s.provider_kind='stt_provider' WHERE c.kind='stt_provider' AND c.deleted_at IS NULL ORDER BY active DESC,c.name LIMIT 100",
@@ -315,7 +348,13 @@ SQL);
         };
 
         if ($sql === []) return [];
-        return array_map(fn(array $row): array => $this->redactRow($row), $this->all($sql));
+        return array_map(function (array $row) use ($view): array {
+            // Strict LLM documents contain named key references, not secrets. A generic "token"
+            // redaction would blank numeric token limits and erase them on the next editor save.
+            if ($view === 'llm') $row['content'] = \ALMSIVIserver\Application\LlmConnector::validate(
+                json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
+            return $this->redactRow($row);
+        }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:[]));
     }
 
     /** Return one effective factory-or-custom biography template for on-demand details and editing. */
@@ -351,14 +390,16 @@ SQL);
         return $row === false ? null : $this->redactRow($row);
     }
 
-    private function all(string $sql): array
+    private function all(string $sql,array $parameters=[]): array
     {
+        if($parameters!==[]){$statement=$this->db->prepare($sql);$statement->execute($parameters);return $statement->fetchAll();}
         return $this->db->query($sql)->fetchAll();
     }
 
     private function redactRow(array $row): array
     {
         foreach ($row as $key => $value) {
+            if ($key === 'custom_info') continue; // Player text is not a JSON document, even when it looks like one.
             if (!is_string($value) || ($value === '' || ($value[0] !== '{' && $value[0] !== '['))) continue;
             try {
                 $decoded = json_decode($value, true, 32, JSON_THROW_ON_ERROR);

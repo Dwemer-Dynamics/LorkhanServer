@@ -6,12 +6,15 @@ require dirname(__DIR__) . '/src/Autoload.php';
 require __DIR__ . '/Support/StateStore.php';
 
 use ALMSIVIserver\Config\Settings;
+use ALMSIVIserver\Application\ActionPolicyValidator;
 use ALMSIVIserver\Application\ConnectorCatalog;
 use ALMSIVIserver\Application\CredentialStore;
+use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\CloudSpeechConnectorProvider;
 use ALMSIVIserver\Application\CloudSpeechToTextConnectorProvider;
 use ALMSIVIserver\Application\CanonicalResponseNormalizer;
 use ALMSIVIserver\Application\MockSpeechProvider;
+use ALMSIVIserver\Application\PocketTtsSpeechProvider;
 use ALMSIVIserver\Application\LocalSpeechConnectorProvider;
 use ALMSIVIserver\Application\MockOghmaTopicExtractor;
 use ALMSIVIserver\Application\MorrowindGeographyCatalog;
@@ -22,10 +25,14 @@ use ALMSIVIserver\Application\StreamingDialogueText;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechProvider;
 use ALMSIVIserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use ALMSIVIserver\Application\PromptAssembler;
+use ALMSIVIserver\Application\PlayerMoodPolicy;
+use ALMSIVIserver\Application\MemoryPromptSelection;
 use ALMSIVIserver\Application\InlineNarrationRouter;
 use ALMSIVIserver\Application\DialoguePlanner;
+use ALMSIVIserver\Application\DeepLTranslationProvider;
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Application\ZonosGradioSpeechProvider;
 use ALMSIVIserver\Application\XvaSynthSpeechProvider;
 use ALMSIVIserver\Http\Response;
@@ -90,6 +97,154 @@ try {
 }
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', '') instanceof OpenAiCompatibleProvider,
     'OpenAI-compatible provider permits endpoints that do not require a key');
+$inheritedLlm=['driver'=>'configured','model'=>'existing-model'];
+$relationshipOutput=['disposition_delta'=>2,'affinity_delta'=>-1,'reason'=>'A witnessed disagreement.'];
+$check(\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput)===$relationshipOutput
+    &&!\ALMSIVIserver\Application\RelationshipEvaluationPolicy::eligible(0,'one-response')
+    &&\ALMSIVIserver\Application\RelationshipEvaluationPolicy::eligible(100,'one-response'),
+    'relationship output and automatic chance boundaries');
+foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reason"],['actor'=>'somebody else']]as$invalidChange){
+    try{\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
+    catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
+}
+$availableTypes=\ALMSIVIserver\Application\RelationshipType::available(['trusted_companion','romance']);
+$check(\ALMSIVIserver\Application\RelationshipType::manual(' Married ')==='romantic'
+    &&in_array('trusted_companion',$availableTypes,true)
+    &&\ALMSIVIserver\Application\RelationshipType::model('trusted_companion',$availableTypes,40,'Earned trust')==='trusted_companion'
+    &&\ALMSIVIserver\Application\RelationshipType::model('invented_by_model',$availableTypes,90,'Invented')===null
+    &&\ALMSIVIserver\Application\RelationshipType::model('romantic',$availableTypes,55,'Too soon')===null
+    &&\ALMSIVIserver\Application\RelationshipType::model('romantic',$availableTypes,56,'A defining confession')==='romantic'
+    &&\ALMSIVIserver\Application\RelationshipType::model('crush',$availableTypes,10,'Changed nuance','romantic')==='crush',
+    'relationship types canonicalize manual aliases and fence model choices');
+foreach([null,'two words','-enemy',str_repeat('x',51)]as$invalidType){
+    try{\ALMSIVIserver\Application\RelationshipType::manual($invalidType);$check(false,'invalid manual relationship type accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid manual relationship type rejected');}
+}
+$buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
+$check(\ALMSIVIserver\Application\RelationshipCustomInfo::validate('')===''
+    &&\ALMSIVIserver\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
+    'private relationship text is optional and Unicode bounded');
+foreach([null,[],"bad\0note",str_repeat('x',2001)] as $badNote){
+    try{\ALMSIVIserver\Application\RelationshipCustomInfo::validate($badNote);$check(false,'invalid custom info accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid custom info rejected');}
+}
+$legacyRelationshipIdentity=['record_id'=>'legacy_actor','display_name'=>'Legacy actor'];
+$check(\ALMSIVIserver\Application\RelationshipIdentity::validate($legacyRelationshipIdentity,true)===$legacyRelationshipIdentity,
+    'restore accepts a bounded legacy relationship identity');
+foreach([[$legacyRelationshipIdentity,false],[['kind'=>'invented','record_id'=>'bad'],true]]as[$badIdentity,$allowLegacy]){
+    try{\ALMSIVIserver\Application\RelationshipIdentity::validate($badIdentity,$allowLegacy);$check(false,'invalid relationship identity accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid relationship identity rejected');}
+}
+$check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
+    'history build accepts bounded absolute scores');
+$typedBuildRow=$buildRow+['relationship_type'=>'rival'];
+$check(\ALMSIVIserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$typedBuildRow]])===['relationships'=>[$typedBuildRow]]
+    &&\ALMSIVIserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput+['relationship_type'=>'suspicious'])
+        ===$relationshipOutput+['relationship_type'=>'suspicious'],
+    'relationship workers accept one optional bounded type proposal');
+foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],
+    ['relationships'=>[array_replace($buildRow,['target_key'=>'Fargoth'])]],['relationships'=>[],'action'=>'follow']] as $invalidBuild){
+    try{\ALMSIVIserver\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}
+    catch(InvalidArgumentException){$check(true,'unsafe history build rejected');}
+}
+$conversionMock=(new \ALMSIVIserver\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'relationship_text_conversion'],new \ALMSIVIserver\Application\NeverCancelledToken());
+$check($conversionMock===['relationships'=>[]]
+    &&in_array('relationship.convert',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'relationship text conversion is not registered as a bounded first-party job');
+$diaryDefaults=\ALMSIVIserver\Application\DiaryGenerationPolicy::defaults();
+$diaryOverrides=['enabled'=>true,'include_in_context'=>false,'context_turn_limit'=>12,'prompt'=>'Remember only what was witnessed.'];
+$diaryMock=(new \ALMSIVIserver\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
+$check($diaryDefaults['enabled']===false&&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
+    &&\ALMSIVIserver\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
+    &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
+    &&in_array('narrative.generate',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'manual diary generation is opt-in, bounded, deterministic under the mock provider, and registered as durable work');
+foreach([
+    ['enabled'=>'true'],['include_in_context'=>1],['context_turn_limit'=>0],['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
+]as$invalidDiary){
+    try{\ALMSIVIserver\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid diary settings rejected');}
+}
+foreach([
+    ['title'=>'','content'=>'entry'],['title'=>'entry','content'=>''],['title'=>str_repeat('x',257),'content'=>'entry'],
+    ['title'=>'entry','content'=>'entry','action'=>'wait'],
+]as$invalidDiaryOutput){
+    try{\ALMSIVIserver\Application\DiaryGenerationPolicy::output($invalidDiaryOutput);$check(false,'invalid diary provider output accepted');}
+    catch(RuntimeException){$check(true,'invalid diary provider output rejected');}
+}
+$memoryPolicy=['schema'=>'almsivi.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+$check(\ALMSIVIserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
+    'model memory defaults can stay off without a provider');
+foreach([array_replace($memoryPolicy,['enabled'=>true]),array_replace($memoryPolicy,['enabled'=>'true']),
+    array_replace($memoryPolicy,['provider_configuration_id'=>'not-a-uuid'])]as$invalidPolicy){
+    try{\ALMSIVIserver\Application\MemorySummaryPolicy::validate($invalidPolicy);$check(false,'invalid model memory policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid model memory policy rejected');}
+}
+$embeddingPolicy=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::defaults();
+$loopbackEmbeddingPolicy=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+    'endpoint'=>'http://127.0.0.1:8085/','timeout_ms'=>1500];
+$check(\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($embeddingPolicy)===$embeddingPolicy
+    &&\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($loopbackEmbeddingPolicy)['endpoint']==='http://127.0.0.1:8085'
+    &&in_array('memory.embed',\ALMSIVIserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    'semantic memory is opt-in, accepts loopback MiniMe, and registers bounded durable work');
+foreach([
+    array_replace($embeddingPolicy,['enabled'=>true]),
+    array_replace($embeddingPolicy,['endpoint'=>'http://192.168.1.5:8085']),
+    array_replace($embeddingPolicy,['endpoint'=>'https://user:pass@example.com']),
+    array_replace($embeddingPolicy,['timeout_ms'=>5001]),
+]as$invalidEmbeddingPolicy){
+    try{\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($invalidEmbeddingPolicy);
+        $check(false,'invalid semantic memory policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid semantic memory policy rejected');}
+}
+$semanticScore=\ALMSIVIserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0]);
+$fallbackScore=\ALMSIVIserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+    [1,0,0,0,0,0,0,0],[1,0]);
+$check($semanticScore===['score'=>1.0,'lexical_score'=>1.0,'semantic_score'=>1.0,'source'=>'minime']
+    &&$fallbackScore['source']==='deterministic-fallback'
+    &&$fallbackScore['score']===\ALMSIVIserver\Application\DeterministicRetrieval::score('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0]),
+    'semantic recall uses cosine only for matching vectors and preserves exact deterministic fallback');
+foreach([['summary'=>''],['summary'=>str_repeat('古',1400)],['summary'=>"bad\0text"],['summary'=>'fact','action'=>'follow']]as$invalidSummary){
+    try{\ALMSIVIserver\Application\MemorySummaryPolicy::summary($invalidSummary);$check(false,'invalid model summary accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid model summary rejected');}
+}
+$check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
+    &&LlmConnector::requestOptions([],0.7,false)===['temperature'=>0.7,'response_format'=>['type'=>'json_object']],
+    'legacy LLM slots retain their content and request defaults without materialized overrides');
+$directLlm=['driver'=>'openai-compatible','model'=>'local-model','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions',
+    'options'=>['temperature'=>0,'top_p'=>0,'stream'=>false,'json_mode'=>false,'disable_reasoning'=>false,'reasoning_model'=>true]];
+$validatedLlm=LlmConnector::validate($directLlm);
+$check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
+    &&$validatedLlm['options']['reasoning_model']===true
+    &&LlmConnector::requestOptions($validatedLlm['options'],null,true)===['temperature'=>0,'top_p'=>0]
+    &&LlmConnector::requestOptions([],null,false)===['response_format'=>['type'=>'json_object']],
+    'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
+$directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
+$check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
+    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleOghmaTopicExtractor
+    &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \ALMSIVIserver\Application\OpenAiCompatibleProfileGenerationProvider,
+    'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
+$pinned=\ALMSIVIserver\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
+$check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
+    'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');
+foreach(['127.0.0.1','[::1]','[::ffff:127.0.0.1]','[::ffff:192.168.1.1]']as$privateHost){
+    try{\ALMSIVIserver\Security\OutboundUrlPolicy::validate('https://'.$privateHost.'/v1/chat/completions',[$privateHost]);$check(false,'private HTTPS provider rejected');}
+    catch(InvalidArgumentException){$check(true,'private HTTPS provider rejected');}
+}
+foreach([
+    ['endpoint'=>'http://192.168.1.4/v1/chat/completions'],
+    ['endpoint'=>'https://api.openai.com/v1/chat/completions?api_key=not-a-real-key'],
+    ['endpoint'=>'https://user:password@api.openai.com/v1/chat/completions'],
+    ['credential'=>'ALMSIVI_PAIRING_TOKEN_HASH'],
+    ['options'=>['temperature'=>'0']],['options'=>['temperature'=>INF]],['options'=>['stream'=>0]],
+    ['options'=>['max_tokens'=>10,'max_completion_tokens'=>10]],['options'=>['messages'=>[]]],
+]as$invalidLlm){
+    try{LlmConnector::validate(array_replace($directLlm,$invalidLlm));$check(false,'unsafe or untyped LLM connector rejected');}
+    catch(InvalidArgumentException){$check(true,'unsafe or untyped LLM connector rejected');}
+}
 $streamText=new StreamingDialogueText();$streamChunks=[];
 foreach(['{"utterances":[{"text":"Hello ','there. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
     foreach($streamText->push($chunk,$index===2) as $delta)$streamChunks[]=$delta;
@@ -192,6 +347,37 @@ $secondaryTarget['display_name']='Mudcrab';$secondaryTarget['kind']='creature';$
 $directActionTurn['payload']['action_request']=['name'=>'combat.start','tier'=>2,'parameters'=>[],'target'=>$secondaryTarget];
 $validator->validate($directActionTurn,'almsivi.turn.v1');
 $check(true,'typed player action request validates inside turn envelope');
+$moodTurn=$directActionTurn;$moodTurn['payload']['input']['mood']=['kind'=>'playful'];
+$validator->validate($moodTurn,'almsivi.turn.v1');
+$customMoodTurn=$directActionTurn;$customMoodTurn['payload']['input']['mood']=['kind'=>'custom','custom'=>'with quiet resolve'];
+$validator->validate($customMoodTurn,'almsivi.turn.v1');
+$check(PlayerMoodPolicy::decorate('Come here',$moodTurn['payload']['input']['mood'])
+    ==='Come here (speaks in a playful tone.)'
+    &&PlayerMoodPolicy::decorate('Come here',$customMoodTurn['payload']['input']['mood'])
+    ==='Come here (speaks with quiet resolve.)','typed player moods resolve to bounded prompt cues');
+$editableMoodPrompts=PlayerMoodPolicy::defaultTemplates();
+$editableMoodPrompts['playful']='({PLAYER_NAME} sounds {MOOD}.)';
+$editableMoodPrompts['custom']='({PLAYER_NAME} speaks {CUSTOM_MOOD}.)';
+$check(PlayerMoodPolicy::cue(['kind'=>'playful'],$editableMoodPrompts,'RANGROO')==='(RANGROO sounds playful.)'
+    &&PlayerMoodPolicy::cue(['kind'=>'custom','custom'=>'with quiet resolve'],$editableMoodPrompts,'RANGROO')
+        ==='(RANGROO speaks with quiet resolve.)',
+    'revision-owned player mood prompts resolve only documented placeholders');
+foreach([array_merge($editableMoodPrompts,['invented'=>'unsafe']),array_merge($editableMoodPrompts,['happy'=>"two\nlines"]),
+    array_merge($editableMoodPrompts,['happy'=>'{UNKNOWN}'])]as$invalidMoodPrompts){
+    try{PlayerMoodPolicy::validateTemplates($invalidMoodPrompts);$check(false,'invalid player mood prompts rejected');}
+    catch(InvalidArgumentException $exception){$check(str_starts_with($exception->getMessage(),'invalid_player_mood_prompt'),'invalid player mood prompts rejected');}
+}
+foreach ([
+    ['kind'=>'unknown'],
+    ['kind'=>'happy','custom'=>'extra'],
+    ['kind'=>'custom'],
+    ['kind'=>'custom','custom'=>"two\nlines"],
+    ['kind'=>'custom','custom'=>str_repeat('x',81)],
+] as $invalidMood) {
+    try{$invalidMoodTurn=$directActionTurn;$invalidMoodTurn['payload']['input']['mood']=$invalidMood;
+        $validator->validate($invalidMoodTurn,'almsivi.turn.v1');$check(false,'invalid player mood rejected');}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','invalid player mood rejected');}
+}
 try{
     $invalidDirectAction=$directActionTurn;$invalidDirectAction['payload']['action_request']['name']='../execute';
     $validator->validate($invalidDirectAction,'almsivi.turn.v1');
@@ -229,6 +415,14 @@ $check(str_contains($assembled['provider_input']['_assembled_prompt'],'<player_c
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
     'server-owned player profile is included in turn context with an explicit field allowlist');
+$restrictedPlayerTurn=$promptTurn;$restrictedPlayerTurn['_player_profile']['content']['biography_known_by_all']=false;
+$restrictedPlayerPrompt=$assembler->assemble($restrictedPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($restrictedPlayerPrompt,'Freed from the Imperial prison.')&&str_contains($restrictedPlayerPrompt,'Curious'),
+    'restricted player biography is hidden from NPC prompts without hiding the remaining player profile');
+$narratorPlayerTurn=$restrictedPlayerTurn;$narratorPlayerTurn['payload']['target']['kind']='narrator';
+$narratorPlayerPrompt=$assembler->assemble($narratorPlayerTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($narratorPlayerPrompt,'Freed from the Imperial prison.'),
+    'restricted player biography remains available to the Narrator');
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'<record_descriptions>')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'A short iron blade.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
@@ -238,6 +432,15 @@ $check(str_contains((string)$systemMessage['content'],'Curious &amp; wary &lt;Bo
     &&!str_contains((string)$systemMessage['content'],'<name>Nerevarine</name>')
     &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
     'XML escaping, live player identity, and disabled narrator filtering are stable');
+$moodPromptTurn=$promptTurn;$moodPromptTurn['payload']['input']['mood']=['kind'=>'playful'];
+$moodPromptSelection=$promptSelection;$moodPromptSelection['prompt']['content']['player_mood_prompts']=$editableMoodPrompts;
+$moodAssembled=(new PromptAssembler(4096,1024))->assemble($moodPromptTurn,$moodPromptSelection);
+$moodPrompt=$moodAssembled['provider_input'];
+$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (RANGROO sounds playful.)')
+    &&($moodPrompt['payload']['input']['text']??null)==='Hello'
+    &&($moodPrompt['payload']['input']['mood']['kind']??null)==='playful'
+    &&($moodAssembled['trace']['player_mood_cue']??null)==='(RANGROO sounds playful.)',
+    'player mood cues decorate the model prompt, freeze the resolved cue, and keep authored input intact');
 $contextTurn=$promptTurn;
 $contextTurn['payload']['context']=[
     'world'=>['cell'=>'Seyda Neen','cell_identity'=>['kind'=>'exterior','grid_x'=>-2,'grid_y'=>-9],
@@ -281,6 +484,27 @@ $check(str_contains($knowledgePrompt,'<oghma_context><oghma contract="oghma-pari
     &&str_contains($knowledgePrompt,'<article topic="sixth_house" source="conversation" access="denied">')
     &&str_contains($knowledgePrompt,'<denial reason="knowledge_classes_not_authorized" />'),
     'authorized and denied Oghma knowledge use the parity XML prompt section');
+$markdownSelection=$knowledgeSelection;
+$markdownSelection['prompt']['content']['format']='markdown';
+$markdownAssembled=(new PromptAssembler(16384,1024))->assemble($promptTurn,$markdownSelection);
+$markdownPrompt=$markdownAssembled['provider_input']['_assembled_prompt'];
+$protectedOghma=(new PromptAssembler())->oghmaKnowledgeFragment($knowledgeSelection['knowledge'],'fallback_grounded');
+$check(str_contains($markdownPrompt,"# Roleplay Context\n\n## Output Contract\n\n<response_contract>")
+    &&str_contains($markdownPrompt,'## NPC Context')
+    &&str_contains($markdownPrompt,'- **Roleplay Instructions:** You are Fargoth')
+    &&str_contains($markdownPrompt,"## Oghma Context\n\n".$protectedOghma)
+    &&str_contains($markdownPrompt,'<action_contract>')
+    &&!str_contains($markdownPrompt,'<roleplay_context>')
+    &&!str_contains($markdownPrompt,'<npc_context>')
+    &&$markdownAssembled['trace']['algorithm']==='chim-compact-roleplay-prompt-v3-markdown'
+    &&$markdownAssembled['trace']['prompt_format']==='markdown'
+    &&array_column($markdownAssembled['trace']['sections'],'section_key')===array_column($assembled['trace']['sections'],'section_key'),
+    'prompt-owned Markdown changes ordinary presentation while preserving typed and Oghma XML contracts');
+try{
+    $invalidFormat=$promptSelection;$invalidFormat['prompt']['content']['format']='html';
+    (new PromptAssembler())->assemble($promptTurn,$invalidFormat);
+    $check(false,'assembler accepted an unknown prompt presentation format');
+}catch(InvalidArgumentException$error){$check($error->getMessage()==='invalid_prompt_format','assembler rejects unknown prompt presentation formats');}
 $providerMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$assembled['provider_input']]);
 $check(array_column($providerMessages,'role')===array_column($assembled['provider_input']['_messages'],'role')
@@ -290,7 +514,76 @@ $check(array_column($providerMessages,'role')===array_column($assembled['provide
     &&str_ends_with($providerMessages[0]['content'],'</roleplay_context>'),
     'OpenAI-compatible provider sends the frozen split messages with its action contract inside the XML root');
 $validateProviderResult=new ReflectionMethod($actionProvider,'validateResultShape');
+$policy = new ActionPolicyValidator();
+$actionDefinitions = [];
+foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $name=>$tier) {
+    $actionDefinitions[] = ['name'=>$name, 'tier'=>$tier, 'client_capability'=>'action.'.$name,
+        'parameter_schema'=>['type'=>'object', 'additionalProperties'=>false]];
+}
+$actionContext = ['definitions'=>$actionDefinitions,
+    'session'=>['capabilities'=>['action.inspect.report','action.ai.follow','action.ai.stop'],
+        'enabled_actions'=>array_column($actionDefinitions,'name')],
+    'policy'=>['content'=>['max_tier'=>1,'denied_actions'=>['ai.stop']]]];
+$allowedActions = $policy->allowedDefinitions($actionContext);
+$check(array_column($allowedActions,'name')===['inspect.report','ai.follow'],
+    'prompt actions intersect negotiated capabilities, enabled actions, and policy');
+$actionTurn = $promptTurn;
+$actionTurn['_allowed_action_definitions'] = $allowedActions;
+$actionTurn['_prompt'] = (new PromptAssembler())->assemble($actionTurn,$promptSelection)['provider_input'];
+$filteredMessages = (new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
+$check(str_contains($filteredMessages[0]['content'],'ai.follow parameters:')
+    &&!str_contains($filteredMessages[0]['content'],'ai.stop')
+    &&!str_contains($filteredMessages[0]['content'],'item.use')
+    &&str_contains($filteredMessages[0]['content'],'additionalProperties'),
+    'assembler and provider expose only filtered catalog parameter schemas');
+$actionContext['policy']['content']=['enabled'=>false];
+$check($policy->allowedDefinitions($actionContext)===[]
+    &&str_contains($policy->promptContract([]),'action must be null'),
+    'disabled policies and snapshots without server action authority fail closed');
+$actionTurn['payload']['ui_source']='almsivi_rechat';
+$rechatMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
+$check(str_contains($rechatMessages[0]['content'],'action must be null')
+    &&!str_contains($rechatMessages[0]['content'],'ai.follow parameters:'),
+    'rechat cannot inherit an action contract from a prior turn');
+$legacyMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
+    ['_prompt'=>$actionTurn['_prompt']]);
+$rawMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,[]);
+$check(!str_contains($legacyMessages[0]['content'],'ai.follow parameters:')
+    &&str_contains($legacyMessages[0]['content'],'action must be null')
+    &&str_contains($rawMessages[0]['content'],'action must be null'),
+    'legacy and raw provider fallbacks do not restore the old unrestricted action list');
 $validateProviderResult->invoke($actionProvider,['utterances'=>[['text'=>'Hello, outlander.']],'action'=>null]);
+$decodeProviderContent=new ReflectionMethod($actionProvider,'decodeStructuredContent');
+$wrappedProviderResult=$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"Wrapped hello."}],"action":{"name":"ai.follow","parameters":{"distance":192}}}]');
+$validateProviderResult->invoke($actionProvider,$wrappedProviderResult);
+$check($wrappedProviderResult['utterances'][0]['text']==='Wrapped hello.'&&($wrappedProviderResult['action']['name']??null)==='ai.follow',
+    'OpenAI-compatible provider unwraps one structured response object from a top-level array');
+$reasoningProvider=new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions',['api.openai.com'],
+    'gpt-test','test-key',30_000,false,['reasoning_model'=>true]);
+$decodeReasoningContent=new ReflectionMethod($reasoningProvider,'decodeStructuredContent');
+$reasoningResult=$decodeReasoningContent->invoke($reasoningProvider,
+    " \n<THINK>considering a response</think>\n{\"utterances\":[{\"text\":\"After thought\"}],\"action\":null}");
+$check($reasoningResult['utterances'][0]['text']==='After thought',
+    'opted-in provider removes one leading balanced reasoning block before strict JSON decoding');
+try{$decodeProviderContent->invoke($actionProvider,
+        '<think>not enabled</think>{"utterances":[{"text":"No"}],"action":null}');
+    $check(false,'provider cleaned a reasoning block without an explicit connector override');
+}catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+    'reasoning cleanup stays disabled when the connector override is absent');}
+foreach([
+    '<think>unfinished{"utterances":[{"text":"No"}],"action":null}',
+    'prose<think>hidden</think>{"utterances":[{"text":"No"}],"action":null}',
+    '<think>first</think><reasoning>second</reasoning>{"utterances":[{"text":"No"}],"action":null}',
+]as$invalidReasoning){
+    try{$decodeReasoningContent->invoke($reasoningProvider,$invalidReasoning);
+        $check(false,'provider accepted malformed or ambiguous reasoning output');
+    }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+        'provider rejects malformed, non-leading, and repeated reasoning blocks');}
+}
+try{$decodeProviderContent->invoke($actionProvider,'[{"utterances":[{"text":"First"}],"action":null},{"utterances":[{"text":"Second"}],"action":null}]');
+    $check(false,'provider accepted a multi-object top-level response array');
+}catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
+    'provider rejects ambiguous multi-object top-level response arrays');}
 try{$validateProviderResult->invoke($actionProvider,['utterances'=>['Hello, outlander.'],'action'=>null]);
     $check(false,'provider accepted string utterances outside the typed response contract');
 }catch(RuntimeException$error){$check($error->getMessage()==='provider_invalid_output',
@@ -337,6 +630,68 @@ $check(array_column($roleMessages,'role')===['system','user']
     &&!str_contains(json_encode($roleMessages,JSON_THROW_ON_ERROR),'smoke test'),
     'compact chat history is included once with explicit speakers and control noise filtered');
 $semanticHistory=$promptSelection;$semanticHistory['memory']=[];$semanticHistory['recent_action_results']=[];
+$coveredHistory=$roleHistory;
+$coveredHistory['memory']=[['memory_id'=>'heard-line','content'=>'Fargoth: I have not seen it.']];
+$coveredHistory['memory_retrieval']=['result_ids'=>['heard-line'],'scores'=>['heard-line'=>1]];
+$coveredPrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$coveredHistory);
+$coveredSources=array_column(array_filter($coveredPrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'),null,'source_id');
+$check(substr_count($coveredPrompt['provider_input']['_assembled_prompt'],'Fargoth: I have not seen it.')===1
+    &&$coveredSources['heard-line']['reason']==='covered_by_history'&&!$coveredSources['heard-line']['included']
+    &&$coveredPrompt['trace']['memory_retrieval']['result_ids']===[], 'fully retained history covers a memory without a false inclusion trace');
+$restoredHistory=$coveredHistory;
+$restoredHistory['history'][]=['history_id'=>'history-pressure','content'=>['kind'=>'speech','text'=>str_repeat('H',1000),'speaker'=>'Guard']];
+$restoredPrompt=(new PromptAssembler(3072,1024))->assemble($promptTurn,$restoredHistory);
+$check(str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<conversation_context></conversation_context>')
+    &&str_contains($restoredPrompt['provider_input']['_assembled_prompt'],'<memory_context><item>Fargoth: I have not seen it.</item>'),
+    'dropping history for the total prompt budget restores its otherwise-covered memory');
+$fallbackPrompt=(new PromptAssembler(512,256))->assemble($promptTurn,$coveredHistory);
+$check($fallbackPrompt['trace']['memory_retrieval']['result_ids']===[]
+    &&$fallbackPrompt['trace']['memory_retrieval']['coverage']['covered_by_history']===0,
+    'minimal prompt fallback cannot claim memory or history coverage');
+$pool=[];foreach(range(1,12)as$index)$pool[]=['id'=>'duplicate-'.$index,'text'=>'A remembered fact.'];
+$pool[]=['id'=>'uncovered','text'=>'A different fact.'];
+$dedup=MemoryPromptSelection::select($pool,'',1024);
+$check(array_keys($dedup['texts'])===['duplicate-1','uncovered']&&$dedup['counts']['covered_by_memory']===11,
+    'duplicate memories do not crowd out a lower-ranked uncovered record');
+$summary=MemoryPromptSelection::select([['id'=>'child','text'=>'A remembered fact.'],
+    ['id'=>'parent','text'=>"A remembered fact.\nA different fact."]],'',1024);
+$check(array_keys($summary['texts'])===['parent']&&$summary['reasons']['child']==='covered_by_memory',
+    'a fully retained summary can replace its exact child without losing facts');
+$partial=MemoryPromptSelection::select([['id'=>'partial','text'=>"A remembered fact.\nA different fact."],
+    ['id'=>'missing','text'=>'A different fact.']],'A remembered fact.',24);
+$check(isset($partial['texts']['partial'],$partial['texts']['missing'])&&$partial['reasons']['missing']==='included',
+    'partial history overlap and a truncated summary never suppress an uncovered fact');
+$smallSummary=MemoryPromptSelection::select([['id'=>'child','text'=>'A remembered fact.'],
+    ['id'=>'parent','text'=>"A different fact.\nA remembered fact."]],'',1024,45);
+$check(isset($smallSummary['texts']['child']), 'a summary cut by the section budget cannot replace a child it no longer covers');
+$escapedMemory=MemoryPromptSelection::select([['id'=>'escaped','text'=>str_repeat('é<&',6000)]],'',16384);
+$check(strlen($escapedMemory['xml'])<=16384&&mb_check_encoding($escapedMemory['xml'],'UTF-8')
+    &&$escapedMemory['reasons']['escaped']==='byte_limit'&&!str_contains($escapedMemory['xml'],'é<&'),
+    'memory enforces the actual escaped XML section budget and retains valid UTF-8');
+$candidateSelection=$roleHistory;$candidateSelection['history']=[];$candidateSelection['memory_candidates']=[];
+foreach($pool as$rank=>$item)$candidateSelection['memory_candidates'][]=['memory_id'=>$item['id'],'content'=>$item['text'],'_prompt_score'=>1-$rank/100];
+$candidateSelection['memory']=array_slice($candidateSelection['memory_candidates'],0,10);
+$candidateSelection['memory_retrieval']=['result_ids'=>[],'scores'=>[]];
+$candidatePrompt=(new PromptAssembler(8192,1024))->assemble($promptTurn,$candidateSelection);
+$candidateTrace=array_values(array_filter($candidatePrompt['trace']['sources'],static fn(array $row):bool=>$row['source_kind']==='memory'));
+$check($candidatePrompt['trace']['memory_retrieval']['result_ids']===['duplicate-1','uncovered']
+    &&count($candidateTrace)===11&&$candidateTrace[10]['source_id']==='uncovered'&&$candidateTrace[10]['included'],
+    'candidate refill audits actual survivors beyond the initial top ten with bounded trace rows');
+$extendedHistory=$roleHistory;$extendedHistory['history']=[];
+foreach(range(1,45)as$index)$extendedHistory['history'][]=['id'=>'history-limit-'.$index,
+    'content'=>['kind'=>'speech','text'=>'Distinct history line '.$index,'speaker'=>'Fargoth',
+        'speaker_identity'=>$promptTurn['payload']['target']]];
+$extendedPrompt=(new PromptAssembler(16384,1024))->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
+$check(substr_count($extendedPrompt,'<message>')===45&&str_contains($extendedPrompt,'Distinct history line 45'),
+    'profile-selected history above 32 messages was silently capped by the assembler');
+foreach($extendedHistory['history']as&$entry)$entry['content']['text'].=' '.str_repeat('&',300);
+unset($entry);
+$boundedPrompt=(new PromptAssembler())->assemble($promptTurn,$extendedHistory)['provider_input']['_assembled_prompt'];
+preg_match('#<conversation_context>(.*?)</conversation_context>#s',$boundedPrompt,$boundedHistory);
+$check(strlen($boundedHistory[1]??'')<=32768
+    &&str_contains($boundedHistory[1]??'','Distinct history line 45')
+    &&!str_contains($boundedHistory[1]??'','Distinct history line 1 '),
+    'expanded history must keep the newest lines within the escaped XML byte budget');
 $semanticHistory['history']=[
     ['history_id'=>'location-event','content'=>['kind'=>'event','type'=>'location','details'=>['location'=>'Seyda Neen']]],
     ['history_id'=>'weather-event','content'=>['kind'=>'event','type'=>'weather','details'=>['weather'=>'Cloudy']]],
@@ -379,6 +734,14 @@ $check($canonicalResult['request_id']===$canonicalTurn['request_id']&&$canonical
     &&$canonicalResult['lines'][0]['text']==='You found my engraved ring—thank you!'
     &&$canonicalResult['lines'][1]['command_args']===['distance=192'],
     'provider result normalizes once into ordered UTF-8 response lines with full correlation');
+$translatedCanonical=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,['utterances'=>[[
+    'text'=>'Original history','_history_text'=>'Translated history','_subtitle'=>'Translated subtitle',
+    '_tts_text'=>'Translated speech']]]);
+$validator->validate($translatedCanonical,'almsivi.response.v1');
+$check($translatedCanonical['lines'][0]['text']==='Translated history'
+    &&$translatedCanonical['lines'][0]['subtitle']==='Translated subtitle'
+    &&$translatedCanonical['lines'][0]['tts_text']==='Translated speech',
+    'canonical dialogue preserves independent history, subtitle, and TTS text');
 $failedCanonical=(new CanonicalResponseNormalizer())->failure($canonicalTurn,'provider_unavailable');
 $validator->validate($failedCanonical,'almsivi.response.v1');
 $check($failedCanonical['ok']===false&&$failedCanonical['lines']===[]
@@ -397,6 +760,23 @@ $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter
     ['utterances'=>[['text'=>'*A distant silt strider calls.* Hello.']],'action'=>null]));
 $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===true,
     'text-only narration remains visible without synthesizing narrator audio');
+$narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Disabled';
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['utterances'=>[['text'=>'*Fargoth waves.* Welcome. *He smiles.*'],['text'=>'**He nods.**']],'action'=>null]));
+$check($planned[0]['text']==='Welcome.'&&$planned[0]['speech_enabled']===true
+    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===false,
+    'disabled narration removes stage directions from mixed speech and keeps pure emotes text-only');
+$narrationTurn['_narrator_profile']['content']['enabled']=false;
+$narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Narrator';
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['text'=>'*The wind rises.* Stay safe.','action'=>null]));
+$check(count($planned)===1&&$planned[0]['speaker']['kind']==='npc'&&$planned[0]['text']==='Stay safe.',
+    'disabled narrator profile cannot route stage directions into NPC speech through the text fallback');
+unset($narrationTurn['_narrator_profile']);
+$planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
+    ['utterances'=>[['text'=>'*He bows.* Greetings.'],['text'=>'Plain speech.']],'action'=>null]));
+$check(array_column($planned,'text')===['Greetings.','Plain speech.'],
+    'missing narrator profile strips stage directions without changing plain speech');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
 $check(count($ttsCatalog)===22 && count($sttCatalog)===8
@@ -413,17 +793,79 @@ $check(ConnectorCatalog::defaults('tts_provider','pockettts')['endpoint']==='htt
     'connector catalog exposes driver-specific create defaults for local and cloud providers');
 $credentialRoot=sys_get_temp_dir().'/almsivi-credentials-'.bin2hex(random_bytes(4));mkdir($credentialRoot,0700);
 $credentialPath=$credentialRoot.'/provider-keys.json';$credentialStore=new CredentialStore($credentialPath);
+$credentialStore->set('ALMSIVI_DEEPL_API_KEY','deepl-managed-secret');
 $credentialStore->set('ALMSIVI_TTS_GCP_API_KEY','managed-secret');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='managed-secret'
+    &&$credentialStore->resolve('ALMSIVI_DEEPL_API_KEY')==='deepl-managed-secret'
     &&count(array_filter($credentialStore->statuses(),static fn(array$row):bool=>$row['variable']==='ALMSIVI_TTS_GCP_API_KEY'&&$row['source']==='managed store'))===1,
     'credential store resolves managed keys while exposing status metadata only');
 putenv('ALMSIVI_TTS_GCP_API_KEY=environment-secret');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='environment-secret','process environment overrides browser-managed credentials');
 putenv('ALMSIVI_TTS_GCP_API_KEY');$credentialStore->delete('ALMSIVI_TTS_GCP_API_KEY');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')===''&&(fileperms($credentialPath)&0777)===0640,'credential deletion is persistent and store permissions are restrictive');
-unlink($credentialPath);rmdir($credentialRoot);
+$translationPolicy=array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,
+    'save_translated_text'=>true,'source_language'=>'en','target_language'=>'de']);
+$translationPolicy=TranslationPolicy::validate($translationPolicy);
+$deepLRequest=[];$deepL=new DeepLTranslationProvider($translationPolicy['endpoint'],'test-key',5000,
+    static function(string$endpoint,array$headers,string$body,int$timeout,\ALMSIVIserver\Application\CancellationToken$token)use(&$deepLRequest):string{
+        $deepLRequest=compact('endpoint','headers','body','timeout');$token->throwIfCancellationRequested();
+        return'{"translations":[{"text":"Guten Tag"},{"text":"Auf Wiedersehen"}]}';
+    });
+$translated=$deepL->translate(['Hello','Goodbye'],$translationPolicy['source_language'],$translationPolicy['target_language'],new NeverCancelledToken());
+$check($translated===['Guten Tag','Auf Wiedersehen']
+    &&$deepLRequest['endpoint']===TranslationPolicy::FREE_ENDPOINT
+    &&substr_count($deepLRequest['body'],'text=')===2
+    &&str_contains($deepLRequest['body'],'source_lang=EN')&&str_contains($deepLRequest['body'],'target_lang=DE')
+    &&($deepLRequest['headers']['Authorization']??'')==='DeepL-Auth-Key test-key',
+    'DeepL adapter batches bounded text against the selected official endpoint');
+foreach([
+    array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,'target_language'=>'']),
+    array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,'target_language'=>'DE','endpoint'=>'https://example.com/translate']),
+    array_replace(TranslationPolicy::defaults(),['save_translated_text'=>true]),
+]as$invalidTranslationPolicy){
+    try{TranslationPolicy::validate($invalidTranslationPolicy);$check(false,'invalid translation policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid translation policy rejected');}
+}
+$credentialStore->delete('ALMSIVI_DEEPL_API_KEY');unlink($credentialPath);rmdir($credentialRoot);
 $preset=ConnectorCatalog::validate('tts_provider',['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8020','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]);
 $check($preset['driver']==='pockettts' && $preset['timeout_ms']===30000, 'speech connector preset validation is strict and normalized');
+$pocketPreset=static fn(string$endpoint):array=>['kind'=>'tts_provider','content'=>['driver'=>'pockettts','endpoint'=>$endpoint,
+    'model'=>'pocket-tts','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
+$check(ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8024')) instanceof PocketTtsSpeechProvider
+    &&ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8086')) instanceof PocketTtsSpeechProvider,
+    'PocketTTS selected connectors use one runtime-compatible adapter for both API families');
+$pocketAttempts=[];$pocketDetections=[];
+$unavailableProvider=new class implements \ALMSIVIserver\Application\SpeechProvider {
+    public function synthesize(string$text,\ALMSIVIserver\Application\CancellationToken$cancellation,array$context=[]):array
+    {throw new RuntimeException('provider_unavailable');}
+};
+$workingProvider=new MockSpeechProvider();
+$pocketFallback=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider,$workingProvider):\ALMSIVIserver\Application\SpeechProvider{
+        $pocketAttempts[]=$endpoint.'|'.$mode;return str_contains($endpoint,':8086')?$workingProvider:$unavailableProvider;},
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+        $pocketDetections[]=$endpoint;return str_contains($endpoint,':8086')?'audio_cpp':'';});
+$fallbackSpeech=$pocketFallback->synthesize('fallback route',new NeverCancelledToken());
+$check(substr($fallbackSpeech['bytes'],0,4)==='RIFF'
+    &&$pocketAttempts===['http://127.0.0.1:8024|standard','http://127.0.0.1:8086|audio_cpp']
+    &&$pocketDetections===['http://127.0.0.1:8024','http://127.0.0.1:8086'],
+    'unavailable known PocketTTS ports retry the first detected compatible same-host runtime');
+$pocketAttempts=[];$pocketDetections=[];
+$pocketHealthyFailure=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider):\ALMSIVIserver\Application\SpeechProvider{
+        $pocketAttempts[]=$endpoint.'|'.$mode;return$unavailableProvider;},
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+        $pocketDetections[]=$endpoint;return'standard';});
+try{$pocketHealthyFailure->synthesize('do not reroute',new NeverCancelledToken());$check(false,'healthy PocketTTS errors stay on the configured runtime');}
+catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'
+    &&$pocketAttempts===['http://127.0.0.1:8024|standard']&&$pocketDetections===['http://127.0.0.1:8024'],
+    'a detected configured PocketTTS service does not reroute valid provider failures');}
+$customPortDetections=0;$pocketCustomPort=new PocketTtsSpeechProvider('http://127.0.0.1:8999','pocket-tts','default','en',[], '',30000,null,
+    static fn(string$endpoint,string$mode):\ALMSIVIserver\Application\SpeechProvider=>$unavailableProvider,
+    static function(string$endpoint,\ALMSIVIserver\Application\CancellationToken$cancellation)use(&$customPortDetections):string{$customPortDetections++;return'';});
+try{$pocketCustomPort->synthesize('custom port',new NeverCancelledToken());$check(false,'custom PocketTTS ports remain authoritative');}
+catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'&&$customPortDetections===0,
+    'custom PocketTTS ports never trigger known-port discovery');}
 $localPreset=static fn(string $driver):array=>['kind'=>'tts_provider','content'=>['driver'=>$driver,
     'endpoint'=>'http://127.0.0.1:8999','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]];
 foreach(['melotts','mimic3','piper-tts','stylettsv2'] as $driver){
@@ -556,6 +998,47 @@ $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile
     && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
     && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,
     'effective settings retain per-field provenance and a canonical hash');
+$relationshipCore=['routing'=>['relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'],
+    'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]];
+$relationshipResolved=(new EffectiveSettingsResolver())->resolve([],$relationshipCore,
+    ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>false]]]);
+$check($relationshipResolved['settings']['relationship']===['update_chance_percent'=>100,'locked'=>false]
+    &&$relationshipResolved['routing']['relationship_configuration_id']===''
+    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='core_profile',
+    'relationship policy inherits Core while explicit NPC disable and unlock win');
+try{EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['update_chance_percent'=>101]]);
+    $check(false,'relationship chance outside 0-100 rejected');}
+catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 rejected');}
+$diaryResolved=(new EffectiveSettingsResolver())->resolve([],['routing'=>[
+    'diary_generation_configuration_id'=>'00000000-0000-4000-8000-000000000555'],
+    'settings_overrides'=>['diary'=>$diaryOverrides]],[]);
+$check($diaryResolved['settings']['diary']===$diaryOverrides
+    &&$diaryResolved['routing']['diary_generation_configuration_id']==='00000000-0000-4000-8000-000000000555'
+    &&$diaryResolved['sources']['settings.diary.enabled']==='core_profile',
+    'manual diary policy and dedicated connector route inherit through effective server settings');
+$projectionInput=$effective;
+$projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
+$projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';
+$projectionInput['routing']['relationship_configuration_id']='00000000-0000-4000-8000-000000000444';
+$projectionInput['routing']['diary_generation_configuration_id']='00000000-0000-4000-8000-000000000555';
+$projectionInput['settings']['diary']=$diaryOverrides;
+$projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
+$check($projection['settings']['behavior']['rechat']===false
+    &&$projection['settings']['memory']['knowledge_limit']===0&&$projection['routing']['llm_configuration_id']===''
+    &&$projection['source_map']['settings.behavior.rechat']==='core_profile'
+    &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],
+    'controls retain typed overrides while presentation remains inert v1 compatibility data');
+$check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
+    &&!isset($projection['routing']['oghma_configuration_id'])
+    &&!isset($projection['routing']['profile_generation_configuration_id'])
+    &&!isset($projection['routing']['relationship_configuration_id'])&&!isset($projection['settings']['relationship'])
+    &&!isset($projection['routing']['diary_generation_configuration_id'])&&!isset($projection['settings']['diary'])
+    &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
+    &&!in_array('excluded',$projection['source_map'],true)
+    &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
+    &&$projection['settings']['behavior']['auto_greeting']===false
+    &&$projection['settings']['behavior']['rechat_allow_actions']===false,
+    'controls omit server-only settings and provenance without altering internal resolution or enabling automation');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
     $check(false,'unknown layered setting rejected');

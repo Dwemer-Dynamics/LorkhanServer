@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy', 'memory_embedding_policy', 'translation_policy'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -31,7 +31,8 @@ final class ProductService
                 throw new InvalidArgumentException('invalid_core_profile_slot');
             }
         }
-        $this->assertNoSecrets($input['content']);
+        // LLM slots use an exact typed schema: credential is a reference and max_tokens is numeric.
+        if ($kind !== 'provider') $this->assertNoSecrets($input['content']);
         $input['content']=$this->validateConfiguration($kind,$input['content']);
         return $this->repository->createRevisioned($kind, $input, $this->clock->iso());
     }
@@ -40,9 +41,10 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
-        $this->assertNoSecrets($content);$content=$this->validateConfiguration($kind,$content);
+        if ($kind !== 'provider') $this->assertNoSecrets($content);
+        $content=$this->validateConfiguration($kind,$content);
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
     }
 
@@ -60,9 +62,11 @@ final class ProductService
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
-        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
+        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
-        $content=$this->repository->revisionContent($kind,$id,$revision);$this->assertNoSecrets($content);$this->validateConfiguration($kind,$content);
+        $content=$this->repository->revisionContent($kind,$id,$revision);
+        if ($kind !== 'provider') $this->assertNoSecrets($content);
+        $this->validateConfiguration($kind,$content);
         return $this->repository->rollback($kind, $id, $revision, $reason, $this->clock->iso());
     }
 
@@ -92,9 +96,67 @@ final class ProductService
         return$this->repository->saveItemDescriptions($validated,$this->clock->iso());
     }
 
+    /** Validate portable OpenMW biography rows before atomically revising reusable NPC templates. */
+    public function importBiographyTemplates(string $installationId,array $rows):array
+    {
+        $this->uuid($installationId);
+        if($rows===[]||count($rows)>1000)throw new InvalidArgumentException('invalid_biography_batch');
+        $validated=[];$seen=[];
+        foreach($rows as$row){
+            if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_biography_row');
+            foreach(['content_file'=>256,'record_id'=>256,'name'=>256,'core'=>16384]as$field=>$limit){
+                $this->boundedString($row,$field,1,$limit);
+                if(trim($row[$field])===''||str_contains($row[$field],"\0"))throw new InvalidArgumentException('invalid_'.$field);
+            }
+            foreach(['biography','appearance','personality','relationships','occupation','skills','speech_style','goals']as$field){
+                $value=$row[$field]??null;
+                if(!is_string($value)||strlen($value)>16384||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
+                    throw new InvalidArgumentException('invalid_biography_'.$field);
+            }
+            foreach(['oghma_tags'=>4096,'voice_id'=>512,'gender'=>256,'race'=>256]as$field=>$limit){
+                $value=$row[$field]??null;
+                if(!is_string($value)||strlen($value)>$limit||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
+                    throw new InvalidArgumentException('invalid_biography_'.$field);
+            }
+            $relationships=trim($row['relationships']);
+            if($relationships==='')$relationships='{}';
+            try{$relationshipObject=json_decode($relationships,false,64,JSON_THROW_ON_ERROR);}
+            catch(\JsonException){throw new InvalidArgumentException('invalid_biography_relationships');}
+            if(!$relationshipObject instanceof \stdClass||count(get_object_vars($relationshipObject))>16)
+                throw new InvalidArgumentException('invalid_biography_relationships');
+            $row['relationships']=json_encode($relationshipObject,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
+            $row['oghma_tags']=$this->normalizeProfileTags($row['oghma_tags']);
+            $key=mb_strtolower(trim($row['content_file']),'UTF-8')."\0".mb_strtolower(trim($row['record_id']),'UTF-8');
+            if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_biography_identity');
+            $seen[$key]=true;
+            $content=[];
+            foreach(['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','gender','race']as$field){
+                $value=trim($row[$field]);if($value!=='')$content[$field]=$value;
+            }
+            if($row['oghma_tags']!=='')$content['oghma_knowledge_tags']=$row['oghma_tags'];
+            $voice=trim($row['voice_id']);if($voice!=='')$content['voice']=['id'=>$voice,'language'=>'en'];
+            $this->validateProfile($content);
+            $validated[]=['content_file'=>trim($row['content_file']),'record_id'=>trim($row['record_id']),
+                'name'=>trim($row['name']),'content'=>$content];
+        }
+        return$this->repository->saveBiographyTemplates($installationId,$validated,$this->clock->iso());
+    }
+
     public function resetItemDescriptions(string $installationId): int
     {
         $this->uuid($installationId);return$this->repository->resetItemDescriptions($installationId,$this->clock->iso());
+    }
+
+    /** Normalize comma-delimited Oghma access tags while excluding article-only catalog markers. */
+    private function normalizeProfileTags(string $value):string
+    {
+        $tags=[];
+        foreach(preg_split('/\s*[,|;]\s*/u',trim($value))?:[]as$tag){
+            $tag=trim($tag);
+            if($tag===''||in_array(mb_strtolower($tag,'UTF-8'),['common','esoteric'],true)||in_array($tag,$tags,true))continue;
+            $tags[]=$tag;
+        }
+        return implode(', ',$tags);
     }
 
     public function deleteItemDescription(string $descriptionId,string $installationId): void
@@ -107,7 +169,7 @@ final class ProductService
     public function deleteRevisioned(string $kind,string $id):void
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings'],true)
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
@@ -211,10 +273,27 @@ final class ProductService
     public function setRelationship(array $input): array
     {
         $this->scope($input);
-        if (!isset($input['actor_identity']) || !is_array($input['actor_identity']) || array_is_list($input['actor_identity'])) throw new InvalidArgumentException('invalid_actor_identity');
+        if (isset($input['relationship_id'])) {
+            $this->uuid((string)$input['relationship_id']);
+            if (!is_int($input['expected_revision'] ?? null) || $input['expected_revision'] < 1) throw new InvalidArgumentException('invalid_relationship_revision');
+            if (isset($input['actor_identity']) && (!is_array($input['actor_identity']) || array_is_list($input['actor_identity']))) throw new InvalidArgumentException('invalid_actor_identity');
+        } else {
+            $input['actor_identity']=RelationshipIdentity::validate($input['actor_identity']??null);
+        }
         foreach (['disposition', 'affinity'] as $field) if (!isset($input[$field]) || !is_int($input[$field]) || $input[$field] < -100 || $input[$field] > 100) throw new InvalidArgumentException('invalid_relationship_value');
         if (!in_array($input['source_mode'] ?? null, ['derived', 'manual'], true)) throw new InvalidArgumentException('invalid_source_mode');
+        if (array_key_exists('relationship_type', $input)) $input['relationship_type']=RelationshipType::manual($input['relationship_type']);
+        if (isset($input['source_event_id'])) $this->uuid((string)$input['source_event_id']);
+        $input['reason']=$input['reason']??'updated';
+        $this->boundedString($input,'reason',1,1024);
         return $this->repository->setRelationship($input, $this->clock->iso());
+    }
+
+    public function deleteRelationship(string $id,int $expectedRevision):void
+    {
+        $this->uuid($id);
+        if($expectedRevision<1)throw new InvalidArgumentException('invalid_relationship_revision');
+        $this->repository->deleteRelationship($id,$this->clock->iso(),$expectedRevision);
     }
 
     /** @param array<string,mixed> $input */
@@ -265,7 +344,17 @@ final class ProductService
         $dataKeys=array_keys($document['data']);sort($dataKeys);if($dataKeys!==['memories','narratives','relationships'])throw new InvalidArgumentException('invalid_restore');
         foreach($document['data'] as$rows)if(!is_array($rows)||!array_is_list($rows))throw new InvalidArgumentException('invalid_restore');
         foreach($document['data']['memories'] as$r)if(!is_array($r)||!in_array($r['tier']??null,['recent','mid','long'],true)||!is_string($r['content']??null)||!is_array($r['lexical_terms']??null)||!is_string($r['occurred_at']??null))throw new InvalidArgumentException('invalid_restore');
-        foreach($document['data']['relationships'] as$r)if(!is_array($r)||!is_array($r['actor_identity']??null)||!is_numeric($r['disposition']??null)||!is_numeric($r['affinity']??null))throw new InvalidArgumentException('invalid_restore');
+        foreach($document['data']['relationships'] as$r){
+            if(!is_array($r)||!is_int($r['disposition']??null)||!is_int($r['affinity']??null)
+                ||$r['disposition']<-100||$r['disposition']>100||$r['affinity']<-100||$r['affinity']>100)
+                throw new InvalidArgumentException('invalid_restore');
+            RelationshipIdentity::validate($r['actor_identity']??null,true);
+            RelationshipCustomInfo::validate(array_key_exists('custom_info',$r)?$r['custom_info']:'');
+            if(!isset($r['actor_identity']['refnum'])){
+                if(!is_string($r['relationship_id']??null))throw new InvalidArgumentException('invalid_restore');
+                $this->uuid($r['relationship_id']);
+            }
+        }
         foreach($document['data']['narratives'] as$r)if(!is_array($r)||!is_string($r['kind']??null)||!is_string($r['title']??null)||!is_string($r['content']??null))throw new InvalidArgumentException('invalid_restore');
         $this->scope($document['scope']);
         return $this->repository->restoreScope($document, $this->clock->iso());
@@ -327,26 +416,21 @@ final class ProductService
         if ($kind === 'profile') return $this->validateProfile($content);
         if ($kind === 'core_profile') return EffectiveSettingsResolver::validateCoreProfile($content);
         if($kind==='prompt'){
+            if(array_key_exists('format',$content)&&(!is_string($content['format'])
+                ||!in_array($content['format'],['xml','markdown'],true)))throw new InvalidArgumentException('invalid_prompt_format');
+            if(array_key_exists('player_mood_prompts',$content))
+                $content['player_mood_prompts']=PlayerMoodPolicy::validateTemplates($content['player_mood_prompts']);
             $encoded=json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE);
             if(strlen($encoded)>65_536)throw new InvalidArgumentException('invalid_prompt_content');
             return$content;
         }
         if($kind==='action_policy')return$this->validateActionPolicy($content);
         if($kind==='global_settings')return EffectiveSettingsResolver::validateGlobalSettings($content);
+        if($kind==='memory_policy')return MemorySummaryPolicy::validate($content);
+        if($kind==='memory_embedding_policy')return MemoryEmbeddingPolicy::validate($content);
+        if($kind==='translation_policy')return TranslationPolicy::validate($content);
         if($kind!=='provider')return$content;
-        $driver=$content['driver']??null;
-        if(!in_array($driver,['configured','mock'],true))throw new InvalidArgumentException('invalid_provider_driver');
-        $model=$content['model']??($driver==='mock'?'deterministic-mock-v1':null);
-        if(!is_string($model)||$model===''||strlen($model)>256||!mb_check_encoding($model,'UTF-8'))
-            throw new InvalidArgumentException('invalid_provider_model');
-        if($driver==='configured'){
-            $keys=array_keys($content);sort($keys);if($keys!==['driver','model'])throw new InvalidArgumentException('invalid_provider_content');
-            return['driver'=>'configured','model'=>$model];
-        }
-        $allowed=['driver','mock_prefix','model','timeout_ms'];$keys=array_keys($content);sort($keys);
-        if(array_diff($keys,$allowed)!==[]||!is_string($content['mock_prefix']??'')||strlen((string)($content['mock_prefix']??''))>256)
-            throw new InvalidArgumentException('invalid_provider_content');
-        return['driver'=>'mock','model'=>$model,'mock_prefix'=>(string)($content['mock_prefix']??'')];
+        return LlmConnector::validate($content);
     }
 
     /** Keep server-to-client settings bounded, typed, and free of executable or transport values. */

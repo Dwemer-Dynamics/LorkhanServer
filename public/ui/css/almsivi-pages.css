@@ -865,6 +865,28 @@ body.hub-page > main {
     gap: 7px;
 }
 
+#relationship-builder { scroll-margin-top: 80px; }
+.management-form.relationship-build-form {
+    grid-template-columns: minmax(0, 280px) auto;
+    align-items: end;
+    margin: 12px 0;
+    padding: 12px;
+}
+.management-form.relationship-build-scope {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+}
+#relationship-builder :is(select, button, summary, a):focus-visible {
+    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline-offset: 2px;
+}
+#npc-relationships-modal :is(select, input, button, summary, a):focus-visible {
+    outline: 3px solid var(--focus-ring, #6dd5ed);
+    outline-offset: 2px;
+}
+@media (max-width: 700px) {
+    .management-form.relationship-build-form { grid-template-columns: minmax(0, 1fr); }
+}
+
 .management-form legend {
     color: var(--almsivi-accent, #ffb641);
     font-family: Gothic821, sans-serif;
@@ -885,6 +907,14 @@ body.hub-page > main {
 .management-form textarea {
     min-height: 120px;
 }
+
+.management-form textarea[name="custom_info"] { resize: vertical; }
+.management-form textarea[name="custom_info"]:focus-visible {
+    outline: 2px solid var(--almsivi-accent, #ffb641);
+    outline-offset: 2px;
+}
+.management-form .relationship-custom-info-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
+.management-form .relationship-type-help { color: var(--almsivi-text-muted, #aaa69e); font-size: .85rem; }
 
 .management-form button {
     justify-self: start;
@@ -1254,6 +1284,24 @@ body.hub-page > main {
     gap: 8px;
     padding: 10px;
     border: 1px solid var(--almsivi-border, #444);
+}
+
+.action-policy-bulk {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0 10px;
+}
+
+.action-policy-bulk button {
+    padding: 6px 10px;
+    font-size: .8rem;
+}
+
+.action-policy-count {
+    color: var(--almsivi-muted, #aaa);
+    font-size: .8rem;
 }
 
 .action-policy-toggle,

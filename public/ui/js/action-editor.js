@@ -1,29 +1,110 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const toolbar = document.querySelector('[data-action-filters]');
   const rows = Array.from(document.querySelectorAll('.action-row'));
-  const search = document.querySelector('[data-action-search]');
-  const visible = document.querySelector('[data-action-visible]');
-  const empty = document.querySelector('[data-action-empty]');
-  const selected = (name) => document.querySelector(`input[name="live-${name}"]:checked`)?.value || 'all';
-  const apply = () => {
-    const query = (search?.value || '').trim().toLowerCase();
-    let shown = 0;
-    rows.forEach((row) => {
-      const matches = (!query || row.dataset.search.includes(query)) && (selected('state') === 'all' || row.dataset.state === selected('state')) && (selected('scope') === 'all' || row.dataset.scope.split(' ').includes(selected('scope'))) && (selected('dispatch') === 'all' || row.dataset.dispatch === selected('dispatch')) && (selected('source') === 'all' || row.dataset.source === selected('source'));
-      row.hidden = !matches;
-      if (matches) shown++;
+  if (toolbar) {
+    const search = toolbar.querySelector('[data-action-search]');
+    const visible = document.querySelector('[data-action-visible]');
+    const empty = document.querySelector('[data-action-empty]');
+    const chosen = (name) => toolbar.querySelector(`input[name="live-${name}"]:checked`)?.value || 'all';
+    const apply = () => {
+      const query = (search?.value || '').trim().toLowerCase();
+      const state = chosen('state');
+      const tier = chosen('tier');
+      let shown = 0;
+      rows.forEach((row) => {
+        const matches = (!query || (row.dataset.search || '').includes(query))
+          && (state === 'all' || row.dataset.state === state)
+          && (tier === 'all' || row.dataset.tier === tier);
+        row.hidden = !matches;
+        if (matches) shown += 1;
+      });
+      if (visible) visible.textContent = String(shown);
+      if (empty) empty.hidden = shown !== 0;
+    };
+    search?.addEventListener('input', apply);
+    toolbar.querySelectorAll('input[name^="live-"]').forEach((input) => input.addEventListener('change', apply));
+    document.querySelector('[data-action-reset]')?.addEventListener('click', () => {
+      if (search) search.value = '';
+      toolbar.querySelectorAll('input[name^="live-"][value="all"]').forEach((input) => { input.checked = true; });
+      apply();
     });
-    if (visible) visible.textContent = String(shown);
-    if (empty) empty.hidden = shown !== 0;
-  };
-  search?.addEventListener('input', apply);
-  document.querySelectorAll('.filter-toolbar input[type=radio]').forEach((input) => input.addEventListener('change', apply));
-  document.querySelector('[data-action-reset]')?.addEventListener('click', () => { if (search) search.value = ''; document.querySelectorAll('.filter-toolbar input[value=all]').forEach((input) => { input.checked = true; }); apply(); });
+    apply();
+  }
+
+  // Bulk selection stays scoped to one policy form and only changes checkbox state,
+  // so nothing is persisted until that form's own Save/Create submission.
+  document.querySelectorAll('[data-action-policy-controls]').forEach((group) => {
+    const boxes = Array.from(group.querySelectorAll('input[type="checkbox"][name="allowed_actions[]"]'));
+    if (boxes.length === 0) return;
+    const count = group.querySelector('[data-action-selected-count]');
+    const report = () => {
+      if (count) count.textContent = `${boxes.filter((box) => box.checked).length} of ${boxes.length} selected`;
+    };
+    boxes.forEach((box) => box.addEventListener('change', report));
+    const bulk = group.querySelector('[data-action-bulk]');
+    if (bulk) {
+      const buttonClass = bulk.dataset.actionBulkClass || '';
+      const policyContainer = group.closest('.policy-card, .connector-card, [data-policy-panel]');
+      const policyLabel = policyContainer?.querySelector('h3, h2, legend')?.textContent?.trim() || 'this policy';
+      [['Select all', true], ['Clear', false]].forEach(([label, checked]) => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        if (buttonClass) button.className = buttonClass;
+        button.textContent = label;
+        button.setAttribute('aria-label', `${label} actions for ${policyLabel}`);
+        button.addEventListener('click', () => {
+          boxes.forEach((box) => { box.checked = checked; });
+          report();
+        });
+        bulk.insertBefore(button, count && count.parentNode === bulk ? count : null);
+      });
+    }
+    report();
+  });
+
   const policyPanel = document.querySelector('[data-policy-panel]');
-  document.querySelector('[data-policy-create]')?.addEventListener('click', () => { policyPanel.hidden = false; policyPanel.scrollIntoView({behavior:'smooth',block:'start'}); });
-  document.querySelector('[data-policy-close]')?.addEventListener('click', () => { policyPanel.hidden = true; });
+  if (policyPanel) {
+    const policyOpener = document.querySelector('[data-policy-create]');
+    policyOpener?.addEventListener('click', () => {
+      policyPanel.hidden = false;
+      policyPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      policyPanel.querySelector('form input:not([type=hidden]), form select, form textarea, form button')?.focus({ preventScroll: true });
+    });
+    document.querySelector('[data-policy-close]')?.addEventListener('click', () => {
+      policyPanel.hidden = true;
+      policyOpener?.focus();
+    });
+  }
+
   const modal = document.querySelector('[data-active-modal]');
-  document.querySelector('[data-active-actions]')?.addEventListener('click', () => { modal.hidden = false; });
-  document.querySelector('[data-active-close]')?.addEventListener('click', () => { modal.hidden = true; });
-  modal?.addEventListener('click', (event) => { if (event.target === modal) modal.hidden = true; });
-  apply();
+  if (modal) {
+    const opener = document.querySelector('[data-active-actions]');
+    const close = () => { modal.hidden = true; opener?.focus(); };
+    opener?.addEventListener('click', () => {
+      modal.hidden = false;
+      modal.querySelector('[data-active-close]')?.focus();
+    });
+    modal.querySelector('[data-active-close]')?.addEventListener('click', close);
+    modal.addEventListener('click', (event) => { if (event.target === modal) close(); });
+    document.addEventListener('keydown', (event) => {
+      if (modal.hidden) return;
+      if (event.key === 'Escape') {
+        close();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const focusable = Array.from(modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])'))
+        .filter((element) => element.getClientRects().length > 0);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (!modal.contains(document.activeElement) || (!event.shiftKey && document.activeElement === last)) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    });
+  }
 });
