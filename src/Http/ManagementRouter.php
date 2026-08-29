@@ -6,6 +6,7 @@ namespace ALMSIVIserver\Http;
 
 use ALMSIVIserver\Application\DeterministicRetrieval;
 use ALMSIVIserver\Application\ConnectorCatalog;
+use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\LlmConnector;
 use ALMSIVIserver\Application\NeverCancelledToken;
 use ALMSIVIserver\Application\ProductService;
@@ -76,6 +77,7 @@ final class ManagementRouter
             $session=$this->authenticatedSession($r);
             if($session===null){if($r->method==='GET'&&$this->htmlRequest($r))return$this->openBrowserSession($r->path);throw new RuntimeException('unauthorized');}
             if($r->method==='GET'&&preg_match('#^/exports/profiles/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProfile($m[1]);
+            if($r->method==='GET'&&preg_match('#^/exports/core-profile-settings/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportCoreProfileSettings($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/playthroughs/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPlaythroughState($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/providers/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportProvider($m[1]);
             if($r->method==='GET'&&preg_match('#^/exports/prompts/([0-9a-f-]{36})\.json$#D',$path,$m))return$this->exportPrompt($m[1]);
@@ -242,6 +244,7 @@ final class ManagementRouter
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-settings-import'=>$this->importCoreProfileSettings($v,$scope),
             'core-profile-save'=>$this->saveCoreProfile($v),
             'core-profile-revise'=>$this->service->revise('core_profile',$this->need($v,'core_profile_id'),$this->coreProfileContent($v),$this->need($v,'change_reason')),
             'core-profile-default'=>$this->makeDefaultCoreProfile($v),
@@ -330,6 +333,8 @@ final class ManagementRouter
         }
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
+            'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
         if($domain==='connector-default-voice')return$this->redirect($this->uiPath('tts-studio').'?'.http_build_query(['configuration_id'=>$this->need($v,'configuration_id'),'status'=>'saved']));
         if(in_array($domain,['description-save','description-delete','description-reset'],true))return$this->redirect(
             $this->descriptionPageLocation($scope['installation_id']??(string)($v['installation_id']??''),'saved'));
@@ -643,6 +648,40 @@ final class ManagementRouter
         $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
         return$this->service->createRevisioned('profile',['installation_id'=>(string)$row['installation_id'],
             'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
+    }
+
+    /** Download only the validated settings overrides from one Core Profile. */
+    private function exportCoreProfileSettings(string $coreProfileId):Response
+    {
+        $this->uuid($coreProfileId,'core_profile_id');$row=$this->repository->getRevisioned('core_profile',$coreProfileId);
+        $content=EffectiveSettingsResolver::validateCoreProfile(is_array($row['content']??null)?$row['content']:[]);
+        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
+        if($this->containsSecretKey($overrides))throw new RuntimeException('core_profile_settings_export_rejected');
+        $document=['schema'=>'almsivi.core-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'settings_overrides'=>$overrides===[]?(object)[]:$overrides];
+        $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');
+        if($filename==='')$filename='almsivi-core-profile';
+        return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
+            ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'-settings.json"','X-Content-Type-Options'=>'nosniff']);
+    }
+
+    /** Import a strict settings-only preset as a new unassigned Core Profile. */
+    private function importCoreProfileSettings(array $values,array $scope):array
+    {
+        $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+        if($keys!==['exported_at','name','schema','settings_overrides']
+            ||($document['schema']??null)!=='almsivi.core-profile-settings.v1'
+            ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
+            ||!$this->objectArray($document['settings_overrides']??null)||$this->containsSecretKey($document))
+            throw new InvalidArgumentException('invalid_core_profile_settings_preset');
+        $name=trim((string)($document['name']??''));
+        if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_core_profile_settings_preset');
+        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($document['settings_overrides']);
+        return$this->service->createRevisioned('core_profile',[
+            'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
+            'name'=>$name,'default_npc'=>false,'slot'=>null,
+            'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
+        ]);
     }
 
     /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */

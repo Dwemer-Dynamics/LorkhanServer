@@ -199,6 +199,9 @@ credentials are excluded. Active speech connectors, profile-assigned TTS connect
 selected by an active session or assigned to a profile cannot be deleted until their use is removed.
 Prompt Manager uses the same ownership-free JSON boundary for individual prompt export, import, and
 same-installation cloning; imports still pass normal prompt validation and become independent revisions.
+Core Profile settings presets use `almsivi.core-profile-settings.v1` and carry only a name plus the
+validated `settings_overrides` tree. Import creates a new unassigned, non-default Core Profile with no
+slot, prompt text, connector routing, identifiers, revision history, or NPC assignments.
 Action Editor exposes labelled policy enable, maximum-tier, and per-action permission controls over the
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.

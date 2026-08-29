@@ -584,6 +584,12 @@ values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
 core_list,core_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php'))
 core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
+assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body
+assert 'settings overrides only' in core_body
+assert 'Rules <span class="feature-state-badge feature-state-planned' in core_body and 'Test <span class="feature-state-badge feature-state-planned' in core_body
+core_import_page,core_import_body=parse(request('/ALMSIVIserver/ui/core/core_profiles.php?import=1'))
+core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
+assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
 # Legacy Core controls have separate known label gaps; validate the new relationship labels specifically.
 core_body=request('/ALMSIVIserver/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 core_page=Page(); core_page.feed(core_body)
@@ -597,6 +603,30 @@ core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_b
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 assert core_saved['fields']['relationship_configuration_id']==slot_id and core_saved['fields']['setting_relationship_update_chance_percent']=='100'
 assert core_saved['fields']['setting_relationship_locked']=='1',core_saved
+core_preset_response=request('/ALMSIVIserver/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
+core_preset=json.loads(core_preset_response.read().decode())
+assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
+assert core_preset['schema']=='almsivi.core-profile-settings.v1' and core_preset['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
+core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
+body=r.read().decode(); assert r.status==200 and 'status=imported' in r.geturl() and core_preset['name'] in body,(r.status,r.geturl(),body)
+imported_id_match=re.search(r'core_profiles\.php\?[^"\']*edit=([0-9a-f-]{36})[^"\']*status=imported',r.geturl())
+if imported_id_match is None: imported_id_match=re.search(r'name="core_profile_id" value="([0-9a-f-]{36})"',body)
+assert imported_id_match,body
+imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page.feed(body)
+imported_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
+assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
+assert imported_form['fields']['setting_relationship_update_chance_percent']=='100' and imported_form['fields']['setting_relationship_locked']=='1'
+assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','tts_configuration_id'])
+assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
+invalid_preset=dict(core_preset,unexpected='rejected')
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_preset))); body=r.read().decode()
+assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
+secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}})
+r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
+assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
+r=request('/ALMSIVIserver/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
 core_reset=dict(core_saved['fields'],_csrf=csrf,relationship_configuration_id='',
     setting_relationship_update_chance_percent='',setting_relationship_locked='inherit')
 assert request(core_form['action'],'POST',core_reset).status==200

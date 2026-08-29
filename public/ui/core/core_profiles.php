@@ -42,7 +42,8 @@ if ($selected !== null && $installationId !== '') {
     $coreContent = is_array($selected['content'] ?? null) ? $selected['content'] : [];
     $effectiveCoreSettings = (new EffectiveSettingsResolver())->resolve($globalContent, $coreContent, []);
 }
-$showCreate = isset($_GET['create']) || $profiles === [];
+$importMode = isset($_GET['import']);
+$showCreate = !$importMode && (isset($_GET['create']) || $profiles === []);
 
 $pageUrl = $webRoot . '/ui/core/core_profiles.php';
 $queryFor = static function (array $values = []) use ($pageUrl, $installationId, $embedded): string {
@@ -78,7 +79,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <p class="page-subtitle almsivi-page-head-note">Manage NPC profiles with LLM and TTS connectors</p>
     </div>
 
-    <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status">Core Profile change saved.</div><?php endif; ?>
+    <?php if (isset($_GET['status'])): ?><div class="almsivi-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Settings preset imported as a new unassigned Core Profile. Review it below.' : 'Core Profile change saved.'; ?></div><?php endif; ?>
     <?php if ($installations === []): ?>
         <section class="connector-card profiles-empty">Connect OpenMW once before creating Core Profiles.</section>
     <?php else: ?>
@@ -92,10 +93,15 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <aside class="llm-left">
                 <div class="sidebar-action-grid">
                     <a class="btn-save" href="<?php echo almsivi_ui_h($queryFor(['create' => '1'])); ?>">New</a>
-                    <?php echo almsivi_ui_placeholder_control('Import', 'config.profiles.import'); ?>
+                    <a class="btn-primary" href="<?php echo almsivi_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.import')['description']); ?>">Import</a>
                     <?php echo almsivi_ui_placeholder_control('Rules', 'config.profiles.rules'); ?>
                     <?php echo almsivi_ui_placeholder_control('Test', 'config.profiles.test'); ?>
                 </div>
+
+                <details class="profile-preset-note">
+                    <summary>What a settings preset contains</summary>
+                    <p>Import and Export move Core Profile <strong>settings overrides only</strong>. A preset excludes prompt text, connector routing, identifiers, slots, default status, revision history, and NPC assignments.</p>
+                </details>
 
                 <div class="connector-card profile-slots">
                     <div class="connector-title" title="Can be assigned to NPCs in game through ALMSIVI profile controls">Profile Slots <span class="profile-info">&#x24D8;</span></div>
@@ -126,7 +132,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 </span>
                             </a>
                             <div class="actions profile-card-actions">
-                                <?php echo almsivi_ui_placeholder_control('Export', 'config.profiles.export'); ?>
+                                <a class="btn-primary" href="<?php echo almsivi_ui_h($managementBasePath . '/exports/core-profile-settings/' . (string) $profile['core_profile_id'] . '.json'); ?>" aria-label="Export settings preset for <?php echo almsivi_ui_h($profile['label']); ?>" title="<?php echo almsivi_ui_h(almsivi_ui_feature('config.profiles.export')['description']); ?>">Export</a>
                                 <?php if (!$defaultNpc && $usage === 0): ?>
                                     <form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/core-profile-delete" data-confirm="Delete this unused Core Profile?"><input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo almsivi_ui_h($profile['core_profile_id']); ?>"><button class="btn-danger" type="submit">Delete</button></form>
                                 <?php else: ?>
@@ -141,7 +147,21 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
             <section class="llm-right">
                 <div class="form-container wide-centered">
-                <?php if ($showCreate):
+                <?php if ($importMode): ?>
+                    <form class="core-profile-form profile-import-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/core-profile-settings-import">
+                        <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+                        <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($installationId); ?>">
+                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Importing Preset</div><div class="profile-editor-toolbar-name">Core Profile Settings</div></div><div class="profile-import-toolbar-actions"><a class="btn-base" href="<?php echo almsivi_ui_h($queryFor([])); ?>">Cancel</a><button type="submit" class="btn-save">Import Preset</button></div></div>
+                        <div class="connector-card profile-import-card">
+                            <div class="connector-title">Settings Preset</div>
+                            <div class="profile-import-fields">
+                                <label for="core-profile-preset-file">Preset file<input id="core-profile-preset-file" type="file" accept="application/json,.json" data-json-import-target="core-profile-preset-json" aria-describedby="core-profile-import-help"></label>
+                                <label for="core-profile-preset-json">Preset JSON<textarea id="core-profile-preset-json" name="preset_json" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="core-profile-import-help"></textarea></label>
+                            </div>
+                            <p class="hint" id="core-profile-import-help">Importing creates a new unassigned Core Profile from settings overrides only. Prompt text, connector routing, identifiers, slots, default status, revision history, and NPC assignments are never carried by a preset, so set those on the new profile afterwards.</p>
+                        </div>
+                    </form>
+                <?php elseif ($showCreate):
                     $content = ['schema' => 'almsivi.core-profile.v1', 'prompt' => '', 'routing' => [], 'settings_overrides' => []];
                     $profileMeta = ['label' => '', 'slot' => null, 'default_npc' => false];
                     $coreProfileMode = 'create';
@@ -181,4 +201,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         </div>
     <?php endif; ?>
 </main>
+<?php if ($importMode): ?><script src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo almsivi_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

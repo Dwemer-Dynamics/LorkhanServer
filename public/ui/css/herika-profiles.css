@@ -99,6 +99,83 @@ body.profiles-page-shell > main.profiles-page {
     margin-left: 4px;
 }
 
+.profiles-page .profile-preset-note {
+    margin: 0 0 8px 4px;
+    color: #9fb1c9;
+    font-size: 12px;
+    line-height: 1.35;
+}
+
+.profiles-page .profile-preset-note > summary {
+    color: #f27c11;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.profiles-page .profile-preset-note > summary:focus-visible {
+    outline: 2px solid rgba(242, 124, 17, .8);
+    outline-offset: 2px;
+}
+
+.profiles-page .profile-preset-note p {
+    margin: 6px 0 0;
+}
+
+.profiles-page .profile-import-form .profile-editor-toolbar {
+    flex-wrap: wrap;
+}
+
+.profiles-page .profile-import-toolbar-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.profiles-page .profile-import-toolbar-actions .btn-base,
+.profiles-page .profile-import-toolbar-actions .btn-save {
+    min-height: 36px;
+    padding: 8px 14px;
+    border-radius: 5px;
+}
+
+.profiles-page .profile-import-fields {
+    display: grid;
+    gap: 10px;
+}
+
+.profiles-page .profile-import-fields label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: 0;
+}
+
+.profiles-page .profile-import-fields input[type="file"] {
+    cursor: pointer;
+    font-size: 13px;
+}
+
+.profiles-page .profile-import-fields input[type="file"]::file-selector-button {
+    margin-right: 10px;
+    padding: 5px 10px;
+    border: 1px solid #4a4a4a;
+    border-radius: 4px;
+    background: #333;
+    color: #fff;
+    cursor: pointer;
+    font: 600 12px/1.2 inherit;
+}
+
+.profiles-page .profile-import-card textarea {
+    min-height: 220px;
+    font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+    font-size: 13px;
+}
+
+.profiles-page .profile-import-card .hint {
+    margin-top: 10px;
+}
+
 .profiles-page .connector-card {
     padding: 16px;
     border: 1px solid #3a3a3a;
@@ -275,6 +352,7 @@ body.profiles-page-shell > main.profiles-page {
     margin: 0;
 }
 
+.profiles-page .profile-card-actions a,
 .profiles-page .profile-card-actions button {
     min-width: 0 !important;
     flex: 1 1 0;
