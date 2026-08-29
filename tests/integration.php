@@ -113,16 +113,19 @@ $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($de
 $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
     'default connector provisioning was not idempotent');
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
-$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null) use ($db,$mediaStore): array {
+$runWorker = function (array $types, ?Provider $provider = null, ?\ALMSIVIserver\Application\SpeechToTextProvider $sttProvider=null,
+    ?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
+    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
-        provider:$provider,speechProvider:$provider === null ? null : new MockSpeechProvider(),providerTimeoutMs:1000,
-        sttProvider:$sttProvider),
+        provider:$provider,speechProvider:$speechProvider??($provider === null ? null : new MockSpeechProvider()),providerTimeoutMs:1000,
+        sttProvider:$sttProvider,translationProvider:$translationProvider),
         'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
-$runTurnWorker = function(Provider $provider) use($runWorker):array {
-    $turnStats=$runWorker(['turn.process'],$provider);
-    $runWorker(['speech.synthesize'],$provider);
+$runTurnWorker = function(Provider $provider,?\ALMSIVIserver\Application\TranslationProvider $translationProvider=null,
+    ?\ALMSIVIserver\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
+    $turnStats=$runWorker(['turn.process'],$provider,null,$translationProvider,$speechProvider);
+    $runWorker(['speech.synthesize'],$provider,null,$translationProvider,$speechProvider);
     return $turnStats;
 };
 
@@ -1905,6 +1908,105 @@ $assert($status===202&&$fallbackAttemptRows===[['state'=>'succeeded','operation'
 $fallbackOghmaWorker=$runTurnWorker(new MockProvider());
 $assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'fallback-grounded Oghma turn did not complete through the normal response pipeline');
+
+// Freeze NPC output translation at acceptance and keep stored history, subtitle, and TTS text independent.
+$translationEnabled=array_replace(\ALMSIVIserver\Application\TranslationPolicy::defaults(),[
+    'provider'=>'deepl','translate_text'=>true,'translate_audio'=>true,'source_language'=>'EN','target_language'=>'DE']);
+$translationSaved=$biographyService->createRevisioned('translation_policy',['installation_id'=>$installationId,
+    'name'=>'NPC Output Translation','content'=>$translationEnabled]);
+$translationTurn=$turn;$translationTurn['message_id']=$newUuid(860);$translationTurn['request_id']=$newUuid(861);
+$translationTurn['turn_id']=$newUuid(862);$translationTurn['payload']['input']['text']='[oghma: Vivec] Translate this reply.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($translationTurn['message_id']),[],$translationTurn);
+$translationSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$translationSnapshotStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationSnapshot=json_decode((string)$translationSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$biographyService->revise('translation_policy',$translationSaved['configuration_id'],
+    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
+$translationProvider=new class implements \ALMSIVIserver\Application\TranslationProvider {
+    public int$calls=0;
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+        ++$this->calls;$token->throwIfCancellationRequested();
+        if($sourceLanguage!=='EN'||$targetLanguage!=='DE')throw new RuntimeException('translation policy not frozen');
+        return array_map(static fn(string$text):string=>'DE: '.$text,$texts);
+    }
+};
+$translationStats=$runWorker(['turn.process'],new MockProvider(),null,$translationProvider);
+$translationResponseStatement=$db->prepare('SELECT response_payload FROM turns WHERE turn_id=:turn');
+$translationResponseStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationResponse=json_decode((string)$translationResponseStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$translationLine=$translationResponse['lines'][0];
+$translationDialogueStatement=$db->prepare('SELECT text,dialogue_message_id FROM dialogue_utterances WHERE turn_id=:turn');
+$translationDialogueStatement->execute(['turn'=>$translationTurn['turn_id']]);$translationDialogue=$translationDialogueStatement->fetch();
+$translationEventStatement=$db->prepare("SELECT payload FROM response_events WHERE turn_id=:turn AND event_type='dialogue.complete'");
+$translationEventStatement->execute(['turn'=>$translationTurn['turn_id']]);
+$translationEvent=json_decode((string)$translationEventStatement->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
+$translationJobStatement=$db->prepare("SELECT payload FROM durable_jobs WHERE job_type='speech.synthesize' AND idempotency_key=:key");
+$translationJobStatement->execute(['key'=>'speech:'.$translationDialogue['dialogue_message_id']]);
+$translationJobPayload=json_decode((string)$translationJobStatement->fetchColumn(),true,16,JSON_THROW_ON_ERROR);
+$translationAttemptStatement=$db->prepare("SELECT state,provider_name,operation,metadata FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
+$translationAttemptStatement->execute(['turn'=>$translationTurn['turn_id']]);$translationAttempt=$translationAttemptStatement->fetch();
+$translationAttemptMetadata=$translationAttempt?json_decode((string)$translationAttempt['metadata'],true,16,JSON_THROW_ON_ERROR):[];
+$expectedOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Translate this reply.';
+$expectedTranslation='DE: '.$expectedOriginal;
+$assert($status===202&&$translationStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationProvider->calls===1
+    &&($translationSnapshot['message']['_translation_policy']['revision']??null)===1
+    &&$translationLine['text']===$expectedOriginal&&$translationLine['subtitle']===$expectedTranslation
+    &&$translationLine['tts_text']===$expectedTranslation&&$translationDialogue['text']===$expectedOriginal
+    &&($translationEvent['text']??null)===$expectedTranslation&&($translationJobPayload['tts_text']??null)===$expectedTranslation
+    &&($translationAttempt['state']??null)==='succeeded'&&($translationAttempt['provider_name']??null)==='deepl'
+    &&($translationAttempt['operation']??null)==='translate_dialogue'
+    &&($translationAttemptMetadata['configuration_revision']??null)===1,
+    'accepted translation policy did not freeze or separate history, subtitle, TTS, and audit state: '.json_encode([
+        'status'=>$status,'stats'=>$translationStats,'calls'=>$translationProvider->calls,
+        'snapshot'=>$translationSnapshot['message']['_translation_policy']??null,'line'=>$translationLine,
+        'dialogue'=>$translationDialogue,'event'=>$translationEvent,'job'=>$translationJobPayload,
+        'attempt'=>$translationAttempt,'attempt_metadata'=>$translationAttemptMetadata,'expected'=>$expectedOriginal],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
+
+$capturedSpeech=new class implements \ALMSIVIserver\Application\SpeechProvider {
+    public array$inputs=[];
+    public function synthesize(string$text,\ALMSIVIserver\Application\CancellationToken$cancellation,array$context=[]):array{
+        $this->inputs[]=$text;return(new MockSpeechProvider())->synthesize($text,$cancellation,$context);
+    }
+};
+$speechRegistry=new \ALMSIVIserver\Application\JobHandlerRegistry([new \ALMSIVIserver\Application\SpeechSynthesizeJobHandler(
+    new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
+$translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
+    ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
+$translationTtsAttempt=$db->prepare("SELECT input_bytes FROM provider_attempts WHERE turn_id=:turn AND provider_kind='tts'");
+$translationTtsAttempt->execute(['turn'=>$translationTurn['turn_id']]);
+$assert($translationSpeechStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$capturedSpeech->inputs===[$expectedTranslation]
+    &&(int)$translationTtsAttempt->fetchColumn()===strlen($expectedTranslation),
+    'speech worker did not synthesize the TTS text frozen in the durable job payload');
+
+// A DeepL outage is audited but falls back to the original valid dialogue without failing the turn.
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],$translationEnabled,'enable failed translation probe');
+$translationFailureTurn=$turn;$translationFailureTurn['message_id']=$newUuid(863);$translationFailureTurn['request_id']=$newUuid(864);
+$translationFailureTurn['turn_id']=$newUuid(865);$translationFailureTurn['payload']['input']['text']='[oghma: Vivec] Keep the original reply.';
+[$status]=$call($router,'POST',$base.'/turns',$headers($translationFailureTurn['message_id']),[],$translationFailureTurn);
+$translationCurrent=$products->translationPolicyForInstallation($installationId);
+$biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
+    \ALMSIVIserver\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
+$unavailableTranslation=new class implements \ALMSIVIserver\Application\TranslationProvider {
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\ALMSIVIserver\Application\CancellationToken$token):array{
+        throw new RuntimeException('sensitive upstream detail');
+    }
+};
+$translationFailureStats=$runWorker(['turn.process'],new MockProvider(),null,$unavailableTranslation);
+$translationResponseStatement->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$translationFailureResponse=json_decode((string)$translationResponseStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$translationFailureAttempt=$db->prepare("SELECT state,error_code,error_detail FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
+$translationFailureAttempt->execute(['turn'=>$translationFailureTurn['turn_id']]);
+$translationFailureOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Keep the original reply.';
+$assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
+    &&$translationFailureResponse['ok']===true
+    &&$translationFailureResponse['lines'][0]['text']===$translationFailureOriginal
+    &&$translationFailureResponse['lines'][0]['subtitle']===$translationFailureOriginal
+    &&$translationFailureResponse['lines'][0]['tts_text']===$translationFailureOriginal
+    &&$translationFailureAttempt->fetch()===['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null],
+    'translation failure did not preserve original dialogue with a redacted failed provider attempt');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

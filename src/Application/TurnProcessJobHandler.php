@@ -22,6 +22,7 @@ final class TurnProcessJobHandler implements JobHandler
         private readonly ?ProviderAttemptRepository $attempts,
         private readonly int $timeoutMs = 1000,
         private readonly array $providerConfig = [],
+        private readonly ?TranslationProvider $translationProvider = null,
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -56,11 +57,14 @@ final class TurnProcessJobHandler implements JobHandler
             return $cancelled=!$heartbeat()||$this->repository->isTurnCancellationRequested($sessionId,$turnId,$generation);
         });
         try {
-            $progress = function (string $delta) use ($message, $fence): void {
+            $policy=$this->translationPolicy($message);
+            $progress = function (string $delta) use ($message, $fence, $policy): void {
+                if($policy['content']['translate_text'])return;
                 if ($delta !== '') $this->repository->appendDialogueDelta($message, $delta, $fence);
             };
             $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             $token->throwIfCancellationRequested();
+            $result=$this->translateResult($message,$result,$policy,$job,$token);
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
             $this->repository->completeTurn($message, $result, null, $fence, $queueSpeech);
@@ -75,6 +79,62 @@ final class TurnProcessJobHandler implements JobHandler
             $this->repository->failTurn($message, $this->providerFailureCode($error), $fence);
             return;
         }
+    }
+
+    /** Resolve only the frozen policy snapshot accepted with this turn. */
+    private function translationPolicy(array $message):array
+    {
+        $snapshot=$message['_translation_policy']??null;
+        if(!is_array($snapshot)||array_is_list($snapshot))
+            return['configuration_id'=>null,'revision'=>0,'content'=>TranslationPolicy::defaults()];
+        $keys=array_keys($snapshot);sort($keys);
+        if($keys!==['configuration_id','content','revision']
+            ||(!is_null($snapshot['configuration_id'])&&(!is_string($snapshot['configuration_id'])||!Uuid::isValid($snapshot['configuration_id'])))
+            ||!is_int($snapshot['revision'])||$snapshot['revision']<0
+            ||(($snapshot['configuration_id']===null)!==($snapshot['revision']===0))
+            ||!is_array($snapshot['content'])||array_is_list($snapshot['content']))
+            throw new DomainException('provider_invalid_output');
+        $snapshot['content']=TranslationPolicy::validate($snapshot['content']);return$snapshot;
+    }
+
+    /** Validate provider utterances, translate once in a batch, and keep history/subtitle/TTS choices independent. */
+    private function translateResult(array $message,array $result,array $policy,array $job,CancellationToken $token):array
+    {
+        $planned=(new DialoguePlanner())->plan($message,$result);$clean=[];
+        foreach($planned as$utterance)$clean[]=['speaker'=>$utterance['speaker'],'addressee'=>$utterance['addressee'],
+            'text'=>$utterance['text'],'speech_enabled'=>$utterance['speech_enabled']];
+        $content=$policy['content'];$enabled=$content['translate_text']||$content['translate_audio'];
+        if(!$enabled)return['utterances'=>$clean,'action'=>$result['action']??null];
+
+        $attemptId=Uuid::v4();$texts=array_column($clean,'text');$inputBytes=array_sum(array_map('strlen',$texts));
+        $this->attempts?->start($attemptId,'translation','deepl','translate_dialogue',(int)$job['attempt'],
+            $message['request_id'],$message['turn_id'],$job['job_id'],configRevision:'r'.(int)$policy['revision'],inputBytes:$inputBytes,
+            metadata:['job'=>true,'configuration_id'=>$policy['configuration_id'],'configuration_revision'=>$policy['revision'],
+                'utterance_count'=>count($texts),'source_language'=>$content['source_language'],'target_language'=>$content['target_language']]);
+        try{
+            $provider=$this->translationProvider??ProviderFactory::translation($this->providerConfig,$content);
+            $translated=$provider->translate($texts,$content['source_language'],$content['target_language'],$token);
+            $token->throwIfCancellationRequested();
+            if(!array_is_list($translated)||count($translated)!==count($texts))
+                throw new DomainException('provider_invalid_output');
+            foreach($translated as$translation)
+                if(!is_string($translation)||$translation===''||!mb_check_encoding($translation,'UTF-8')
+                    ||mb_strlen($translation,'UTF-8')>4096||strlen($translation)>16_384)
+                    throw new DomainException('provider_invalid_output');
+            $outputBytes=array_sum(array_map('strlen',$translated));$this->attempts?->finish($attemptId,'succeeded',$outputBytes);
+            foreach($clean as$index=>&$utterance){$translation=$translated[$index];
+                $utterance['_history_text']=$content['save_translated_text']?$translation:$utterance['text'];
+                $utterance['_subtitle']=$content['translate_text']?$translation:$utterance['text'];
+                $utterance['_tts_text']=$content['translate_audio']?$translation:$utterance['text'];
+            }unset($utterance);
+        }catch(OperationCancelled$error){
+            try{$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');}catch(Throwable){}
+            throw$error;
+        }catch(Throwable){
+            try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+            // Translation is presentation support: an unavailable adapter must not discard valid model dialogue.
+        }
+        return['utterances'=>$clean,'action'=>$result['action']??null];
     }
 
     /** Run the selected LLM once, retrying only with the profile's explicit CHIM-style fallback slot. */

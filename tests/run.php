@@ -28,8 +28,10 @@ use ALMSIVIserver\Application\PlayerMoodPolicy;
 use ALMSIVIserver\Application\MemoryPromptSelection;
 use ALMSIVIserver\Application\InlineNarrationRouter;
 use ALMSIVIserver\Application\DialoguePlanner;
+use ALMSIVIserver\Application\DeepLTranslationProvider;
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Application\ZonosGradioSpeechProvider;
 use ALMSIVIserver\Application\XvaSynthSpeechProvider;
 use ALMSIVIserver\Http\Response;
@@ -693,6 +695,14 @@ $check($canonicalResult['request_id']===$canonicalTurn['request_id']&&$canonical
     &&$canonicalResult['lines'][0]['text']==='You found my engraved ring—thank you!'
     &&$canonicalResult['lines'][1]['command_args']===['distance=192'],
     'provider result normalizes once into ordered UTF-8 response lines with full correlation');
+$translatedCanonical=(new CanonicalResponseNormalizer())->normalize($canonicalTurn,['utterances'=>[[
+    'text'=>'Original history','_history_text'=>'Translated history','_subtitle'=>'Translated subtitle',
+    '_tts_text'=>'Translated speech']]]);
+$validator->validate($translatedCanonical,'almsivi.response.v1');
+$check($translatedCanonical['lines'][0]['text']==='Translated history'
+    &&$translatedCanonical['lines'][0]['subtitle']==='Translated subtitle'
+    &&$translatedCanonical['lines'][0]['tts_text']==='Translated speech',
+    'canonical dialogue preserves independent history, subtitle, and TTS text');
 $failedCanonical=(new CanonicalResponseNormalizer())->failure($canonicalTurn,'provider_unavailable');
 $validator->validate($failedCanonical,'almsivi.response.v1');
 $check($failedCanonical['ok']===false&&$failedCanonical['lines']===[]
@@ -744,15 +754,40 @@ $check(ConnectorCatalog::defaults('tts_provider','pockettts')['endpoint']==='htt
     'connector catalog exposes driver-specific create defaults for local and cloud providers');
 $credentialRoot=sys_get_temp_dir().'/almsivi-credentials-'.bin2hex(random_bytes(4));mkdir($credentialRoot,0700);
 $credentialPath=$credentialRoot.'/provider-keys.json';$credentialStore=new CredentialStore($credentialPath);
+$credentialStore->set('ALMSIVI_DEEPL_API_KEY','deepl-managed-secret');
 $credentialStore->set('ALMSIVI_TTS_GCP_API_KEY','managed-secret');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='managed-secret'
+    &&$credentialStore->resolve('ALMSIVI_DEEPL_API_KEY')==='deepl-managed-secret'
     &&count(array_filter($credentialStore->statuses(),static fn(array$row):bool=>$row['variable']==='ALMSIVI_TTS_GCP_API_KEY'&&$row['source']==='managed store'))===1,
     'credential store resolves managed keys while exposing status metadata only');
 putenv('ALMSIVI_TTS_GCP_API_KEY=environment-secret');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')==='environment-secret','process environment overrides browser-managed credentials');
 putenv('ALMSIVI_TTS_GCP_API_KEY');$credentialStore->delete('ALMSIVI_TTS_GCP_API_KEY');
 $check($credentialStore->resolve('ALMSIVI_TTS_GCP_API_KEY')===''&&(fileperms($credentialPath)&0777)===0640,'credential deletion is persistent and store permissions are restrictive');
-unlink($credentialPath);rmdir($credentialRoot);
+$translationPolicy=array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,
+    'save_translated_text'=>true,'source_language'=>'en','target_language'=>'de']);
+$translationPolicy=TranslationPolicy::validate($translationPolicy);
+$deepLRequest=[];$deepL=new DeepLTranslationProvider($translationPolicy['endpoint'],'test-key',5000,
+    static function(string$endpoint,array$headers,string$body,int$timeout,\ALMSIVIserver\Application\CancellationToken$token)use(&$deepLRequest):string{
+        $deepLRequest=compact('endpoint','headers','body','timeout');$token->throwIfCancellationRequested();
+        return'{"translations":[{"text":"Guten Tag"},{"text":"Auf Wiedersehen"}]}';
+    });
+$translated=$deepL->translate(['Hello','Goodbye'],$translationPolicy['source_language'],$translationPolicy['target_language'],new NeverCancelledToken());
+$check($translated===['Guten Tag','Auf Wiedersehen']
+    &&$deepLRequest['endpoint']===TranslationPolicy::FREE_ENDPOINT
+    &&substr_count($deepLRequest['body'],'text=')===2
+    &&str_contains($deepLRequest['body'],'source_lang=EN')&&str_contains($deepLRequest['body'],'target_lang=DE')
+    &&($deepLRequest['headers']['Authorization']??'')==='DeepL-Auth-Key test-key',
+    'DeepL adapter batches bounded text against the selected official endpoint');
+foreach([
+    array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,'target_language'=>'']),
+    array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,'target_language'=>'DE','endpoint'=>'https://example.com/translate']),
+    array_replace(TranslationPolicy::defaults(),['save_translated_text'=>true]),
+]as$invalidTranslationPolicy){
+    try{TranslationPolicy::validate($invalidTranslationPolicy);$check(false,'invalid translation policy accepted');}
+    catch(InvalidArgumentException){$check(true,'invalid translation policy rejected');}
+}
+$credentialStore->delete('ALMSIVI_DEEPL_API_KEY');unlink($credentialPath);rmdir($credentialRoot);
 $preset=ConnectorCatalog::validate('tts_provider',['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8020','model'=>'default','voice'=>'default','language'=>'en','timeout_ms'=>30000,'options'=>[]]);
 $check($preset['driver']==='pockettts' && $preset['timeout_ms']===30000, 'speech connector preset validation is strict and normalized');
 $pocketPreset=static fn(string$endpoint):array=>['kind'=>'tts_provider','content'=>['driver'=>'pockettts','endpoint'=>$endpoint,

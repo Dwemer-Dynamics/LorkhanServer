@@ -448,7 +448,7 @@ final class Repository
                     'audience' => $audience, 'text' => $line['text'],
                     'speech_enabled' => ($line['metadata']['speech_enabled'] ?? true) !== false];
                 $dialogue = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'dialogue.complete', [
-                    'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $utterance['text'],
+                    'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $line['subtitle'],
                 ], $line['line_id']);
                 $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
                     . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
@@ -485,7 +485,7 @@ final class Repository
                     $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                         . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
                         ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$dialogue['message_id'],
-                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']])]);
+                            'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id'],'tts_text'=>$line['tts_text']])]);
                 }
                 $currentSpeech = $speech[$index] ?? ($index === 0 && isset($speech['media_id']) ? $speech : null);
                 if ($currentSpeech !== null) {

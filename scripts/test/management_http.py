@@ -174,6 +174,8 @@ assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in 
 r=request('/ALMSIVIserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/ALMSIVIserver/ui/core/npc_master.php').read().decode()
 keys,text=parse(request('/ALMSIVIserver/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'ALMSIVI_LLM_API_KEY' in text and 'type="password"' in text
+deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert deepl_key_input,text
+deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[ALMSIVI_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
 player,text=parse(request('/ALMSIVIserver/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/ALMSIVIserver/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/ALMSIVIserver/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom" value="1" disabled aria-disabled="true"' in text and 'name="auto_greeting" value="1" disabled aria-disabled="true"' in text and 'feature-state-excluded' in text and 'feature-state-replaced' in text
@@ -478,6 +480,19 @@ r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert
 globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
 assert 'name="knowledge_limit" value="6"' in body and 'name="rechat" value="1" aria-label="Rechat"' in body and 'name="rechat" value="1" disabled' not in body and 'name="auto_lock_profile" value="1" checked' in body
 assert all('<h2>'+section+'</h2>' in body for section in ['Memory','Misc','Quests','Translation']) and all(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','translation_provider']) and 'Background Life Trigger Time' not in body
+assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
+assert '<option value="none" selected>None</option>' in body and '<option value="deepl">DeepL</option>' in body and 'name="translation_provider" data-translation-control="provider" aria-label="Provider"' in body
+assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body and '<option value="https://api.deepl.com/v2/translate">Pro account (api.deepl.com)</option>' in body
+assert 'translates NPC output only' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
+translation_values=dict(values,translation_provider='deepl',translation_text='1')
+r=request(settings_form['action'],'POST',translation_values); invalid_body=r.read().decode()
+assert r.status==422 and 'invalid_translation_activation' in invalid_body,(r.status,invalid_body)
+r=request(settings_form['action'],'POST',dict(translation_values,translation_target_language='de',translation_endpoint_url='https://api.deepl.com/v2/translate')); body=r.read().decode(); assert r.status==200,(r.status,body)
+_,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
+assert '<option value="deepl" selected>DeepL</option>' in body and 'name="translation_target_language" data-translation-control="target"' in body and 'value="DE"' in body and '<option value="https://api.deepl.com/v2/translate" selected>Pro account (api.deepl.com)</option>' in body
+r=request(settings_form['action'],'POST',dict(values,translation_provider='none')); assert r.status==200,r.status
+globals_page,body=parse(request('/ALMSIVIserver/ui/core/global_settings.php'))
+assert '<option value="none" selected>None</option>' in body and '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body
 global_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
 global_export_match=re.search(r'/manage/exports/global-settings/([0-9a-f-]{36})\.json',body); assert global_export_match,body
 global_configuration_id=global_export_match.group(1)

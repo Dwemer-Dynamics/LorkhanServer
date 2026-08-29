@@ -63,7 +63,7 @@ $providers = [
     'google-stt' => ['Google Gemini STT', 'https://aistudio.google.com/apikey', 'ALMSIVI_STT_GEMINI_API_KEY', ['STT'], 'config.keys'],
     'groq' => ['Groq', 'https://console.groq.com/keys', null, ['LLM'], 'config.keys.groq'],
     'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', null, ['LLM'], 'config.keys.nano-gpt'],
-    'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', null, ['Translation'], 'config.keys.deepl'],
+    'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', 'ALMSIVI_DEEPL_API_KEY', ['Translation'], 'config.keys.deepl'],
 ];
 
 $additionalStylesheets = ['herika-api-keys.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-api-keys.css')];

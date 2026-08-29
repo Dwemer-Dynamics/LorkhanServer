@@ -29,6 +29,9 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(242,124,1
 .global-settings-page .provider-toggle { display: flex; flex: 0 0 auto; align-items: center; margin-left: auto; }
 .global-settings-page .provider-toggle input[type="checkbox"] { accent-color: #176529; cursor: pointer; transform: scale(1.6); transform-origin: center; }
 .global-settings-page .provider-help { min-width: 0; margin-top: 0; color: #bbb; font-size: 12px; line-height: 1.45; }
+.global-settings-page .gs-section-note { margin: -4px 0 12px; }
+.global-settings-page .provider-toggle input[type="checkbox"]:disabled { cursor: not-allowed; opacity: .72; }
+.global-settings-page .provider-card.is-dependent-off > .provider-head,.global-settings-page .provider-card.is-dependent-off > .provider-help { opacity: .72; }
 .global-settings-page .btn-save-green,.global-settings-page .btn-action-blue { min-height: 40px !important; margin: 0 !important; padding: 10px 20px !important; border-radius: 8px !important; color: #fff !important; font-size: 14px !important; font-weight: 700; }
 .global-settings-page .btn-save-green { border: 1px solid rgba(72,187,120,.3) !important; background: linear-gradient(135deg,rgba(32,122,74,.9),rgba(23,101,57,.9)) !important; }
 .global-settings-page .btn-action-blue { border: 1px solid rgba(77,144,254,.42) !important; background: linear-gradient(135deg,rgba(34,84,173,.95),rgba(24,62,130,.98)) !important; }

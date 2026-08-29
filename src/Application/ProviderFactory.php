@@ -130,6 +130,15 @@ final class ProviderFactory
         };
     }
 
+    /** Build the server-held DeepL adapter for one already-validated policy snapshot. */
+    public static function translation(array $config,array $policy):TranslationProvider
+    {
+        $content=TranslationPolicy::validate($policy);
+        if($content['provider']!=='deepl')throw new RuntimeException('provider_unavailable');
+        return new DeepLTranslationProvider($content['endpoint'],self::environment('ALMSIVI_DEEPL_API_KEY',$config),
+            max(1000,min(120_000,(int)($config['translation_timeout_ms']??30_000))));
+    }
+
     /** Build an installation-selected TTS preset while credentials remain fixed environment references. */
     public static function speechForPreset(array $config,array $preset):SpeechProvider
     {

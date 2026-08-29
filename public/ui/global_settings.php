@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use ALMSIVIserver\Application\EffectiveSettingsResolver;
+use ALMSIVIserver\Application\TranslationPolicy;
 
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'Global Settings';
@@ -21,6 +22,8 @@ $autoLockProfile = $installationId === '' || $productRepository->profileAutoLock
 $oghmaSettings = $installationId === ''
     ? ['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>true,'location_context_enabled'=>true,'topic_count'=>1,'result_limit'=>3,'extractor_enabled'=>false,'extractor_timeout_ms'=>1500]
     : $productRepository->oghmaSettings($installationId);
+$translationPolicy = $installationId === '' ? TranslationPolicy::defaults()
+    : $productRepository->translationPolicyForInstallation($installationId)['content'];
 
 $globalSettingsRow = null;
 if ($installationId !== '') {
@@ -37,7 +40,7 @@ $earlierRevisions = array_values(array_filter(
     $revisionHistory,
     static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
 ));
-$portableScopeNote = 'A portable file and a restore both cover the typed Global Settings document only. Neither carries or changes installation identity, revision history, Core Profile or NPC overrides, connector routing, API keys, Oghma catalog and access settings, Auto Lock Profile, or NPC assignments. Local OpenMW HUD, transcript, and TTS preferences stay client-local even though compatibility fields exist in the strict document.';
+$portableScopeNote = 'A portable file and a restore both cover the typed Global Settings document only. Neither carries or changes installation identity, revision history, Core Profile or NPC overrides, connector routing, API keys, NPC translation policy, Oghma catalog and access settings, Auto Lock Profile, or NPC assignments. Local OpenMW HUD, transcript, and TTS preferences stay client-local even though compatibility fields exist in the strict document.';
 $statusMessages = [
     'saved' => 'Global settings saved to the database.',
     'imported' => 'Preset imported as a new Global Settings revision.',
@@ -82,17 +85,13 @@ $sections = [
             ['chim_player_only_quest_advancement', 'Player Only Quest Advancement', '&#x1F9CD;', 'boolean', true, 'Limits CHIM AI quest beats and quest-stage actions to direct player dialogue.', ['feature' => 'config.globals.quest-progression']],
         ],
         'Translation' => [
-            ['translation_provider', 'Provider', '&#x1F310;', 'select', 'none', 'Translate subtitles and/or audio into a different language.', ['values' => ['none', 'DeepL'], 'feature' => 'config.globals.translation']],
-            ['translation_audio', 'Translate Audio', '&#x1F3A7;', 'boolean', false, 'NPC audio will be translated to the target language.', ['feature' => 'config.globals.translation']],
-            ['translation_text', 'Translate Text', '&#x1F4DD;', 'boolean', false, 'NPC subtitles will be translated to the target language.', ['feature' => 'config.globals.translation']],
-            ['translation_save_text', 'Save Translated Text', '&#x1F4BE;', 'boolean', false, 'Replaces NPC speech in context history with the translation.', ['feature' => 'config.globals.translation']],
-            ['translation_player_audio', 'Translate Player Audio', '&#x1F399;&#xFE0F;', 'boolean', false, 'Player TTS audio will be translated to the player target language.', ['feature' => 'config.globals.translation']],
-            ['translation_save_player_text', 'Save Translated Player Text', '&#x1F4BE;', 'boolean', false, 'Replaces player input in context history with the translation.', ['feature' => 'config.globals.translation']],
-            ['translation_source_language', 'Source Language', '&#x1F5E3;&#xFE0F;', 'text', '', 'NPC source language. May be left blank for auto-detection.', ['feature' => 'config.globals.translation']],
-            ['translation_target_language', 'Target Language', '&#x1F30D;', 'text', '', 'NPC target language to translate into.', ['feature' => 'config.globals.translation']],
-            ['translation_endpoint_url', 'Endpoint URL', '&#x1F517;', 'url', 'https://api-free.deepl.com/v2/translate', 'DeepL endpoint URL for the selected account type.', ['feature' => 'config.globals.translation']],
-            ['translation_player_source_language', 'Player Source Language', '&#x1F3A4;', 'text', '', 'Player source language. May be left blank for auto-detection.', ['feature' => 'config.globals.translation']],
-            ['translation_player_target_language', 'Player Target Language', '&#x1F30E;', 'text', '', 'Player target language to translate into.', ['feature' => 'config.globals.translation']],
+            ['translation_provider', 'Provider', '&#x1F310;', 'select', $translationPolicy['provider'], 'Server-only NPC output translation. None leaves NPC output untranslated; DeepL uses the server-held DeepL key and the account endpoint below.', ['values' => ['none' => 'None', 'deepl' => 'DeepL'], 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'provider']],
+            ['translation_text', 'Translate Text', '&#x1F4DD;', 'boolean', $translationPolicy['translate_text'], 'Translate NPC subtitles into the target language. Needs DeepL and a target language.', ['feature' => 'config.globals.translation', 'live' => true, 'control' => 'output']],
+            ['translation_audio', 'Translate Audio', '&#x1F3A7;', 'boolean', $translationPolicy['translate_audio'], 'Translate NPC speech audio into the target language. Needs DeepL and a target language.', ['feature' => 'config.globals.translation', 'live' => true, 'control' => 'output']],
+            ['translation_save_text', 'Save Translated Text', '&#x1F4BE;', 'boolean', $translationPolicy['save_translated_text'], 'Replace NPC speech in context history with the translation. Needs Translate Text or Translate Audio.', ['feature' => 'config.globals.translation', 'live' => true, 'control' => 'save']],
+            ['translation_source_language', 'Source Language', '&#x1F5E3;&#xFE0F;', 'text', $translationPolicy['source_language'], 'NPC source language code such as EN or PT-BR. Leave blank for DeepL auto-detection.', ['maxlength' => 16, 'pattern' => '[A-Za-z]{2,3}(-[A-Za-z]{2})?', 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'language']],
+            ['translation_target_language', 'Target Language', '&#x1F30D;', 'text', $translationPolicy['target_language'], 'Language code such as DE or PT-BR that NPC output is translated into. Required once Translate Text or Translate Audio is on.', ['maxlength' => 16, 'pattern' => '[A-Za-z]{2,3}(-[A-Za-z]{2})?', 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'target']],
+            ['translation_endpoint_url', 'DeepL Account Endpoint', '&#x1F517;', 'select', $translationPolicy['endpoint'], 'DeepL account type. Free and Pro use fixed endpoints, and no other URL is accepted.', ['values' => [TranslationPolicy::FREE_ENDPOINT => 'Free account (api-free.deepl.com)', TranslationPolicy::PRO_ENDPOINT => 'Pro account (api.deepl.com)'], 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'language']],
         ],
     ],
     'context-knowledge' => [
@@ -111,6 +110,10 @@ $sections = [
             ['narrator_book_events', 'Book Events', '&#x1F4D6;', 'boolean', $settings['narrator']['book_events'], 'Automatic model-triggering is excluded from this build.', ['feature' => 'autonomy']],
         ],
     ],
+];
+
+$sectionNotes = [
+    'Translation' => 'ALMSIVI translates NPC output only: NPC subtitles and NPC speech audio. OpenMW player input is not server-generated TTS, so the server has no player speech to translate. These values are stored server-side, frozen for each turn, and saving never calls DeepL.',
 ];
 
 $additionalStylesheets = ['herika-global-settings.css?v=' . (string) filemtime(__DIR__ . '/css/herika-global-settings.css')];
@@ -234,6 +237,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
             <section class="content-section" role="tabpanel" aria-labelledby="settings-tab-<?php echo almsivi_ui_h($tabId); ?>" data-settings-panel="<?php echo almsivi_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
                 <h2><?php echo almsivi_ui_h($sectionTitle); ?></h2>
+                <?php if (isset($sectionNotes[$sectionTitle])): ?><p class="gs-help gs-section-note"><?php echo almsivi_ui_h($sectionNotes[$sectionTitle]); ?></p><?php endif; ?>
                 <div class="provider-grid">
                     <?php if ($tabId === 'prompt-rechat'): ?>
                     <?php foreach ([
@@ -248,16 +252,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <?php endforeach; ?>
                     <div class="provider-subsection-title">Roleplay Management</div>
                     <?php endif; ?>
-                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $placeholderFeature = (string) ($options['feature'] ?? ''); $disabled = $placeholderFeature !== ''; ?>
-                    <div class="provider-card"<?php if ($disabled): ?> title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>"<?php endif; ?>>
-                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($disabled) echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"></span><?php endif; ?></div></div>
+                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $placeholderFeature = (string) ($options['feature'] ?? ''); $disabled = $placeholderFeature !== '' && ($options['live'] ?? false) !== true; $controlAttr = isset($options['control']) ? ' data-translation-control="' . almsivi_ui_h((string) $options['control']) . '"' : ''; $describeAttr = $controlAttr === '' ? '' : ' aria-describedby="gs-help-' . almsivi_ui_h($name) . '"'; ?>
+                    <div class="provider-card"<?php if ($placeholderFeature !== ''): ?> title="<?php echo almsivi_ui_h(almsivi_ui_feature($placeholderFeature)['description']); ?>"<?php endif; ?>>
+                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo almsivi_ui_h($label); ?></span><?php if ($placeholderFeature !== '') echo almsivi_ui_feature_badge($placeholderFeature, true); ?><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo almsivi_ui_h($name); ?>" value="1"<?php echo $controlAttr; ?><?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"<?php echo $describeAttr; ?>></span><?php endif; ?></div></div>
                         <div class="provider-body">
                             <?php if ($type === 'integer'): ?><input type="number" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" min="<?php echo almsivi_ui_h($options['min']); ?>" max="<?php echo almsivi_ui_h($options['max']); ?>" step="1" aria-label="<?php echo almsivi_ui_h($label); ?>">
-                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"><?php foreach ($options['values'] as $option): ?><option value="<?php echo almsivi_ui_h($option); ?>"<?php echo $option === $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($option); ?></option><?php endforeach; ?></select>
-                            <?php elseif ($type === 'text' || $type === 'url'): ?><input type="<?php echo $type; ?>" name="<?php echo almsivi_ui_h($name); ?>"<?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" maxlength="512" aria-label="<?php echo almsivi_ui_h($label); ?>">
+                            <?php elseif ($type === 'select'): ?><select name="<?php echo almsivi_ui_h($name); ?>"<?php echo $controlAttr; ?><?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"<?php echo $describeAttr; ?>><?php foreach ($options['values'] as $optionKey => $optionLabel): $option = is_int($optionKey) ? (string) $optionLabel : (string) $optionKey; ?><option value="<?php echo almsivi_ui_h($option); ?>"<?php echo $option === (string) $value ? ' selected' : ''; ?>><?php echo almsivi_ui_h($optionLabel); ?></option><?php endforeach; ?></select>
+                            <?php elseif ($type === 'text' || $type === 'url'): ?><input type="<?php echo $type; ?>" name="<?php echo almsivi_ui_h($name); ?>"<?php echo $controlAttr; ?><?php if ($disabled): ?> disabled aria-disabled="true"<?php endif; ?> value="<?php echo almsivi_ui_h($value); ?>" maxlength="<?php echo (int) ($options['maxlength'] ?? 512); ?>"<?php if (isset($options['pattern'])): ?> pattern="<?php echo almsivi_ui_h($options['pattern']); ?>"<?php endif; ?> aria-label="<?php echo almsivi_ui_h($label); ?>"<?php echo $describeAttr; ?>>
                             <?php endif; ?>
                         </div>
-                        <div class="provider-help"><?php echo almsivi_ui_h($help); ?></div>
+                        <div class="provider-help"<?php if ($controlAttr !== ''): ?> id="gs-help-<?php echo almsivi_ui_h($name); ?>"<?php endif; ?>><?php echo almsivi_ui_h($help); ?></div>
                     </div>
                     <?php endforeach; ?>
                 </div>

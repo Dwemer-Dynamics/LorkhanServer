@@ -13,6 +13,7 @@ use ALMSIVIserver\Application\PlayerMoodPolicy;
 use ALMSIVIserver\Application\ProductService;
 use ALMSIVIserver\Application\Provider;
 use ALMSIVIserver\Application\ProviderFactory;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\EventLogRepository;
 use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
@@ -1195,7 +1196,7 @@ final class ManagementRouter
                 ||!$this->objectArray($row['actor_identity'])||!$this->objectArray($row['content'])||array_key_exists('portrait',$row['content']))throw new RuntimeException('backup_integrity_failed');
             $this->uuid($row['profile_id'],'profile_id');if(isset($profileIds[$row['profile_id']]))throw new RuntimeException('backup_integrity_failed');$profileIds[$row['profile_id']]=true;}
 
-        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'];
+        $configurationIds=[];$configurationKinds=[];$allowed=['prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'];
         foreach($data['configurations']as$row){if(!$this->objectArray($row)){throw new RuntimeException('backup_integrity_failed');}$keys=array_keys($row);sort($keys);
             if($keys!==['configuration_id','content','kind','name','profile_id']||!is_string($row['configuration_id'])||!in_array($row['kind']??null,$allowed,true)
                 ||!is_string($row['name'])||trim($row['name'])===''||strlen($row['name'])>128||!$this->objectArray($row['content'])
@@ -1218,6 +1219,12 @@ final class ManagementRouter
             if($row['kind']!=='memory_embedding_policy')continue;
             \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
             if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
+        }
+        $translationPolicies=0;
+        foreach($data['configurations']as$row){
+            if($row['kind']!=='translation_policy')continue;
+            TranslationPolicy::validate($row['content']);
+            if(++$translationPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
         }
         if($this->containsSecretKey($document))throw new RuntimeException('backup_integrity_failed');
     }
@@ -1362,6 +1369,7 @@ final class ManagementRouter
     private function saveGlobalSettings(array $values,array $scope):array
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $this->saveTranslationPolicy($values,$installation);
         $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
         $this->repository->setOghmaSettings($installation,[
             'enabled'=>isset($values['oghma_enabled']),
@@ -1376,6 +1384,27 @@ final class ManagementRouter
         $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
+    }
+
+    /** Save the server-only translation sidecar without placing provider details in client settings. */
+    private function saveTranslationPolicy(array $values,string $installation):array
+    {
+        $provider=strtolower(trim((string)($values['translation_provider']??'none')));
+        $active=$provider==='deepl';
+        $content=TranslationPolicy::validate([
+            'schema'=>'almsivi.translation-policy.v1','provider'=>$provider,
+            'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
+            'save_translated_text'=>$active&&isset($values['translation_save_text']),
+            'source_language'=>trim((string)($values['translation_source_language']??'')),
+            'target_language'=>trim((string)($values['translation_target_language']??'')),
+            'endpoint'=>trim((string)($values['translation_endpoint_url']??TranslationPolicy::FREE_ENDPOINT)),
+        ]);
+        $existing=$this->repository->translationPolicyForInstallation($installation);
+        if($existing['configuration_id']===null)return$this->service->createRevisioned('translation_policy',[
+            'installation_id'=>$installation,'name'=>'NPC Output Translation','content'=>$content]);
+        if($existing['content']===$content)return$existing;
+        return$this->service->revise('translation_policy',(string)$existing['configuration_id'],$content,
+            trim((string)($values['change_reason']??'management translation policy'))?:'management translation policy');
     }
 
     /** Create one typed Core Profile between installation defaults and NPC overrides. */

@@ -63,6 +63,12 @@ $canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema
 $check($canonicalTurnColumns===['response_created_at','response_id','response_payload','runtime_generation']
     &&$canonicalDialogueColumns===['response_line_id','runtime_generation','utterance_id'],
     'canonical response projection columns are incomplete');
+$configurationKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.configuration_sets'::regclass AND conname='configuration_sets_kind_check'")->fetchColumn();
+$providerKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.provider_attempts'::regclass AND conname='provider_attempts_provider_kind_check'")->fetchColumn();
+$check(str_contains($configurationKindConstraint,"'translation_policy'")
+    &&str_contains($providerKindConstraint,"'translation'")
+    &&$db->query("SELECT to_regclass('almsivi_internal.one_translation_policy_per_installation') IS NOT NULL")->fetchColumn()===true,
+    'translation policy or provider audit constraints are incomplete');
 $eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
 $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
     'eventlog does not expose the exact Herika column contract: '.json_encode($eventlogColumns));
@@ -1419,6 +1425,20 @@ try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/0
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove semantic memory support'),'unexpected semantic downgrade failure');
     $db->exec('ROLLBACK TO SAVEPOINT semantic_downgrade');}
 $check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()===1,'guarded semantic downgrade changed projections');
+$db->rollBack();
+
+$translationPolicy=$service->createRevisioned('translation_policy',['installation_id'=>$legacyInstallation,
+    'name'=>'NPC Output Translation','content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()]);
+$check(($translationPolicy['current_revision']??null)===1
+    &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
+    'revisioned translation policy was not persisted as one installation-scoped document');
+$db->beginTransaction();$db->exec('SAVEPOINT translation_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/071_translation_policy.down.sql'));
+    throw new RuntimeException('translation downgrade discarded policy history');}
+catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove translation support'),'unexpected translation downgrade failure');
+    $db->exec('ROLLBACK TO SAVEPOINT translation_downgrade');}
+$check($products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
+    'guarded translation downgrade changed saved policy');
 $db->rollBack();
 
 $failedSource=Uuid::v4();$failedDialogue=Uuid::v4();$failedMessage=Uuid::v4();$failedTurn=Uuid::v4();$failedRequest=Uuid::v4();

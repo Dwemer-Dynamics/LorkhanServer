@@ -13,6 +13,7 @@ use ALMSIVIserver\Application\ProviderFactory;
 use ALMSIVIserver\Application\RechatCoordinator;
 use ALMSIVIserver\Application\SpeechProvider;
 use ALMSIVIserver\Application\SpeechToTextProvider;
+use ALMSIVIserver\Application\TranslationPolicy;
 use ALMSIVIserver\Infrastructure\ManagementRepository;
 use ALMSIVIserver\Infrastructure\MediaStore;
 use ALMSIVIserver\Infrastructure\ProductRepository;
@@ -184,6 +185,9 @@ final class Router
                 if($providerConfiguration!==null)$providerInput['_provider_configuration']=$providerConfiguration;
                 $fallbackConfiguration=$this->products->fallbackProviderContext($m,$providerConfiguration['configuration_id']??null);
                 if($fallbackConfiguration!==null)$providerInput['_fallback_provider_configuration']=$fallbackConfiguration;
+                $translation=$this->products->translationPolicyForInstallation((string)$m['installation_id']);
+                $providerInput['_translation_policy']=['configuration_id'=>$translation['configuration_id'],
+                    'revision'=>(int)$translation['current_revision'],'content'=>TranslationPolicy::validate($translation['content'])];
             }
             $body = ['schema' => 'almsivi.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
                 'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];

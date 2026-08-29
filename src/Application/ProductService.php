@@ -14,7 +14,7 @@ final class ProductService
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input): array
     {
-        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy', 'memory_embedding_policy'];
+        $allowed = ['profile', 'core_profile', 'playthrough', 'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy', 'memory_embedding_policy', 'translation_policy'];
         if (!in_array($kind, $allowed, true)) throw new InvalidArgumentException('invalid_resource_kind');
         $this->requireUuid($input, 'installation_id');
         $this->boundedString($input, 'name', 1, 256);
@@ -41,7 +41,7 @@ final class ProductService
     public function revise(string $kind, string $id, array $content, string $reason): array
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         if ($kind !== 'provider') $this->assertNoSecrets($content);
         $content=$this->validateConfiguration($kind,$content);
@@ -62,7 +62,7 @@ final class ProductService
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
-        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'],true)
+        $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $content=$this->repository->revisionContent($kind,$id,$revision);
         if ($kind !== 'provider') $this->assertNoSecrets($content);
@@ -169,7 +169,7 @@ final class ProductService
     public function deleteRevisioned(string $kind,string $id):void
     {
         $this->uuid($id);
-        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'],true)
+        if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $this->repository->deleteRevisioned($kind,$id,$this->clock->iso());
     }
@@ -428,6 +428,7 @@ final class ProductService
         if($kind==='global_settings')return EffectiveSettingsResolver::validateGlobalSettings($content);
         if($kind==='memory_policy')return MemorySummaryPolicy::validate($content);
         if($kind==='memory_embedding_policy')return MemoryEmbeddingPolicy::validate($content);
+        if($kind==='translation_policy')return TranslationPolicy::validate($content);
         if($kind!=='provider')return$content;
         return LlmConnector::validate($content);
     }

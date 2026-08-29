@@ -14,7 +14,8 @@ final class FirstPartyJobHandlerFactory
     /** @return list<JobHandler> */
     public static function handlers(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        array $providerConfig = [], ?SpeechToTextProvider $sttProvider = null): array
+        array $providerConfig = [], ?SpeechToTextProvider $sttProvider = null,
+        ?TranslationProvider $translationProvider = null): array
     {
         $clock ??= new DeterministicClock();
         $repository = new FirstPartyJobRepository($db);
@@ -24,7 +25,7 @@ final class FirstPartyJobHandlerFactory
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db,256,
                 new \ALMSIVIserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider,
-                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig);
+                $mediaStore, new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,$translationProvider);
         }
         $handlers[] = new SpeechSynthesizeJobHandler(new \ALMSIVIserver\Infrastructure\Repository($db),$speechProvider,
             $mediaStore,new \ALMSIVIserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig,
@@ -56,9 +57,11 @@ final class FirstPartyJobHandlerFactory
 
     public static function registry(PDO $db, MediaStore $mediaStore, ?DeterministicClock $clock = null,
         ?Provider $provider = null, ?SpeechProvider $speechProvider = null, int $providerTimeoutMs = 1000,
-        array $providerConfig = [], ?SpeechToTextProvider $sttProvider = null): JobHandlerRegistry
+        array $providerConfig = [], ?SpeechToTextProvider $sttProvider = null,
+        ?TranslationProvider $translationProvider = null): JobHandlerRegistry
     {
-        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,$providerConfig,$sttProvider));
+        return new JobHandlerRegistry(self::handlers($db, $mediaStore, $clock, $provider, $speechProvider, $providerTimeoutMs,
+            $providerConfig,$sttProvider,$translationProvider));
     }
 
     /** @return list<string> */

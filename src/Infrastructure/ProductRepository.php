@@ -25,7 +25,7 @@ final class ProductRepository
     public function createRevisioned(string $kind, array $input, string $now): array
     {
         return $this->transaction(function () use ($kind, $input, $now): array {
-            if(in_array($kind,['memory_policy','memory_embedding_policy'],true)){
+            if(in_array($kind,['memory_policy','memory_embedding_policy','translation_policy'],true)){
                 if(isset($input['profile_id']))throw new \InvalidArgumentException($kind.'_is_installation_scoped');
             }
             if($kind==='memory_policy'){
@@ -55,7 +55,7 @@ final class ProductRepository
             } else {
                 $configKind = match ($kind) {
                     'prompt', 'provider', 'tts_provider', 'stt_provider', 'action_policy', 'global_settings', 'memory_policy',
-                    'memory_embedding_policy' => $kind,
+                    'memory_embedding_policy', 'translation_policy' => $kind,
                     default => throw new RuntimeException('invalid_resource_kind'),
                 };
                 $this->db->prepare('INSERT INTO configuration_sets (configuration_id,installation_id,profile_id,kind,name,created_at) VALUES (:id,:installation,:profile,:kind,:name,:now)')
@@ -79,6 +79,16 @@ final class ProductRepository
     {
         $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='global_settings' AND c.deleted_at IS NULL LIMIT 1");
         $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();if(!$row)return null;$row['content']=$this->json($row['content']);return$row;
+    }
+
+    /** Return the current server-only NPC translation policy, or its safe disabled default. */
+    public function translationPolicyForInstallation(string $installationId):array
+    {
+        $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='translation_policy' AND c.deleted_at IS NULL LIMIT 1");
+        $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();
+        if(!$row)return['configuration_id'=>null,'current_revision'=>0,'content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()];
+        $row['current_revision']=(int)$row['current_revision'];
+        $row['content']=\ALMSIVIserver\Application\TranslationPolicy::validate($this->json($row['content']));return$row;
     }
 
     /** Return or create the single installation default used when an NPC has no explicit Core Profile. */
@@ -1729,11 +1739,12 @@ SQL);
                         'profile'=>$row['profile_id'],'kind'=>$row['kind'],'name'=>$row['name'],'now'=>$now]);}
                 $this->revision('configuration_revisions','configuration_id',$id,$next,$row['content'],'configuration backup restore',$now);$counts['configurations']++;}
 
-            foreach($document['data']['configurations']as$row)if(in_array($row['kind'],['memory_policy','memory_embedding_policy'],true)){
+            foreach($document['data']['configurations']as$row)if(in_array($row['kind'],['memory_policy','memory_embedding_policy','translation_policy'],true)){
                 if($row['profile_id']!==null)throw new \InvalidArgumentException($row['kind'].'_is_installation_scoped');
                 if($row['kind']==='memory_policy')
                     (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
-                else \ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+                elseif($row['kind']==='memory_embedding_policy')\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+                else \ALMSIVIserver\Application\TranslationPolicy::validate($row['content']);
             }
             $this->db->prepare('DELETE FROM installation_provider_selections WHERE installation_id=:installation')
                 ->execute(['installation'=>$installation]);
@@ -2601,7 +2612,7 @@ SQL);
             ->execute(['installation'=>$row['installation_id'],'key'=>$key,'default'=>$default,'custom'=>$custom,
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
-    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
+    private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
     private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
