@@ -21,5 +21,5 @@ DROP FUNCTION IF EXISTS herika_compat.trigger_configuration_removal();
 DROP FUNCTION IF EXISTS herika_compat.trigger_configuration_projection();
 DROP FUNCTION IF EXISTS herika_compat.sync_configuration_projection(uuid);
 DROP FUNCTION IF EXISTS herika_compat.remove_configuration_projection(uuid);
-DROP VIEW IF EXISTS herika_compat.almsivi_core_profiles_source;
+DROP VIEW IF EXISTS herika_compat.lorkhan_core_profiles_source;
 DROP TABLE IF EXISTS herika_compat.general_setting_metadata;

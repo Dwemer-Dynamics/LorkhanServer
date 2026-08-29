@@ -1,4 +1,4 @@
-# ALMSIVIserver engineering rules
+# LORKHANserver engineering rules
 
 ## Scope and lineage
 
@@ -23,7 +23,7 @@
 
 ## Cross-repository contract
 
-- `almsivi.*.v1` schemas and fixtures must match sibling ALMSIVI by manifest hash.
+- `lorkhan.*.v1` schemas and fixtures must match sibling LORKHAN by manifest hash.
 - TES3 identity is record ID + content source/order + runtime RefNum/FormId + cell where applicable;
   names are not keys.
 - An action is incomplete until one terminal client result is persisted. HTTP acceptance is not game

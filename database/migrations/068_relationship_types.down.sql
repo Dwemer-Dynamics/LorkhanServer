@@ -1,13 +1,13 @@
 DO $$ BEGIN
-    IF EXISTS (SELECT 1 FROM almsivi_internal.relationship_records WHERE relationship_type <> 'neutral') THEN
+    IF EXISTS (SELECT 1 FROM lorkhan_internal.relationship_records WHERE relationship_type <> 'neutral') THEN
         RAISE EXCEPTION 'Cannot remove saved non-neutral relationship types.';
     END IF;
 END $$;
 
-CREATE OR REPLACE FUNCTION almsivi_internal.refresh_npc_relationships(source_profile uuid)
+CREATE OR REPLACE FUNCTION lorkhan_internal.refresh_npc_relationships(source_profile uuid)
 RETURNS void
 LANGUAGE plpgsql
-SET search_path = public, almsivi_internal, pg_temp
+SET search_path = public, lorkhan_internal, pg_temp
 AS $function$
 DECLARE relationships_json jsonb;
 BEGIN
@@ -18,7 +18,7 @@ BEGIN
             'affinity',r.affinity,'disposition',r.disposition,'source',r.source_mode
         )
     ) INTO relationships_json
-    FROM almsivi_internal.relationship_records r
+    FROM lorkhan_internal.relationship_records r
     WHERE r.profile_id=source_profile AND r.deleted_at IS NULL;
 
     UPDATE core_npc_master npc SET
@@ -31,5 +31,5 @@ BEGIN
 END
 $function$;
 
-DROP INDEX almsivi_internal.relationship_audit_record_order;
-ALTER TABLE almsivi_internal.relationship_records DROP COLUMN relationship_type;
+DROP INDEX lorkhan_internal.relationship_audit_record_order;
+ALTER TABLE lorkhan_internal.relationship_records DROP COLUMN relationship_type;

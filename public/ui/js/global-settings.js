@@ -11,7 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (active && focus) tab.focus();
         });
         panels.forEach((panel) => { panel.hidden = panel.dataset.settingsPanel !== id; });
-        try { sessionStorage.setItem('almsivi-global-settings-tab', id); } catch (_) {}
+        try { sessionStorage.setItem('lorkhan-global-settings-tab', id); } catch (_) {}
     };
     tabs.forEach((tab, index) => {
         tab.addEventListener('click', () => activate(tab.dataset.settingsTab));
@@ -54,6 +54,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     let initial = 'prompt-rechat';
-    try { initial = sessionStorage.getItem('almsivi-global-settings-tab') || initial; } catch (_) {}
+    try { initial = sessionStorage.getItem('lorkhan-global-settings-tab') || initial; } catch (_) {}
     activate(initial);
 });

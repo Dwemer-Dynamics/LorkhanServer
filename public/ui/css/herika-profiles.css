@@ -17,7 +17,7 @@ body.profiles-page-shell > main.profiles-page {
     padding: 10px 0 24px;
 }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .profiles-page .page-header h1.api-title {
     color: #f5f1e8;
     font-family: MagicCards, serif;
@@ -89,8 +89,8 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 .profiles-page .sidebar-action-grid .feature-placeholder-control {
-    border-color: #d16a05;
-    background: #b45500;
+    border-color: #bc9d5a;
+    background: #655229;
     color: #fff;
     opacity: .82;
 }
@@ -107,13 +107,13 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 .profiles-page .profile-preset-note > summary {
-    color: #f27c11;
+    color: #bc9d5a;
     cursor: pointer;
     font-weight: 600;
 }
 
 .profiles-page .profile-preset-note > summary:focus-visible {
-    outline: 2px solid rgba(242, 124, 17, .8);
+    outline: 2px solid rgba(188, 157, 90, .8);
     outline-offset: 2px;
 }
 
@@ -268,9 +268,9 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 .profiles-page .conn-li.active {
-    outline: 2px solid rgb(242, 124, 17);
+    outline: 2px solid rgb(188, 157, 90);
     background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98));
-    box-shadow: 0 4px 12px rgba(242, 124, 17, .3);
+    box-shadow: 0 4px 12px rgba(188, 157, 90, .3);
 }
 
 .profiles-page .profile-card-link {
@@ -444,9 +444,9 @@ body.profiles-page-shell > main.profiles-page {
 .profiles-page select:focus,
 .profiles-page textarea:focus {
     outline: none;
-    border-color: rgba(242, 124, 17, .5);
+    border-color: rgba(188, 157, 90, .5);
     background: rgba(34, 34, 34, .9);
-    box-shadow: 0 0 0 3px rgba(242, 124, 17, .1);
+    box-shadow: 0 0 0 3px rgba(188, 157, 90, .1);
 }
 
 .profiles-page input:disabled,
@@ -511,7 +511,7 @@ body.profiles-page-shell > main.profiles-page {
 .profiles-page .connector-group-title,
 .profiles-page .profile-settings-heading {
     margin: 0 0 7px;
-    color: #f27c11;
+    color: #bc9d5a;
     font-family: MagicCards, serif;
     font-size: 1em;
     letter-spacing: .4px;
@@ -737,7 +737,7 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 .profiles-page .profile-history > summary {
-    color: #f27c11;
+    color: #bc9d5a;
     cursor: pointer;
     font-weight: 700;
 }
@@ -812,7 +812,7 @@ body.profile-test-open {
 }
 
 .profiles-page .profile-test-shell :focus-visible {
-    outline: 2px solid rgba(242, 124, 17, .9);
+    outline: 2px solid rgba(188, 157, 90, .9);
     outline-offset: 2px;
 }
 
@@ -863,17 +863,17 @@ body.profile-test-open {
 .profiles-page .profile-test-warning {
     margin: 0 0 10px;
     padding: 10px 12px;
-    border: 1px solid #85601f;
+    border: 1px solid #745f30;
     border-left: 4px solid #d5a849;
     border-radius: 6px;
     background: #2e2618;
-    color: #f0dcb4;
+    color: #e5d9bf;
     line-height: 1.45;
     overflow-wrap: anywhere;
 }
 
 .profiles-page .profile-test-warning strong {
-    color: #ffd09b;
+    color: #e2d5b8;
 }
 
 .profiles-page .profile-test-help {
@@ -918,7 +918,7 @@ body.profile-test-open {
 .profiles-page .profile-test-count-pass strong { color: #8ee0ac; }
 .profiles-page .profile-test-count-fail strong { color: #ef9caa; }
 .profiles-page .profile-test-count-skipped strong { color: #c8cfd9; }
-.profiles-page .profile-test-count-pending strong { color: #ddb574; }
+.profiles-page .profile-test-count-pending strong { color: #cbb078; }
 
 .profiles-page .profile-test-progress {
     overflow: hidden;
@@ -937,7 +937,7 @@ body.profile-test-open {
     display: block;
     width: 0;
     height: 100%;
-    background: #f27c11;
+    background: #bc9d5a;
     transition: width .18s ease-out;
 }
 
@@ -978,10 +978,10 @@ body.profile-test-open {
 
 .profiles-page .profile-test-flag {
     padding: 3px 8px;
-    border: 1px solid #704719;
+    border: 1px solid #614f28;
     border-radius: 999px;
     background: #312315;
-    color: #ffd09b;
+    color: #e2d5b8;
     font-size: 11px;
     font-weight: 700;
 }
@@ -1056,7 +1056,7 @@ body.profile-test-open {
 .profiles-page .profile-test-pill-pass { border-color: #37794f; background: #183022; color: #8ee0ac; }
 .profiles-page .profile-test-pill-fail { border-color: #85404d; background: #321c21; color: #ef9caa; }
 .profiles-page .profile-test-pill-skipped { border-color: #454545; background: #262626; color: #c8cfd9; }
-.profiles-page .profile-test-pill-running { border-color: #704719; background: #312315; color: #ffd09b; }
+.profiles-page .profile-test-pill-running { border-color: #614f28; background: #312315; color: #e2d5b8; }
 
 .profiles-page .profile-test-empty {
     margin: 0;
@@ -1166,7 +1166,7 @@ body.profile-rules-open {
 }
 
 .profiles-page .profile-rules-shell :focus-visible {
-    outline: 2px solid rgba(242, 124, 17, .9);
+    outline: 2px solid rgba(188, 157, 90, .9);
     outline-offset: 2px;
 }
 
@@ -1288,7 +1288,7 @@ body.profile-rules-open {
 }
 
 .profiles-page .profile-rules-pill-on { border-color: #37794f; background: #183022; color: #8ee0ac; }
-.profiles-page .profile-rules-pill-off { border-color: #6a4a1c; background: #2c2418; color: #ddb574; }
+.profiles-page .profile-rules-pill-off { border-color: #5f4d27; background: #2c2418; color: #cbb078; }
 
 .profiles-page .profile-rules-row-facts {
     display: flex;
@@ -1449,7 +1449,7 @@ body.profile-rules-open {
 
 .profiles-page .profile-rules-match > legend {
     padding: 0 6px;
-    color: #f27c11;
+    color: #bc9d5a;
     font-size: 13px;
     font-weight: 700;
 }

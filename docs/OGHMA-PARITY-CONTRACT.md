@@ -2,10 +2,10 @@
 
 Contract version: `oghma-parity-v1`.
 
-ALMSIVIserver owns this implementation. It has no HerikaServer runtime, package, submodule, include,
+LORKHANserver owns this implementation. It has no HerikaServer runtime, package, submodule, include,
 Composer, or deployment dependency. Both servers validate the same observable contract while retaining
 native implementations. Morrowind catalog content, races, regions, cells, content files, and record
-identities remain ALMSIVI-specific.
+identities remain LORKHAN-specific.
 
 ## Eligible requests
 

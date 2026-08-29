@@ -17,21 +17,21 @@ $routeSelect = static function (string $name, string $label, string $icon, strin
     }
     ?>
     <div class="connector-option-card">
-        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span<?php echo $labelId === '' ? '' : ' id="' . almsivi_ui_h($labelId) . '"'; ?>><?php echo almsivi_ui_h($label); ?></span></div>
-        <div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div>
-        <div class="setting-control"><select name="<?php echo almsivi_ui_h($name); ?>"<?php echo $labelId === '' ? '' : ' aria-labelledby="' . almsivi_ui_h($labelId) . '"'; ?><?php echo $helpId === '' ? '' : ' aria-describedby="' . almsivi_ui_h($helpId) . '"'; ?>>
-            <option value=""><?php echo almsivi_ui_h($blankLabel ?? 'None / inherit'); ?></option>
+        <div class="setting-key"><span class="setting-icon"><?php echo $icon; ?></span><span<?php echo $labelId === '' ? '' : ' id="' . lorkhan_ui_h($labelId) . '"'; ?>><?php echo lorkhan_ui_h($label); ?></span></div>
+        <div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div>
+        <div class="setting-control"><select name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $labelId === '' ? '' : ' aria-labelledby="' . lorkhan_ui_h($labelId) . '"'; ?><?php echo $helpId === '' ? '' : ' aria-describedby="' . lorkhan_ui_h($helpId) . '"'; ?>>
+            <option value=""><?php echo lorkhan_ui_h($blankLabel ?? 'None / inherit'); ?></option>
             <?php foreach ($rows as $row): $id = (string) $row['configuration_id']; ?>
-                <option value="<?php echo almsivi_ui_h($id); ?>"<?php echo ($routing[$name] ?? null) === $id ? ' selected' : ''; ?>><?php echo almsivi_ui_h($row['name']); ?></option>
+                <option value="<?php echo lorkhan_ui_h($id); ?>"<?php echo ($routing[$name] ?? null) === $id ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($row['name']); ?></option>
             <?php endforeach; ?>
-        </select><?php if ($helpId !== ''): ?><small class="hint" id="<?php echo almsivi_ui_h($helpId); ?>"><?php echo almsivi_ui_h($help); ?></small><?php endif; ?></div>
+        </select><?php if ($helpId !== ''): ?><small class="hint" id="<?php echo lorkhan_ui_h($helpId); ?>"><?php echo lorkhan_ui_h($help); ?></small><?php endif; ?></div>
     </div>
     <?php
 };
 
 $inheritSelect = static function (string $name, mixed $value): void {
     ?>
-    <select class="profile-inherit-select" name="<?php echo almsivi_ui_h($name); ?>">
+    <select class="profile-inherit-select" name="<?php echo lorkhan_ui_h($name); ?>">
         <option value="inherit"<?php echo $value === null ? ' selected' : ''; ?>>Inherit</option>
         <option value="1"<?php echo $value === true ? ' selected' : ''; ?>>On</option>
         <option value="0"<?php echo $value === false ? ' selected' : ''; ?>>Off</option>
@@ -42,17 +42,17 @@ $inheritSelect = static function (string $name, mixed $value): void {
 $toggleCard = static function (string $name, string $icon, string $title, string $description, mixed $value) use ($inheritSelect): void {
     ?>
     <label class="profile-toggle-card">
-        <span class="profile-toggle-heading"><span><?php echo $icon; ?> <?php echo almsivi_ui_h($title); ?></span><span class="profile-toggle-control"><?php $inheritSelect($name, $value); ?></span></span>
-        <span class="profile-toggle-description"><?php echo almsivi_ui_h($description); ?></span>
+        <span class="profile-toggle-heading"><span><?php echo $icon; ?> <?php echo lorkhan_ui_h($title); ?></span><span class="profile-toggle-control"><?php $inheritSelect($name, $value); ?></span></span>
+        <span class="profile-toggle-description"><?php echo lorkhan_ui_h($description); ?></span>
     </label>
     <?php
 };
 
 $placeholderCard = static function (string $icon, string $title, string $description, string $featureId): void {
     ?>
-    <div class="profile-toggle-card feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
-        <span class="profile-toggle-heading"><span><?php echo $icon; ?> <?php echo almsivi_ui_h($title); ?></span><?php echo almsivi_ui_feature_badge($featureId, true); ?></span>
-        <span class="profile-toggle-description"><?php echo almsivi_ui_h($description); ?></span>
+    <div class="profile-toggle-card feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
+        <span class="profile-toggle-heading"><span><?php echo $icon; ?> <?php echo lorkhan_ui_h($title); ?></span><?php echo lorkhan_ui_feature_badge($featureId, true); ?></span>
+        <span class="profile-toggle-description"><?php echo lorkhan_ui_h($description); ?></span>
     </div>
     <?php
 };
@@ -61,8 +61,8 @@ $numberField = static function (string $section, string $field, string $label, s
     $value = $overrides[$section][$field] ?? '';
     ?>
     <div class="setting-row">
-        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo almsivi_ui_h($section . '_' . $field); ?>"<?php echo in_array($section, ['relationship', 'diary'], true) ? ' aria-label="' . almsivi_ui_h($label) . '"' : ''; ?> value="<?php echo almsivi_ui_h($value); ?>" placeholder="Inherit"></div>
+        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
+        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo lorkhan_ui_h($section . '_' . $field); ?>"<?php echo in_array($section, ['relationship', 'diary'], true) ? ' aria-label="' . lorkhan_ui_h($label) . '"' : ''; ?> value="<?php echo lorkhan_ui_h($value); ?>" placeholder="Inherit"></div>
     </div>
     <?php
 };
@@ -70,7 +70,7 @@ $numberField = static function (string $section, string $field, string $label, s
 $selectSetting = static function (string $name, string $label, string $description, mixed $value) use ($inheritSelect): void {
     ?>
     <div class="setting-row">
-        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
+        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
         <div class="setting-control"><?php $inheritSelect($name, $value); ?></div>
     </div>
     <?php
@@ -79,9 +79,9 @@ $selectSetting = static function (string $name, string $label, string $descripti
 $disabledSelectSetting = static function (string $name, string $label, string $description, mixed $value, string $featureId): void {
     $display = $value === true ? 'On' : ($value === false ? 'Off' : 'Inherit');
     ?>
-    <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
-        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><select disabled aria-disabled="true"><option><?php echo almsivi_ui_h($display); ?></option></select></div>
+    <div class="setting-row feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
+        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?> <?php echo lorkhan_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
+        <div class="setting-control"><select disabled aria-disabled="true"><option><?php echo lorkhan_ui_h($display); ?></option></select></div>
     </div>
     <?php
 };
@@ -89,9 +89,9 @@ $disabledSelectSetting = static function (string $name, string $label, string $d
 $disabledNumberField = static function (string $section, string $field, string $label, string $description, string $featureId) use ($overrides): void {
     $value = $overrides[$section][$field] ?? '';
     ?>
-    <div class="setting-row feature-placeholder-card" title="<?php echo almsivi_ui_h(almsivi_ui_feature($featureId)['description']); ?>">
-        <div><div class="setting-key"><?php echo almsivi_ui_h($label); ?> <?php echo almsivi_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo almsivi_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="text" value="<?php echo almsivi_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
+    <div class="setting-row feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
+        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?> <?php echo lorkhan_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
+        <div class="setting-control"><input type="text" value="<?php echo lorkhan_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
     </div>
     <?php
 };
@@ -104,11 +104,11 @@ $disabledNumberField = static function (string $section, string $field, string $
     <div class="profile-core-grid">
         <div class="profile-core-compact-field">
             <label for="profile-label">Name</label>
-            <input id="profile-label" name="label" required maxlength="256" value="<?php echo almsivi_ui_h($profileMeta['label'] ?? ''); ?>">
+            <input id="profile-label" name="label" required maxlength="256" value="<?php echo lorkhan_ui_h($profileMeta['label'] ?? ''); ?>">
             <small class="hint">Name shown when assigning this profile.</small>
         </div>
         <div class="profile-core-compact-field">
-            <label for="profile-slot">Slot <span class="profile-info" title="Can be assigned in game through ALMSIVI profile controls">&#x24D8;</span></label>
+            <label for="profile-slot">Slot <span class="profile-info" title="Can be assigned in game through LORKHAN profile controls">&#x24D8;</span></label>
             <select id="profile-slot" name="slot">
                 <option value="">&mdash;</option>
                 <?php foreach (range(1, 4) as $slot): $slotOwner = (string) ($usedProfileSlots[$slot] ?? ''); $slotUnavailable = $slotOwner !== '' && $slotOwner !== (string) ($profileMeta['core_profile_id'] ?? ''); ?><option value="<?php echo $slot; ?>"<?php echo (int) ($profileMeta['slot'] ?? 0) === $slot ? ' selected' : ''; ?><?php echo $slotUnavailable ? ' disabled' : ''; ?>><?php echo $slot; ?></option><?php endforeach; ?>
@@ -124,7 +124,7 @@ $disabledNumberField = static function (string $section, string $field, string $
 
     <div class="profile-prompt-field">
         <label for="profile-prompt">Profile Prompt</label>
-        <textarea id="profile-prompt" name="prompt" maxlength="65536"><?php echo almsivi_ui_h($content['prompt'] ?? ''); ?></textarea>
+        <textarea id="profile-prompt" name="prompt" maxlength="65536"><?php echo lorkhan_ui_h($content['prompt'] ?? ''); ?></textarea>
         <small class="hint">Optional profile-specific system instructions appended to requests.</small>
     </div>
 
@@ -181,7 +181,7 @@ $disabledNumberField = static function (string $section, string $field, string $
                 <?php $routeSelect('profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'Connector for requested NPC and narrator profile generation and player speech-style analysis.', $llm, 'Use server runtime', 'Applies to newly queued generation jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <?php $routeSelect('relationship_configuration_id', 'Relationship LLM', '&#x1F91D;', 'Connector for relationship updates after fully played conversations.', $llm, 'Disabled', 'No connector means no evaluation. Saving never calls a provider.'); ?>
                 <?php $routeSelect('diary_generation_configuration_id', 'Diary LLM', '&#x1F4D3;', 'Connector for diary generation that a person explicitly requests from Narratives.', $llm, 'Disabled', 'Disabled refuses manual diary requests. Applies to newly queued diary jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
-                <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo almsivi_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
+                <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo lorkhan_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>
         </section>
     </div>
@@ -191,7 +191,7 @@ $disabledNumberField = static function (string $section, string $field, string $
     <div class="connector-title">Profile Settings</div>
     <div class="profile-feature-grid">
         <div class="provider-card feature-placeholder-card">
-            <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F310;</div><div>Language</div></div><?php echo almsivi_ui_feature_badge('config.profiles.language', true); ?></div>
+            <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F310;</div><div>Language</div></div><?php echo lorkhan_ui_feature_badge('config.profiles.language', true); ?></div>
             <div class="provider-body"><div class="setting-row"><div><div class="setting-key">Profile Language</div><div class="setting-desc">Language used for profile-specific dialogue.</div></div><div class="setting-control"><select disabled aria-disabled="true"><option>Installation default</option></select></div></div></div>
         </div>
         <div class="provider-card">
@@ -215,7 +215,7 @@ $disabledNumberField = static function (string $section, string $field, string $
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Context &amp; Presentation</h3><div class="provider-card">
             <?php $numberField('memory', 'recent_turn_limit', 'Recent Turns', 'Maximum recent conversation turns in context.', 1, 100); ?>
             <?php $numberField('memory', 'knowledge_limit', 'Knowledge Results', 'Maximum scoped knowledge documents returned.', 0, 20); ?>
-            <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" maxlength="4096" value="<?php echo almsivi_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
+            <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" maxlength="4096" value="<?php echo lorkhan_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
             <?php $selectSetting('setting_oghma_enabled', 'Oghma Enabled', 'Override catalog grounding and prompt injection for this profile.', $overrides['oghma']['enabled'] ?? null); ?>
             <?php $numberField('oghma', 'topic_count', 'Oghma Topics', 'Maximum conversational topics extracted.', 1, 3); ?>
             <?php $numberField('oghma', 'result_limit', 'Oghma Results', 'Maximum Oghma articles or denials injected.', 1, 5); ?>
@@ -231,7 +231,7 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $numberField('diary', 'context_turn_limit', 'Diary Context Turns', 'Maximum witnessed turns frozen into one manual diary request, from 1 to 100. Blank uses the server default of 20.', 1, 100); ?>
             <div class="setting-row profile-setting-stacked">
                 <div><label class="setting-key" for="profile-diary-prompt">Diary Instruction</label><div class="setting-desc">Profile-specific instruction sent with a manual diary request. Blank inherits the server default instruction.</div></div>
-                <div class="setting-control"><textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help"><?php echo almsivi_ui_h($overrides['diary']['prompt'] ?? ''); ?></textarea></div>
+                <div class="setting-control"><textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help"><?php echo lorkhan_ui_h($overrides['diary']['prompt'] ?? ''); ?></textarea></div>
             </div>
             <p class="setting-desc" id="profile-diary-prompt-help">Turn Manual Diary Generation on and choose a Diary LLM before requesting a diary from Narratives. Saving this page never calls a provider.</p>
         </div></section>
@@ -239,12 +239,12 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $selectSetting('setting_narrator_enabled', 'Enable Narrator', 'Allow inherited narrator events for this profile.', $overrides['narrator']['enabled'] ?? null); ?>
             <?php $selectSetting('setting_narrator_context_visibility', 'Narrator Context', 'Include narrator-visible context for this profile.', $overrides['narrator']['context_visibility'] ?? null); ?>
             <?php foreach (['welcome_events' => 'Welcome Events', 'random_events' => 'Random Events', 'quest_events' => 'Quest Events', 'book_events' => 'Book Events'] as $field => $label) $disabledSelectSetting('setting_narrator_' . $field, $label, 'Automatic narrator triggers are excluded from this milestone.', $overrides['narrator'][$field] ?? null, 'autonomy'); ?>
-            <div class="setting-row"><div><div class="setting-key">Narrator Name</div><div class="setting-desc">Optional profile-specific narrator display name.</div></div><div class="setting-control"><input name="setting_narrator_name" maxlength="128" value="<?php echo almsivi_ui_h($overrides['narrator']['name'] ?? ''); ?>" placeholder="Inherit"></div></div>
-            <div class="setting-row"><div><div class="setting-key">Inline Mode</div><div class="setting-desc">How narrator text is routed to dialogue output.</div></div><div class="setting-control"><select name="setting_narrator_inline_mode"><option value="">Inherit</option><?php foreach (['Disabled', 'Narrator', 'NPC', 'Text Only'] as $mode): ?><option<?php echo ($overrides['narrator']['inline_mode'] ?? null) === $mode ? ' selected' : ''; ?>><?php echo almsivi_ui_h($mode); ?></option><?php endforeach; ?></select></div></div>
+            <div class="setting-row"><div><div class="setting-key">Narrator Name</div><div class="setting-desc">Optional profile-specific narrator display name.</div></div><div class="setting-control"><input name="setting_narrator_name" maxlength="128" value="<?php echo lorkhan_ui_h($overrides['narrator']['name'] ?? ''); ?>" placeholder="Inherit"></div></div>
+            <div class="setting-row"><div><div class="setting-key">Inline Mode</div><div class="setting-desc">How narrator text is routed to dialogue output.</div></div><div class="setting-control"><select name="setting_narrator_inline_mode"><option value="">Inherit</option><?php foreach (['Disabled', 'Narrator', 'NPC', 'Text Only'] as $mode): ?><option<?php echo ($overrides['narrator']['inline_mode'] ?? null) === $mode ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($mode); ?></option><?php endforeach; ?></select></div></div>
         </div></section>
         <section class="profile-settings-group profile-relationship-settings"><h3 class="profile-settings-heading">Relationships</h3><div class="provider-card">
             <?php $numberField('relationship', 'update_chance_percent', 'Relationship Update Chance', 'Default 0: no automatic evaluation. 100: every eligible played response. Saved relationships still appear in prompts.', 0, 100); ?>
-            <div class="setting-row"><div><label class="setting-key" for="relationship-lock">Relationship Lock</label><div class="setting-desc">Stop relationship evaluation. Separate from the NPC profile lock.</div></div><div class="setting-control"><select id="relationship-lock" name="setting_relationship_locked"><?php foreach (['inherit'=>'Inherit (unlocked)', '1'=>'Locked', '0'=>'Unlocked'] as $value=>$label): ?><option value="<?php echo $value; ?>"<?php echo ($overrides['relationship']['locked'] ?? null) === ($value === 'inherit' ? null : (string)$value === '1') ? ' selected' : ''; ?>><?php echo almsivi_ui_h($label); ?></option><?php endforeach; ?></select></div></div>
+            <div class="setting-row"><div><label class="setting-key" for="relationship-lock">Relationship Lock</label><div class="setting-desc">Stop relationship evaluation. Separate from the NPC profile lock.</div></div><div class="setting-control"><select id="relationship-lock" name="setting_relationship_locked"><?php foreach (['inherit'=>'Inherit (unlocked)', '1'=>'Locked', '0'=>'Unlocked'] as $value=>$label): ?><option value="<?php echo $value; ?>"<?php echo ($overrides['relationship']['locked'] ?? null) === ($value === 'inherit' ? null : (string)$value === '1') ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($label); ?></option><?php endforeach; ?></select></div></div>
         </div></section>
         <section class="profile-settings-group"><h3 class="profile-settings-heading">Safety</h3><div class="provider-card">
             <?php $selectSetting('setting_safety_actions_enabled', 'Negotiated Actions', 'Allow bounded action negotiation.', $overrides['safety']['actions_enabled'] ?? null); ?>

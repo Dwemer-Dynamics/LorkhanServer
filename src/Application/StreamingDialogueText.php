@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Extracts safe visible text growth from a streamed structured response. */
 final class StreamingDialogueText

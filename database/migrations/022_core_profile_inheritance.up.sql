@@ -32,14 +32,14 @@ CREATE TABLE core_profile_revisions (
 INSERT INTO core_profiles (
     core_profile_id, installation_id, label, default_npc, slot, current_revision, created_at
 )
-SELECT md5('almsivi:core-profile:default:v1:' || installation_id::text)::uuid,
+SELECT md5('lorkhan:core-profile:default:v1:' || installation_id::text)::uuid,
     installation_id, 'Default', true, 1, 1, created_at
 FROM installations;
 
 INSERT INTO core_profile_revisions (core_profile_id, revision, content, change_reason, created_at)
-SELECT md5('almsivi:core-profile:default:v1:' || installation_id::text)::uuid,
+SELECT md5('lorkhan:core-profile:default:v1:' || installation_id::text)::uuid,
     1,
-    '{"schema":"almsivi.core-profile.v1","prompt":"","routing":{},"settings_overrides":{}}'::jsonb,
+    '{"schema":"lorkhan.core-profile.v1","prompt":"","routing":{},"settings_overrides":{}}'::jsonb,
     '022 default core profile backfill',
     created_at
 FROM installations;

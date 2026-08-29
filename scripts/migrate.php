@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\MigrationRunner;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\MigrationRunner;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
@@ -28,15 +28,15 @@ try {
             $usage();
         }
     }
-    $configFile = getenv('ALMSIVI_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
     if (!is_file($configFile)) {
-        throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+        throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     }
     $config = require $configFile;
     if (!is_array($config)) {
         throw new RuntimeException('Server configuration is invalid.');
     }
-    $config['database_password'] = getenv('ALMSIVI_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
+    $config['database_password'] = getenv('LORKHAN_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
     $runner = new MigrationRunner(Connection::open($config), dirname(__DIR__) . '/database/migrations');
 
     if (in_array($command, ['fresh', 'rerun', 'down'], true) && !array_key_exists('force', $options)) {

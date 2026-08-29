@@ -1,14 +1,14 @@
-ALTER TABLE almsivi_internal.oghma_installation_settings
+ALTER TABLE lorkhan_internal.oghma_installation_settings
     ALTER COLUMN knowledge_tags SET DEFAULT '';
 
-UPDATE almsivi_internal.oghma_installation_settings settings
+UPDATE lorkhan_internal.oghma_installation_settings settings
 SET knowledge_tags = cleaned.knowledge_tags,
     updated_at = clock_timestamp()
 FROM (
     SELECT installation_id,
         COALESCE(string_agg(trim(part), ', ' ORDER BY ordinal)
             FILTER (WHERE trim(part) <> '' AND lower(trim(part)) NOT IN ('common', 'esoteric')), '') AS knowledge_tags
-    FROM almsivi_internal.oghma_installation_settings source
+    FROM lorkhan_internal.oghma_installation_settings source
     CROSS JOIN LATERAL regexp_split_to_table(source.knowledge_tags, E'\\s*[,|;]\\s*')
         WITH ORDINALITY AS split(part, ordinal)
     GROUP BY installation_id
@@ -25,8 +25,8 @@ DECLARE
 BEGIN
     FOR source IN
         SELECT profile.profile_id, profile.current_revision, revision.content
-        FROM almsivi_internal.profiles profile
-        JOIN almsivi_internal.profile_revisions revision
+        FROM lorkhan_internal.profiles profile
+        JOIN lorkhan_internal.profile_revisions revision
           ON revision.profile_id = profile.profile_id
          AND revision.revision = profile.current_revision
         WHERE revision.content ? 'oghma_knowledge_tags'
@@ -39,16 +39,16 @@ BEGIN
         IF cleaned IS DISTINCT FROM source.content->>'oghma_knowledge_tags' THEN
             revised := jsonb_set(source.content, '{oghma_knowledge_tags}', to_jsonb(cleaned), true);
             next_revision := source.current_revision + 1;
-            INSERT INTO almsivi_internal.profile_revisions(profile_id, revision, content, change_reason)
+            INSERT INTO lorkhan_internal.profile_revisions(profile_id, revision, content, change_reason)
             VALUES(source.profile_id, next_revision, revised, '055 remove article-only Oghma markers from NPC');
-            UPDATE almsivi_internal.profiles SET current_revision = next_revision WHERE profile_id = source.profile_id;
+            UPDATE lorkhan_internal.profiles SET current_revision = next_revision WHERE profile_id = source.profile_id;
         END IF;
     END LOOP;
 
     FOR source IN
         SELECT profile.core_profile_id, profile.current_revision, revision.content
-        FROM almsivi_internal.core_profiles profile
-        JOIN almsivi_internal.core_profile_revisions revision
+        FROM lorkhan_internal.core_profiles profile
+        JOIN lorkhan_internal.core_profile_revisions revision
           ON revision.core_profile_id = profile.core_profile_id
          AND revision.revision = profile.current_revision
         WHERE revision.content#>>'{settings_overrides,memory,oghma_knowledge_tags}' IS NOT NULL
@@ -61,9 +61,9 @@ BEGIN
         IF cleaned IS DISTINCT FROM source.content#>>'{settings_overrides,memory,oghma_knowledge_tags}' THEN
             revised := jsonb_set(source.content, '{settings_overrides,memory,oghma_knowledge_tags}', to_jsonb(cleaned), true);
             next_revision := source.current_revision + 1;
-            INSERT INTO almsivi_internal.core_profile_revisions(core_profile_id, revision, content, change_reason)
+            INSERT INTO lorkhan_internal.core_profile_revisions(core_profile_id, revision, content, change_reason)
             VALUES(source.core_profile_id, next_revision, revised, '055 remove article-only Oghma markers from NPC defaults');
-            UPDATE almsivi_internal.core_profiles SET current_revision = next_revision WHERE core_profile_id = source.core_profile_id;
+            UPDATE lorkhan_internal.core_profiles SET current_revision = next_revision WHERE core_profile_id = source.core_profile_id;
         END IF;
     END LOOP;
 END

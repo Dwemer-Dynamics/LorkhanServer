@@ -1,5 +1,5 @@
 -- Promote the validated Herika contract to public and keep OpenMW transport state internal.
-CREATE SCHEMA IF NOT EXISTS almsivi_internal;
+CREATE SCHEMA IF NOT EXISTS lorkhan_internal;
 
 DO $cutover$
 DECLARE
@@ -22,9 +22,9 @@ DECLARE
 BEGIN
     FOREACH object_name IN ARRAY source_tables LOOP
         IF to_regclass(format('public.%I',object_name)) IS NULL THEN
-            RAISE EXCEPTION 'Missing ALMSIVI source table public.%',object_name;
+            RAISE EXCEPTION 'Missing LORKHAN source table public.%',object_name;
         END IF;
-        EXECUTE format('ALTER TABLE public.%I SET SCHEMA almsivi_internal',object_name);
+        EXECUTE format('ALTER TABLE public.%I SET SCHEMA lorkhan_internal',object_name);
     END LOOP;
 
     SELECT string_agg(c.relname,',' ORDER BY c.relname) INTO unexpected
@@ -50,11 +50,11 @@ DECLARE
 BEGIN
     FOREACH object_name IN ARRAY companion_tables LOOP
         IF to_regclass(format('herika_compat.%I',object_name)) IS NULL THEN
-            RAISE EXCEPTION 'Missing ALMSIVI companion table herika_compat.%',object_name;
+            RAISE EXCEPTION 'Missing LORKHAN companion table herika_compat.%',object_name;
         END IF;
-        EXECUTE format('ALTER TABLE herika_compat.%I SET SCHEMA almsivi_internal',object_name);
+        EXECUTE format('ALTER TABLE herika_compat.%I SET SCHEMA lorkhan_internal',object_name);
     END LOOP;
-    ALTER VIEW herika_compat.almsivi_core_profiles_source SET SCHEMA almsivi_internal;
+    ALTER VIEW herika_compat.lorkhan_core_profiles_source SET SCHEMA lorkhan_internal;
 END
 $companions$;
 
@@ -139,15 +139,15 @@ BEGIN
     LOOP
         definition := pg_get_functiondef(function_row.oid);
         FOREACH object_name IN ARRAY source_tables LOOP
-            definition := replace(definition,'public.'||object_name,'almsivi_internal.'||object_name);
+            definition := replace(definition,'public.'||object_name,'lorkhan_internal.'||object_name);
         END LOOP;
         EXECUTE definition;
         EXECUTE format(
-            'ALTER FUNCTION herika_compat.%I(%s) SET search_path TO public, almsivi_internal, pg_temp',
+            'ALTER FUNCTION herika_compat.%I(%s) SET search_path TO public, lorkhan_internal, pg_temp',
             function_row.proname,function_row.arguments
         );
         EXECUTE format(
-            'ALTER FUNCTION herika_compat.%I(%s) SET SCHEMA almsivi_internal',
+            'ALTER FUNCTION herika_compat.%I(%s) SET SCHEMA lorkhan_internal',
             function_row.proname,function_row.arguments
         );
     END LOOP;

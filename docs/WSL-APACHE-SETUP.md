@@ -37,28 +37,28 @@ Composer/dependency locks. Run `apache2ctl configtest` before every reload.
 ## Files and identities
 
 ```text
-/var/www/ALMSIVIserver/releases/<version>   immutable source/vendor/built UI
-/var/www/ALMSIVIserver/current              atomic symlink
-/etc/almsiviserver/                         restrictive config/secrets
-/var/lib/almsiviserver/                     media/job/runtime state
-/var/log/almsiviserver/                     application logs
-/var/backups/almsiviserver/                 encrypted/policy-controlled backups
+/var/www/LORKHANserver/releases/<version>   immutable source/vendor/built UI
+/var/www/LORKHANserver/current              atomic symlink
+/etc/lorkhanserver/                         restrictive config/secrets
+/var/lib/lorkhanserver/                     media/job/runtime state
+/var/log/lorkhanserver/                     application logs
+/var/backups/lorkhanserver/                 encrypted/policy-controlled backups
 ```
 
-Use a dedicated `almsiviserver` worker/service identity and deliberate Apache read/write groups.
+Use a dedicated `lorkhanserver` worker/service identity and deliberate Apache read/write groups.
 Only media/runtime/log paths are writable. Config/secrets must reject group/world write and never be
 under the document root. Git checkout is not a writable production release.
 
 For local Dwemer development, `scripts/deploy-local-wsl.sh` intentionally mirrors the active source
-to `/var/www/html/ALMSIVIserver`, matching the HerikaServer/DialecticServer workstation layout. It
+to `/var/www/html/LORKHANserver`, matching the HerikaServer/DialecticServer workstation layout. It
 keeps the same `/etc`, `/var/lib`, and `/var/log` persistence boundaries and leaves the immutable
-release tree intact. The sibling `ALMSIVI/scripts/deploy/full-local.ps1` is the normal two-stage local
+release tree intact. The sibling `LORKHAN/scripts/deploy/full-local.ps1` is the normal two-stage local
 entrypoint. `scripts/deploy-wsl.sh` remains the immutable release/rollback workflow described here.
 
 ## PostgreSQL
 
-Create database `almsivi`, an owner/migration role and a lower-privilege runtime role with locally
-generated passwords. Store secrets only in restrictive `/etc/almsiviserver` files. Bootstrap must:
+Create database `lorkhan`, an owner/migration role and a lower-privilege runtime role with locally
+generated passwords. Store secrets only in restrictive `/etc/lorkhanserver` files. Bootstrap must:
 
 - verify version/encoding/locale/ownership and unexpected existing state;
 - enable `vector` under the migration owner;
@@ -77,11 +77,11 @@ Ship a checked-in template equivalent to:
 Listen 127.0.0.1:8089
 
 <VirtualHost 127.0.0.1:8089>
-    ServerName almsiviserver.local
+    ServerName lorkhanserver.local
     DocumentRoot /var/www/html
-    Alias /ALMSIVIserver /var/www/ALMSIVIserver/current/public
+    Alias /LORKHANserver /var/www/LORKHANserver/current/public
 
-    <Directory /var/www/ALMSIVIserver/current/public>
+    <Directory /var/www/LORKHANserver/current/public>
         Options -Indexes -ExecCGI
         AllowOverride None
         Require local
@@ -89,8 +89,8 @@ Listen 127.0.0.1:8089
     </Directory>
 
     LimitRequestBody 33554432
-    ErrorLog ${APACHE_LOG_DIR}/almsiviserver-error.log
-    CustomLog ${APACHE_LOG_DIR}/almsiviserver-access.log combined
+    ErrorLog ${APACHE_LOG_DIR}/lorkhanserver-error.log
+    CustomLog ${APACHE_LOG_DIR}/lorkhanserver-access.log combined
 </VirtualHost>
 ```
 
@@ -102,14 +102,14 @@ shortcut.
 
 ## Configuration and pairing
 
-Copy the tracked safe example to `/etc/almsiviserver`, configure the database, validate
+Copy the tracked safe example to `/etc/lorkhanserver`, configure the database, validate
 permissions/URLs/limits/schema, migrate, then run a health/self-test. The installer provisions the
 CHIM Standard/Fast/Powerful/Experimental model slots and PocketTTS without overwriting existing
 connector choices. Generate a 256-bit
 pairing token through the setup command; output one restrictive native config snippet, store only its
 server hash/fingerprint and redact all later display. Test token rotation and old-session revocation.
 
-Save `ALMSIVI_LLM_API_KEY` through the browser API Keys page or the restrictive service environment;
+Save `LORKHAN_LLM_API_KEY` through the browser API Keys page or the restrictive service environment;
 the browser masks it and never returns the stored value. Mock providers remain available for test
 flows. The installer provisions one Deepgram STT connector without overwriting an existing selection. ITT, Background Life, and timer-driven autonomy are not provisioned.
 
@@ -117,7 +117,7 @@ flows. The installer provisions one Deepgram STT connector without overwriting a
 
 The independently authored durable worker uses `workers/worker.php` with source-controlled handlers,
 leases, heartbeats, bounded retries and dead letters. Install the tracked hardened oneshot service and
-timer from `deploy/systemd/` only after configuring `/etc/almsiviserver/worker.env`; the service is not a
+timer from `deploy/systemd/` only after configuring `/etc/lorkhanserver/worker.env`; the service is not a
 placeholder and deliberately exits after bounded work/runtime so systemd can supervise restart.
 
 Adapt narrowly for actual connector/media needs. Worker heartbeat/lease state distinguishes a healthy

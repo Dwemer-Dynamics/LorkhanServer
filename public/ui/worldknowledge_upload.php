@@ -47,12 +47,12 @@ $knowledgeBadges = static function (string $value, bool $basic = false): void {
         return;
     }
     foreach ($classes as $class) {
-        echo '<span class="knowledge-badge' . ($basic ? ' basic' : '') . '">' . almsivi_ui_h($class) . '</span>';
+        echo '<span class="knowledge-badge' . ($basic ? ' basic' : '') . '">' . lorkhan_ui_h($class) . '</span>';
     }
 };
 
 $modalFields = static function (string $prefix, array $row = []): void {
-    $field = static fn (string $key): string => almsivi_ui_h((string) ($row[$key] ?? ''));
+    $field = static fn (string $key): string => lorkhan_ui_h((string) ($row[$key] ?? ''));
     ?>
     <label for="<?php echo $prefix; ?>-topic">Topic:</label>
     <small>Topic name for keyword searching.</small>
@@ -95,7 +95,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <div class="page-header">
         <h1 id="page-title">
-            <img src="<?php echo almsivi_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="" aria-hidden="true" width="32" height="32">
+            <img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="" aria-hidden="true" width="32" height="32">
             <span id="title-text">Oghma Infinium</span>
         </h1>
         <div id="header-content">
@@ -109,7 +109,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
         <button type="button" class="tab-button active" role="tab" aria-selected="true"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
         <span class="oghma-tab-placeholder">
             <button type="button" class="tab-button" role="tab" disabled aria-disabled="true"><span aria-hidden="true">&#x26A1;</span>&#160;Dynamic Oghma</button>
-            <?php echo almsivi_ui_feature_badge('config.oghma.dynamic', true); ?>
+            <?php echo lorkhan_ui_feature_badge('config.oghma.dynamic', true); ?>
         </span>
     </div>
 
@@ -124,33 +124,33 @@ $modalFields = static function (string $prefix, array $row = []): void {
             default => 'Knowledge record saved.',
         };
     ?>
-        <div class="oghma-notice" role="status"><?php echo almsivi_ui_h($notice); ?></div>
+        <div class="oghma-notice" role="status"><?php echo lorkhan_ui_h($notice); ?></div>
     <?php endif; ?>
 
     <div id="oghma-tab" class="tab-content active">
         <div class="content-grid">
             <div class="content-section">
                 <h2>Batch Upload</h2>
-                <form method="post" enctype="multipart/form-data" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge-import">
-                    <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
-                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
+                <form method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge-import">
+                    <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                     <div>
                         <label for="csv_file">Select .csv file to upload:</label>
                         <input type="file" name="csv_file" id="csv_file" accept=".csv,text/csv" required>
                     </div>
                     <div class="button-group">
                         <button type="submit" class="action-button upload-csv">Upload CSV</button>
-                        <a href="<?php echo almsivi_ui_h($managementBasePath); ?>/exports/oghma/example.csv" class="action-button download-csv">Download Example CSV</a>
+                        <a href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/oghma/example.csv" class="action-button download-csv">Download Example CSV</a>
                     </div>
                 </form>
-                <p>Uploaded topics are validated as UTF-8 CHIM-format CSV and scoped to this ALMSIVI installation. Existing user topics with the same key are revised safely.</p>
+                <p>Uploaded topics are validated as UTF-8 CHIM-format CSV and scoped to this LORKHAN installation. Existing user topics with the same key are revised safely.</p>
 
                 <details class="oghma-tips">
                     <summary>Article editing tips</summary>
                     <ul>
                         <li>Write topic titles in lowercase and replace spaces with underscores &mdash; "House Redoran" becomes <code>house_redoran</code>.</li>
                         <li>Use <code>common</code> only as an article marker for public basic knowledge. Do not assign it to NPCs.</li>
-                        <li>Access is inherited through ALMSIVI's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
+                        <li>Access is inherited through LORKHAN's Global &rarr; Core Profile &rarr; NPC hierarchy.</li>
                     </ul>
                 </details>
             </div>
@@ -161,17 +161,17 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <p>View conversation usage:<br><b>Control Panel &rarr; Oghma Audit</b></p>
                 <h3 class="factory-sync-heading">Factory Catalog</h3>
                 <p id="factory-sync-help">Oghma ships with a factory catalog of articles that stay read-only here. Syncing checks that shipped catalog and refreshes every factory article across this server in a single step, so the catalog is never left half-updated.</p>
-                <p>Your own articles &mdash; uploaded by CSV or added by hand &mdash; are preserved through a sync and stay editable and deletable. Use this after updating ALMSIVI, or if a factory article looks wrong or missing.</p>
-                <form class="factory-sync-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
-                    <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
-                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
+                <p>Your own articles &mdash; uploaded by CSV or added by hand &mdash; are preserved through a sync and stay editable and deletable. Use this after updating LORKHAN, or if a factory article looks wrong or missing.</p>
+                <form class="factory-sync-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
+                    <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                     <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
                     <div class="button-group">
                         <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Your custom articles are kept.">Sync Factory Catalog</button>
                     </div>
                 </form>
                 <div class="button-group destructive-controls">
-                    <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo almsivi_ui_feature_badge('config.oghma.destructive', true); ?></span>
+                    <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo lorkhan_ui_feature_badge('config.oghma.destructive', true); ?></span>
                 </div>
             </div>
         </div>
@@ -182,10 +182,10 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <button type="button" class="action-button add-new" data-oghma-new-open>Add New Entry</button>
                 <form class="search-container" method="get" action="#entries">
                     <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
-                    <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
-                    <input type="hidden" name="category" value="<?php echo almsivi_ui_h($filters['category']); ?>">
-                    <input type="hidden" name="order" value="<?php echo almsivi_ui_h($filters['order']); ?>">
-                    <input type="text" name="search" placeholder="Search topics..." value="<?php echo almsivi_ui_h($filters['search']); ?>">
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
+                    <input type="hidden" name="category" value="<?php echo lorkhan_ui_h($filters['category']); ?>">
+                    <input type="hidden" name="order" value="<?php echo lorkhan_ui_h($filters['order']); ?>">
+                    <input type="text" name="search" placeholder="Search topics..." value="<?php echo lorkhan_ui_h($filters['search']); ?>">
                     <button class="action-button edit">Search</button>
                 </form>
             </div>
@@ -194,17 +194,17 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <div class="category-filter">
                     <strong>Filter by Category:</strong><br>
                     <div class="filter-buttons">
-                        <a class="alphabet-button<?php echo $filters['category'] === '' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['category' => ''])); ?>">All Categories</a>
+                        <a class="alphabet-button<?php echo $filters['category'] === '' ? ' selected' : ''; ?>" href="<?php echo lorkhan_ui_h($query(['category' => ''])); ?>">All Categories</a>
                         <?php foreach ($categories as $category): ?>
-                            <a class="alphabet-button<?php echo $filters['category'] === $category ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['category' => $category])); ?>"><?php echo almsivi_ui_h((string) $category); ?></a>
+                            <a class="alphabet-button<?php echo $filters['category'] === $category ? ' selected' : ''; ?>" href="<?php echo lorkhan_ui_h($query(['category' => $category])); ?>"><?php echo lorkhan_ui_h((string) $category); ?></a>
                         <?php endforeach; ?>
                     </div>
                 </div>
                 <div>
                     <strong>Sort Order:</strong><br>
                     <div class="sort-buttons">
-                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'asc'])); ?>"><span aria-hidden="true">&#x1F53C;</span>&#160;Ascending</a>
-                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo almsivi_ui_h($query(['order' => 'desc'])); ?>"><span aria-hidden="true">&#x1F53D;</span>&#160;Descending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'asc' ? ' selected' : ''; ?>" href="<?php echo lorkhan_ui_h($query(['order' => 'asc'])); ?>"><span aria-hidden="true">&#x1F53C;</span>&#160;Ascending</a>
+                        <a class="alphabet-button<?php echo $filters['order'] === 'desc' ? ' selected' : ''; ?>" href="<?php echo lorkhan_ui_h($query(['order' => 'desc'])); ?>"><span aria-hidden="true">&#x1F53D;</span>&#160;Descending</a>
                     </div>
                 </div>
             </div>
@@ -223,16 +223,16 @@ $modalFields = static function (string $prefix, array $row = []): void {
                         ];
                     ?>
                         <tr>
-                            <td><?php echo almsivi_ui_h($row['topic']); ?></td>
-                            <td><?php echo trim((string) $row['aliases']) !== '' ? almsivi_ui_h($row['aliases']) : '<span class="empty-value">None</span>'; ?></td>
-                            <td><?php echo nl2br(almsivi_ui_h($row['content'])); ?></td>
+                            <td><?php echo lorkhan_ui_h($row['topic']); ?></td>
+                            <td><?php echo trim((string) $row['aliases']) !== '' ? lorkhan_ui_h($row['aliases']) : '<span class="empty-value">None</span>'; ?></td>
+                            <td><?php echo nl2br(lorkhan_ui_h($row['content'])); ?></td>
                             <td class="knowledge-cell"><?php $knowledgeBadges((string) $row['knowledge_class']); ?></td>
-                            <td><?php echo nl2br(almsivi_ui_h($row['topic_desc_basic'])); ?></td>
+                            <td><?php echo nl2br(lorkhan_ui_h($row['topic_desc_basic'])); ?></td>
                             <td class="knowledge-cell"><?php $knowledgeBadges((string) $row['knowledge_class_basic'], true); ?></td>
-                            <td><?php echo trim((string) $row['tags']) !== '' ? nl2br(almsivi_ui_h($row['tags'])) : '<span class="empty-value">None</span>'; ?></td>
-                            <td><?php echo almsivi_ui_h($row['category']); ?></td>
+                            <td><?php echo trim((string) $row['tags']) !== '' ? nl2br(lorkhan_ui_h($row['tags'])) : '<span class="empty-value">None</span>'; ?></td>
+                            <td><?php echo lorkhan_ui_h($row['category']); ?></td>
                             <td class="action-cell">
-                                <button type="button" class="action-button edit"<?php echo $factory ? ' title="Editing a factory article saves your changes as a custom article. The factory article stays unchanged."' : ''; ?> data-oghma-edit='<?php echo almsivi_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
+                                <button type="button" class="action-button edit"<?php echo $factory ? ' title="Editing a factory article saves your changes as a custom article. The factory article stays unchanged."' : ''; ?> data-oghma-edit='<?php echo lorkhan_ui_h((string) json_encode($editPayload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>'>Edit</button>
                                 <?php if ($factory): ?><span class="factory-label">Factory</span><?php endif; ?>
                             </td>
                         </tr>
@@ -262,7 +262,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     <ul class="oghma-pagination-list">
                         <li>
                             <?php if ($catalogPage > 1): ?>
-                                <a class="oghma-page-link" rel="prev" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage - 1])); ?>">Previous</a>
+                                <a class="oghma-page-link" rel="prev" href="<?php echo lorkhan_ui_h($query(['page' => $catalogPage - 1])); ?>">Previous</a>
                             <?php else: ?>
                                 <span class="oghma-page-link disabled" aria-disabled="true">Previous</span>
                             <?php endif; ?>
@@ -275,14 +275,14 @@ $modalFields = static function (string $prefix, array $row = []): void {
                                 <?php if ($pageNumber === $catalogPage): ?>
                                     <span class="oghma-page-link current" aria-current="page"><?php echo number_format($pageNumber); ?></span>
                                 <?php else: ?>
-                                    <a class="oghma-page-link" href="<?php echo almsivi_ui_h($query(['page' => $pageNumber])); ?>" aria-label="Page <?php echo number_format($pageNumber); ?>"><?php echo number_format($pageNumber); ?></a>
+                                    <a class="oghma-page-link" href="<?php echo lorkhan_ui_h($query(['page' => $pageNumber])); ?>" aria-label="Page <?php echo number_format($pageNumber); ?>"><?php echo number_format($pageNumber); ?></a>
                                 <?php endif; ?>
                             </li>
                             <?php $previousNumber = $pageNumber; ?>
                         <?php endforeach; ?>
                         <li>
                             <?php if ($catalogPage < $catalogPages): ?>
-                                <a class="oghma-page-link" rel="next" href="<?php echo almsivi_ui_h($query(['page' => $catalogPage + 1])); ?>">Next</a>
+                                <a class="oghma-page-link" rel="next" href="<?php echo lorkhan_ui_h($query(['page' => $catalogPage + 1])); ?>">Next</a>
                             <?php else: ?>
                                 <span class="oghma-page-link disabled" aria-disabled="true">Next</span>
                             <?php endif; ?>
@@ -301,8 +301,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
         </div>
         <div class="modal-body">
             <p class="factory-edit-note" id="edit-factory-note" hidden>This is a factory article, so it is never changed here. Saving creates a custom article for this server that replaces it in the catalog. Delete that custom article later to bring the factory version back.</p>
-            <form id="oghma-edit-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge-revise">
-                <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+            <form id="oghma-edit-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge-revise">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="document_id" id="edit-document-id">
                 <?php $modalFields('edit'); ?>
                 <div class="modal-footer">
@@ -311,8 +311,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
             </form>
-            <form id="oghma-delete-form" method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge-delete">
-                <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
+            <form id="oghma-delete-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge-delete">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="document_id" id="delete-document-id">
             </form>
         </div>
@@ -323,9 +323,9 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="new-modal-title">
         <div class="modal-header"><h2 class="modal-title" id="new-modal-title">Add New Oghma Entry</h2></div>
         <div class="modal-body">
-            <form method="post" action="<?php echo almsivi_ui_h($managementBasePath); ?>/forms/knowledge">
-                <input type="hidden" name="_csrf" value="<?php echo almsivi_ui_h($csrf); ?>">
-                <input type="hidden" name="installation_id" value="<?php echo almsivi_ui_h($selectedInstallation); ?>">
+            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                 <?php $modalFields('new', ['category' => 'lore']); ?>
                 <div class="modal-footer">
                     <button type="submit" class="btn-save">Add Entry</button>
@@ -336,5 +336,5 @@ $modalFields = static function (string $prefix, array $row = []): void {
     </div>
 </div>
 
-<script defer src="<?php echo almsivi_ui_h($webRoot); ?>/ui/js/oghma.js?v=<?php echo almsivi_ui_h((string) filemtime(__DIR__ . '/js/oghma.js')); ?>"></script>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/oghma.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/oghma.js')); ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

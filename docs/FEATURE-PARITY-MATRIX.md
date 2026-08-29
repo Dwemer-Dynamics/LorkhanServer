@@ -1,4 +1,4 @@
-# ALMSIVIserver feature parity matrix
+# LORKHANserver feature parity matrix
 
 Parity means the user outcome works end to end and is observable/persisted, not that a similarly named
 route or table exists. The implementation ledger adds state and evidence to every row.
@@ -32,7 +32,7 @@ route or table exists. The implementation ledger adds state and evidence to ever
 Each row requires unit/integration or UI tests as applicable, a mock-provider cross-boundary path,
 and a linked run artifact. Database-only behavior requires migration/repository proof; worker behavior
 requires retry/idempotency proof; UI requires browser/API proof. Game delivery/action rows remain
-`AUTOMATED` with a fake client until exact ALMSIVI Windows in-game evidence promotes them.
+`AUTOMATED` with a fake client until exact LORKHAN Windows in-game evidence promotes them.
 
 ## Exclusions
 
@@ -45,7 +45,7 @@ requires retry/idempotency proof; UI requires browser/API proof. Game delivery/a
 
 ## CHIM management-page disposition
 
-| CHIM outcome | ALMSIVI destination or decision |
+| CHIM outcome | LORKHAN destination or decision |
 | --- | --- |
 | Home dashboard and shared navbar | `home.php` plus the same Home, Roleplay, Configuration, and Control Panel navbar/hub structure; no login interstitial. |
 | NPC Master, NPC Report, profiles, player and narrator | Character Manager, Profiles, NPC Biographies, Player Management, and Narration, including revisions, lock/favorite/search, portraits, clone/import/export, bulk unlock/switch/delete/generate, LLM/TTS routing, target generation, and narrator generation. |
@@ -57,6 +57,6 @@ requires retry/idempotency proof; UI requires browser/API proof. Game delivery/a
 | Oghma/world knowledge, descriptions and cache | Oghma Infinium, Oghma Audit, Description Manager and Cache Browser without exposing private media or filesystem paths. |
 | Playthrough, database, diagnostics and logs | Playthrough Manager, Database Manager, Server Health, Server Logs, provider usage/attempts, jobs and request traces with configuration backup/restore and bounded retention. |
 | Server plugins | Removed from the beta browser UI; game capability exchange remains part of the typed OpenMW runtime protocol. |
-| Timer autonomy, boredom, greetings, combat barks, ITT and Background Life/automatic diary systems | Explicitly excluded from the requested ALMSIVI scope. ITT has no beta page, profile control, API-key landmark, or database relation. Playback-driven rechat, authored narrator/diary/summary records, explicitly requested one-shot diary generation, and player-triggered STT remain available. |
+| Timer autonomy, boredom, greetings, combat barks, ITT and Background Life/automatic diary systems | Explicitly excluded from the requested LORKHAN scope. ITT has no beta page, profile control, API-key landmark, or database relation. Playback-driven rechat, authored narrator/diary/summary records, explicitly requested one-shot diary generation, and player-triggered STT remain available. |
 | Soulgaze gallery, map view, AI Quest Manager and Skyrim teleport/return tools | Skyrim/Prisma/FormID-specific outcomes with no safe OpenMW equivalent in the current authority model. Soulgaze is removed from the beta navigation and schema; the remaining unsupported outcomes stay inert where retained for presentation parity. |
 | Web updater, raw DB import/export and executable test pages | Replaced by the guarded local deploy skill, schema migrations, secret-free configuration backup/restore and focused diagnostics; arbitrary file/SQL/test execution is intentionally not exposed. |

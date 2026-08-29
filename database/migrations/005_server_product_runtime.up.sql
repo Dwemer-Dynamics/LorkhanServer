@@ -10,7 +10,7 @@ SELECT l.*,
     CASE
         WHEN p.installation_id = l.installation_id THEN l.legacy_profile_id
         WHEN p.profile_id IS NULL AND l.owner_rank = 1 THEN l.legacy_profile_id
-        ELSE md5('almsivi:legacy-profile:v1:' || l.installation_id::text || ':' || l.legacy_profile_id::text)::uuid
+        ELSE md5('lorkhan:legacy-profile:v1:' || l.installation_id::text || ':' || l.legacy_profile_id::text)::uuid
     END AS profile_id
 FROM legacy l
 LEFT JOIN profiles p ON p.profile_id = l.legacy_profile_id;
@@ -45,7 +45,7 @@ SELECT l.*,
         WHEN p.installation_id = l.installation_id AND p.profile_id = l.profile_id
             THEN l.legacy_playthrough_id
         WHEN p.playthrough_id IS NULL AND l.owner_rank = 1 THEN l.legacy_playthrough_id
-        ELSE md5('almsivi:legacy-playthrough:v1:' || l.installation_id::text || ':' ||
+        ELSE md5('lorkhan:legacy-playthrough:v1:' || l.installation_id::text || ':' ||
             l.profile_id::text || ':' || l.legacy_playthrough_id::text)::uuid
     END AS playthrough_id
 FROM legacy l

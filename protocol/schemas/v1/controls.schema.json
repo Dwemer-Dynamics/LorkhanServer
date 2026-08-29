@@ -1,10 +1,10 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://almsivi.invalid/schemas/v1/controls.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/controls.schema.json",
   "$defs": {
     "nullableUuid": {
       "oneOf": [
-        {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+        {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
         {"type": "null"}
       ]
     },
@@ -16,19 +16,19 @@
     },
     "routingUuidOrEmpty": {
       "oneOf": [
-        {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+        {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
         {"const": "", "type": "string"}
       ]
     },
     "effectiveSettings": {
       "additionalProperties": false,
       "properties": {
-        "schema": {"const": "almsivi.effective-settings.v1", "type": "string"},
+        "schema": {"const": "lorkhan.effective-settings.v1", "type": "string"},
         "change_token": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
-        "profile_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
-        "profile_revision": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableRevision"},
-        "core_profile_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
-        "core_profile_revision": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableRevision"},
+        "profile_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
+        "profile_revision": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableRevision"},
+        "core_profile_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
+        "core_profile_revision": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableRevision"},
         "settings": {
           "additionalProperties": false,
           "properties": {
@@ -104,13 +104,13 @@
         "routing": {
           "additionalProperties": false,
           "properties": {
-            "prompt_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "llm_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "llm_fast_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "llm_powerful_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "llm_experimental_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "llm_fallback_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
-            "tts_configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "prompt_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "llm_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "llm_fast_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "llm_powerful_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "llm_experimental_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "llm_fallback_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
+            "tts_configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/routingUuidOrEmpty"},
             "llm_randomizer_enabled": {"type": "boolean"},
             "llm_fallback_enabled": {"type": "boolean"}
           },
@@ -131,23 +131,23 @@
   },
   "additionalProperties": false,
   "properties": {
-    "schema": {"const": "almsivi.controls.v1", "type": "string"},
-    "message_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "request_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "session_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "generation": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/generation"},
-    "target": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
-    "selected_model_slot_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
-    "selected_profile_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
-    "narrator_profile_id": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
-    "effective_settings": {"$ref": "https://almsivi.invalid/schemas/v1/controls.schema.json#/$defs/effectiveSettings"},
+    "schema": {"const": "lorkhan.controls.v1", "type": "string"},
+    "message_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "request_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "session_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "generation": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/generation"},
+    "target": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+    "selected_model_slot_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
+    "selected_profile_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
+    "narrator_profile_id": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/nullableUuid"},
+    "effective_settings": {"$ref": "https://lorkhan.invalid/schemas/v1/controls.schema.json#/$defs/effectiveSettings"},
     "model_slots": {
       "type": "array",
       "maxItems": 32,
       "items": {
         "additionalProperties": false,
         "properties": {
-          "configuration_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+          "configuration_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
           "name": {"type": "string", "minLength": 1, "maxLength": 128},
           "revision": {"type": "integer", "minimum": 1},
           "driver": {"enum": ["configured", "mock"], "type": "string"},
@@ -163,7 +163,7 @@
       "items": {
         "additionalProperties": false,
         "properties": {
-          "profile_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+          "profile_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
           "name": {"type": "string", "minLength": 1, "maxLength": 256},
           "revision": {"type": "integer", "minimum": 1}
         },

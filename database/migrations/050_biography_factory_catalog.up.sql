@@ -1,4 +1,4 @@
-CREATE TABLE almsivi_internal.biography_catalogs (
+CREATE TABLE lorkhan_internal.biography_catalogs (
     catalog_id uuid PRIMARY KEY,
     catalog_version varchar(128) NOT NULL UNIQUE,
     source_kind text NOT NULL CHECK (source_kind IN ('imported','legacy_snapshot')),
@@ -11,7 +11,7 @@ CREATE TABLE almsivi_internal.biography_catalogs (
         CHECK (jsonb_typeof(official_content_sha256)='object'),
     row_count integer NOT NULL CHECK (row_count BETWEEN 0 AND 5000),
     state text NOT NULL CHECK (state IN ('active','superseded')),
-    previous_catalog_id uuid REFERENCES almsivi_internal.biography_catalogs(catalog_id),
+    previous_catalog_id uuid REFERENCES lorkhan_internal.biography_catalogs(catalog_id),
     imported_at timestamptz NOT NULL,
     activated_at timestamptz NOT NULL,
     superseded_at timestamptz,
@@ -21,12 +21,12 @@ CREATE TABLE almsivi_internal.biography_catalogs (
     ))
 );
 CREATE UNIQUE INDEX biography_catalogs_one_active_uq
-    ON almsivi_internal.biography_catalogs ((state)) WHERE state='active';
+    ON lorkhan_internal.biography_catalogs ((state)) WHERE state='active';
 CREATE INDEX biography_catalogs_recent_idx
-    ON almsivi_internal.biography_catalogs (activated_at DESC,catalog_id);
+    ON lorkhan_internal.biography_catalogs (activated_at DESC,catalog_id);
 
-CREATE TABLE almsivi_internal.biography_catalog_entries (
-    catalog_id uuid NOT NULL REFERENCES almsivi_internal.biography_catalogs(catalog_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.biography_catalog_entries (
+    catalog_id uuid NOT NULL REFERENCES lorkhan_internal.biography_catalogs(catalog_id) ON DELETE CASCADE,
     content_file varchar(256),
     record_id varchar(256) NOT NULL,
     display_name varchar(256) NOT NULL,
@@ -51,8 +51,8 @@ CREATE TABLE almsivi_internal.biography_catalog_entries (
     CHECK (relationships IS NULL OR jsonb_typeof(relationships::jsonb)='object')
 );
 CREATE UNIQUE INDEX biography_catalog_entries_identity_uq
-    ON almsivi_internal.biography_catalog_entries (
+    ON lorkhan_internal.biography_catalog_entries (
         catalog_id,lower(COALESCE(content_file,'')),lower(record_id)
     );
 CREATE INDEX biography_catalog_entries_lookup_idx
-    ON almsivi_internal.biography_catalog_entries (lower(content_file),lower(record_id));
+    ON lorkhan_internal.biography_catalog_entries (lower(content_file),lower(record_id));

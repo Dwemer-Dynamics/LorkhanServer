@@ -3,14 +3,14 @@ declare(strict_types=1);
 
 return [
     'environment' => 'production',
-    'base_path' => '/ALMSIVIserver/api/v1',
-    'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=almsivi',
-    'database_user' => 'almsivi_runtime',
-    // public/index.php reads ALMSIVI_DATABASE_PASSWORD, ALMSIVI_PAIRING_TOKEN_HASH, and
-    // ALMSIVI_MANAGEMENT_SECRET_HASH from a restrictive service EnvironmentFile. Only hashes are accepted.
+    'base_path' => '/LORKHANserver/api/v1',
+    'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
+    'database_user' => 'lorkhan_runtime',
+    // public/index.php reads LORKHAN_DATABASE_PASSWORD, LORKHAN_PAIRING_TOKEN_HASH, and
+    // LORKHAN_MANAGEMENT_SECRET_HASH from a restrictive service EnvironmentFile. Only hashes are accepted.
     'database_password' => '',
     'pairing_token_hash' => '',
-    'management_base_path' => '/ALMSIVIserver/manage',
+    'management_base_path' => '/LORKHANserver/manage',
     'management_secret_hash' => '',
     'browser_session_ttl_seconds' => 3600,
     'max_json_bytes' => 2 * 1024 * 1024,
@@ -20,13 +20,13 @@ return [
     'events_max_wait_seconds' => 15,
     'rate_limit_requests' => 120,
     'rate_limit_window_seconds' => 60,
-    // CHIM-compatible OpenRouter transport. Save ALMSIVI_LLM_API_KEY through API Keys or the service environment.
+    // CHIM-compatible OpenRouter transport. Save LORKHAN_LLM_API_KEY through API Keys or the service environment.
     'provider' => [
         'driver' => 'openai-compatible',
         'endpoint' => 'https://openrouter.ai/api/v1/chat/completions',
         'allowed_hosts' => ['openrouter.ai'],
         'model' => 'z-ai/glm-4.7',
-        'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+        'api_key_env' => 'LORKHAN_LLM_API_KEY',
         'timeout_ms' => 120_000,
         'disable_reasoning' => true,
     ],
@@ -40,7 +40,7 @@ return [
         // 'allowed_hosts' => ['api.openai.com'],
         // 'model' => 'gpt-4o-mini-tts',
         // 'voice' => 'alloy',
-        // 'api_key_env' => 'ALMSIVI_TTS_API_KEY',
+        // 'api_key_env' => 'LORKHAN_TTS_API_KEY',
     ],
     // Push-to-talk recordings use this provider. The live adapter sends bounded PCM WAV multipart uploads.
     'stt_provider' => [
@@ -49,15 +49,15 @@ return [
         // 'endpoint' => 'https://api.openai.com/v1/audio/transcriptions',
         // 'allowed_hosts' => ['api.openai.com'],
         // 'model' => 'gpt-4o-mini-transcribe',
-        // 'api_key_env' => 'ALMSIVI_STT_API_KEY',
+        // 'api_key_env' => 'LORKHAN_STT_API_KEY',
     ],
-    // Must resolve outside public/. Production default: /var/lib/almsiviserver/media.
-    'media_storage_path' => '/var/lib/almsiviserver/media',
-    'voice_storage_path' => '/var/lib/almsiviserver/voices',
-    'portrait_storage_path' => '/var/lib/almsiviserver/profile-portraits',
-    'backup_storage_path' => '/var/lib/almsiviserver/backups',
+    // Must resolve outside public/. Production default: /var/lib/lorkhanserver/media.
+    'media_storage_path' => '/var/lib/lorkhanserver/media',
+    'voice_storage_path' => '/var/lib/lorkhanserver/voices',
+    'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',
+    'backup_storage_path' => '/var/lib/lorkhanserver/backups',
     // Browser-managed provider credentials remain outside the web root and are never returned by the UI.
-    'credential_storage_path' => '/var/lib/almsiviserver/credentials/provider-keys.json',
+    'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,
     'worker' => [

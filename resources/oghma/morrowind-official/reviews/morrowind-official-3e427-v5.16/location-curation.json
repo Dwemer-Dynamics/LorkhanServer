@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.tamriel-rebuilt-location-curation.v1",
+  "format": "lorkhan.tamriel-rebuilt-location-curation.v1",
   "manual_prose_overrides": [
     {
       "topic": "gilnyth_ancestral_tomb",

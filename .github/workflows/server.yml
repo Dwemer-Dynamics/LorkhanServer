@@ -43,7 +43,7 @@ jobs:
           "$RUNNER_TEMP/response-validator/bin/python" -m pip install 'jsonschema[format]==4.23.0'
       - name: Run disposable PostgreSQL integration, migrations, jobs, and backup restore
         run: |
-          ALMSIVI_RESPONSE_CAPTURE="$RUNNER_TEMP/server-responses.jsonl" scripts/test/integration.sh
+          LORKHAN_RESPONSE_CAPTURE="$RUNNER_TEMP/server-responses.jsonl" scripts/test/integration.sh
           "$RUNNER_TEMP/response-validator/bin/python" scripts/test/validate-responses.py "$RUNNER_TEMP/server-responses.jsonl"
       - name: Run management HTTP and CSRF workflows
         run: scripts/test/management-http-integration.sh

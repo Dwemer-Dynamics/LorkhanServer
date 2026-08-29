@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\Repository;
 use DomainException;
 
 /** Resolve Herika-compatible rechat mode, budget, and next responder on the server. */
@@ -19,7 +19,7 @@ final class RechatCoordinator
     /** @param array<string,mixed> $message @return array<string,mixed> */
     public function resolve(array $message): array
     {
-        if (($message['payload']['ui_source'] ?? null) !== 'almsivi_rechat') return $message;
+        if (($message['payload']['ui_source'] ?? null) !== 'lorkhan_rechat') return $message;
 
         $context = $message['payload']['context'] ?? null;
         $rechat = is_array($context) && !array_is_list($context) ? ($context['rechat'] ?? null) : null;

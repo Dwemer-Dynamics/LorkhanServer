@@ -74,12 +74,12 @@ body.auto-refresh .chim-status-nav {
 
 .navbar-brand:hover img {
     transform: scale(1.05);
-    filter: brightness(1.1) drop-shadow(0 0 8px rgba(242, 124, 17, 0.6));
+    filter: brightness(1.1) drop-shadow(0 0 8px rgba(188, 157, 90, 0.6));
 }
 
 .navbar-brand:active img {
     transform: scale(0.98);
-    filter: brightness(1.2) drop-shadow(0 0 12px rgba(242, 124, 17, 0.8));
+    filter: brightness(1.2) drop-shadow(0 0 12px rgba(188, 157, 90, 0.8));
 }
 
 /* Main Navbar Items */
@@ -174,7 +174,7 @@ body.auto-refresh .chim-status-nav {
 .dropdown-header {
     font-family: 'Futura CondensedLight', Arial, sans-serif;
     font-size: 16px;
-    color: #ffc107;
+    color: #cbb078;
     text-transform: uppercase;
     padding: 12px 12px 4px;
     margin: 0;

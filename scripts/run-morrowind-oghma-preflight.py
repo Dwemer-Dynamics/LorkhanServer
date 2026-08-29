@@ -22,7 +22,7 @@ from urllib.parse import quote
 import requests
 
 
-FORMAT_VERSION = "almsivi.morrowind-oghma-preflight.v1"
+FORMAT_VERSION = "lorkhan.morrowind-oghma-preflight.v1"
 GENERATION_RULESET = "morrowind-oghma-static-3e427-v5"
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 DEFAULT_MODEL = "z-ai/glm-5.1"
@@ -650,7 +650,7 @@ def provider_call(session: requests.Session, api_key: str, model: str, evidence:
     started = time.monotonic()
     response = session.post(OPENROUTER_URL, headers={
         "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-        "HTTP-Referer": "https://dwemerdynamics.com/", "X-Title": "ALMSIVI Morrowind Oghma Generator",
+        "HTTP-Referer": "https://dwemerdynamics.com/", "X-Title": "LORKHAN Morrowind Oghma Generator",
     }, json={
         "model": model, "temperature": 0.0, "max_tokens": max_output_tokens, "reasoning": {"effort": "none"},
         "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}],
@@ -910,7 +910,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--size", type=int, default=50)
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--api-key-env", default="OPENROUTER_API_KEY")
-    parser.add_argument("--cache-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", Path.home())) / "ALMSIVI" / "oghma-uesp-cache")
+    parser.add_argument("--cache-dir", type=Path, default=Path(os.environ.get("LOCALAPPDATA", Path.home())) / "LORKHAN" / "oghma-uesp-cache")
     parser.add_argument("--refresh-uesp-cache", action="store_true")
     parser.add_argument("--skip-uesp", action="store_true",
                         help="Skip UESP evidence acquisition, including revision-pinned seed pages.")
@@ -1011,7 +1011,7 @@ def main() -> int:
             if budget_stopped.is_set():
                 return "budget-stop"
             session = requests.Session()
-            session.headers.update({"User-Agent": "ALMSIVI-Oghma-Generator/1.0 (https://dwemerdynamics.com/)"})
+            session.headers.update({"User-Agent": "LORKHAN-Oghma-Generator/1.0 (https://dwemerdynamics.com/)"})
             directory = record_dir(args.run_dir, topic["topic"])
             directory.mkdir(parents=True, exist_ok=True)
             evidence_path = directory / "evidence.json"

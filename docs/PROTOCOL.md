@@ -1,13 +1,13 @@
-# ALMSIVI protocol v1 server contract
+# LORKHAN protocol v1 server contract
 
-The canonical behavior is shared with sibling `ALMSIVI/docs/PROTOCOL.md`. JSON Schemas and fixtures
+The canonical behavior is shared with sibling `LORKHAN/docs/PROTOCOL.md`. JSON Schemas and fixtures
 are duplicated for independent release but their manifest hashes must be identical in CI.
 
 ## Transport and authentication
 
-- Base URL: `http://127.0.0.1:8089/ALMSIVIserver/api/v1`.
+- Base URL: `http://127.0.0.1:8089/LORKHANserver/api/v1`.
 - Native client uses `hmac-sha256-v1` request MAC headers binding installation, timestamp, unique nonce, body digest, canonical method/target/content type; the 256-bit pairing key is not transmitted routinely and bearer authentication is rejected.
-- JSON content type is strict UTF-8. STT uses authenticated `application/octet-stream` WAV bodies plus typed `X-ALMSIVI-*` metadata headers.
+- JSON content type is strict UTF-8. STT uses authenticated `application/octet-stream` WAV bodies plus typed `X-LORKHAN-*` metadata headers.
 - Responses use ordered bounded long polling at `/events`, not an unbounded server socket.
 - Media uses authenticated `/media/{opaque_id}` and a stored descriptor/hash, never a supplied path.
 - POST idempotency key equals message/request/event ID.
@@ -28,10 +28,10 @@ limits and total JSON is at most 2 MiB (context at most 128 KiB). Negotiation ma
 
 ## Canonical input, event, response, and game-data split
 
-`almsivi.input.v1` is the normalized player-text/STT input envelope and `almsivi.event.v1` is the
-typed immutable source-event envelope. `almsivi.response.v1` contains `ok`, ordered bounded `lines`,
+`lorkhan.input.v1` is the normalized player-text/STT input envelope and `lorkhan.event.v1` is the
+typed immutable source-event envelope. `lorkhan.response.v1` contains `ok`, ordered bounded `lines`,
 `close`, an error string, and complete installation/profile/playthrough/session/turn/request plus
-response/runtime generation correlation. Each strict `almsivi.response.line.v1` is `say` or
+response/runtime generation correlation. Each strict `lorkhan.response.line.v1` is `say` or
 `rolecommand` and carries stable speaker/listener/rechat identities, request/utterance IDs, and bounded
 text, TTS/media/cache, command, and metadata fields. Provider output is normalized once; database
 projections, client events, TTS, actions, delivery receipts, diagnostics, and rechat consume it.
@@ -39,9 +39,9 @@ The immutable response envelope is stored on the turn. Its line and utterance ID
 `response_events`, `dialogue_utterances`, `speech`, and `responselog`; failed and cancelled turns store
 the same envelope with `ok=false`, no lines, and a bounded terminal error.
 
-`almsivi.gamedata.v1` accepts only typed TES3 actor, inventory, nearby-actor, world, Journal,
+`lorkhan.gamedata.v1` accepts only typed TES3 actor, inventory, nearby-actor, world, Journal,
 captured-dialogue, and prompt-bridge payloads. AI quests, boredom, greetings, combat barks, ITT, and
-Background Life have no accepted variants. `almsivi.events.v1.autonomy` remains required for v1 wire
+Background Life have no accepted variants. `lorkhan.events.v1.autonomy` remains required for v1 wire
 compatibility but must always be empty. Rechat is a normal correlated turn. Canonical envelopes require
 both response generation and runtime generation values greater than zero.
 
@@ -67,7 +67,7 @@ actions carry both canonical fields and fail closed if the current inventory win
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
 | `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
 | `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
-| `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `almsivi.stt.accepted.v1`. |
+| `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `lorkhan.stt.accepted.v1`. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
@@ -78,7 +78,7 @@ Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete
 an atomic shared-schema revision before use. Bounded `dialogue.delta` text is display-only progress; `dialogue.complete` remains the validated durable utterance. TTS runs as a separate durable job, and `speech.ready` includes the matching `dialogue_message_id` so delayed group speech cannot bind to the wrong speaker. Each event has a monotonically increasing session sequence
 and unique message ID. Cursor gaps use bounded replay or `cursor_expired`; the client never guesses.
 
-`ui_source=almsivi_rechat` denotes a playback-driven continuation, not timer autonomy. Its bounded
+`ui_source=lorkhan_rechat` denotes a playback-driven continuation, not timer autonomy. Its bounded
 context carries chain/origin IDs, monotonic depth and previous speaker/listener identities. The server
 accepts it only in the same active session/generation, stores one scoped chain, discards provider
 actions, and closes or cancels the chain at its configured depth, on new player input, or on failure.
@@ -129,7 +129,7 @@ does not inherit another actor's relationships or manual memories from the sessi
 acceptance freezes the assembled prompt and provider slot snapshot so later admin edits cannot alter an
 already accepted job.
 
-The controls response also returns a strict `almsivi.effective-settings.v1` snapshot for the active target.
+The controls response also returns a strict `lorkhan.effective-settings.v1` snapshot for the active target.
 It contains resolved rechat, memory, narrator, safety, and client-visible routing values, their
 Global/Core Profile/NPC source map, bound profile revisions, and a deterministic change token.
 The unchanged v1 wire shape retains compiled presentation and disabled legacy behavior defaults for
@@ -196,8 +196,8 @@ sequence values order same-timestamp writes; historical timestamp ties cannot re
 original order. The compatibility NPC projection is not authoritative relationship storage. This
 foundation adds no automatic evaluation, provider calls or relationship-specific lock policy.
 
-The CHIM-style Control Panel uses ALMSIVI-native data rather than the Herika/Dialectic database
-manager. Server Logs reads only fixed ALMSIVI worker and Apache files, caps each tail at 256 KiB and
+The CHIM-style Control Panel uses LORKHAN-native data rather than the Herika/Dialectic database
+manager. Server Logs reads only fixed LORKHAN worker and Apache files, caps each tail at 256 KiB and
 200 lines, and redacts common credential forms before rendering. Database Manager exposes applied
 schema migrations, bounded retention, and server-generated installation configuration backups without
 accepting filesystem paths. Backup downloads and restores require browser authentication, verify stored
@@ -213,11 +213,11 @@ credentials are excluded. Active speech connectors, profile-assigned TTS connect
 selected by an active session or assigned to a profile cannot be deleted until their use is removed.
 Prompt Manager uses the same ownership-free JSON boundary for individual prompt export, import, and
 same-installation cloning; imports still pass normal prompt validation and become independent revisions.
-Core Profile settings presets use `almsivi.core-profile-settings.v1` and carry only a name plus the
+Core Profile settings presets use `lorkhan.core-profile-settings.v1` and carry only a name plus the
 validated `settings_overrides` tree. Import creates a new unassigned, non-default Core Profile with no
 slot, prompt text, connector routing, identifiers, revision history, or NPC assignments.
-Global Settings presets use `almsivi.global-settings-preset.v1` and carry one strict
-`almsivi.client-settings.v1` document plus a display name and export timestamp. Import applies that
+Global Settings presets use `lorkhan.global-settings-preset.v1` and carry one strict
+`lorkhan.client-settings.v1` document plus a display name and export timestamp. Import applies that
 document as a new revision of the selected installation's singleton Global Settings resource. The
 portable file excludes installation ownership, revision history, Core/NPC overrides, connector routing,
 API keys, Oghma catalog/access settings, Auto Lock Profile, and NPC assignments. Restoring an earlier

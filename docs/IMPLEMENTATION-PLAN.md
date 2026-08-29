@@ -1,4 +1,4 @@
-# ALMSIVIserver implementation plan
+# LORKHANserver implementation plan
 
 ## Outcome and definition of done
 

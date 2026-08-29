@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 use RuntimeException;
@@ -18,7 +18,7 @@ final class CredentialStore
     /** Return the server-controlled credential names accepted by the management UI and provider factory. */
     public static function allowedVariables(): array
     {
-        $variables=['ALMSIVI_DEEPL_API_KEY','ALMSIVI_LLM_API_KEY','ALMSIVI_TTS_API_KEY','ALMSIVI_STT_API_KEY'];
+        $variables=['LORKHAN_DEEPL_API_KEY','LORKHAN_LLM_API_KEY','LORKHAN_TTS_API_KEY','LORKHAN_STT_API_KEY'];
         foreach(LlmConnector::CREDENTIALS as$variable)if($variable!=='')$variables[]=$variable;
         foreach(['tts_provider','stt_provider']as$kind)foreach(ConnectorCatalog::all($kind)as$definition){
             $variable=(string)$definition['credential_environment'];if($variable!=='')$variables[]=$variable;

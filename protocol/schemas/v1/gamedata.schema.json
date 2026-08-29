@@ -1,11 +1,11 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/gamedata.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$defs": {
     "actor_profile": {
       "additionalProperties": false,
       "properties": {
-        "actor": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+        "actor": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
         "class": {"maxLength": 128, "type": "string"},
         "disposition": {"maximum": 100, "minimum": 0, "type": "integer"},
         "factions": {"items": {"maxLength": 256, "minLength": 1, "type": "string"}, "maxItems": 32, "type": "array", "uniqueItems": true},
@@ -19,8 +19,8 @@
     "captured_dialogue": {
       "additionalProperties": false,
       "properties": {
-        "listener": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
-        "speaker": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+        "listener": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+        "speaker": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
         "text": {"maxLength": 4096, "minLength": 1, "type": "string"},
         "topic": {"maxLength": 256, "type": "string"}
       },
@@ -48,7 +48,7 @@
           "maxItems": 512,
           "type": "array"
         },
-        "owner": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"}
+        "owner": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"}
       },
       "required": ["owner", "items"],
       "type": "object"
@@ -87,7 +87,7 @@
               "dead": {"type": "boolean"},
               "distance": {"maximum": 100000, "minimum": 0, "type": "number"},
               "hostile": {"type": "boolean"},
-              "identity": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+              "identity": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
               "scene_eligible": {"type": "boolean"}
             },
             "required": ["identity", "distance", "hostile", "dead", "scene_eligible"],
@@ -104,7 +104,7 @@
     "prompt_bridge": {
       "additionalProperties": false,
       "properties": {
-        "source_event_ids": {"items": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"}, "maxItems": 256, "type": "array", "uniqueItems": true},
+        "source_event_ids": {"items": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"}, "maxItems": 256, "type": "array", "uniqueItems": true},
         "summary": {"maxLength": 16384, "type": "string"}
       },
       "required": ["source_event_ids", "summary"],
@@ -118,7 +118,7 @@
           {"additionalProperties": false, "properties": {"grid_x": {"type": "integer"}, "grid_y": {"type": "integer"}, "kind": {"const": "exterior", "type": "string"}}, "required": ["kind", "grid_x", "grid_y"], "type": "object"}
         ]},
         "game_time": {"maxLength": 64, "minLength": 1, "type": "string"},
-        "player": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/identity"},
+        "player": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/identity"},
         "weather": {"maxLength": 128, "type": "string"}
       },
       "required": ["player", "cell", "game_time", "weather"],
@@ -129,14 +129,14 @@
   "properties": {
     "game": {"const": "tes3", "type": "string"},
     "generation": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
-    "installation_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "observed_at": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/timestamp"},
-    "payload": {"oneOf": [{"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/actor_profile"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/captured_dialogue"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/inventory"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/journal"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/nearby_actors"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/prompt_bridge"}, {"$ref": "https://almsivi.invalid/schemas/v1/gamedata.schema.json#/$defs/world_context"}]},
-    "playthrough_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
-    "request_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "installation_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "observed_at": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/timestamp"},
+    "payload": {"oneOf": [{"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/actor_profile"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/captured_dialogue"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/inventory"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/journal"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/nearby_actors"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/prompt_bridge"}, {"$ref": "https://lorkhan.invalid/schemas/v1/gamedata.schema.json#/$defs/world_context"}]},
+    "playthrough_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "request_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
     "runtime_generation": {"maximum": 9007199254740991, "minimum": 1, "type": "integer"},
-    "schema": {"const": "almsivi.gamedata.v1", "type": "string"},
-    "session_id": {"$ref": "https://almsivi.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
+    "schema": {"const": "lorkhan.gamedata.v1", "type": "string"},
+    "session_id": {"$ref": "https://lorkhan.invalid/schemas/v1/common.schema.json#/$defs/uuid"},
     "type": {"enum": ["actor_profile", "captured_dialogue", "dialogue_prompt_bridge", "inventory", "journal", "nearby_actors", "world_context"], "type": "string"}
   },
   "required": ["schema", "installation_id", "playthrough_id", "session_id", "request_id", "generation", "runtime_generation", "observed_at", "game", "type", "payload"],

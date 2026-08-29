@@ -1,14 +1,14 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
 /** Validate the explicit MiniMe endpoint used only for optional semantic memory recall. */
 final class MemoryEmbeddingPolicy
 {
-    public const SCHEMA='almsivi.memory-embedding-policy.v1';
+    public const SCHEMA='lorkhan.memory-embedding-policy.v1';
     public const MODEL='sentence-transformers/all-MiniLM-L6-v2';
 
     public static function defaults():array

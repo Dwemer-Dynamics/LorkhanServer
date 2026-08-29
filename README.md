@@ -1,7 +1,7 @@
-# ALMSIVIserver
+# LORKHANserver
 
-ALMSIVIserver is the local Apache/PHP/PostgreSQL backend and browser management application for
-`RANGROO/ALMSIVI`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
+LORKHANserver is the local Apache/PHP/PostgreSQL backend and browser management application for
+`RANGROO/LORKHAN`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
 
 ## Status
 
@@ -11,7 +11,7 @@ relationships, knowledge, narrative, durable jobs, diagnostics/backups, and the
 CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
 Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
 server credential storage, and mock providers remain available for deterministic tests. Default
-Windows/WSL URL: `http://127.0.0.1:8089/ALMSIVIserver/ui/home.php`. Apache and PostgreSQL are access-controlled for
+Windows/WSL URL: `http://127.0.0.1:8089/LORKHANserver/ui/home.php`. Apache and PostgreSQL are access-controlled for
 the local machine and are not exposed as a public service.
 
 ## Responsibilities
@@ -45,7 +45,7 @@ Optional sampling controls include temperature, one token limit (`max_tokens` or
 Blank sampling fields use the provider's defaults for direct connectors, or inherit server settings
 for configured connectors. Explicit zero and false values are preserved. Provider support varies;
 an unsupported parameter may cause a test failure. See the [OpenRouter parameter reference](https://openrouter.ai/docs/api_reference/parameters).
-Streaming affects dialogue only. Turning JSON mode off removes the provider hint, not ALMSIVI's
+Streaming affects dialogue only. Turning JSON mode off removes the provider hint, not LORKHAN's
 strict response validation. Reasoning Model Fix can remove one leading balanced reasoning-tag block before
 that validation; it is opt-in and separate from Disable reasoning. Arbitrary request bodies and JSON prefill remain unsupported.
 
@@ -72,9 +72,9 @@ Saving routing settings makes no provider call; requesting generation can incur 
 
 ## Local deployment
 
-The normal developer deploy mirrors the active source to `/var/www/html/ALMSIVIserver`, keeps
-database credentials and pairing secrets under `/etc/almsiviserver`, and preserves media/log state
-under `/var/lib/almsiviserver` and `/var/log/almsiviserver`. Run the sibling client's
+The normal developer deploy mirrors the active source to `/var/www/html/LORKHANserver`, keeps
+database credentials and pairing secrets under `/etc/lorkhanserver`, and preserves media/log state
+under `/var/lib/lorkhanserver` and `/var/log/lorkhanserver`. Run the sibling client's
 `scripts/deploy/full-local.ps1` for the Herika-style two-stage server plus game-client deployment.
 
 `scripts/deploy-wsl.sh` remains the immutable release/rollback installer described in
@@ -94,4 +94,4 @@ not provisioned and their pre-beta compatibility schema has been retired.
 7. `docs/FEATURE-PARITY-MATRIX.md`
 8. `docs/WSL-APACHE-SETUP.md`
 
-The sibling ALMSIVI task is the parent assignment and owns shared schema reconciliation.
+The sibling LORKHAN task is the parent assignment and owns shared schema reconciliation.

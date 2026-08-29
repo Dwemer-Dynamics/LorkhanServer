@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
@@ -13,7 +13,7 @@ final class MemorySummaryPolicy
     {
         $keys = array_keys($content); sort($keys);
         if ($keys !== ['enabled', 'provider_configuration_id', 'schema']
-            || ($content['schema'] ?? null) !== 'almsivi.memory-policy.v1'
+            || ($content['schema'] ?? null) !== 'lorkhan.memory-policy.v1'
             || !is_bool($content['enabled'] ?? null)
             || !is_string($content['provider_configuration_id'] ?? null)) {
             throw new InvalidArgumentException('invalid_memory_policy');

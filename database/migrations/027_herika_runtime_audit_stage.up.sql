@@ -1,4 +1,4 @@
--- Exact Herika runtime/audit tables staged beside ALMSIVI's immutable protocol transport.
+-- Exact Herika runtime/audit tables staged beside LORKHAN's immutable protocol transport.
 CREATE SEQUENCE herika_compat.audit_request_rowid_seq START WITH 1 INCREMENT BY 1 NO MINVALUE NO MAXVALUE CACHE 1;
 CREATE TABLE herika_compat.audit_request (
     request text,
@@ -201,11 +201,11 @@ SELECT 'PLAYER_NAME',p.name FROM public.profiles p
 WHERE p.deleted_at IS NULL AND p.actor_identity->>'kind'='player'
 ORDER BY p.created_at DESC LIMIT 1;
 INSERT INTO herika_compat.conf_opts (id,value)
-SELECT 'ALMSIVI_GLOBAL_SETTINGS',r.content::text
+SELECT 'LORKHAN_GLOBAL_SETTINGS',r.content::text
 FROM public.configuration_sets c
 JOIN public.configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
 WHERE c.kind='global_settings' AND c.deleted_at IS NULL
 ORDER BY c.created_at DESC LIMIT 1;
 
 INSERT INTO herika_compat.database_versioning (tablename,version)
-SELECT 'ALMSIVIserver',max(version) FROM almsivi_internal.schema_migrations;
+SELECT 'LORKHANserver',max(version) FROM lorkhan_internal.schema_migrations;

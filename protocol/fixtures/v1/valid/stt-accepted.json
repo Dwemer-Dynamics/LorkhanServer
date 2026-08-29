@@ -6,9 +6,9 @@
     "generation": 7,
     "message_id": "00000000-0000-4000-8000-000000000030",
     "request_id": "00000000-0000-4000-8000-000000000031",
-    "schema": "almsivi.stt.accepted.v1",
+    "schema": "lorkhan.stt.accepted.v1",
     "session_id": "00000000-0000-4000-8000-000000000033",
     "turn_id": "00000000-0000-4000-8000-000000000032"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/stt-accepted.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/stt-accepted.schema.json"
 }

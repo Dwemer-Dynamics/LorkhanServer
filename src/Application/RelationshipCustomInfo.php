@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** The same bounded, verbatim player text is accepted by edits and explicit restores. */
 final class RelationshipCustomInfo

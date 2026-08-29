@@ -61,7 +61,7 @@ constraints receive up to three focused GLM repair passes and are rejected if th
 
 The five-character run is review data only and is not imported into PostgreSQL.
 `oghma_knowledge_tags` remains present for CHIM field compatibility but is deliberately exported as
-an empty string until ALMSIVI's tagging policy is set.
+an empty string until LORKHAN's tagging policy is set.
 
 ## Fifty-character production preflight
 
@@ -109,7 +109,7 @@ php scripts/import-morrowind-biographies.php dry-run `
 ```
 
 The versioned importer projects factory rows into CHIM's exact `bio_templates` contract while
-retaining canonical `content_file + record_id` identity in ALMSIVI's internal catalog. Custom and
+retaining canonical `content_file + record_id` identity in LORKHAN's internal catalog. Custom and
 encountered NPC profiles stay in the revisioned typed repository. On first encounter, exact OpenMW
 identity copies the matching factory biography into the NPC profile used by prompts. Routine deploys
 provision a bundled catalog idempotently and do not override an explicit catalog rollback.

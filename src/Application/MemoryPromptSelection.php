@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Select memory using coverage present in the rendered prompt, never provenance alone. */
 final class MemoryPromptSelection

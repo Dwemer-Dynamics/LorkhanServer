@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Protocol;
+namespace LORKHANserver\Protocol;
 
 use RuntimeException;
 

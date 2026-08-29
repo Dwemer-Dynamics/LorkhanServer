@@ -12,13 +12,13 @@
       "narrator": {"book_events": false, "context_visibility": true, "enabled": false, "inline_mode": "Disabled", "name": "The Narrator", "quest_events": false, "random_events": false, "welcome_events": false},
       "presentation": {"show_status_hud": true, "transcript_rows": 8, "tts_volume_boost": 3},
       "safety": {"actions_enabled": true, "allow_creatures": false, "allow_hostile": false},
-      "schema": "almsivi.client-settings.v1"
+      "schema": "lorkhan.client-settings.v1"
     },
     "event_cursor": 0,
     "generation": 7,
     "message_id": "00000000-0000-4000-8000-000000000001",
-    "schema": "almsivi.session.accepted.v1",
+    "schema": "lorkhan.session.accepted.v1",
     "session_id": "00000000-0000-4000-8000-000000000007"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/session-accepted.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/session-accepted.schema.json"
 }

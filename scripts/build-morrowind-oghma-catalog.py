@@ -19,7 +19,7 @@ DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official"
 
 def load_generator() -> Any:
     path = ROOT / "scripts" / "run-morrowind-oghma-preflight.py"
-    spec = importlib.util.spec_from_file_location("almsivi_oghma_generator", path)
+    spec = importlib.util.spec_from_file_location("lorkhan_oghma_generator", path)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load the Oghma generator")
     module = importlib.util.module_from_spec(spec)
@@ -70,7 +70,7 @@ def main() -> int:
     decisions_path = args.editorial_decisions
     ontology = read_json(ontology_path)
     decisions = read_json(decisions_path)
-    if decisions.get("format") != "almsivi.morrowind-oghma-editorial-decisions.v1":
+    if decisions.get("format") != "lorkhan.morrowind-oghma-editorial-decisions.v1":
         raise ValueError("Unsupported Oghma editorial decision format")
     if decisions.get("catalog_version") != args.catalog_version:
         raise ValueError("Editorial decisions target a different catalog version")
@@ -168,7 +168,7 @@ def main() -> int:
             writer.writerow({column: ", ".join(row.get(column, [])) if isinstance(row.get(column), list) else row.get(column, "")
                              for column in columns})
     manifest = {
-        "format": "almsivi.morrowind-oghma-catalog.v1",
+        "format": "lorkhan.morrowind-oghma-catalog.v1",
         "catalog_version": args.catalog_version,
         "row_count": len(ordered),
         "articles_sha256": sha256(articles_path),

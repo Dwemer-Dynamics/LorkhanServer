@@ -18,13 +18,13 @@ from typing import Any
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 BUILDER_PATH = SCRIPT_DIR / "build-morrowind-biographies.py"
-FORMAT_VERSION = "almsivi.morrowind-biography-preflight.v1"
+FORMAT_VERSION = "lorkhan.morrowind-biography-preflight.v1"
 DEFAULT_PILOT_IDS = ("fargoth", "caius cosades", "chargen name", "ajira", "divayth fyr")
 
 
 def load_builder() -> Any:
     # Execute source directly so rapid same-size edits cannot reuse stale timestamp-based bytecode.
-    module = types.ModuleType("almsivi_morrowind_biographies")
+    module = types.ModuleType("lorkhan_morrowind_biographies")
     module.__file__ = str(BUILDER_PATH)
     source = BUILDER_PATH.read_text(encoding="utf-8")
     exec(compile(source, str(BUILDER_PATH), "exec"), module.__dict__)

@@ -2,12 +2,12 @@
 set -eu
 
 ROOT=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-CLIENT=${1:-${ALMSIVI_CLIENT_ROOT:-}}
+CLIENT=${1:-${LORKHAN_CLIENT_ROOT:-}}
 if [ -z "$CLIENT" ]; then
-    printf 'error: pass the active ALMSIVI root or set ALMSIVI_CLIENT_ROOT\n' >&2
+    printf 'error: pass the active LORKHAN root or set LORKHAN_CLIENT_ROOT\n' >&2
     exit 2
 fi
-CLIENT_PROTOCOL=${ALMSIVI_CLIENT_PROTOCOL:-"$CLIENT/almsivi"}
+CLIENT_PROTOCOL=${LORKHAN_CLIENT_PROTOCOL:-"$CLIENT/lorkhan"}
 
 if [ ! -d "$CLIENT_PROTOCOL/schemas" ] || [ ! -d "$CLIENT_PROTOCOL/fixtures" ]; then
     printf 'error: client protocol tree not available at %s\n' "$CLIENT_PROTOCOL" >&2

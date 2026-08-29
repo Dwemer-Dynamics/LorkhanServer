@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Infrastructure\Uuid;
 use DomainException;
 
-/** Convert one validated provider result into the immutable ALMSIVI response/line contract. */
+/** Convert one validated provider result into the immutable LORKHAN response/line contract. */
 final class CanonicalResponseNormalizer
 {
     public function __construct(private readonly DialoguePlanner $planner = new DialoguePlanner()) {}
@@ -32,7 +32,7 @@ final class CanonicalResponseNormalizer
                 ? $rechat['rechat_target_hint'] : $speaker;
             $text = $utterance['_history_text'];
             $lines[] = [
-                'schema' => 'almsivi.response.line.v1',
+                'schema' => 'lorkhan.response.line.v1',
                 'line_id' => Uuid::v4(),
                 'line_index' => $index,
                 'speaker' => $this->displayName($speaker),
@@ -56,7 +56,7 @@ final class CanonicalResponseNormalizer
         if (is_array($providerResult['action'] ?? null)) {
             $action = $providerResult['action'];
             $lines[] = [
-                'schema' => 'almsivi.response.line.v1',
+                'schema' => 'lorkhan.response.line.v1',
                 'line_id' => Uuid::v4(),
                 'line_index' => count($lines),
                 'speaker' => $this->displayName($action['actor']),
@@ -79,7 +79,7 @@ final class CanonicalResponseNormalizer
             ];
         }
         return [
-            'schema' => 'almsivi.response.v1',
+            'schema' => 'lorkhan.response.v1',
             'response_id' => Uuid::v4(),
             'installation_id' => $turn['installation_id'],
             'profile_id' => $turn['profile_id'],
@@ -105,7 +105,7 @@ final class CanonicalResponseNormalizer
         $rechat = is_array($turn['payload']['context']['rechat'] ?? null)
             ? $turn['payload']['context']['rechat'] : [];
         $line = [
-            'schema' => 'almsivi.response.line.v1',
+            'schema' => 'lorkhan.response.line.v1',
             'line_id' => Uuid::v4(),
             'line_index' => 0,
             'speaker' => $this->displayName($action['actor']),
@@ -128,7 +128,7 @@ final class CanonicalResponseNormalizer
                 'source' => 'direct_action'],
         ];
         return [
-            'schema' => 'almsivi.response.v1', 'response_id' => Uuid::v4(),
+            'schema' => 'lorkhan.response.v1', 'response_id' => Uuid::v4(),
             'installation_id' => $turn['installation_id'], 'profile_id' => $turn['profile_id'],
             'playthrough_id' => $turn['playthrough_id'], 'session_id' => $turn['session_id'],
             'turn_id' => $turn['turn_id'], 'request_id' => $turn['request_id'],
@@ -147,7 +147,7 @@ final class CanonicalResponseNormalizer
             throw new DomainException('provider_invalid_output');
         }
         return [
-            'schema' => 'almsivi.response.v1', 'response_id' => Uuid::v4(),
+            'schema' => 'lorkhan.response.v1', 'response_id' => Uuid::v4(),
             'installation_id' => $turn['installation_id'], 'profile_id' => $turn['profile_id'],
             'playthrough_id' => $turn['playthrough_id'], 'session_id' => $turn['session_id'],
             'turn_id' => $turn['turn_id'], 'request_id' => $turn['request_id'],

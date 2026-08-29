@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\ActionPolicyValidator;
+use LORKHANserver\Application\ActionPolicyValidator;
 use PDO;
 use Throwable;
 
@@ -194,7 +194,7 @@ final class Repository
                 $this->db->prepare("UPDATE sessions SET state = 'ended', ended_at = clock_timestamp() WHERE session_id = :id")
                     ->execute(['id' => $sessionId]);
             }
-            $body = ['schema' => 'almsivi.session.ended.v1', 'request_id' => $requestId, 'session_id' => $sessionId,
+            $body = ['schema' => 'lorkhan.session.ended.v1', 'request_id' => $requestId, 'session_id' => $sessionId,
                 'generation' => (int) $session['generation'], 'ended' => $ended];
             $this->remember($session['installation_id'], $requestId, $route, $hash, 200, $body);
             return [200, $body];
@@ -240,7 +240,7 @@ final class Repository
                 'speaker' => $this->encode($p['speaker']), 'target' => $this->encode($p['target']), 'audience' => $this->encode($p['audience']),
                 'context' => $this->encode($p['context']), 'state' => 'accepted', 'accepted' => $m['created_at']]);
             $rechat=is_array($p['context']['rechat']??null)?$p['context']['rechat']:null;
-            if(($m['payload']['ui_source']??null)==='almsivi_rechat'){
+            if(($m['payload']['ui_source']??null)==='lorkhan_rechat'){
                 if($rechat===null||!Uuid::isValid((string)($rechat['chain_id']??''))||!Uuid::isValid((string)($rechat['origin_turn_id']??''))
                     ||!is_int($rechat['rechat_depth']??null)||!is_int($rechat['max_depth']??null)||!is_int($rechat['round_budget']??null)
                     ||$rechat['rechat_depth']<1||$rechat['rechat_depth']>$rechat['round_budget']
@@ -265,7 +265,7 @@ final class Repository
                 $this->db->prepare("UPDATE rechat_chains SET state='cancelled',cancellation_reason='new_player_input',updated_at=clock_timestamp() WHERE session_id=:session AND generation=:generation AND state IN ('open','awaiting_playback','request_in_flight')")
                     ->execute(['session'=>$m['session_id'],'generation'=>$m['generation']]);
             }
-            $sourceKind=($m['payload']['ui_source']??null)==='almsivi_rechat'?'rechat':'turn.requested';
+            $sourceKind=($m['payload']['ui_source']??null)==='lorkhan_rechat'?'rechat':'turn.requested';
             $projectionContext=['player_mood_cue'=>is_string($promptTrace['player_mood_cue']??null)
                 ?$promptTrace['player_mood_cue']:''];
             $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], $sourceKind, $m['created_at'],
@@ -288,7 +288,7 @@ final class Repository
             }
             if ($validatedDirectAction !== null) {
                 $canonical = $this->validatedCanonicalResponse(
-                    (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
+                    (new \LORKHANserver\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
                 $actionLine = $canonical['lines'][0];
                 $this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],
                     'response.complete',$canonical,$canonical['response_id']);
@@ -434,12 +434,12 @@ final class Repository
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
-            if (($m['payload']['ui_source'] ?? null) === 'almsivi_rechat') {
+            if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
                 $providerResult['action'] = null;
             }
             $this->validateProviderResult($providerResult, $session, $m);
             $canonical = $this->validatedCanonicalResponse(
-                (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult));
+                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult));
             $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
                 'response.complete',$canonical,$canonical['response_id']);
             $dialogueLines = array_values(array_filter($canonical['lines'],
@@ -578,7 +578,7 @@ final class Repository
             $turn=$this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
             $canonical=$this->validatedCanonicalResponse(
-                (new \ALMSIVIserver\Application\CanonicalResponseNormalizer())->failure($m,$reason));
+                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->failure($m,$reason));
             $this->db->prepare("UPDATE turns SET state='failed',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
                 ->execute(['turn'=>$m['turn_id'],'response'=>$canonical['response_id'],
@@ -626,7 +626,7 @@ final class Repository
     }
 
     public function claimStt(string $messageId,string $jobId,string $leaseToken,int $attempt):?array{return$this->transaction(function()use($messageId,$jobId,$leaseToken,$attempt):?array{$lease=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_id=:job AND state='leased' AND lease_token=:token AND attempt_count=:attempt AND lease_expires_at>clock_timestamp() FOR UPDATE");$lease->execute(['job'=>$jobId,'token'=>$leaseToken,'attempt'=>$attempt]);if(!$lease->fetchColumn())throw new \RuntimeException('lease_lost');$s=$this->db->prepare("UPDATE stt_requests SET state='processing',processing_job_id=:job,processing_lease_token=:token,processing_job_attempt=:attempt WHERE message_id=:id AND state IN('accepted','processing') RETURNING *");$s->execute(['id'=>$messageId,'job'=>$jobId,'token'=>$leaseToken,'attempt'=>$attempt]);$r=$s->fetch();return$r?:null;});}
-    public function completeStt(string $messageId,array $result,array $fence):void{$this->transaction(function()use($messageId,$result,$fence):void{$r=$this->lockStt($messageId,$fence);if($r['state']==='transcribed')return;$keys=array_keys($result);sort($keys);if($keys!==['language','text']||!is_string($result['text'])||$result['text']===''||strlen($result['text'])>16384||!mb_check_encoding($result['text'],'UTF-8')||!is_string($result['language'])||preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/D',$result['language'])!==1)throw new \DomainException('provider_invalid_output');$source=Uuid::v4();$payload=['schema'=>'almsivi.stt.transcript.v1','message_id'=>$source,'request_id'=>$r['request_id'],'turn_id'=>$r['turn_id'],'session_id'=>$r['session_id'],'generation'=>(int)$r['generation']]+$result;$this->source($source,$this->sessionInstallation($r['session_id']),$r['session_id'],(int)$r['generation'],'stt.transcript',gmdate('Y-m-d\TH:i:s\Z'),'almsivi.stt.transcript.v1',$r['request_id'],$r['turn_id'],null,$payload);$this->event($r['session_id'],(int)$r['generation'],$r['request_id'],$r['turn_id'],'stt.transcript',$result);$this->db->prepare("UPDATE stt_requests SET state='transcribed',transcript=:text,completed_at=clock_timestamp(),provider_error_code=NULL,cleanup_pending=true WHERE message_id=:id")->execute(['text'=>$result['text'],'id'=>$messageId]);});}
+    public function completeStt(string $messageId,array $result,array $fence):void{$this->transaction(function()use($messageId,$result,$fence):void{$r=$this->lockStt($messageId,$fence);if($r['state']==='transcribed')return;$keys=array_keys($result);sort($keys);if($keys!==['language','text']||!is_string($result['text'])||$result['text']===''||strlen($result['text'])>16384||!mb_check_encoding($result['text'],'UTF-8')||!is_string($result['language'])||preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/D',$result['language'])!==1)throw new \DomainException('provider_invalid_output');$source=Uuid::v4();$payload=['schema'=>'lorkhan.stt.transcript.v1','message_id'=>$source,'request_id'=>$r['request_id'],'turn_id'=>$r['turn_id'],'session_id'=>$r['session_id'],'generation'=>(int)$r['generation']]+$result;$this->source($source,$this->sessionInstallation($r['session_id']),$r['session_id'],(int)$r['generation'],'stt.transcript',gmdate('Y-m-d\TH:i:s\Z'),'lorkhan.stt.transcript.v1',$r['request_id'],$r['turn_id'],null,$payload);$this->event($r['session_id'],(int)$r['generation'],$r['request_id'],$r['turn_id'],'stt.transcript',$result);$this->db->prepare("UPDATE stt_requests SET state='transcribed',transcript=:text,completed_at=clock_timestamp(),provider_error_code=NULL,cleanup_pending=true WHERE message_id=:id")->execute(['text'=>$result['text'],'id'=>$messageId]);});}
     public function failStt(string $messageId,string $code,array $fence):void{$this->transaction(function()use($messageId,$code,$fence):void{$r=$this->lockStt($messageId,$fence);if(in_array($r['state'],['failed','transcribed'],true))return;if(!in_array($code,['invalid_audio','provider_unavailable','provider_invalid_output','provider_timeout'],true))$code='provider_unavailable';$this->event($r['session_id'],(int)$r['generation'],$r['request_id'],$r['turn_id'],'stt.failed',['code'=>$code,'retriable'=>false]);$this->db->prepare("UPDATE stt_requests SET state='failed',provider_error_code=:code,completed_at=clock_timestamp(),cleanup_pending=true WHERE message_id=:id")->execute(['code'=>$code,'id'=>$messageId]);});}
 
     private function lockStt(string $messageId,array $fence):array
@@ -644,7 +644,7 @@ final class Repository
             $u=$s->fetch();
             if(!$u||$u['delivery_state']!=='pending'||new \DateTimeImmutable($u['delivery_deadline_at'])>new \DateTimeImmutable())return;
             $source=Uuid::v4();
-            $payload=['schema'=>'almsivi.dialogue-delivery-result.v1','message_id'=>$source,'request_id'=>$u['request_id'],
+            $payload=['schema'=>'lorkhan.dialogue-delivery-result.v1','message_id'=>$source,'request_id'=>$u['request_id'],
                 'dialogue_message_id'=>$dialogueId,'turn_id'=>$u['turn_id'],'session_id'=>$u['session_id'],
                 'generation'=>(int)$u['generation'],'speaker'=>$this->json($u['speaker']),'status'=>'expired',
                 'reason_code'=>'delivery_deadline','completed_at'=>$this->utc($u['delivery_deadline_at'])];
@@ -786,7 +786,7 @@ final class Repository
                 $m['created_at'], $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
             $terminal=$m+['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],
                 'playthrough_id'=>$turn['playthrough_id'],'runtime_generation'=>(int)$turn['runtime_generation']];
-            $canonical=$this->validatedCanonicalResponse((new \ALMSIVIserver\Application\CanonicalResponseNormalizer())
+            $canonical=$this->validatedCanonicalResponse((new \LORKHANserver\Application\CanonicalResponseNormalizer())
                 ->failure($terminal,'interrupted.'.$m['reason']));
             $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
@@ -897,7 +897,7 @@ final class Repository
         // PHP represents both an empty JSON object and an empty list as [], so restore the
         // protocol-owned object shape at the wire boundary after catalog validation.
         $wireParameters = $action['parameters'] === [] ? (object) [] : $action['parameters'];
-        $payload = ['schema' => 'almsivi.action-intent.v1', 'action_id' => $actionId, 'turn_id' => $m['turn_id'], 'name' => $action['name'],
+        $payload = ['schema' => 'lorkhan.action-intent.v1', 'action_id' => $actionId, 'turn_id' => $m['turn_id'], 'name' => $action['name'],
             'tier' => $action['tier'], 'actor' => $action['actor'], 'target' => $action['target'], 'parameters' => $wireParameters, 'expires_at' => $expires];
         return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload, $messageId);
     }
@@ -988,7 +988,7 @@ final class Repository
                 'playthrough_id'=>$turn['playthrough_id'],'session_id'=>$sessionId,'turn_id'=>$turn['turn_id'],
                 'request_id'=>$turn['request_id'],'generation'=>(int)$turn['generation'],
                 'runtime_generation'=>(int)$turn['runtime_generation']];
-            $canonical=$this->validatedCanonicalResponse((new \ALMSIVIserver\Application\CanonicalResponseNormalizer())
+            $canonical=$this->validatedCanonicalResponse((new \LORKHANserver\Application\CanonicalResponseNormalizer())
                 ->failure($terminal,$reason,in_array($reason,['session_ended','session_replaced'],true)));
             $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
@@ -1066,7 +1066,7 @@ final class Repository
 
     private function validatedCanonicalResponse(array $response):array
     {
-        (new \ALMSIVIserver\Protocol\Validator())->validate($response,'almsivi.response.v1');
+        (new \LORKHANserver\Protocol\Validator())->validate($response,'lorkhan.response.v1');
         return $response;
     }
 

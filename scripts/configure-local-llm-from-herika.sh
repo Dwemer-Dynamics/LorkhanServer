@@ -10,11 +10,11 @@ for command in php psql runuser service; do
     command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
 done
 
-config_path=/etc/almsiviserver/server.php
-worker_env=/etc/almsiviserver/worker.env
-apache_env=/etc/almsiviserver/apache-env.conf
+config_path=/etc/lorkhanserver/server.php
+worker_env=/etc/lorkhanserver/worker.env
+apache_env=/etc/lorkhanserver/apache-env.conf
 for path in "${config_path}" "${worker_env}" "${apache_env}"; do
-    [[ -f ${path} ]] || { echo "Required ALMSIVI configuration is missing: ${path}" >&2; exit 1; }
+    [[ -f ${path} ]] || { echo "Required LORKHAN configuration is missing: ${path}" >&2; exit 1; }
 done
 
 # Reuse only the user's active Herika LLM endpoint, model, and credential. Speech, STT,
@@ -37,30 +37,30 @@ IFS=$'\t' read -r endpoint model api_key reasoning_model < <(
 host=$(php -r '$host=parse_url($argv[1],PHP_URL_HOST);if(!is_string($host)||$host==="")exit(1);echo strtolower($host);' "${endpoint}")
 [[ ${host} =~ ^[a-z0-9.-]+$ ]] || { echo 'The active Herika LLM host is invalid.' >&2; exit 1; }
 
-export ALMSIVI_IMPORTED_LLM_ENDPOINT=${endpoint}
-export ALMSIVI_IMPORTED_LLM_MODEL=${model}
-export ALMSIVI_IMPORTED_LLM_HOST=${host}
-export ALMSIVI_IMPORTED_LLM_API_KEY=${api_key}
-export ALMSIVI_IMPORTED_LLM_DISABLE_REASONING=${reasoning_model}
+export LORKHAN_IMPORTED_LLM_ENDPOINT=${endpoint}
+export LORKHAN_IMPORTED_LLM_MODEL=${model}
+export LORKHAN_IMPORTED_LLM_HOST=${host}
+export LORKHAN_IMPORTED_LLM_API_KEY=${api_key}
+export LORKHAN_IMPORTED_LLM_DISABLE_REASONING=${reasoning_model}
 
 php <<'PHP'
 <?php
 declare(strict_types=1);
 
-$configPath = '/etc/almsiviserver/server.php';
-$workerPath = '/etc/almsiviserver/worker.env';
-$apachePath = '/etc/almsiviserver/apache-env.conf';
-$endpoint = (string) getenv('ALMSIVI_IMPORTED_LLM_ENDPOINT');
-$model = (string) getenv('ALMSIVI_IMPORTED_LLM_MODEL');
-$host = (string) getenv('ALMSIVI_IMPORTED_LLM_HOST');
-$apiKey = (string) getenv('ALMSIVI_IMPORTED_LLM_API_KEY');
-$disableReasoning = getenv('ALMSIVI_IMPORTED_LLM_DISABLE_REASONING') === '1';
+$configPath = '/etc/lorkhanserver/server.php';
+$workerPath = '/etc/lorkhanserver/worker.env';
+$apachePath = '/etc/lorkhanserver/apache-env.conf';
+$endpoint = (string) getenv('LORKHAN_IMPORTED_LLM_ENDPOINT');
+$model = (string) getenv('LORKHAN_IMPORTED_LLM_MODEL');
+$host = (string) getenv('LORKHAN_IMPORTED_LLM_HOST');
+$apiKey = (string) getenv('LORKHAN_IMPORTED_LLM_API_KEY');
+$disableReasoning = getenv('LORKHAN_IMPORTED_LLM_DISABLE_REASONING') === '1';
 if ($endpoint === '' || $model === '' || $host === '' || $apiKey === ''
     || preg_match('/^[^\s\x00-\x1f]+$/D', $apiKey) !== 1) {
     throw new RuntimeException('Imported LLM configuration is invalid.');
 }
 
-$backupRoot = '/etc/almsiviserver/backups';
+$backupRoot = '/etc/lorkhanserver/backups';
 if (!is_dir($backupRoot) && !mkdir($backupRoot, 0700, true) && !is_dir($backupRoot)) {
     throw new RuntimeException('Could not create the private configuration backup directory.');
 }
@@ -72,13 +72,13 @@ foreach ([$configPath, $workerPath, $apachePath] as $path) {
 }
 
 $config = require $configPath;
-if (!is_array($config)) throw new RuntimeException('ALMSIVI server configuration is invalid.');
+if (!is_array($config)) throw new RuntimeException('LORKHAN server configuration is invalid.');
 $config['provider'] = [
     'driver' => 'openai-compatible',
     'endpoint' => $endpoint,
     'allowed_hosts' => [$host],
     'model' => $model,
-    'api_key_env' => 'ALMSIVI_LLM_API_KEY',
+    'api_key_env' => 'LORKHAN_LLM_API_KEY',
     'timeout_ms' => 120_000,
     'disable_reasoning' => $disableReasoning,
 ];
@@ -92,12 +92,12 @@ $upsert = static function (string $path, string $pattern, string $line): string 
     }
     return rtrim($content) . "\n" . $line . "\n";
 };
-$workerText = $upsert($workerPath, '/^ALMSIVI_LLM_API_KEY=.*$/m', 'ALMSIVI_LLM_API_KEY=' . $apiKey);
-$apacheText = $upsert($apachePath, '/^SetEnv\s+ALMSIVI_LLM_API_KEY\s+.*$/m', 'SetEnv ALMSIVI_LLM_API_KEY ' . $apiKey);
+$workerText = $upsert($workerPath, '/^LORKHAN_LLM_API_KEY=.*$/m', 'LORKHAN_LLM_API_KEY=' . $apiKey);
+$apacheText = $upsert($apachePath, '/^SetEnv\s+LORKHAN_LLM_API_KEY\s+.*$/m', 'SetEnv LORKHAN_LLM_API_KEY ' . $apiKey);
 
 foreach ([
     [$configPath, $configText, 0640, 'www-data'],
-    [$workerPath, $workerText, 0640, 'almsivi'],
+    [$workerPath, $workerText, 0640, 'lorkhan'],
     [$apachePath, $apacheText, 0640, 'www-data'],
 ] as [$path, $content, $mode, $group]) {
     $temporary = $path . '.new';
@@ -112,12 +112,12 @@ foreach ([
 }
 PHP
 
-unset ALMSIVI_IMPORTED_LLM_API_KEY api_key
+unset LORKHAN_IMPORTED_LLM_API_KEY api_key
 php -l "${config_path}" >/dev/null
 service apache2 restart >/dev/null
-service almsiviserver-worker restart >/dev/null
+service lorkhanserver-worker restart >/dev/null
 
-driver=$(ALMSIVI_CONFIG="${config_path}" php -r '$c=require getenv("ALMSIVI_CONFIG");echo $c["provider"]["driver"]??"";')
-[[ ${driver} == openai-compatible ]] || { echo 'ALMSIVI did not load the live LLM provider.' >&2; exit 1; }
-echo "Configured ALMSIVI dialogue with the active Herika provider (${host}, ${model})."
-echo "Private backups: /etc/almsiviserver/backups"
+driver=$(LORKHAN_CONFIG="${config_path}" php -r '$c=require getenv("LORKHAN_CONFIG");echo $c["provider"]["driver"]??"";')
+[[ ${driver} == openai-compatible ]] || { echo 'LORKHAN did not load the live LLM provider.' >&2; exit 1; }
+echo "Configured LORKHAN dialogue with the active Herika provider (${host}, ${model})."
+echo "Private backups: /etc/lorkhanserver/backups"

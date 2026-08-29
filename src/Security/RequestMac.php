@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Security;
+namespace LORKHANserver\Security;
 
-use ALMSIVIserver\Http\Request;
+use LORKHANserver\Http\Request;
 
 final class RequestMac
 {
@@ -40,12 +40,12 @@ final class RequestMac
 
     public static function verify(Request $request, string $key, int $clockSkewSeconds = 300): string|false
     {
-        $installation=(string)($request->header('X-ALMSIVI-Installation-Id')??'');
-        $timestamp=(string)($request->header('X-ALMSIVI-Timestamp')??'');
-        $nonce=(string)($request->header('X-ALMSIVI-Nonce')??'');
-        $digest=(string)($request->header('X-ALMSIVI-Content-SHA256')??'');
-        $signature=(string)($request->header('X-ALMSIVI-Signature')??'');
-        if($request->header('X-ALMSIVI-Auth')!==self::ALGORITHM
+        $installation=(string)($request->header('X-LORKHAN-Installation-Id')??'');
+        $timestamp=(string)($request->header('X-LORKHAN-Timestamp')??'');
+        $nonce=(string)($request->header('X-LORKHAN-Nonce')??'');
+        $digest=(string)($request->header('X-LORKHAN-Content-SHA256')??'');
+        $signature=(string)($request->header('X-LORKHAN-Signature')??'');
+        if($request->header('X-LORKHAN-Auth')!==self::ALGORITHM
             ||preg_match('/^[0-9a-f-]{36}$/D',$installation)!==1
             ||preg_match('/^[0-9a-f]{32}$/D',$nonce)!==1||preg_match('/^[0-9a-f]{64}$/D',$digest)!==1
             ||preg_match('/^[0-9a-f]{64}$/D',$signature)!==1)return false;

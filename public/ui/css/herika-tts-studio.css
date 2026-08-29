@@ -39,7 +39,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .page-subtitle { margin: 0 0 10px; color: #bbb; font-size: 1.1em; line-height: 1.6; }
 .tts-studio-page .page-note { margin: 10px 0 0; color: #f0ad4e; font-size: .9em; }
 
-.tts-studio-page .tab-nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 2px solid rgba(242, 124, 17, .2); }
+.tts-studio-page .tab-nav { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 30px; padding-bottom: 10px; border-bottom: 2px solid rgba(188, 157, 90, .2); }
 .tts-studio-page .tab-btn {
     display: flex;
     margin: 2px;
@@ -61,8 +61,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
     transition: all .3s ease;
 }
 
-.tts-studio-page .tab-btn:hover { border-color: rgba(242, 124, 17, .3); background: linear-gradient(180deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); color: rgb(242, 124, 17); }
-.tts-studio-page .tab-btn.active { position: relative; z-index: 1; border-color: rgba(242, 124, 17, .5); border-bottom: 2px solid rgba(42, 42, 42, .95); background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); box-shadow: 0 4px 8px rgba(242, 124, 17, .2); color: rgb(242, 124, 17); }
+.tts-studio-page .tab-btn:hover { border-color: rgba(188, 157, 90, .3); background: linear-gradient(180deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); color: rgb(188, 157, 90); }
+.tts-studio-page .tab-btn.active { position: relative; z-index: 1; border-color: rgba(188, 157, 90, .5); border-bottom: 2px solid rgba(42, 42, 42, .95); background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); box-shadow: 0 4px 8px rgba(188, 157, 90, .2); color: rgb(188, 157, 90); }
 .tts-studio-page .tab-xtts,
 .tts-studio-page .tab-chatterbox,
 .tts-studio-page .tab-omnivoice { min-width: 137.734px; }
@@ -86,8 +86,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
     transition: border-color .3s ease, box-shadow .3s ease;
 }
 
-.tts-studio-page .content-section:hover { border-color: rgba(242, 124, 17, .3); box-shadow: 0 4px 16px rgba(0, 0, 0, .25), inset 0 1px rgba(255, 255, 255, .05); }
-.tts-studio-page .content-section h1 { margin: 0 0 20px; color: rgb(242, 124, 17); font: 400 1.8em MagicCards, serif; text-align: center; text-shadow: 2px 2px 4px rgba(0, 0, 0, .5); word-spacing: 8px; }
+.tts-studio-page .content-section:hover { border-color: rgba(188, 157, 90, .3); box-shadow: 0 4px 16px rgba(0, 0, 0, .25), inset 0 1px rgba(255, 255, 255, .05); }
+.tts-studio-page .content-section h1 { margin: 0 0 20px; color: rgb(188, 157, 90); font: 400 1.8em MagicCards, serif; text-align: center; text-shadow: 2px 2px 4px rgba(0, 0, 0, .5); word-spacing: 8px; }
 .tts-studio-page .content-section p { color: #cfd8e3; }
 .tts-studio-page .button-group { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
 .tts-studio-page .button-group form { margin: 0; }
@@ -98,7 +98,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .requirements strong { color: #4a8ab6; }
 .tts-studio-page .voice-status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 20px; }
 .tts-studio-page .voice-status-item { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 1px solid #3a3a3a; border-radius: 8px; background: linear-gradient(135deg, rgba(58, 58, 58, .8), rgba(48, 48, 48, .9)); box-shadow: 0 2px 4px rgba(0, 0, 0, .1); color: #f8f9fa; }
-.tts-studio-page .voice-status-item:hover { border-color: rgba(242, 124, 17, .5); background: linear-gradient(135deg, rgba(74, 74, 74, .9), rgba(64, 64, 64, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); }
+.tts-studio-page .voice-status-item:hover { border-color: rgba(188, 157, 90, .5); background: linear-gradient(135deg, rgba(74, 74, 74, .9), rgba(64, 64, 64, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); }
 .tts-studio-page .voice-name { min-width: 0; flex: 1; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .tts-studio-page .status-icon { font-size: 18px; }
 .tts-studio-page .status-icon.synced { color: #4caf50; }

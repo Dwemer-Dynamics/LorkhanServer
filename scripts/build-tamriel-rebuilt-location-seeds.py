@@ -33,8 +33,8 @@ SPECIAL_RELEASED_LOCATIONS = {
     "Saros Archipelago": ("locations", "unknown"),
     "Veloth's Path": ("locations", "common"),
 }
-FORMAT = "almsivi.tamriel-rebuilt-location-inventory.v1"
-USER_AGENT = "ALMSIVI-Oghma-Location-Inventory/1.0 (https://dwemerdynamics.com/)"
+FORMAT = "lorkhan.tamriel-rebuilt-location-inventory.v1"
+USER_AGENT = "LORKHAN-Oghma-Location-Inventory/1.0 (https://dwemerdynamics.com/)"
 
 
 def read_json(path: Path) -> Any:
@@ -64,7 +64,7 @@ def clean_title(value: str) -> str:
 
 
 def load_preflight() -> Any:
-    spec = importlib.util.spec_from_file_location("almsivi_oghma_preflight", PREFLIGHT)
+    spec = importlib.util.spec_from_file_location("lorkhan_oghma_preflight", PREFLIGHT)
     if spec is None or spec.loader is None:
         raise RuntimeError("Unable to load the Oghma preflight parser")
     module = importlib.util.module_from_spec(spec)

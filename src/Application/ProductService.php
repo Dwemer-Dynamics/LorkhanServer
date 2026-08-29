@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\ProductRepository;
 use InvalidArgumentException;
 
 final class ProductService
@@ -332,14 +332,14 @@ final class ProductService
     public function exportPlaythrough(array $scope): array
     {
         $this->scope($scope);
-        return ['schema' => 'almsivi.playthrough-export.v1', 'exported_at' => $this->clock->iso(),
+        return ['schema' => 'lorkhan.playthrough-export.v1', 'exported_at' => $this->clock->iso(),
             'scope' => $scope, 'data' => $this->repository->exportScope($scope)];
     }
 
     /** @param array<string,mixed> $document */
     public function restorePlaythrough(array $document): array
     {
-        $keys=array_keys($document);sort($keys);if($keys!==['data','exported_at','schema','scope']||($document['schema']??null)!=='almsivi.playthrough-export.v1'||!is_string($document['exported_at'])
+        $keys=array_keys($document);sort($keys);if($keys!==['data','exported_at','schema','scope']||($document['schema']??null)!=='lorkhan.playthrough-export.v1'||!is_string($document['exported_at'])
             ||!is_array($document['scope'])||array_is_list($document['scope'])||!is_array($document['data'])||array_is_list($document['data']))throw new InvalidArgumentException('invalid_restore');
         $dataKeys=array_keys($document['data']);sort($dataKeys);if($dataKeys!==['memories','narratives','relationships'])throw new InvalidArgumentException('invalid_restore');
         foreach($document['data'] as$rows)if(!is_array($rows)||!array_is_list($rows))throw new InvalidArgumentException('invalid_restore');
@@ -390,7 +390,7 @@ final class ProductService
         if(in_array('common',array_map(static fn(string$value):string=>mb_strtolower(trim($value),'UTF-8'),
             preg_split('/\s*[,|;]\s*/u',$input['knowledge_class'])?:[]),true))throw new InvalidArgumentException('invalid_knowledge_class');
         $input['knowledge_class_basic']=$input['knowledge_class_basic']===''?'common':$input['knowledge_class_basic'];
-        $input['category']=trim((string)($input['category']??($input['provenance']['category']??'ALMSIVI')));
+        $input['category']=trim((string)($input['category']??($input['provenance']['category']??'LORKHAN')));
         if($input['category']===''||strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');
         return$input;
     }
@@ -437,7 +437,7 @@ final class ProductService
     private function validateGlobalSettings(array $content):array
     {
         $expected=['behavior','memory','narrator','presentation','safety','schema'];$keys=array_keys($content);sort($keys);
-        if($keys!==$expected||($content['schema']??null)!=='almsivi.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
+        if($keys!==$expected||($content['schema']??null)!=='lorkhan.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
         $sections=['behavior'=>[
             'auto_greeting'=>'bool','rechat'=>'bool','rechat_delay_seconds'=>[30,3600],'rechat_max_depth'=>[1,20],
             'rechat_probability_percent'=>[0,100],'rechat_mode'=>['tight','conversational','group','random'],
@@ -450,7 +450,7 @@ final class ProductService
             'welcome_events'=>'bool','random_events'=>'bool','quest_events'=>'bool','book_events'=>'bool',
         ],'presentation'=>['show_status_hud'=>'bool','transcript_rows'=>[2,20],'tts_volume_boost'=>[1,4]],
         'safety'=>['actions_enabled'=>'bool','allow_hostile'=>'bool','allow_creatures'=>'bool']];
-        $result=['schema'=>'almsivi.client-settings.v1'];
+        $result=['schema'=>'lorkhan.client-settings.v1'];
         foreach($sections as$section=>$fields){$value=$content[$section]??null;if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_global_settings');
             $sectionKeys=array_keys($value);sort($sectionKeys);$expectedKeys=array_keys($fields);sort($expectedKeys);if($sectionKeys!==$expectedKeys)throw new InvalidArgumentException('invalid_global_settings');$result[$section]=[];
             foreach($fields as$field=>$rule){$item=$value[$field];if($rule==='bool'){if(!is_bool($item))throw new InvalidArgumentException('invalid_global_settings');}

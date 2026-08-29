@@ -2,7 +2,7 @@ DO $excluded_tables$
 DECLARE
     relation_name text;
     excluded_relations text[] := ARRAY[
-        'almsivi_internal.autonomy_schedules',
+        'lorkhan_internal.autonomy_schedules',
         'public.bgl_history',
         'public.core_faction_politics_development',
         'public.core_faction_politics_relation',
@@ -32,10 +32,10 @@ DECLARE
 BEGIN
     FOREACH relation_name IN ARRAY excluded_relations LOOP
         IF to_regclass(relation_name) IS NOT NULL THEN
-            EXECUTE format('DROP TRIGGER IF EXISTS almsivi_reject_excluded_write ON %s',relation_name);
+            EXECUTE format('DROP TRIGGER IF EXISTS lorkhan_reject_excluded_write ON %s',relation_name);
         END IF;
     END LOOP;
 END
 $excluded_tables$;
 
-DROP FUNCTION IF EXISTS almsivi_internal.reject_excluded_feature_write();
+DROP FUNCTION IF EXISTS lorkhan_internal.reject_excluded_feature_write();

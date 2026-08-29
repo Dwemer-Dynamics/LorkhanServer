@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Security;
+namespace LORKHANserver\Security;
 
 final class Redactor
 {

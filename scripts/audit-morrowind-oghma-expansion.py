@@ -315,7 +315,7 @@ def main() -> int:
         rows = [row for row in rows if row.get("mod_source") == args.mod_source]
     band_counts = dict(sorted(Counter(str(row["band"]) for row in rows).items()))
     summary = {
-        "format": "almsivi.morrowind-oghma-expansion-audit.v1",
+        "format": "lorkhan.morrowind-oghma-expansion-audit.v1",
         "official_content_files": content_files,
         "official_dialogue_topics": len(dialogue_topics),
         "existing_seed_topics": len(seeds),

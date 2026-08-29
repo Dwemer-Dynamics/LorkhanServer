@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Http\Request;
-use ALMSIVIserver\Security\BrowserSession;
-use ALMSIVIserver\Security\RequestMac;
+use LORKHANserver\Http\Request;
+use LORKHANserver\Security\BrowserSession;
+use LORKHANserver\Security\RequestMac;
 use PDO;
 use RuntimeException;
 
@@ -42,12 +42,12 @@ final class ManagementRepository
     public function requestMacPrincipal(Request $request, int $clockSkewSeconds = 300): string|false|null
     {
         $count=(int)$this->db->query('SELECT count(*) FROM pairing_tokens')->fetchColumn();if($count===0)return null;
-        $installation=(string)($request->header('X-ALMSIVI-Installation-Id')??'');
-        $timestamp=(string)($request->header('X-ALMSIVI-Timestamp')??'');
-        $nonce=(string)($request->header('X-ALMSIVI-Nonce')??'');
-        $digest=(string)($request->header('X-ALMSIVI-Content-SHA256')??'');
-        $signature=(string)($request->header('X-ALMSIVI-Signature')??'');
-        $algorithm=(string)($request->header('X-ALMSIVI-Auth')??'');
+        $installation=(string)($request->header('X-LORKHAN-Installation-Id')??'');
+        $timestamp=(string)($request->header('X-LORKHAN-Timestamp')??'');
+        $nonce=(string)($request->header('X-LORKHAN-Nonce')??'');
+        $digest=(string)($request->header('X-LORKHAN-Content-SHA256')??'');
+        $signature=(string)($request->header('X-LORKHAN-Signature')??'');
+        $algorithm=(string)($request->header('X-LORKHAN-Auth')??'');
         if($algorithm!==RequestMac::ALGORITHM||preg_match('/^[0-9a-f-]{36}$/D',$installation)!==1
             ||preg_match('/^[0-9a-f]{32}$/D',$nonce)!==1||preg_match('/^[0-9a-f]{64}$/D',$digest)!==1
             ||preg_match('/^[0-9a-f]{64}$/D',$signature)!==1)return false;

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
 final class ApiException extends \RuntimeException
 {

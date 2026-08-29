@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-item-description-preflight.v1",
+  "format": "lorkhan.morrowind-item-description-preflight.v1",
   "updated_at_utc": "2026-08-12T04:02:55Z",
   "model": "z-ai/glm-5.1",
   "prompt_sha256": "2dda6a3c93291ef610e32be4f80e212cedecd521c91897ae467402cbb82f2707",

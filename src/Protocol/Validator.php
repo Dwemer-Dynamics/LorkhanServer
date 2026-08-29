@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Protocol;
+namespace LORKHANserver\Protocol;
 
 final class Validator
 {
@@ -32,15 +32,15 @@ final class Validator
     public function validate(array $message, string $expectedSchema): void
     {
         match ($expectedSchema) {
-            'almsivi.session.init.v1' => $this->session($message),
-            'almsivi.turn.v1' => $this->turn($message),
-            'almsivi.interrupt.v1' => $this->interrupt($message),
-            'almsivi.action-result.v1' => $this->actionResult($message),
-            'almsivi.stt.request.v1' => $this->stt($message),
-            'almsivi.dialogue-delivery-result.v1' => $this->delivery($message),
-            'almsivi.controls.query.v1' => $this->controlsQuery($message),
-            'almsivi.controls.select.v1' => $this->controlsSelect($message),
-            'almsivi.response.v1' => $this->response($message),
+            'lorkhan.session.init.v1' => $this->session($message),
+            'lorkhan.turn.v1' => $this->turn($message),
+            'lorkhan.interrupt.v1' => $this->interrupt($message),
+            'lorkhan.action-result.v1' => $this->actionResult($message),
+            'lorkhan.stt.request.v1' => $this->stt($message),
+            'lorkhan.dialogue-delivery-result.v1' => $this->delivery($message),
+            'lorkhan.controls.query.v1' => $this->controlsQuery($message),
+            'lorkhan.controls.select.v1' => $this->controlsSelect($message),
+            'lorkhan.response.v1' => $this->response($message),
             default => throw new ValidationException('invalid_schema'),
         };
     }
@@ -49,14 +49,14 @@ final class Validator
     private function session(array $message): void
     {
         $this->keys($message, ['schema','message_id','installation_id','profile_id','playthrough_id','generation','created_at','runtime','content_fingerprint']);
-        $this->common($message, 'almsivi.session.init.v1', ['message_id','installation_id','profile_id','playthrough_id']);
+        $this->common($message, 'lorkhan.session.init.v1', ['message_id','installation_id','profile_id','playthrough_id']);
     }
 
     /** @param array<string, mixed> $message */
     private function turn(array $message): void
     {
         $this->keys($message, ['schema','message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id','generation','runtime_generation','created_at','runtime','content_fingerprint','payload']);
-        $this->common($message, 'almsivi.turn.v1', ['message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id']);
+        $this->common($message, 'lorkhan.turn.v1', ['message_id','request_id','turn_id','installation_id','profile_id','playthrough_id','session_id']);
         if (!is_int($message['runtime_generation']) || $message['runtime_generation'] < 1
             || $message['runtime_generation'] > 9_007_199_254_740_991) {
             throw new ValidationException('invalid_schema');
@@ -133,7 +133,7 @@ final class Validator
     private function interrupt(array $message): void
     {
         $this->keys($message, ['schema','message_id','request_id','turn_id','session_id','generation','created_at','reason']);
-        if ($message['schema'] !== 'almsivi.interrupt.v1' || !is_string($message['reason']) || $message['reason'] === ''
+        if ($message['schema'] !== 'lorkhan.interrupt.v1' || !is_string($message['reason']) || $message['reason'] === ''
             || strlen($message['reason']) > 128 || !is_int($message['generation']) || $message['generation'] < 0 || $message['generation'] > 9_007_199_254_740_991) {
             throw new ValidationException('invalid_schema');
         }
@@ -147,7 +147,7 @@ final class Validator
     private function actionResult(array $message): void
     {
         $this->keys($message, ['schema','message_id','request_id','action_id','turn_id','session_id','generation','status','reason_code','observed','completed_at']);
-        if ($message['schema'] !== 'almsivi.action-result.v1'
+        if ($message['schema'] !== 'lorkhan.action-result.v1'
             || !is_int($message['generation']) || $message['generation'] < 0 || $message['generation'] > 9_007_199_254_740_991
             || !in_array($message['status'], ['cancelled','failed','rejected','succeeded','timed_out'], true)
             || !is_string($message['reason_code']) || $message['reason_code'] === '' || strlen($message['reason_code']) > 128
@@ -164,21 +164,21 @@ final class Validator
     private function stt(array $message): void
     {
         $this->keys($message,['schema','message_id','request_id','turn_id','session_id','generation','created_at','codec','language','audio_bytes','sha256']);
-        if($message['schema']!=='almsivi.stt.request.v1'||$message['codec']!=='wav'||!is_int($message['audio_bytes'])||$message['audio_bytes']<1||$message['audio_bytes']>16777216||!is_string($message['sha256'])||preg_match('/^[0-9a-f]{64}$/D',$message['sha256'])!==1||!is_string($message['language'])||preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/D',$message['language'])!==1||!is_int($message['generation'])||$message['generation']<0)throw new ValidationException('invalid_schema');
+        if($message['schema']!=='lorkhan.stt.request.v1'||$message['codec']!=='wav'||!is_int($message['audio_bytes'])||$message['audio_bytes']<1||$message['audio_bytes']>16777216||!is_string($message['sha256'])||preg_match('/^[0-9a-f]{64}$/D',$message['sha256'])!==1||!is_string($message['language'])||preg_match('/^[A-Za-z]{2,3}(?:-[A-Za-z0-9]{1,8})*$/D',$message['language'])!==1||!is_int($message['generation'])||$message['generation']<0)throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','turn_id','session_id']as$field)$this->uuid($message[$field]);$this->timestamp($message['created_at']);
     }
 
     private function delivery(array $message): void
     {
         $this->keys($message,['schema','message_id','request_id','dialogue_message_id','turn_id','session_id','generation','speaker','status','reason_code','completed_at']);
-        if($message['schema']!=='almsivi.dialogue-delivery-result.v1'||!in_array($message['status'],['expired','failed','interrupted','played'],true)||!is_string($message['reason_code'])||preg_match('/^[a-z][a-z0-9_]{0,127}$/D',$message['reason_code'])!==1||!is_int($message['generation'])||$message['generation']<0)throw new ValidationException('invalid_schema');
+        if($message['schema']!=='lorkhan.dialogue-delivery-result.v1'||!in_array($message['status'],['expired','failed','interrupted','played'],true)||!is_string($message['reason_code'])||preg_match('/^[a-z][a-z0-9_]{0,127}$/D',$message['reason_code'])!==1||!is_int($message['generation'])||$message['generation']<0)throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','dialogue_message_id','turn_id','session_id']as$field)$this->uuid($message[$field]);$this->identity($message['speaker']);$this->timestamp($message['completed_at']);
     }
 
     private function controlsQuery(array $message): void
     {
         $this->keys($message,['schema','message_id','request_id','session_id','generation','target']);
-        if(($message['schema']??null)!=='almsivi.controls.query.v1'||!is_int($message['generation'])
+        if(($message['schema']??null)!=='lorkhan.controls.query.v1'||!is_int($message['generation'])
             ||$message['generation']<0||$message['generation']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
         $this->identity($message['target']??null);
@@ -187,7 +187,7 @@ final class Validator
     private function controlsSelect(array $message): void
     {
         $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','target']);
-        if(($message['schema']??null)!=='almsivi.controls.select.v1'||!is_int($message['generation'])
+        if(($message['schema']??null)!=='lorkhan.controls.select.v1'||!is_int($message['generation'])
             ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
             ||!in_array($message['kind']??null,['actor_profile','model_slot','profile_generate','narrator_profile_generate'],true)
             ||(in_array($message['kind']??null,['profile_generate','narrator_profile_generate'],true)&&($message['selection_id']??null)===null))throw new ValidationException('invalid_schema');
@@ -227,7 +227,7 @@ final class Validator
     {
         $this->keys($message,['schema','response_id','installation_id','profile_id','playthrough_id','session_id',
             'turn_id','request_id','generation','runtime_generation','created_at','ok','lines','close','error']);
-        if (($message['schema']??null)!=='almsivi.response.v1') throw new ValidationException('invalid_schema');
+        if (($message['schema']??null)!=='lorkhan.response.v1') throw new ValidationException('invalid_schema');
         foreach(['response_id','installation_id','profile_id','playthrough_id','session_id','turn_id','request_id'] as $field) {
             $this->uuid($message[$field]??null);
         }
@@ -251,7 +251,7 @@ final class Validator
             'request_id','utterance_id','listener','listener_identity','rechat_target','rechat_target_identity','final_response_line','metadata'];
         foreach(['command_args','command_name','media','tts_cache_key'] as $optional)if(array_key_exists($optional,$line))$keys[]=$optional;
         $this->keys($line,$keys);
-        if(($line['schema']??null)!=='almsivi.response.line.v1'||!is_int($line['line_index'])||$line['line_index']<0||$line['line_index']>63
+        if(($line['schema']??null)!=='lorkhan.response.line.v1'||!is_int($line['line_index'])||$line['line_index']<0||$line['line_index']>63
             ||!in_array($line['action']??null,['say','rolecommand'],true)||!is_bool($line['final_response_line']??null)) {
             throw new ValidationException('invalid_schema');
         }

@@ -1,4 +1,4 @@
-CREATE TABLE almsivi_internal.description_catalogs (
+CREATE TABLE lorkhan_internal.description_catalogs (
     catalog_id uuid PRIMARY KEY,
     catalog_version varchar(128) NOT NULL UNIQUE,
     source_kind text NOT NULL CHECK (source_kind IN ('imported','legacy_snapshot')),
@@ -11,7 +11,7 @@ CREATE TABLE almsivi_internal.description_catalogs (
         CHECK (jsonb_typeof(official_content_sha256)='object'),
     row_count integer NOT NULL CHECK (row_count BETWEEN 0 AND 5000),
     state text NOT NULL CHECK (state IN ('active','superseded')),
-    previous_catalog_id uuid REFERENCES almsivi_internal.description_catalogs(catalog_id),
+    previous_catalog_id uuid REFERENCES lorkhan_internal.description_catalogs(catalog_id),
     imported_at timestamptz NOT NULL,
     activated_at timestamptz NOT NULL,
     superseded_at timestamptz,
@@ -22,12 +22,12 @@ CREATE TABLE almsivi_internal.description_catalogs (
     ))
 );
 CREATE UNIQUE INDEX description_catalogs_one_active_uq
-    ON almsivi_internal.description_catalogs ((state)) WHERE state='active';
+    ON lorkhan_internal.description_catalogs ((state)) WHERE state='active';
 CREATE INDEX description_catalogs_recent_idx
-    ON almsivi_internal.description_catalogs (activated_at DESC,catalog_id);
+    ON lorkhan_internal.description_catalogs (activated_at DESC,catalog_id);
 
-CREATE TABLE almsivi_internal.description_catalog_entries (
-    catalog_id uuid NOT NULL REFERENCES almsivi_internal.description_catalogs(catalog_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.description_catalog_entries (
+    catalog_id uuid NOT NULL REFERENCES lorkhan_internal.description_catalogs(catalog_id) ON DELETE CASCADE,
     plugin text NOT NULL,
     baseid varchar(128) NOT NULL,
     name text,
@@ -37,4 +37,4 @@ CREATE TABLE almsivi_internal.description_catalog_entries (
     CHECK (length(baseid) BETWEEN 1 AND 128)
 );
 CREATE UNIQUE INDEX description_catalog_entries_canonical_uq
-    ON almsivi_internal.description_catalog_entries (catalog_id,lower(plugin),lower(baseid));
+    ON lorkhan_internal.description_catalog_entries (catalog_id,lower(plugin),lower(baseid));

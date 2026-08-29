@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
 set -u
 
-if [[ -r /etc/almsiviserver/worker.env ]]; then
+if [[ -r /etc/lorkhanserver/worker.env ]]; then
     set -a
     # The root-owned environment file contains the runtime database and provider variables.
-    source /etc/almsiviserver/worker.env
+    source /etc/lorkhanserver/worker.env
     set +a
 fi
-: "${ALMSIVI_CONFIG:=/etc/almsiviserver/server.php}"
-export ALMSIVI_CONFIG
+: "${LORKHAN_CONFIG:=/etc/lorkhanserver/server.php}"
+export LORKHAN_CONFIG
 
 child_pid=
 stop_worker() {
@@ -21,7 +21,7 @@ stop_worker() {
 trap stop_worker TERM INT
 
 while true; do
-    /usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php &
+    /usr/bin/php /var/www/LORKHANserver/current/workers/worker.php &
     child_pid=$!
     status=0
     wait "${child_pid}" || status=$?

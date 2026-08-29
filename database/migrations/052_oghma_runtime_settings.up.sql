@@ -1,4 +1,4 @@
-ALTER TABLE almsivi_internal.oghma_installation_settings
+ALTER TABLE lorkhan_internal.oghma_installation_settings
     ADD COLUMN racial_context_enabled boolean NOT NULL DEFAULT true,
     ADD COLUMN location_context_enabled boolean NOT NULL DEFAULT true,
     ADD COLUMN topic_count smallint NOT NULL DEFAULT 1,

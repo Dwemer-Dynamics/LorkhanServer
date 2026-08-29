@@ -1,4 +1,4 @@
--- Synchronize ALMSIVI's revisioned Global -> Core Profile -> NPC model into the
+-- Synchronize LORKHAN's revisioned Global -> Core Profile -> NPC model into the
 -- exact Herika connector/profile tables while preserving UUID ownership separately.
 
 CREATE TABLE herika_compat.general_setting_metadata (
@@ -12,7 +12,7 @@ CREATE TABLE herika_compat.general_setting_metadata (
 
 -- Stable source alias follows the typed UUID table when the final cutover moves it
 -- out of public to make room for Herika's integer core_profiles contract.
-CREATE VIEW herika_compat.almsivi_core_profiles_source AS SELECT * FROM public.core_profiles;
+CREATE VIEW herika_compat.lorkhan_core_profiles_source AS SELECT * FROM public.core_profiles;
 
 INSERT INTO herika_compat.general_setting_metadata (
     id,installation_id,source_configuration_id,source_revision,setting_key
@@ -24,7 +24,7 @@ JOIN public.configuration_revisions revision
   ON revision.configuration_id=configuration.configuration_id
  AND revision.revision=configuration.current_revision
 CROSS JOIN LATERAL jsonb_each(revision.content) entry
-JOIN herika_compat.general_settings settings ON settings.id='almsivi.'||entry.key
+JOIN herika_compat.general_settings settings ON settings.id='lorkhan.'||entry.key
 WHERE configuration.kind='global_settings' AND configuration.deleted_at IS NULL
 ON CONFLICT (id) DO UPDATE SET
     installation_id=EXCLUDED.installation_id,
@@ -158,8 +158,8 @@ BEGIN
           AND NOT (source_row.content ? metadata.setting_key);
 
         INSERT INTO general_settings (id,value,description,updated_at)
-        SELECT 'almsivi.'||entry.key,entry.value::text,
-               'ALMSIVI Global Settings '||entry.key,clock_timestamp() AT TIME ZONE 'UTC'
+        SELECT 'lorkhan.'||entry.key,entry.value::text,
+               'LORKHAN Global Settings '||entry.key,clock_timestamp() AT TIME ZONE 'UTC'
         FROM jsonb_each(source_row.content) entry
         ON CONFLICT (id) DO UPDATE SET
             value=EXCLUDED.value,description=EXCLUDED.description,updated_at=EXCLUDED.updated_at;
@@ -167,7 +167,7 @@ BEGIN
         INSERT INTO general_setting_metadata (
             id,installation_id,source_configuration_id,source_revision,setting_key
         )
-        SELECT 'almsivi.'||entry.key,source_row.installation_id,source_configuration,
+        SELECT 'lorkhan.'||entry.key,source_row.installation_id,source_configuration,
                source_row.current_revision,entry.key
         FROM jsonb_each(source_row.content) entry
         ON CONFLICT (id) DO UPDATE SET
@@ -245,7 +245,7 @@ DECLARE compatible_slot integer;
 BEGIN
     SELECT profile.*,revision.content
     INTO source_row
-    FROM almsivi_core_profiles_source profile
+    FROM lorkhan_core_profiles_source profile
     JOIN public.core_profile_revisions revision
       ON revision.core_profile_id=profile.core_profile_id
      AND revision.revision=profile.current_revision
@@ -450,7 +450,7 @@ BEGIN
             source_row.content->>'skills',source_row.content->>'speech_style',source_row.content->>'goals',
             source_row.content#>>'{voice,id}',source_row.actor_identity,source_row.content->>'gender',
             source_row.content->>'race',left(source_row.actor_identity->>'record_id',16),inherited_profile,0,
-            jsonb_build_object('actor_identity',source_row.actor_identity,'almsivi_profile',source_row.content),
+            jsonb_build_object('actor_identity',source_row.actor_identity,'lorkhan_profile',source_row.content),
             md5(source_row.content::text),source_row.content->>'core',
             source_row.actor_identity->>'content_file',source_row.content->>'tags'
         ) RETURNING id INTO projected_id;
@@ -478,7 +478,7 @@ BEGIN
             gender=source_row.content->>'gender',race=source_row.content->>'race',
             refid=left(source_row.actor_identity->>'record_id',16),profile_id=inherited_profile,
             dynamic_profile=0,
-            extended_data=jsonb_build_object('actor_identity',source_row.actor_identity,'almsivi_profile',source_row.content),
+            extended_data=jsonb_build_object('actor_identity',source_row.actor_identity,'lorkhan_profile',source_row.content),
             md5=md5(source_row.content::text),core=source_row.content->>'core',
             base=source_row.actor_identity->>'content_file',tags=source_row.content->>'tags'
         WHERE id=projected_id;
@@ -504,14 +504,14 @@ BEGIN
            source_row.content->>'skills',source_row.content->>'speech_style',source_row.content->>'goals',
            source_row.content#>>'{voice,id}',source_row.actor_identity,source_row.content->>'gender',
            source_row.content->>'race',left(source_row.actor_identity->>'record_id',16),inherited_profile,0,
-           jsonb_build_object('actor_identity',source_row.actor_identity,'almsivi_profile',source_row.content,
-                              'almsivi_revision',source_row.current_revision),
+           jsonb_build_object('actor_identity',source_row.actor_identity,'lorkhan_profile',source_row.content,
+                              'lorkhan_revision',source_row.current_revision),
            md5(source_row.content::text),source_row.revision_created_at AT TIME ZONE 'UTC',
            source_row.content->>'core',source_row.actor_identity->>'content_file',source_row.content->>'tags'
     WHERE NOT EXISTS (
         SELECT 1 FROM core_npc_master_history history
         WHERE history.npc_id=projected_id
-          AND history.extended_data->>'almsivi_revision'=source_row.current_revision::text
+          AND history.extended_data->>'lorkhan_revision'=source_row.current_revision::text
     );
 
     INSERT INTO bio_templates_custom (

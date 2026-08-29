@@ -2,40 +2,40 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\ActionPolicyValidator;
-use ALMSIVIserver\Application\DeterministicClock;
-use ALMSIVIserver\Application\FirstPartyJobHandlerFactory;
-use ALMSIVIserver\Application\JobHandler;
-use ALMSIVIserver\Application\JobHandlerRegistry;
-use ALMSIVIserver\Application\ProductService;
-use ALMSIVIserver\Application\Worker;
-use ALMSIVIserver\Http\ManagementRouter;
-use ALMSIVIserver\Http\Request;
-use ALMSIVIserver\Infrastructure\ActionCatalogRepository;
-use ALMSIVIserver\Infrastructure\BiographyCatalogImporter;
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\DescriptionCatalogImporter;
-use ALMSIVIserver\Infrastructure\EventLogRepository;
-use ALMSIVIserver\Infrastructure\JobRepository;
-use ALMSIVIserver\Infrastructure\ManagementRepository;
-use ALMSIVIserver\Infrastructure\ManagementUiRepository;
-use ALMSIVIserver\Infrastructure\MigrationRunner;
-use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
-use ALMSIVIserver\Infrastructure\ProductRepository;
-use ALMSIVIserver\Infrastructure\ProviderAttemptRepository;
-use ALMSIVIserver\Infrastructure\Uuid;
+use LORKHANserver\Application\ActionPolicyValidator;
+use LORKHANserver\Application\DeterministicClock;
+use LORKHANserver\Application\FirstPartyJobHandlerFactory;
+use LORKHANserver\Application\JobHandler;
+use LORKHANserver\Application\JobHandlerRegistry;
+use LORKHANserver\Application\ProductService;
+use LORKHANserver\Application\Worker;
+use LORKHANserver\Http\ManagementRouter;
+use LORKHANserver\Http\Request;
+use LORKHANserver\Infrastructure\ActionCatalogRepository;
+use LORKHANserver\Infrastructure\BiographyCatalogImporter;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\DescriptionCatalogImporter;
+use LORKHANserver\Infrastructure\EventLogRepository;
+use LORKHANserver\Infrastructure\JobRepository;
+use LORKHANserver\Infrastructure\ManagementRepository;
+use LORKHANserver\Infrastructure\ManagementUiRepository;
+use LORKHANserver\Infrastructure\MigrationRunner;
+use LORKHANserver\Infrastructure\OghmaCatalogImporter;
+use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\Uuid;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
-$dsn = getenv('ALMSIVI_TEST_DSN') ?: '';
+$dsn = getenv('LORKHAN_TEST_DSN') ?: '';
 if ($dsn === '') {
-    fwrite(STDERR, "ALMSIVI_TEST_DSN is required\n");
+    fwrite(STDERR, "LORKHAN_TEST_DSN is required\n");
     exit(2);
 }
 $db = Connection::open([
     'database_dsn' => $dsn,
-    'database_user' => getenv('ALMSIVI_TEST_DB_USER') ?: '',
-    'database_password' => getenv('ALMSIVI_TEST_DB_PASSWORD') ?: '',
+    'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
+    'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '',
 ]);
 $check = static function (bool $condition, string $message): void {
     if (!$condition) {
@@ -51,23 +51,23 @@ sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
 $oghmaRowConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
-    ."WHERE conrelid='almsivi_internal.oghma_catalogs'::regclass AND conname='oghma_catalogs_row_count_check'")->fetchColumn();
+    ."WHERE conrelid='lorkhan_internal.oghma_catalogs'::regclass AND conname='oghma_catalogs_row_count_check'")->fetchColumn();
 $check(str_contains($oghmaRowConstraint,'row_count >= 1')&&!str_contains($oghmaRowConstraint,'2000'),
     'fresh schema retained the fixed Oghma catalog row ceiling');
-$canonicalTurnColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+$canonicalTurnColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='lorkhan_internal' "
     . "AND table_name='turns' AND column_name IN ('runtime_generation','response_id','response_payload','response_created_at') ORDER BY column_name")
     ->fetchAll(PDO::FETCH_COLUMN);
-$canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='almsivi_internal' "
+$canonicalDialogueColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='lorkhan_internal' "
     . "AND table_name='dialogue_utterances' AND column_name IN ('response_line_id','utterance_id','runtime_generation') ORDER BY column_name")
     ->fetchAll(PDO::FETCH_COLUMN);
 $check($canonicalTurnColumns===['response_created_at','response_id','response_payload','runtime_generation']
     &&$canonicalDialogueColumns===['response_line_id','runtime_generation','utterance_id'],
     'canonical response projection columns are incomplete');
-$configurationKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.configuration_sets'::regclass AND conname='configuration_sets_kind_check'")->fetchColumn();
-$providerKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='almsivi_internal.provider_attempts'::regclass AND conname='provider_attempts_provider_kind_check'")->fetchColumn();
+$configurationKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='lorkhan_internal.configuration_sets'::regclass AND conname='configuration_sets_kind_check'")->fetchColumn();
+$providerKindConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid='lorkhan_internal.provider_attempts'::regclass AND conname='provider_attempts_provider_kind_check'")->fetchColumn();
 $check(str_contains($configurationKindConstraint,"'translation_policy'")
     &&str_contains($providerKindConstraint,"'translation'")
-    &&$db->query("SELECT to_regclass('almsivi_internal.one_translation_policy_per_installation') IS NOT NULL")->fetchColumn()===true,
+    &&$db->query("SELECT to_regclass('lorkhan_internal.one_translation_policy_per_installation') IS NOT NULL")->fetchColumn()===true,
     'translation policy or provider audit constraints are incomplete');
 $eventlogColumns=$db->query("SELECT column_name FROM information_schema.columns WHERE table_schema='public' AND table_name='eventlog' ORDER BY ordinal_position")->fetchAll(PDO::FETCH_COLUMN);
 $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid','people','location','party','utterance_id','delivery_state'],
@@ -75,7 +75,7 @@ $check($eventlogColumns===['type','data','sess','gamets','localts','ts','rowid',
 $check($db->query("SELECT to_regclass('public.schema_migrations') IS NULL")->fetchColumn()===true,
     'migration authority leaked into the Herika public schema');
 $retiredRelations=[
-    'almsivi_internal.autonomy_schedules','public.bgl_history','public.core_faction_politics_development',
+    'lorkhan_internal.autonomy_schedules','public.bgl_history','public.core_faction_politics_development',
     'public.core_faction_politics_relation','public.core_faction_politics_state','public.core_itt_connector',
     'public.master_packages','public.npc_commitments','public.quest_asset_group_members','public.quest_asset_groups',
     'public.quest_asset_imports','public.quest_asset_packs','public.quest_assets','public.quest_item_types',
@@ -103,7 +103,7 @@ $legacyCrlfChecksum = hash(
         . "\0down\0" . $toCrlf((string) file_get_contents($firstMigrationDown)),
 );
 $check(!hash_equals($status[0]['checksum'], $legacyCrlfChecksum), 'line-ending compatibility fixture is not distinct');
-$setMigrationChecksum = $db->prepare('UPDATE almsivi_internal.schema_migrations SET checksum = :checksum WHERE version = 1');
+$setMigrationChecksum = $db->prepare('UPDATE lorkhan_internal.schema_migrations SET checksum = :checksum WHERE version = 1');
 $setMigrationChecksum->execute(['checksum' => $legacyCrlfChecksum]);
 $check(count($runner->status()) === count($expectedVersions), 'historical CRLF migration checksum was rejected');
 $setMigrationChecksum->execute(['checksum' => $status[0]['checksum']]);
@@ -114,16 +114,16 @@ $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrat
 
 // The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
 $db->beginTransaction();
-$db->exec("INSERT INTO almsivi_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
+$db->exec("INSERT INTO lorkhan_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
     ."VALUES('30000000-0000-4000-8000-000000000060','capacity-guard-fixture','legacy_snapshot',repeat('0',64),20000,'superseded',now(),now())");
 $db->exec('SAVEPOINT capacity_guard');
-try{$db->exec("UPDATE almsivi_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
+try{$db->exec("UPDATE lorkhan_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
     throw new RuntimeException('biography capacity became unbounded');}
 catch(PDOException $error){$check($error->getCode()==='23514','unexpected biography capacity failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
 try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/060_biography_catalog_capacity.down.sql'));
     throw new RuntimeException('larger biography catalog was rolled back');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore the 10,000-row biography limit'),'unexpected biography rollback failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
-$check((int)$db->query("SELECT row_count FROM almsivi_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
+$check((int)$db->query("SELECT row_count FROM lorkhan_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
     'refused rollback changed the biography catalog');
 $db->rollBack();
 
@@ -163,7 +163,7 @@ $journalTurn=Uuid::v4();$journalRequest=Uuid::v4();$journalMessage=Uuid::v4();
 $journalContext=json_encode(['journal'=>['items'=>[['quest_id'=>'A1_1_FindSpymaster','id'=>'10','text'=>'Report to Caius Cosades.','content_file'=>'Morrowind.esm']]]],JSON_THROW_ON_ERROR);
 $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','journal projection','{}'::jsonb,'{}'::jsonb,'[]'::jsonb,CAST(:context AS jsonb),'complete','2026-01-01T00:00:00Z')")
     ->execute(['turn'=>$journalTurn,'request'=>$journalRequest,'message'=>$journalMessage,'session'=>$legacySession,'context'=>$journalContext]);
-$journalProjection=$db->prepare('SELECT count(*) FROM almsivi_internal.questlog_metadata metadata JOIN public.questlog projected ON projected.rowid=metadata.rowid WHERE metadata.source_turn_id=:turn AND metadata.journal_id=:journal');
+$journalProjection=$db->prepare('SELECT count(*) FROM lorkhan_internal.questlog_metadata metadata JOIN public.questlog projected ON projected.rowid=metadata.rowid WHERE metadata.source_turn_id=:turn AND metadata.journal_id=:journal');
 $journalProjection->execute(['turn'=>$journalTurn,'journal'=>'A1_1_FindSpymaster']);
 $check((int)$journalProjection->fetchColumn()===1,'journal-bearing turn did not project into the Herika questlog contract');
 $identityTurn=Uuid::v4();$identityRequest=Uuid::v4();$identityMessage=Uuid::v4();
@@ -198,7 +198,7 @@ for($i=1;$i<=3;++$i){$dialogueIds[$i]=Uuid::v4();$mediaIds[$i]=Uuid::v4();
     $db->prepare("INSERT INTO media_objects(media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES(:media,:installation,:session,:turn,1,:sha,44,'wav','audio/wav',1,'2026-01-01T00:05:00Z',:dialogue)")
         ->execute(['media'=>$mediaIds[$i],'installation'=>$legacyInstallation,'session'=>$legacySession,'turn'=>$migrationTurn,'sha'=>hash('sha256','media-'.$i),'dialogue'=>$dialogueIds[$i]]);}
 $deliverySource=Uuid::v4();$deliveryMessage=Uuid::v4();
-$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:01Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:01Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
     ->execute(['source'=>$deliverySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
 $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok','2026-01-01T00:00:01Z')")
     ->execute(['dialogue'=>$dialogueIds[1],'source'=>$deliverySource,'message'=>$deliveryMessage,'request'=>$migrationRequest,'turn'=>$migrationTurn,'session'=>$legacySession]);
@@ -209,7 +209,7 @@ $acceptedSttMessage=Uuid::v4();$acceptedSttRequest=Uuid::v4();$acceptedSttTurn=U
 $db->prepare("INSERT INTO stt_requests(message_id,request_id,turn_id,session_id,generation,codec,language,audio_bytes,sha256,state,created_at,storage_media_id,semantic_hash,accepted_cursor) VALUES(:message,:request,:turn,:session,1,'wav','en',44,:sha,'accepted','2026-01-01T00:00:00Z',:media,:semantic,0)")
     ->execute(['message'=>$acceptedSttMessage,'request'=>$acceptedSttRequest,'turn'=>$acceptedSttTurn,'session'=>$legacySession,'sha'=>hash('sha256','accepted-stt-audio'),'media'=>$acceptedSttMedia,'semantic'=>hash('sha256','accepted-stt-semantic')]);
 $legacyDialogue=Uuid::v4();$legacySource=Uuid::v4();$legacyDeliveryMessage=Uuid::v4();
-$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2025-01-01T00:00:01Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2025-01-01T00:00:01Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
     ->execute(['source'=>$legacySource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$migrationRequest,'turn'=>$migrationTurn]);
 $db->exec('ALTER TABLE dialogue_delivery_results DISABLE TRIGGER ALL');
 $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','legacy','2025-01-01T00:00:01Z')")
@@ -234,7 +234,7 @@ $restoredAcceptedStt=$db->query("SELECT state,storage_media_id,semantic_hash FRO
 $check($restoredAcceptedStt['state']==='accepted'&&$restoredAcceptedStt['storage_media_id']===$acceptedSttMedia&&rtrim($restoredAcceptedStt['semantic_hash'])===hash('sha256','accepted-stt-semantic'),'008 reapply did not restore accepted STT metadata');
 $check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dialogue_message_id='{$legacyDialogue}'")->fetchColumn()===1,'legacy delivery row was lost on reapply');
 
-$driftDirectory = sys_get_temp_dir() . '/almsivi-migrations-' . bin2hex(random_bytes(8));
+$driftDirectory = sys_get_temp_dir() . '/lorkhan-migrations-' . bin2hex(random_bytes(8));
 mkdir($driftDirectory, 0700, true);
 foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') ?: [] as $migrationFile) {
     copy($migrationFile, $driftDirectory . '/' . basename($migrationFile));
@@ -290,7 +290,7 @@ $db->exec("INSERT INTO descriptions(plugin,baseid,name,description) SELECT 'Morr
 $secondDescriptionPage=$uiDescriptions->descriptionCatalog($installation,['search'=>'Bulk Item','page'=>2]);
 $check($secondDescriptionPage['total']===120&&$secondDescriptionPage['pages']===3&&$secondDescriptionPage['page']===2
     &&count($secondDescriptionPage['items'])===50,'description catalog server-side pagination failed');
-$catalogFixtureRoot=sys_get_temp_dir().'/almsivi-description-catalog-'.bin2hex(random_bytes(6));
+$catalogFixtureRoot=sys_get_temp_dir().'/lorkhan-description-catalog-'.bin2hex(random_bytes(6));
 if(!mkdir($catalogFixtureRoot,0700,true)&&!is_dir($catalogFixtureRoot))throw new RuntimeException('description catalog fixture directory failed');
 $writeCatalogFixture=static function(string$version,array$rows)use($catalogFixtureRoot):array{
     $csvPath=$catalogFixtureRoot.'/'.$version.'.csv';$manifestPath=$catalogFixtureRoot.'/'.$version.'.json';
@@ -298,7 +298,7 @@ $writeCatalogFixture=static function(string$version,array$rows)use($catalogFixtu
     fwrite($csv,"\xEF\xBB\xBF");fputcsv($csv,['plugin','baseid','name','description'],',','"','');
     foreach($rows as$row)fputcsv($csv,$row,',','"','');fclose($csv);
     $items=array_map(static fn(array$row):array=>['content_file'=>$row[0],'record_id'=>$row[1],'status'=>'complete','error'=>null],$rows);
-    $manifest=['format'=>'almsivi.morrowind-item-description-preflight.v1','model'=>'fixture/model',
+    $manifest=['format'=>'lorkhan.morrowind-item-description-preflight.v1','model'=>'fixture/model',
         'prompt_sha256'=>hash('sha256','fixture prompt'),'official_content_sha256'=>[
             'Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],
         'selected_count'=>count($rows),'completed_count'=>count($rows),'pending_count'=>0,'items'=>$items];
@@ -360,14 +360,14 @@ $check($db->query("SELECT catalog_version FROM description_catalogs WHERE state=
     &&(int)$db->query("SELECT count(*) FROM descriptions WHERE plugin IN ('Morrowind.esm','Tribunal.esm','Bloodmoon.esm')")->fetchColumn()===2,
     'invalid factory catalog changed the active projection');
 foreach(glob($catalogFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($catalogFixtureRoot);
-$biographyFixtureRoot=sys_get_temp_dir().'/almsivi-biography-catalog-'.bin2hex(random_bytes(6));
+$biographyFixtureRoot=sys_get_temp_dir().'/lorkhan-biography-catalog-'.bin2hex(random_bytes(6));
 if(!mkdir($biographyFixtureRoot,0700,true)&&!is_dir($biographyFixtureRoot))throw new RuntimeException('biography catalog fixture directory failed');
 $writeBiographyFixture=static function(string$version,array$rows)use($biographyFixtureRoot):array{
     $biographiesPath=$biographyFixtureRoot.'/'.$version.'.json';$manifestPath=$biographyFixtureRoot.'/'.$version.'-manifest.json';
     file_put_contents($biographiesPath,json_encode($rows,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));
     $items=array_map(static fn(array$row):array=>['record_id'=>$row['refid'],'display_name'=>ucwords(str_replace('_',' ',$row['npc_name'])),
         'content_file'=>'Morrowind.esm','generation_status'=>'complete'],$rows);
-    $manifest=['format'=>'almsivi.morrowind-biography-preflight.v1','selected_count'=>count($rows),'completed_count'=>count($rows),
+    $manifest=['format'=>'lorkhan.morrowind-biography-preflight.v1','selected_count'=>count($rows),'completed_count'=>count($rows),
         'failed_count'=>0,'model'=>'fixture/model','builder_sha256'=>hash('sha256','fixture biography builder'),
         'official_content_sha256'=>['Morrowind.esm'=>str_repeat('a',64),'Tribunal.esm'=>str_repeat('b',64),'Bloodmoon.esm'=>str_repeat('c',64)],'items'=>$items];
     file_put_contents($manifestPath,json_encode($manifest,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES));return[$biographiesPath,$manifestPath];
@@ -505,7 +505,7 @@ foreach($oghmaRows as$row)$products->createKnowledge([
     'knowledge_class_basic'=>$row['knowledge_class_basic'],'tags'=>$row['tags'],'category'=>$row['category'],
 ],[(string)$row['topic']],$clock->iso());
     $groundedTurn=$scope+['turn_id'=>'20000000-0000-4000-8000-000000000098','payload'=>[
-        'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Vivec and the Tribunal.'],'ui_source'=>'almsivi_text',
+        'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Vivec and the Tribunal.'],'ui_source'=>'lorkhan_text',
         'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm']]];
 $groundedSelection=$products->groundedOghmaExtraction($groundedTurn);
 $check($groundedSelection['status']==='grounded'&&$groundedSelection['topics']===['Vivec','Tribunal']
@@ -528,7 +528,7 @@ $fallbackSelection=$products->groundedOghmaExtraction(array_replace_recursive($g
         &&in_array('warrior poet god',$rankedTagSelection['matches'][0]['relational_tag_phrases']??[],true),
         'descriptive tags did not strengthen an already grounded Oghma topic');
     $ineligibleSelection=$products->groundedOghmaExtraction(array_replace_recursive($groundedTurn,
-        ['payload'=>['ui_source'=>'almsivi_autonomy']]));
+        ['payload'=>['ui_source'=>'lorkhan_autonomy']]));
     $check($ineligibleSelection['status']==='ineligible'&&$ineligibleSelection['topics']===[],
         'Oghma request allowlist accepted an autonomy source');
 $selectOghma=new ReflectionMethod($products,'selectPromptKnowledge');
@@ -569,7 +569,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $deniedSettings=array_merge($savedOghmaSettings,['racial_context_enabled'=>false,'location_context_enabled'=>false]);
     $deniedSelection=$selectOghma->invoke($products,
         ['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'payload'=>[
-            'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Forbidden Lore.'],'ui_source'=>'almsivi_text',
+            'input'=>['kind'=>'text','language'=>'en','text'=>'Tell me about Forbidden Lore.'],'ui_source'=>'lorkhan_text',
             'target'=>['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm'],'context'=>[]]],
         ['content'=>[]],$scope,[$deniedRow],'',4,$deniedSettings,
         ['status'=>'grounded','request_eligible'=>true,'topics'=>['Forbidden Lore']],$clock->iso());
@@ -582,7 +582,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $check($disabledSelection['status']==='disabled'&&$disabledSelection['topics']===[]
         &&$disabledSelection['fallback_eligible']===false,'Oghma master switch did not disable all retrieval');
     $products->setOghmaSettings($installation,$savedOghmaSettings,$clock->iso());
-    $oghmaFixtureRoot=sys_get_temp_dir().'/almsivi-oghma-catalog-'.bin2hex(random_bytes(6));
+    $oghmaFixtureRoot=sys_get_temp_dir().'/lorkhan-oghma-catalog-'.bin2hex(random_bytes(6));
     if(!mkdir($oghmaFixtureRoot,0700,true)&&!is_dir($oghmaFixtureRoot))throw new RuntimeException('Oghma catalog fixture directory failed');
     $writeOghmaCatalogFixture=static function(string$version,array$rows)use($oghmaFixtureRoot):array{
         $articlesPath=$oghmaFixtureRoot.'/'.$version.'.articles.json';$manifestPath=$oghmaFixtureRoot.'/'.$version.'.manifest.json';
@@ -590,7 +590,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         file_put_contents($articlesPath,$articles);
         $contentHashes=['Morrowind.esm'=>str_repeat('5',64)];
         foreach($rows as$row)if(is_string($row['mod_source']??null)&&trim($row['mod_source'])!=='')$contentHashes[trim($row['mod_source'])]=str_repeat('6',64);
-        $manifest=['format'=>'almsivi.morrowind-oghma-catalog.v1','catalog_version'=>$version,
+        $manifest=['format'=>'lorkhan.morrowind-oghma-catalog.v1','catalog_version'=>$version,
             'row_count'=>count($rows),'articles_sha256'=>hash('sha256',$articles),'ontology_sha256'=>str_repeat('1',64),
             'topic_seeds_sha256'=>str_repeat('2',64),'generator_sha256'=>str_repeat('3',64),
             'builder_sha256'=>str_repeat('4',64),'official_content_sha256'=>$contentHashes];
@@ -802,7 +802,7 @@ $narrativeProjection=$db->prepare('SELECT diary.content FROM diarylog_metadata m
 $narrativeProjection->execute(['narrative'=>$narrative['narrative_id']]);
 $check($narrativeProjection->fetchColumn()==='I reached Balmora.','narrative did not project into the Herika diary contract');
 $export=$service->exportPlaythrough($scope);
-$check($export['schema'] === 'almsivi.playthrough-export.v1' && count($export['data']['narratives']) === 1, 'playthrough export failed');
+$check($export['schema'] === 'lorkhan.playthrough-export.v1' && count($export['data']['narratives']) === 1, 'playthrough export failed');
 $management=new ManagementRepository($db);
 $browser=$management->createSession(60);
 $check($management->validate($browser['session']) && $management->validate($browser['session'],$browser['csrf']) && !$management->validate($browser['session'],'wrong'), 'browser session or CSRF failed');
@@ -841,34 +841,34 @@ $clock->advance(1);$syncCustom=$products->createKnowledge([
     'topic_desc_basic'=>'User-authored factory sync fixture.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
     'tags'=>'factory sync fixture','category'=>'lore'],['factory','sync','custom'],$clock->iso());
 $managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs,oghmaCatalogImporter:$oghmaImporter);
-$denied=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics'));
+$denied=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
-$signed=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart'));
-$check($signed->status===303 && ($signed->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
-$csrf=$browser['csrf'];$cookie='almsivi_management='.$browser['session'].'; almsivi_csrf='.$csrf;
-$descriptionCsv=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
+$signed=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/quickstart'));
+$check($signed->status===303 && ($signed->headers['Location']??'')==='/LORKHANserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
+$csrf=$browser['csrf'];$cookie='lorkhan_management='.$browser['session'].'; lorkhan_csrf='.$csrf;
+$descriptionCsv=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
 $check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin,baseid,name,description')
     &&($descriptionCsv->headers['Content-Type']??'')==='text/csv; charset=utf-8','description example CSV export failed');
-$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
-$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
+$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/LORKHANserver/ui/home.php',
     'description reset did not reject missing CSRF');
-$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
-$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/ALMSIVIserver/ui/home.php',
+$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
+$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/LORKHANserver/ui/home.php',
     'Oghma factory sync did not reject missing CSRF');
-$factorySync=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
+$factorySync=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
     '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
-$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
+$expectedSyncLocation='/LORKHANserver/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
 $factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
 $factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
 $factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
 $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
     &&$factorySyncVersion==='morrowind-official-3e427-v5.21'&&$factorySyncRows===3741&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
-$home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
-$check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
-$diagnostics=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
+$home=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/quickstart',['Cookie'=>$cookie]));
+$check($home->status===303 && ($home->headers['Location']??'')==='/LORKHANserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
+$diagnostics=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
-$historyPath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
+$historyPath='/LORKHANserver/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
 $historyPayload=['playthrough_id'=>$playthrough['playthrough_id'],'event'=>'(History Owner gave History Recipient a kwama egg.)',
     'recipient_profile_ids'=>[$historyRecipient['profile_id']]];
 $historyDenied=$managementRouter->dispatch(new Request('POST',$historyPath,['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
@@ -886,10 +886,10 @@ $check($historyInjected->status===201&&$historyRowId>0
 $historyQuery=['playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'100'];
 $ownerHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
 $ownerHistoryBody=json_decode($ownerHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
-$recipientHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
+$recipientHistory=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
     ['Cookie'=>$cookie],$historyQuery));
 $recipientHistoryBody=json_decode($recipientHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
-$outsiderHistory=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
+$outsiderHistory=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
     ['Cookie'=>$cookie],$historyQuery));
 $outsiderHistoryBody=json_decode($outsiderHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
 $check($ownerHistory->status===200&&$recipientHistory->status===200&&$outsiderHistory->status===200
@@ -904,11 +904,11 @@ $hiddenHistoryType=$managementRouter->dispatch(new Request('GET',$historyPath,['
 $check($filteredHistory->status===200
     &&array_column(json_decode($filteredHistory->body,true,32,JSON_THROW_ON_ERROR)['data']['events'],'rowid')===[$historyRowId]
     &&$hiddenHistoryType->status===422,'NPC history event-type filter escaped the visible narrative types');
-$historyDeletePath='/ALMSIVIserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
+$historyDeletePath='/LORKHANserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
 $historyDeleteDenied=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
     ['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
 $check($historyDeleteDenied->status===401,'NPC history deletion accepted missing CSRF');
-$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
+$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
     ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
 $check($historyWrongOwner->status===422,'NPC history deletion escaped exact identity ownership');
 $historyDeleted=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
@@ -924,25 +924,25 @@ $check($historyForeignScope->status===422,'NPC history accepted a foreign playth
 $service->deleteRevisioned('profile',$historyOwner['profile_id']);
 $service->deleteRevisioned('profile',$historyRecipient['profile_id']);
 $service->deleteRevisioned('profile',$historyOutsider['profile_id']);
-$eventlogResponse=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
+$eventlogResponse=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
 $eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
 $check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');
-$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogFilterDenied->status===401,'eventlog filter mutation accepted missing CSRF');
-$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogFilterAccepted->status===200,'eventlog filter mutation rejected valid browser CSRF');
 $eventLogs->suppress(['mode'=>'latest','count'=>5,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']]);
 $hiddenCursorSuppressions=(int)$db->query("SELECT count(*) FROM eventlog_metadata WHERE rowid>{$baseEventRow} AND projection_kind='cursor_test' AND suppressed_at IS NOT NULL")->fetchColumn();
 $check($hiddenCursorSuppressions===0,'delete latest suppressed a custom-hidden event type');
 $deleteRow=min($firstCursorIds);
-$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogDeleteDenied->status===401,'eventlog delete accepted missing CSRF');
-$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/ALMSIVIserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogDeleteAccepted->status===200&&json_decode($eventlogDeleteAccepted->body,true,8,JSON_THROW_ON_ERROR)['deleted_count']===1,
     'eventlog row delete rejected valid browser CSRF or escaped its scope');
-$csrfDenied=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$csrfDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfDenied->status===401, 'management write accepted missing CSRF');
-$csrfAccepted=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$csrfAccepted=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfAccepted->status===200, 'management write rejected valid CSRF');
 
 $jobs = new JobRepository($db);
@@ -995,8 +995,8 @@ $provider->start($providerId, 'llm', 'mock', 'complete', 1, null, null, null, 'm
 $check($provider->finish($providerId, 'succeeded', 24), 'provider attempt did not finish');
 $check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'), 'provider attempt completed twice');
 
-$firstPartyMediaRoot=sys_get_temp_dir().'/almsivi-first-party-'.bin2hex(random_bytes(6));
-$firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
+$firstPartyMediaRoot=sys_get_temp_dir().'/lorkhan-first-party-'.bin2hex(random_bytes(6));
+$firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
 $profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
 $profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
     ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore],3);
@@ -1026,7 +1026,7 @@ $check(($queuedPlayerStyle['mode']??null)==='player_speech_style'&&$playerStyleS
     &&(int)$playerStyleRow['current_revision']===2&&str_contains((string)$playerStyleContent['speech_style'],'1 recent player input')
     &&$playerStyleContent['biography']==='Arrived by prison ship.','player speech-style generation did not preserve non-style fields');
 $narratorProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Narrator',
-    'actor_identity'=>['kind'=>'narrator','record_id'=>'almsivi:narrator','content_file'=>'ALMSIVI','display_name'=>'Test Narrator'],
+    'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'Test Narrator'],
     'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','biography'=>'Existing narrator background.',
         'routing'=>['tts_configuration_id'=>Uuid::v4()],'voice'=>['id'=>'narrator-test','language'=>'en']]]);
 $queuedNarrator=$products->enqueueNarratorProfileGeneration($narratorProfile['profile_id']);
@@ -1062,7 +1062,7 @@ $check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk u
 $generationConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Generation connector',
     'content'=>['driver'=>'mock','model'=>'generation-v1']]);
 $generationCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Generation core',
-    'content'=>['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],
         'routing'=>['profile_generation_configuration_id'=>$generationConnector['configuration_id']]]]);
 $generationProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Routed generation NPC',
     'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm'],
@@ -1078,10 +1078,10 @@ $check($sameGenerationJob['job_id']===$generationJob['job_id'],'requeue replaced
 $service->revise('core_profile',$generationCore['core_profile_id'],array_replace($generationCore['content'],['routing'=>[]]),'use runtime for future jobs');
 try{$service->deleteRevisioned('provider',$generationConnector['configuration_id']);throw new RuntimeException('queued generation connector deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued generation deletion guard failed');}
-$generationRows=(new \ALMSIVIserver\Infrastructure\ManagementUiRepository($db))->rows('llm');
+$generationRows=(new \LORKHANserver\Infrastructure\ManagementUiRepository($db))->rows('llm');
 $generationRow=array_values(array_filter($generationRows,static fn(array$row):bool=>$row['configuration_id']===$generationConnector['configuration_id']))[0];
 $check((int)$generationRow['queued_job_usage']===1,'queued generation use was not visible to connector management');
-$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
     $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
 $generationStats=(new Worker($jobs,$generationRegistry,'profile-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $generationAttempt=$db->query("SELECT model,config_revision,metadata FROM provider_attempts WHERE job_id='{$generationJob['job_id']}'")->fetch();
@@ -1118,7 +1118,7 @@ $check($modeRouteStats['succeeded']===2,'narrator or player speech-style generat
 // Queue one manual diary only after an explicit opt-in, a dedicated connector route, and witnessed context exist.
 $diaryConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Diary connector',
     'content'=>['driver'=>'mock','model'=>'diary-v1']]);
-$diaryCoreContent=['schema'=>'almsivi.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+$diaryCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
 $diaryCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Manual diary core','content'=>$diaryCoreContent]);
 $diaryActor=['kind'=>'npc','record_id'=>'diary_test','content_file'=>'Morrowind.esm','display_name'=>'Diary NPC'];
 $diaryProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Diary NPC',
@@ -1164,7 +1164,7 @@ $check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id'
     &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
 try{$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);throw new RuntimeException('queued diary connector deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued diary deletion guard failed');}
-$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \ALMSIVIserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
     $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
 $diaryStats=(new Worker($jobs,$diaryRegistry,'manual-diary-test',5,1,1,0,10,['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
 $diaryRow=$db->query("SELECT kind,title,content,provenance FROM narrative_records WHERE narrative_id='{$diaryJob['narrative_id']}'")->fetch();
@@ -1205,7 +1205,7 @@ $derivePlayedMemory=static function(int $ordinal)use($db,$derive,$legacyInstalla
         ->execute(['turn'=>$turn,'request'=>$request,'message'=>$turnMessage,'session'=>$legacySession]);
     $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,:text,'2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
         ->execute(['dialogue'=>$dialogue,'session'=>$legacySession,'turn'=>$turn,'request'=>$request,'line'=>$dialogue,'utterance'=>Uuid::v4(),'text'=>$memoryText]);
-    $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+    $db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery',:occurred,'lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
         ->execute(['source'=>$source,'installation'=>$legacyInstallation,'session'=>$legacySession,'occurred'=>$occurred,'request'=>$request,'turn'=>$turn]);
     $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'played','ok',:occurred)")
         ->execute(['dialogue'=>$dialogue,'source'=>$source,'message'=>$message,'request'=>$request,'turn'=>$turn,'session'=>$legacySession,'occurred'=>$occurred]);
@@ -1255,14 +1255,14 @@ $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$lega
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
     &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
     'memory consolidation replay was not idempotent');
-$summaryRepository=new \ALMSIVIserver\Infrastructure\MemorySummaryRepository($db);
+$summaryRepository=new \LORKHANserver\Infrastructure\MemorySummaryRepository($db);
 $summaryMemory=$middleRows[0];
 $check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null
     &&(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
     'default memory behavior queued paid generation');
 $summaryProvider=$service->createRevisioned('provider',['installation_id'=>$legacyInstallation,'name'=>'Memory mock',
     'content'=>['driver'=>'mock','model'=>'memory-mock-v1']]);
-$summaryPolicyContent=['schema'=>'almsivi.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$summaryProvider['configuration_id']];
+$summaryPolicyContent=['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$summaryProvider['configuration_id']];
 $summaryPolicy=$service->createRevisioned('memory_policy',['installation_id'=>$legacyInstallation,'name'=>'Model memory','content'=>$summaryPolicyContent]);
 $check((int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
     'saving memory policy queued historical generation');
@@ -1298,7 +1298,7 @@ $attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE oper
 $editMemory=$middleRows[2];
 $editJob=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],1);
 $products->updateMemory($editMemory['memory_id'],'Manually corrected memory.',['corrected'],
-    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
+    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
 $editStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-edited',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($editStats['succeeded']===1
     &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount
@@ -1306,15 +1306,15 @@ $check($editStats['succeeded']===1
     'stale memory job called a provider or overwrote an edit');
 $liveMemory=$middleRows[3];
 $summaryRepository->enqueue($legacyInstallation,$liveMemory['memory_id'],1);
-$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \LORKHANserver\Application\ProfileGenerationProvider {
     public function __construct(private $service,private string $policy,private array $content){}
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
         $cancellation->throwIfCancellationRequested();$this->content['enabled']=false;
         $this->service->revise('memory_policy',$this->policy,$this->content,'disabled during provider execution');
         return ['summary'=>'This late output must be discarded.'];
     }
 };
-$disablingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$disablingRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$disablingProvider)]);
 $duringStats=(new Worker($jobs,$disablingRegistry,'model-memory-disabled-during-call',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($duringStats['succeeded']===1
@@ -1335,7 +1335,7 @@ $beforeEnqueueFailure=(int)$db->query("SELECT count(*) FROM memory_records WHERE
 $newRecent=$db->query("SELECT memory_id FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='recent' ORDER BY occurred_at DESC LIMIT 1")->fetchColumn();
 $db->exec("CREATE FUNCTION pg_temp.reject_model_enqueue() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''model enqueue test failure''; END'");
 $db->exec("CREATE TRIGGER reject_model_enqueue BEFORE INSERT ON durable_jobs FOR EACH ROW WHEN (NEW.job_type='memory.summarize') EXECUTE FUNCTION pg_temp.reject_model_enqueue()");
-try{(new \ALMSIVIserver\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
+try{(new \LORKHANserver\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
     throw new RuntimeException('model enqueue failure was ignored');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'model enqueue test failure'),'unexpected model enqueue failure');}
 $db->exec('DROP TRIGGER reject_model_enqueue ON durable_jobs');
@@ -1362,10 +1362,10 @@ try{$service->deleteRevisioned('provider',$summaryProvider['configuration_id']);
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected memory provider deletion error');}
 $failedSummary=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],2);
 $db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$failedSummary['job_id']]);
-$invalidSummaryProvider=new class implements \ALMSIVIserver\Application\ProfileGenerationProvider {
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
+$invalidSummaryProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
 };
-$invalidSummaryRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$invalidSummaryRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$invalidSummaryProvider)]);
 $failureStats=(new Worker($jobs,$invalidSummaryRegistry,'model-memory-invalid-output',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.'
@@ -1373,15 +1373,15 @@ $check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['c
     'invalid model output replaced the deterministic fallback');
 $leaseSummary=$summaryRepository->enqueue($legacyInstallation,$longRows[0]['memory_id'],1);
 $db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$leaseSummary['job_id']]);
-$leaseProvider=new class($db,$leaseSummary['job_id']) implements \ALMSIVIserver\Application\ProfileGenerationProvider {
+$leaseProvider=new class($db,$leaseSummary['job_id']) implements \LORKHANserver\Application\ProfileGenerationProvider {
     public function __construct(private PDO $db,private string $job){}
-    public function generate(array $input,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
         $cancellation->throwIfCancellationRequested();
         $this->db->prepare("UPDATE durable_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=:id")->execute(['id'=>$this->job]);
         return ['summary'=>'Expired lease output'];
     }
 };
-$leaseRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$leaseRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$leaseProvider)]);
 (new Worker($jobs,$leaseRegistry,'model-memory-lease-lost',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$longRows[0]['memory_id']}'")->fetchColumn()===0,
@@ -1390,8 +1390,8 @@ $check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory
 $summaryPolicyContent['enabled']=false;
 $service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'leave model fixture disabled');
 
-$embeddingRepository=new \ALMSIVIserver\Infrastructure\MemoryEmbeddingRepository($db);
-$embeddingPolicyContent=['schema'=>\ALMSIVIserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+$embeddingRepository=new \LORKHANserver\Infrastructure\MemoryEmbeddingRepository($db);
+$embeddingPolicyContent=['schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
 $embeddingPolicy=$service->createRevisioned('memory_embedding_policy',['installation_id'=>$legacyInstallation,
     'name'=>'Semantic memory retrieval','content'=>$embeddingPolicyContent]);
@@ -1401,16 +1401,16 @@ $embeddingJob=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['
 $embeddingReplay=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
 $check(($embeddingJob['created']??false)===true&&($embeddingReplay['created']??true)===false
     &&$embeddingJob['job_id']===$embeddingReplay['job_id'],'semantic memory enqueue was not idempotent');
-$embeddingProvider=new class implements \ALMSIVIserver\Application\EmbeddingProvider {
+$embeddingProvider=new class implements \LORKHANserver\Application\EmbeddingProvider {
     public int $calls=0;
-    public function embed(string $text,\ALMSIVIserver\Application\CancellationToken $cancellation):array{
+    public function embed(string $text,\LORKHANserver\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if($text==='')throw new RuntimeException('missing embedding input');
         return[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
     }
     public function model():string{return'test-minime-v1';}
 };
-$embeddingRegistry=new JobHandlerRegistry([new \ALMSIVIserver\Application\MemoryEmbedJobHandler($embeddingRepository,
+$embeddingRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemoryEmbedJobHandler($embeddingRepository,
     new ProviderAttemptRepository($db),$embeddingProvider)]);
 $embeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory',5,1,1,0,10,['memory.embed'],
     static fn(int $microseconds):mixed=>null))->run();
@@ -1422,7 +1422,7 @@ $check($embeddingStats['succeeded']===1&&$embeddingProvider->calls===1&&(int)$st
     &&$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
     'semantic memory worker did not persist one frozen revision projection');
 $products->updateMemory($summaryMemory['memory_id'],'Semantic revision changed.',['semantic','revision'],
-    \ALMSIVIserver\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
+    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
 $queuedRevision=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed' AND state='queued' "
     ."AND payload->>'memory_id'='{$summaryMemory['memory_id']}' AND payload->>'memory_revision'='2'")->fetchColumn();
 $embeddingPolicyContent['enabled']=false;
@@ -1443,7 +1443,7 @@ $check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()=
 $db->rollBack();
 
 $translationPolicy=$service->createRevisioned('translation_policy',['installation_id'=>$legacyInstallation,
-    'name'=>'NPC Output Translation','content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()]);
+    'name'=>'NPC Output Translation','content'=>\LORKHANserver\Application\TranslationPolicy::defaults()]);
 $check(($translationPolicy['current_revision']??null)===1
     &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
     'revisioned translation policy was not persisted as one installation-scoped document');
@@ -1461,7 +1461,7 @@ $db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generat
     ->execute(['turn'=>$failedTurn,'request'=>$failedRequest,'message'=>Uuid::v4(),'session'=>$legacySession]);
 $db->prepare("INSERT INTO dialogue_utterances(dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,utterance_count,response_line_id,utterance_id,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES(:dialogue,:session,:turn,:request,1,1,1,:line,:utterance,'{}'::jsonb,'{}'::jsonb,'[]'::jsonb,'Failed output','2026-01-01T00:00:00Z','2026-01-01T00:05:00Z')")
     ->execute(['dialogue'=>$failedDialogue,'session'=>$legacySession,'turn'=>$failedTurn,'request'=>$failedRequest,'line'=>$failedDialogue,'utterance'=>Uuid::v4()]);
-$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:17Z','almsivi.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
+$db->prepare("INSERT INTO source_events(source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,payload) VALUES(:source,:installation,:session,1,'dialogue.delivery','2026-01-01T00:00:17Z','lorkhan.dialogue-delivery-result.v1',:request,:turn,'{}'::jsonb)")
     ->execute(['source'=>$failedSource,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>$failedRequest,'turn'=>$failedTurn]);
 $db->prepare("INSERT INTO dialogue_delivery_results(dialogue_message_id,source_event_id,message_id,request_id,turn_id,session_id,generation,speaker,status,reason_code,completed_at) VALUES(:dialogue,:source,:message,:request,:turn,:session,1,'{}'::jsonb,'failed','audio_failed','2026-01-01T00:00:17Z')")
     ->execute(['dialogue'=>$failedDialogue,'source'=>$failedSource,'message'=>$failedMessage,'request'=>$failedRequest,'turn'=>$failedTurn,'session'=>$legacySession]);
@@ -1537,7 +1537,7 @@ $db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_i
 $actionProjection=$db->prepare('SELECT issued.action FROM action_issued_metadata metadata JOIN public.actions_issued issued ON issued.rowid=metadata.rowid WHERE metadata.action_id=:action');
 $actionProjection->execute(['action'=>$actionId]);
 $check($actionProjection->fetchColumn()==='ai.follow','action did not project into the Herika action contract');
-$db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','almsivi.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
+$db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','lorkhan.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
 $db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
 $db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);
 $check($catalog->claimContinuation($actionId,$continuationTurn), 'terminal continuation was not claimed');

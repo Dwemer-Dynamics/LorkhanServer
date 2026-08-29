@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use InvalidArgumentException;
 use RuntimeException;
 
-/** Adapts the simple WAV-returning local CHIM TTS services to the ALMSIVI speech contract. */
+/** Adapts the simple WAV-returning local CHIM TTS services to the LORKHAN speech contract. */
 final class LocalSpeechConnectorProvider implements SpeechProvider
 {
     private const DRIVERS = ['melotts', 'mimic3', 'piper-tts', 'stylettsv2'];

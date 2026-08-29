@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\MemoryEmbeddingPolicy;
+use LORKHANserver\Application\MemoryEmbeddingPolicy;
 use PDO;
 
 /** Freeze opt-in embedding policy and memory revisions across MiniMe calls. */

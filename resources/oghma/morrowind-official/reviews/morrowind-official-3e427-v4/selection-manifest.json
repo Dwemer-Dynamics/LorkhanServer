@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-v4-selection-manifest.v1",
+  "format": "lorkhan.morrowind-oghma-v4-selection-manifest.v1",
   "baseline_catalog": "morrowind-official-3e427-v3",
   "baseline_count": 616,
   "baseline_seed_count": 619,
@@ -25,6 +25,6 @@
     "Tribunal.esm": "2ace511f23cc2a9ddd5f3aa59c7919789b9378cf4b17c8ae3375dd6b782f3f2b",
     "Bloodmoon.esm": "bd27090d0e6ad4c1bf1abc83f1a2dac56fcc82cae7bfe8263c413fb301801357"
   },
-  "additions_sha256": "b4b9dcfbf6b753a795d67c6fc1809544cea3acc5a9b2ddfd47e0ff03c7d17636",
-  "combined_seeds_sha256": "f2bd3a7c989a7253f668a66ef1c2f6499d396f136e74d54cbd424671f1755da6"
+  "additions_sha256": "4aec20497b569928fb3bca72f8a8994efa23d9e9147caa5b1b8adf188c221321",
+  "combined_seeds_sha256": "537cd199d481efb38ac0b628739dc0ccada0fcb55d7b2f0505495b05d572ba99"
 }

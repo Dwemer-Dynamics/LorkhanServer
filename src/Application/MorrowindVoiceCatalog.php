@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use RuntimeException;
 
@@ -18,7 +18,7 @@ final class MorrowindVoiceCatalog
         $raw=file_get_contents($path);
         if(!is_string($raw))throw new RuntimeException('morrowind_voice_catalog_unavailable');
         $document=json_decode($raw,true,16,JSON_THROW_ON_ERROR);
-        if(!is_array($document)||($document['schema']??null)!=='almsivi.morrowind-voice-catalog.v1'
+        if(!is_array($document)||($document['schema']??null)!=='lorkhan.morrowind-voice-catalog.v1'
             ||!is_array($document['voices']??null)||!is_array($document['known_actor_defaults']??null))
             throw new RuntimeException('morrowind_voice_catalog_invalid');
         $this->voices=array_values($document['voices']);

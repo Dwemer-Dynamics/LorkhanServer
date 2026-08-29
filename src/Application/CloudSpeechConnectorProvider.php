@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use InvalidArgumentException;
 use RuntimeException;
 
-/** Adapts WAV-capable cloud CHIM TTS services without storing their credentials in ALMSIVI data. */
+/** Adapts WAV-capable cloud CHIM TTS services without storing their credentials in LORKHAN data. */
 final class CloudSpeechConnectorProvider implements SpeechProvider
 {
     private const DRIVERS = ['11labs', 'azure', 'cartesia', 'convai', 'coqui-ai', 'deepgram', 'gcp', 'inworld'];
@@ -121,7 +121,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                     'Content-Type: application/json', 'Accept: audio/wav']];
         }
         if ($this->driver === 'convai') {
-            $payload = ['transcript' => $text, 'voice' => $voice, 'filename' => 'almsivi.wav',
+            $payload = ['transcript' => $text, 'voice' => $voice, 'filename' => 'lorkhan.wav',
                 'encoding' => 'wav', 'language' => $language];
             return [$base, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 ['CONVAI-API-KEY: ' . $this->apiKey, 'Content-Type: application/json', 'Accept: audio/wav']];
@@ -162,7 +162,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
             . htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</voice></speak>';
         return [$url, $xml, ['Ocp-Apim-Subscription-Key: ' . $this->apiKey,
             'Content-Type: application/ssml+xml', 'X-Microsoft-OutputFormat: riff-24khz-16bit-mono-pcm',
-            'User-Agent: ALMSIVIserver', 'Accept: audio/wav']];
+            'User-Agent: LORKHANserver', 'Accept: audio/wav']];
     }
 
     /** Decode connectors that envelope audio and retain validated WAV bytes for every driver. */

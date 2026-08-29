@@ -1,16 +1,16 @@
 [Unit]
-Description=ALMSIVIserver bounded durable job worker
+Description=LORKHANserver bounded durable job worker
 After=postgresql.service
 Wants=postgresql.service
-ConditionPathExists=/var/www/ALMSIVIserver/current/workers/worker.php
+ConditionPathExists=/var/www/LORKHANserver/current/workers/worker.php
 
 [Service]
 Type=oneshot
-User=almsivi
+User=lorkhan
 Group=www-data
-WorkingDirectory=/var/www/ALMSIVIserver/current
-EnvironmentFile=/etc/almsiviserver/worker.env
-ExecStart=/usr/bin/php /var/www/ALMSIVIserver/current/workers/worker.php
+WorkingDirectory=/var/www/LORKHANserver/current
+EnvironmentFile=/etc/lorkhanserver/worker.env
+ExecStart=/usr/bin/php /var/www/LORKHANserver/current/workers/worker.php
 TimeoutStartSec=7min
 Nice=5
 UMask=0077
@@ -31,7 +31,7 @@ LockPersonality=true
 MemoryDenyWriteExecute=true
 SystemCallArchitectures=native
 RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
-ReadWritePaths=/var/lib/almsiviserver /var/log/almsiviserver
+ReadWritePaths=/var/lib/lorkhanserver /var/log/lorkhanserver
 StandardOutput=journal
 StandardError=journal
 

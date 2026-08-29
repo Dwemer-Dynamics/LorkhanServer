@@ -1,5 +1,5 @@
 {
-  "$id": "https://almsivi.invalid/schemas/v1/client-settings.schema.json",
+  "$id": "https://lorkhan.invalid/schemas/v1/client-settings.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
@@ -68,7 +68,7 @@
       "required": ["actions_enabled", "allow_hostile", "allow_creatures"],
       "type": "object"
     },
-    "schema": {"const": "almsivi.client-settings.v1", "type": "string"}
+    "schema": {"const": "lorkhan.client-settings.v1", "type": "string"}
   },
   "required": ["schema", "behavior", "memory", "narrator", "presentation", "safety"],
   "type": "object"

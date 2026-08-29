@@ -1,9 +1,9 @@
 {
-  "format": "almsivi.tamriel-rebuilt-oghma-source-lock.v1",
+  "format": "lorkhan.tamriel-rebuilt-oghma-source-lock.v1",
   "repository_head": "fa2fdca704a03ccb87e1ae9f9470143a33a03625",
   "base_catalog": "morrowind-official-3e427-v5.16",
   "base_articles_sha256": "e93bb84d254694bdfe9978296501e55299dca9cd633ea7fff313a3d5c42657f3",
-  "base_manifest_sha256": "540d4d59210742c4e0f091fcf1e99166f9f5cd95ddaf97282b68fec9fc7e8429",
+  "base_manifest_sha256": "38e4b5303ac81d353676809e23a0d5f65bc3ce28bb377fb1e455e8bbc5d7cf68",
   "ontology_sha256": "55860171f0a443c9dc59fe8f1db7d3fd972468ab53be520ba04f821d98242c63",
   "candidate_inventory_sha256": "ddefa91c1b53b3f68db64a2463d7600986bb1db2c872d4feac382b4ddd341452",
   "content_sha256": {

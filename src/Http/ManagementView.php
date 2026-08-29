@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Http;
+namespace LORKHANserver\Http;
 
 final class ManagementView
 {
@@ -37,15 +37,15 @@ final class ManagementView
 
     public function __construct(private readonly string $basePath) {}
 
-    /** Render an ALMSIVI page in the shared Herika, Stobe, and Dialectic server frame. */
+    /** Render an LORKHAN page in the shared Herika, Stobe, and Dialectic server frame. */
     public function page(string $title, string $slug, string $body): string
     {
         return $this->document(
-            $title . ' · ALMSIVI',
+            $title . ' · LORKHAN',
             '<body><a class="skip" href="#main">Skip to content</a>'
             . $this->navbar($slug)
             . '<main id="main" class="dwemer-page">'
-            . '<div class="dashboard-meta"><span>Server: ALMSIVI</span><span>Client: OpenMW 0.51</span></div>'
+            . '<div class="dashboard-meta"><span>Server: LORKHAN</span><span>Client: OpenMW 0.51</span></div>'
             . '<h1 class="dashboard-title">' . $this->e($title) . '</h1>'
             . $body
             . '</main></body>'
@@ -56,11 +56,11 @@ final class ManagementView
     public function error(string $error): string
     {
         return $this->document(
-            'Management error · ALMSIVI',
+            'Management error · LORKHAN',
             '<body><a class="skip" href="#main">Skip to content</a>'
             . $this->navbar('control-panel')
             . '<main id="main" class="dwemer-page narrow-page">'
-            . '<div class="dashboard-meta"><span>Server: ALMSIVI</span><span>Client: OpenMW 0.51</span></div>'
+            . '<div class="dashboard-meta"><span>Server: LORKHAN</span><span>Client: OpenMW 0.51</span></div>'
             . '<h1 class="dashboard-title">Request could not be saved</h1>'
             . '<section class="widget"><div class="widget-content"><div role="alert"><p>' . $this->e($error) . '</p></div>'
             . '<a class="button-link" href="' . $this->e($this->basePath) . '/quickstart">Return to management</a>'
@@ -70,16 +70,16 @@ final class ManagementView
 
     private function document(string $title, string $body): string
     {
-        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/ALMSIVIserver';
+        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LORKHANserver';
         return '<!doctype html><html lang="en" data-bs-theme="dark"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111111">'
             . '<title>' . $this->e($title) . '</title>'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/lib/ui/bootstrap/bootstrap.min.css">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/style_new.css">'
-            . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/almsivi-theme.css">'
+            . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/lorkhan-theme.css">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/navbar.css">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/main.css">'
-            . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/almsivi-pages.css">'
+            . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/lorkhan-pages.css">'
             . '<script src="' . $this->e($root) . '/ui/lib/ui/bootstrap/bootstrap.bundle.min.js" defer></script>'
             . '</head>' . $body . '</html>';
     }
@@ -87,7 +87,7 @@ final class ManagementView
     private function navbar(string $slug): string
     {
         $activeSection = self::SECTIONS[$slug] ?? '';
-        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/ALMSIVIserver';
+        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LORKHANserver';
         $items = '';
         foreach (self::MENU as $section => $item) {
             $active = $section === $activeSection;
@@ -103,11 +103,11 @@ final class ManagementView
         }
         $items .= '<li><a class="dropdown-item" href="/Dwemer-Dashboard/index.php">DwemerDistro Home</a></li>';
 
-        return '<div class="almsivi-navbar-wrapper"><nav class="navbar navbar-expand-lg almsivi-navbar" aria-label="Product">'
+        return '<div class="lorkhan-navbar-wrapper"><nav class="navbar navbar-expand-lg lorkhan-navbar" aria-label="Product">'
             . '<div class="container-fluid mx-1"><div class="navbar-content-wrapper"><div class="navbar-center dropdown">'
             . '<button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">'
             . '<img src="' . $this->e($root) . '/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">'
-            . '<img src="' . $this->e($root) . '/ui/images/almsivi-logo.svg" alt="ALMSIVI Server"></button>'
+            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="1254" height="1254" alt="LORKHAN Server"></button>'
             . '<ul class="dropdown-menu brand-menu">' . $items . '</ul></div></div></div></nav></div>';
     }
 

@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\OghmaCatalogImporter;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\OghmaCatalogImporter;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
@@ -12,9 +12,9 @@ $usage=static function():never{fwrite(STDERR,"Usage:\n  php scripts/import-morro
 try{
     $command=$argv[1]??null;if(!in_array($command,['dry-run','sync','apply','status'],true))$usage();$options=[];
     foreach(array_slice($argv,2)as$argument){if(preg_match('/^--(articles|manifest|catalog-version)=(.+)$/D',$argument,$match)!==1)$usage();$options[$match[1]]=$match[2];}
-    $configFile=getenv('ALMSIVI_CONFIG')?:dirname(__DIR__).'/config/server.php';if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+    $configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/config/server.php';if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     $config=require$configFile;if(!is_array($config))throw new RuntimeException('Server configuration is invalid.');
-    $config['database_password']=getenv('ALMSIVI_DATABASE_PASSWORD')?:(string)($config['database_password']??'');
+    $config['database_password']=getenv('LORKHAN_DATABASE_PASSWORD')?:(string)($config['database_password']??'');
     $importer=new OghmaCatalogImporter(Connection::open($config));
     if(in_array($command,['dry-run','sync','apply'],true)){foreach(['articles','manifest','catalog-version']as$required)if(!isset($options[$required]))$usage();
         $result=$command==='dry-run'?$importer->plan($options['articles'],$options['manifest'],$options['catalog-version'])

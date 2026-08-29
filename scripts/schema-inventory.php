@@ -9,8 +9,8 @@ if (!in_array($mode, ['--check', '--write'], true)) {
     exit(2);
 }
 
-$dsn = getenv('ALMSIVI_SCHEMA_DSN') ?: (getenv('ALMSIVI_TEST_DSN') ?: 'pgsql:dbname=almsivi');
-$db = new PDO($dsn, getenv('ALMSIVI_TEST_DB_USER') ?: null, getenv('ALMSIVI_TEST_DB_PASSWORD') ?: null, [
+$dsn = getenv('LORKHAN_SCHEMA_DSN') ?: (getenv('LORKHAN_TEST_DSN') ?: 'pgsql:dbname=lorkhan');
+$db = new PDO($dsn, getenv('LORKHAN_TEST_DB_USER') ?: null, getenv('LORKHAN_TEST_DB_PASSWORD') ?: null, [
     PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
 ]);
@@ -26,7 +26,7 @@ $relations = $db->query(
     . "CASE c.relkind WHEN 'r' THEN 'table' WHEN 'p' THEN 'partitioned_table' WHEN 'v' THEN 'view' END AS relation_kind,"
     . "pg_get_userbyid(c.relowner) AS owner_name "
     . "FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace "
-    . "WHERE n.nspname IN ('almsivi_internal','public') AND c.relkind IN ('r','p','v') "
+    . "WHERE n.nspname IN ('lorkhan_internal','public') AND c.relkind IN ('r','p','v') "
     . "ORDER BY n.nspname,c.relname"
 )->fetchAll();
 $relationKeys = array_fill_keys(array_map(
@@ -54,8 +54,8 @@ function runtimeReferences(string $root, array $relations, array $relationKeys):
         $schema = (string) $relation['schema_name'];
         $name = (string) $relation['relation_name'];
         $key = $schema . '.' . $name;
-        $hasInternalTwin = isset($relationKeys['almsivi_internal.' . $name]);
-        $target = $schema === 'almsivi_internal' || !$hasInternalTwin
+        $hasInternalTwin = isset($relationKeys['lorkhan_internal.' . $name]);
+        $target = $schema === 'lorkhan_internal' || !$hasInternalTwin
             ? '(?:(?:' . preg_quote($schema, '~') . ')\s*\.\s*)?' . preg_quote($name, '~')
             : preg_quote($schema, '~') . '\s*\.\s*' . preg_quote($name, '~');
         $writer = '~\b(?:INSERT\s+INTO|UPDATE|DELETE\s+FROM|TRUNCATE(?:\s+TABLE)?|MERGE\s+INTO)\s+' . $target . '\b~i';
@@ -79,7 +79,7 @@ $morrowindAdapted = array_fill_keys([
 
 function disposition(string $schema, string $name, array $excludedPublic, array $morrowindAdapted): string
 {
-    if ($schema === 'almsivi_internal') {
+    if ($schema === 'lorkhan_internal') {
         if (str_ends_with($name, '_metadata')) return 'typed_companion_metadata';
         return 'typed_authority';
     }
@@ -91,7 +91,7 @@ function disposition(string $schema, string $name, array $excludedPublic, array 
 function retention(string $schema, string $name, string $disposition): string
 {
     if (str_starts_with($disposition, 'excluded_')) return 'No new rows; retain legacy compatibility state until an approved removal migration.';
-    if ($schema === 'public') return 'Projection lifetime follows its typed ALMSIVI source and audit policy.';
+    if ($schema === 'public') return 'Projection lifetime follows its typed LORKHAN source and audit policy.';
     if ($name === 'media_objects') return 'Expires by media ownership/expiry policy, then bounded cleanup.';
     if (in_array($name, ['durable_jobs','durable_job_attempts','durable_job_dead_letters','provider_attempts','operational_audit'], true)) {
         return 'Bounded operational retention and explicit maintenance.';
@@ -168,7 +168,7 @@ foreach ($relations as $relation) {
 }
 
 $inventory = [
-    'format' => 'almsivi.schema-inventory.v1',
+    'format' => 'lorkhan.schema-inventory.v1',
     'reference_commits' => [
         'herikaserver' => 'c973f5c8fde2d01cb8211be3d5f96d1783663da4',
         'dialecticserver' => '4f3d8fed834b283fd53ff0655ddd091d849dea1d',
@@ -184,7 +184,7 @@ $dispositions = array_count_values(array_column($objects, 'disposition'));
 ksort($kinds, SORT_STRING);
 ksort($dispositions, SORT_STRING);
 $summary = [
-    'format' => 'almsivi.schema-inventory-summary.v1',
+    'format' => 'lorkhan.schema-inventory-summary.v1',
     'generated_inventory' => 'build/schema-inventory.json',
     'reference_commits' => $inventory['reference_commits'],
     'server_encoding' => $serverEncoding,

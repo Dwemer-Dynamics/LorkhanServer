@@ -20,7 +20,7 @@
     "expires_at": "2026-07-19T20:00:30Z",
     "name": "inspect.report",
     "parameters": {},
-    "schema": "almsivi.action-intent.v1",
+    "schema": "lorkhan.action-intent.v1",
     "target": {
       "cell": {
         "grid_x": -2,
@@ -39,5 +39,5 @@
     "tier": 0,
     "turn_id": "00000000-0000-4000-8000-000000000032"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/action-intent.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/action-intent.schema.json"
 }

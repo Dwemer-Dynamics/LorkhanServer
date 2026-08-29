@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Remove one opted-in reasoning preamble without changing the JSON payload itself. */
 final class ReasoningOutputCleaner

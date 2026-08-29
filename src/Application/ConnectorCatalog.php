@@ -2,46 +2,46 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
 final class ConnectorCatalog
 {
     private const TTS = [
-        'pockettts' => ['PocketTTS', true, 'ALMSIVI_TTS_POCKETTTS_API_KEY'],
-        'omnivoice' => ['OmniVoice', true, 'ALMSIVI_TTS_OMNIVOICE_API_KEY'],
-        'chatterbox' => ['Chatterbox', true, 'ALMSIVI_TTS_CHATTERBOX_API_KEY'],
-        'xtts-fastapi' => ['XTTS FastAPI', true, 'ALMSIVI_TTS_XTTS_API_KEY'],
-        'xtts' => ['XTTS', true, 'ALMSIVI_TTS_XTTS_API_KEY'],
-        'kokoro' => ['Kokoro', true, 'ALMSIVI_TTS_KOKORO_API_KEY'],
-        'openai' => ['OpenAI', false, 'ALMSIVI_TTS_OPENAI_API_KEY'],
-        '11labs' => ['ElevenLabs', false, 'ALMSIVI_TTS_ELEVENLABS_API_KEY'],
-        'azure' => ['Azure Speech', false, 'ALMSIVI_TTS_AZURE_API_KEY'],
-        'cartesia' => ['Cartesia', false, 'ALMSIVI_TTS_CARTESIA_API_KEY'],
-        'convai' => ['Convai', false, 'ALMSIVI_TTS_CONVAI_API_KEY'],
-        'coqui-ai' => ['Coqui AI', false, 'ALMSIVI_TTS_COQUI_API_KEY'],
-        'deepgram' => ['Deepgram', false, 'ALMSIVI_TTS_DEEPGRAM_API_KEY'],
-        'gcp' => ['Google Cloud', false, 'ALMSIVI_TTS_GCP_API_KEY'],
-        'inworld' => ['Inworld', false, 'ALMSIVI_TTS_INWORLD_API_KEY'],
-        'koboldcpp' => ['KoboldCpp', true, 'ALMSIVI_TTS_KOBOLDCPP_API_KEY'],
-        'melotts' => ['MeloTTS', true, 'ALMSIVI_TTS_MELOTTS_API_KEY'],
-        'mimic3' => ['Mimic 3', true, 'ALMSIVI_TTS_MIMIC3_API_KEY'],
-        'piper-tts' => ['Piper TTS', true, 'ALMSIVI_TTS_PIPER_API_KEY'],
-        'stylettsv2' => ['StyleTTS2', true, 'ALMSIVI_TTS_STYLETTS2_API_KEY'],
-        'xvasynth' => ['xVASynth', true, 'ALMSIVI_TTS_XVASYNTH_API_KEY'],
-        'zonos_gradio' => ['Zonos Gradio', true, 'ALMSIVI_TTS_ZONOS_API_KEY'],
+        'pockettts' => ['PocketTTS', true, 'LORKHAN_TTS_POCKETTTS_API_KEY'],
+        'omnivoice' => ['OmniVoice', true, 'LORKHAN_TTS_OMNIVOICE_API_KEY'],
+        'chatterbox' => ['Chatterbox', true, 'LORKHAN_TTS_CHATTERBOX_API_KEY'],
+        'xtts-fastapi' => ['XTTS FastAPI', true, 'LORKHAN_TTS_XTTS_API_KEY'],
+        'xtts' => ['XTTS', true, 'LORKHAN_TTS_XTTS_API_KEY'],
+        'kokoro' => ['Kokoro', true, 'LORKHAN_TTS_KOKORO_API_KEY'],
+        'openai' => ['OpenAI', false, 'LORKHAN_TTS_OPENAI_API_KEY'],
+        '11labs' => ['ElevenLabs', false, 'LORKHAN_TTS_ELEVENLABS_API_KEY'],
+        'azure' => ['Azure Speech', false, 'LORKHAN_TTS_AZURE_API_KEY'],
+        'cartesia' => ['Cartesia', false, 'LORKHAN_TTS_CARTESIA_API_KEY'],
+        'convai' => ['Convai', false, 'LORKHAN_TTS_CONVAI_API_KEY'],
+        'coqui-ai' => ['Coqui AI', false, 'LORKHAN_TTS_COQUI_API_KEY'],
+        'deepgram' => ['Deepgram', false, 'LORKHAN_TTS_DEEPGRAM_API_KEY'],
+        'gcp' => ['Google Cloud', false, 'LORKHAN_TTS_GCP_API_KEY'],
+        'inworld' => ['Inworld', false, 'LORKHAN_TTS_INWORLD_API_KEY'],
+        'koboldcpp' => ['KoboldCpp', true, 'LORKHAN_TTS_KOBOLDCPP_API_KEY'],
+        'melotts' => ['MeloTTS', true, 'LORKHAN_TTS_MELOTTS_API_KEY'],
+        'mimic3' => ['Mimic 3', true, 'LORKHAN_TTS_MIMIC3_API_KEY'],
+        'piper-tts' => ['Piper TTS', true, 'LORKHAN_TTS_PIPER_API_KEY'],
+        'stylettsv2' => ['StyleTTS2', true, 'LORKHAN_TTS_STYLETTS2_API_KEY'],
+        'xvasynth' => ['xVASynth', true, 'LORKHAN_TTS_XVASYNTH_API_KEY'],
+        'zonos_gradio' => ['Zonos Gradio', true, 'LORKHAN_TTS_ZONOS_API_KEY'],
     ];
 
     private const STT = [
         'none' => ['Disabled', true, ''],
         'localwhisper' => ['Local Whisper', true, ''],
-        'parakeet' => ['Parakeet', true, 'ALMSIVI_TTS_OPENAI_API_KEY'],
-        'whisper' => ['OpenAI Whisper', false, 'ALMSIVI_TTS_OPENAI_API_KEY'],
-        'azure' => ['Azure Speech', false, 'ALMSIVI_TTS_AZURE_API_KEY'],
-        'deepgram' => ['Deepgram', false, 'ALMSIVI_TTS_DEEPGRAM_API_KEY'],
-        'gemini' => ['Gemini', false, 'ALMSIVI_STT_GEMINI_API_KEY'],
-        'inworld' => ['Inworld', false, 'ALMSIVI_TTS_INWORLD_API_KEY'],
+        'parakeet' => ['Parakeet', true, 'LORKHAN_TTS_OPENAI_API_KEY'],
+        'whisper' => ['OpenAI Whisper', false, 'LORKHAN_TTS_OPENAI_API_KEY'],
+        'azure' => ['Azure Speech', false, 'LORKHAN_TTS_AZURE_API_KEY'],
+        'deepgram' => ['Deepgram', false, 'LORKHAN_TTS_DEEPGRAM_API_KEY'],
+        'gemini' => ['Gemini', false, 'LORKHAN_STT_GEMINI_API_KEY'],
+        'inworld' => ['Inworld', false, 'LORKHAN_TTS_INWORLD_API_KEY'],
     ];
 
     private const TTS_OPTIONS = [
@@ -105,7 +105,7 @@ final class ConnectorCatalog
         'inworld'=>['https://api.inworld.ai','groq/whisper-large-v3','','en-US'],
     ];
 
-    /** Return every CHIM-lineage connector exposed by the ALMSIVI management UI. */
+    /** Return every CHIM-lineage connector exposed by the LORKHAN management UI. */
     public static function all(string $kind): array
     {
         $catalog = self::catalog($kind);

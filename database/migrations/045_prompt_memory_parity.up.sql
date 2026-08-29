@@ -1,15 +1,15 @@
 -- Ordered CHIM prompt traces and delivery-gated, revisioned memory history.
-ALTER TABLE almsivi_internal.prompt_trace_sources
+ALTER TABLE lorkhan_internal.prompt_trace_sources
     ADD COLUMN section_key text,
     ADD COLUMN section_order smallint,
     ADD COLUMN source_table text,
     ADD COLUMN source_revision integer,
     ADD COLUMN source_occurred_at timestamptz,
-    ADD COLUMN playthrough_id uuid REFERENCES almsivi_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
+    ADD COLUMN playthrough_id uuid REFERENCES lorkhan_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
     ADD COLUMN source_characters integer,
     ADD COLUMN estimated_tokens integer;
 
-UPDATE almsivi_internal.prompt_trace_sources source
+UPDATE lorkhan_internal.prompt_trace_sources source
 SET section_key = CASE source_kind
         WHEN 'profile' THEN 'npc_context'
         WHEN 'core_profile' THEN 'npc_context'
@@ -45,10 +45,10 @@ SET section_key = CASE source_kind
     playthrough_id = trace.playthrough_id,
     source_characters = included_bytes,
     estimated_tokens = CASE WHEN included_bytes = 0 THEN 0 ELSE CEIL(included_bytes / 4.0)::integer END
-FROM almsivi_internal.prompt_traces trace
+FROM lorkhan_internal.prompt_traces trace
 WHERE trace.prompt_trace_id = source.prompt_trace_id;
 
-ALTER TABLE almsivi_internal.prompt_trace_sources
+ALTER TABLE lorkhan_internal.prompt_trace_sources
     ALTER COLUMN section_key SET NOT NULL,
     ALTER COLUMN section_order SET NOT NULL,
     ALTER COLUMN source_table SET NOT NULL,
@@ -60,8 +60,8 @@ ALTER TABLE almsivi_internal.prompt_trace_sources
     ADD CONSTRAINT prompt_trace_sources_source_characters_check CHECK (source_characters BETWEEN 0 AND 131072),
     ADD CONSTRAINT prompt_trace_sources_estimated_tokens_check CHECK (estimated_tokens BETWEEN 0 AND 131072);
 
-CREATE TABLE almsivi_internal.prompt_trace_sections (
-    prompt_trace_id uuid NOT NULL REFERENCES almsivi_internal.prompt_traces(prompt_trace_id) ON DELETE CASCADE,
+CREATE TABLE lorkhan_internal.prompt_trace_sections (
+    prompt_trace_id uuid NOT NULL REFERENCES lorkhan_internal.prompt_traces(prompt_trace_id) ON DELETE CASCADE,
     section_order smallint NOT NULL CHECK (section_order BETWEEN 1 AND 10),
     section_key text NOT NULL CHECK (section_key IN (
         'output_contract','npc_context','player_narrator_context','morrowind_context','relationships_factions',
@@ -70,7 +70,7 @@ CREATE TABLE almsivi_internal.prompt_trace_sections (
     source_refs jsonb NOT NULL CHECK (jsonb_typeof(source_refs) = 'array'),
     inclusion_reason text NOT NULL CHECK (inclusion_reason IN ('included','empty','byte_limit','minimal_fallback')),
     source_occurred_at timestamptz,
-    playthrough_id uuid NOT NULL REFERENCES almsivi_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
+    playthrough_id uuid NOT NULL REFERENCES lorkhan_internal.playthroughs(playthrough_id) ON DELETE CASCADE,
     source_characters integer NOT NULL CHECK (source_characters BETWEEN 0 AND 131072),
     estimated_tokens integer NOT NULL CHECK (estimated_tokens BETWEEN 0 AND 131072),
     redacted_preview text NOT NULL CHECK (octet_length(redacted_preview) <= 256),
@@ -79,23 +79,23 @@ CREATE TABLE almsivi_internal.prompt_trace_sections (
     UNIQUE (prompt_trace_id, section_key)
 );
 CREATE INDEX prompt_trace_sections_playthrough_order
-    ON almsivi_internal.prompt_trace_sections (playthrough_id, prompt_trace_id, section_order);
+    ON lorkhan_internal.prompt_trace_sections (playthrough_id, prompt_trace_id, section_order);
 
-ALTER TABLE almsivi_internal.retrieval_traces
-    ADD COLUMN turn_id uuid REFERENCES almsivi_internal.turns(turn_id) ON DELETE SET NULL,
+ALTER TABLE lorkhan_internal.retrieval_traces
+    ADD COLUMN turn_id uuid REFERENCES lorkhan_internal.turns(turn_id) ON DELETE SET NULL,
     ADD COLUMN prompt_section text,
     ADD COLUMN reasons jsonb NOT NULL DEFAULT '{}'::jsonb CHECK (jsonb_typeof(reasons) = 'object');
-ALTER TABLE almsivi_internal.retrieval_traces ADD CONSTRAINT retrieval_traces_prompt_section_check
+ALTER TABLE lorkhan_internal.retrieval_traces ADD CONSTRAINT retrieval_traces_prompt_section_check
     CHECK (prompt_section IS NULL OR prompt_section IN ('memory_context','morrowind_context'));
-CREATE INDEX retrieval_traces_turn_section ON almsivi_internal.retrieval_traces (turn_id, prompt_section, created_at);
+CREATE INDEX retrieval_traces_turn_section ON lorkhan_internal.retrieval_traces (turn_id, prompt_section, created_at);
 
-ALTER TABLE almsivi_internal.memory_records ADD COLUMN current_revision integer NOT NULL DEFAULT 1 CHECK (current_revision > 0);
-CREATE TABLE almsivi_internal.memory_record_revisions (
-    memory_id uuid NOT NULL REFERENCES almsivi_internal.memory_records(memory_id) ON DELETE CASCADE,
+ALTER TABLE lorkhan_internal.memory_records ADD COLUMN current_revision integer NOT NULL DEFAULT 1 CHECK (current_revision > 0);
+CREATE TABLE lorkhan_internal.memory_record_revisions (
+    memory_id uuid NOT NULL REFERENCES lorkhan_internal.memory_records(memory_id) ON DELETE CASCADE,
     revision integer NOT NULL CHECK (revision > 0),
     tier text NOT NULL CHECK (tier IN ('recent','mid','long')),
     content text NOT NULL CHECK (octet_length(content) BETWEEN 1 AND 16384),
-    source_event_id uuid REFERENCES almsivi_internal.source_events(source_event_id),
+    source_event_id uuid REFERENCES lorkhan_internal.source_events(source_event_id),
     provenance jsonb NOT NULL CHECK (jsonb_typeof(provenance) = 'object'),
     occurred_at timestamptz NOT NULL,
     deleted_at timestamptz,
@@ -104,14 +104,14 @@ CREATE TABLE almsivi_internal.memory_record_revisions (
     PRIMARY KEY (memory_id, revision)
 );
 
-INSERT INTO almsivi_internal.memory_record_revisions
+INSERT INTO lorkhan_internal.memory_record_revisions
     (memory_id,revision,tier,content,source_event_id,provenance,occurred_at,deleted_at,change_reason,created_at)
 SELECT memory_id,1,tier,content,source_event_id,provenance,occurred_at,deleted_at,'migration baseline',updated_at
-FROM almsivi_internal.memory_records;
+FROM lorkhan_internal.memory_records;
 
-CREATE FUNCTION almsivi_internal.capture_memory_record_initial_revision() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION lorkhan_internal.capture_memory_record_initial_revision() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
-    INSERT INTO almsivi_internal.memory_record_revisions
+    INSERT INTO lorkhan_internal.memory_record_revisions
         (memory_id,revision,tier,content,source_event_id,provenance,occurred_at,deleted_at,change_reason,created_at)
     VALUES (NEW.memory_id,NEW.current_revision,NEW.tier,NEW.content,NEW.source_event_id,NEW.provenance,
         NEW.occurred_at,NEW.deleted_at,'created',NEW.created_at);
@@ -119,10 +119,10 @@ BEGIN
 END;
 $$;
 CREATE TRIGGER memory_record_initial_revision_capture
-AFTER INSERT ON almsivi_internal.memory_records
-FOR EACH ROW EXECUTE FUNCTION almsivi_internal.capture_memory_record_initial_revision();
+AFTER INSERT ON lorkhan_internal.memory_records
+FOR EACH ROW EXECUTE FUNCTION lorkhan_internal.capture_memory_record_initial_revision();
 
-CREATE FUNCTION almsivi_internal.capture_memory_record_revision() RETURNS trigger LANGUAGE plpgsql AS $$
+CREATE FUNCTION lorkhan_internal.capture_memory_record_revision() RETURNS trigger LANGUAGE plpgsql AS $$
 BEGIN
     IF NEW.tier IS NOT DISTINCT FROM OLD.tier
        AND NEW.content IS NOT DISTINCT FROM OLD.content
@@ -133,7 +133,7 @@ BEGIN
         RETURN NEW;
     END IF;
     NEW.current_revision := OLD.current_revision + 1;
-    INSERT INTO almsivi_internal.memory_record_revisions
+    INSERT INTO lorkhan_internal.memory_record_revisions
         (memory_id,revision,tier,content,source_event_id,provenance,occurred_at,deleted_at,change_reason)
     VALUES (NEW.memory_id,NEW.current_revision,NEW.tier,NEW.content,NEW.source_event_id,NEW.provenance,
         NEW.occurred_at,NEW.deleted_at,
@@ -144,5 +144,5 @@ BEGIN
 END;
 $$;
 CREATE TRIGGER memory_record_revision_capture
-BEFORE UPDATE OF tier,content,source_event_id,provenance,occurred_at,deleted_at ON almsivi_internal.memory_records
-FOR EACH ROW EXECUTE FUNCTION almsivi_internal.capture_memory_record_revision();
+BEFORE UPDATE OF tier,content,source_event_id,provenance,occurred_at,deleted_at ON lorkhan_internal.memory_records
+FOR EACH ROW EXECUTE FUNCTION lorkhan_internal.capture_memory_record_revision();

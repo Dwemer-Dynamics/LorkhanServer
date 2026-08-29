@@ -244,7 +244,7 @@ WITH documents AS (
 INSERT INTO herika_compat.oghma (topic,topic_desc,native_vector,knowledge_class,topic_desc_basic,
                                  knowledge_class_basic,tags,category,aliases)
 SELECT compat_topic,content,to_tsvector('simple',content),'Morrowind',left(content,1000),'Morrowind',
-       array_to_string(lexical_terms,','),COALESCE(provenance->>'category','ALMSIVI'),''
+       array_to_string(lexical_terms,','),COALESCE(provenance->>'category','LORKHAN'),''
 FROM named ORDER BY created_at,document_id;
 WITH documents AS (
     SELECT d.*,row_number() OVER (PARTITION BY d.title ORDER BY d.created_at,d.document_id) AS title_number

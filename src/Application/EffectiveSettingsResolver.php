@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 use InvalidArgumentException;
 
@@ -20,7 +20,7 @@ final class EffectiveSettingsResolver
     ];
 
     private const DEFAULT_SETTINGS = [
-        'schema' => 'almsivi.client-settings.v1',
+        'schema' => 'lorkhan.client-settings.v1',
         'behavior' => [
             'auto_greeting' => false,
             'rechat' => false,
@@ -182,7 +182,7 @@ final class EffectiveSettingsResolver
             $sources['settings.' . $section . '.' . $field] = 'excluded';
         }
 
-        $document = ['schema' => 'almsivi.effective-settings.v1', 'settings' => $settings, 'routing' => $routing];
+        $document = ['schema' => 'lorkhan.effective-settings.v1', 'settings' => $settings, 'routing' => $routing];
         return [
             'document' => $document,
             'settings' => $settings,
@@ -198,7 +198,7 @@ final class EffectiveSettingsResolver
         $keys = array_keys($content);
         sort($keys);
         if ($keys !== ['prompt', 'routing', 'schema', 'settings_overrides']
-            || ($content['schema'] ?? null) !== 'almsivi.core-profile.v1'
+            || ($content['schema'] ?? null) !== 'lorkhan.core-profile.v1'
             || !is_string($content['prompt'] ?? null)
             || strlen($content['prompt']) > 65_536
             || !mb_check_encoding($content['prompt'], 'UTF-8')) {
@@ -217,7 +217,7 @@ final class EffectiveSettingsResolver
         sort($keys);
         $expectedKeys = array_keys($expected);
         sort($expectedKeys);
-        if ($keys !== $expectedKeys || ($content['schema'] ?? null) !== 'almsivi.client-settings.v1') {
+        if ($keys !== $expectedKeys || ($content['schema'] ?? null) !== 'lorkhan.client-settings.v1') {
             throw new InvalidArgumentException('invalid_global_settings');
         }
         self::validateSettingsShape($content, $expected, false);

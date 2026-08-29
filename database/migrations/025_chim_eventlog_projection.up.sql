@@ -1,4 +1,4 @@
--- CHIM-compatible roleplay event log projection over immutable ALMSIVI source records.
+-- CHIM-compatible roleplay event log projection over immutable LORKHAN source records.
 -- The compact eventlog table is intentionally presentation/prompt history; typed ownership and
 -- correlation live in eventlog_metadata so multiple installations can safely share one database.
 CREATE TABLE eventlog_metadata (
@@ -37,7 +37,7 @@ CREATE TABLE eventlog_hidden_types (
 );
 
 -- Raw transport projections are reconstructible from source_events. Replace them with meaningful
--- CHIM-style player and NPC conversation rows before removing ALMSIVI-only inline columns.
+-- CHIM-style player and NPC conversation rows before removing LORKHAN-only inline columns.
 TRUNCATE TABLE eventlog RESTART IDENTITY CASCADE;
 
 INSERT INTO eventlog (

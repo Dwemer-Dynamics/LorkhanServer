@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use ALMSIVIserver\Application\MorrowindVoiceCatalog;
-use ALMSIVIserver\Infrastructure\Connection;
-use ALMSIVIserver\Infrastructure\ProductRepository;
+use LORKHANserver\Application\MorrowindVoiceCatalog;
+use LORKHANserver\Infrastructure\Connection;
+use LORKHANserver\Infrastructure\ProductRepository;
 
 require dirname(__DIR__).'/src/Autoload.php';
 
@@ -13,16 +13,16 @@ $gameRoot=realpath($argv[1]);
 if(!is_string($gameRoot)||!is_file($gameRoot.'/Morrowind.esm')||!is_dir($gameRoot.'/Sound/Vo')){
     fwrite(STDERR,"The supplied directory is not a Morrowind Data Files installation.\n");exit(2);
 }
-$configFile=getenv('ALMSIVI_CONFIG')?:dirname(__DIR__).'/config/server.php';
-if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set ALMSIVI_CONFIG.');
+$configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/config/server.php';
+if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
 $config=require$configFile;if(!is_array($config))throw new RuntimeException('Server configuration is invalid.');
-$config['database_password']=getenv('ALMSIVI_DATABASE_PASSWORD')?:(string)($config['database_password']??'');
+$config['database_password']=getenv('LORKHAN_DATABASE_PASSWORD')?:(string)($config['database_password']??'');
 $db=Connection::open($config);$products=new ProductRepository($db);$catalog=MorrowindVoiceCatalog::bundled();
-$voiceRoot=(string)($config['voice_storage_path']??'/var/lib/almsiviserver/voices');
+$voiceRoot=(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices');
 if(!is_dir($voiceRoot)&&!mkdir($voiceRoot,0750,true)&&!is_dir($voiceRoot))throw new RuntimeException('Voice storage is unavailable.');
 
 /** Convert one catalog-approved local game sample to the bounded PCM WAV format used by TTS Studio. */
-function almsivi_import_voice_wav(string $source,string $destination):void
+function lorkhan_import_voice_wav(string $source,string $destination):void
 {
     $temp=tempnam(dirname($destination),'.morrowind-voice-');if($temp===false)throw new RuntimeException('voice_import_failed');
     $pipes=[];$process=proc_open(['ffmpeg','-nostdin','-v','error','-y','-i',$source,'-vn','-ac','1','-ar','24000','-c:a','pcm_s16le','-f','wav',$temp],
@@ -39,7 +39,7 @@ function almsivi_import_voice_wav(string $source,string $destination):void
 }
 
 /** Synchronize one approved WAV with the active local cloning connector without exposing an HTTP route. */
-function almsivi_sync_imported_voice(array $connector,array $voice,string $wav):void
+function lorkhan_sync_imported_voice(array $connector,array $voice,string $wav):void
 {
     $content=is_array($connector['content']??null)?$connector['content']:[];$driver=(string)($content['driver']??'');
     if(!in_array($driver,['omnivoice','chatterbox','xtts-fastapi','xtts','pockettts'],true))throw new RuntimeException('voice_sync_unsupported');
@@ -75,14 +75,14 @@ foreach($catalog->voices()as$voice){
     $relative=str_replace('/',DIRECTORY_SEPARATOR,(string)$voice['sample_path']);$source=realpath($gameRoot.DIRECTORY_SEPARATOR.$relative);
     if(!is_string($source)||!str_starts_with($source,$gameRoot.DIRECTORY_SEPARATOR))throw new RuntimeException('catalog_sample_missing: '.$voice['sample_path']);
     $destination=$voiceRoot.DIRECTORY_SEPARATOR.$voice['voice_id'].'.wav';
-    if(!is_file($destination)){almsivi_import_voice_wav($source,$destination);$converted++;}
+    if(!is_file($destination)){lorkhan_import_voice_wav($source,$destination);$converted++;}
     foreach($connectors as$connector){$catalogLookup->execute(['configuration'=>$connector['configuration_id'],'voice'=>$voice['voice_id']]);
         if($catalogLookup->fetchColumn()){$skipped++;continue;}
-        try{almsivi_sync_imported_voice($connector,$voice,$destination);}catch(RuntimeException$error){
+        try{lorkhan_sync_imported_voice($connector,$voice,$destination);}catch(RuntimeException$error){
             if($error->getMessage()==='voice_sync_unsupported'){$skipped++;continue;}throw$error;}
         $catalogUpsert->execute(['configuration'=>$connector['configuration_id'],'voice'=>$voice['voice_id'],
             'display'=>$voice['display_name'],'now'=>$now]);$synced++;}
 }
 $backfill=$products->backfillMorrowindCatalogVoices($catalog,$now);
-echo json_encode(['schema'=>'almsivi.morrowind-voice-import.v1','catalog_voices'=>count($catalog->voices()),
+echo json_encode(['schema'=>'lorkhan.morrowind-voice-import.v1','catalog_voices'=>count($catalog->voices()),
     'converted'=>$converted,'synced'=>$synced,'skipped'=>$skipped,'profiles'=>$backfill],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES).PHP_EOL;

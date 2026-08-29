@@ -2,7 +2,7 @@
 
 ## Dwemer Dynamics shared server UI
 
-The ALMSIVIserver management interface derives its presentation structure and selected CSS, font,
+The LORKHANserver management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under
 the MIT License:
@@ -30,6 +30,6 @@ The optional offline biography-generation tool can enrich official Morrowind NPC
 with material retrieved from the Unofficial Elder Scrolls Pages (UESP). UESP's MediaWiki rights
 metadata identifies this material as Attribution-ShareAlike 2.5. Generated catalog artifacts retain
 the exact source page and revision identifiers used for each character. UESP material is paraphrased;
-raw page caches are local build inputs and are not distributed with ALMSIVIserver.
+raw page caches are local build inputs and are not distributed with LORKHANserver.
 
 Source: https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership

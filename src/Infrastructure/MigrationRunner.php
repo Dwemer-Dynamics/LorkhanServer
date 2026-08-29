@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
 use PDO;
 use RuntimeException;
@@ -11,7 +11,7 @@ use Throwable;
 final class MigrationRunner
 {
     private const LOCK_ID = 6_525_393_698_659_162;
-    private const LEDGER = 'almsivi_internal.schema_migrations';
+    private const LEDGER = 'lorkhan_internal.schema_migrations';
 
     public function __construct(
         private readonly PDO $db,
@@ -201,10 +201,10 @@ final class MigrationRunner
 
     private function ensureTable(): void
     {
-        $this->db->exec('CREATE SCHEMA IF NOT EXISTS almsivi_internal');
+        $this->db->exec('CREATE SCHEMA IF NOT EXISTS lorkhan_internal');
         if ($this->db->query("SELECT to_regclass('public.schema_migrations')")->fetchColumn() !== null
-            && $this->db->query("SELECT to_regclass('almsivi_internal.schema_migrations')")->fetchColumn() === null) {
-            $this->db->exec('ALTER TABLE public.schema_migrations SET SCHEMA almsivi_internal');
+            && $this->db->query("SELECT to_regclass('lorkhan_internal.schema_migrations')")->fetchColumn() === null) {
+            $this->db->exec('ALTER TABLE public.schema_migrations SET SCHEMA lorkhan_internal');
         }
         $this->db->exec('CREATE TABLE IF NOT EXISTS ' . self::LEDGER . ' ('
             . 'version bigint PRIMARY KEY, name text, checksum char(64), applied_at timestamptz NOT NULL DEFAULT clock_timestamp())');
@@ -280,7 +280,7 @@ final class MigrationRunner
         $this->db->beginTransaction();
         try {
             // Historical migrations intentionally build their source tables in public;
-            // the final cutover moves ALMSIVI-only state behind the internal schema.
+            // the final cutover moves LORKHAN-only state behind the internal schema.
             $this->db->exec('SET LOCAL search_path TO public, pg_temp');
             $callback();
             $this->db->commit();
@@ -313,7 +313,7 @@ final class MigrationRunner
         } finally {
             $unlock = $this->db->prepare('SELECT pg_advisory_unlock(:lock)');
             $unlock->execute(['lock' => self::LOCK_ID]);
-            $this->db->exec('SET search_path TO almsivi_internal, public, pg_temp');
+            $this->db->exec('SET search_path TO lorkhan_internal, public, pg_temp');
         }
     }
 }

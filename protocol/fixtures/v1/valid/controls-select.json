@@ -1,7 +1,7 @@
 {
   "description": "Idempotent in-game model slot selection",
   "instance": {
-    "schema": "almsivi.controls.select.v1",
+    "schema": "lorkhan.controls.select.v1",
     "message_id": "10000000-0000-4000-8000-000000000404",
     "request_id": "10000000-0000-4000-8000-000000000405",
     "session_id": "10000000-0000-4000-8000-000000000403",
@@ -18,5 +18,5 @@
       "display_name": "Fargoth"
     }
   },
-  "schema": "https://almsivi.invalid/schemas/v1/controls-select.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/controls-select.schema.json"
 }

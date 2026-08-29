@@ -1,5 +1,5 @@
 /* Shared presentation extracted from the pinned HerikaServer configuration pages. */
-body.hub-page > main.almsivi-page,
+body.hub-page > main.lorkhan-page,
 body.configuration-resource > main.management-page {
     width: 100%;
     max-width: none;
@@ -7,10 +7,10 @@ body.configuration-resource > main.management-page {
     padding: 30px 5px 40px;
 }
 
-body.hub-page > main.almsivi-page.embedded,
+body.hub-page > main.lorkhan-page.embedded,
 body.configuration-resource.embedded-page > main.management-page { padding-top: 30px; }
 
-.almsivi-page-header,
+.lorkhan-page-header,
 .configuration-page-header,
 .page-header {
     background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
@@ -22,10 +22,10 @@ body.configuration-resource.embedded-page > main.management-page { padding-top: 
     margin-bottom: 30px;
 }
 
-.almsivi-page-header { display: flex; align-items: center; justify-content: center; position: relative; }
-.almsivi-page-header > div:first-child { flex: 1; }
-.almsivi-page-header .almsivi-badges { position: absolute; right: 20px; top: 20px; }
-.almsivi-page-header h1,
+.lorkhan-page-header { display: flex; align-items: center; justify-content: center; position: relative; }
+.lorkhan-page-header > div:first-child { flex: 1; }
+.lorkhan-page-header .lorkhan-badges { position: absolute; right: 20px; top: 20px; }
+.lorkhan-page-header h1,
 .configuration-page-header h1,
 .page-header h1,
 h1.api-title {
@@ -33,18 +33,18 @@ h1.api-title {
     font-family: MagicCards, serif;
     word-spacing: 8px;
     font-size: 2.2em;
-    color: rgb(242, 124, 17);
+    color: rgb(188, 157, 90);
     text-shadow: 2px 2px 4px rgba(0, 0, 0, .5);
     text-align: center;
 }
 
-.almsivi-page-header p,
+.lorkhan-page-header p,
 .configuration-page-header p,
 .page-subtitle { color: #bbb; font-size: 1.1em; margin: 0; }
 
-.almsivi-toolbar,
-.almsivi-card,
-.almsivi-editor,
+.lorkhan-toolbar,
+.lorkhan-card,
+.lorkhan-editor,
 .management-create-panel,
 .connector-card,
 .widget {
@@ -54,24 +54,24 @@ h1.api-title {
     box-shadow: 0 2px 8px rgba(0, 0, 0, .15), inset 0 1px rgba(255, 255, 255, .03);
 }
 
-.almsivi-toolbar { display: flex; align-items: end; gap: 12px; margin: 0 auto 16px; padding: 12px; }
-.almsivi-card,
+.lorkhan-toolbar { display: flex; align-items: end; gap: 12px; margin: 0 auto 16px; padding: 12px; }
+.lorkhan-card,
 .connector-card { padding: 16px; }
-.almsivi-grid,
+.lorkhan-grid,
 .connector-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.almsivi-grid > *,
+.lorkhan-grid > *,
 .connector-grid > * { min-width: 0; }
-.almsivi-card:hover,
+.lorkhan-card:hover,
 .connector-card:hover { border-color: #4a4a4a; box-shadow: 0 4px 12px rgba(0, 0, 0, .2), inset 0 1px rgba(255, 255, 255, .05); }
 
-.almsivi-card h2,
-.almsivi-card h3,
+.lorkhan-card h2,
+.lorkhan-card h3,
 .connector-title { color: #fff; font-family: MagicCards, serif; letter-spacing: .6px; word-spacing: 8px; overflow-wrap: anywhere; }
-.almsivi-card-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.almsivi-badges { display: flex; gap: 6px; flex-wrap: wrap; }
-.almsivi-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid #4a4a4a; border-radius: 999px; background: rgba(255, 255, 255, .04); color: #cfd9ea; font-size: 12px; }
-.almsivi-badge.default { border-color: rgb(242, 124, 17); color: #ffd089; }
-.almsivi-muted,
+.lorkhan-card-header { display: flex; align-items: start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.lorkhan-badges { display: flex; gap: 6px; flex-wrap: wrap; }
+.lorkhan-badge { display: inline-flex; align-items: center; padding: 2px 8px; border: 1px solid #4a4a4a; border-radius: 999px; background: rgba(255, 255, 255, .04); color: #cfd9ea; font-size: 12px; }
+.lorkhan-badge.default { border-color: rgb(188, 157, 90); color: #ddcdab; }
+.lorkhan-muted,
 .empty-state { color: #9fb1c9; }
 
 .llm-layout { display: grid; grid-template-columns: minmax(240px, 340px) minmax(0, 1fr); gap: 16px; align-items: stretch; }
@@ -80,7 +80,7 @@ h1.api-title {
 .conn-list { display: flex; flex: 1 1 auto; flex-direction: column; gap: 8px; overflow: auto; }
 .conn-li { display: block; padding: 12px; border: 1px solid #3a3a3a; border-radius: 10px; background: linear-gradient(135deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); color: #e9efff; text-decoration: none; transition: all .2s ease; }
 .conn-li:hover { transform: translateY(-2px); border-color: #4a4a4a; background: linear-gradient(135deg, rgba(58, 58, 58, .95), rgba(48, 48, 48, .98)); color: #fff; }
-.conn-li.active { outline: 2px solid rgb(242, 124, 17); background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98)); box-shadow: 0 4px 12px rgba(242, 124, 17, .3); }
+.conn-li.active { outline: 2px solid rgb(188, 157, 90); background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98)); box-shadow: 0 4px 12px rgba(188, 157, 90, .3); }
 .conn-li .head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .conn-li .title { color: #e9efff; font-weight: 600; }
 .conn-li .badge { padding: 2px 6px; border: 1px solid #4a4a4a; border-radius: 999px; color: #9fb1c9; font-size: 11px; }
@@ -94,19 +94,19 @@ h1.api-title {
 .profile-editor-toolbar-label { color: #9fb1c9; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .profile-editor-toolbar-name { margin-top: 2px; color: #f3f5fa; font-size: 16px; font-weight: 700; }
 
-.almsivi-inheritance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
-.almsivi-inheritance span { padding: 8px; border: 1px solid #3a3a3a; background: #222; color: #cfd9ea; text-align: center; }
-.almsivi-inheritance .active { outline: 2px solid rgb(242, 124, 17); color: #ffd089; }
+.lorkhan-inheritance { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 12px 0 16px; }
+.lorkhan-inheritance span { padding: 8px; border: 1px solid #3a3a3a; background: #222; color: #cfd9ea; text-align: center; }
+.lorkhan-inheritance .active { outline: 2px solid rgb(188, 157, 90); color: #ddcdab; }
 
-.almsivi-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.almsivi-form-grid .wide { grid-column: 1 / -1; }
-.almsivi-group { border: 1px solid #3a3a3a; border-radius: 8px; padding: 14px; }
-.almsivi-group legend { float: none; width: auto; padding: 0 6px; color: rgb(242, 124, 17); font-family: MagicCards, serif; }
-.almsivi-page label,
+.lorkhan-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.lorkhan-form-grid .wide { grid-column: 1 / -1; }
+.lorkhan-group { border: 1px solid #3a3a3a; border-radius: 8px; padding: 14px; }
+.lorkhan-group legend { float: none; width: auto; padding: 0 6px; color: rgb(188, 157, 90); font-family: MagicCards, serif; }
+.lorkhan-page label,
 .management-page label { display: flex; flex-direction: column; gap: 5px; color: #fff; font-weight: 600; }
-.almsivi-page input:not([type="checkbox"]):not([type="radio"]),
-.almsivi-page select,
-.almsivi-page textarea,
+.lorkhan-page input:not([type="checkbox"]):not([type="radio"]),
+.lorkhan-page select,
+.lorkhan-page textarea,
 .management-page input:not([type="checkbox"]):not([type="radio"]),
 .management-page select,
 .management-page textarea {
@@ -117,21 +117,21 @@ h1.api-title {
     background: rgba(26, 26, 26, .8);
     color: #e9efff;
 }
-.almsivi-page textarea,
+.lorkhan-page textarea,
 .management-page textarea { min-height: 120px; resize: vertical; }
-.almsivi-page input:focus,
-.almsivi-page select:focus,
-.almsivi-page textarea:focus,
+.lorkhan-page input:focus,
+.lorkhan-page select:focus,
+.lorkhan-page textarea:focus,
 .management-page input:focus,
 .management-page select:focus,
-.management-page textarea:focus { border-color: rgba(242, 124, 17, .5); outline: none; box-shadow: 0 0 0 3px rgba(242, 124, 17, .1); }
+.management-page textarea:focus { border-color: rgba(188, 157, 90, .5); outline: none; box-shadow: 0 0 0 3px rgba(188, 157, 90, .1); }
 
-.almsivi-actions,
+.lorkhan-actions,
 .sidebar-action-grid { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
-.almsivi-actions form,
+.lorkhan-actions form,
 .sidebar-action-grid form { margin: 0; padding: 0; background: none; border: 0; }
-.almsivi-page button,
-.almsivi-page .button-link,
+.lorkhan-page button,
+.lorkhan-page .button-link,
 .management-page button,
 .management-page .btn-base,
 .management-page a.btn-base,
@@ -152,13 +152,13 @@ h1.api-title {
     text-decoration: none;
     cursor: pointer;
 }
-.almsivi-page button:hover,
+.lorkhan-page button:hover,
 .management-page button:hover,
-.btn-primary:hover { background: #444; border-color: rgb(242, 124, 17); }
-.almsivi-page button[type="submit"],
+.btn-primary:hover { background: #444; border-color: rgb(188, 157, 90); }
+.lorkhan-page button[type="submit"],
 .management-page button[type="submit"],
 .btn-save { background: #176529; border-color: #27853d; }
-.almsivi-page button.danger,
+.lorkhan-page button.danger,
 .management-page .btn-danger,
 .btn-danger { background: #a6353f; border-color: #c64b55; }
 button:disabled,
@@ -166,8 +166,8 @@ button:disabled,
 
 .management-create-panel { margin: 16px auto; padding: 16px; }
 .management-create-panel > summary,
-.almsivi-card > summary,
-.almsivi-card details > summary { color: rgb(242, 124, 17); cursor: pointer; font-weight: 700; }
+.lorkhan-card > summary,
+.lorkhan-card details > summary { color: rgb(188, 157, 90); cursor: pointer; font-weight: 700; }
 .widget { margin: 16px 0; overflow: hidden; }
 .widget-header { padding: 15px; border-bottom: 1px solid #3a3a3a; background: #1a1a1a; }
 .widget-header h3 { margin: 0; color: #f8f9fa; }
@@ -177,22 +177,22 @@ button:disabled,
 .widget-content td { padding: 8px; border-bottom: 1px solid #3a3a3a; text-align: left; }
 .widget-content th { background: #1a1a1a; color: #f8f9fa; }
 .page-status,
-.almsivi-status { max-width: 960px; margin: 8px auto 12px; padding: 12px 20px; border: 1px solid rgba(109, 209, 156, .3); border-radius: 8px; background: linear-gradient(135deg, #6dd19c, #5bb377); color: #fff; }
+.lorkhan-status { max-width: 960px; margin: 8px auto 12px; padding: 12px 20px; border: 1px solid rgba(109, 209, 156, .3); border-radius: 8px; background: linear-gradient(135deg, #6dd19c, #5bb377); color: #fff; }
 .page-error { max-width: 960px; margin: 8px auto 12px; padding: 12px 20px; border: 1px solid rgba(255, 107, 107, .3); border-radius: 8px; background: linear-gradient(135deg, #ff6b6b, #e55a5a); color: #fff; }
 
 @media (max-width: 900px) {
-    .almsivi-grid,
+    .lorkhan-grid,
     .connector-grid,
-    .almsivi-form-grid { grid-template-columns: 1fr; }
-    .almsivi-form-grid .wide { grid-column: auto; }
-    .almsivi-page-header { display: block; }
-    .almsivi-page-header .almsivi-badges { position: static; justify-content: center; margin-top: 10px; }
+    .lorkhan-form-grid { grid-template-columns: 1fr; }
+    .lorkhan-form-grid .wide { grid-column: auto; }
+    .lorkhan-page-header { display: block; }
+    .lorkhan-page-header .lorkhan-badges { position: static; justify-content: center; margin-top: 10px; }
     .llm-layout { grid-template-columns: minmax(200px, 260px) minmax(0, 1fr); }
 }
 
 @media (max-width: 720px) {
-    .almsivi-inheritance { grid-template-columns: 1fr; }
-    .almsivi-toolbar { align-items: stretch; flex-direction: column; }
+    .lorkhan-inheritance { grid-template-columns: 1fr; }
+    .lorkhan-toolbar { align-items: stretch; flex-direction: column; }
     .llm-layout { grid-template-columns: 1fr; }
     .llm-left { height: auto; max-height: 420px; }
     .profile-editor-toolbar { margin: 0 0 16px; }

@@ -74,9 +74,9 @@ DECLARE
     ];
 BEGIN
     FOREACH object_name IN ARRAY companion_tables LOOP
-        EXECUTE format('ALTER TABLE almsivi_internal.%I SET SCHEMA herika_compat',object_name);
+        EXECUTE format('ALTER TABLE lorkhan_internal.%I SET SCHEMA herika_compat',object_name);
     END LOOP;
-    ALTER VIEW almsivi_internal.almsivi_core_profiles_source SET SCHEMA herika_compat;
+    ALTER VIEW lorkhan_internal.lorkhan_core_profiles_source SET SCHEMA herika_compat;
 END
 $companions$;
 
@@ -99,7 +99,7 @@ DECLARE
     ];
 BEGIN
     FOREACH object_name IN ARRAY source_tables LOOP
-        EXECUTE format('ALTER TABLE almsivi_internal.%I SET SCHEMA public',object_name);
+        EXECUTE format('ALTER TABLE lorkhan_internal.%I SET SCHEMA public',object_name);
     END LOOP;
 END
 $sources$;
@@ -127,23 +127,23 @@ BEGIN
     FOR function_row IN
         SELECT p.oid,p.proname,pg_get_function_identity_arguments(p.oid) AS arguments
         FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace
-        WHERE n.nspname='almsivi_internal' AND p.proname LIKE 'sync\_%' ESCAPE '\'
-           OR n.nspname='almsivi_internal' AND p.proname LIKE 'remove\_%' ESCAPE '\'
-           OR n.nspname='almsivi_internal' AND p.proname LIKE 'trigger\_%' ESCAPE '\'
-           OR n.nspname='almsivi_internal' AND p.proname IN ('refresh_npc_relationships','refresh_turn_audit','rebuild_special_profiles','project_turn_world','chim_touch_updated_at')
+        WHERE n.nspname='lorkhan_internal' AND p.proname LIKE 'sync\_%' ESCAPE '\'
+           OR n.nspname='lorkhan_internal' AND p.proname LIKE 'remove\_%' ESCAPE '\'
+           OR n.nspname='lorkhan_internal' AND p.proname LIKE 'trigger\_%' ESCAPE '\'
+           OR n.nspname='lorkhan_internal' AND p.proname IN ('refresh_npc_relationships','refresh_turn_audit','rebuild_special_profiles','project_turn_world','chim_touch_updated_at')
         ORDER BY p.proname,p.oid
     LOOP
         definition := pg_get_functiondef(function_row.oid);
         FOREACH object_name IN ARRAY source_tables LOOP
-            definition := replace(definition,'almsivi_internal.'||object_name,'public.'||object_name);
+            definition := replace(definition,'lorkhan_internal.'||object_name,'public.'||object_name);
         END LOOP;
         EXECUTE definition;
         EXECUTE format(
-            'ALTER FUNCTION almsivi_internal.%I(%s) SET search_path TO herika_compat, public, pg_temp',
+            'ALTER FUNCTION lorkhan_internal.%I(%s) SET search_path TO herika_compat, public, pg_temp',
             function_row.proname,function_row.arguments
         );
         EXECUTE format(
-            'ALTER FUNCTION almsivi_internal.%I(%s) SET SCHEMA herika_compat',
+            'ALTER FUNCTION lorkhan_internal.%I(%s) SET SCHEMA herika_compat',
             function_row.proname,function_row.arguments
         );
     END LOOP;

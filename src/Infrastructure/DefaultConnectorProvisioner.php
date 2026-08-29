@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\DeterministicClock;
-use ALMSIVIserver\Application\MorrowindVoiceCatalog;
-use ALMSIVIserver\Application\ProductService;
+use LORKHANserver\Application\DeterministicClock;
+use LORKHANserver\Application\MorrowindVoiceCatalog;
+use LORKHANserver\Application\ProductService;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -22,7 +22,7 @@ final class DefaultConnectorProvisioner
 
     public function __construct(
         private readonly PDO $db,
-        private readonly string $voiceStoragePath = '/var/lib/almsiviserver/voices',
+        private readonly string $voiceStoragePath = '/var/lib/lorkhanserver/voices',
         private readonly string $pocketTtsEndpoint = 'http://127.0.0.1:8086',
     ) {}
 

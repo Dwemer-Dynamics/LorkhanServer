@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\PlayerMoodPolicy;
+use LORKHANserver\Application\PlayerMoodPolicy;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;

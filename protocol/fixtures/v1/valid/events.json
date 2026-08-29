@@ -84,7 +84,7 @@
           "parameters": {
             "distance": 192
           },
-          "schema": "almsivi.action-intent.v1",
+          "schema": "lorkhan.action-intent.v1",
           "target": {
             "cell": {
               "kind": "interior",
@@ -125,7 +125,7 @@
           "request_id": "00000000-0000-4000-8000-000000000010",
           "response_id": "00000000-0000-4000-8000-000000000004",
           "runtime_generation": 7,
-          "schema": "almsivi.response.v1",
+          "schema": "lorkhan.response.v1",
           "session_id": "00000000-0000-4000-8000-000000000007",
           "turn_id": "00000000-0000-4000-8000-000000000008"
         },
@@ -227,8 +227,8 @@
     ],
     "generation": 7,
     "next_after": 10,
-    "schema": "almsivi.events.v1",
+    "schema": "lorkhan.events.v1",
     "session_id": "00000000-0000-4000-8000-000000000007"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/events.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/events.schema.json"
 }

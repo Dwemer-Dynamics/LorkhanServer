@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 use PDO;
-use ALMSIVIserver\Application\EffectiveSettingsResolver;
-use ALMSIVIserver\Application\RelationshipEvaluationPolicy;
-use ALMSIVIserver\Application\RelationshipType;
+use LORKHANserver\Application\EffectiveSettingsResolver;
+use LORKHANserver\Application\RelationshipEvaluationPolicy;
+use LORKHANserver\Application\RelationshipType;
 
 /** Database fences for optional evaluations of witnessed, fully played exchanges. */
 final class RelationshipEvaluationRepository
@@ -97,7 +97,7 @@ final class RelationshipEvaluationRepository
             $query->execute(['job'=>$payload['_job']['job_id'],'source'=>$source['source_event_id'],'relationship'=>$relationshipId,
                 'disposition'=>$disposition-$beforeDisposition,'affinity'=>$affinity-$beforeAffinity,'reason'=>$output['reason'],'now'=>$now,
                 'lease'=>$payload['_job']['lease_token'],'attempt'=>$payload['_job']['attempt']]);
-            if($query->rowCount()!==1)throw new \ALMSIVIserver\Application\OperationCancelled('lease_lost');
+            if($query->rowCount()!==1)throw new \LORKHANserver\Application\OperationCancelled('lease_lost');
             return true;
         });
     }

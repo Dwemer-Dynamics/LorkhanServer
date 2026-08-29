@@ -1,5 +1,5 @@
 document.addEventListener('DOMContentLoaded', () => {
-  document.querySelectorAll('.almsivi-card > table, .almsivi-card > .table-responsive > table, .management-page .widget-content > table').forEach((table) => {
+  document.querySelectorAll('.lorkhan-card > table, .lorkhan-card > .table-responsive > table, .management-page .widget-content > table').forEach((table) => {
     if (!table.tBodies.length || table.closest('details')) return;
     const tools = document.createElement('div');
     tools.className = 'control-table-tools';

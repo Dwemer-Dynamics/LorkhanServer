@@ -292,7 +292,7 @@ CREATE SEQUENCE herika_compat.responselog_rowid_seq START WITH 1 INCREMENT BY 1 
 ALTER SEQUENCE herika_compat.responselog_rowid_seq OWNED BY herika_compat.responselog.rowid;
 ALTER TABLE ONLY herika_compat.responselog ALTER COLUMN rowid SET DEFAULT nextval('herika_compat.responselog_rowid_seq'::regclass);
 
--- Companion mappings retain ALMSIVI ownership and exact TES3 identities without changing Herika columns.
+-- Companion mappings retain LORKHAN ownership and exact TES3 identities without changing Herika columns.
 CREATE TABLE herika_compat.llm_connector_metadata (
     connector_id integer PRIMARY KEY REFERENCES herika_compat.core_llm_connector(id) ON DELETE CASCADE,
     installation_id uuid NOT NULL REFERENCES public.installations(installation_id) ON DELETE CASCADE,
@@ -421,7 +421,7 @@ SELECT p.name,
        r.content->>'personality',r.content->>'relationships',r.content->>'occupation',r.content->>'appearance',
        r.content->>'skills',r.content->>'speech_style',r.content->>'goals',r.content#>>'{voice,id}',
        p.actor_identity,r.content->>'gender',r.content->>'race',left(p.actor_identity->>'record_id',16),
-       cpm.core_profile_id,0,jsonb_build_object('actor_identity',p.actor_identity,'almsivi_profile',r.content),
+       cpm.core_profile_id,0,jsonb_build_object('actor_identity',p.actor_identity,'lorkhan_profile',r.content),
        md5(r.content::text),r.content->>'core',p.actor_identity->>'content_file',r.content->>'tags'
 FROM public.profiles p
 JOIN public.profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision
@@ -445,7 +445,7 @@ SELECT nm.npc_id,p.name,
        r.content->>'personality',r.content->>'relationships',r.content->>'occupation',r.content->>'appearance',
        r.content->>'skills',r.content->>'speech_style',r.content->>'goals',r.content#>>'{voice,id}',p.actor_identity,
        r.content->>'gender',r.content->>'race',left(p.actor_identity->>'record_id',16),cpm.core_profile_id,0,
-       jsonb_build_object('actor_identity',p.actor_identity,'almsivi_profile',r.content,'almsivi_revision',r.revision),
+       jsonb_build_object('actor_identity',p.actor_identity,'lorkhan_profile',r.content,'lorkhan_revision',r.revision),
        md5(r.content::text),r.created_at AT TIME ZONE 'UTC',r.content->>'core',p.actor_identity->>'content_file',r.content->>'tags'
 FROM public.profiles p
 JOIN public.profile_revisions r ON r.profile_id=p.profile_id
@@ -470,7 +470,7 @@ WHERE p.deleted_at IS NULL AND p.actor_identity->>'kind'='narrator'
 ON CONFLICT (id) DO UPDATE SET value=EXCLUDED.value;
 
 INSERT INTO herika_compat.general_settings (id,value,description,updated_at)
-SELECT 'almsivi.'||e.key,e.value::text,'ALMSIVI Global Settings '||e.key,r.created_at AT TIME ZONE 'UTC'
+SELECT 'lorkhan.'||e.key,e.value::text,'LORKHAN Global Settings '||e.key,r.created_at AT TIME ZONE 'UTC'
 FROM public.configuration_sets c
 JOIN public.configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
 CROSS JOIN LATERAL jsonb_each(r.content) e

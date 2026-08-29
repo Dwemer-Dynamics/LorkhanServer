@@ -1,1 +1,1 @@
-DROP INDEX IF EXISTS almsivi_internal.knowledge_custom_topic_uq;
+DROP INDEX IF EXISTS lorkhan_internal.knowledge_custom_topic_uq;

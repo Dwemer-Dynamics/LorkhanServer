@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Routes opt-in narration and keeps disabled stage directions out of speech. */
 final class InlineNarrationRouter

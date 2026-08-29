@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use InvalidArgumentException;
 use RuntimeException;
 
-/** Bridges xVASynth's load-model and shared-output-file API into an in-memory ALMSIVI WAV result. */
+/** Bridges xVASynth's load-model and shared-output-file API into an in-memory LORKHAN WAV result. */
 final class XvaSynthSpeechProvider implements SpeechProvider
 {
     private readonly string $baseUrl;
@@ -51,7 +51,7 @@ final class XvaSynthSpeechProvider implements SpeechProvider
         $this->post('/loadModel', ['outputs' => '', 'model' => $modelPath, 'modelType' => $modelType,
             'version' => $version, 'base_lang' => $language, 'pluginsContext' => '{}'], $cancellation);
 
-        $localPath = tempnam(sys_get_temp_dir(), 'almsivi-xva-');
+        $localPath = tempnam(sys_get_temp_dir(), 'lorkhan-xva-');
         if (!is_string($localPath)) throw new RuntimeException('provider_unavailable');
         @unlink($localPath);
         $windowsPath = '\\\\wsl.localhost\\' . $distro . str_replace('/', '\\', $localPath) . '.wav';

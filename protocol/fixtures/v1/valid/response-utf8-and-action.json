@@ -20,7 +20,7 @@
         "rechat_target": "Fargoth",
         "rechat_target_identity": {"cell": {"grid_x": -2, "grid_y": -9, "kind": "exterior"}, "content_file": "Morrowind.esm", "display_name": "Fargoth", "kind": "npc", "record_id": "fargoth", "refnum": {"content_file": 0, "index": 112}},
         "request_id": "10000000-0000-4000-8000-000000000004",
-        "schema": "almsivi.response.line.v1",
+        "schema": "lorkhan.response.line.v1",
         "speaker": "Fargoth",
         "speaker_identity": {"cell": {"grid_x": -2, "grid_y": -9, "kind": "exterior"}, "content_file": "Morrowind.esm", "display_name": "Fargoth", "kind": "npc", "record_id": "fargoth", "refnum": {"content_file": 0, "index": 112}},
         "subtitle": "You found my engraved ring—thank you!",
@@ -43,7 +43,7 @@
         "rechat_target": "Fargoth",
         "rechat_target_identity": {"cell": {"grid_x": -2, "grid_y": -9, "kind": "exterior"}, "content_file": "Morrowind.esm", "display_name": "Fargoth", "kind": "npc", "record_id": "fargoth", "refnum": {"content_file": 0, "index": 112}},
         "request_id": "10000000-0000-4000-8000-000000000004",
-        "schema": "almsivi.response.line.v1",
+        "schema": "lorkhan.response.line.v1",
         "speaker": "Fargoth",
         "speaker_identity": {"cell": {"grid_x": -2, "grid_y": -9, "kind": "exterior"}, "content_file": "Morrowind.esm", "display_name": "Fargoth", "kind": "npc", "record_id": "fargoth", "refnum": {"content_file": 0, "index": 112}},
         "subtitle": "",
@@ -58,9 +58,9 @@
     "request_id": "10000000-0000-4000-8000-000000000004",
     "response_id": "30000000-0000-4000-8000-000000000006",
     "runtime_generation": 4,
-    "schema": "almsivi.response.v1",
+    "schema": "lorkhan.response.v1",
     "session_id": "10000000-0000-4000-8000-000000000005",
     "turn_id": "10000000-0000-4000-8000-000000000006"
   },
-  "schema": "https://almsivi.invalid/schemas/v1/response.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/response.schema.json"
 }

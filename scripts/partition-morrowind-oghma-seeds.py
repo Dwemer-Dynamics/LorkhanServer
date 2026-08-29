@@ -42,10 +42,10 @@ def main() -> int:
     partitions: list[list[dict[str, Any]]] = [[] for _ in range(args.parts)]
     for index, topic in enumerate(topics):
         partitions[index % args.parts].append(topic)
-    manifest = {"format": "almsivi.morrowind-oghma-partitions.v1", "source": str(args.seeds), "total": len(topics), "parts": []}
+    manifest = {"format": "lorkhan.morrowind-oghma-partitions.v1", "source": str(args.seeds), "total": len(topics), "parts": []}
     for index, rows in enumerate(partitions, 1):
         path = args.output_dir / f"part-{index}.json"
-        write_json(path, {"format": "almsivi.morrowind-oghma-expansion-part.v2", "topics": rows})
+        write_json(path, {"format": "lorkhan.morrowind-oghma-expansion-part.v2", "topics": rows})
         manifest["parts"].append({"part": index, "path": path.name, "count": len(rows)})
     write_json(args.output_dir / "manifest.json", manifest)
     print(json.dumps(manifest, indent=2))

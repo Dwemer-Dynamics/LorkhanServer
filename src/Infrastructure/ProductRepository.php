@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\EffectiveSettingsResolver;
-use ALMSIVIserver\Application\MorrowindGeographyCatalog;
-use ALMSIVIserver\Application\MorrowindVoiceCatalog;
-use ALMSIVIserver\Application\DeterministicRetrieval;
-use ALMSIVIserver\Application\OghmaGroundedRetriever;
+use LORKHANserver\Application\EffectiveSettingsResolver;
+use LORKHANserver\Application\MorrowindGeographyCatalog;
+use LORKHANserver\Application\MorrowindVoiceCatalog;
+use LORKHANserver\Application\DeterministicRetrieval;
+use LORKHANserver\Application\OghmaGroundedRetriever;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -86,9 +86,9 @@ final class ProductRepository
     {
         $stmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='translation_policy' AND c.deleted_at IS NULL LIMIT 1");
         $stmt->execute(['installation'=>$installationId]);$row=$stmt->fetch();
-        if(!$row)return['configuration_id'=>null,'current_revision'=>0,'content'=>\ALMSIVIserver\Application\TranslationPolicy::defaults()];
+        if(!$row)return['configuration_id'=>null,'current_revision'=>0,'content'=>\LORKHANserver\Application\TranslationPolicy::defaults()];
         $row['current_revision']=(int)$row['current_revision'];
-        $row['content']=\ALMSIVIserver\Application\TranslationPolicy::validate($this->json($row['content']));return$row;
+        $row['content']=\LORKHANserver\Application\TranslationPolicy::validate($this->json($row['content']));return$row;
     }
 
     /** Return or create the single installation default used when an NPC has no explicit Core Profile. */
@@ -108,8 +108,8 @@ final class ProductRepository
             $first=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY created_at,core_profile_id LIMIT 1');
             $first->execute(['installation'=>$installationId]);$firstId=$first->fetchColumn();
             if($firstId!==false){$this->db->prepare('UPDATE core_profiles SET default_npc=true WHERE core_profile_id=:id')->execute(['id'=>$firstId]);return$find()??throw new RuntimeException('core_profile_default_failed');}
-            $id=$this->deterministicUuid('almsivi:core-profile:default:v1:'.$installationId);
-            $content=['schema'=>'almsivi.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
+            $id=$this->deterministicUuid('lorkhan:core-profile:default:v1:'.$installationId);
+            $content=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>[]];
             $this->db->prepare('INSERT INTO core_profiles(core_profile_id,installation_id,label,default_npc,slot,created_at) VALUES(:id,:installation,\'Default\',true,1,:now)')
                 ->execute(['id'=>$id,'installation'=>$installationId,'now'=>$now]);
             $this->revision('core_profile_revisions','core_profile_id',$id,1,$content,'default core profile created',$now);
@@ -487,7 +487,7 @@ final class ProductRepository
         $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId,'revision'=>$revision]);$row=$statement->fetch();
         if(!$row)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
         return['configuration_id'=>(string)$row['configuration_id'],'revision'=>(int)$row['revision'],
-            'content'=>\ALMSIVIserver\Application\LlmConnector::validate($this->json($row['content']))];
+            'content'=>\LORKHANserver\Application\LlmConnector::validate($this->json($row['content']))];
     }
 
     /** Queue one user-requested diary from bounded witnessed context; no provider call occurs here. */
@@ -1243,7 +1243,7 @@ final class ProductRepository
     public function rebuildMemories(array $scope,string $now): int
     {
         $stmt=$this->db->prepare('SELECT memory_id,content FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL');$stmt->execute($this->scopeParams($scope));$count=0;
-        foreach($stmt->fetchAll() as $row){$terms=\ALMSIVIserver\Application\DeterministicRetrieval::terms($row['content']);$vector=\ALMSIVIserver\Application\DeterministicRetrieval::fakeVector($row['content']);$this->updateMemory($row['memory_id'],$row['content'],$terms,$vector,$now);++$count;}return $count;
+        foreach($stmt->fetchAll() as $row){$terms=\LORKHANserver\Application\DeterministicRetrieval::terms($row['content']);$vector=\LORKHANserver\Application\DeterministicRetrieval::fakeVector($row['content']);$this->updateMemory($row['memory_id'],$row['content'],$terms,$vector,$now);++$count;}return $count;
     }
 
     public function enforceMemoryRetention(array $scope,array $days,string $now): int
@@ -1415,9 +1415,9 @@ SQL);
         // Derived writers cannot replace player text, even if a provider invents this field.
         if(($input['source_mode']??null)!=='manual')unset($input['custom_info']);
         elseif(array_key_exists('custom_info',$input))
-            $input['custom_info']=\ALMSIVIserver\Application\RelationshipCustomInfo::validate($input['custom_info']);
+            $input['custom_info']=\LORKHANserver\Application\RelationshipCustomInfo::validate($input['custom_info']);
         if(array_key_exists('relationship_type',$input))
-            $input['relationship_type']=\ALMSIVIserver\Application\RelationshipType::manual($input['relationship_type']);
+            $input['relationship_type']=\LORKHANserver\Application\RelationshipType::manual($input['relationship_type']);
         return $this->transaction(function()use($input,$now):array{
             $scope=$this->scopeParams($input);
             $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id '
@@ -1522,7 +1522,7 @@ SQL);
     public function restoreScope(array $document,string $now):array
     {
         return$this->transaction(function()use($document,$now):array{$counts=['memories'=>0,'relationships'=>0,'narratives'=>0];$scope=$document['scope'];$key=hash('sha256',$this->encode($document));
-            foreach($document['data']['memories'] as$i=>$r){$id=$this->deterministicUuid('restore:memory:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM memory_records WHERE memory_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn()){$this->db->prepare('INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'tier'=>$r['tier'],'content'=>$r['content'],'terms'=>$this->pgArray($r['lexical_terms']),'vector'=>$this->encode(\ALMSIVIserver\Application\DeterministicRetrieval::fakeVector($r['content'])),'source'=>$r['source_event_id']??null,'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'occurred'=>$r['occurred_at'],'expires'=>$r['expires_at']??null,'now'=>$now]);}$counts['memories']++;}
+            foreach($document['data']['memories'] as$i=>$r){$id=$this->deterministicUuid('restore:memory:'.$key.':'.$i);$s=$this->db->prepare('SELECT 1 FROM memory_records WHERE memory_id=:id');$s->execute(['id'=>$id]);if(!$s->fetchColumn()){$this->db->prepare('INSERT INTO memory_records(memory_id,installation_id,profile_id,playthrough_id,tier,content,lexical_terms,fake_vector,source_event_id,provenance,occurred_at,expires_at,created_at,updated_at) VALUES(:id,:installation,:profile,:playthrough,:tier,:content,CAST(:terms AS text[]),CAST(:vector AS jsonb),:source,CAST(:provenance AS jsonb),:occurred,:expires,:now,:now)')->execute($this->scopeParams($scope)+['id'=>$id,'tier'=>$r['tier'],'content'=>$r['content'],'terms'=>$this->pgArray($r['lexical_terms']),'vector'=>$this->encode(\LORKHANserver\Application\DeterministicRetrieval::fakeVector($r['content'])),'source'=>$r['source_event_id']??null,'provenance'=>$this->encode($r['provenance']??['source'=>'restore','key'=>$key]),'occurred'=>$r['occurred_at'],'expires'=>$r['expires_at']??null,'now'=>$now]);}$counts['memories']++;}
             $relationships=$document['data']['relationships'];
             usort($relationships,fn(array$a,array$b):int=>$this->restoreRelationshipKey($a)<=>$this->restoreRelationshipKey($b));
             $previous=null;foreach($relationships as$r){
@@ -1545,9 +1545,9 @@ SQL);
     {
         $identity=$row['actor_identity'];$identityJson=$this->encode($identity);
         $custom=array_key_exists('custom_info',$row)
-            ?\ALMSIVIserver\Application\RelationshipCustomInfo::validate($row['custom_info']):null;
+            ?\LORKHANserver\Application\RelationshipCustomInfo::validate($row['custom_info']):null;
         $relationshipType=array_key_exists('relationship_type',$row)
-            ?\ALMSIVIserver\Application\RelationshipType::manual($row['relationship_type']):null;
+            ?\LORKHANserver\Application\RelationshipType::manual($row['relationship_type']):null;
         $stable=isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum']);
         $existing=[];
         if($stable){
@@ -1614,7 +1614,7 @@ SQL);
         $profile=is_array($effective['npc_profile']??null)?$effective['npc_profile']:null;
         $core=is_array($effective['core_profile']??null)?$effective['core_profile']:null;
         $effectiveSettings=[
-            'schema'=>'almsivi.effective-settings.v1',
+            'schema'=>'lorkhan.effective-settings.v1',
             'profile_id'=>$profile===null?null:(string)$profile['profile_id'],
             'profile_revision'=>$profile===null?null:(int)($profile['revision']??$profile['current_revision']??0),
             'core_profile_id'=>$core===null?null:(string)$core['core_profile_id'],
@@ -1743,8 +1743,8 @@ SQL);
                 if($row['profile_id']!==null)throw new \InvalidArgumentException($row['kind'].'_is_installation_scoped');
                 if($row['kind']==='memory_policy')
                     (new MemorySummaryRepository($this->db))->assertProvider($installation,$row['content']);
-                elseif($row['kind']==='memory_embedding_policy')\ALMSIVIserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
-                else \ALMSIVIserver\Application\TranslationPolicy::validate($row['content']);
+                elseif($row['kind']==='memory_embedding_policy')\LORKHANserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+                else \LORKHANserver\Application\TranslationPolicy::validate($row['content']);
             }
             $this->db->prepare('DELETE FROM installation_provider_selections WHERE installation_id=:installation')
                 ->execute(['installation'=>$installation]);
@@ -2257,7 +2257,7 @@ SQL);
     /** Rank turn memories deterministically and persist why each prompt source was selected. */
     private function selectPromptMemories(array $turn,array $scope,array $memories,string $now,array $semantic=[]):array
     {
-        $query=\ALMSIVIserver\Application\MemoryEmbeddingPolicy::queryText($turn);
+        $query=\LORKHANserver\Application\MemoryEmbeddingPolicy::queryText($turn);
         $queryEmbedding=is_array($semantic['embedding']??null)&&array_is_list($semantic['embedding'])
             ?$semantic['embedding']:null;
         foreach($memories as&$memory){
@@ -2422,7 +2422,7 @@ SQL);
         });
     }
 
-    /** Return only reusable custom templates in the portable ALMSIVI biography CSV field order. */
+    /** Return only reusable custom templates in the portable LORKHAN biography CSV field order. */
     public function customBiographyTemplates(string $installationId):array
     {
         $statement=$this->db->prepare("SELECT p.actor_identity->>'content_file' AS content_file,p.actor_identity->>'record_id' AS record_id,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND btrim(COALESCE(p.actor_identity->>'content_file',''))<>'' AND btrim(COALESCE(p.actor_identity->>'record_id',''))<>'' ORDER BY lower(p.actor_identity->>'content_file'),lower(p.actor_identity->>'record_id'),p.created_at,p.profile_id");

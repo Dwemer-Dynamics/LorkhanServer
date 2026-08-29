@@ -1,5 +1,5 @@
 {
-  "schema": "almsivi.morrowind-geography.v1",
+  "schema": "lorkhan.morrowind-geography.v1",
   "policy_sha256": "9306440e3fceff917ce841fb3166f168fedfd1342426d0107c261a787b628548",
   "official_content_sha256": {
     "Morrowind.esm": "5c3c8c2cbd20e25901b59b3ece33d36b7ef0e3d60ad8d11828bcc61a5ead1647",

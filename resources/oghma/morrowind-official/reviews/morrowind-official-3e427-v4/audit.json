@@ -1,5 +1,5 @@
 {
-  "format": "almsivi.morrowind-oghma-book-audit.v1",
+  "format": "lorkhan.morrowind-oghma-book-audit.v1",
   "baseline_catalog": "morrowind-official-3e427-v3",
   "baseline_rows": 616,
   "official_content_sha256": {

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
-use ALMSIVIserver\Security\OutboundUrlPolicy;
+use LORKHANserver\Security\OutboundUrlPolicy;
 use CURLFile;
 use RuntimeException;
 
@@ -38,7 +38,7 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
             || substr($bytes, 0, 4) !== 'RIFF' || substr($bytes, 8, 4) !== 'WAVE') {
             throw new RuntimeException('invalid_audio');
         }
-        $path = tempnam(sys_get_temp_dir(), 'almsivi-stt-');
+        $path = tempnam(sys_get_temp_dir(), 'lorkhan-stt-');
         if (!is_string($path)) throw new RuntimeException('provider_unavailable');
         $status = 0;
         $contentType = '';
@@ -73,7 +73,7 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
                 if (!is_string($response) || strlen($response) > 2_097_152) throw new RuntimeException('provider_invalid_output');
                 if ($status === 408 || $status === 429 || $status >= 500) throw new RuntimeException('provider_timeout');
                 if ($status < 200 || $status >= 300) {
-                    error_log(sprintf('[ALMSIVI] STT provider rejected request: status=%d content_type=%s response_bytes=%d',
+                    error_log(sprintf('[LORKHAN] STT provider rejected request: status=%d content_type=%s response_bytes=%d',
                         $status, $contentType !== '' ? $contentType : 'unknown', strlen($response)));
                     throw new RuntimeException('provider_unavailable');
                 }
@@ -86,13 +86,13 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
         try {
             $decoded = json_decode($response, true, 64, JSON_THROW_ON_ERROR);
         } catch (\JsonException) {
-            error_log(sprintf('[ALMSIVI] STT provider invalid output: reason=invalid_json status=%d content_type=%s response_bytes=%d',
+            error_log(sprintf('[LORKHAN] STT provider invalid output: reason=invalid_json status=%d content_type=%s response_bytes=%d',
                 $status, $contentType !== '' ? $contentType : 'unknown', strlen($response)));
             throw new RuntimeException('provider_invalid_output');
         }
         $text = trim((string) ($decoded['text'] ?? $decoded['transcription'] ?? ''));
         if ($text === '' || mb_strlen($text) > 4096) {
-            error_log(sprintf('[ALMSIVI] STT provider invalid output: reason=%s status=%d content_type=%s response_bytes=%d response_keys=%s',
+            error_log(sprintf('[LORKHAN] STT provider invalid output: reason=%s status=%d content_type=%s response_bytes=%d response_keys=%s',
                 $text === '' ? 'empty_transcript' : 'transcript_too_long', $status,
                 $contentType !== '' ? $contentType : 'unknown', strlen($response),
                 is_array($decoded) ? implode(',', array_slice(array_keys($decoded), 0, 12)) : 'non_object'));
@@ -100,7 +100,7 @@ final class OpenAiCompatibleSpeechToTextProvider implements SpeechToTextProvider
         }
         $detectedLanguage = trim((string) ($decoded['language'] ?? $language));
         if ($detectedLanguage === '' || strlen($detectedLanguage) > 35) $detectedLanguage = $language;
-        error_log(sprintf('[ALMSIVI] STT provider accepted transcript: status=%d content_type=%s response_bytes=%d transcript_chars=%d language=%s',
+        error_log(sprintf('[LORKHAN] STT provider accepted transcript: status=%d content_type=%s response_bytes=%d transcript_chars=%d language=%s',
             $status, $contentType !== '' ? $contentType : 'unknown', strlen($response), mb_strlen($text), $detectedLanguage));
         return ['text' => $text, 'language' => $detectedLanguage];
     }

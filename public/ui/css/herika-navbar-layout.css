@@ -1,4 +1,4 @@
-/* HerikaServer's centered navbar geometry, externalized for ALMSIVI's strict CSP. */
+/* HerikaServer's centered navbar geometry, externalized for LORKHAN's strict CSP. */
 .chim-navbar .container-fluid {
     display: flex !important;
     justify-content: space-between;
@@ -16,13 +16,26 @@
 
 .chim-navbar .navbar-brand,
 .chim-navbar .navbar-center button.navbar-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
     padding: 0;
     line-height: 1;
     text-decoration: none;
 }
 
 .chim-navbar .navbar-brand img {
-    vertical-align: bottom;
+    flex: 0 0 auto;
+    max-width: 100%;
+    vertical-align: middle;
+}
+
+/* Square LORKHAN mark: fix the box height and let the intrinsic 1:1 ratio set
+   the width, so it never distorts, clips, or grows the 64px bar. */
+.chim-navbar .navbar-brand .brand-mark-img {
+    width: auto;
+    height: var(--chim-brand-mark, 44px);
+    object-fit: contain;
 }
 
 .navbar-left,
@@ -74,5 +87,16 @@
     .dropdown-menu {
         left: 50%;
         transform: translateX(-50%);
+    }
+}
+
+@media (max-width: 576px) {
+    .chim-navbar .navbar-brand,
+    .chim-navbar .navbar-center button.navbar-brand {
+        gap: 8px;
+    }
+
+    .chim-navbar .navbar-brand .brand-mark-img {
+        height: 34px;
     }
 }

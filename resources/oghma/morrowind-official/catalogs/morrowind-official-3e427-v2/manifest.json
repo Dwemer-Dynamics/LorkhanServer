@@ -1,12 +1,12 @@
 {
-  "format": "almsivi.morrowind-oghma-catalog.v1",
+  "format": "lorkhan.morrowind-oghma-catalog.v1",
   "catalog_version": "morrowind-official-3e427-v2",
   "row_count": 522,
   "articles_sha256": "52678c6854e851d9b41d87ac16a29a90f8ae3e2e60abf771dcbaf406ce336856",
   "csv_sha256": "cae394fbf6f1830a2bbb01e46187087c638eb20e5494694ae6f48435b78eb979",
   "ontology_sha256": "cbc9d7f4b5f8a10923a57d896f512eaf0be46ac4018c1f4996d16d623f188697",
-  "topic_seeds_sha256": "fc0603397cd75a16ffed36cfa48c4571f5e587063d25818e9c1320a757a13ff0",
-  "editorial_decisions_sha256": "48818547b89ba245280a1bb0cefc1d1c5ad4ed860a617673f3855ea3ea0abf15",
+  "topic_seeds_sha256": "3f238c2c997fb1050a723211c5fc5ff0a6e28b856d848ed19cc9fffb5832404b",
+  "editorial_decisions_sha256": "29b0b7a31b638dbd82d9dc9e1b733bbceb3bd68345a701d35f90cb1696e8b096",
   "generator_sha256": "b892889a4b313f863103cac898ea9623e86eabf5c1d9b5482fe3196b1b9eb381",
   "builder_sha256": "c479c5c5970fd666c22b8b92c0213d9bdb86eb8632531729f2d29c955a6bc748",
   "official_content_sha256": {
@@ -202,7 +202,7 @@
   "source_runs": [
     {
       "articles_sha256": "13a9f5dd55bf6b17b97efc0079468b686aa6370cfee8e83476216de55292ac2a",
-      "manifest_sha256": "5a36762a2a62ee25ffb6e7f5297641f5821b79086f2e7dfe5e56101abb0d04ec",
+      "manifest_sha256": "1b92a791d57b1e1ec02126474b5d332575f69f0903261786888f714ef8e8e7b0",
       "row_count": 112,
       "model": null,
       "cost": 0.0

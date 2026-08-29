@@ -1,7 +1,7 @@
 {
   "description": "Authenticated query for safe in-game session controls",
   "instance": {
-    "schema": "almsivi.controls.query.v1",
+    "schema": "lorkhan.controls.query.v1",
     "message_id": "10000000-0000-4000-8000-000000000401",
     "request_id": "10000000-0000-4000-8000-000000000402",
     "session_id": "10000000-0000-4000-8000-000000000403",
@@ -15,5 +15,5 @@
       "display_name": "Fargoth"
     }
   },
-  "schema": "https://almsivi.invalid/schemas/v1/controls-query.schema.json"
+  "schema": "https://lorkhan.invalid/schemas/v1/controls-query.schema.json"
 }

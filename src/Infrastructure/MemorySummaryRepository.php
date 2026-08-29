@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Infrastructure;
+namespace LORKHANserver\Infrastructure;
 
-use ALMSIVIserver\Application\MemorySummaryPolicy;
+use LORKHANserver\Application\MemorySummaryPolicy;
 use PDO;
 
 /** Model projections never replace original memory content or its privacy provenance. */

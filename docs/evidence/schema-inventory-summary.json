@@ -1,5 +1,5 @@
 {
-    "format": "almsivi.schema-inventory-summary.v1",
+    "format": "lorkhan.schema-inventory-summary.v1",
     "generated_inventory": "build/schema-inventory.json",
     "reference_commits": {
         "herikaserver": "c973f5c8fde2d01cb8211be3d5f96d1783663da4",
@@ -7,7 +7,7 @@
     },
     "server_encoding": "UTF8",
     "client_encoding": "UTF8",
-    "inventory_sha256": "b3e53f8640fa2d04ab84dee80368df6f26d033e3689609ad9807f50cf9069fc8",
+    "inventory_sha256": "6fd49dc615dfd2904cee9a56e85e8f172bb4295f41b5200050affb0fc00cbba1",
     "relation_count": 162,
     "column_count": 1499,
     "relation_kinds": {

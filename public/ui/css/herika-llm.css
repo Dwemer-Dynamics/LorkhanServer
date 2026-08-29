@@ -16,7 +16,7 @@ body.llm-page-shell > main.llm-page {
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-/* Page header is the shared compact inline row (.almsivi-page-head in chim-theme.css). */
+/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .llm-page .page-header h1.api-title {
     color: #f5f1e8;
     font-family: MagicCards, serif;
@@ -100,7 +100,7 @@ body.llm-page-shell > main.llm-page {
 }
 
 .llm-page .sidebar-action-grid .btn-save { border: 1px solid #27853d; background: #2f7f57; }
-.llm-page .sidebar-action-grid .btn-primary { border: 1px solid #d16a05; background: #b45500; }
+.llm-page .sidebar-action-grid .btn-primary { border: 1px solid #bc9d5a; background: #655229; }
 
 .llm-page .conn-list {
     display: flex;
@@ -127,9 +127,9 @@ body.llm-page-shell > main.llm-page {
 }
 
 .llm-page .conn-li.active {
-    outline: 2px solid rgb(242, 124, 17);
+    outline: 2px solid rgb(188, 157, 90);
     background: linear-gradient(135deg, rgba(52, 42, 32, .95), rgba(44, 34, 24, .98));
-    box-shadow: 0 4px 12px rgba(242, 124, 17, .3);
+    box-shadow: 0 4px 12px rgba(188, 157, 90, .3);
 }
 
 .llm-page .conn-li-select { display: block; color: inherit; text-decoration: none; }
@@ -255,9 +255,9 @@ body.llm-page-shell > main.llm-page {
 .llm-page .form-container select:focus,
 .llm-page .form-container textarea:focus {
     outline: none;
-    border-color: rgba(242, 124, 17, .5);
+    border-color: rgba(188, 157, 90, .5);
     background: rgba(34, 34, 34, .9);
-    box-shadow: 0 0 0 3px rgba(242, 124, 17, .1);
+    box-shadow: 0 0 0 3px rgba(188, 157, 90, .1);
 }
 
 .llm-page .form-container input:disabled,
@@ -284,7 +284,7 @@ body.llm-page-shell > main.llm-page {
 }
 
 .llm-page .llm-help-details > summary { color: #e9efff; cursor: pointer; font-size: 12px; font-weight: 600; }
-.llm-page .llm-help-details > summary:focus-visible { outline: 2px solid rgba(242, 124, 17, .8); outline-offset: 2px; }
+.llm-page .llm-help-details > summary:focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
 .llm-page .llm-help-details ul { margin: 8px 0 0; padding-left: 18px; color: #9fb1c9; font-size: 12px; line-height: 1.4; }
 .llm-page .llm-help-details li { margin-bottom: 4px; }
 .llm-page .llm-help-details code { color: #d8c9a8; font-size: 11px; overflow-wrap: anywhere; }
@@ -318,7 +318,7 @@ body.llm-page-shell > main.llm-page {
 
 .llm-page .llm-advanced-panel > .llm-group-heading { margin-top: 0; }
 
-/* Inherited Herika controls that ALMSIVI does not implement, grouped and clearly inert. */
+/* Inherited Herika controls that LORKHAN does not implement, grouped and clearly inert. */
 .llm-page .llm-legacy-panel {
     margin-top: 12px;
     padding: 10px 12px;
@@ -328,7 +328,7 @@ body.llm-page-shell > main.llm-page {
 }
 
 .llm-page .llm-legacy-panel > summary { color: #e9efff; cursor: pointer; font-weight: 600; }
-.llm-page .llm-legacy-panel > summary:focus-visible { outline: 2px solid rgba(242, 124, 17, .8); outline-offset: 2px; }
+.llm-page .llm-legacy-panel > summary:focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
 .llm-page .llm-legacy-row { margin-top: 10px; padding-top: 8px; border-top: 1px solid #3a3a3a; }
 .llm-page .llm-legacy-row .llm-help { margin-bottom: 0; }
 

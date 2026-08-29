@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ALMSIVIserver\Application;
+namespace LORKHANserver\Application;
 
 /** Deterministic profile generator used only by mock and test configurations. */
 final class MockProfileGenerationProvider implements ProfileGenerationProvider

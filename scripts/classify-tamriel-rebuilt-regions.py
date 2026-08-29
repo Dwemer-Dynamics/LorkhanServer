@@ -446,7 +446,7 @@ def resolve_articles_with_glm(catalog: list[dict[str, Any]], audit: list[dict[st
             try:
                 response = session.post(OPENROUTER_URL, headers={
                     "Authorization": f"Bearer {api_key}", "Content-Type": "application/json",
-                    "HTTP-Referer": "https://dwemerdynamics.com/", "X-Title": "ALMSIVI TR Region Classifier",
+                    "HTTP-Referer": "https://dwemerdynamics.com/", "X-Title": "LORKHAN TR Region Classifier",
                 }, json=request, timeout=90)
                 response.raise_for_status()
                 payload = response.json()
@@ -611,7 +611,7 @@ def write_packages(args: argparse.Namespace, articles: list[dict[str, Any]], pro
             "telemetry": result.get("generation", {}).get("telemetry", {}),
         } for result in review_results]
         manifest = {
-            "format": "almsivi.morrowind-biography-preflight.v1",
+            "format": "lorkhan.morrowind-biography-preflight.v1",
             "catalog_version": args.biography_catalog_version,
             "selected_count": len(combined), "completed_count": len(combined), "failed_count": 0,
             "official_content_sha256": {

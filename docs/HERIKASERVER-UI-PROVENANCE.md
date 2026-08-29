@@ -1,8 +1,8 @@
 # HerikaServer UI provenance
 
-This document records the presentation-only HerikaServer baseline imported for the ALMSIVIserver
+This document records the presentation-only HerikaServer baseline imported for the LORKHANserver
 management UI rebuild. Herika runtime bootstrap, database access, Skyrim behavior, and provider logic
-are not sources for the ALMSIVI implementation.
+are not sources for the LORKHAN implementation.
 
 ## Pinned source
 
@@ -10,11 +10,11 @@ are not sources for the ALMSIVI implementation.
 - Ref inspected: `origin/unstable`
 - Presentation import commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`
 - Active schema/runtime comparison commit: `508d7335d26f8027b3d576137bf161b331ed8ad9`
-- Import mode: byte-identical presentation baseline before ALMSIVI rewiring
+- Import mode: byte-identical presentation baseline before LORKHAN rewiring
 
 ## Imported files
 
-| HerikaServer source | ALMSIVIserver destination |
+| HerikaServer source | LORKHANserver destination |
 | --- | --- |
 | `ui/global_settings.php` | `public/ui/global_settings.php` |
 | `ui/core/config_hub.php` | `public/ui/core/config_hub.php` |
@@ -52,8 +52,8 @@ are not sources for the ALMSIVI implementation.
 ## Rewiring boundary
 
 The imported PHP pages are an HTML, CSS, JavaScript, and interaction reference. Before deployment,
-their bootstrap and mutations must use ALMSIVI browser sessions, CSRF validation, typed services,
+their bootstrap and mutations must use LORKHAN browser sessions, CSRF validation, typed services,
 PostgreSQL migrations, OpenMW identities, and the revisioned Global Settings -> Core Profile -> NPC
-resolver. The Herika STT connector page is rewired as a single installation-global ALMSIVI connector;
+resolver. The Herika STT connector page is rewired as a single installation-global LORKHAN connector;
 the ITT page and Soulgaze surface are removed for beta, while remaining Skyrim-only and Background
 Life controls stay excluded.

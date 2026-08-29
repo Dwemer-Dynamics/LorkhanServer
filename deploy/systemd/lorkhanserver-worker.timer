@@ -1,5 +1,5 @@
 [Unit]
-Description=Run ALMSIVIserver durable job worker
+Description=Run LORKHANserver durable job worker
 
 [Timer]
 OnBootSec=15s
@@ -7,7 +7,7 @@ OnUnitInactiveSec=1s
 AccuracySec=100ms
 RandomizedDelaySec=0
 Persistent=true
-Unit=almsiviserver-worker.service
+Unit=lorkhanserver-worker.service
 
 [Install]
 WantedBy=timers.target
