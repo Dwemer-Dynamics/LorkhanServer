@@ -1,0 +1,1628 @@
+{
+  "format": "almsivi.morrowind-oghma-topic-seeds.v2",
+  "topics": [
+    {
+      "topic": "the_armistice",
+      "title": "the Armistice",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "alandro_sul",
+      "title": "Alandro Sul",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_NecMQ_Alandro Sul",
+          "record_type": "NPC_"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "four_score_war",
+      "title": "Four Score War",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "clavicus_vile",
+      "title": "Clavicus Vile",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "king_edward",
+      "title": "King Edward",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ebony_blade",
+      "title": "Ebony Blade",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_silvenar",
+      "title": "The Silvenar",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_towers",
+      "title": "the Towers",
+      "category": "lore",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "armistice",
+      "title": "Armistice",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "malacath",
+      "title": "Malacath",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "reman",
+      "title": "Reman",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "wayrest",
+      "title": "Wayrest",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ayleid",
+      "title": "Ayleid",
+      "category": "races",
+      "profile": "common",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "daggerfall",
+      "title": "Daggerfall",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ebonarm",
+      "title": "Ebonarm",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "gortwog_gro_nagorm",
+      "title": "Gortwog gro-Nagorm",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "king_moraelyn",
+      "title": "King Moraelyn",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "king_of_worms",
+      "title": "King of Worms",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_empress_katariah",
+      "title": "The Empress Katariah",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "tosh_raka",
+      "title": "Tosh Raka",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "muatra",
+      "title": "Muatra",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_i2_445_Muatra_dummy",
+          "record_type": "WEAP"
+        },
+        {
+          "record_id": "tr_m7_HO_19  FakeMuatra",
+          "record_type": "WEAP"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "firewatch",
+      "title": "Firewatch",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ancestors",
+      "title": "ancestors",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "bal_foyen",
+      "title": "Bal Foyen",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "old_ebonheart",
+      "title": "Old Ebonheart",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "bad_daedra",
+      "title": "Bad Daedra",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "shipal_sharai",
+      "title": "Shipal-Sharai",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "port_telvannis",
+      "title": "Port Telvannis",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "akamora",
+      "title": "Akamora",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ja_natta_syndicate",
+      "title": "Ja-Natta Syndicate",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "tur_julan",
+      "title": "Tur Julan",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "armun_ashlands",
+      "title": "Armun Ashlands",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "veloth_s_path",
+      "title": "Veloth's Path",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "pilgrimage",
+      "title": "pilgrimage",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "aanthirin",
+      "title": "Aanthirin",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "tremor_march",
+      "title": "Tremor March",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "gorne",
+      "title": "Gorne",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "blighted_queen",
+      "title": "blighted queen",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "origin_of_vampirism",
+      "title": "origin of vampirism",
+      "category": "lore",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "spider_daedra",
+      "title": "spider daedra",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m1_SpiderDaedra_Voun",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m2_SpiderAkamora",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m2_SpiderShambalu",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m4_UttumilkSpider",
+          "record_type": "CREA"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "death_mask_of_empress_katariah",
+      "title": "Death Mask of Empress Katariah",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "on_elemental_daedra",
+      "title": "On Elemental Daedra",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "sundered_scar",
+      "title": "Sundered Scar",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "amulet_of_unity",
+      "title": "Amulet of Unity",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "amulet_unity_uniq",
+          "record_type": "CLOT"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "deshaan_plains",
+      "title": "Deshaan Plains",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "othreleth_woods",
+      "title": "Othreleth Woods",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "boethiah_s_spine",
+      "title": "Boethiah's Spine",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "helnim",
+      "title": "Helnim",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "shinathi",
+      "title": "Shinathi",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_rift",
+      "title": "the rift",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "stories_of_lorkhan",
+      "title": "Stories of Lorkhan",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_origin_of_vampires",
+      "title": "The Origin of Vampires",
+      "category": "lore",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "almalexia_s_faithful",
+      "title": "Almalexia's faithful",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "roth_roryn",
+      "title": "Roth Roryn",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ebon_tower",
+      "title": "Ebon Tower",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "coronati_basin",
+      "title": "Coronati Basin",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "demons_of_veloth",
+      "title": "Demons of Veloth",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "face_of_veloth",
+      "title": "Face of Veloth",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "hlaalu_council_company",
+      "title": "Hlaalu Council Company",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "lake_andaram",
+      "title": "Lake Andaram",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "tel_thenim",
+      "title": "Tel Thenim",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "bosmora",
+      "title": "Bosmora",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "syffim",
+      "title": "Syffim",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "mysteries_of_the_worm",
+      "title": "Mysteries of the Worm",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m2_445_MysteriesWorm",
+          "record_type": "BOOK"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "connection_to_molag_bal",
+      "title": "connection to Molag Bal",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "poison_song",
+      "title": "Poison Song",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "shipal_shin",
+      "title": "Shipal-Shin",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "war_pilgrimage_of_st_felms",
+      "title": "war-pilgrimage of St. Felms",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "peninsula_of_veloth",
+      "title": "Peninsula of Veloth",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "alfiq",
+      "title": "Alfiq",
+      "category": "races",
+      "profile": "common",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "archmagister_of_house_telvanni",
+      "title": "Archmagister of House Telvanni",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "arnesian_war",
+      "title": "Arnesian War",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "icebreaker_keep",
+      "title": "Icebreaker Keep",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "laws_determined",
+      "title": "Laws Determined",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "laws_ordained",
+      "title": "Laws Ordained",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "mephalan_vales",
+      "title": "Mephalan Vales",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "narsis_watch",
+      "title": "Narsis Watch",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "st_ino_s_caravanserai",
+      "title": "St. Ino's Caravanserai",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "malahk_bazul",
+      "title": "Malahk-Bazul",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "mournhold_district",
+      "title": "Mournhold District",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "nedothril_coast",
+      "title": "Nedothril Coast",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "queen_morgiah",
+      "title": "Queen Morgiah",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "reign_of_the_septims",
+      "title": "Reign of the Septims",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "rihad",
+      "title": "Rihad",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "telvanni_isles",
+      "title": "Telvanni Isles",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "velothi_mountains",
+      "title": "Velothi Mountains",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "cathnoquey",
+      "title": "Cathnoquey",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "deshaan_district",
+      "title": "Deshaan District",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "forebear",
+      "title": "Forebear",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "imperial_navy",
+      "title": "Imperial Navy",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "kogotel",
+      "title": "Kogotel",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "temple_law",
+      "title": "Temple law",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "the_blue_divide",
+      "title": "The Blue Divide",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "woodhearth",
+      "title": "Woodhearth",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "chimeri_quey",
+      "title": "Chimeri-Quey",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "elysana",
+      "title": "Elysana",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "from_godsdamn_kragenmoor",
+      "title": "from godsdamn Kragenmoor",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "halls_of_our_emperor",
+      "title": "halls of our Emperor",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "high_court_of_narsis",
+      "title": "High Court of Narsis",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "keptu_quey",
+      "title": "Keptu-Quey",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "lake_of_sulphur",
+      "title": "lake of sulphur",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "narsis_district",
+      "title": "Narsis District",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "office_of_intercession",
+      "title": "Office of Intercession",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ordinator_of_doctrine",
+      "title": "Ordinator of Doctrine",
+      "category": "factions",
+      "profile": "faction",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "padomaic_isles",
+      "title": "Padomaic Isles",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "quey",
+      "title": "Quey",
+      "category": "races",
+      "profile": "common",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "sanguine",
+      "title": "Sanguine",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "sentinel",
+      "title": "Sentinel",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "telvannis_district",
+      "title": "Telvannis District",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "velothis_district",
+      "title": "Velothis District",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "war_of_lies",
+      "title": "War of Lies",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "yneslea",
+      "title": "Yneslea",
+      "category": "regions",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "cuirass_of_olms_valor",
+      "title": "Cuirass of Olms' Valor",
+      "category": "artifacts",
+      "profile": "esoteric",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m3_Ord_War2_CuirassOlmsValor",
+          "record_type": "ARMO"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "cathay_raht",
+      "title": "Cathay-raht",
+      "category": "races",
+      "profile": "common",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "chaos_of_the_interregnum",
+      "title": "chaos of the Interregnum",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "daedric_ruins",
+      "title": "Daedric ruins",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "evermore",
+      "title": "Evermore",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "heresy",
+      "title": "heresy",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "hierophants",
+      "title": "Hierophants",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "jehanna",
+      "title": "Jehanna",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "kragenmoor",
+      "title": "Kragenmoor",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "montagnard",
+      "title": "Montagnard",
+      "category": "cultures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "ohmes_raht",
+      "title": "Ohmes-raht",
+      "category": "races",
+      "profile": "common",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "princess_morgiah",
+      "title": "Princess Morgiah",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "velothi_tower",
+      "title": "Velothi Tower",
+      "category": "locations",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "winterhold",
+      "title": "Winterhold",
+      "category": "settlements",
+      "profile": "regional",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "dhaunayne_aundae",
+      "title": "Dhaunayne Aundae",
+      "category": "figures",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "dhaunayne aundae",
+          "record_type": "NPC_"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "skylamp",
+      "title": "skylamp",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m3_Skylamp_Fight",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m7_AI_skylamp",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m7_AM_skylamp",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m7_q_r_am_Skylamp",
+          "record_type": "CREA"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "treaty_of_the_four_score_war",
+      "title": "Treaty of the Four Score War",
+      "category": "history",
+      "profile": "scholarly",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m7_Ald_Iuval_TreatyFourScore",
+          "record_type": "BOOK"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "dremora_lord",
+      "title": "Dremora Lord",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "dremora_lord",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m2_q_HT_VQ6_DreLoUH",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_HI_RoaDyr7_DremL",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_MG_OE_Dremora",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_OE_Casik_dremora",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m4_Barendreth_DreLow",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m4_Barendreth_DreLrd",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m4_TJ_DremoraLord",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m7_Naemun_DremLord",
+          "record_type": "CREA"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "dreugh_man_o_war",
+      "title": "dreugh man o'war",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m1_CS_DreuMoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_M1_i42_Dreugh_Warlor",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m1_PirunMoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m1_TW_DreuMoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m1_WS_DreuMoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_Idaverrano_MoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_Idaverrano_MoW2",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m3_Reyas_MoW",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m6_maw_manowar_1",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m6_maw_manowar_2_bk",
+          "record_type": "CREA"
+        },
+        {
+          "record_id": "TR_m6_maw_manowar_3",
+          "record_type": "CREA"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "land_dreugh",
+      "title": "land dreugh",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [],
+      "classes": [],
+      "preflight": false,
+      "record_links": [
+        {
+          "record_id": "TR_m7_Ns_Arena_LandDreu",
+          "record_type": "CREA"
+        }
+      ],
+      "mod_source": "TR_Mainland.esm"
+    },
+    {
+      "topic": "almas_thirr",
+      "title": "Almas Thirr",
+      "category": "religion",
+      "profile": "religious",
+      "aliases": [
+        "Bloodstone Shrine"
+      ],
+      "classes": [
+        "tribunal_temple",
+        "priest",
+        "traveler"
+      ],
+      "required_phrases": [
+        "Thirr River",
+        "Saint Veloth",
+        "Veloth's Path"
+      ],
+      "forbidden_phrases": [
+        "Ascadian Isles",
+        "Velothi Paths",
+        "sanctuary",
+        "waypoint",
+        "no recorded",
+        "locals",
+        "clergy"
+      ],
+      "evidence_facts": [
+        "Almas Thirr is a Temple stronghold built on a canton in the Thirr River.",
+        "Its Bloodstone Shrine commemorates Saint Veloth's crossing of the river.",
+        "The city stands on Veloth's Path and provides the only foot crossing of the river north of Narsis, making it both a pilgrimage destination and a commercial hub."
+      ],
+      "domain_instructions": "Explain only the supplied religious, geographic, and commercial significance. Do not add a regional name, guards, social conditions, route instructions, or current pilgrims.",
+      "include_dialogue_evidence": false,
+      "mod_source": "TR_Mainland.esm",
+      "preflight": true
+    },
+    {
+      "topic": "hlaalu_company_scrip",
+      "title": "Hlaalu Company Scrip",
+      "category": "cultures",
+      "profile": "common",
+      "aliases": [
+        "Company scrip",
+        "Hlaalu scrip"
+      ],
+      "classes": [
+        "house_hlaalu",
+        "merchant"
+      ],
+      "required_phrases": [
+        "clay",
+        "septim",
+        "Hlaalu"
+      ],
+      "forbidden_phrases": [
+        "quest",
+        "strike",
+        "overseer",
+        "Gelvu",
+        "Tryr",
+        "three times",
+        "triple",
+        "player"
+      ],
+      "evidence_facts": [
+        "Hlaalu Company scrip consists of clay tokens issued as wages in place of Imperial gold septims.",
+        "Each token has the stated value of one septim but can be spent only at Hlaalu-owned establishments.",
+        "Workers fear that saved scrip becomes worthless when a mine and its company store close."
+      ],
+      "domain_instructions": "Describe only the supplied form, nominal value, restricted use, and economic risk of Hlaalu Company scrip. Do not narrate a labor dispute, name participants, or invent wider laws and practices.",
+      "include_dialogue_evidence": false,
+      "mod_source": "TR_Mainland.esm",
+      "preflight": true
+    },
+    {
+      "topic": "the_guarherders_art",
+      "title": "The Guarherder's Art",
+      "category": "books",
+      "profile": "scholarly",
+      "aliases": [
+        "Guarherder's Art"
+      ],
+      "classes": [
+        "scholar",
+        "hunter"
+      ],
+      "record_links": [
+        {
+          "record_type": "BOOK",
+          "record_id": "TR_m2_bk_HTL_Guarherdart_MC_c"
+        }
+      ],
+      "book_sources": [
+        "TR_m2_bk_HTL_Guarherdart_MC_c"
+      ],
+      "domain_instructions": "Summarize only the book's supported practical subject, viewpoint, and cultural value without quoting or closely reproducing its prose. Use ordinary ASCII punctuation and avoid malformed dash characters.",
+      "mod_source": "TR_Mainland.esm",
+      "preflight": true
+    },
+    {
+      "topic": "mole_crab",
+      "title": "Mole Crab",
+      "category": "creatures",
+      "profile": "specialist",
+      "aliases": [
+        "Mole crabs"
+      ],
+      "classes": [
+        "hunter",
+        "blacksmith"
+      ],
+      "required_phrases": [
+        "Telvanni guards",
+        "bonemold"
+      ],
+      "forbidden_phrases": [
+        "scavenger",
+        "aggressive",
+        "wild",
+        "indefinitely"
+      ],
+      "evidence_facts": [
+        "Mole crabs have durable, lightweight shells used in the traditional light armor of Telvanni guards.",
+        "Their shells and other chitinous parts have distinct uses in armor making and bonemold production.",
+        "Their meat can substitute for mudcrab meat in alchemy, while unfertilized eggs are gathered for cooking and alchemical use."
+      ],
+      "domain_instructions": "Describe only the supplied physical character, husbandry, and practical uses without inventing habitat, temperament, scavenging behavior, population details, or alchemical effects. Use ordinary ASCII punctuation and avoid malformed dash characters.",
+      "mod_source": "TR_Mainland.esm",
+      "preflight": true
+    }
+  ]
+}

@@ -399,6 +399,11 @@ $check($biographyRollback['rolled_back']===true&&$biographyRollback['catalog_ver
 $biographyProvisionAfterRollback=$biographyImporter->provision($biographyV2Json,$biographyV2Manifest,'biography-v2');
 $check($biographyProvisionAfterRollback['applied']===false&&$biographyProvisionAfterRollback['state']==='superseded',
     'routine biography provisioning overrode an explicit rollback');
+$factoryBiographyRoot=dirname(__DIR__).'/resources/biographies/morrowind-official';
+$factoryBiographyVersion=trim((string)file_get_contents($factoryBiographyRoot.'/catalog-version.txt'));
+$factoryBiographyPlan=$biographyImporter->plan($factoryBiographyRoot.'/biographies.json',$factoryBiographyRoot.'/manifest.json',$factoryBiographyVersion);
+$check($factoryBiographyPlan['valid']===true&&$factoryBiographyPlan['row_count']===12674&&$factoryBiographyPlan['duplicate_count']===0,
+    'combined vanilla and Tamriel Rebuilt biography catalog validation failed: '.json_encode($factoryBiographyPlan['errors']));
 foreach(glob($biographyFixtureRoot.'/*')?:[]as$fixturePath)unlink($fixturePath);rmdir($biographyFixtureRoot);
 $check($service->resetItemDescriptions($installation)===2&&$products->customItemDescriptions($installation)===[],'description override reset failed');
 $check($profile['current_revision'] === 1, 'profile creation failed');
@@ -686,6 +691,16 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $invalidModPlan=$oghmaImporter->plan($invalidModArticles,$invalidModManifest,'oghma-invalid-mod-source');
     $check($invalidModPlan['valid']===false&&in_array('article fixture_lore mod_source is invalid',$invalidModPlan['errors'],true),
         'Oghma catalog accepted a path-shaped mod source');
+    $overlappingClassRows=[array_replace($oghmaV1Rows[0],['knowledge_class_basic'=>['scholar']])];
+    [$overlappingClassArticles,$overlappingClassManifest]=$writeOghmaCatalogFixture('oghma-overlapping-classes',$overlappingClassRows);
+    $overlappingClassPlan=$oghmaImporter->plan($overlappingClassArticles,$overlappingClassManifest,'oghma-overlapping-classes');
+    $check($overlappingClassPlan['valid']===false&&in_array('article fixture_lore advanced and basic classes overlap',$overlappingClassPlan['errors'],true),
+        'Oghma catalog accepted overlapping advanced and basic classes');
+    $missingBasicRows=[array_replace($oghmaV1Rows[0],['topic_desc_basic'=>'','knowledge_class_basic'=>[]])];
+    [$missingBasicArticles,$missingBasicManifest]=$writeOghmaCatalogFixture('oghma-missing-basic',$missingBasicRows);
+    $missingBasicPlan=$oghmaImporter->plan($missingBasicArticles,$missingBasicManifest,'oghma-missing-basic');
+    $check($missingBasicPlan['valid']===false&&in_array('article fixture_lore topic_desc_basic is invalid',$missingBasicPlan['errors'],true),
+        'Oghma catalog accepted an empty basic article');
     $products->deleteKnowledge($customOghmaId,$clock->iso());
     $restoredFixtureRows=array_values(array_filter($products->knowledgeCandidates([
         'installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
@@ -842,12 +857,12 @@ $check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location'
     'Oghma factory sync did not reject missing CSRF');
 $factorySync=$managementRouter->dispatch(new Request('POST','/ALMSIVIserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
     '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
-$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=1300&installation_id='.$installation.'&embed=1';
+$expectedSyncLocation='/ALMSIVIserver/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
 $factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
 $factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
 $factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
 $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
-    &&$factorySyncVersion==='morrowind-official-3e427-v5.14'&&$factorySyncRows===1300&&$factorySyncCustomRows===1,
+    &&$factorySyncVersion==='morrowind-official-3e427-v5.21'&&$factorySyncRows===3741&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/ALMSIVIserver/manage/quickstart',['Cookie'=>$cookie]));
 $check($home->status===303 && ($home->headers['Location']??'')==='/ALMSIVIserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
