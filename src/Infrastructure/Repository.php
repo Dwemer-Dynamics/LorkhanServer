@@ -427,10 +427,103 @@ final class Repository
         });
     }
 
-    public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null,
-        bool $queueSpeech = false): array
+    /** Commit one sentence as soon as the structured stream makes it complete and queue durable TTS fallback. */
+    public function appendStreamedDialogue(array $m, string $text, array $fence, int $index): array
     {
-        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech): array {
+        if ($text === '' || strlen($text) > 16_384 || !mb_check_encoding($text, 'UTF-8')
+            || $index < 1 || $index > 4) {
+            throw new \DomainException('provider_invalid_output');
+        }
+        return $this->transaction(function () use ($m, $text, $fence, $index): array {
+            $this->session($m['session_id'], $m['generation'], true);
+            $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
+            $speaker = $m['payload']['target'];
+            $addressee = $m['payload']['speaker'];
+            $audience = $m['payload']['audience'];
+            if (!array_filter($audience, fn(array $identity): bool => $this->sameIdentity($identity, $speaker))) {
+                array_unshift($audience, $speaker);
+            }
+            $lineId = Uuid::v4();
+            $utteranceId = Uuid::v4();
+            $dialogue = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'],
+                'dialogue.complete', ['speaker' => $speaker, 'addressee' => $addressee, 'text' => $text], $lineId);
+            $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
+                . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
+                . '(:id,:session,:turn,:request,:generation,:idx,4,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'
+                . 'CAST(:audience AS jsonb),:text,:emitted,CAST(:emitted AS timestamptz)+interval \'5 minutes\')')
+                ->execute(['id'=>$dialogue['message_id'],'session'=>$m['session_id'],'turn'=>$m['turn_id'],'request'=>$turn['request_id'],
+                    'generation'=>$m['generation'],'idx'=>$index,'line'=>$lineId,'utterance'=>$utteranceId,
+                    'runtime_generation'=>(int)$turn['runtime_generation'],'speaker'=>$this->encode($speaker),
+                    'addressee'=>$this->encode($addressee),'audience'=>$this->encode($audience),'text'=>$text,
+                    'emitted'=>$dialogue['created_at']]);
+            $utterance=['speaker'=>$speaker,'addressee'=>$addressee,'audience'=>$audience,'text'=>$text,'speech_enabled'=>true];
+            $this->eventLog()->projectDialogue($m+['request_id'=>$turn['request_id']],$utterance,$dialogue['message_id'],$dialogue['created_at']);
+            $this->db->prepare('INSERT INTO speech (installation_id,playthrough_id,session_id,turn_id,dialogue_message_id,sess,speaker,speech,'
+                . 'location,listener,localts,gamets,ts,utterance_id,speaker_identity,listener_identity,audience,delivery_state,created_at) VALUES '
+                . '(:installation,:playthrough,:session,:turn,:dialogue,:sess,:speaker,:speech,:location,:listener,'
+                . 'extract(epoch FROM CAST(:created AS timestamptz))::bigint,:gamets,(extract(epoch FROM CAST(:created AS timestamptz))*1000)::bigint,'
+                . ':utterance,CAST(:speaker_identity AS jsonb),CAST(:listener_identity AS jsonb),CAST(:audience AS jsonb),\'emitted\',:created)')
+                ->execute(['installation'=>$m['installation_id'],'playthrough'=>$m['playthrough_id'],'session'=>$m['session_id'],
+                    'turn'=>$m['turn_id'],'dialogue'=>$dialogue['message_id'],'sess'=>$m['session_id'],
+                    'speaker'=>$speaker['display_name']??$speaker['record_id']??null,'speech'=>$text,
+                    'location'=>$m['payload']['context']['location']['name']??null,
+                    'listener'=>$addressee['display_name']??$addressee['record_id']??null,'created'=>$dialogue['created_at'],
+                    'gamets'=>(int)($m['payload']['context']['world']['game_time']??0),'utterance'=>$utteranceId,
+                    'speaker_identity'=>$this->encode($speaker),'listener_identity'=>$this->encode($addressee),
+                    'audience'=>$this->encode($audience)]);
+            $expiryJob=Uuid::v4();
+            $this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,next_run_at,priority) VALUES(:job,'dialogue.expire',1,:key,CAST(:payload AS jsonb),1,CAST(:deadline AS timestamptz),50)")
+                ->execute(['job'=>$expiryJob,'key'=>'dialogue:'.$dialogue['message_id'],
+                    'payload'=>$this->encode(['dialogue_message_id'=>$dialogue['message_id']]),
+                    'deadline'=>(new \DateTimeImmutable($dialogue['created_at']))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')]);
+            $this->db->prepare('UPDATE dialogue_utterances SET expiry_job_id=:job WHERE dialogue_message_id=:id')
+                ->execute(['job'=>$expiryJob,'id'=>$dialogue['message_id']]);
+            return ['event'=>$dialogue,'dialogue_message_id'=>$dialogue['message_id'],'line_id'=>$lineId,
+                'utterance_id'=>$utteranceId,'text'=>$text,'speaker'=>$speaker,'addressee'=>$addressee,
+                'audience'=>$audience,'utterance_index'=>$index];
+        });
+    }
+
+    /** Queue durable synthesis only when the CHIM-style inline attempt cannot publish media. */
+    public function queueStreamedDialogueSpeech(array $m, array $dialogue, array $fence): void
+    {
+        $this->transaction(function () use ($m, $dialogue, $fence): void {
+            $this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
+            $id=(string)($dialogue['dialogue_message_id']??'');
+            $text=(string)($dialogue['text']??'');
+            $this->db->prepare("INSERT INTO durable_jobs (job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
+                . "VALUES (:job,'speech.synthesize',1,:key,CAST(:payload AS jsonb),3,90) ON CONFLICT (job_type,idempotency_key) DO NOTHING")
+                ->execute(['job'=>Uuid::v4(),'key'=>'speech:'.$id,
+                    'payload'=>$this->encode(['dialogue_message_id'=>$id,'tts_text'=>$text])]);
+        });
+    }
+
+    /** Publish media generated inline by the turn worker while the remaining provider stream continues. */
+    public function completeStreamedDialogueSpeech(array $m, array $dialogue, array $speech, array $fence): array
+    {
+        return $this->transaction(function () use ($m, $dialogue, $speech, $fence): array {
+            $turn=$this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
+            $id=(string)($dialogue['dialogue_message_id']??'');
+            $exists=$this->db->prepare('SELECT 1 FROM dialogue_utterances WHERE dialogue_message_id=:id FOR UPDATE');
+            $exists->execute(['id'=>$id]);
+            if(!$exists->fetchColumn())throw new \OutOfBoundsException('dialogue_not_found');
+            $insert=$this->db->prepare('INSERT INTO media_objects (media_id,installation_id,session_id,turn_id,generation,sha256,byte_count,'
+                . 'codec,mime_type,duration_ms,expires_at,dialogue_message_id) VALUES (:id,:installation,:session,:turn,:generation,:sha,:bytes,'
+                . ':codec,:mime,:duration,:expires,:dialogue) ON CONFLICT (dialogue_message_id) DO NOTHING');
+            $insert->execute(['id'=>$speech['media_id'],'installation'=>$m['installation_id'],'session'=>$m['session_id'],
+                'turn'=>$m['turn_id'],'generation'=>$m['generation'],'sha'=>$speech['sha256'],'bytes'=>$speech['bytes'],
+                'codec'=>$speech['codec'],'mime'=>$speech['mime_type'],'duration'=>$speech['duration_ms'],
+                'expires'=>$speech['expires_at'],'dialogue'=>$id]);
+            if($insert->rowCount()===0)return[];
+            $descriptor=$speech;unset($descriptor['mime_type']);$descriptor['dialogue_message_id']=$id;
+            return $this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],'speech.ready',$descriptor);
+        });
+    }
+
+    public function completeTurn(array $m, array $providerResult, ?array $speech = null, ?array $fence = null,
+        bool $queueSpeech = false, array $streamedDialogues = []): array
+    {
+        return $this->transaction(function () use ($m, $providerResult, $speech, $fence, $queueSpeech, $streamedDialogues): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
@@ -439,7 +532,7 @@ final class Repository
             }
             $this->validateProviderResult($providerResult, $session, $m);
             $canonical = $this->validatedCanonicalResponse(
-                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult));
+                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult, $streamedDialogues));
             $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
                 'response.complete',$canonical,$canonical['response_id']);
             $dialogueLines = array_values(array_filter($canonical['lines'],
@@ -456,6 +549,18 @@ final class Repository
                 $utterance = ['speaker' => $line['speaker_identity'], 'addressee' => $line['listener_identity'],
                     'audience' => $audience, 'text' => $line['text'],
                     'speech_enabled' => ($line['metadata']['speech_enabled'] ?? true) !== false];
+                $streamed=$streamedDialogues[$index]??null;
+                if($streamed!==null){
+                    $dialogue=$streamed['event'];
+                    $this->db->prepare('UPDATE dialogue_utterances SET utterance_count=:count,text=:text WHERE dialogue_message_id=:id')
+                        ->execute(['count'=>count($dialogueLines),'text'=>$utterance['text'],'id'=>$dialogue['message_id']]);
+                    $this->db->prepare("UPDATE responselog SET tag='response.line',actor=:actor,text=:text,action='say',"
+                        . 'actor_identity=CAST(:identity AS jsonb),payload=CAST(:payload AS jsonb) WHERE response_message_id=:message')
+                        ->execute(['actor'=>$line['display_name'],'text'=>$line['text'],'identity'=>$this->encode($line['speaker_identity']),
+                            'payload'=>$this->encode($line),'message'=>$line['line_id']]);
+                    $dialogues[]=$dialogue;
+                    continue;
+                }
                 $dialogue = $this->event($m['session_id'], $m['generation'], $turn['request_id'], $m['turn_id'], 'dialogue.complete', [
                     'speaker' => $utterance['speaker'], 'addressee' => $utterance['addressee'], 'text' => $line['subtitle'],
                 ], $line['line_id']);

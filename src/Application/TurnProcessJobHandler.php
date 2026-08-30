@@ -6,6 +6,7 @@ namespace LORKHANserver\Application;
 
 use LORKHANserver\Infrastructure\MediaStore;
 use LORKHANserver\Infrastructure\ProviderAttemptRepository;
+use LORKHANserver\Infrastructure\ProductRepository;
 use LORKHANserver\Infrastructure\Repository;
 use LORKHANserver\Infrastructure\Uuid;
 use DomainException;
@@ -23,6 +24,8 @@ final class TurnProcessJobHandler implements JobHandler
         private readonly int $timeoutMs = 1000,
         private readonly array $providerConfig = [],
         private readonly ?TranslationProvider $translationProvider = null,
+        private readonly ?SpeechProvider $speechProvider = null,
+        private readonly ?ProductRepository $products = null,
     ) {}
 
     public function supports(string $jobType, int $schemaVersion): bool
@@ -58,16 +61,25 @@ final class TurnProcessJobHandler implements JobHandler
         });
         try {
             $policy=$this->translationPolicy($message);
-            $progress = function (string $delta) use ($message, $fence, $policy): void {
+            $streamedDialogues=[];
+            $streamSpeech=$this->canStreamSpeech($message,$policy);
+            $progress = function (string $delta) use ($message, $fence, $policy, $job, $token, $streamSpeech, &$streamedDialogues): void {
                 if($policy['content']['translate_text'])return;
-                if ($delta !== '') $this->repository->appendDialogueDelta($message, $delta, $fence);
+                if($delta==='')return;
+                $this->repository->appendDialogueDelta($message,$delta,$fence);
+                if(!$streamSpeech||str_contains($delta,'*')||count($streamedDialogues)>=4)return;
+                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,count($streamedDialogues)+1);
+                $streamedDialogues[]=$dialogue;
+                if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$token))
+                    $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
+            if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues);
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
-            $this->repository->completeTurn($message, $result, null, $fence, $queueSpeech);
+            $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
         } catch (OperationCancelled) {
             if (!$this->repository->isTurnCancellationRequested($sessionId, $turnId, $generation)) {
                 $this->repository->failTurn($message, 'provider_timeout', $fence);
@@ -79,6 +91,73 @@ final class TurnProcessJobHandler implements JobHandler
             $this->repository->failTurn($message, $this->providerFailureCode($error), $fence);
             return;
         }
+    }
+
+    /** Stream speech only where speaker routing and presentation text cannot change after provider completion. */
+    private function canStreamSpeech(array $message,array $policy):bool
+    {
+        if($this->mediaStore===null||$this->products===null
+            ||!in_array('speech.say',$message['_negotiated_capabilities'],true)
+            ||$policy['content']['translate_text']||$policy['content']['translate_audio'])return false;
+        $mode=(string)($message['_narrator_profile']['content']['inline_narration_mode']??'Disabled');
+        if($mode!=='Disabled')return false;
+        $planner=new DialoguePlanner();$identities=[];
+        try{
+            foreach(array_merge([$message['payload']['target']],$message['payload']['audience'])as$identity)
+                $identities[$planner->identityKey($identity)]=true;
+        }catch(Throwable){return false;}
+        return count($identities)===1;
+    }
+
+    /** Generate and publish one sentence inline, leaving its durable speech job as failure fallback. */
+    private function synthesizeStreamedDialogue(array $message,array $dialogue,array $fence,array $job,CancellationToken $token):bool
+    {
+        $mediaId=null;$attemptId=Uuid::v4();
+        try{
+            $preset=$this->products?->connectorForActor((string)$message['installation_id'],
+                (string)$message['playthrough_id'],(array)$dialogue['speaker'],'tts_provider');
+            $preset??=$this->products?->connectorForInstallation((string)$message['installation_id'],'tts_provider');
+            $provider=$preset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
+            if($provider===null)return false;
+            $context=$this->products?->speechContext((string)$message['installation_id'],
+                (string)$message['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+            $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
+                $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+                $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+            $this->attempts?->start($attemptId,'tts',$providerName,'synthesize_streamed',(int)$dialogue['utterance_index'],
+                $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen((string)$dialogue['text']),
+                metadata:['job'=>true,'streamed'=>true,'utterance_index'=>$dialogue['utterance_index'],
+                    'configuration_id'=>$preset['configuration_id']??null,'configuration_revision'=>$preset['revision']??null]);
+            $generated=$provider->synthesize((string)$dialogue['text'],$token,$context);$token->throwIfCancellationRequested();
+            $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
+            $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),'codec'=>$generated['codec'],
+                'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
+                'expires_at'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')];
+            $event=$this->repository->completeStreamedDialogueSpeech($message,$dialogue,$speech,$fence);
+            if($event===[]){$this->mediaStore->delete($mediaId);$mediaId=null;}
+            $this->attempts?->finish($attemptId,'succeeded',strlen($generated['bytes']));
+            return true;
+        }catch(OperationCancelled $error){
+            if($mediaId!==null)$this->mediaStore?->delete($mediaId);
+            try{$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');}catch(Throwable){}
+            throw$error;
+        }catch(Throwable){
+            if($mediaId!==null)$this->mediaStore?->delete($mediaId);
+            try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+            return false;
+        }
+    }
+
+    /** Reuse streamed sentence identities only when they exactly reconstruct the validated provider text. */
+    private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues):array
+    {
+        $planned=(new DialoguePlanner())->plan($message,$result);
+        $finalText=implode("\n",array_column($planned,'_history_text'));
+        $streamedText=implode('',array_column($streamedDialogues,'text'));
+        if($finalText!==$streamedText)throw new DomainException('provider_invalid_output');
+        $utterances=[];
+        foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']];
+        return['utterances'=>$utterances,'action'=>$result['action']??null];
     }
 
     /** Resolve only the frozen policy snapshot accepted with this turn. */

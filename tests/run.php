@@ -246,10 +246,12 @@ foreach([
     catch(InvalidArgumentException){$check(true,'unsafe or untyped LLM connector rejected');}
 }
 $streamText=new StreamingDialogueText();$streamChunks=[];
-foreach(['{"utterances":[{"text":"Hello ','there. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
+foreach(['{"utterances":[{"text":"Hello there, ','traveler. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
     foreach($streamText->push($chunk,$index===2) as $delta)$streamChunks[]=$delta;
-$check(implode('',$streamChunks)==='Hello there. Welcome to Balmora!',
+$check(implode('',$streamChunks)==='Hello there, traveler. Welcome to Balmora!',
     'streaming dialogue exposes only decoded utterance text in bounded deltas');
+$check($streamChunks===['Hello there, traveler. ','Welcome to Balmora!'],
+    'streaming dialogue releases complete CHIM-style sentence chunks');
 $actionProvider = new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key');
 $normalizeAction = new ReflectionMethod($actionProvider, 'normalizeAction');
 $normalizedAction = $normalizeAction->invoke($actionProvider,
