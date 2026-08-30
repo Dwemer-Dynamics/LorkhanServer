@@ -5,7 +5,7 @@ are duplicated for independent release but their manifest hashes must be identic
 
 ## Transport and authentication
 
-- Base URL: `http://127.0.0.1:8089/LORKHANserver/api/v1`.
+- Windows client base URL: `http://127.0.0.1:7514/LORKHANserver/api/v1` through DwemerDistro Launcher; Apache listens on WSL port `8090`.
 - Native client uses `hmac-sha256-v1` request MAC headers binding installation, timestamp, unique nonce, body digest, canonical method/target/content type; the 256-bit pairing key is not transmitted routinely and bearer authentication is rejected.
 - JSON content type is strict UTF-8. STT uses authenticated `application/octet-stream` WAV bodies plus typed `X-LORKHAN-*` metadata headers.
 - Responses use ordered bounded long polling at `/events`, not an unbounded server socket.
