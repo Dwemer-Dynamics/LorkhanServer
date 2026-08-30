@@ -138,15 +138,30 @@ function lorkhan_roleplay_eventlog(array $state,string $apiPath,string $csrf,boo
     if($scope!==[])echo'<div class="eventlog-scope"><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span></div>';
     echo'<div class="roleplay-toolbar eventlog-toolbar"><div class="eventlog-live-controls"><button type="button" class="roleplay-button '.($autoRefresh?'':'active').'" data-eventlog-live>'.($autoRefresh?'&#x23F8;&#xFE0F; Stop Live':'Auto Refresh').'</button><span class="eventlog-live-indicator" data-eventlog-live-indicator'.($autoRefresh?'':' hidden').'>LIVE</span></div><div class="delete-controls"><button type="button" class="roleplay-button danger" data-eventlog-delete-selected hidden>Delete Selected (<span data-eventlog-selected-count>0</span>)</button><select data-eventlog-delete-preset><option value="5">Delete Latest 5</option><option value="10">Delete Latest 10</option><option value="20">Delete Latest 20</option><option value="50">Delete Latest 50</option><option value="100">Delete Latest 100</option><option value="all">Delete ALL</option></select><button type="button" class="roleplay-button danger" data-eventlog-delete>Delete</button></div></div>';
     echo'<div data-eventlog-status role="status"></div>';
+    $rows=is_array($state['data']??null)?$state['data']:[];
+    $count=lorkhan_eventlog_count_label(count($rows),$pagination);
     echo'<div class="roleplay-list-controls"><div class="pagination-shape" data-eventlog-pagination>';
     lorkhan_eventlog_pagination($pagination);
-    echo'</div><div class="eventlog-hide-controls"><label>Hide:<select data-eventlog-hide><option value="">Hide event...</option>';
+    echo'</div><p class="roleplay-result-count" data-eventlog-count>'.lorkhan_ui_h($count).'</p>';
+    echo'<div class="eventlog-hide-controls"><label>Hide:<select data-eventlog-hide><option value="">Hide event...</option>';
     foreach(($state['event_types']??[])as$type){$value=(string)($type['type']??'');if($value!=='')echo'<option value="'.lorkhan_ui_h($value).'">'.lorkhan_ui_h($value).'</option>';}
     echo'</select></label><span data-eventlog-hidden>';
     foreach(($state['hidden_types']??[])as$type)echo'<button type="button" class="eventlog-hidden-chip" data-eventlog-show-type="'.lorkhan_ui_h($type).'">'.lorkhan_ui_h($type).' &times;</button>';
     echo'</span></div></div><div id="eventlog-table-container" class="roleplay-data table-responsive" data-eventlog-table>';
-    lorkhan_eventlog_table(is_array($state['data']??null)?$state['data']:[]);
-    echo'</div></div>';
+    lorkhan_eventlog_table($rows);
+    // Herika repeats its pager under the table so a long page never strands the control.
+    echo'</div><div class="roleplay-list-controls roleplay-list-footer"><div class="pagination-shape" data-eventlog-pagination>';
+    lorkhan_eventlog_pagination($pagination);
+    echo'</div><p class="roleplay-result-count" data-eventlog-count>'.lorkhan_ui_h($count).'</p></div></div>';
+}
+
+/** Describe the visible slice of the paged event log using only counts the repository already returned. */
+function lorkhan_eventlog_count_label(int $shown,array $pagination):string
+{
+    $total=max(0,(int)($pagination['total_records']??0));
+    $page=max(1,(int)($pagination['current_page']??1));
+    $pages=max(1,(int)($pagination['total_pages']??0));
+    return 'Showing '.$shown.' of '.$total.' event'.($total===1?'':'s').' · Page '.$page.' of '.$pages;
 }
 
 /** Render CHIM smart pagination without embedding executable script in the CSP-locked page. */
@@ -208,11 +223,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             ];
         ?>
             <section id="<?php echo lorkhan_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
-                <?php if($tabId==='eventlog'){lorkhan_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{ ?><div class="tab-panel-inner roleplay-panel" data-roleplay-panel><h2 class="visually-hidden"><?php echo lorkhan_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo lorkhan_ui_h($heading); ?>:</strong> <?php echo lorkhan_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo lorkhan_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-list-controls"><div class="pagination-shape"><button type="button" class="active">1</button><button type="button" disabled>Next</button></div><label>Filter:<input type="search" placeholder="Search <?php echo lorkhan_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><div class="roleplay-data" data-roleplay-data><?php
+                <?php if($tabId==='eventlog'){lorkhan_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{
+                    // Static tabs expose one bounded snapshot; do not imply that the UI can page it.
+                    $recordCount=count($rows);
+                    $countLabel='Showing '.$recordCount.' bounded record'.($recordCount===1?'':'s');
+                ?><div class="tab-panel-inner roleplay-panel" data-roleplay-panel data-roleplay-total="<?php echo $recordCount; ?>"><h2 class="visually-hidden"><?php echo lorkhan_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo lorkhan_ui_h($heading); ?>:</strong> <?php echo lorkhan_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled aria-label="Delete records"><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo lorkhan_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-list-controls"><p class="roleplay-result-count" role="status" data-roleplay-count><?php echo lorkhan_ui_h($countLabel); ?></p><label>Filter:<input type="search" placeholder="Search <?php echo lorkhan_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><?php
+                    if(in_array($tabId,['adventure','diaries'],true))echo'<p class="roleplay-actions"><a class="roleplay-button roleplay-button-link" href="'.lorkhan_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';
+                ?><div class="roleplay-data" data-roleplay-data><?php
                     if($tabId==='memory')lorkhan_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf,$memoryPolicies,$memoryConnectors,$webRoot,$memoryEmbeddingPolicy??null);
-                    elseif(in_array($tabId,['adventure','diaries'],true)){echo'<p><a class="btn-base btn-primary" href="'.lorkhan_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';lorkhan_ui_table($rows,$emptyMessage);}
                     else lorkhan_ui_table($rows,$emptyMessage);
-                ?></div></div><?php } ?>
+                ?></div><div class="roleplay-list-controls roleplay-list-footer"><p class="roleplay-result-count" data-roleplay-count><?php echo lorkhan_ui_h($countLabel); ?></p></div></div><?php } ?>
             </section>
         <?php endforeach; ?>
         <?php foreach (['questgen'=>'roleplay.quest-manager','backgroundlife'=>'roleplay.background-life'] as $tabId=>$featureId): if($activeTab!==$tabId)continue;$feature=lorkhan_ui_feature($featureId); ?>

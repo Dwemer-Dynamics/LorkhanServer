@@ -43,11 +43,28 @@
 
 .widget-header h3 { margin: 0; color: #f8f9fa; font-size: 1.2em; }
 .widget-content { padding: 15px; color: #d4d4d4; }
+
+/* Herika gives every in-widget subheading the same rhythm as its quest-list heading. */
+.widget-content h4 { margin: 0 0 15px; color: #f8f9fa; font-size: 1.1em; }
+
+/* One intentional scroller per widget table: the wrapper scrolls, the Bootstrap
+   .table-responsive that lorkhan_ui_table() emits inside it does not. */
 .widget-table { overflow-x: auto; }
-.widget-table table { width: 100%; border-collapse: collapse; }
-.widget-table th,
-.widget-table td { padding: 8px; text-align: left; border-bottom: 1px solid #3a3a3a; }
-.widget-table th { background: #1a1a1a; color: #f8f9fa; }
+.widget-table > .table-responsive { max-height: none; overflow: visible; }
+.widget-table table { width: 100%; margin: 0; border-collapse: collapse; font-size: small; --bs-table-bg: transparent; --bs-table-color: #d4d4d4; --bs-table-hover-bg: rgba(188, 157, 90, .05); --bs-table-hover-color: #f8f9fa; }
+.widget-table table th,
+.widget-table table td { padding: 8px; border: 0; border-bottom: 1px solid #3a3a3a; text-align: left; vertical-align: top; line-height: 1.5; overflow-wrap: anywhere; }
+.widget-table table th { background: #1a1a1a; color: #f8f9fa; font-weight: 700; }
+.widget-table table tr:last-child td { border-bottom: 0; }
+
+/* Long Morrowind dialogue wraps in place instead of forcing the widget to scroll. */
+.widget-dialogue-table table { table-layout: fixed; }
+.widget-dialogue-table table th:first-child,
+.widget-dialogue-table table td:first-child { width: 50%; }
+.widget-dialogue-table table th:nth-child(2),
+.widget-dialogue-table table td:nth-child(2),
+.widget-dialogue-table table th:nth-child(3),
+.widget-dialogue-table table td:nth-child(3) { width: 25%; }
 
 .widget-stats {
     display: grid;
@@ -87,9 +104,28 @@
 .dashboard-btn:hover { background: #3a3a3a; color: #f8f9fa; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, .3); }
 .dashboard-btn:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
 .dashboard-btn .btn-icon { margin-right: 8px; font-size: 1.1em; }
-.word-cloud { display: flex; flex-wrap: wrap; gap: 8px; }
-.word-chip { padding: 5px 9px; border: 1px solid #3a3a3a; border-radius: 999px; background: #1a1a1a; }
-.empty-state { color: #6c757d; }
+/* Herika's word cloud is a CDN d3 layout. LORKHAN keeps CSP-safe chips and matches
+   the panel geometry, the accent count band, and the size-by-frequency reading order
+   with five CSS-only tiers driven by the counts already in the page. */
+.word-cloud-container { padding: 20px; border-radius: 8px; background: #1a1a1a; }
+.word-count-display { margin: 0 0 20px; padding: 10px; min-height: 30px; color: rgba(188, 157, 90, .9); font-size: 24px; font-weight: bold; text-align: center; }
+.word-cloud { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 8px 12px; }
+.word-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 9px; border: 1px solid #3a3a3a; border-radius: 999px; background: #232323; line-height: 1.2; }
+.word-chip-text { color: #d9c18c; font-weight: 700; }
+.word-chip-count { color: #6c757d; font-size: .72rem; font-variant-numeric: tabular-nums; }
+.word-tier-1 .word-chip-text { font-size: .9rem; opacity: .72; }
+.word-tier-2 .word-chip-text { font-size: 1.05rem; opacity: .82; }
+.word-tier-3 .word-chip-text { font-size: 1.25rem; opacity: .9; }
+.word-tier-4 .word-chip-text { font-size: 1.5rem; }
+.word-tier-5 .word-chip-text { font-size: 1.85rem; }
+
+/* Herika gives an empty widget the same deliberate height as a populated one. */
+.empty-state { margin: 0; padding: 40px 20px; border-radius: 8px; background: #1a1a1a; color: #6c757d; font-size: 1.1em; text-align: center; }
+
+/* Latest Diary Entry keeps Herika's inset reading panel without its Skyrim paper art. */
+.diary-entry { max-width: 1200px; margin: 0 auto; padding: 25px; border-radius: 8px; background: #1a1a1a; }
+.diary-entry h4 { margin: 0 0 15px; color: #f8f9fa; font-size: 1.1em; }
+.diary-entry-body { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
 
 @media (max-width: 768px) {
     .dashboard-container { grid-template-columns: 1fr; }
@@ -97,4 +133,17 @@
     .dashboard-buttons { gap: 8px; }
     .dashboard-btn { padding: 6px 12px; font-size: .8em; }
     .home-version-info { align-items: flex-start; }
+    .word-cloud-container { padding: 12px; }
+    .word-count-display { margin-bottom: 12px; padding: 6px; font-size: 18px; }
+    .word-cloud { gap: 6px 8px; }
+    .word-tier-4 .word-chip-text { font-size: 1.3rem; }
+    .word-tier-5 .word-chip-text { font-size: 1.5rem; }
+    .empty-state { padding: 28px 16px; font-size: 1em; }
+    .diary-entry { padding: 16px; }
+    .widget-dialogue-table table th:first-child,
+    .widget-dialogue-table table td:first-child { width: 46%; }
+    .widget-dialogue-table table th:nth-child(2),
+    .widget-dialogue-table table td:nth-child(2),
+    .widget-dialogue-table table th:nth-child(3),
+    .widget-dialogue-table table td:nth-child(3) { width: 27%; }
 }

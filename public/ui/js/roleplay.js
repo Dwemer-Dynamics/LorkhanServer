@@ -1,11 +1,21 @@
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('[data-roleplay-panel]').forEach((panel) => {
     const search = panel.querySelector('[data-roleplay-search]');
+    const counts = panel.querySelectorAll('[data-roleplay-count]');
+    const total = Number(panel.dataset.roleplayTotal || 0);
     search?.addEventListener('input', () => {
       const query = search.value.trim().toLowerCase();
-      panel.querySelectorAll('[data-roleplay-data] table tbody tr, [data-roleplay-data] .profile-card').forEach((row) => {
-        row.hidden = Boolean(query) && !row.textContent.toLowerCase().includes(query);
+      const rows = panel.querySelectorAll('[data-roleplay-data] table tbody tr, [data-roleplay-data] .profile-card');
+      let shown = 0;
+      rows.forEach((row) => {
+        const hidden = Boolean(query) && !row.textContent.toLowerCase().includes(query);
+        row.hidden = hidden;
+        if (!hidden) shown += 1;
       });
+      const label = query
+        ? `Showing ${shown} of ${total} bounded record${total === 1 ? '' : 's'}`
+        : `Showing ${total} bounded record${total === 1 ? '' : 's'}`;
+      counts.forEach((element) => { element.textContent = label; });
     });
     panel.querySelector('[data-roleplay-refresh]')?.addEventListener('click', () => window.location.reload());
   });
@@ -26,7 +36,8 @@ document.addEventListener('DOMContentLoaded', () => {
     busy: false,
   };
   const tableRoot = app.querySelector('[data-eventlog-table]');
-  const pagination = app.querySelector('[data-eventlog-pagination]');
+  const paginations = app.querySelectorAll('[data-eventlog-pagination]');
+  const counts = app.querySelectorAll('[data-eventlog-count]');
   const hiddenRoot = app.querySelector('[data-eventlog-hidden]');
   const hideSelect = app.querySelector('[data-eventlog-hide]');
   const liveButton = app.querySelector('[data-eventlog-live]');
@@ -158,7 +169,17 @@ document.addEventListener('DOMContentLoaded', () => {
       });
       if (page < pages) items.push(button('Next', page + 1));
     }
-    pagination.replaceChildren(...items);
+    paginations.forEach((target, index) => {
+      target.replaceChildren(...(index === 0 ? items : items.map((item) => item.cloneNode(true))));
+    });
+  };
+
+  const renderCount = (shown, data) => {
+    const total = Math.max(0, Number(data.total_records || 0));
+    const page = Math.max(1, Number(data.current_page || 1));
+    const pages = Math.max(1, Number(data.total_pages || 0));
+    const label = `Showing ${shown} of ${total} event${total === 1 ? '' : 's'} · Page ${page} of ${pages}`;
+    counts.forEach((element) => { element.textContent = label; });
   };
 
   const renderFilters = (data) => {
@@ -216,6 +237,7 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       renderTable(data.data || []);
       renderPagination(data.pagination || {});
+      renderCount((data.data || []).length, data.pagination || {});
       renderFilters(data);
       history.replaceState({}, '', pageUrl());
       status.textContent = '';
@@ -238,6 +260,10 @@ document.addEventListener('DOMContentLoaded', () => {
         body?.querySelector('.eventlog-empty')?.remove();
         events.slice().reverse().forEach((event) => body?.prepend(buildRow(event, true)));
         state.cursor = Math.max(state.cursor, ...events.map((event) => Number(event.rowid)));
+        const visible = app.querySelectorAll('[data-eventlog-row]').length;
+        counts.forEach((element) => {
+          element.textContent = `Showing ${visible} live event${visible === 1 ? '' : 's'} · Page ${state.page}`;
+        });
         status.textContent = `${events.length} new event${events.length === 1 ? '' : 's'}`;
         status.className = 'eventlog-status success';
       }
