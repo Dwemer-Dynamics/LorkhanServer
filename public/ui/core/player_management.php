@@ -117,7 +117,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </form>
             <?php endif; ?>
 
-            <form id="player-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'player-profile-create' : 'player-profile-revise'; ?>">
+            <form id="player-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'player-profile-create' : 'player-profile-revise'; ?>" data-track-dirty>
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                 <?php if ($profile !== null): ?>
@@ -126,7 +126,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <input type="hidden" name="change_reason" value="Management player update">
                 <?php endif; ?>
 
-                <button type="submit" class="btn-save">Save Player Settings</button>
+                <div class="player-save-row"><button type="submit" class="btn-save">Save Player Settings</button><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span></div>
 
                 <div class="content-grid player-overview-grid">
                     <section class="content-section">
@@ -195,8 +195,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </section>
                 </div>
 
-                <button type="submit" class="btn-save">Save Player Settings</button>
-                <?php if ($profile !== null): ?><span class="revision-meta">Revision <?php echo lorkhan_ui_h($profile['current_revision']); ?> &middot; <?php echo lorkhan_ui_h($profile['input_count']); ?> observed player messages</span><?php endif; ?>
+                <div class="player-save-row"><button type="submit" class="btn-save">Save Player Settings</button><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><?php if ($profile !== null): ?><span class="revision-meta">Revision <?php echo lorkhan_ui_h($profile['current_revision']); ?> &middot; <?php echo lorkhan_ui_h($profile['input_count']); ?> observed player messages</span><?php endif; ?></div>
             </form>
 
             <?php if ($profile !== null): ?>
@@ -275,5 +274,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
-<?php if ($profile !== null): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

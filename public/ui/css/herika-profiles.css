@@ -1125,6 +1125,17 @@ body.profile-test-open {
     .profiles-page .profile-test-footer button { flex: 1 1 140px; }
 }
 
+.profiles-page .profile-editor-actions,
+.profiles-page .profile-import-toolbar-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; }
+.profiles-page .unsaved-indicator { color: #d8bd82; font-size: .78rem; font-weight: 700; }
+
+@media (max-width: 620px) {
+    .profiles-page .profile-editor-actions,
+    .profiles-page .profile-import-toolbar-actions { justify-content: stretch; }
+    .profiles-page .profile-editor-actions > *,
+    .profiles-page .profile-import-toolbar-actions > * { flex: 1 1 auto; text-align: center; }
+}
+
 /* Core Profile assignment-rule dialog opened from the sidebar Rules control. */
 body.profile-rules-open {
     overflow: hidden;
