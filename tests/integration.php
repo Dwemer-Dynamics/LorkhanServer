@@ -79,7 +79,8 @@ $defaultRows=$db->prepare("SELECT c.name,r.content FROM configuration_sets c JOI
     ."ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation "
     ."AND c.deleted_at IS NULL ORDER BY c.kind,c.name");
 $defaultRows->execute(['installation'=>$defaultInstallationId]);$defaultConfigurations=$defaultRows->fetchAll();
-$defaultModels=[];foreach($defaultConfigurations as$configuration){$content=json_decode((string)$configuration['content'],true,16,JSON_THROW_ON_ERROR);
+$defaultModels=[];$defaultPromptFormat=null;foreach($defaultConfigurations as$configuration){$content=json_decode((string)$configuration['content'],true,16,JSON_THROW_ON_ERROR);
+    if($configuration['name']==='Roleplay Dialogue')$defaultPromptFormat=$content['format']??null;
     if(($content['driver']??null)==='configured')$defaultModels[(string)$configuration['name']]=$content['model']??null;}
 $assert($defaultModels===[
     'DeepSeek Chat V3.2'=>'deepseek/deepseek-v3.2','GLM 4.7'=>'z-ai/glm-4.7','GLM 5'=>'z-ai/glm-5',
@@ -96,6 +97,7 @@ $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):boo
 $defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
 $defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();
 $assert($defaultPromptRow&&$defaultPromptRow['custom_prompt']===null
+    &&$defaultPromptFormat===null
     &&str_contains((string)$defaultPromptRow['default_prompt'],'selected Morrowind actor')
     &&str_contains((string)$defaultPromptRow['description'],'CHIM-style roleplay prompt'),
     'new installation did not receive the editable CHIM-style default roleplay prompt');
@@ -584,14 +586,16 @@ $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
     &&str_contains((string)($promptMessages[0]['content']??''),'ai.follow parameters:')
-    &&str_contains((string)($promptMessages[0]['content']??''),'&quot;const&quot;:192'),
+    &&str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
     'accepted turn did not freeze the server-negotiated catalog contract before prompt assembly');
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
     &&($promptMessages[0]['role']??null)==='system'
-    &&str_contains((string)($promptMessages[0]['content']??''),'<roleplay_instructions>')
-    &&str_contains((string)($promptMessages[0]['content']??''),'<character>')
-    &&str_contains((string)($promptMessages[0]['content']??''),'<general_instructions>')
+    &&str_contains((string)($promptMessages[0]['content']??''),'# Roleplay Context')
+    &&str_contains((string)($promptMessages[0]['content']??''),'- **Roleplay Instructions:**')
+    &&str_contains((string)($promptMessages[0]['content']??''),'## NPC Context')
+    &&str_contains((string)($promptMessages[0]['content']??''),'- **General Instructions:**')
+    &&($snapshot['trace']['algorithm']??null)==='chim-compact-roleplay-prompt-v3-markdown'
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
     &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
     &&($snapshot['trace']['player_mood_cue']??null)==='(Player answers in a playful voice.)'
@@ -1799,18 +1803,15 @@ $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatActionCount=(int)$rechatActions->fetchColumn();
     $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
     $rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
-    preg_match('#<conversation_context>(.*?)</conversation_context>#s',$assembledRechatPrompt,$rechatConversationMatch);
-    $rechatConversation=(string)($rechatConversationMatch[1]??'');
     $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
     &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)===2
     &&($rechatMessages[0]['role']??null)==='system'
-    &&str_contains((string)($rechatMessages[0]['content']??''),'<conversation_context>')
     &&($rechatMessages[array_key_last($rechatMessages)]['role']??null)==='user'
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Dialogue turn for Mudcrab.')
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),'Close mode audience:')
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$secondaryTarget['display_name'])
     &&str_contains((string)($rechatMessages[array_key_last($rechatMessages)]['content']??''),$speakerIdentity['display_name'])
-    &&!str_contains($rechatConversation,'Please follow me.')
+    &&!str_contains($assembledRechatPrompt,'Please follow me.')
     &&!str_contains($assembledRechatPrompt,'"type":"turn.requested"')
     &&!str_contains($assembledRechatPrompt,'[fallback] Continue after the primary provider fails.')
     &&$firstRechatState&&$firstRechatState['state']==='awaiting_playback'

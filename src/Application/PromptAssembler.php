@@ -7,11 +7,10 @@ namespace LORKHANserver\Application;
 use InvalidArgumentException;
 use JsonException;
 
-/** Builds CHIM-style XML with compact system-owned chat history for one turn. */
+/** Builds one compact Markdown prompt with system-owned chat history for each turn. */
 final class PromptAssembler
 {
-    private const ALGORITHM = 'chim-compact-roleplay-prompt-v2';
-    private const MARKDOWN_ALGORITHM = 'chim-compact-roleplay-prompt-v3-markdown';
+    private const ALGORITHM = 'chim-compact-roleplay-prompt-v3-markdown';
     private const OGHMA_CONTRACT = 'oghma-parity-v1';
 
     /** @var array<string,int> */
@@ -195,8 +194,8 @@ final class PromptAssembler
 
         $providerInput = $this->providerInput($turn, $assembled, $messages);
         $trace = [
-            'algorithm' => $built['format'] === 'markdown' ? self::MARKDOWN_ALGORITHM : self::ALGORITHM,
-            'prompt_format' => $built['format'],
+            'algorithm' => self::ALGORITHM,
+            'prompt_format' => 'markdown',
             'input_sha256' => hash('sha256', $assembled),
             'input_bytes' => strlen($assembled),
             'truncated' => $truncated,
@@ -239,7 +238,7 @@ final class PromptAssembler
     }
 
     /**
-     * Construct the same broad XML families CHIM uses while keeping LORKHAN's typed response contract.
+     * Construct CHIM-equivalent context families while keeping LORKHAN's typed response contract.
      * @param list<array<string,mixed>> $memory
      * @param list<array{role:string,content:string,_source_id:string}> $historyMessages
      * @param list<array<string,mixed>> $relationships
@@ -341,41 +340,33 @@ final class PromptAssembler
             'current_turn' => $this->xmlTag('request', $this->currentTurnMessage($turn, $actorName, $playerName,
                 is_array($prompt['content'] ?? null) ? ($prompt['content']['player_mood_prompts'] ?? null) : null)),
         ];
+        $presentationSections = $sections;
+        $presentationSections['oghma_context'] = $this->oghmaKnowledgeMarkdown($knowledge, $knowledgeStatus);
         $renderXml = static function(array $bodies):string {
             $xml = '<roleplay_context>';
             foreach (self::SECTION_ORDER as $key => $_) $xml .= '<' . $key . '>' . $bodies[$key] . '</' . $key . '>';
             return $xml . '</roleplay_context>';
         };
-        $format = $this->promptFormat($prompt);
         $traceSystem = $renderXml($sections);
-        $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
+        $system = $this->markdownSystemPrompt($presentationSections);
         foreach (['conversation_context','morrowind_context','memory_context','relationships_factions',
             'player_narrator_context','npc_context','audience_speaker_rules'] as $optional) {
             if (strlen($system) <= $budget) break;
             $sections[$optional] = '';
+            $presentationSections[$optional] = '';
             if ($optional === 'conversation_context') {
                 $memoryState = MemoryPromptSelection::select($memoryCandidates, '', $this->maxSourceBytes);
                 $sections['memory_context'] = $memoryState['xml'];
+                $presentationSections['memory_context'] = $memoryState['xml'];
             }
             $traceSystem = $renderXml($sections);
-            $system = $format === 'markdown' ? $this->markdownSystemPrompt($sections) : $traceSystem;
+            $system = $this->markdownSystemPrompt($presentationSections);
         }
         if (strlen($system) > $budget) $system = $traceSystem = $this->minimalSystemPrompt($actorName, $playerName);
-        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState, 'format' => $format];
+        return ['system' => $system, 'trace_system' => $traceSystem, 'memory' => $memoryState];
     }
 
-    /** Read the presentation choice frozen into the selected prompt revision. */
-    private function promptFormat(array $prompt): string
-    {
-        $content = $prompt['content'] ?? [];
-        $format = is_array($content) && !array_is_list($content) ? ($content['format'] ?? 'xml') : 'xml';
-        if (!is_string($format) || !in_array($format, ['xml', 'markdown'], true)) {
-            throw new InvalidArgumentException('invalid_prompt_format');
-        }
-        return $format;
-    }
-
-    /** Present ordinary context as compact Markdown while preserving typed and protected XML contracts verbatim. */
+    /** Present every model-facing prompt section as compact Markdown. */
     private function markdownSystemPrompt(array $sections): string
     {
         $parts = ['# Roleplay Context'];
@@ -383,12 +374,33 @@ final class PromptAssembler
             $body = (string)($sections[$key] ?? '');
             if ($body === '') continue;
             $title = $this->promptLabel($key);
-            if (in_array($key, ['output_contract', 'oghma_context', 'negotiated_actions'], true)) {
-                $parts[] = '## ' . $title . "\n\n" . $body;
-                continue;
-            }
-            $parts[] = '## ' . $title . "\n\n" . $this->markdownXmlBody($body, 3);
+            $parts[] = '## ' . $title . "\n\n" . ($key === 'oghma_context'
+                ? $body : $this->markdownXmlBody($body, 3));
         }
+        return implode("\n\n", $parts);
+    }
+
+    /** Render authorized and denied Oghma articles without exposing XML to the model. */
+    private function oghmaKnowledgeMarkdown(array $rows, string $status): string
+    {
+        $parts = [];
+        foreach ($rows as $row) {
+            if (!is_array($row) || array_is_list($row)) continue;
+            $topic = trim((string)($row['topic'] ?? $row['title'] ?? ''));
+            if ($topic === '') continue;
+            $source = trim((string)($row['source'] ?? 'conversation')) ?: 'conversation';
+            $access = trim((string)($row['access_level'] ?? $row['access'] ?? 'denied')) ?: 'denied';
+            $article = ['### Article: ' . $topic, '- **Source:** ' . $source, '- **Access:** ' . $access];
+            if ($access === 'denied') {
+                $reason = trim((string)($row['reason'] ?? $row['access_reason'] ?? 'knowledge_classes_not_authorized'));
+                $article[] = '- **Denial Reason:** ' . $reason;
+            } else {
+                $article[] = '- **Content:** ' . trim((string)($row['content'] ?? ''));
+            }
+            $parts[] = implode("\n", $article);
+        }
+        if ($parts === []) return '';
+        array_unshift($parts, '- **Contract:** ' . self::OGHMA_CONTRACT . "\n- **Status:** " . $status);
         return implode("\n\n", $parts);
     }
 
@@ -441,11 +453,10 @@ final class PromptAssembler
 
     private function minimalSystemPrompt(string $actorName, string $playerName): string
     {
-        return '<roleplay_context>'
-            . $this->xmlTag('roleplay_instructions', "You are {$actorName} in Morrowind. Never speak as {$playerName}.")
-            . '<character>' . $this->xmlTag('name', $actorName) . '</character>'
-            . $this->xmlTag('general_instructions', "Write {$actorName}'s next dialogue line and return the required JSON object.")
-            . '</roleplay_context>';
+        return "# Roleplay Context\n\n## NPC Context\n\n"
+            . "- **Roleplay Instructions:** You are {$actorName} in Morrowind. Never speak as {$playerName}.\n\n"
+            . "- **Character:** {$actorName}\n\n"
+            . "- **General Instructions:** Write {$actorName}'s next dialogue line and return the required JSON object.";
     }
 
     private function characterXml(array $turn, array $profile, string $actorName): string
