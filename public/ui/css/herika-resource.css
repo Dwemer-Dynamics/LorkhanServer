@@ -1,5 +1,15 @@
 /* Shared presentation extracted from the pinned HerikaServer configuration pages. */
-body.hub-page > main.lorkhan-page,
+
+/* An embedded page is rendered inside a hub iframe, so it must not reserve the
+   fixed-navbar band navbar.css adds to every body. tmpl/head.html appends
+   embedded-page for every ?embed=1 request, so this covers the thin Control and
+   standalone pages that previously started 80px below the frame top. */
+body.embedded-page { padding-top: 0; }
+
+/* Page-specific stylesheets load after this file. Keeping this selector at the
+   same specificity lets them own their own gutters instead of being outranked
+   by a body.hub-page > main.lorkhan-page descendant selector. */
+.lorkhan-page,
 body.configuration-resource > main.management-page {
     width: 100%;
     max-width: none;
@@ -7,7 +17,13 @@ body.configuration-resource > main.management-page {
     padding: 30px 5px 40px;
 }
 
-body.hub-page > main.lorkhan-page.embedded,
+/* A direct page keeps the stand-off that separates its header from the fixed
+   navbar; an embedded page leaves the top spacing to its own stylesheet. */
+body:not(.embedded-page) > main.lorkhan-page {
+    padding-top: 30px;
+    padding-bottom: 40px;
+}
+
 body.configuration-resource.embedded-page > main.management-page { padding-top: 30px; }
 
 .lorkhan-page-header,
