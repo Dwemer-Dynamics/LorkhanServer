@@ -1,4 +1,36 @@
 (() => {
+    const dirtyForms = new Set();
+
+    /** Mark explicitly opted-in editors dirty without applying the guard to action or upload forms. */
+    document.querySelectorAll('form[data-track-dirty]').forEach((form) => {
+        const setDirty = () => {
+            if (dirtyForms.has(form)) return;
+            dirtyForms.add(form);
+            form.classList.add('is-dirty');
+            form.querySelectorAll('[data-dirty-indicator]').forEach((indicator) => { indicator.hidden = false; });
+        };
+        const clearDirty = () => {
+            dirtyForms.delete(form);
+            form.classList.remove('is-dirty');
+            form.querySelectorAll('[data-dirty-indicator]').forEach((indicator) => { indicator.hidden = true; });
+        };
+        const handleChange = (event) => {
+            const control = event.target;
+            if (!(control instanceof HTMLElement) || control.matches('input[type="hidden"], button, [disabled]')) return;
+            setDirty();
+        };
+        form.addEventListener('input', handleChange);
+        form.addEventListener('change', handleChange);
+        form.addEventListener('submit', clearDirty);
+        form.addEventListener('reset', () => window.setTimeout(clearDirty, 0));
+    });
+
+    window.addEventListener('beforeunload', (event) => {
+        if (dirtyForms.size === 0) return;
+        event.preventDefault();
+        event.returnValue = '';
+    });
+
     document.querySelectorAll('[data-route-select]').forEach((control) => {
         control.addEventListener('change', () => {
             const option = control.options[control.selectedIndex];
@@ -17,7 +49,10 @@
                 return;
             }
             const reader = new FileReader();
-            reader.onload = () => { target.value = typeof reader.result === 'string' ? reader.result : ''; };
+            reader.onload = () => {
+                target.value = typeof reader.result === 'string' ? reader.result : '';
+                target.dispatchEvent(new Event('input', { bubbles: true }));
+            };
             reader.onerror = () => { picker.value = ''; window.alert('The JSON file could not be read.'); };
             reader.readAsText(file, 'UTF-8');
         });

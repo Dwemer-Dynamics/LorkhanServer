@@ -65,7 +65,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <main class="narrator-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="narrator-page-container">
-        <div class="page-header">
+        <div class="page-header lorkhan-page-head">
             <h1>&#x1F5E3;&#xFE0F; Narrator Management</h1>
             <p>Configure narrator behavior and settings</p>
         </div>
@@ -86,7 +86,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 </section>
             <?php endif; ?>
 
-            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'narrator-profile-create' : 'narrator-profile-revise'; ?>">
+            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'narrator-profile-create' : 'narrator-profile-revise'; ?>" data-track-dirty>
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                 <?php if ($profile !== null): ?>
@@ -96,6 +96,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 
                 <div class="narrator-save-row">
                     <button type="submit" class="narrator-save-button">Save Narration Settings</button>
+                    <span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span>
                 </div>
 
                 <div class="narrator-content-grid">
@@ -259,7 +260,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 
                 <?php if ($profile !== null): ?><section class="narrator-content-section narrator-full-width"><label for="narrator-revision-note">Revision Note</label><input id="narrator-revision-note" name="change_reason" required maxlength="512" value="Management narrator update"><span class="narrator-hint">Saved as revision <?php echo lorkhan_ui_h((int) $profile['current_revision'] + 1); ?> of the typed narrator profile.</span></section><?php endif; ?>
 
-                <div class="narrator-save-row"><button type="submit" class="narrator-save-button">Save Narration Settings</button></div>
+                <div class="narrator-save-row"><button type="submit" class="narrator-save-button">Save Narration Settings</button><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span></div>
             </form>
 
             <?php if ($profile !== null): ?>
@@ -306,5 +307,5 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
-<?php if ($profile !== null): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

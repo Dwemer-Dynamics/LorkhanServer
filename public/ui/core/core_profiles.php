@@ -157,10 +157,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <section class="llm-right">
                 <div class="form-container wide-centered">
                 <?php if ($importMode): ?>
-                    <form class="core-profile-form profile-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-settings-import">
+                    <form class="core-profile-form profile-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-settings-import" data-track-dirty>
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Importing Preset</div><div class="profile-editor-toolbar-name">Core Profile Settings</div></div><div class="profile-import-toolbar-actions"><a class="btn-base" href="<?php echo lorkhan_ui_h($queryFor([])); ?>">Cancel</a><button type="submit" class="btn-save">Import Preset</button></div></div>
+                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Importing Preset</div><div class="profile-editor-toolbar-name">Core Profile Settings</div></div><div class="profile-import-toolbar-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><a class="btn-base" href="<?php echo lorkhan_ui_h($queryFor([])); ?>">Cancel</a><button type="submit" class="btn-save">Import Preset</button></div></div>
                         <div class="connector-card profile-import-card">
                             <div class="connector-title">Settings Preset</div>
                             <div class="profile-import-fields">
@@ -175,10 +175,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $profileMeta = ['label' => '', 'slot' => null, 'default_npc' => false];
                     $coreProfileMode = 'create';
                 ?>
-                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-create">
+                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-create" data-track-dirty>
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Creating Profile</div><div class="profile-editor-toolbar-name">New Profile</div></div><button type="submit" class="btn-save">Create Profile</button></div>
+                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Creating Profile</div><div class="profile-editor-toolbar-name">New Profile</div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Create Profile</button></div></div>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                     </form>
                 <?php elseif ($selected !== null):
@@ -186,10 +186,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $profileMeta = $selected;
                     $coreProfileMode = 'edit';
                 ?>
-                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-save">
+                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-save" data-track-dirty>
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>">
-                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><button type="submit" class="btn-save">Save All</button></div>
+                        <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Save All</button></div></div>
                         <?php lorkhan_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                         <div class="connector-card profile-revision-card"><div class="connector-title">Revision Note</div><label>Change reason<input name="change_reason" required maxlength="512" value="Management Core Profile update"></label></div>
@@ -319,7 +319,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         </div>
     <?php endif; ?>
 </main>
-<?php if ($importMode): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
+<?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-assignment-rules.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-assignment-rules.js'); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

@@ -39,15 +39,27 @@ function initializeBiographyPage() {
     const detailsModal = document.getElementById('biography-details-modal');
     const loadError = document.getElementById('biography-load-error');
     const templateCache = new Map();
+    const modalTriggers = new WeakMap();
+    const displayTemplateName = (value) => String(value || '').replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+
+    function focusableControls(modal) {
+        return Array.from(modal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'))
+            .filter(function (control) { return control.getClientRects().length > 0; });
+    }
 
     function closeModal(modal) {
         modal.classList.remove('open');
         modal.setAttribute('aria-hidden', 'true');
+        const trigger = modalTriggers.get(modal);
+        if (trigger && trigger.isConnected) trigger.focus();
     }
 
-    function openModal(modal) {
+    function openModal(modal, trigger, preferredFocus) {
+        modalTriggers.set(modal, trigger);
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
+        const target = preferredFocus || focusableControls(modal)[0];
+        if (target) target.focus();
     }
 
     function loadTemplate(name) {
@@ -71,13 +83,13 @@ function initializeBiographyPage() {
             button.disabled = true;
             try {
                 const template = await loadTemplate(button.dataset.templateName || '');
-                document.getElementById('biography-details-title').textContent = 'Extended Profile: ' + template.npc_name;
+                document.getElementById('biography-details-title').textContent = 'Extended Profile: ' + displayTemplateName(template.npc_name);
                 document.querySelectorAll('[data-biography-detail-field]').forEach(function (field) {
                     const value = String(template[field.dataset.biographyDetailField] || '').trim();
                     field.textContent = value || 'Not provided.';
                     field.classList.toggle('empty', value === '');
                 });
-                openModal(detailsModal);
+                openModal(detailsModal, button);
             } catch (error) {
                 loadError.textContent = error instanceof Error ? error.message : 'Biography template could not be loaded.';
                 loadError.hidden = false;
@@ -114,12 +126,11 @@ function initializeBiographyPage() {
                     const value = template[editFields[id]];
                     document.getElementById(id).value = value === null || value === undefined ? '' : String(value);
                 });
-                document.getElementById('biography-modal-title').textContent = 'Edit NPC Entry: ' + template.npc_name;
+                document.getElementById('biography-modal-title').textContent = 'Edit NPC Entry: ' + displayTemplateName(template.npc_name);
                 document.getElementById('biography-profile-meta').textContent = template.source === 'custom'
                     ? 'Editing the active custom override. The factory biography remains unchanged.'
                     : 'Saving creates a custom override. The factory biography remains unchanged.';
-                openModal(editModal);
-                document.getElementById('biography-core').focus();
+                openModal(editModal, button, document.getElementById('biography-core'));
             } catch (error) {
                 loadError.textContent = error instanceof Error ? error.message : 'Biography template could not be loaded.';
                 loadError.hidden = false;
@@ -140,9 +151,28 @@ function initializeBiographyPage() {
         });
     });
     document.addEventListener('keydown', function (event) {
-        if (event.key !== 'Escape') return;
-        if (editModal.classList.contains('open')) closeModal(editModal);
-        if (detailsModal.classList.contains('open')) closeModal(detailsModal);
+        const activeModal = editModal.classList.contains('open') ? editModal : (detailsModal.classList.contains('open') ? detailsModal : null);
+        if (!activeModal) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeModal(activeModal);
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const controls = focusableControls(activeModal);
+        if (controls.length === 0) {
+            event.preventDefault();
+            return;
+        }
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
     });
 }
 

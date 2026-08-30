@@ -286,3 +286,57 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
     .narrator-portability-form { padding: 14px; }
     .narrator-portability-actions { flex-direction: column; align-items: stretch; }
 }
+
+/* Current Herika settings density, adapted to LORKHAN's typed narrator form. */
+.narrator-page-container { max-width: 1400px; }
+.narrator-page .page-header.lorkhan-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+    margin: 0 0 10px;
+    padding: 8px 14px;
+    border-radius: 6px;
+    background: #232323;
+    box-shadow: none;
+    text-align: left;
+}
+.narrator-page .page-header.lorkhan-page-head h1 { flex: 0 0 auto; margin: 0; color: rgb(188,157,90); font-size: 1.3rem; line-height: 1.25; text-align: left; text-shadow: none; word-spacing: 6px; }
+.narrator-page .page-header.lorkhan-page-head p { flex: 1 1 300px; min-width: 0; color: #aaa; font-size: .82rem; line-height: 1.35; }
+.narrator-content-grid { gap: 12px; margin-bottom: 14px; }
+.narrator-content-section { padding: 14px; border-radius: 6px; }
+.narrator-full-width { margin-bottom: 14px; }
+.narrator-content-section h2,
+.narrator-heading-with-badge { margin: 0 0 10px; padding-bottom: 7px; }
+.narrator-content-section h2 { font-size: 1.05rem; line-height: 1.25; text-shadow: none; }
+.narrator-heading-with-badge h2 { margin: 0; padding: 0; }
+.narrator-content-section > label:not(.narrator-toggle-row):not(.narrator-field-chip) { margin: 10px 0 4px; font-size: .82rem; }
+.narrator-content-section input[type="text"],
+.narrator-content-section input[type="number"],
+.narrator-content-section select,
+.narrator-content-section textarea { margin-bottom: 0; padding: 7px 9px; border-radius: 5px; font-size: .88rem; line-height: 1.35; }
+.narrator-content-section textarea { min-height: 82px; }
+.narrator-toggle-row { min-height: 38px; margin: 8px 0 0; padding: 7px 10px; border-radius: 5px; background: #202020; }
+.narrator-hint { margin: 4px 0 6px; padding-left: 0; font-size: .76rem; line-height: 1.35; }
+.narrator-toggle-row + .narrator-hint { margin: 3px 0 8px; }
+.narrator-save-row { flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
+.narrator-save-button { min-height: 34px; margin: 0; padding: 6px 12px; border-radius: 5px; box-shadow: none; font-size: .86rem; }
+.narrator-save-button:hover { transform: none; box-shadow: none; }
+.narrator-page .unsaved-indicator { color: #d8bd82; font-size: .78rem; font-weight: 700; }
+.narrator-dynamic-profile-card { margin-bottom: 12px; padding: 12px; border-radius: 6px; }
+.narrator-advanced-wrap { margin-top: 14px; border-radius: 6px; box-shadow: none; }
+.narrator-advanced-summary { padding: 10px 14px; font-size: 1rem; }
+.narrator-advanced-panel { padding: 0 14px 14px; }
+.narrator-portability-form { padding: 14px; border-radius: 6px; }
+
+@media (max-width: 760px) {
+    .narrator-page .page-header.lorkhan-page-head { align-items: flex-start; flex-direction: column; }
+    .narrator-page .page-header.lorkhan-page-head p { flex-basis: auto; width: 100%; }
+}
+
+@media (max-width: 480px) {
+    .narrator-content-section { padding: 11px; }
+    .narrator-page .page-header.lorkhan-page-head h1 { font-size: 1.2rem; }
+    .narrator-toggle-row { padding: 7px 9px; }
+    .narrator-save-row > * { flex: 1 1 auto; justify-content: center; text-align: center; }
+}
