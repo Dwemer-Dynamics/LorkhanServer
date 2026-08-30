@@ -850,6 +850,31 @@ final class Repository
         return $row;
     }
 
+    /** Persist one vanilla dialogue TTS artifact without creating a synthetic AI turn. */
+    public function recordMenuDialogueSpeech(array $message,array $session,array $speech): void
+    {
+        $this->transaction(function()use($message,$session,$speech):void{
+            $current=$this->session((string)$message['session_id'],(int)$message['generation'],true);
+            if((string)$current['installation_id']!==(string)$session['installation_id']
+                ||(string)$current['playthrough_id']!==(string)$session['playthrough_id'])
+                throw new \UnexpectedValueException('stale_generation');
+            $this->db->prepare('INSERT INTO menu_dialogue_tts_requests '
+                .'(message_id,request_id,installation_id,playthrough_id,session_id,generation,actor,text_sha256,created_at) '
+                .'VALUES (:message,:request,:installation,:playthrough,:session,:generation,CAST(:actor AS jsonb),:text_sha,:created)')
+                ->execute(['message'=>$message['message_id'],'request'=>$message['request_id'],
+                    'installation'=>$session['installation_id'],'playthrough'=>$session['playthrough_id'],
+                    'session'=>$message['session_id'],'generation'=>$message['generation'],'actor'=>$this->encode($message['actor']),
+                    'text_sha'=>hash('sha256',(string)$message['text']),'created'=>$message['created_at']]);
+            $this->db->prepare('INSERT INTO media_objects (media_id,installation_id,session_id,turn_id,generation,sha256,'
+                .'byte_count,codec,mime_type,duration_ms,expires_at,menu_dialogue_message_id) VALUES '
+                .'(:id,:installation,:session,NULL,:generation,:sha,:bytes,:codec,:mime,:duration,:expires,:message)')
+                ->execute(['id'=>$speech['media_id'],'installation'=>$session['installation_id'],'session'=>$message['session_id'],
+                    'generation'=>$message['generation'],'sha'=>$speech['sha256'],'bytes'=>$speech['bytes'],
+                    'codec'=>$speech['codec'],'mime'=>$speech['mime_type'],'duration'=>$speech['duration_ms'],
+                    'expires'=>$speech['expires_at'],'message'=>$message['message_id']]);
+        });
+    }
+
     public function pruneExpiredEvents(): int
     {
         $stmt = $this->db->prepare('DELETE FROM response_events e USING sessions s WHERE e.session_id = s.session_id '

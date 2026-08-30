@@ -83,6 +83,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/action-results') return $this->actionResult($request);
             if ($request->method === 'POST' && $path === '/stt') return $this->stt($request);
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
+            if ($request->method === 'POST' && $path === '/menu-dialogue-tts') return $this->menuDialogueTts($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
             return $this->error($error, $correlation);
@@ -374,6 +375,64 @@ final class Router
             try { $this->providerAttempts?->finish($attemptId, 'failed', errorCode: 'provider_unavailable'); } catch (Throwable) {}
             throw $error;
         }
+    }
+
+    /** Synthesize one regular Morrowind dialogue response through the actor's normal voice route. */
+    private function menuDialogueTts(Request $request): Response
+    {
+        if($this->mediaStore===null)throw new ApiException(503,'provider_unavailable','Menu dialogue TTS unavailable.',true,1000);
+        $message=$this->json($request,'lorkhan.menu-dialogue-tts.v1');
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
+        $this->requireIdempotency($request,$message['message_id']);
+        if(!in_array('speech.say',(array)$session['capabilities'],true))
+            throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);
+        return $this->repository->serializedIdempotency($installation,$message['message_id'],'/menu-dialogue-tts',
+            function()use($installation,$message,$session):Response{
+                return $this->idempotent($installation,$message['message_id'],'/menu-dialogue-tts',$message,
+                    function()use($installation,$message,$session):array{
+                        $actor=(array)$message['actor'];
+                        $resolvedVoice=$this->morrowindVoices?->resolve($actor);
+                        if($resolvedVoice!==null&&$this->products!==null){
+                            $resolvedVoice=$this->products->preferExactProviderActorVoice($installation,$actor,$resolvedVoice);
+                            $this->products->ensureMorrowindActorProfile([
+                                'installation_id'=>$installation,'profile_id'=>$session['profile_id'],
+                                'playthrough_id'=>$session['playthrough_id'],'session_id'=>$message['session_id'],
+                                'generation'=>$message['generation'],'payload'=>['target'=>$actor],
+                            ],$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));
+                        }
+                        $preset=$this->products?->connectorForActor($installation,(string)$session['playthrough_id'],$actor,'tts_provider');
+                        $preset??=$this->products?->connectorForInstallation($installation,'tts_provider');
+                        $provider=$preset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
+                        if($provider===null)throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);
+                        $context=$this->products?->speechContext($installation,(string)$session['playthrough_id'],$actor,$preset)??[];
+                        $providerName=match(true){$provider instanceof \LORKHANserver\Application\PocketTtsSpeechProvider=>'pockettts',
+                            $provider instanceof \LORKHANserver\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
+                            $provider instanceof \LORKHANserver\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+                        $attemptId=Uuid::v4();$mediaId=null;
+                        $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
+                            (string)$message['request_id'],null,inputBytes:strlen((string)$message['text']),
+                            metadata:['mode'=>'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
+                                'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
+                        try{
+                            $generated=$provider->synthesize((string)$message['text'],new NeverCancelledToken(),$context);
+                            $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
+                            $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),
+                                'codec'=>$generated['codec'],'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
+                                'expires_at'=>(new \DateTimeImmutable('now',new \DateTimeZone('UTC')))->modify('+5 minutes')->format('Y-m-d\TH:i:s\Z')];
+                            $this->repository->recordMenuDialogueSpeech($message,$session,$speech);
+                            $this->providerAttempts?->finish($attemptId,'succeeded',strlen($generated['bytes']));
+                            $media=$speech;unset($media['mime_type']);$media['dialogue_message_id']=$message['message_id'];
+                            return[201,['schema'=>'lorkhan.menu-dialogue-tts.ready.v1','message_id'=>$message['message_id'],
+                                'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
+                                'generation'=>$message['generation'],'actor'=>$actor,'media'=>$media]];
+                        }catch(Throwable $error){
+                            if($mediaId!==null)$this->mediaStore->delete($mediaId);
+                            try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+                            throw $error;
+                        }
+                    });
+            });
     }
 
     private function interrupt(Request $request): Response

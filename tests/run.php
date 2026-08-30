@@ -343,6 +343,24 @@ foreach ([
     $validator->validate($document['instance'], $schema);
     $check(true, $fixture . ' validates');
 }
+$menuDialogueRequest = [
+    'schema' => 'lorkhan.menu-dialogue-tts.v1',
+    'message_id' => '00000000-0000-4000-8000-000000000031',
+    'request_id' => '00000000-0000-4000-8000-000000000032',
+    'session_id' => '00000000-0000-4000-8000-000000000033',
+    'generation' => 7,
+    'created_at' => '2026-08-29T12:00:00Z',
+    'actor' => array_replace($fargoth, ['display_name' => 'Fargoth']),
+    'text' => 'I have a feeling you and I are about to become very close.',
+];
+$validator->validate($menuDialogueRequest, 'lorkhan.menu-dialogue-tts.v1');
+$check(true, 'bounded menu dialogue TTS request validates');
+try {
+    $validator->validate(array_replace($menuDialogueRequest, ['text' => '']), 'lorkhan.menu-dialogue-tts.v1');
+    $check(false, 'empty menu dialogue TTS request rejected');
+} catch (ValidationException $exception) {
+    $check($exception->getMessage() === 'invalid_schema', 'empty menu dialogue TTS request rejected');
+}
 $directActionTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $secondaryTarget=$directActionTurn['payload']['target'];$secondaryTarget['record_id']='mudcrab';
 $secondaryTarget['display_name']='Mudcrab';$secondaryTarget['kind']='creature';$secondaryTarget['refnum']['index']=113;
