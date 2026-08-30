@@ -63,7 +63,9 @@ that byte-identical baseline; they were regenerated from Dwemer Dynamics' LORKHA
 | `public/ui/images/serverlogodev.png` | `ServerLogo.png` | wordmark centred on the original 153x42 canvas; currently unreferenced |
 
 `public/ui/images/DwemerDynamics.png` and `public/ui/images/navbarback.png` remain the imported
-shared Dwemer Dynamics assets and are unchanged.
+shared Dwemer Dynamics assets and are unchanged. `navbarback.png` is still used as the navbar
+background texture; `DwemerDynamics.png` is retained but no longer rendered, because the navbar brand
+group now shows only the LORKHAN mark and wordmark.
 
 ## Rewiring boundary
 
