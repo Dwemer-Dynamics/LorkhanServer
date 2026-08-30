@@ -148,7 +148,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <?php endif; ?>
             </div>
         </div>
-        <p class="gs-portability-note" id="gs-portability-scope"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
+        <details class="gs-scope-details">
+            <summary id="gs-portability-scope">What portable settings include</summary>
+            <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
+        </details>
 
         <details class="gs-disclosure">
             <summary>Import a settings preset</summary>

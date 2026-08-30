@@ -139,3 +139,59 @@ body.oghma-modal-open { overflow:hidden; }
     .oghma-page .oghma-pagination { padding:12px 10px; }
     .oghma-page .oghma-page-link { min-width:32px; padding:6px 9px; }
 }
+
+/* Keep catalog controls and wide result data inside the page at narrow widths. */
+.oghma-page,
+.oghma-page * {
+    box-sizing: border-box;
+}
+
+.oghma-page .table-container {
+    max-height: 600px;
+    overflow: auto;
+}
+
+.oghma-page .table-container thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+}
+
+.oghma-page input[type="file"] {
+    max-width: 100%;
+    padding: 4px;
+}
+
+.oghma-page input[type="file"]::file-selector-button {
+    min-height: 34px;
+    margin-right: 10px;
+    padding: 6px 10px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #393939;
+    color: #eee;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.oghma-page :is(a, button, input, select, textarea, summary):focus-visible {
+    outline: 2px solid rgb(188, 157, 90);
+    outline-offset: 2px;
+}
+
+@media (max-width: 620px) {
+    .oghma-page .content-grid {
+        gap: 14px;
+        margin-bottom: 14px;
+    }
+
+    .oghma-page .content-section {
+        padding: 14px;
+    }
+
+    .oghma-page .button-group > *,
+    .oghma-page .search-container,
+    .oghma-page .search-container input {
+        width: 100%;
+    }
+}
