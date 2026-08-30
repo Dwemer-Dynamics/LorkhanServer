@@ -49,6 +49,24 @@ are not sources for the LORKHAN implementation.
 | `ui/images/serverlogo.png` | `public/ui/images/serverlogo.png` |
 | `ui/images/serverlogodev.png` | `public/ui/images/serverlogodev.png` |
 
+## Replaced brand assets
+
+The imported files table records the original Herika import. The brand assets below no longer hold
+that byte-identical baseline; they were regenerated from Dwemer Dynamics' LORKHAN artwork
+(`icon.png` pictorial mark, `ServerLogo.png` wordmark) and are owned by this project.
+
+| LORKHANserver path | Regenerated from | Notes |
+| --- | --- | --- |
+| `public/ui/images/favicon.ico` | `icon.png` | 16/32/48 px, 32-bit BMP entries, alpha preserved |
+| `public/ui/images/lorkhan-logo.png` | `icon.png` | 512x512 RGBA navbar/brand mark; established asset path retained |
+| `public/ui/images/serverlogo.png` | `ServerLogo.png` | 103x42 RGBA wordmark, unscaled; rendered as the navbar text wordmark beside the brand mark |
+| `public/ui/images/serverlogodev.png` | `ServerLogo.png` | wordmark centred on the original 153x42 canvas; currently unreferenced |
+
+`public/ui/images/DwemerDynamics.png` and `public/ui/images/navbarback.png` remain the imported
+shared Dwemer Dynamics assets and are unchanged. `navbarback.png` is still used as the navbar
+background texture; `DwemerDynamics.png` is retained but no longer rendered, because the navbar brand
+group now shows only the LORKHAN mark and wordmark.
+
 ## Rewiring boundary
 
 The imported PHP pages are an HTML, CSS, JavaScript, and interaction reference. Before deployment,

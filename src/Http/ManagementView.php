@@ -74,6 +74,7 @@ final class ManagementView
         return '<!doctype html><html lang="en" data-bs-theme="dark"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111111">'
             . '<title>' . $this->e($title) . '</title>'
+            . '<link rel="icon" type="image/x-icon" href="' . $this->e($root) . '/ui/images/favicon.ico">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/lib/ui/bootstrap/bootstrap.min.css">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/style_new.css">'
             . '<link rel="stylesheet" href="' . $this->e($root) . '/ui/css/lorkhan-theme.css">'
@@ -106,8 +107,8 @@ final class ManagementView
         return '<div class="lorkhan-navbar-wrapper"><nav class="navbar navbar-expand-lg lorkhan-navbar" aria-label="Product">'
             . '<div class="container-fluid mx-1"><div class="navbar-content-wrapper"><div class="navbar-center dropdown">'
             . '<button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">'
-            . '<img src="' . $this->e($root) . '/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">'
-            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="1254" height="1254" alt="LORKHAN Server"></button>'
+            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="LORKHAN Server">'
+            . '<img class="brand-wordmark-img" src="' . $this->e($root) . '/ui/images/serverlogo.png" width="103" height="42" alt="" aria-hidden="true"></button>'
             . '<ul class="dropdown-menu brand-menu">' . $items . '</ul></div></div></div></nav></div>';
     }
 

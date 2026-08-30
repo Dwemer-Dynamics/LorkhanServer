@@ -14,8 +14,8 @@ $topNavSection=$topNavSection??match(true){
             <div class="navbar-content-wrapper">
             <div class="navbar-center dropdown">
                 <button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">
-                    <img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">
-                    <img class="brand-mark-img" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/lorkhan-logo.png" width="1254" height="1254" alt="LORKHAN Server">
+                    <img class="brand-mark-img" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/lorkhan-logo.png" width="512" height="512" alt="LORKHAN Server">
+                    <img class="brand-wordmark-img" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/serverlogo.png" width="103" height="42" alt="" aria-hidden="true">
                 </button>
                 <ul class="dropdown-menu brand-menu">
                     <?php foreach([

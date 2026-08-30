@@ -962,6 +962,14 @@ body .lorkhan-navbar .navbar-brand .brand-mark-img {
     object-fit: contain;
 }
 
+/* LORKHAN text wordmark: same box height as the square mark so both sit on one
+   optical baseline; width: auto keeps the intrinsic 103:42 ratio unstretched. */
+body .lorkhan-navbar .navbar-brand .brand-wordmark-img {
+    width: auto;
+    height: var(--lorkhan-brand-mark, 44px);
+    object-fit: contain;
+}
+
 @media (max-width: 576px) {
     body .lorkhan-navbar .navbar-brand,
     body .lorkhan-navbar .navbar-brand:hover,
@@ -970,7 +978,8 @@ body .lorkhan-navbar .navbar-brand .brand-mark-img {
         gap: 8px;
     }
 
-    body .lorkhan-navbar .navbar-brand .brand-mark-img {
+    body .lorkhan-navbar .navbar-brand .brand-mark-img,
+    body .lorkhan-navbar .navbar-brand .brand-wordmark-img {
         height: 34px;
     }
 }

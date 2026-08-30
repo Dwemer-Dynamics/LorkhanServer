@@ -162,7 +162,10 @@ public/ui/lib/ui/bootstrap/bootstrap.min.css,https://github.com/Dwemer-Dynamics/
 public/ui/lib/ui/bootstrap/bootstrap.bundle.min.js,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/lib/ui/bootstrap/bootstrap.bundle.min.js,Bootstrap upstream license,copied,Vendored sibling Bootstrap runtime,Codex
 public/ui/images/navbarback.png,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/navbarback.png,Dwemer Dynamics shared UI asset lineage,copied,Copied shared navbar background,Codex
 public/ui/images/DwemerDynamics.png,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/DwemerDynamics.png,Dwemer Dynamics shared UI asset lineage,copied,Copied shared brand mark,Codex
-public/ui/images/favicon.ico,https://github.com/Dwemer-Dynamics/DialecticServer,255d57e27449a4fbf01fd2f2f104c9d3b8251cc5,ui/images/favicon.ico,Dwemer Dynamics shared UI asset lineage,copied,Copied shared favicon,Codex
+public/ui/images/favicon.ico,,,,user-supplied Dwemer Dynamics LORKHAN artwork,modified,Generated 16 32 and 48 pixel favicon entries from icon.png,Codex
+public/ui/images/lorkhan-logo.png,,,,user-supplied Dwemer Dynamics LORKHAN artwork,modified,Downscaled icon.png to a 512 pixel transparent navbar mark,Codex
+public/ui/images/serverlogo.png,,,,user-supplied Dwemer Dynamics LORKHAN artwork,modified,Replaced legacy wordmark with ServerLogo.png at its original dimensions,Codex
+public/ui/images/serverlogodev.png,,,,user-supplied Dwemer Dynamics LORKHAN artwork,modified,Centered ServerLogo.png on the established development logo canvas,Codex
 public/ui/ui_bootstrap.php,,,,repository proprietary,original,LORKHAN browser session database and security bootstrap,Codex
 public/ui/home.php,,,,repository proprietary,original,Dialectic format dashboard backed by LORKHAN tables,Codex
 public/ui/events-memories.php,,,,repository proprietary,original,Dialectic format roleplay tabs backed by LORKHAN tables,Codex
