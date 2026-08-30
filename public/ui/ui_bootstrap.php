@@ -127,20 +127,111 @@ function lorkhan_ui_effective_settings_summary(array $effective, string $title =
     echo '</div></details>';
 }
 
+/** Render a table value with the optional compact monitoring presentation requested by a page. */
+function lorkhan_ui_table_value(mixed $value, string $formatter = ''): string
+{
+    if ($formatter === '') return lorkhan_ui_value($value);
+
+    $raw = is_array($value)
+        ? (string) json_encode($value, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)
+        : (string) $value;
+
+    if ($formatter === 'status') {
+        if ($value === null || $raw === '') return '<span class="lorkhan-state-pill is-neutral">Unknown</span>';
+        $label = ucwords(str_replace(['_', '-'], ' ', $raw));
+        $normalized = strtolower($raw);
+        $tone = 'is-neutral';
+        if (preg_match('/fail|failed|error|expired|dead|cancel|interrupted|denied|unhealthy|invalid/', $normalized)) {
+            $tone = 'is-danger';
+        } elseif (preg_match('/pending|queued|processing|retry|unlinked|partial|warning|stale/', $normalized)) {
+            $tone = 'is-warning';
+        } elseif (preg_match('/success|succeeded|complete|completed|ready|healthy|current|spoken|delivered|linked|active|enabled|valid/', $normalized)) {
+            $tone = 'is-success';
+        }
+        return '<span class="lorkhan-state-pill ' . $tone . '">' . lorkhan_ui_h($label) . '</span>';
+    }
+
+    if ($formatter === 'timestamp') {
+        if ($value === null || trim($raw) === '') return '—';
+        try {
+            $time = new DateTimeImmutable($raw);
+            return '<time datetime="' . lorkhan_ui_h($time->format(DateTimeInterface::ATOM)) . '" title="' . lorkhan_ui_h($raw) . '">'
+                . lorkhan_ui_h($time->format('Y-m-d H:i:s P')) . '</time>';
+        } catch (Throwable) {
+            return lorkhan_ui_h($raw);
+        }
+    }
+
+    if ($formatter === 'duration') {
+        if (!is_numeric($value)) return lorkhan_ui_value($value);
+        $milliseconds = max(0.0, (float) $value);
+        if ($milliseconds < 1000) return lorkhan_ui_h(number_format($milliseconds, 0) . ' ms');
+        if ($milliseconds < 60000) return lorkhan_ui_h(number_format($milliseconds / 1000, 2) . ' s');
+        return lorkhan_ui_h(number_format($milliseconds / 60000, 1) . ' min');
+    }
+
+    if ($formatter === 'bytes') {
+        if (!is_numeric($value)) return lorkhan_ui_value($value);
+        $bytes = max(0.0, (float) $value);
+        $units = ['B', 'KiB', 'MiB', 'GiB'];
+        $unit = 0;
+        while ($bytes >= 1024 && $unit < count($units) - 1) {
+            $bytes /= 1024;
+            $unit++;
+        }
+        $precision = $unit === 0 ? 0 : ($bytes >= 100 ? 0 : 1);
+        return lorkhan_ui_h(number_format($bytes, $precision) . ' ' . $units[$unit]);
+    }
+
+    if ($formatter === 'compact_id') {
+        if ($value === null || $raw === '') return '—';
+        $compact = mb_strlen($raw) > 18 ? mb_substr($raw, 0, 8) . '…' . mb_substr($raw, -4) : $raw;
+        return '<code class="control-compact-id" title="' . lorkhan_ui_h($raw) . '">' . lorkhan_ui_h($compact) . '</code>';
+    }
+
+    if ($formatter === 'payload') {
+        if ($value === null || $raw === '') return '—';
+        $preview = preg_replace('/\s+/', ' ', $raw) ?: $raw;
+        $preview = mb_strimwidth($preview, 0, 90, '…');
+        return '<div class="control-payload"><span class="control-payload-preview">' . lorkhan_ui_h($preview)
+            . '</span><details><summary>View details</summary><pre>' . lorkhan_ui_h($raw) . '</pre></details></div>';
+    }
+
+    return lorkhan_ui_value($value);
+}
+
 /** Render a bounded repository result using the common sibling-server table structure. */
-function lorkhan_ui_table(array $rows, string $emptyMessage = 'No records are available yet.'): void
+function lorkhan_ui_table(array $rows, string $emptyMessage = 'No records are available yet.', array $options = []): void
 {
     if ($rows === []) {
-        echo '<p class="empty-state">' . lorkhan_ui_h($emptyMessage) . '</p>';
+        $monitoringClass = !empty($options['monitoring']) ? ' control-zero-state' : '';
+        echo '<p class="empty-state' . $monitoringClass . '" role="status">' . lorkhan_ui_h($emptyMessage) . '</p>';
         return;
     }
     $columns = array_keys($rows[0]);
-    echo '<div class="table-responsive"><table class="table table-dark table-hover align-middle"><thead><tr>';
-    foreach ($columns as $column) echo '<th scope="col">' . lorkhan_ui_h(ucwords(str_replace('_', ' ', $column))) . '</th>';
+    $labels = is_array($options['labels'] ?? null) ? $options['labels'] : [];
+    $formatters = is_array($options['formatters'] ?? null) ? $options['formatters'] : [];
+    $monitoring = !empty($options['monitoring']);
+    $countLabel = trim((string) ($options['count_label'] ?? 'records')) ?: 'records';
+    $regionAttributes = $monitoring
+        ? ' control-table-region" data-control-table-region data-count-label="' . lorkhan_ui_h($countLabel) . '"'
+        : '"';
+    $tableAttributes = $monitoring
+        ? ' control-data-table" data-control-table aria-label="' . lorkhan_ui_h(ucfirst($countLabel)) . '"'
+        : '"';
+    echo '<div class="table-responsive' . $regionAttributes . '><table class="table table-dark table-hover align-middle' . $tableAttributes . '><thead><tr>';
+    foreach ($columns as $column) {
+        $label = isset($labels[$column]) ? (string) $labels[$column] : ucwords(str_replace('_', ' ', $column));
+        echo '<th scope="col">' . lorkhan_ui_h($label) . '</th>';
+    }
     echo '</tr></thead><tbody>';
     foreach ($rows as $row) {
         echo '<tr>';
-        foreach ($columns as $column) echo '<td>' . lorkhan_ui_value($row[$column] ?? null) . '</td>';
+        foreach ($columns as $column) {
+            $label = isset($labels[$column]) ? (string) $labels[$column] : ucwords(str_replace('_', ' ', $column));
+            $formatter = isset($formatters[$column]) ? (string) $formatters[$column] : '';
+            echo '<td data-label="' . lorkhan_ui_h($label) . '">' . lorkhan_ui_table_value($row[$column] ?? null, $formatter) . '</td>';
+        }
         echo '</tr>';
     }
     echo '</tbody></table></div>';
