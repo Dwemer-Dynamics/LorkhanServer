@@ -42,13 +42,18 @@ $logSources = [
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
-<main class="management-page">
-    <h1>Server Logs</h1>
-    <p>Inspect the latest bounded, redacted output from the LORKHAN worker and local Apache service.</p>
+<main class="lorkhan-page control-specialist-page<?php echo $embedded ? ' embedded' : ''; ?>">
+    <header class="lorkhan-page-header">
+        <div>
+            <h1>Server Logs</h1>
+            <p>Inspect the latest bounded, redacted output from the LORKHAN worker and local Apache service.</p>
+        </div>
+        <a class="btn-base control-refresh-link" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/server_logs.php<?php echo $embedded ? '?embed=1' : ''; ?>">Refresh logs</a>
+    </header>
     <div class="log-grid">
         <?php foreach ($logSources as [$label, $path]): ?>
             <?php $contents = lorkhan_ui_log_tail($path); ?>
-            <section class="widget widget-wide">
+            <section class="widget widget-wide control-log-card">
                 <div class="widget-header"><h3><?php echo lorkhan_ui_h($label); ?></h3></div>
                 <div class="widget-content">
                     <?php if ($contents === null || trim($contents) === ''): ?>

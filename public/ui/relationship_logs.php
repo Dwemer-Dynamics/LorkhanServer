@@ -76,7 +76,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
 ?>
 <main class="lorkhan-page<?php echo $embedded?' embedded':''; ?>">
     <header class="lorkhan-page-header"><div><h1>Relationship Audit</h1><p>Edit saved relationships and review their change history.</p></div>
-        <a href="#relationship-history">Recent changes</a></header>
+        <a class="btn-base control-jump-link" href="#relationship-history">Recent changes</a></header>
     <?php if($notice!==''&&!str_starts_with($buildStatus,'relationship_build_')): ?><p role="<?php echo $buildStatus==='saved'?'status':'alert'; ?>"><?php echo lorkhan_ui_h($notice); ?></p><?php endif; ?>
     <?php if($installations===[]): ?><p class="empty-state">Connect OpenMW to manage relationships.</p><?php else: ?>
     <?php if(count($installations)>1): ?><form class="management-form" method="get">
@@ -84,7 +84,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
         <button class="btn-base" type="submit">Show</button>
     </form><?php endif; ?>
-    <details class="management-section" id="relationship-builder"<?php echo $buildProfile!==''||str_starts_with($buildStatus,'relationship_build_')?' open':''; ?>>
+    <details class="management-section specialist-disclosure" id="relationship-builder"<?php echo $buildProfile!==''||str_starts_with($buildStatus,'relationship_build_')?' open':''; ?>>
         <summary>Build with AI</summary>
         <?php if($notice!==''&&str_starts_with($buildStatus,'relationship_build_')): ?><p role="<?php echo $buildStatus==='relationship_build_requested'?'status':'alert'; ?>"><?php echo lorkhan_ui_h($notice); ?></p><?php endif; ?>
         <p>Analyze recent played conversations for one NPC. This can replace its saved relationship scores.</p>
@@ -117,7 +117,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <a href="<?php echo lorkhan_ui_h($buildUrl); ?>">Reload for status</a>
         <?php endif; ?>
     </details>
-    <details class="management-section"><summary>Add relationship</summary>
+    <details class="management-section specialist-disclosure"><summary>Add relationship</summary>
         <?php if($owners===[]||$playthroughs===[]): ?><p>Create an actor profile and playthrough first.</p><?php else: ?>
         <form class="management-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath.'/forms/relationships'); ?>">
             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
@@ -141,8 +141,8 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         </form>
         <?php endif; ?>
     </details>
-    <section aria-labelledby="relationship-current"><h2 id="relationship-current">Current records (<?php echo count($rows); ?> shown)</h2>
-    <?php if($rows===[]): ?><p class="empty-state">No relationships are saved for this installation.</p><?php endif; ?>
+    <section class="lorkhan-card specialist-section" aria-labelledby="relationship-current"><div class="specialist-section-heading"><h2 id="relationship-current">Current records</h2><span class="lorkhan-badge"><?php echo count($rows); ?> shown</span></div>
+    <?php if($rows===[]): ?><p class="empty-state control-zero-state">No relationships are saved for this installation.</p><?php endif; ?>
     <div class="profile-grid">
     <?php foreach($rows as $row): $id=(string)$row['relationship_id'];$revision=(int)$row['revision']; ?>
         <article class="profile-card"><header><div><h3><?php echo lorkhan_ui_h($row['actor']); ?></h3>
@@ -184,7 +184,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         </article>
     <?php endforeach; ?>
     </div></section>
-    <section id="relationship-history" aria-labelledby="relationship-history-heading"><h2 id="relationship-history-heading">Recent changes (<?php echo count($history); ?> shown)</h2>
+    <section class="lorkhan-card specialist-section" id="relationship-history" aria-labelledby="relationship-history-heading"><div class="specialist-section-heading"><h2 id="relationship-history-heading">Recent changes</h2><span class="lorkhan-badge"><?php echo count($history); ?> shown</span></div>
         <div class="table-responsive"><?php
         $auditRows=[];foreach($history as $entry){
             $identity=$entry['actor_identity'];
@@ -199,7 +199,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
             'Source'=>$entry['source_mode'],'Before'=>lorkhan_relationship_state($entry['before_value']),
             'After'=>lorkhan_relationship_state($entry['after_value']),'Reason'=>$entry['reason'],
         ];}
-        lorkhan_ui_table($auditRows,'No relationship changes are recorded yet.');
+        lorkhan_ui_table($auditRows,'No relationship changes are recorded yet.',['monitoring'=>true,'count_label'=>'relationship changes','formatters'=>['Time'=>'timestamp','Source'=>'status']]);
         ?></div>
     </section>
     <?php endif; ?>

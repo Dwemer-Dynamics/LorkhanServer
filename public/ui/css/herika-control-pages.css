@@ -177,3 +177,168 @@ body.hub-page main.lorkhan-page > .lorkhan-page-header p {
         white-space: normal;
     }
 }
+
+/* Specialist operations pages reuse the monitoring hierarchy without changing their workflows. */
+.control-specialist-page,
+.control-specialist-page .log-grid,
+.control-specialist-page .control-log-card,
+.control-specialist-page .widget-content {
+    min-width: 0;
+    max-width: 100%;
+}
+
+.control-specialist-page > .lorkhan-page-header {
+    justify-content: space-between;
+    text-align: left;
+}
+
+.control-specialist-page > .lorkhan-page-header > div,
+.control-specialist-page > .lorkhan-page-header h1,
+.control-specialist-page > .lorkhan-page-header p {
+    min-width: 0;
+    text-align: left;
+}
+
+.control-refresh-link,
+.control-jump-link {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid #705b2e;
+    border-radius: 5px;
+    background: #332719;
+    color: #e0ca98;
+    font-weight: 700;
+    text-decoration: none;
+    white-space: nowrap;
+}
+
+.control-log-card {
+    overflow: hidden;
+}
+
+.control-log-card .widget-content {
+    padding: 14px;
+    overflow: hidden;
+}
+
+.control-log-card .server-log {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 100%;
+    min-height: 180px;
+    max-height: min(48vh, 440px);
+    overflow: auto;
+    overflow-wrap: normal;
+    white-space: pre;
+}
+
+.specialist-disclosure {
+    margin-bottom: 12px;
+    overflow: hidden;
+    border: 1px solid var(--control-border);
+    border-radius: 6px;
+    background: var(--control-panel);
+}
+
+.specialist-disclosure > summary {
+    padding: 12px 14px;
+    color: var(--control-accent);
+    cursor: pointer;
+    font-family: MagicCards, serif;
+    font-size: 1.05rem;
+    word-spacing: 4px;
+}
+
+.specialist-disclosure[open] > summary {
+    border-bottom: 1px solid #444;
+}
+
+.specialist-disclosure > :not(summary) {
+    margin-right: 14px;
+    margin-left: 14px;
+}
+
+.specialist-section {
+    margin-top: 12px;
+}
+
+.specialist-section-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.specialist-section-heading h2 {
+    margin: 0;
+}
+
+.database-backup-card {
+    padding: 12px;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+    background: #202020;
+}
+
+.database-migrations .control-data-table {
+    min-width: 720px;
+}
+
+.playthrough-card-grid {
+    align-items: start;
+}
+
+.playthrough-card {
+    min-width: 0;
+}
+
+.playthrough-card h2 {
+    overflow-wrap: anywhere;
+}
+
+.playthrough-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+    gap: 8px;
+    margin: 0 0 14px;
+}
+
+.playthrough-stats div {
+    padding: 9px 10px;
+    border: 1px solid #3f3f3f;
+    border-radius: 5px;
+    background: #202020;
+}
+
+.playthrough-stats dt {
+    color: var(--control-muted);
+    font-size: .78rem;
+}
+
+.playthrough-stats dd {
+    margin: 3px 0 0;
+    color: #f0f3ff;
+    font-size: 1.05rem;
+    font-weight: 700;
+}
+
+@media (max-width: 640px) {
+    .control-refresh-link,
+    .control-jump-link {
+        width: auto;
+        white-space: normal;
+    }
+
+    .specialist-section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .playthrough-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
