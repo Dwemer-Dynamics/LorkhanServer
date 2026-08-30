@@ -104,6 +104,28 @@ body .Title {
     word-spacing: 0.16em;
 }
 
+/* Narrow heading contract. HerikaServer gets this scale from main.css, which
+   it loads on nearly every first-party page; LORKHAN loads main.css on only a
+   few. Copy the heading sizes and rhythm here so every page resolves one title
+   hierarchy without inheriting main.css's button, form, link, and layout
+   cascades. Values match main.css exactly, so pages that do load it are
+   unchanged. */
+body h1 { font-size: 32px; }
+body h2 { font-size: 26px; }
+body h3 { font-size: 22px; }
+body h4 { font-size: 18px; }
+body h5 { font-size: 16px; }
+body h6 { font-size: 14px; }
+
+body h1,
+body h2,
+body h3,
+body h4,
+body h5,
+body h6 {
+    margin-bottom: 15px;
+}
+
 body p,
 body .text-muted,
 body .help-text,
@@ -1101,7 +1123,13 @@ body .code-block {
         overflow-x: auto;
     }
 }
-/* Compact opt-in header used by configuration pages. */
+/* ===========================================================================
+   Compact inline page headers (opt-in).
+   LORKHAN's local name for HerikaServer's current .chim-page-head contract:
+   the same low-profile single row, with the semantic accent role resolved to
+   LORKHAN gold instead of Herika orange. Collapses the old stacked "big title
+   + centered subtitle" banner; legacy class names stay for JS/selector hooks.
+   ========================================================================== */
 body .page-header.lorkhan-page-head {
     display: flex;
     flex-wrap: wrap;
@@ -1116,20 +1144,26 @@ body .page-header.lorkhan-page-head > * {
     margin: 0;
 }
 
-body .page-header.lorkhan-page-head .lorkhan-page-head-title {
+/* Titles that carry the explicit role class, plus a bare <h1> child so a
+   header that has not been tagged yet still resolves the shared contract. */
+body .page-header.lorkhan-page-head .lorkhan-page-head-title,
+body .page-header.lorkhan-page-head > h1 {
     flex: 0 0 auto;
     margin: 0;
+    color: var(--chim-accent) !important;
+    font-family: "MagicCards", serif;
     font-size: 1.3rem;
     letter-spacing: 0.5px;
     line-height: 1.25;
     text-align: left;
     text-shadow: none;
+    word-spacing: 8px;
 }
 
 body .page-header.lorkhan-page-head .lorkhan-page-head-note {
     flex: 1 1 240px;
     min-width: 0;
-    color: var(--lorkhan-text-muted);
+    color: var(--chim-text-muted);
     font-size: 0.84rem;
     line-height: 1.4;
 }
@@ -1163,5 +1197,70 @@ body .page-header.lorkhan-page-head .lorkhan-page-head-actions {
 
     body .page-header.lorkhan-page-head .lorkhan-page-head-actions {
         margin-left: 0;
+    }
+}
+
+/* ===========================================================================
+   Branded outage page.
+   Rendered by ui_bootstrap.php when configuration or the database cannot be
+   reached. All of its presentation lives here so the fallback keeps
+   `default-src 'none'` with no inline style, no script, and no remote asset.
+   ========================================================================== */
+body.lorkhan-outage {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-sizing: border-box;
+    min-height: 100vh;
+    margin: 0;
+    padding: 24px;
+}
+
+body.lorkhan-outage .lorkhan-outage-panel {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 14px;
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 520px;
+    padding: 32px 28px;
+    border: 1px solid var(--chim-border);
+    border-radius: var(--chim-radius-lg);
+    background: var(--chim-surface-1) !important;
+    box-shadow: var(--chim-shadow);
+    text-align: center;
+}
+
+body.lorkhan-outage .lorkhan-outage-mark {
+    width: auto;
+    height: 72px;
+    object-fit: contain;
+}
+
+body.lorkhan-outage h1 {
+    margin: 0;
+    color: var(--chim-accent) !important;
+    font-size: 1.6rem;
+    letter-spacing: 0.5px;
+    line-height: 1.25;
+    word-spacing: 8px;
+}
+
+body.lorkhan-outage p {
+    max-width: 42ch;
+    margin: 0;
+    color: var(--chim-text-muted);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+@media (max-width: 480px) {
+    body.lorkhan-outage .lorkhan-outage-panel {
+        padding: 22px 18px;
+    }
+
+    body.lorkhan-outage .lorkhan-outage-mark {
+        height: 56px;
     }
 }

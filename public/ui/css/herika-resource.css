@@ -33,7 +33,7 @@ h1.api-title {
     font-family: MagicCards, serif;
     word-spacing: 8px;
     font-size: 2.2em;
-    color: rgb(188, 157, 90);
+    color: var(--chim-accent, rgb(188, 157, 90));
     text-shadow: 2px 2px 4px rgba(0, 0, 0, .5);
     text-align: center;
 }

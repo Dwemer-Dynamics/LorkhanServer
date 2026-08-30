@@ -18,13 +18,6 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 /* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
-.profiles-page .page-header h1.api-title {
-    color: #f5f1e8;
-    font-family: MagicCards, serif;
-    font-weight: 400;
-    word-spacing: 12px;
-}
-
 .profiles-page .page-subtitle {
     color: #bbb;
 }
