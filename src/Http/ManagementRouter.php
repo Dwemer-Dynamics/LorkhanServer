@@ -716,7 +716,7 @@ final class ManagementRouter
         return$kind;
     }
 
-    /** Apply the labelled prompt format control only to Prompt Manager revisions. */
+    /** Apply labelled player-mood controls to Prompt Manager revisions. */
     private function reviseConfiguration(array $values,array $content):array
     {
         $kind=$this->configurationKind($values);
@@ -724,12 +724,10 @@ final class ManagementRouter
         return$this->service->revise($kind,$this->need($values,'configuration_id'),$content,$this->need($values,'change_reason'));
     }
 
-    /** Store labelled format and player-mood controls with the revisioned prompt document. */
+    /** Store labelled player-mood controls with the revisioned prompt document. */
     private function promptFormContent(array $values,array $content):array
     {
-        $format=$values['prompt_format']??($content['format']??'xml');
-        if(!is_string($format)||!in_array($format,['xml','markdown'],true))throw new InvalidArgumentException('invalid_prompt_format');
-        $content['format']=$format;
+        unset($content['format']);
         $defaults=PlayerMoodPolicy::defaultTemplates();$current=$content['player_mood_prompts']??$defaults;
         if(!is_array($current)||array_is_list($current))$current=$defaults;
         $hasMoodFields=false;$templates=[];

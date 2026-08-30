@@ -165,11 +165,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         if ($totalBytes > 32_768) throw new RuntimeException('provider_invalid_output');
     }
 
-    /** Prefer the frozen CHIM-style split messages while retaining old snapshot compatibility. */
+    /** Prefer the frozen compact Markdown messages while refreshing turn-specific action authority. */
     private function promptMessages(array $turn): array
     {
-        $contract = '<action_contract>' . htmlspecialchars((new ActionPolicyValidator())->promptContract($turn),
-            ENT_QUOTES | ENT_XML1, 'UTF-8') . '</action_contract>';
+        $contract = '- **Action Contract:** ' . (new ActionPolicyValidator())->promptContract($turn);
         $messages = $turn['_prompt']['_messages'] ?? null;
         if (is_array($messages) && array_is_list($messages) && count($messages) >= 2 && count($messages) <= 64) {
             $safe = [];
@@ -184,20 +183,12 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 $safe[] = ['role' => $message['role'], 'content' => $message['content']];
             }
             if ($safe !== [] && $safe[0]['role'] === 'system' && $safe[array_key_last($safe)]['role'] === 'user') {
-                $actionClosing = '</negotiated_actions>';
-                $closing = '</roleplay_context>';
-                if (str_contains($safe[0]['content'], '<action_contract>')) {
-                    $safe[0]['content'] = preg_replace_callback('#<action_contract>.*?</action_contract>#s',
+                if (str_contains($safe[0]['content'], '- **Action Contract:**')) {
+                    $safe[0]['content'] = preg_replace_callback('/^- \*\*Action Contract:\*\*.*$/m',
                         static fn(): string => $contract, $safe[0]['content']) ?? $safe[0]['content'];
                     return $safe;
                 }
-                if (str_contains($safe[0]['content'], $actionClosing)) {
-                    $safe[0]['content'] = str_replace($actionClosing, $contract . $actionClosing, $safe[0]['content']);
-                } else {
-                    $safe[0]['content'] = str_ends_with($safe[0]['content'], $closing)
-                        ? substr($safe[0]['content'], 0, -strlen($closing)) . $contract . $closing
-                        : $safe[0]['content'] . "\n" . $contract;
-                }
+                $safe[0]['content'] .= "\n\n## Negotiated Actions\n\n" . $contract;
                 return $safe;
             }
         }
@@ -206,7 +197,9 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $prompt = json_encode($turn['payload'] ?? [], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         }
         return [
-            ['role' => 'system', 'content' => 'You roleplay Morrowind characters. Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON. ' . $contract],
+            ['role' => 'system', 'content' => "# Roleplay Context\n\n## Output Contract\n\n"
+                . "Return one JSON object with exactly two keys: utterances and action. Do not add prose outside JSON.\n\n"
+                . "## Negotiated Actions\n\n" . $contract],
             ['role' => 'user', 'content' => $prompt],
         ];
     }
