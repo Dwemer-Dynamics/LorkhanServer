@@ -1,1 +1,179 @@
 :root{--control-accent:#bc9d5a;--control-bg:#181818;--control-panel:#242424;--control-border:#444;--control-text:#eee;--control-muted:#bbb}body.hub-page,body.configuration-resource{background:var(--control-bg);color:var(--control-text)}.lorkhan-page,.management-page{padding:10px clamp(10px,2.5vw,34px) 24px;max-width:none;margin:0}.lorkhan-page.embedded{padding:10px clamp(10px,2.5vw,34px) 24px}.lorkhan-page-header,.management-page>h1:first-child{background:linear-gradient(135deg,#2a2119,#1f1f1f);border:1px solid #594925;border-radius:8px}.lorkhan-page-header{display:flex;justify-content:space-between;align-items:center;gap:8px 18px;padding:10px 14px;margin-bottom:10px}.lorkhan-page-header h1,.management-page>h1:first-child{font-size:1.3rem;margin:0}.lorkhan-page-header p,.management-page>p:first-of-type{color:var(--control-muted);margin:0}.management-page>h1:first-child{padding:10px 14px 2px;border-bottom:0;border-radius:8px 8px 0 0}.management-page>h1:first-child+ p{background:linear-gradient(135deg,#2a2119,#1f1f1f);border:1px solid #594925;border-top:0;border-radius:0 0 8px 8px;padding:0 14px 10px;margin:0 0 10px}.lorkhan-badge{border:1px solid #6f5b2e;background:#332719;color:#cfb888;border-radius:20px;padding:6px 10px;white-space:nowrap}.lorkhan-card,.management-page .widget{background:var(--control-panel);border:1px solid var(--control-border);border-radius:6px;padding:18px;margin-bottom:18px}.management-page .widget-header{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #454545;margin:-18px -18px 14px;padding:12px 18px}.management-page .widget-header h3{margin:0;font-size:18px}.lorkhan-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px}.lorkhan-card h2{font-size:20px;margin:0 0 14px}.lorkhan-card input,.lorkhan-card select,.lorkhan-card textarea,.management-page input,.management-page select,.management-page textarea{box-sizing:border-box;width:100%;background:#171717;color:#eee;border:1px solid #4a4a4a;border-radius:4px;padding:9px}.lorkhan-card textarea{min-height:130px}.lorkhan-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.lorkhan-form-grid label,.lorkhan-card>form>label{display:flex;flex-direction:column;gap:6px}.lorkhan-form-grid .wide{grid-column:1/-1}.lorkhan-actions{display:flex;gap:8px;margin-top:12px}.lorkhan-actions button,.lorkhan-card button,.lorkhan-card .btn-base{border:1px solid #a78844;background:#745e2f;color:#fff;border-radius:4px;padding:8px 12px;font-weight:700;text-decoration:none}.lorkhan-card table,.management-page table{width:100%;border-collapse:collapse}.lorkhan-card th,.lorkhan-card td,.management-page th,.management-page td{border:1px solid #434343;padding:10px;text-align:left;vertical-align:top}.lorkhan-card th,.management-page th{background:#303030;color:#cfb989}.control-table-tools{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:12px}.control-table-tools input{max-width:460px;background:#171717;color:#eee;border:1px solid #4a4a4a;border-radius:4px;padding:9px}.control-table-tools button{border:1px solid #555;background:#393939;color:#eee;border-radius:4px;padding:8px 12px;font-weight:700}.server-log{background:#111;border:1px solid #444;border-radius:4px;color:#ddd;max-height:420px;overflow:auto;padding:12px;white-space:pre-wrap}.lorkhan-status{background:#183c2c;border:1px solid #2d7250;padding:10px;margin-bottom:14px}@media(max-width:980px){.lorkhan-grid{grid-template-columns:1fr}}@media(max-width:640px){.lorkhan-page-header{align-items:flex-start;flex-direction:column;padding:10px 12px}.lorkhan-form-grid{grid-template-columns:1fr}.lorkhan-form-grid .wide{grid-column:auto}.control-table-tools{align-items:stretch;flex-direction:column}.control-table-tools input{max-width:none}}
+
+/* Current CHIM monitoring hierarchy: left-aligned context, compact tools, and one bounded data region. */
+body.hub-page main.lorkhan-page > .lorkhan-page-header {
+    justify-content: space-between;
+    text-align: left;
+}
+
+body.hub-page main.lorkhan-page > .lorkhan-page-header > div,
+body.hub-page main.lorkhan-page > .lorkhan-page-header h1,
+body.hub-page main.lorkhan-page > .lorkhan-page-header p {
+    min-width: 0;
+    text-align: left;
+}
+
+.lorkhan-card {
+    min-width: 0;
+    padding: 14px 16px;
+    margin-bottom: 12px;
+}
+
+.control-table-tools {
+    display: grid;
+    grid-template-columns: minmax(240px, 1fr) auto;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.control-table-tools input {
+    width: 100%;
+    max-width: 520px;
+    min-height: 38px;
+}
+
+.control-table-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 12px;
+}
+
+.control-result-count {
+    color: var(--control-muted);
+    font-size: .9rem;
+    white-space: nowrap;
+}
+
+.control-table-region {
+    width: 100%;
+    max-width: 100%;
+    max-height: min(68vh, 720px);
+    overflow: auto;
+    border: 1px solid #3f3f3f;
+    border-radius: 6px;
+    background: #202020;
+}
+
+.lorkhan-card .control-data-table {
+    min-width: 760px;
+    margin: 0;
+    table-layout: auto;
+}
+
+.lorkhan-card .control-data-table thead {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    background: #2b2b2b;
+}
+
+.lorkhan-card .control-data-table th,
+.lorkhan-card .control-data-table td {
+    border: 0;
+    border-bottom: 1px solid #393939;
+    padding: 9px 10px;
+}
+
+.lorkhan-card .control-data-table th {
+    color: var(--control-accent);
+    font-family: MagicCards, serif;
+    font-weight: 400;
+    word-spacing: 4px;
+    white-space: nowrap;
+}
+
+.lorkhan-card .control-data-table tbody tr:hover td {
+    background: rgba(188, 157, 90, .05);
+}
+
+.control-data-table time,
+.control-compact-id {
+    white-space: nowrap;
+}
+
+.control-compact-id {
+    display: inline-block;
+    max-width: 100%;
+    color: #d7dce5;
+    font-family: ui-monospace, Consolas, "Courier New", monospace;
+}
+
+.control-payload {
+    min-width: 180px;
+    max-width: 360px;
+}
+
+.control-payload-preview {
+    display: block;
+    max-width: 100%;
+    color: #d5d5d5;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.control-payload details {
+    margin-top: 5px;
+}
+
+.control-payload summary {
+    width: max-content;
+    color: var(--control-accent);
+    cursor: pointer;
+    font-size: .82rem;
+}
+
+.control-payload pre {
+    width: min(560px, 70vw);
+    max-height: 280px;
+    margin: 8px 0 0;
+    padding: 10px;
+    overflow: auto;
+    border: 1px solid #3b3b3b;
+    border-radius: 5px;
+    background: #141414;
+    color: #ddd;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.control-zero-state {
+    margin: 0;
+    padding: 22px 14px;
+    border: 1px dashed #555;
+    border-radius: 6px;
+    background: rgba(26, 26, 26, .45);
+    color: var(--control-muted);
+    text-align: center;
+}
+
+.control-table-tools :is(input, button):focus-visible,
+.control-payload summary:focus-visible {
+    outline: 2px solid var(--control-accent);
+    outline-offset: 2px;
+}
+
+@media (max-width: 640px) {
+    .lorkhan-card {
+        padding: 12px;
+    }
+
+    .control-table-tools {
+        grid-template-columns: 1fr;
+        align-items: stretch;
+    }
+
+    .control-table-tools input {
+        max-width: none;
+    }
+
+    .control-table-actions {
+        justify-content: space-between;
+    }
+
+    .control-result-count {
+        white-space: normal;
+    }
+}
