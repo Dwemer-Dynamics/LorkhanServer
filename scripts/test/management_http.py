@@ -623,7 +623,8 @@ relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
 assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
-assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body and 'Recent changes (6 shown)' in body
+assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body
+assert 'Recent changes' in body and '>6 shown<' in body
 backup_response=request('/LORKHANserver/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='lorkhan.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/LORKHANserver/ui/playthrough_manager.php'))
