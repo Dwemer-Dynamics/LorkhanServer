@@ -15,6 +15,7 @@ use Throwable;
 final class TurnProcessJobHandler implements JobHandler
 {
     public const TYPE = 'turn.process';
+    private const INLINE_SPEECH_TIMEOUT_MS = 5_000;
 
     public function __construct(
         private readonly Repository $repository,
@@ -63,14 +64,15 @@ final class TurnProcessJobHandler implements JobHandler
             $policy=$this->translationPolicy($message);
             $streamedDialogues=[];
             $streamSpeech=$this->canStreamSpeech($message,$policy);
-            $progress = function (string $delta) use ($message, $fence, $policy, $job, $token, $streamSpeech, &$streamedDialogues): void {
+            $progress = function (string $delta) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech, &$streamedDialogues): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
                 if(!$streamSpeech||str_contains($delta,'*')||count($streamedDialogues)>=4)return;
-                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,count($streamedDialogues)+1);
+                $index=count($streamedDialogues)+1;
+                $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index);
                 $streamedDialogues[]=$dialogue;
-                if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$token))
+                if($index!==1||!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat))
                     $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
@@ -109,10 +111,17 @@ final class TurnProcessJobHandler implements JobHandler
         return count($identities)===1;
     }
 
-    /** Generate and publish one sentence inline, leaving its durable speech job as failure fallback. */
-    private function synthesizeStreamedDialogue(array $message,array $dialogue,array $fence,array $job,CancellationToken $token):bool
+    /** Generate only the first sentence inline without consuming the LLM request deadline. */
+    private function synthesizeStreamedDialogue(array $message,array $dialogue,array $fence,array $job,callable $heartbeat):bool
     {
-        $mediaId=null;$attemptId=Uuid::v4();
+        $mediaId=null;$attemptId=Uuid::v4();$timedOut=false;$aborted=false;$lastCheck=0;
+        $deadline=hrtime(true)+self::INLINE_SPEECH_TIMEOUT_MS*1_000_000;
+        $token=new CallbackCancellationToken(function()use(&$timedOut,&$aborted,&$lastCheck,$deadline,$heartbeat,$message):bool{
+            $now=hrtime(true);if($now>=$deadline)return $timedOut=true;
+            if($now-$lastCheck<100_000_000)return false;$lastCheck=$now;
+            return $aborted=!$heartbeat()||$this->repository->isTurnCancellationRequested(
+                (string)$message['session_id'],(string)$message['turn_id'],(int)$message['generation']);
+        });
         try{
             $preset=$this->products?->connectorForActor((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'],'tts_provider');
@@ -139,11 +148,14 @@ final class TurnProcessJobHandler implements JobHandler
             return true;
         }catch(OperationCancelled $error){
             if($mediaId!==null)$this->mediaStore?->delete($mediaId);
-            try{$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');}catch(Throwable){}
-            throw$error;
+            try{$this->attempts?->finish($attemptId,$timedOut?'failed':'cancelled',
+                errorCode:$timedOut?'provider_timeout':'operation_cancelled');}catch(Throwable){}
+            if($aborted)throw$error;
+            return false;
         }catch(Throwable){
             if($mediaId!==null)$this->mediaStore?->delete($mediaId);
             try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
+            if($aborted)throw new OperationCancelled();
             return false;
         }
     }
