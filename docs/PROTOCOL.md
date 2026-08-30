@@ -68,10 +68,15 @@ actions carry both canonical fields and fail closed if the current inventory win
 | `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
 | `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `lorkhan.stt.accepted.v1`. |
+| `POST /menu-dialogue-tts` | Synthesize one authenticated regular Morrowind dialogue response with the actor's normal TTS route and return short-lived media. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
 | `POST /action-results` | Persist exactly one terminal result for an emitted current action. |
 | `POST /interruptions` | Cancel current turn/media/action continuation and emit terminal states. |
 | `GET /media/{id}` | Stream owned, unexpired allowlisted audio with fixed headers/hash/length. |
+
+Menu dialogue TTS is isolated from AI turns, response events, delivery receipts, memory, and rechat.
+Its request and media provenance remain session/generation scoped and expire through the existing
+private media lifecycle.
 
 Contracted event types are `turn.accepted`, `dialogue.delta`, `dialogue.complete`, `speech.ready`, `stt.transcript`, `stt.failed`, `action.intent`,
 `turn.complete`, `turn.failed`, and `turn.cancelled`. The required `autonomy` array is always empty. Future variants such as status/notices require
