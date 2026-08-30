@@ -91,9 +91,13 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .content-section p { color: #cfd8e3; }
 .tts-studio-page .button-group { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
 .tts-studio-page .button-group form { margin: 0; }
-.tts-studio-page .field-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(120px, .35fr); gap: 14px; max-width: 720px; margin-bottom: 15px; }
+.tts-studio-page .field-row { display: grid; grid-template-columns: minmax(180px, 1fr) minmax(280px, .65fr); gap: 14px; max-width: 900px; margin-bottom: 15px; }
+.tts-studio-page .field-row > div { min-width: 0; }
 .tts-studio-page label { display: block; margin-bottom: 6px; color: #fff; font-weight: 700; }
 .tts-studio-page input[type="text"], .tts-studio-page input[type="file"], .tts-studio-page select { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; }
+.tts-studio-page input[type="file"] { min-width: 0; max-width: 100%; padding: 0; overflow: hidden; color: #cfd8e3; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.tts-studio-page input[type="file"]::file-selector-button { min-height: 38px; margin-right: 10px; padding: 0 12px; border: 0; border-right: 1px solid #4a4a4a; background: #333; color: #f8f9fa; cursor: pointer; }
+.tts-studio-page input[type="file"]:focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
 .tts-studio-page .requirements { margin-top: 20px; padding: 15px; border: 1px solid #4a8ab6; border-radius: 6px; background: rgba(74, 138, 182, .1); }
 .tts-studio-page .requirements strong { color: #4a8ab6; }
 .tts-studio-page .voice-status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 20px; }
