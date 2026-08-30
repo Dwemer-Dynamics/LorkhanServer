@@ -316,6 +316,22 @@ final class Repository
         });
     }
 
+    /** Store a standalone game observation after checking its active session ownership. */
+    public function acceptGameData(array $message): void
+    {
+        $this->transaction(function () use ($message): void {
+            $session = $this->session((string) $message['session_id'], (int) $message['generation'], true);
+            if ((string) $session['installation_id'] !== (string) $message['installation_id']
+                || (string) $session['playthrough_id'] !== (string) $message['playthrough_id']) {
+                throw new \UnexpectedValueException('stale_generation');
+            }
+            $this->source((string) $message['request_id'], (string) $message['installation_id'],
+                (string) $message['session_id'], (int) $message['generation'], 'gamedata.captured_dialogue',
+                (string) $message['observed_at'], (string) $message['schema'], (string) $message['request_id'],
+                null, null, $message);
+        });
+    }
+
     /** Return the durable server-owned state for one active rechat chain. */
     public function rechatChain(string $chainId, string $sessionId, int $generation): ?array
     {

@@ -556,6 +556,26 @@ $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installati
     'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
 $turnProfileContent=$actorProfile['content'];$turnProfileContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$turnProfileContent,'route integration mood prompt',$now);
+$captured=$fixture('gamedata-captured-dialogue');
+$captured['installation_id']=$installationId;$captured['playthrough_id']=$session['playthrough_id'];
+$captured['session_id']=$sessionId;$captured['generation']=7;$captured['runtime_generation']=7;
+$captured['request_id']=$newUuid(850);$captured['payload']['speaker']=$controlsQuery['target'];
+$captured['payload']['listener']=$fixture('turn')['payload']['speaker'];$captured['payload']['audience']=[];
+$captured['payload']['text']='Ambient captured sentinel.';$captured['payload']['source']='background';
+[$status,$capturedAccepted]=$call($router,'POST',$base.'/gamedata',$headers($captured['request_id']),[],$captured);
+$assert($status===202&&($capturedAccepted['type']??null)==='captured_dialogue',
+    'background vanilla dialogue was not accepted: '.json_encode(['status'=>$status,'body'=>$capturedAccepted]));
+$menuCaptured=$captured;$menuCaptured['request_id']=$newUuid(851);$menuCaptured['payload']['source']='menu';
+$menuCaptured['payload']['text']='Menu captured sentinel.';
+[$status]=$call($router,'POST',$base.'/gamedata',$headers($menuCaptured['request_id']),[],$menuCaptured);
+$assert($status===202,'menu vanilla dialogue was not accepted');
+$capturedRows=$db->prepare("SELECT e.type,e.data,se.event_kind FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid "
+    ."JOIN source_events se ON se.source_event_id=m.source_event_id WHERE m.source_event_id IN (:background,:menu) ORDER BY e.rowid");
+$capturedRows->execute(['background'=>$captured['request_id'],'menu'=>$menuCaptured['request_id']]);
+$capturedRows=$capturedRows->fetchAll();
+$assert(array_column($capturedRows,'type')===['chat_background','chat']
+    &&array_unique(array_column($capturedRows,'event_kind'))===['gamedata.captured_dialogue'],
+    'captured dialogue did not project to CHIM-compatible event types: '.json_encode($capturedRows));
 $turn = $fixture('turn');
 $turn['session_id'] = $sessionId;
 $turn['payload']['target']=$controlsQuery['target'];
@@ -584,6 +604,7 @@ $promptSectionStatement->execute(['turn'=>$turn['turn_id']]);$promptSections=$pr
 $memoryRetrievalStatement=$db->prepare("SELECT prompt_section,result_ids,reasons FROM retrieval_traces WHERE turn_id=:turn AND domain='memory'");
 $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=$memoryRetrievalStatement->fetch();
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
+$promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
     &&str_contains((string)($promptMessages[0]['content']??''),'ai.follow parameters:')
     &&str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
@@ -598,6 +619,8 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($snapshot['trace']['algorithm']??null)==='chim-compact-roleplay-prompt-v3-markdown'
     &&($promptMessages[array_key_last($promptMessages)]['role']??null)==='user'
     &&str_contains((string)($promptMessages[array_key_last($promptMessages)]['content']??''),'Please follow me. (Player answers in a playful voice.)')
+    &&str_contains($promptHistoryJson,'[Background dialogue] Fargoth: Ambient captured sentinel.')
+    &&str_contains($promptHistoryJson,'Menu captured sentinel.')
     &&($snapshot['trace']['player_mood_cue']??null)==='(Player answers in a playful voice.)'
     &&str_contains((string)($moodProjection['data']??''),'(Player answers in a playful voice.)')
     &&($moodProjectionPayload['input']['resolved_mood_cue']??null)==='(Player answers in a playful voice.)'

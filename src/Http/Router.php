@@ -75,6 +75,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/sessions') return $this->createSession($request);
             if ($request->method === 'DELETE' && preg_match('#^/sessions/([0-9a-f-]{36})$#D', $path, $m)) return $this->endSession($request, $m[1]);
             if ($request->method === 'POST' && $path === '/turns') return $this->createTurn($request);
+            if ($request->method === 'POST' && $path === '/gamedata') return $this->gameData($request);
             if ($request->method === 'POST' && $path === '/controls/query') return $this->controlsQuery($request);
             if ($request->method === 'POST' && $path === '/controls/select') return $this->controlsSelect($request);
             if ($request->method === 'GET' && $path === '/events') return $this->events($request);
@@ -200,6 +201,27 @@ final class Router
             $body['event_cursor']=$accepted['sequence'];
             return Response::json(202, $body);
         });
+    }
+
+    /** Persist one authenticated vanilla dialogue observation without starting a model turn. */
+    private function gameData(Request $request): Response
+    {
+        $message = $this->json($request, 'lorkhan.gamedata.v1');
+        if (($message['type'] ?? null) !== 'captured_dialogue') {
+            throw new ApiException(422, 'invalid_schema', 'Unsupported game-data type.');
+        }
+        $this->assertPrincipal((string) $message['installation_id']);
+        $this->requireIdempotency($request, (string) $message['request_id']);
+        return $this->repository->serializedIdempotency((string) $message['installation_id'],
+            (string) $message['request_id'], '/gamedata', function () use ($message): Response {
+                return $this->idempotent((string) $message['installation_id'], (string) $message['request_id'],
+                    '/gamedata', $message, function () use ($message): array {
+                        $this->repository->acceptGameData($message);
+                        return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
+                            'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
+                            'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];
+                    });
+            });
     }
 
     /** Ground topics locally first, then make one guarded connector fallback for unresolved explicit requests. */
