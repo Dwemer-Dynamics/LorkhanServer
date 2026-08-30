@@ -73,3 +73,56 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,9
 .global-settings-page .gs-rollback-form { display: grid; gap: 10px; }
 .global-settings-page .gs-portability a:focus-visible,.global-settings-page .gs-portability button:focus-visible,.global-settings-page .gs-portability summary:focus-visible,.global-settings-page .gs-portability input:focus-visible,.global-settings-page .gs-portability select:focus-visible,.global-settings-page .gs-portability textarea:focus-visible { outline: 2px solid rgb(188,157,90); outline-offset: 2px; }
 @media (max-width: 720px) { .global-settings-page .gs-portability-actions { width: 100%; margin-left: 0; } .global-settings-page .gs-portability-actions > * { flex: 1 1 auto; } .global-settings-page .gs-portability-head { align-items: flex-start; } }
+
+/* Keep the product-specific portability explanation available without making the editor permanently tall. */
+.global-settings-page .gs-scope-details {
+    margin-top: 8px;
+    border-left: 3px solid rgba(188, 157, 90, .65);
+    background: rgba(26, 26, 26, .35);
+}
+
+.global-settings-page .gs-scope-details > summary {
+    padding: 7px 10px;
+    color: #d8c9a8;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.global-settings-page .gs-scope-details > .gs-portability-note {
+    margin: 0;
+    padding: 0 10px 9px;
+}
+
+.global-settings-page .settings-tab:focus-visible,
+.global-settings-page .provider-body :is(input, select, textarea):focus-visible {
+    outline: 2px solid rgb(188, 157, 90);
+    outline-offset: 2px;
+}
+
+.global-settings-page .gs-field input[type="file"] {
+    padding: 4px;
+}
+
+.global-settings-page .gs-field input[type="file"]::file-selector-button {
+    min-height: 34px;
+    margin-right: 10px;
+    padding: 6px 10px;
+    border: 1px solid #555;
+    border-radius: 5px;
+    background: #393939;
+    color: #eee;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+@media (max-width: 720px) {
+    .global-settings-page .page-header-actions,
+    .global-settings-page .page-header-actions > .btn-save-green {
+        width: 100%;
+    }
+
+    .global-settings-page .settings-tabs {
+        grid-template-columns: 1fr;
+    }
+}

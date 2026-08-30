@@ -50,12 +50,19 @@ $policyFields = static function (array $content, array $actions) use ($actionEna
     <header class="page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Action Editor</h1><p class="lorkhan-page-head-note">Review the negotiated OpenMW action catalogue and manage scoped action policies.</p></header>
     <?php if (isset($_GET['status'])): ?><div class="action-notice">Action policy saved.</div><?php endif; ?>
 
-    <section class="summary-section">
-        <div class="section-header"><h2>Action Summary</h2><div class="summary-actions"><button type="button" class="action-button" data-active-actions>View Active Actions</button><button type="button" class="action-button primary" data-policy-create>Create Action Policy</button></div></div>
-        <div class="summary-grid"><article><span>Total Actions</span><strong><?php echo count($actions); ?></strong></article><article><span>Enabled</span><strong><?php echo $enabledCount; ?></strong></article><article><span>Disabled</span><strong><?php echo count($actions) - $enabledCount; ?></strong></article><article><span>Policies</span><strong><?php echo count($policies); ?></strong></article></div>
-    </section>
+    <div class="action-overview-grid">
+        <section class="summary-section">
+            <div class="section-header"><h2>Action Summary</h2><div class="summary-actions"><button type="button" class="action-button" data-active-actions>View Active Actions</button><button type="button" class="action-button primary" data-policy-create>Create Action Policy</button></div></div>
+            <div class="summary-grid">
+                <article class="summary-stat"><span>Total Actions</span><strong><?php echo count($actions); ?></strong></article>
+                <article class="summary-stat is-enabled"><span>Enabled</span><strong><?php echo $enabledCount; ?></strong></article>
+                <article class="summary-stat is-disabled"><span>Disabled</span><strong><?php echo count($actions) - $enabledCount; ?></strong></article>
+                <article class="summary-stat is-policy"><span>Policies</span><strong><?php echo count($policies); ?></strong></article>
+            </div>
+        </section>
 
-    <section class="how-section"><h2>How It Works</h2><p>The catalogue below is read-only. Use an <strong>Action Policy</strong> to choose which actions an installation or NPC profile may use, and the highest tier allowed.</p><p class="replacement-note">LORKHAN keeps the negotiated OpenMW action catalogue immutable. Use scoped Action Policies to enable actions by installation or NPC profile. <?php echo lorkhan_ui_feature_badge('config.actions.direct-edit', true); ?></p></section>
+        <section class="how-section"><h2>How It Works</h2><p>The catalogue below is read-only. Use an <strong>Action Policy</strong> to choose which actions an installation or NPC profile may use, and the highest tier allowed.</p><p class="replacement-note">LORKHAN keeps the negotiated OpenMW action catalogue immutable. Use scoped Action Policies to enable actions by installation or NPC profile. <?php echo lorkhan_ui_feature_badge('config.actions.direct-edit', true); ?></p></section>
+    </div>
 
     <section class="filter-toolbar" id="entries" data-action-filters>
         <div class="filter-toolbar-top"><label class="search-field"><span class="sr-only">Search</span><input type="search" placeholder="Search actions..." data-action-search></label><span class="visible-count"><strong data-action-visible><?php echo count($actions); ?></strong> of <?php echo count($actions); ?> shown</span><button type="button" class="action-button secondary" data-action-reset>Reset Filters</button></div>
