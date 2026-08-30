@@ -11,6 +11,11 @@ body.hub-page {
     padding-top: var(--hub-navbar-offset);
 }
 
+/* A hub rendered inside a frame carries no navbar of its own. */
+body.hub-page.embedded-page {
+    padding-top: 0;
+}
+
 body.hub-page > main {
     box-sizing: border-box;
     width: 100%;
@@ -113,23 +118,34 @@ body.hub-page .config-navigation {
     transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
+/* Block-level, as Herika leaves it. A flex label sizes itself to its text and
+   text-overflow never engages, so a long name is cut mid-glyph instead of
+   ending in an ellipsis. The full name stays available from the title. */
 .tab-button .tab-label {
+    display: block;
     min-width: 0;
+    max-width: 100%;
     overflow: hidden;
+    white-space: nowrap;
     text-overflow: ellipsis;
 }
 
+/* The availability variant stacks the name over its state badge. The column
+   stretches so the name still measures against the button width. */
 .tab-button > .tab-label-stack {
-    min-width: 0;
-    display: inline-flex;
+    display: flex;
+    flex: 0 1 auto;
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     justify-content: center;
     gap: 1px;
+    min-width: 0;
     line-height: 1;
 }
 
 .tab-label-stack .feature-state-compact {
+    align-self: flex-start;
+    max-width: 100%;
     min-height: 12px;
     padding: 1px 4px;
     font-size: 7px;
@@ -165,6 +181,25 @@ body.hub-page .config-navigation {
 .tab-button:focus,
 .tab-button:visited {
     text-decoration: none;
+}
+
+/* Inset so the ring is never clipped by the .tab-group overflow. */
+.tab-button:focus-visible {
+    outline: 2px solid var(--chim-accent-bright, rgb(212, 184, 122));
+    outline-offset: -2px;
+}
+
+.tab-button[disabled],
+.tab-button[aria-disabled="true"] {
+    cursor: not-allowed;
+    opacity: 0.62;
+}
+
+body .tab-button[disabled]:hover:not(.active),
+body .tab-button[aria-disabled="true"]:hover:not(.active) {
+    border-color: #4a4a4a !important;
+    background: #303030 !important;
+    color: #c9c5bd !important;
 }
 
 @media (max-width: 1500px) {

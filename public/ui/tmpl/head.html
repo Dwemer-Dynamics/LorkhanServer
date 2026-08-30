@@ -27,4 +27,11 @@
     <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/control-pages.js"></script>
     <?php endif; ?>
 </head>
-<body class="<?php echo lorkhan_ui_h($BODY_CLASS ?? ''); ?>">
+<?php
+// Every ?embed=1 request is rendered inside a hub iframe. Marking the body once
+// here keeps the fixed-navbar offset and the direct-page main stand-off out of
+// the frame, instead of relying on each thin page to remember the class.
+$lorkhanBodyClasses = preg_split('/\s+/', (string) ($BODY_CLASS ?? ''), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+if (($embedded ?? false) === true && !in_array('embedded-page', $lorkhanBodyClasses, true)) $lorkhanBodyClasses[] = 'embedded-page';
+?>
+<body class="<?php echo lorkhan_ui_h(implode(' ', $lorkhanBodyClasses)); ?>">
