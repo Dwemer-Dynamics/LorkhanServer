@@ -74,6 +74,11 @@
     padding: 0;
 }
 
+/* Match the current Herika navbar dropdown width on LORKHAN's visible brand menu. */
+.chim-navbar-wrapper .brand-menu {
+    min-width: 280px;
+}
+
 @media (max-width: 992px) {
     .chim-navbar .container-fluid {
         flex-direction: column;

@@ -55,11 +55,34 @@ try {
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
 } catch (Throwable) {
+    // This can fail before the configuration is read, so $webRoot may never have
+    // been assigned. Derive the asset root from the request path instead; every
+    // UI entry point lives under <root>/ui/.
+    $scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
+    $uiOffset = strpos($scriptPath, '/ui/');
+    $assetRoot = htmlspecialchars(
+        $uiOffset === false ? '/LORKHANserver' : substr($scriptPath, 0, $uiOffset),
+        ENT_QUOTES | ENT_SUBSTITUTE,
+        'UTF-8'
+    );
     http_response_code(503);
     header('Content-Type: text/html; charset=utf-8');
-    header("Content-Security-Policy: default-src 'none'; style-src 'self'; base-uri 'none'; frame-ancestors 'self'");
-    echo '<!doctype html><html lang="en"><head><meta charset="utf-8"><title>LORKHAN unavailable</title></head>';
-    echo '<body><main><h1>LORKHANserver is unavailable</h1><p>Check the local server configuration and database service.</p></main></body></html>';
+    // Same-origin stylesheet, font, and mark only. Script, connect, frame, and
+    // form remain denied by default-src 'none'.
+    header("Content-Security-Policy: default-src 'none'; style-src 'self'; font-src 'self'; img-src 'self'; base-uri 'none'; frame-ancestors 'self'");
+    header('X-Content-Type-Options: nosniff');
+    header('Referrer-Policy: no-referrer');
+    echo '<!doctype html><html lang="en" data-bs-theme="dark"><head><meta charset="utf-8">';
+    echo '<meta name="viewport" content="width=device-width, initial-scale=1">';
+    echo '<title>LORKHAN unavailable</title>';
+    echo '<link rel="icon" type="image/x-icon" href="' . $assetRoot . '/ui/images/favicon.ico">';
+    echo '<link rel="stylesheet" href="' . $assetRoot . '/ui/css/style_new.css">';
+    echo '<link rel="stylesheet" href="' . $assetRoot . '/ui/css/chim-theme.css">';
+    echo '</head><body class="lorkhan-outage"><main class="lorkhan-outage-panel">';
+    echo '<img class="lorkhan-outage-mark" src="' . $assetRoot . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="" aria-hidden="true">';
+    echo '<h1>LORKHANserver is unavailable</h1>';
+    echo '<p>Check the local server configuration and database service.</p>';
+    echo '</main></body></html>';
     exit;
 }
 
