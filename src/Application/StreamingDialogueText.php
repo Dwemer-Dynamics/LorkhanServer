@@ -7,9 +7,13 @@ namespace LORKHANserver\Application;
 /** Extracts safe visible text growth from a streamed structured response. */
 final class StreamingDialogueText
 {
+    private const MAX_CHUNKS = 4;
+    private const MIN_CHUNK_BYTES = 20;
+
     private string $content = '';
     private string $visible = '';
     private string $emitted = '';
+    private int $chunkCount = 0;
 
     /** @return list<string> */
     public function push(string $contentDelta, bool $final = false): array
@@ -20,25 +24,28 @@ final class StreamingDialogueText
             $this->visible = $next;
         }
 
-        $pending = substr($this->visible, strlen($this->emitted));
-        if ($pending === '') return [];
-        $flushBytes = 0;
-        if ($final) {
-            $flushBytes = strlen($pending);
-        } elseif (strlen($pending) >= 24) {
-            $window = substr($pending, 0, 128);
-            if (preg_match_all('/[.!?](?:\s|$)|\s+/u', $window, $matches, PREG_OFFSET_CAPTURE)) {
-                $last = end($matches[0]);
-                if (is_array($last)) $flushBytes = $last[1] + strlen($last[0]);
+        $chunks = [];
+        while ($this->chunkCount < self::MAX_CHUNKS) {
+            $pending = substr($this->visible, strlen($this->emitted));
+            if ($pending === '') break;
+            $flushBytes = 0;
+            if ($this->chunkCount === self::MAX_CHUNKS - 1) {
+                if ($final) $flushBytes = strlen($pending);
+            } elseif (preg_match_all('/[.!?](?:[\"\'\)\]]{0,2})(?:\s+|$)/u',$pending,$matches,PREG_OFFSET_CAPTURE)) {
+                foreach($matches[0] as$match){
+                    $candidate=$match[1]+strlen($match[0]);
+                    if($candidate>=self::MIN_CHUNK_BYTES){$flushBytes=$candidate;break;}
+                }
             }
-            if ($flushBytes === 0 && strlen($pending) >= 128) $flushBytes = 128;
+            if ($flushBytes === 0 && $final) $flushBytes = strlen($pending);
+            if ($flushBytes === 0) break;
+            $chunk = substr($pending, 0, $flushBytes);
+            if (!mb_check_encoding($chunk, 'UTF-8')) break;
+            $this->emitted .= $chunk;
+            ++$this->chunkCount;
+            $chunks[] = $chunk;
         }
-        if ($flushBytes === 0) return [];
-
-        $chunk = substr($pending, 0, $flushBytes);
-        if (!mb_check_encoding($chunk, 'UTF-8')) return [];
-        $this->emitted .= $chunk;
-        return [$chunk];
+        return $chunks;
     }
 
     private function extractVisibleText(string $json): string

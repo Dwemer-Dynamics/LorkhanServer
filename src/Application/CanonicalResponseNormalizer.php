@@ -13,7 +13,7 @@ final class CanonicalResponseNormalizer
     public function __construct(private readonly DialoguePlanner $planner = new DialoguePlanner()) {}
 
     /** @param array<string,mixed> $turn @param array<string,mixed> $providerResult @return array<string,mixed> */
-    public function normalize(array $turn, array $providerResult): array
+    public function normalize(array $turn, array $providerResult, array $streamedLines = []): array
     {
         $runtimeGeneration = $turn['runtime_generation'] ?? null;
         if (!is_int($runtimeGeneration) || $runtimeGeneration < 1) {
@@ -26,6 +26,13 @@ final class CanonicalResponseNormalizer
         $rechatDepth = max(0, min(20, (int) ($rechat['rechat_depth'] ?? 0)));
         $lines = [];
         foreach ($utterances as $index => $utterance) {
+            $streamed = $streamedLines[$index] ?? null;
+            if ($streamed !== null && (!is_array($streamed)
+                || ($streamed['text'] ?? null) !== $utterance['_history_text']
+                || !Uuid::isValid((string) ($streamed['line_id'] ?? ''))
+                || !Uuid::isValid((string) ($streamed['utterance_id'] ?? '')))) {
+                throw new DomainException('provider_invalid_output');
+            }
             $speaker = $utterance['speaker'];
             $listener = $utterance['addressee'];
             $rechatTarget = is_array($rechat['rechat_target_hint'] ?? null)
@@ -33,7 +40,7 @@ final class CanonicalResponseNormalizer
             $text = $utterance['_history_text'];
             $lines[] = [
                 'schema' => 'lorkhan.response.line.v1',
-                'line_id' => Uuid::v4(),
+                'line_id' => $streamed['line_id'] ?? Uuid::v4(),
                 'line_index' => $index,
                 'speaker' => $this->displayName($speaker),
                 'display_name' => $this->displayName($speaker),
@@ -43,7 +50,7 @@ final class CanonicalResponseNormalizer
                 'subtitle' => $utterance['_subtitle'],
                 'tts_text' => $utterance['_tts_text'],
                 'request_id' => $requestId,
-                'utterance_id' => Uuid::v4(),
+                'utterance_id' => $streamed['utterance_id'] ?? Uuid::v4(),
                 'listener' => $this->displayName($listener),
                 'listener_identity' => $listener,
                 'rechat_target' => $this->displayName($rechatTarget),

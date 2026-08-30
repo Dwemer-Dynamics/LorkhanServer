@@ -25,7 +25,8 @@ final class FirstPartyJobHandlerFactory
         if ($provider !== null) {
             $handlers[] = new TurnProcessJobHandler(new \LORKHANserver\Infrastructure\Repository($db,256,
                 new \LORKHANserver\Infrastructure\ActionCatalogRepository($db),new ActionPolicyValidator()), $provider,
-                $mediaStore, new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,$translationProvider);
+                $mediaStore, new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db), $providerTimeoutMs,$providerConfig,
+                $translationProvider,$speechProvider,$products);
         }
         $handlers[] = new SpeechSynthesizeJobHandler(new \LORKHANserver\Infrastructure\Repository($db),$speechProvider,
             $mediaStore,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),$products,$providerConfig,
