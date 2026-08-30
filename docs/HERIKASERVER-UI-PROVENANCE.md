@@ -59,7 +59,7 @@ that byte-identical baseline; they were regenerated from Dwemer Dynamics' LORKHA
 | --- | --- | --- |
 | `public/ui/images/favicon.ico` | `icon.png` | 16/32/48 px, 32-bit BMP entries, alpha preserved |
 | `public/ui/images/lorkhan-logo.png` | `icon.png` | 512x512 RGBA navbar/brand mark; established asset path retained |
-| `public/ui/images/serverlogo.png` | `ServerLogo.png` | 103x42 RGBA wordmark, unscaled; currently unreferenced |
+| `public/ui/images/serverlogo.png` | `ServerLogo.png` | 103x42 RGBA wordmark, unscaled; rendered as the navbar text wordmark beside the brand mark |
 | `public/ui/images/serverlogodev.png` | `ServerLogo.png` | wordmark centred on the original 153x42 canvas; currently unreferenced |
 
 `public/ui/images/DwemerDynamics.png` and `public/ui/images/navbarback.png` remain the imported

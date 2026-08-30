@@ -108,7 +108,8 @@ final class ManagementView
             . '<div class="container-fluid mx-1"><div class="navbar-content-wrapper"><div class="navbar-center dropdown">'
             . '<button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">'
             . '<img src="' . $this->e($root) . '/ui/images/DwemerDynamics.png" alt="Dwemer Dynamics">'
-            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="LORKHAN Server"></button>'
+            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="LORKHAN Server">'
+            . '<img class="brand-wordmark-img" src="' . $this->e($root) . '/ui/images/serverlogo.png" width="103" height="42" alt="" aria-hidden="true"></button>'
             . '<ul class="dropdown-menu brand-menu">' . $items . '</ul></div></div></div></nav></div>';
     }
 
