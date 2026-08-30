@@ -13,7 +13,7 @@ use Throwable;
 final class EventLogRepository
 {
     private const NPC_HISTORY_TYPES = [
-        'inputtext','chat','location','weather','death','infoaction','narration','quest','book',
+        'inputtext','chat','chat_background','location','weather','death','infoaction','narration','quest','book',
     ];
 
     private const DEFAULT_HIDDEN_TYPES = [
@@ -396,14 +396,30 @@ final class EventLogRepository
             $body['input']['resolved_mood_cue'] = trim($moodCue);
         }
         $speaker = $this->object($body['speaker'] ?? []);
-        $target = $this->object($body['target'] ?? []);
+        $target = $this->object($body[$kind === 'gamedata.captured_dialogue' ? 'listener' : 'target'] ?? []);
         $audience = $this->list($body['audience'] ?? []);
         $context = $this->object($body['context'] ?? []);
         $common = ['installation_id'=>$installationId,'playthrough_id'=>$scope['playthrough_id'],'profile_id'=>$scope['profile_id'],
             'session_id'=>$sessionId,'source_event_id'=>$sourceId,'request_id'=>$requestId,'turn_id'=>$turnId,
             'speaker'=>$speaker,'target'=>$target,'audience'=>$audience,'payload'=>$body,'created_at'=>$occurredAt,
-            'gamets'=>$this->gameTime($context),'location'=>$this->location($context),'sess'=>$sessionId,
+            'gamets'=>$kind === 'gamedata.captured_dialogue' && is_numeric($body['game_time'] ?? null)
+                ? max(0, (int) floor((float) $body['game_time'])) : $this->gameTime($context),
+            'location'=>$kind === 'gamedata.captured_dialogue'
+                ? $this->identityLocation($speaker) : $this->location($context),'sess'=>$sessionId,
             'people'=>$this->people($speaker,$target,$audience)];
+        if ($kind === 'gamedata.captured_dialogue') {
+            $text = trim((string) ($body['text'] ?? ''));
+            if ($text === '') return;
+            $source = ($body['source'] ?? null) === 'background' ? 'background' : 'menu';
+            $payload = ['text'=>$text,'speaker'=>$speaker,'addressee'=>$target,'audience'=>$audience,
+                'source'=>$source,'topic'=>(string) ($body['topic'] ?? '')];
+            $this->insert(array_merge($common, ['payload'=>$payload,
+                'type'=>$source === 'background' ? 'chat_background' : 'chat',
+                'data'=>$this->displayName($speaker,'NPC').': '.$text,
+                'projection_kind'=>'captured_dialogue','projection_key'=>'captured-dialogue:'.$sourceId,
+                'delivery_state'=>$source === 'menu' ? 'played' : null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'turn.requested' || $kind === 'rechat') {
             $this->projectContext($sourceId, $common, $context);
             $input = $this->object($body['input'] ?? []);
@@ -669,6 +685,20 @@ final class EventLogRepository
     {
         $value = $context['world']['cell'] ?? null;
         return is_string($value) && trim($value) !== '' ? trim($value) : null;
+    }
+
+    private function identityLocation(array $identity): ?string
+    {
+        $cell = $this->object($identity['cell'] ?? []);
+        if (($cell['kind'] ?? null) === 'interior') {
+            $name = trim((string) ($cell['name'] ?? ''));
+            return $name === '' ? null : $name;
+        }
+        if (($cell['kind'] ?? null) === 'exterior' && is_int($cell['grid_x'] ?? null)
+            && is_int($cell['grid_y'] ?? null)) {
+            return 'Wilderness (' . $cell['grid_x'] . ', ' . $cell['grid_y'] . ')';
+        }
+        return null;
     }
 
     private function people(array $speaker, array $target, array $audience): string

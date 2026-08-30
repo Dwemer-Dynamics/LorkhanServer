@@ -830,6 +830,8 @@ final class PromptAssembler
             'death' => '[World event] ' . (trim((string)($details['text'] ?? 'An actor died.')) ?: 'An actor died.'),
             'infoaction' => '[Action result] ' . (trim((string)($details['text'] ?? $details['data'] ?? 'An action completed.')) ?: 'An action completed.'),
             'narration' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null : '[Narration] ' . $text,
+            'chat_background' => ($text = trim((string)($details['text'] ?? ''))) === '' ? null
+                : '[Background dialogue] ' . $this->identityName($details['speaker'] ?? $content['speaker'] ?? null, 'NPC') . ': ' . $text,
             default => null,
         };
     }

@@ -34,6 +34,7 @@ final class Validator
         match ($expectedSchema) {
             'lorkhan.session.init.v1' => $this->session($message),
             'lorkhan.turn.v1' => $this->turn($message),
+            'lorkhan.gamedata.v1' => $this->gameData($message),
             'lorkhan.interrupt.v1' => $this->interrupt($message),
             'lorkhan.action-result.v1' => $this->actionResult($message),
             'lorkhan.stt.request.v1' => $this->stt($message),
@@ -128,6 +129,37 @@ final class Validator
                 }
             }
         }
+    }
+
+    /** Validate the one standalone game-data family currently implemented by the runtime. */
+    private function gameData(array $message): void
+    {
+        $this->keys($message,['schema','installation_id','playthrough_id','session_id','request_id','generation',
+            'runtime_generation','observed_at','game','type','payload']);
+        if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
+            ||($message['type']??null)!=='captured_dialogue'||!is_int($message['generation'])||$message['generation']<1
+            ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
+            ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
+            throw new ValidationException('invalid_schema');
+        foreach(['installation_id','playthrough_id','session_id','request_id']as$field)$this->uuid($message[$field]??null);
+        $this->timestamp($message['observed_at']??null);
+        $payload=$message['payload']??null;
+        if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        $payloadKeys=['source','speaker','listener','audience','text','topic'];
+        if(array_key_exists('game_time',$payload))$payloadKeys[]='game_time';
+        $this->keys($payload,$payloadKeys);
+        if(!in_array($payload['source']??null,['background','menu'],true)
+            ||!is_string($payload['text']??null)||$payload['text']===''||!mb_check_encoding($payload['text'],'UTF-8')
+            ||mb_strlen($payload['text'],'UTF-8')>4096||!is_string($payload['topic']??null)
+            ||!mb_check_encoding($payload['topic'],'UTF-8')||mb_strlen($payload['topic'],'UTF-8')>256
+            ||!is_array($payload['audience']??null)||!array_is_list($payload['audience'])||count($payload['audience'])>12
+            ||(array_key_exists('game_time',$payload)&&(!is_int($payload['game_time'])&&!is_float($payload['game_time'])
+                ||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991)))
+            throw new ValidationException('invalid_schema');
+        $this->identity($payload['speaker']??null);$this->identity($payload['listener']??null);
+        $seen=[];foreach($payload['audience']as$actor){$this->identity($actor);
+            $key=json_encode($actor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+            if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
     }
 
     /** @param array<string, mixed> $message */

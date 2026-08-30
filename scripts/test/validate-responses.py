@@ -17,6 +17,7 @@ SCHEMA_FOR = {
     "lorkhan.session.accepted.v1": "session-accepted.schema.json",
     "lorkhan.controls.v1": "controls.schema.json",
     "lorkhan.turn.accepted.v1": "turn-accepted.schema.json",
+    "lorkhan.gamedata.accepted.v1": "gamedata-accepted.schema.json",
     "lorkhan.events.v1": "events.schema.json",
     "lorkhan.interruption.accepted.v1": "interruption-accepted.schema.json",
     "lorkhan.action-result.accepted.v1": "action-result-accepted.schema.json",

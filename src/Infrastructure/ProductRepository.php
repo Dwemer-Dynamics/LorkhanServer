@@ -2039,7 +2039,7 @@ SELECT 'event:'||e.rowid::text AS id,
                'details',CASE
                    WHEN e.type='location' THEN jsonb_strip_nulls(jsonb_build_object('location',e.location,'game_time',NULLIF(e.gamets,0)))
                    WHEN e.type='weather' THEN jsonb_strip_nulls(jsonb_build_object('weather',COALESCE(m.payload->>'weather',replace(e.data,'Weather changed to ',''))))
-                   WHEN e.type IN ('quest','book','death','infoaction','narration') THEN m.payload
+                    WHEN e.type IN ('quest','book','death','infoaction','narration','chat_background') THEN m.payload
                    ELSE NULL END,
                'speaker',CASE WHEN m.speaker='{}'::jsonb THEN NULL ELSE m.speaker END,
                'target',CASE WHEN m.target='{}'::jsonb THEN NULL ELSE m.target END,
@@ -2050,7 +2050,7 @@ FROM eventlog e
 JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
-  AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book')
+  AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','rechat','narration','quest','book')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
