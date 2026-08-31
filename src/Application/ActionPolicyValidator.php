@@ -53,6 +53,13 @@ final class ActionPolicyValidator
         if (($definition['tier'] ?? null) !== $proposal['tier']) {
             throw new DomainException('action_tier_mismatch');
         }
+        $actorKind = $proposal['actor']['kind'] ?? null;
+        $scopeAllowed = $actorKind === 'narrator'
+            ? ($definition['available_to_narrator'] ?? false) === true
+            : in_array($actorKind, ['npc', 'creature'], true) && ($definition['available_to_npc'] ?? false) === true;
+        if (!$scopeAllowed) {
+            throw new DomainException('provider_action_not_allowed');
+        }
 
         $policy = $this->normalizePolicy($loaded['policy']['content'] ?? null);
         if (!$this->policyAllows($proposal['name'], $proposal['tier'], $policy)) {
@@ -65,6 +72,12 @@ final class ActionPolicyValidator
         }
 
         $override = $policy['overrides'][$proposal['name']] ?? [];
+        $cooldown = (int) ($override['cooldown_seconds'] ?? $definition['cooldown_seconds'] ?? 0);
+        if (!$this->cooldownAllows($proposal['name'], $cooldown, $loaded['last_action_at'] ?? [])) {
+            throw new DomainException('action_cooldown');
+        }
+        $continuation = is_array($loaded['continuation'] ?? null) ? $loaded['continuation'] : [];
+        $followupDepth = min(1, max(0, (int) ($continuation['depth'] ?? 0)));
         $normalized = [
             'name' => $proposal['name'],
             'tier' => $proposal['tier'],
@@ -75,17 +88,25 @@ final class ActionPolicyValidator
             'policy_configuration_id' => $loaded['policy']['configuration_id'] ?? null,
             'policy_revision' => isset($loaded['policy']['revision']) ? (int) $loaded['policy']['revision'] : null,
         ];
-        $displayName = (string) ($override['display_name'] ?? $proposal['name']);
+        $displayName = (string) ($override['display_name'] ?? $definition['display_name'] ?? $proposal['name']);
         if ($displayName !== $proposal['name'] && in_array('action.confirmation', $capabilities, true)) {
             $normalized['display_name'] = $displayName;
         }
         if (in_array('action.confirmation', $capabilities, true)) {
-            $normalized['confirmation_required'] = (bool) ($override['confirmation_required'] ?? $proposal['tier'] >= 2);
+            $mode=(string)($definition['confirmation_mode']??'optional');
+            $normalized['confirmation_required'] = $mode==='required'||($mode==='optional'&&($override['confirmation_required']??false)===true);
         }
         if (in_array('action.result-followup', $capabilities, true)) {
-            $normalized['followup_enabled'] = ($definition['continuation_capable'] ?? false) === true
-                && ($override['followup_enabled'] ?? false) === true;
+            $normalized['followup_enabled'] = $followupDepth===0&&($definition['continuation_capable'] ?? false) === true
+                && ($override['followup_enabled'] ?? $definition['followup_default'] ?? false) === true;
+            $normalized['followup_actions_allowed']=$normalized['followup_enabled']
+                &&($definition['followup_actions_supported']??false)===true
+                &&($override['allow_followup_action']??false)===true;
+            $normalized['followup_depth']=$followupDepth;
+            if($normalized['followup_enabled'])$normalized['followup_prompt']=(string)
+                ($override['followup_prompt']??$definition['followup_prompt']??'');
         }
+        $normalized['cooldown_seconds']=$cooldown;
         return $normalized;
     }
 
@@ -115,16 +136,25 @@ final class ActionPolicyValidator
                 && in_array($definition['client_capability'], $capabilities, true)
                 && $this->policyAllows($definition['name'], $definition['tier'], $policy)) {
                 $override = $policy['overrides'][$definition['name']] ?? [];
-                $displayName=(string)($override['display_name']??$definition['name']);
+                $cooldown=(int)($override['cooldown_seconds']??$definition['cooldown_seconds']??0);
+                if(!$this->cooldownAllows($definition['name'],$cooldown,$loaded['last_action_at']??[]))continue;
+                $displayName=(string)($override['display_name']??$definition['display_name']??$definition['name']);
                 if($displayName!==$definition['name'])$definition['display_name']=$displayName;
                 $definition['description'] = (string) ($override['description'] ?? ($definition['description']??''));
                 if (in_array('action.confirmation', $capabilities, true)) {
-                    $definition['confirmation_required'] = (bool) ($override['confirmation_required'] ?? $definition['tier'] >= 2);
+                    $mode=(string)($definition['confirmation_mode']??'optional');
+                    $definition['confirmation_required']=$mode==='required'||($mode==='optional'&&($override['confirmation_required']??false)===true);
                 }
                 if (in_array('action.result-followup', $capabilities, true)) {
                     $definition['followup_enabled'] = ($definition['continuation_capable'] ?? false) === true
-                        && ($override['followup_enabled'] ?? false) === true;
+                        && ($override['followup_enabled'] ?? $definition['followup_default'] ?? false) === true;
+                    $definition['followup_actions_allowed']=$definition['followup_enabled']
+                        &&($definition['followup_actions_supported']??false)===true
+                        &&($override['allow_followup_action']??false)===true;
+                    if($definition['followup_enabled'])$definition['followup_prompt']=(string)
+                        ($override['followup_prompt']??$definition['followup_prompt']??'');
                 }
+                $definition['cooldown_seconds']=$cooldown;
                 $allowed[] = $definition;
             }
         }
@@ -135,22 +165,20 @@ final class ActionPolicyValidator
     public function promptContract(array $turn): string
     {
         $definitions = $turn['_allowed_action_definitions'] ?? [];
-        if (in_array(($turn['payload']['ui_source']??null),['lorkhan_rechat','lorkhan_action_followup'],true)
-            || $definitions === []) {
+        if ($definitions === []) {
             return 'action must be null. No actions are available for this turn.';
         }
         $actions = [];
         foreach ($definitions as $definition) {
             $label = (string) ($definition['display_name'] ?? $definition['name']);
             $description = trim((string) ($definition['description'] ?? ''));
-            $contract=(string)$definition['name'];
-            if($label!==$definition['name'])$contract.=' ('.$label.')';
-            $contract.=$description===''?' parameters: ':': '.$description.' Parameters: ';
-            $actions[]=$contract.json_encode($definition['parameter_schema'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+            $contract='- `'.(string)$definition['name'].$this->parameterSignature((array)$definition['parameter_schema']).'`';
+            if($label!==$definition['name'])$contract.=' — '.$label;
+            if($description!=='')$contract.=': '.$description;
+            $actions[]=$contract;
         }
-        return 'action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. '
-            . 'Only the following actions are allowed. Parameters must match the listed JSON schemas. '
-            . implode('; ', $actions);
+        return "action must be null or an object with exactly name and parameters; the server adds actor, target, and tier.\n"
+            ."Use only these actions and their compact typed parameters:\n".implode("\n",$actions);
     }
 
     /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} */
@@ -189,19 +217,33 @@ final class ActionPolicyValidator
                     throw new InvalidArgumentException('invalid_action_policy');
                 }
                 $allowed = $value;
+                $hasEnabled = is_bool($value);
                 if (is_array($value) && !array_is_list($value)) {
-                    $overrideKeys = array_keys($value);
-                    sort($overrideKeys);
-                    if ($overrideKeys !== ['confirmation_required', 'description', 'display_name', 'enabled', 'followup_enabled']
-                        || !is_bool($value['enabled']) || !is_bool($value['confirmation_required'])
-                        || !is_bool($value['followup_enabled']) || !is_string($value['display_name'])
-                        || !is_string($value['description'])) {
-                        throw new InvalidArgumentException('invalid_action_policy');
+                    if(array_key_exists('code_name',$value)){
+                        $override=$this->herikaOverride($name,$value);$hasEnabled=true;$allowed=$override['enabled'];
+                        $overrides[$name]=$override;
+                    }else{
+                        $knownOverride=['enabled','display_name','description','confirmation_required','followup_enabled',
+                            'allow_followup_action','followup_prompt','cooldown_seconds'];
+                        if(array_diff(array_keys($value),$knownOverride)!==[]
+                            ||(isset($value['enabled'])&&!is_bool($value['enabled']))
+                            ||(isset($value['confirmation_required'])&&!is_bool($value['confirmation_required']))
+                            ||(isset($value['followup_enabled'])&&!is_bool($value['followup_enabled']))
+                            ||(isset($value['allow_followup_action'])&&!is_bool($value['allow_followup_action']))
+                            ||(isset($value['display_name'])&&!is_string($value['display_name']))
+                            ||(isset($value['description'])&&!is_string($value['description']))
+                            ||(isset($value['followup_prompt'])&&(!is_string($value['followup_prompt'])
+                                ||mb_strlen($value['followup_prompt'],'UTF-8')>2048))
+                            ||(isset($value['cooldown_seconds'])&&(!is_int($value['cooldown_seconds'])
+                                ||$value['cooldown_seconds']<0||$value['cooldown_seconds']>86400)))
+                            throw new InvalidArgumentException('invalid_action_policy');
+                        $hasEnabled=array_key_exists('enabled',$value);
+                        $allowed = $value['enabled']??true;
+                        $overrides[$name] = $value;
                     }
-                    $allowed = $value['enabled'];
-                    $overrides[$name] = $value;
                 }
                 if (!is_bool($allowed)) throw new InvalidArgumentException('invalid_action_policy');
+                if(!$hasEnabled)continue;
                 if ($allowed) {
                     $allow ??= [];
                     $allow[] = $name;
@@ -220,12 +262,71 @@ final class ActionPolicyValidator
         ];
     }
 
+    /** Convert a complete Herika action row into the bounded runtime override fields. */
+    private function herikaOverride(string $name,array $value):array
+    {
+        $expected=['code_name','action_name','description','return_message','available_to_npc','available_to_followers',
+            'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',
+            'script_proxy_program'];
+        $keys=array_keys($value);sort($keys);sort($expected);$metadata=$value['metadata']??null;
+        if($keys!==$expected||($value['code_name']??null)!==$name||!is_string($value['action_name']??null)
+            ||!is_string($value['description']??null)||!is_string($value['return_message']??null)
+            ||!is_bool($value['available_to_npc']??null)||!is_bool($value['available_to_followers']??null)
+            ||!is_bool($value['available_to_narrator']??null)||!is_bool($value['is_activated']??null)
+            ||!is_array($value['parameters_json']??null)||(($value['parameters_json']??[])!==[]&&array_is_list($value['parameters_json']))
+            ||!is_bool($value['game_function']??null)||!is_int($value['import_version']??null)
+            ||$value['script_proxy_program']!==null||!is_array($metadata)||array_is_list($metadata))
+            throw new InvalidArgumentException('invalid_action_policy');
+        $config=$metadata['custom_config']??[];$cooldown=$metadata['cooldown_seconds']??0;
+        if(!is_array($config)||array_is_list($config)||!is_int($cooldown)||$cooldown<0||$cooldown>86400)
+            throw new InvalidArgumentException('invalid_action_policy');
+        if(array_diff(array_keys($config),['confirmation_required','followup_enabled','followup_prompt','followup_use_functions_again'])!==[])
+            throw new InvalidArgumentException('invalid_action_policy');
+        foreach(['confirmation_required','followup_enabled','followup_use_functions_again']as$key)
+            if(isset($config[$key])&&!is_bool($config[$key]))throw new InvalidArgumentException('invalid_action_policy');
+        if(isset($config['followup_prompt'])&&(!is_string($config['followup_prompt'])
+            ||mb_strlen($config['followup_prompt'],'UTF-8')>2048))throw new InvalidArgumentException('invalid_action_policy');
+        return[
+            'enabled'=>$value['is_activated'],
+            'display_name'=>$value['action_name'],
+            'description'=>$value['description'],
+            'return_message'=>$value['return_message'],
+            'confirmation_required'=>$config['confirmation_required']??false,
+            'followup_enabled'=>$config['followup_enabled']??false,
+            'followup_prompt'=>$config['followup_prompt']??($metadata['followup']['prompt']??''),
+            'allow_followup_action'=>$config['followup_use_functions_again']??false,
+            'cooldown_seconds'=>$cooldown,
+        ];
+    }
+
     /** @param array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} $policy */
     private function policyAllows(string $name, int $tier, array $policy): bool
     {
         return $policy['enabled'] && $tier <= $policy['max_tier']
             && ($policy['allow'] === null || in_array($name, $policy['allow'], true))
             && !in_array($name, $policy['deny'], true);
+    }
+
+    /** Render the bounded catalog schema as a compact Markdown signature for the model. */
+    private function parameterSignature(array $schema):string
+    {
+        $properties=is_array($schema['properties']??null)&&!array_is_list($schema['properties'])?$schema['properties']:[];
+        if($properties===[])return'()';$required=is_array($schema['required']??null)?$schema['required']:[];$parts=[];
+        foreach($properties as$name=>$definition){
+            if(!is_array($definition))continue;$type=(string)($definition['type']??'value');
+            if(array_key_exists('const',$definition))$type=json_encode($definition['const'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+            elseif(is_array($definition['enum']??null))$type=implode('|',array_map('strval',$definition['enum']));
+            $parts[]=$name.(in_array($name,$required,true)?'':'?').': '.$type;
+        }
+        return'('.implode(', ',$parts).')';
+    }
+
+    /** Reject an action while its effective per-session cooldown remains active. */
+    private function cooldownAllows(string $name,int $seconds,mixed $lastActions):bool
+    {
+        if($seconds<=0)return true;if(!is_array($lastActions)||!is_string($lastActions[$name]??null))return true;
+        try{$last=new \DateTimeImmutable($lastActions[$name]);}catch(\Throwable){throw new InvalidArgumentException('invalid_action_context');}
+        return $last->modify('+'.$seconds.' seconds')<=new \DateTimeImmutable('now',new \DateTimeZone('UTC'));
     }
 
     /**
@@ -237,7 +338,7 @@ final class ActionPolicyValidator
     private function matchesSchema(mixed $value, array $schema): bool
     {
         $supported = ['type', 'properties', 'required', 'additionalProperties', 'const', 'enum', 'minimum',
-            'maximum', 'multipleOf', 'minLength', 'maxLength', 'minItems', 'maxItems', 'items'];
+            'maximum', 'multipleOf', 'minLength', 'maxLength', 'pattern', 'minItems', 'maxItems', 'items'];
         foreach (array_keys($schema) as $keyword) {
             if (!in_array($keyword, $supported, true)) {
                 return false;
@@ -260,6 +361,11 @@ final class ActionPolicyValidator
             $length = mb_strlen($value, 'UTF-8');
             if (isset($schema['minLength']) && (!is_int($schema['minLength']) || $length < $schema['minLength'])) return false;
             if (isset($schema['maxLength']) && (!is_int($schema['maxLength']) || $length > $schema['maxLength'])) return false;
+            if(isset($schema['pattern'])){
+                if(!is_string($schema['pattern'])||strlen($schema['pattern'])>512)return false;
+                $match=@preg_match('~'.str_replace('~','\\~',$schema['pattern']).'~D',$value);
+                if($match!==1)return false;
+            }
         }
         if (is_array($value) && array_is_list($value)) {
             $count = count($value);

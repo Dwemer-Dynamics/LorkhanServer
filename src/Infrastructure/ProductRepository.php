@@ -887,20 +887,13 @@ final class ProductRepository
         return (new ActionCatalogRepository($this->db))->enabledDefinitions();
     }
 
-    /** Return current policies at exactly one installation or NPC-profile scope. */
+    /** Return deterministic installation, optional NPC, and merged effective action policies. */
     public function actionPoliciesForEditor(string $installationId,?string $profileId):array
     {
-        $sql="SELECT c.configuration_id,c.installation_id,c.profile_id,c.name,c.current_revision,r.content "
-            ."FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
-            ."WHERE c.installation_id=:installation AND c.kind='action_policy' AND c.deleted_at IS NULL "
-            .($profileId===null?"AND c.profile_id IS NULL ":"AND c.profile_id=:profile ")
-            ."ORDER BY lower(c.name),c.configuration_id LIMIT 100";
-        $statement=$this->db->prepare($sql);
-        $parameters=['installation'=>$installationId];if($profileId!==null)$parameters['profile']=$profileId;
-        $statement->execute($parameters);
-        $rows=$statement->fetchAll();
-        foreach($rows as&$row){$row['current_revision']=(int)$row['current_revision'];$row['content']=$this->json($row['content']);}unset($row);
-        return$rows;
+        $catalog=new ActionCatalogRepository($this->db);$installation=$catalog->policyAtScope($installationId,null);
+        $profile=$profileId===null?null:$catalog->policyAtScope($installationId,$profileId);
+        $effective=$catalog->currentPolicy($installationId,$profileId);
+        return['installation_policy'=>$installation,'profile_policy'=>$profile,'effective_policy'=>$effective];
     }
 
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
@@ -2141,6 +2134,8 @@ SQL);
             }
         }
         $query=mb_strcut(implode(' | ',array_merge($conversation,$signals['location'],$signals['race'])),0,4096,'UTF-8');
+        if($query===''&&($turn['payload']['ui_source']??null)==='lorkhan_action_followup')
+            $query='action result follow-up';
         $deniedTopics=[];foreach($selected as$row)if(($row['access_level']??null)==='denied')$deniedTopics[]=(string)$row['topic'];
         $reasons['_context']=['algorithm_version'=>OghmaGroundedRetriever::VERSION,'master_enabled'=>($settings['enabled']??true)===true,
             'request_eligible'=>($extraction['request_eligible']??false)===true,'topic_count'=>$topicCount,'knowledge_limit'=>$limit,

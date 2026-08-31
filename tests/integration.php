@@ -607,8 +607,8 @@ $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
     &&str_contains((string)($promptMessages[0]['content']??''),
-        'ai.follow: Ask one actor to follow the player at the exact negotiated distance. Parameters:')
-    &&str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
+        '`ai.follow(distance: 192)` — Follow: Ask one actor to follow the player at the exact negotiated distance.')
+    &&!str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
     'accepted turn did not freeze the server-negotiated catalog contract before prompt assembly');
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&is_array($promptMessages)&&array_is_list($promptMessages)&&count($promptMessages)>=2
@@ -2036,6 +2036,28 @@ $assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'
     &&$translationFailureResponse['lines'][0]['tts_text']===$translationFailureOriginal
     &&$translationFailureAttempt->fetch()===['state'=>'failed','error_code'=>'provider_unavailable','error_detail'=>null],
     'translation failure did not preserve original dialogue with a redacted failed provider attempt');
+
+// A result continuation replaces the client's generic text with the configured server-owned prompt.
+$configuredFollowupPrompt='Configured result prompt sentinel: react to the observed outcome only.';
+$db->prepare('UPDATE action_intents SET followup_enabled=true,followup_prompt=:prompt WHERE action_id=:action')
+    ->execute(['prompt'=>$configuredFollowupPrompt,'action'=>$action['action_id']]);
+$db->prepare("UPDATE action_delivery SET continuation_state='eligible',terminal_at=COALESCE(terminal_at,clock_timestamp()) WHERE action_id=:action")
+    ->execute(['action'=>$action['action_id']]);
+$followupTurn=$turn;$followupTurn['message_id']=$newUuid(866);$followupTurn['request_id']=$newUuid(867);
+$followupTurn['turn_id']=$newUuid(868);$followupTurn['payload']['input']['text']='Client generic follow-up text.';
+$followupTurn['payload']['ui_source']='lorkhan_action_followup';
+$followupTurn['payload']['recent_action_results']=[[
+    'action_id'=>$result['action_id'],'status'=>$result['status'],'reason_code'=>$result['reason_code'],
+    'observed'=>$result['observed'],'completed_at'=>$result['completed_at'],
+]];
+[$status]=$call($router,'POST',$base.'/turns',$headers($followupTurn['message_id']),[],$followupTurn);
+$followupSnapshot=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
+$followupSnapshot->execute(['turn'=>$followupTurn['turn_id']]);
+$followupManifest=json_decode((string)$followupSnapshot->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$assert($status===202
+    &&($followupManifest['message']['payload']['input']['text']??null)===$configuredFollowupPrompt
+    &&str_contains((string)($followupManifest['message']['_prompt']['_assembled_prompt']??''),$configuredFollowupPrompt),
+    'configured action follow-up prompt did not replace the client placeholder in the frozen model input');
 
 $deleteKey = $newUuid(50);
 [$status] = $call($router, 'DELETE', $base . '/sessions/' . $sessionId, []);

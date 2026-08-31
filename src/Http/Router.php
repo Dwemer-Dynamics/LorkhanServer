@@ -166,17 +166,22 @@ final class Router
             }
             if (($m['payload']['ui_source']??null)==='lorkhan_action_followup') {
                 $results=$m['payload']['recent_action_results']??[];
-                if(count($results)!==1||!$this->repository->claimActionContinuation((string)$results[0]['action_id'],
-                    (string)$m['turn_id'],(string)$m['session_id'],(int)$m['generation']))
+                $continuation=count($results)===1?$this->repository->actionContinuation((string)$results[0]['action_id'],
+                    (string)$m['session_id'],(int)$m['generation']):null;
+                if($continuation===null)
                     throw new DomainException('action_followup_not_allowed');
+                $m['_action_continuation']=$continuation;
+                if(trim((string)($continuation['prompt']??''))!=='')
+                    $m['payload']['input']['text']=(string)$continuation['prompt'];
             }
 
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
             if ($providerInput !== null) {
-                $providerInput['_allowed_action_definitions'] = in_array(($m['payload']['ui_source']??null),
-                    ['lorkhan_rechat','lorkhan_action_followup'],true)
-                    ? [] : $this->repository->allowedPromptActions($m['session_id'], $m['generation']);
+                $source=$m['payload']['ui_source']??null;
+                $providerInput['_allowed_action_definitions'] = $source==='lorkhan_rechat'
+                    ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
+                    ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
             }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {

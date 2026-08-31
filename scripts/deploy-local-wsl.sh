@@ -158,7 +158,13 @@ else
         > /etc/init.d/lorkhanserver-worker
     chmod 0755 /etc/init.d/lorkhanserver-worker
     update-rc.d lorkhanserver-worker defaults >/dev/null
-    service lorkhanserver-worker restart
+    # SysV restart returns non-zero when the worker has not been started before.
+    service lorkhanserver-worker stop >/dev/null 2>&1 || true
+    service lorkhanserver-worker start
+    for _ in {1..50}; do
+        service lorkhanserver-worker status >/dev/null 2>&1 && break
+        sleep 0.1
+    done
     service lorkhanserver-worker status >/dev/null
 fi
 

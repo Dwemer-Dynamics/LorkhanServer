@@ -745,10 +745,25 @@ final class ManagementRouter
     {
         $tier=(string)($values['max_tier']??'');if(preg_match('/^[0-3]$/D',$tier)!==1)throw new InvalidArgumentException('invalid_max_tier');
         $selected=$values['allowed_actions']??[];if(!is_array($selected)||!array_is_list($selected)||count($selected)>128)throw new InvalidArgumentException('invalid_allowed_actions');
-        $known=$this->repository->actionCatalogNames();$enabled=[];
+        $definitions=$this->repository->actionCatalogDefinitions();$known=array_column($definitions,'name');$enabled=[];
         foreach($selected as$name){if(!is_string($name)||!in_array($name,$known,true)||isset($enabled[$name]))throw new InvalidArgumentException('invalid_allowed_actions');$enabled[$name]=true;}
-        $actions=[];foreach($known as$name)$actions[$name]=isset($enabled[$name]);
+        $actions=[];foreach($definitions as$definition)$actions[$definition['name']]=$this->herikaActionRow($definition,isset($enabled[$definition['name']]));
         return['enabled'=>isset($values['enabled']),'max_tier'=>(int)$tier,'actions'=>$actions];
+    }
+
+    /** Materialize one immutable catalog definition as the complete Herika-compatible saved row. */
+    private function herikaActionRow(array $definition,bool $enabled):array
+    {
+        return[
+            'code_name'=>$definition['code_name'],'action_name'=>$definition['action_name'],
+            'description'=>$definition['description'],'return_message'=>$definition['return_message'],
+            'available_to_npc'=>$definition['available_to_npc'],
+            'available_to_followers'=>$definition['available_to_followers'],
+            'available_to_narrator'=>$definition['available_to_narrator'],'is_activated'=>$enabled,
+            'parameters_json'=>$definition['parameters_json'],'metadata'=>$definition['metadata'],
+            'game_function'=>$definition['game_function'],'import_version'=>$definition['import_version'],
+            'script_proxy_program'=>$definition['script_proxy_program'],
+        ];
     }
 
     /** Return one exact policy scope and the immutable OpenMW contracts used to edit it. */
@@ -765,8 +780,9 @@ final class ManagementRouter
     private function saveActionPolicyRevision(array $values):array
     {
         $keys=array_keys($values);sort($keys);$expected=['actions','change_reason','configuration_id','enabled',
-            'expected_revision','installation_id','max_tier','name','profile_id'];sort($expected);
-        if($keys!==$expected||!is_bool($values['enabled']??null)||!is_int($values['max_tier']??null)
+            'expected_revision','installation_id','max_tier','profile_id'];sort($expected);
+        $legacyExpected=$expected;$legacyExpected[]='name';sort($legacyExpected);
+        if(($keys!==$expected&&$keys!==$legacyExpected)||!is_bool($values['enabled']??null)||!is_int($values['max_tier']??null)
             ||!is_array($values['actions']??null)||array_is_list($values['actions']))
             throw new InvalidArgumentException('invalid_action_policy_editor');
         $installation=(string)$values['installation_id'];$this->uuid($installation,'installation_id');
@@ -775,13 +791,13 @@ final class ManagementRouter
         $configuration=$values['configuration_id'];$revision=$values['expected_revision'];
         if(($configuration===null)!==($revision===null))throw new InvalidArgumentException('invalid_expected_revision');
         $content=['enabled'=>$values['enabled'],'max_tier'=>$values['max_tier'],'actions'=>$values['actions']];
-        $reason=$this->need($values,'change_reason');$name=$this->need($values,'name');
+        $reason=$this->need($values,'change_reason');$name=$profile===null?'Action configuration':'NPC action override';
         if($configuration===null)return$this->service->createRevisioned('action_policy',['installation_id'=>$installation,
             'profile_id'=>$profile,'name'=>$name,'content'=>$content,'change_reason'=>$reason]);
         if(!is_string($configuration)||!is_int($revision))throw new InvalidArgumentException('invalid_expected_revision');
         $this->uuid($configuration,'configuration_id');$current=$this->repository->getRevisioned('action_policy',$configuration);
-        if((string)$current['installation_id']!==$installation||($current['profile_id']??null)!==$profile
-            ||(string)$current['name']!==$name)throw new InvalidArgumentException('action_policy_scope_mismatch');
+        if((string)$current['installation_id']!==$installation||($current['profile_id']??null)!==$profile)
+            throw new InvalidArgumentException('action_policy_scope_mismatch');
         return$this->service->revise('action_policy',$configuration,$content,$reason,$revision);
     }
 

@@ -978,33 +978,63 @@ r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=cs
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); assert r.status==200
 r=request('/LORKHANserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':prompt_profile_id}); assert r.status==200
 actions,body=parse(request('/LORKHANserver/ui/function_editor.php'))
-assert 'data-action-editor' in body and 'Display and prompt text' in body and 'Save All' in body
+assert 'data-action-editor' in body and 'Configure available actions exposed to AI prompting and execution' in body and 'Save all changes' in body
 editor_path='/LORKHANserver/manage/api/v1/action-policies/editor?'+urllib.parse.urlencode({'installation_id':valid['installation_id']})
 r=json_request(editor_path); editor=json.loads(r.read().decode())
-assert r.status==200 and len(editor['catalog'])==16 and editor['policies']==[],editor
+assert r.status==200 and len(editor['catalog'])==16 and editor['policies']=={
+    'installation_policy':None,'profile_policy':None,'effective_policy':None},editor
 assert all(set(action)>=set(['name','tier','description','parameter_schema','result_schema','client_capability',
-    'server_owned','terminal_result_required','continuation_capable']) for action in editor['catalog'])
-policy_name='HTTP action policy '+uuid.uuid4().hex
-overrides={action['name']:{'enabled':action['name'] in ('inspect.report','ai.follow'),
-    'display_name':'Follow Player' if action['name']=='ai.follow' else action['name'],
-    'description':action['description'],'confirmation_required':int(action['tier'])>=2,
-    'followup_enabled':action['name']=='ai.follow'} for action in editor['catalog']}
-payload={'configuration_id':None,'installation_id':valid['installation_id'],'profile_id':None,'name':policy_name,
+    'server_owned','terminal_result_required','continuation_capable','display_name','category','sort_order',
+    'confirmation_mode','followup_default','followup_actions_supported','cooldown_seconds','available_to_npc',
+    'available_to_followers','available_to_narrator','game_function','source','code_name','action_name',
+    'return_message','is_activated','parameters_json','metadata','import_version','script_proxy_program']) for action in editor['catalog'])
+overrides={}
+for action in editor['catalog']:
+    metadata=json.loads(json.dumps(action['metadata']))
+    metadata['custom_config']={
+        'confirmation_required':action['confirmation_mode']=='required',
+        'followup_enabled':action['name']=='ai.follow',
+        'followup_prompt':'React to the completed OpenMW result.' if action['name']=='ai.follow' else action['metadata']['followup']['prompt'],
+        'followup_use_functions_again':False,
+    }
+    metadata['cooldown_seconds']=0
+    overrides[action['name']]={
+        'code_name':action['code_name'],
+        'action_name':'Follow Player' if action['name']=='ai.follow' else action['action_name'],
+        'description':action['description'],
+        'return_message':'',
+        'available_to_npc':action['available_to_npc'],
+        'available_to_followers':action['available_to_followers'],
+        'available_to_narrator':action['available_to_narrator'],
+        'is_activated':action['name'] in ('inspect.report','ai.follow'),
+        'parameters_json':action['parameters_json'],
+        'metadata':metadata,
+        'game_function':action['game_function'],
+        'import_version':action['import_version'],
+        'script_proxy_program':action['script_proxy_program'],
+    }
+payload={'configuration_id':None,'installation_id':valid['installation_id'],'profile_id':None,
     'expected_revision':None,'enabled':True,'max_tier':1,'actions':overrides,'change_reason':'HTTP compact editor create'}
 r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload); assert r.status==401,(r.status,r.read().decode())
 r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); saved=json.loads(r.read().decode())
-assert r.status==200 and saved['name']==policy_name and saved['current_revision']==1,saved
+assert r.status==200 and saved['name']=='Action configuration' and saved['current_revision']==1,saved
 policy_id=saved['configuration_id']; payload.update(configuration_id=policy_id,expected_revision=2,max_tier=0,
     change_reason='HTTP stale action edit')
 r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf)
 assert r.status==409 and json.loads(r.read().decode())['error']=='revision_conflict'
 payload.update(expected_revision=1,change_reason='HTTP labelled action edit')
-payload['actions']['inspect.report']['display_name']='Inspect Current Target'
+payload['actions']['inspect.report']['action_name']='Inspect Current Target'
 r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); revised=json.loads(r.read().decode())
 assert r.status==200 and revised['current_revision']==2 and revised['content']['max_tier']==0
-r=json_request(editor_path); editor=json.loads(r.read().decode()); stored=next(policy for policy in editor['policies'] if policy['configuration_id']==policy_id)
-assert stored['current_revision']==2 and stored['content']['actions']['ai.follow']['followup_enabled'] is True
-assert stored['content']['actions']['inspect.report']['display_name']=='Inspect Current Target'
+r=json_request(editor_path); editor=json.loads(r.read().decode()); stored=editor['policies']['installation_policy']
+assert stored['configuration_id']==policy_id and stored['revision']==2
+assert stored['content']['actions']['ai.follow']['metadata']['custom_config']['followup_enabled'] is True
+assert stored['content']['actions']['ai.follow']['metadata']['custom_config']['followup_prompt']=='React to the completed OpenMW result.'
+assert stored['content']['actions']['inspect.report']['action_name']=='Inspect Current Target'
+assert set(stored['content']['actions']['inspect.report'])==set([
+    'code_name','action_name','description','return_message','available_to_npc','available_to_followers',
+    'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',
+    'script_proxy_program'])
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/LORKHANserver/ui/core/player_management.php'))
 assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'

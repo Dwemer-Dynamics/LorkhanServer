@@ -517,19 +517,88 @@ final class ProductService
                 if(!is_string($name)||!isset($definitions[$name]))throw new InvalidArgumentException('invalid_action_policy');
                 if(is_bool($value))continue;
                 if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_action_policy');
-                $keys=array_keys($value);sort($keys);
-                if($keys!==['confirmation_required','description','display_name','enabled','followup_enabled']
-                    ||!is_bool($value['enabled'])||!is_bool($value['confirmation_required'])||!is_bool($value['followup_enabled'])
-                    ||!is_string($value['display_name'])||trim($value['display_name'])===''||mb_strlen($value['display_name'],'UTF-8')>128
-                    ||!is_string($value['description'])||trim($value['description'])===''||mb_strlen($value['description'],'UTF-8')>2048
-                    ||!mb_check_encoding($value['display_name'],'UTF-8')||!mb_check_encoding($value['description'],'UTF-8')
-                    ||($value['followup_enabled']&&($definitions[$name]['continuation_capable']??false)!==true))
+                if(array_key_exists('code_name',$value)){
+                    $content['actions'][$name]=$this->validateHerikaActionOverride($name,$value,$definitions[$name]);
+                    continue;
+                }
+                $knownOverride=['enabled','display_name','description','confirmation_required','followup_enabled',
+                    'allow_followup_action','followup_prompt','cooldown_seconds'];
+                if(array_diff(array_keys($value),$knownOverride)!==[]||$value===[]
+                    ||(isset($value['enabled'])&&!is_bool($value['enabled']))
+                    ||(isset($value['confirmation_required'])&&!is_bool($value['confirmation_required']))
+                    ||(isset($value['followup_enabled'])&&!is_bool($value['followup_enabled']))
+                    ||(isset($value['allow_followup_action'])&&!is_bool($value['allow_followup_action']))
+                    ||(isset($value['display_name'])&&(!is_string($value['display_name'])||trim($value['display_name'])===''
+                        ||mb_strlen($value['display_name'],'UTF-8')>128||!mb_check_encoding($value['display_name'],'UTF-8')))
+                    ||(isset($value['description'])&&(!is_string($value['description'])||trim($value['description'])===''
+                        ||mb_strlen($value['description'],'UTF-8')>2048||!mb_check_encoding($value['description'],'UTF-8')))
+                    ||(isset($value['followup_prompt'])&&(!is_string($value['followup_prompt'])
+                        ||mb_strlen($value['followup_prompt'],'UTF-8')>2048||!mb_check_encoding($value['followup_prompt'],'UTF-8')))
+                    ||(isset($value['cooldown_seconds'])&&(!is_int($value['cooldown_seconds'])
+                        ||$value['cooldown_seconds']<0||$value['cooldown_seconds']>86400))
+                    ||(($value['followup_enabled']??false)&&($definitions[$name]['continuation_capable']??false)!==true)
+                    ||(($value['allow_followup_action']??false)&&($definitions[$name]['followup_actions_supported']??false)!==true)
+                    ||(($definitions[$name]['confirmation_mode']??'optional')==='required'
+                        &&array_key_exists('confirmation_required',$value)&&$value['confirmation_required']!==true)
+                    ||(($definitions[$name]['confirmation_mode']??'optional')==='none'
+                        &&array_key_exists('confirmation_required',$value)&&$value['confirmation_required']!==false))
                     throw new InvalidArgumentException('invalid_action_policy');
-                $content['actions'][$name]=['enabled'=>$value['enabled'],'display_name'=>trim($value['display_name']),
-                    'description'=>trim($value['description']),'confirmation_required'=>$value['confirmation_required'],
-                    'followup_enabled'=>$value['followup_enabled']];
+                $normalized=[];foreach($value as$key=>$item)$normalized[$key]=is_string($item)?trim($item):$item;
+                $content['actions'][$name]=$normalized;
             }}
         return$content;
+    }
+
+    /** Validate one complete Herika-shaped override without allowing it to broaden the OpenMW contract. */
+    private function validateHerikaActionOverride(string $name,array $value,array $definition):array
+    {
+        $expected=['code_name','action_name','description','return_message','available_to_npc','available_to_followers',
+            'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',
+            'script_proxy_program'];
+        $keys=array_keys($value);sort($keys);sort($expected);
+        if($keys!==$expected||$value['code_name']!==$name
+            ||!is_string($value['action_name'])||trim($value['action_name'])===''||mb_strlen($value['action_name'],'UTF-8')>128
+            ||!mb_check_encoding($value['action_name'],'UTF-8')
+            ||!is_string($value['description'])||mb_strlen($value['description'],'UTF-8')>2048||!mb_check_encoding($value['description'],'UTF-8')
+            ||!is_string($value['return_message'])||mb_strlen($value['return_message'],'UTF-8')>2048||!mb_check_encoding($value['return_message'],'UTF-8')
+            ||!is_bool($value['available_to_npc'])||!is_bool($value['available_to_followers'])
+            ||!is_bool($value['available_to_narrator'])||!is_bool($value['is_activated'])||!is_bool($value['game_function'])
+            ||!is_array($value['parameters_json'])||($value['parameters_json']!==[]&&array_is_list($value['parameters_json']))
+            ||!is_array($value['metadata'])||array_is_list($value['metadata'])
+            ||!is_int($value['import_version'])||$value['script_proxy_program']!==null)
+            throw new InvalidArgumentException('invalid_action_policy');
+
+        foreach(['available_to_npc','available_to_followers','available_to_narrator','game_function','import_version']as$field)
+            if($value[$field]!==$definition[$field])throw new InvalidArgumentException('invalid_action_policy');
+        if($value['parameters_json']!=$definition['parameters_json'])throw new InvalidArgumentException('invalid_action_policy');
+
+        $metadata=$value['metadata'];$base=$definition['metadata'];
+        $metadataKeys=array_keys($metadata);$baseKeys=array_keys($base);sort($metadataKeys);sort($baseKeys);
+        if($metadataKeys!==$baseKeys)throw new InvalidArgumentException('invalid_action_policy');
+        foreach($base as$key=>$baseValue){
+            if(in_array($key,['custom_config','cooldown_seconds'],true))continue;
+            if($metadata[$key]!=$baseValue)throw new InvalidArgumentException('invalid_action_policy');
+        }
+        $cooldown=$metadata['cooldown_seconds'];$config=$metadata['custom_config'];
+        if(!is_int($cooldown)||$cooldown<0||$cooldown>86400||!is_array($config)||array_is_list($config))
+            throw new InvalidArgumentException('invalid_action_policy');
+        $configKeys=['confirmation_required','followup_enabled','followup_prompt','followup_use_functions_again'];
+        if(array_diff(array_keys($config),$configKeys)!==[])throw new InvalidArgumentException('invalid_action_policy');
+        foreach(['confirmation_required','followup_enabled','followup_use_functions_again']as$key)
+            if(isset($config[$key])&&!is_bool($config[$key]))throw new InvalidArgumentException('invalid_action_policy');
+        if(isset($config['followup_prompt'])&&(!is_string($config['followup_prompt'])
+            ||mb_strlen($config['followup_prompt'],'UTF-8')>2048||!mb_check_encoding($config['followup_prompt'],'UTF-8')))
+            throw new InvalidArgumentException('invalid_action_policy');
+        $mode=(string)$definition['confirmation_mode'];
+        if(($mode==='required'&&array_key_exists('confirmation_required',$config)&&$config['confirmation_required']!==true)
+            ||($mode==='none'&&array_key_exists('confirmation_required',$config)&&$config['confirmation_required']!==false)
+            ||(($config['followup_enabled']??false)&&$definition['continuation_capable']!==true)
+            ||(($config['followup_enabled']??false)&&trim((string)($config['followup_prompt']??$base['followup']['prompt']??''))==='')
+            ||(($config['followup_use_functions_again']??false)&&$definition['followup_actions_supported']!==true))
+            throw new InvalidArgumentException('invalid_action_policy');
+
+        $value['action_name']=trim($value['action_name']);
+        return$value;
     }
 
     private function assertNoSecrets(array $content): void

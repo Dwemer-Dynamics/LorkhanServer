@@ -112,6 +112,37 @@ $check($runner->up() === [$latestVersion], 'up did not restore reverted migratio
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
 
+// Prove the latest data migration round-trips legacy sparse overrides into complete Herika action rows.
+$formatInstallation=Uuid::v4();$formatConfiguration=Uuid::v4();
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:installation,:token)')
+    ->execute(['installation'=>$formatInstallation,'token'=>hash('sha256','herika-action-format')]);
+$db->prepare("INSERT INTO configuration_sets(configuration_id,installation_id,kind,name) VALUES(:configuration,:installation,'action_policy','Migration format fixture')")
+    ->execute(['configuration'=>$formatConfiguration,'installation'=>$formatInstallation]);
+$legacyActionContent=['enabled'=>true,'max_tier'=>3,'actions'=>['ai.follow'=>[
+    'enabled'=>false,'display_name'=>'Legacy Follow','description'=>'Legacy sparse override.',
+    'confirmation_required'=>true,'followup_enabled'=>true,'allow_followup_action'=>true,'cooldown_seconds'=>9]]];
+$db->prepare("INSERT INTO configuration_revisions(configuration_id,revision,content,change_reason) VALUES(:configuration,1,CAST(:content AS jsonb),'migration fixture')")
+    ->execute(['configuration'=>$formatConfiguration,'content'=>json_encode($legacyActionContent,JSON_THROW_ON_ERROR)]);
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.up.sql'));
+$formatRow=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$check(($formatRow['code_name']??null)==='ai.follow'&&($formatRow['action_name']??null)==='Legacy Follow'
+    &&($formatRow['is_activated']??null)===false&&($formatRow['metadata']['custom_config']['followup_enabled']??null)===true
+    &&($formatRow['metadata']['custom_config']['followup_use_functions_again']??null)===true
+    &&($formatRow['metadata']['custom_config']['followup_prompt']??null)==='Respond briefly to the completed action result. Acknowledge the observed outcome without proposing or performing another action.'
+    &&($formatRow['metadata']['cooldown_seconds']??null)===9,
+    '076 up did not convert a legacy sparse override into the Herika action row contract');
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.down.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.down.sql'));
+$legacyRoundTrip=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+$check(($legacyRoundTrip['display_name']??null)==='Legacy Follow'&&($legacyRoundTrip['enabled']??null)===false
+    &&($legacyRoundTrip['followup_enabled']??null)===true&&($legacyRoundTrip['allow_followup_action']??null)===true
+    &&($legacyRoundTrip['cooldown_seconds']??null)===9,
+    '076 down did not preserve the effective legacy override');
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.up.sql'));
+$db->prepare('DELETE FROM installations WHERE installation_id=:installation')->execute(['installation'=>$formatInstallation]);
+
 // The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
 $db->beginTransaction();
 $db->exec("INSERT INTO lorkhan_internal.biography_catalogs(catalog_id,catalog_version,source_kind,biographies_sha256,row_count,state,imported_at,activated_at) "
@@ -1477,26 +1508,26 @@ $check($retryStats['retried']===1 && $retryState['state']==='queued' && (int)$re
 
 $db->prepare("UPDATE sessions SET capabilities=ARRAY['action.inspect.report','action.inventory.inspect','action.ai.follow','action.ai.approach','action.ai.wait','action.ai.travel','action.ai.escort','action.ai.face','action.animation.play','action.item.use'],enabled_actions=ARRAY['inspect.report','inventory.inspect','ai.follow','ai.approach','ai.wait','ai.travel','ai.escort','ai.face','animation.play','item.use'] WHERE session_id=:id")->execute(['id'=>$legacySession]);
 $catalog=new ActionCatalogRepository($db);$policy=new ActionPolicyValidator();$loaded=$catalog->loadForSession($legacySession,1);
-$proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['distance'=>192]];
+$proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['distance'=>192]];
 $check($policy->validate($proposal,$loaded)['name']==='ai.follow', 'catalog-backed action validation failed');
-$inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$inspect=['name'=>'inspect.report','tier'=>0,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($inspect,$loaded)['name']==='inspect.report','empty-object inspect action validation failed');
-$inventoryInspect=['name'=>'inventory.inspect','tier'=>0,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$inventoryInspect=['name'=>'inventory.inspect','tier'=>0,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($inventoryInspect,$loaded)['name']==='inventory.inspect','inventory inspection validation failed');
-$approach=['name'=>'ai.approach','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$approach=['name'=>'ai.approach','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($approach,$loaded)['name']==='ai.approach','approach action validation failed');
-$wait=['name'=>'ai.wait','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['duration_seconds'=>3600]];
+$wait=['name'=>'ai.wait','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['duration_seconds'=>3600]];
 $check($policy->validate($wait,$loaded)['parameters']['duration_seconds']===3600,'bounded wait action validation failed');
-$animation=['name'=>'animation.play','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['group'=>'idle2']];
+$animation=['name'=>'animation.play','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['group'=>'idle2']];
 $check($policy->validate($animation,$loaded)['name']==='animation.play','animation action validation failed');
-$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']];
+$itemUse=['name'=>'item.use','tier'=>2,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>['record_id'=>'p_restore_health_s','content_file'=>'morrowind.esm']];
 $check($policy->validate($itemUse,$loaded)['name']==='item.use','item use action validation failed');
 $destination=['destination_x'=>100.5,'destination_y'=>-200,'destination_z'=>8,'destination_cell'=>'exterior:0:0'];
-$travel=['name'=>'ai.travel','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>$destination];
+$travel=['name'=>'ai.travel','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>$destination];
 $check($policy->validate($travel,$loaded)['parameters']===$destination,'travel destination validation failed');
 $escort=array_replace($travel,['name'=>'ai.escort']);
 $check($policy->validate($escort,$loaded)['name']==='ai.escort','escort destination validation failed');
-$face=['name'=>'ai.face','tier'=>1,'actor'=>['record_id'=>'npc'],'target'=>['record_id'=>'player'],'parameters'=>[]];
+$face=['name'=>'ai.face','tier'=>1,'actor'=>['kind'=>'npc','record_id'=>'npc'],'target'=>['kind'=>'player','record_id'=>'player'],'parameters'=>[]];
 $check($policy->validate($face,$loaded)['name']==='ai.face','face action validation failed');
 try{$policy->validate(array_replace($proposal,['parameters'=>['distance'=>64]]),$loaded);throw new RuntimeException('invalid catalog parameters accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected catalog parameter error');}
 try{$policy->validate(array_replace($travel,['parameters'=>$destination+['teleport'=>true]]),$loaded);throw new RuntimeException('unknown travel parameter accepted');}catch(DomainException $error){$check($error->getMessage()==='action_parameters_invalid','unexpected travel parameter error');}
@@ -1533,15 +1564,19 @@ $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE ta
 
 $db->exec("UPDATE action_catalog SET continuation_capable=true WHERE action_name='ai.follow'");
 $actionId='50000000-0000-4000-8000-000000000001';$sourceId='50000000-0000-4000-8000-000000000002';
-$db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,followup_enabled,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal',true,'2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
+$db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,followup_enabled,followup_prompt,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal',true,'React to the completed result.','2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
 $actionProjection=$db->prepare('SELECT issued.action FROM action_issued_metadata metadata JOIN public.actions_issued issued ON issued.rowid=metadata.rowid WHERE metadata.action_id=:action');
 $actionProjection->execute(['action'=>$actionId]);
 $check($actionProjection->fetchColumn()==='ai.follow','action did not project into the Herika action contract');
 $db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','lorkhan.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
 $db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
 $db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);
-$check($catalog->claimContinuation($actionId,$continuationTurn,$legacySession,1), 'terminal continuation was not claimed');
-$check(!$catalog->claimContinuation($actionId,$continuationTurn,$legacySession,1), 'continuation was claimed more than once');
+$claimedContinuation=$catalog->continuation($actionId,$legacySession,1);
+$check($claimedContinuation===['action_id'=>$actionId,'allow_action'=>false,'depth'=>1,
+    'prompt'=>'React to the completed result.'], 'terminal continuation did not preserve its configured prompt');
+$check($catalog->consumeContinuation($actionId,$continuationTurn,$legacySession,1),
+    'eligible continuation was not atomically linked to its persisted turn');
+$check($catalog->continuation($actionId,$legacySession,1)===null, 'continuation remained eligible after consumption');
 
 $workerJob = Uuid::v4();
 $jobs->enqueue($workerJob, 'test.worker', 1, 'source:4', ['source_id' => 'four'], 1);

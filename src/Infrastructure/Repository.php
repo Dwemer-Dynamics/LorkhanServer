@@ -32,10 +32,10 @@ final class Repository
         $this->db->exec(file_get_contents($migration) ?: throw new \RuntimeException('Cannot read migration.'));
     }
 
-    /** Consume the one server-authorized result follow-up before its turn can be accepted. */
-    public function claimActionContinuation(string $actionId,string $turnId,string $sessionId,int $generation):bool
+    /** Read one eligible result follow-up; acceptTurn consumes it atomically with the new turn. */
+    public function actionContinuation(string $actionId,string $sessionId,int $generation):?array
     {
-        return $this->actionCatalog?->claimContinuation($actionId,$turnId,$sessionId,$generation)??false;
+        return $this->actionCatalog?->continuation($actionId,$sessionId,$generation);
     }
 
     public function ensureInstallation(string $installationId, string $tokenHash, ?string $macKey = null): void
@@ -245,6 +245,12 @@ final class Repository
                 'generation' => $m['generation'], 'runtime_generation' => $m['runtime_generation'], 'kind' => $p['input']['kind'], 'language' => $p['input']['language'], 'text' => $p['input']['text'],
                 'speaker' => $this->encode($p['speaker']), 'target' => $this->encode($p['target']), 'audience' => $this->encode($p['audience']),
                 'context' => $this->encode($p['context']), 'state' => 'accepted', 'accepted' => $m['created_at']]);
+            if(is_array($m['_action_continuation']??null)){
+                $actionId=(string)($m['_action_continuation']['action_id']??'');
+                if($actionId===''||$this->actionCatalog===null||!$this->actionCatalog->consumeContinuation(
+                    $actionId,(string)$m['turn_id'],(string)$m['session_id'],(int)$m['generation']))
+                    throw new \DomainException('action_followup_not_allowed');
+            }
             $rechat=is_array($p['context']['rechat']??null)?$p['context']['rechat']:null;
             if(($m['payload']['ui_source']??null)==='lorkhan_rechat'){
                 if($rechat===null||!Uuid::isValid((string)($rechat['chain_id']??''))||!Uuid::isValid((string)($rechat['origin_turn_id']??''))
@@ -552,7 +558,7 @@ final class Repository
             if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
                 $providerResult['action'] = null;
             }
-            $this->validateProviderResult($providerResult, $session, $m);
+            $providerResult=$this->validateProviderResult($providerResult, $session, $m);
             $canonical = $this->validatedCanonicalResponse(
                 (new \LORKHANserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult, $streamedDialogues));
             $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
@@ -1039,15 +1045,20 @@ final class Repository
         $actionId = Uuid::v4();
         $expires = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->modify('+30 seconds')->format('Y-m-d\TH:i:s\Z');
         $stmt = $this->db->prepare('INSERT INTO action_intents (action_id, session_id, turn_id, request_id, generation, action_name, tier, actor, target, '
-            . 'parameters, expires_at, policy_configuration_id, policy_revision, display_name, confirmation_required, followup_enabled, emitted_at) '
+            . 'parameters, expires_at, policy_configuration_id, policy_revision, display_name, confirmation_required, followup_enabled, '
+            . 'followup_actions_allowed, followup_depth, followup_prompt, cooldown_seconds, emitted_at) '
             . 'VALUES (:id, :session, :turn, :request, :generation, :name, :tier, CAST(:actor AS jsonb), CAST(:target AS jsonb), '
-            . 'CAST(:parameters AS jsonb), :expires, :policy, :policy_revision, :display_name, :confirmation, :followup, clock_timestamp())');
+            . 'CAST(:parameters AS jsonb), :expires, :policy, :policy_revision, :display_name, :confirmation, :followup, '
+            . ':followup_actions, :followup_depth, :followup_prompt, :cooldown, clock_timestamp())');
         $stmt->execute(['id' => $actionId, 'session' => $m['session_id'], 'turn' => $m['turn_id'], 'request' => $requestId,
             'generation' => $m['generation'], 'name' => $action['name'], 'tier' => $action['tier'], 'actor' => $this->encode($action['actor']),
             'target' => $this->encode($action['target']), 'parameters' => $this->encode($action['parameters']), 'expires' => $expires,
             'policy'=>$action['policy_configuration_id']??null,'policy_revision'=>$action['policy_revision']??null,
             'display_name'=>$action['display_name']??null,'confirmation'=>!empty($action['confirmation_required'])?'true':'false',
-            'followup'=>!empty($action['followup_enabled'])?'true':'false']);
+            'followup'=>!empty($action['followup_enabled'])?'true':'false',
+            'followup_actions'=>!empty($action['followup_actions_allowed'])?'true':'false',
+            'followup_depth'=>(int)($action['followup_depth']??0),'followup_prompt'=>(string)($action['followup_prompt']??''),
+            'cooldown'=>(int)($action['cooldown_seconds']??0)]);
         $this->db->prepare("INSERT INTO action_delivery (action_id, emitted_at, continuation_state) VALUES (:id, clock_timestamp(), 'none')")
             ->execute(['id' => $actionId]);
         // PHP represents both an empty JSON object and an empty list as [], so restore the
@@ -1058,6 +1069,8 @@ final class Repository
         if (isset($action['display_name'])) $payload['display_name'] = $action['display_name'];
         if (array_key_exists('confirmation_required', $action)) $payload['confirmation_required'] = $action['confirmation_required'];
         if (array_key_exists('followup_enabled', $action)) $payload['followup_enabled'] = $action['followup_enabled'];
+        if (array_key_exists('followup_actions_allowed', $action)) $payload['followup_actions_allowed'] = $action['followup_actions_allowed'];
+        if (array_key_exists('followup_depth', $action)) $payload['followup_depth'] = $action['followup_depth'];
         return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload, $messageId);
     }
 
@@ -1109,20 +1122,22 @@ final class Repository
         return $turn;
     }
 
-    private function validateProviderResult(array $result, array $session, array $m): void
+    private function validateProviderResult(array $result, array $session, array $m): array
     {
         $keys = array_keys($result);
         sort($keys);
         if ($keys !== ['action', 'utterances']) throw new \DomainException('provider_invalid_output');
-        if ($result['action'] === null) return;
+        if ($result['action'] === null) return$result;
         $action = $result['action'];
         if (!is_array($action) || array_is_list($action)) throw new \DomainException('provider_invalid_action');
         if ($this->actionCatalog !== null && $this->actionPolicy !== null) {
-            $validated = $this->actionPolicy->validate($action, $this->actionCatalog->loadForSession($m['session_id'], $m['generation']));
+            $loaded=$this->actionCatalog->loadForSession($m['session_id'],$m['generation']);
+            if(is_array($m['_action_continuation']??null))$loaded['continuation']=$m['_action_continuation'];
+            $validated = $this->actionPolicy->validate($action,$loaded);
             if ($validated['actor'] != $m['payload']['target'] || $validated['target'] != $m['payload']['speaker']) {
                 throw new \DomainException('provider_action_not_allowed');
             }
-            return;
+            $result['action']=$validated;return$result;
         }
         $keys = array_keys($action);
         sort($keys);
@@ -1134,6 +1149,7 @@ final class Repository
             || $action['actor'] != $m['payload']['target'] || $action['target'] != $m['payload']['speaker']) {
             throw new \DomainException('provider_action_not_allowed');
         }
+        return$result;
     }
 
     private function cancelOutstandingTurns(string $sessionId,string $reason):void
