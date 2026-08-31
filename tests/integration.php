@@ -606,7 +606,8 @@ $memoryRetrievalStatement->execute(['turn'=>$turn['turn_id']]);$memoryRetrieval=
 $promptMessages=$snapshot['message']['_prompt']['_messages']??[];
 $promptHistoryJson=json_encode($promptMessages,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
 $assert(count($snapshot['message']['_allowed_action_definitions']??[])===16
-    &&str_contains((string)($promptMessages[0]['content']??''),'ai.follow parameters:')
+    &&str_contains((string)($promptMessages[0]['content']??''),
+        'ai.follow: Ask one actor to follow the player at the exact negotiated distance. Parameters:')
     &&str_contains((string)($promptMessages[0]['content']??''),'"const":192'),
     'accepted turn did not freeze the server-negotiated catalog contract before prompt assembly');
 $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)

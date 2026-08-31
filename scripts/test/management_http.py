@@ -975,30 +975,33 @@ r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=cs
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); assert r.status==200
 r=request('/LORKHANserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':prompt_profile_id}); assert r.status==200
 actions,body=parse(request('/LORKHANserver/ui/function_editor.php'))
-assert 'negotiated OpenMW action catalogue immutable' in body and 'Action Policies' in body
-policy_form=next(f for f in actions.forms if f['action'].endswith('/forms/action-policy-controls-create'))
+assert 'data-action-editor' in body and 'Display and prompt text' in body and 'Save All' in body
+editor_path='/LORKHANserver/manage/api/v1/action-policies/editor?'+urllib.parse.urlencode({'installation_id':valid['installation_id']})
+r=json_request(editor_path); editor=json.loads(r.read().decode())
+assert r.status==200 and len(editor['catalog'])==16 and editor['policies']==[],editor
+assert all(set(action)>=set(['name','tier','description','parameter_schema','result_schema','client_capability',
+    'server_owned','terminal_result_required','continuation_capable']) for action in editor['catalog'])
 policy_name='HTTP action policy '+uuid.uuid4().hex
-values=dict(policy_form['fields'],_csrf=csrf,name=policy_name,enabled='1',max_tier='1')
-values['allowed_actions[]']=['inspect.report','ai.follow']
-r=request(policy_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/function_editor.php?status=saved') and policy_name in body,(r.status,r.geturl())
-match=re.search(re.escape(policy_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
-policy_id=match.group(1); actions,body=parse(request('/LORKHANserver/ui/function_editor.php'))
-revise_policy=next(f for f in actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-values=dict(revise_policy['fields'],_csrf=csrf,enabled='1',max_tier='0',change_reason='HTTP labelled action edit'); values['allowed_actions[]']=['inspect.report']
-r=request(revise_policy['action'],'POST',values); body=r.read().decode(); revised_actions=Page(); revised_actions.feed(body)
-saved_policy=next(f for f in revised_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-assert r.status==200 and saved_policy['fields'].get('max_tier')=='0' and saved_policy['fields'].get('allowed_actions[]')=='inspect.report',(r.status,r.geturl(),saved_policy)
-for policy_content,expected in [
-    ({'allowed_actions':['inspect.report']},['inspect.report']),
-    ({'allowed_actions':['inspect.report'],'denied_actions':['inspect.report'],
-      'actions':{'inspect.report':True,'inventory.inspect':True,'ai.follow':False}},['inventory.inspect']),
-]:
-    r=request('/LORKHANserver/manage/forms/configuration-revise','POST',{'_csrf':csrf,'kind':'action_policy',
-        'configuration_id':policy_id,'content_json':json.dumps(dict(policy_content,enabled=True,max_tier=2)),
-        'change_reason':'Verify legacy policy controls'})
-    legacy_actions,_=parse(r)
-    legacy_policy=next(f for f in legacy_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-    assert r.status==200 and legacy_policy.get('checked',{}).get('allowed_actions[]',[])==expected,(r.status,legacy_policy)
+overrides={action['name']:{'enabled':action['name'] in ('inspect.report','ai.follow'),
+    'display_name':'Follow Player' if action['name']=='ai.follow' else action['name'],
+    'description':action['description'],'confirmation_required':int(action['tier'])>=2,
+    'followup_enabled':action['name']=='ai.follow'} for action in editor['catalog']}
+payload={'configuration_id':None,'installation_id':valid['installation_id'],'profile_id':None,'name':policy_name,
+    'expected_revision':None,'enabled':True,'max_tier':1,'actions':overrides,'change_reason':'HTTP compact editor create'}
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload); assert r.status==401,(r.status,r.read().decode())
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); saved=json.loads(r.read().decode())
+assert r.status==200 and saved['name']==policy_name and saved['current_revision']==1,saved
+policy_id=saved['configuration_id']; payload.update(configuration_id=policy_id,expected_revision=2,max_tier=0,
+    change_reason='HTTP stale action edit')
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf)
+assert r.status==409 and json.loads(r.read().decode())['error']=='revision_conflict'
+payload.update(expected_revision=1,change_reason='HTTP labelled action edit')
+payload['actions']['inspect.report']['display_name']='Inspect Current Target'
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); revised=json.loads(r.read().decode())
+assert r.status==200 and revised['current_revision']==2 and revised['content']['max_tier']==0
+r=json_request(editor_path); editor=json.loads(r.read().decode()); stored=next(policy for policy in editor['policies'] if policy['configuration_id']==policy_id)
+assert stored['current_revision']==2 and stored['content']['actions']['ai.follow']['followup_enabled'] is True
+assert stored['content']['actions']['inspect.report']['display_name']=='Inspect Current Target'
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/LORKHANserver/ui/core/player_management.php'))
 assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'

@@ -1533,15 +1533,15 @@ $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE ta
 
 $db->exec("UPDATE action_catalog SET continuation_capable=true WHERE action_name='ai.follow'");
 $actionId='50000000-0000-4000-8000-000000000001';$sourceId='50000000-0000-4000-8000-000000000002';
-$db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal','2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
+$db->prepare("INSERT INTO action_intents (action_id,session_id,turn_id,request_id,generation,action_name,tier,actor,target,parameters,expires_at,state,followup_enabled,emitted_at) VALUES (:action,:session,:turn,:request,1,'ai.follow',1,'{}'::jsonb,'{}'::jsonb,'{\"distance\":192}'::jsonb,'2026-01-01T00:10:00Z','terminal',true,'2026-01-01T00:00:00Z')")->execute(['action'=>$actionId,'session'=>$legacySession,'turn'=>$traceTurn,'request'=>'40000000-0000-4000-8000-000000000011']);
 $actionProjection=$db->prepare('SELECT issued.action FROM action_issued_metadata metadata JOIN public.actions_issued issued ON issued.rowid=metadata.rowid WHERE metadata.action_id=:action');
 $actionProjection->execute(['action'=>$actionId]);
 $check($actionProjection->fetchColumn()==='ai.follow','action did not project into the Herika action contract');
 $db->prepare("INSERT INTO source_events (source_event_id,installation_id,session_id,generation,event_kind,occurred_at,schema_name,request_id,turn_id,action_id,payload) VALUES (:source,:installation,:session,1,'action.result','2026-01-01T00:00:01Z','lorkhan.action-result.v1',:request,:turn,:action,'{}'::jsonb)")->execute(['source'=>$sourceId,'installation'=>$legacyInstallation,'session'=>$legacySession,'request'=>'40000000-0000-4000-8000-000000000011','turn'=>$traceTurn,'action'=>$actionId]);
 $db->prepare("INSERT INTO action_results (action_id,source_event_id,message_id,request_id,status,reason_code,observed,completed_at) VALUES (:action,:source,:message,:request,'succeeded','ok','{}'::jsonb,'2026-01-01T00:00:01Z')")->execute(['action'=>$actionId,'source'=>$sourceId,'message'=>'50000000-0000-4000-8000-000000000003','request'=>'40000000-0000-4000-8000-000000000011']);
 $db->prepare("INSERT INTO action_delivery (action_id,emitted_at,terminal_at,continuation_state) VALUES (:action,'2026-01-01T00:00:00Z','2026-01-01T00:00:01Z','eligible')")->execute(['action'=>$actionId]);
-$check($catalog->claimContinuation($actionId,$continuationTurn), 'terminal continuation was not claimed');
-$check(!$catalog->claimContinuation($actionId,$continuationTurn), 'continuation was claimed more than once');
+$check($catalog->claimContinuation($actionId,$continuationTurn,$legacySession,1), 'terminal continuation was not claimed');
+$check(!$catalog->claimContinuation($actionId,$continuationTurn,$legacySession,1), 'continuation was claimed more than once');
 
 $workerJob = Uuid::v4();
 $jobs->enqueue($workerJob, 'test.worker', 1, 'source:4', ['source_id' => 'four'], 1);

@@ -64,7 +64,8 @@ final class ActionPolicyValidator
             throw new DomainException('action_parameters_invalid');
         }
 
-        return [
+        $override = $policy['overrides'][$proposal['name']] ?? [];
+        $normalized = [
             'name' => $proposal['name'],
             'tier' => $proposal['tier'],
             'actor' => $proposal['actor'],
@@ -74,6 +75,18 @@ final class ActionPolicyValidator
             'policy_configuration_id' => $loaded['policy']['configuration_id'] ?? null,
             'policy_revision' => isset($loaded['policy']['revision']) ? (int) $loaded['policy']['revision'] : null,
         ];
+        $displayName = (string) ($override['display_name'] ?? $proposal['name']);
+        if ($displayName !== $proposal['name'] && in_array('action.confirmation', $capabilities, true)) {
+            $normalized['display_name'] = $displayName;
+        }
+        if (in_array('action.confirmation', $capabilities, true)) {
+            $normalized['confirmation_required'] = (bool) ($override['confirmation_required'] ?? $proposal['tier'] >= 2);
+        }
+        if (in_array('action.result-followup', $capabilities, true)) {
+            $normalized['followup_enabled'] = ($definition['continuation_capable'] ?? false) === true
+                && ($override['followup_enabled'] ?? false) === true;
+        }
+        return $normalized;
     }
 
     /**
@@ -101,6 +114,17 @@ final class ActionPolicyValidator
             if (in_array($definition['name'], $negotiatedActions, true)
                 && in_array($definition['client_capability'], $capabilities, true)
                 && $this->policyAllows($definition['name'], $definition['tier'], $policy)) {
+                $override = $policy['overrides'][$definition['name']] ?? [];
+                $displayName=(string)($override['display_name']??$definition['name']);
+                if($displayName!==$definition['name'])$definition['display_name']=$displayName;
+                $definition['description'] = (string) ($override['description'] ?? ($definition['description']??''));
+                if (in_array('action.confirmation', $capabilities, true)) {
+                    $definition['confirmation_required'] = (bool) ($override['confirmation_required'] ?? $definition['tier'] >= 2);
+                }
+                if (in_array('action.result-followup', $capabilities, true)) {
+                    $definition['followup_enabled'] = ($definition['continuation_capable'] ?? false) === true
+                        && ($override['followup_enabled'] ?? false) === true;
+                }
                 $allowed[] = $definition;
             }
         }
@@ -111,24 +135,29 @@ final class ActionPolicyValidator
     public function promptContract(array $turn): string
     {
         $definitions = $turn['_allowed_action_definitions'] ?? [];
-        if (($turn['payload']['ui_source'] ?? null) === 'lorkhan_rechat' || $definitions === []) {
+        if (in_array(($turn['payload']['ui_source']??null),['lorkhan_rechat','lorkhan_action_followup'],true)
+            || $definitions === []) {
             return 'action must be null. No actions are available for this turn.';
         }
         $actions = [];
         foreach ($definitions as $definition) {
-            $actions[] = $definition['name'] . ' parameters: '
-                . json_encode($definition['parameter_schema'], JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+            $label = (string) ($definition['display_name'] ?? $definition['name']);
+            $description = trim((string) ($definition['description'] ?? ''));
+            $contract=(string)$definition['name'];
+            if($label!==$definition['name'])$contract.=' ('.$label.')';
+            $contract.=$description===''?' parameters: ':': '.$description.' Parameters: ';
+            $actions[]=$contract.json_encode($definition['parameter_schema'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
         }
         return 'action must be null or an object with exactly name and parameters; the server adds actor, target, and tier. '
             . 'Only the following actions are allowed. Parameters must match the listed JSON schemas. '
             . implode('; ', $actions);
     }
 
-    /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>} */
+    /** @return array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} */
     private function normalizePolicy(mixed $content): array
     {
         if ($content === null) {
-            return ['enabled' => true, 'max_tier' => 3, 'allow' => null, 'deny' => []];
+            return ['enabled' => true, 'max_tier' => 3, 'allow' => null, 'deny' => [], 'overrides' => []];
         }
         if (!is_array($content) || array_is_list($content)) {
             throw new InvalidArgumentException('invalid_action_policy');
@@ -150,14 +179,29 @@ final class ActionPolicyValidator
         $deny = array_key_exists('denied_actions', $content)
             ? $this->stringList($content['denied_actions'], 'invalid_action_policy') : [];
 
+        $overrides = [];
         if (array_key_exists('actions', $content)) {
             if (!is_array($content['actions']) || array_is_list($content['actions'])) {
                 throw new InvalidArgumentException('invalid_action_policy');
             }
-            foreach ($content['actions'] as $name => $allowed) {
-                if (!is_string($name) || $name === '' || !is_bool($allowed)) {
+            foreach ($content['actions'] as $name => $value) {
+                if (!is_string($name) || $name === '') {
                     throw new InvalidArgumentException('invalid_action_policy');
                 }
+                $allowed = $value;
+                if (is_array($value) && !array_is_list($value)) {
+                    $overrideKeys = array_keys($value);
+                    sort($overrideKeys);
+                    if ($overrideKeys !== ['confirmation_required', 'description', 'display_name', 'enabled', 'followup_enabled']
+                        || !is_bool($value['enabled']) || !is_bool($value['confirmation_required'])
+                        || !is_bool($value['followup_enabled']) || !is_string($value['display_name'])
+                        || !is_string($value['description'])) {
+                        throw new InvalidArgumentException('invalid_action_policy');
+                    }
+                    $allowed = $value['enabled'];
+                    $overrides[$name] = $value;
+                }
+                if (!is_bool($allowed)) throw new InvalidArgumentException('invalid_action_policy');
                 if ($allowed) {
                     $allow ??= [];
                     $allow[] = $name;
@@ -172,10 +216,11 @@ final class ActionPolicyValidator
             'max_tier' => $maxTier,
             'allow' => $allow === null ? null : array_values(array_unique($allow)),
             'deny' => array_values(array_unique($deny)),
+            'overrides' => $overrides,
         ];
     }
 
-    /** @param array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>} $policy */
+    /** @param array{enabled:bool,max_tier:int,allow:?list<string>,deny:list<string>,overrides:array<string,array<string,mixed>>} $policy */
     private function policyAllows(string $name, int $tier, array $policy): bool
     {
         return $policy['enabled'] && $tier <= $policy['max_tier']

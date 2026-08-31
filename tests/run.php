@@ -540,6 +540,7 @@ $policy = new ActionPolicyValidator();
 $actionDefinitions = [];
 foreach (['inspect.report'=>0, 'ai.follow'=>1, 'ai.stop'=>1, 'item.use'=>2] as $name=>$tier) {
     $actionDefinitions[] = ['name'=>$name, 'tier'=>$tier, 'client_capability'=>'action.'.$name,
+        'description'=>'', 'continuation_capable'=>$name==='ai.follow',
         'parameter_schema'=>['type'=>'object', 'additionalProperties'=>false]];
 }
 $actionContext = ['definitions'=>$actionDefinitions,
@@ -549,6 +550,27 @@ $actionContext = ['definitions'=>$actionDefinitions,
 $allowedActions = $policy->allowedDefinitions($actionContext);
 $check(array_column($allowedActions,'name')===['inspect.report','ai.follow'],
     'prompt actions intersect negotiated capabilities, enabled actions, and policy');
+$overrideContext=$actionContext;
+$overrideContext['session']['capabilities'][]='action.confirmation';
+$overrideContext['session']['capabilities'][]='action.result-followup';
+$overrideContext['policy']=['configuration_id'=>'policy-id','revision'=>4,'content'=>['max_tier'=>1,'actions'=>[
+    'ai.follow'=>['enabled'=>true,'display_name'=>'Follow Player','description'=>'Stay near the player.',
+        'confirmation_required'=>true,'followup_enabled'=>true]]]];
+$overrideAllowed=$policy->allowedDefinitions($overrideContext);
+$overrideFollow=array_values(array_filter($overrideAllowed,static fn(array $definition):bool=>$definition['name']==='ai.follow'))[0]??[];
+$proposal=['name'=>'ai.follow','tier'=>1,'actor'=>['kind'=>'npc'],'target'=>['kind'=>'player'],'parameters'=>[]];
+$normalized=$policy->validate($proposal,$overrideContext);
+$legacyContext=$overrideContext;
+$legacyContext['session']['capabilities']=array_values(array_diff($legacyContext['session']['capabilities'],
+    ['action.confirmation','action.result-followup']));
+$legacyNormalized=$policy->validate($proposal,$legacyContext);
+$check($overrideFollow['display_name']==='Follow Player'&&$overrideFollow['description']==='Stay near the player.'
+    &&$overrideFollow['confirmation_required']===true&&$overrideFollow['followup_enabled']===true
+    &&$normalized['policy_configuration_id']==='policy-id'&&$normalized['policy_revision']===4
+    &&$normalized['display_name']==='Follow Player'&&$normalized['confirmation_required']===true
+    &&$normalized['followup_enabled']===true&&!array_key_exists('display_name',$legacyNormalized)
+    &&!array_key_exists('confirmation_required',$legacyNormalized)&&!array_key_exists('followup_enabled',$legacyNormalized),
+    'action presentation, confirmation, and result follow-up require negotiated client capabilities');
 $actionTurn = $promptTurn;
 $actionTurn['_allowed_action_definitions'] = $allowedActions;
 $actionTurn['_prompt'] = (new PromptAssembler())->assemble($actionTurn,$promptSelection)['provider_input'];
@@ -567,6 +589,11 @@ $rechatMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke
 $check(str_contains($rechatMessages[0]['content'],'action must be null')
     &&!str_contains($rechatMessages[0]['content'],'ai.follow parameters:'),
     'rechat cannot inherit an action contract from a prior turn');
+$actionTurn['payload']['ui_source']='lorkhan_action_followup';
+$followupMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
+$check(str_contains($followupMessages[0]['content'],'action must be null')
+    &&!str_contains($followupMessages[0]['content'],'ai.follow parameters:'),
+    'result-aware action follow-up cannot request a second action');
 $legacyMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,
     ['_prompt'=>$actionTurn['_prompt']]);
 $rawMessages=(new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,[]);
