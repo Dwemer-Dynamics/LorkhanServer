@@ -12,7 +12,7 @@ final class Repository
     private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
-        'action.inventory.inspect'];
+        'action.inventory.inspect','action.confirmation','action.result-followup'];
     private const ENABLED_ACTIONS = ['inspect.report','inventory.inspect','ai.follow','ai.stop','ai.approach','ai.wait','ai.travel','ai.escort',
         'ai.face','ai.wander','combat.start','combat.stop','animation.play','item.equip','item.unequip','item.use'];
     public function __construct(
@@ -30,6 +30,12 @@ final class Repository
     public function migrate(string $migration): void
     {
         $this->db->exec(file_get_contents($migration) ?: throw new \RuntimeException('Cannot read migration.'));
+    }
+
+    /** Consume the one server-authorized result follow-up before its turn can be accepted. */
+    public function claimActionContinuation(string $actionId,string $turnId,string $sessionId,int $generation):bool
+    {
+        return $this->actionCatalog?->claimContinuation($actionId,$turnId,$sessionId,$generation)??false;
     }
 
     public function ensureInstallation(string $installationId, string $tokenHash, ?string $macKey = null): void
@@ -986,7 +992,7 @@ final class Repository
                 ->execute(['action' => $m['action_id'], 'source' => $m['message_id'], 'message' => $m['message_id'], 'request' => $m['request_id'],
                     'status' => $m['status'], 'reason' => $m['reason_code'], 'observed' => $this->encode($m['observed']), 'completed' => $m['completed_at']]);
             $this->db->prepare("UPDATE action_intents SET state = 'terminal' WHERE action_id = :id AND state <> 'terminal'")->execute(['id' => $m['action_id']]);
-            $this->db->prepare("UPDATE action_delivery d SET terminal_at=:completed,continuation_state=CASE WHEN c.continuation_capable AND d.continuation_state='none' THEN 'eligible' ELSE 'none' END,updated_at=clock_timestamp() FROM action_intents a JOIN action_catalog c ON c.action_name=a.action_name WHERE d.action_id=:id AND a.action_id=d.action_id")
+            $this->db->prepare("UPDATE action_delivery d SET terminal_at=:completed,continuation_state=CASE WHEN a.followup_enabled AND d.continuation_state='none' THEN 'eligible' ELSE 'none' END,updated_at=clock_timestamp() FROM action_intents a WHERE d.action_id=:id AND a.action_id=d.action_id")
                 ->execute(['completed' => $m['completed_at'], 'id' => $m['action_id']]);
             return ['duplicate' => false];
         });
@@ -1033,11 +1039,15 @@ final class Repository
         $actionId = Uuid::v4();
         $expires = (new \DateTimeImmutable('now', new \DateTimeZone('UTC')))->modify('+30 seconds')->format('Y-m-d\TH:i:s\Z');
         $stmt = $this->db->prepare('INSERT INTO action_intents (action_id, session_id, turn_id, request_id, generation, action_name, tier, actor, target, '
-            . 'parameters, expires_at, emitted_at) VALUES (:id, :session, :turn, :request, :generation, :name, :tier, CAST(:actor AS jsonb), '
-            . 'CAST(:target AS jsonb), CAST(:parameters AS jsonb), :expires, clock_timestamp())');
+            . 'parameters, expires_at, policy_configuration_id, policy_revision, display_name, confirmation_required, followup_enabled, emitted_at) '
+            . 'VALUES (:id, :session, :turn, :request, :generation, :name, :tier, CAST(:actor AS jsonb), CAST(:target AS jsonb), '
+            . 'CAST(:parameters AS jsonb), :expires, :policy, :policy_revision, :display_name, :confirmation, :followup, clock_timestamp())');
         $stmt->execute(['id' => $actionId, 'session' => $m['session_id'], 'turn' => $m['turn_id'], 'request' => $requestId,
             'generation' => $m['generation'], 'name' => $action['name'], 'tier' => $action['tier'], 'actor' => $this->encode($action['actor']),
-            'target' => $this->encode($action['target']), 'parameters' => $this->encode($action['parameters']), 'expires' => $expires]);
+            'target' => $this->encode($action['target']), 'parameters' => $this->encode($action['parameters']), 'expires' => $expires,
+            'policy'=>$action['policy_configuration_id']??null,'policy_revision'=>$action['policy_revision']??null,
+            'display_name'=>$action['display_name']??null,'confirmation'=>!empty($action['confirmation_required'])?'true':'false',
+            'followup'=>!empty($action['followup_enabled'])?'true':'false']);
         $this->db->prepare("INSERT INTO action_delivery (action_id, emitted_at, continuation_state) VALUES (:id, clock_timestamp(), 'none')")
             ->execute(['id' => $actionId]);
         // PHP represents both an empty JSON object and an empty list as [], so restore the
@@ -1045,6 +1055,9 @@ final class Repository
         $wireParameters = $action['parameters'] === [] ? (object) [] : $action['parameters'];
         $payload = ['schema' => 'lorkhan.action-intent.v1', 'action_id' => $actionId, 'turn_id' => $m['turn_id'], 'name' => $action['name'],
             'tier' => $action['tier'], 'actor' => $action['actor'], 'target' => $action['target'], 'parameters' => $wireParameters, 'expires_at' => $expires];
+        if (isset($action['display_name'])) $payload['display_name'] = $action['display_name'];
+        if (array_key_exists('confirmation_required', $action)) $payload['confirmation_required'] = $action['confirmation_required'];
+        if (array_key_exists('followup_enabled', $action)) $payload['followup_enabled'] = $action['followup_enabled'];
         return $this->event($m['session_id'], $m['generation'], $requestId, $m['turn_id'], 'action.intent', $payload, $messageId);
     }
 

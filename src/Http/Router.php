@@ -164,11 +164,18 @@ final class Router
                 if ($this->rechatCoordinator === null) throw new DomainException('rechat_unavailable');
                 $m = $this->rechatCoordinator->resolve($m);
             }
+            if (($m['payload']['ui_source']??null)==='lorkhan_action_followup') {
+                $results=$m['payload']['recent_action_results']??[];
+                if(count($results)!==1||!$this->repository->claimActionContinuation((string)$results[0]['action_id'],
+                    (string)$m['turn_id'],(string)$m['session_id'],(int)$m['generation']))
+                    throw new DomainException('action_followup_not_allowed');
+            }
 
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
             if ($providerInput !== null) {
-                $providerInput['_allowed_action_definitions'] = ($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat'
+                $providerInput['_allowed_action_definitions'] = in_array(($m['payload']['ui_source']??null),
+                    ['lorkhan_rechat','lorkhan_action_followup'],true)
                     ? [] : $this->repository->allowedPromptActions($m['session_id'], $m['generation']);
             }
             $assembled = null;

@@ -118,16 +118,17 @@ assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LOR
 assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
-for path,marker in [
-    ('/LORKHANserver/ui/home.php','dashboard-container'),
-    ('/LORKHANserver/ui/events-memories.php','events-memories-navigation'),
-    ('/LORKHANserver/ui/core/config_hub.php','config-navigation'),
-    ('/LORKHANserver/ui/control_panel.php','config-navigation'),
+for path,marker,title in [
+    ('/LORKHANserver/ui/home.php','dashboard-container','Home'),
+    ('/LORKHANserver/ui/events-memories.php','events-memories-navigation','Roleplay'),
+    ('/LORKHANserver/ui/core/config_hub.php','config-navigation','Configuration'),
+    ('/LORKHANserver/ui/control_panel.php','config-navigation','Control Panel'),
 ]:
-    page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path
+    page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path; assert '<title>'+title+'</title>' in text,path
     if path != '/LORKHANserver/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=eventlog'))
-assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text
+assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text and 'data-tab="backgroundlife"' not in text and 'Background Life' not in text
+excluded_background,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=backgroundlife')); assert excluded_background.current==1 and 'id="eventlog-app"' in text and 'data-tab="backgroundlife"' not in text
 journal,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
@@ -218,6 +219,7 @@ exported=request('/LORKHANserver/manage/exports/biographies/custom.csv?installat
 export_rows=[row for row in csv.DictReader(io.StringIO(exported)) if row['record_id']==biography_record]
 assert len(export_rows)==1 and export_rows[0]['content_file']=='HTTP Test.esp' and export_rows[0]['biography']=='Imported biography v2.' and export_rows[0]['oghma_tags']=='Balmora',export_rows
 descriptions,text=parse(request('/LORKHANserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
+oghma_response=request('/LORKHANserver/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LORKHANserver/ui/server_plugins.php').status==404
 assert request('/LORKHANserver/manage/server-plugins').status==404
 llm,text=parse(request('/LORKHANserver/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
@@ -254,6 +256,7 @@ for path in [
 ]:
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LORKHANserver/ui/core/npc_master.php'))
+assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
 profile_labels=['Voice sample','Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM','Diary LLM','LLM randomizer','Fallback retry','TTS connector','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
@@ -975,30 +978,33 @@ r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=cs
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); assert r.status==200
 r=request('/LORKHANserver/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':prompt_profile_id}); assert r.status==200
 actions,body=parse(request('/LORKHANserver/ui/function_editor.php'))
-assert 'negotiated OpenMW action catalogue immutable' in body and 'Action Policies' in body
-policy_form=next(f for f in actions.forms if f['action'].endswith('/forms/action-policy-controls-create'))
+assert 'data-action-editor' in body and 'Display and prompt text' in body and 'Save All' in body
+editor_path='/LORKHANserver/manage/api/v1/action-policies/editor?'+urllib.parse.urlencode({'installation_id':valid['installation_id']})
+r=json_request(editor_path); editor=json.loads(r.read().decode())
+assert r.status==200 and len(editor['catalog'])==16 and editor['policies']==[],editor
+assert all(set(action)>=set(['name','tier','description','parameter_schema','result_schema','client_capability',
+    'server_owned','terminal_result_required','continuation_capable']) for action in editor['catalog'])
 policy_name='HTTP action policy '+uuid.uuid4().hex
-values=dict(policy_form['fields'],_csrf=csrf,name=policy_name,enabled='1',max_tier='1')
-values['allowed_actions[]']=['inspect.report','ai.follow']
-r=request(policy_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/function_editor.php?status=saved') and policy_name in body,(r.status,r.geturl())
-match=re.search(re.escape(policy_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
-policy_id=match.group(1); actions,body=parse(request('/LORKHANserver/ui/function_editor.php'))
-revise_policy=next(f for f in actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-values=dict(revise_policy['fields'],_csrf=csrf,enabled='1',max_tier='0',change_reason='HTTP labelled action edit'); values['allowed_actions[]']=['inspect.report']
-r=request(revise_policy['action'],'POST',values); body=r.read().decode(); revised_actions=Page(); revised_actions.feed(body)
-saved_policy=next(f for f in revised_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-assert r.status==200 and saved_policy['fields'].get('max_tier')=='0' and saved_policy['fields'].get('allowed_actions[]')=='inspect.report',(r.status,r.geturl(),saved_policy)
-for policy_content,expected in [
-    ({'allowed_actions':['inspect.report']},['inspect.report']),
-    ({'allowed_actions':['inspect.report'],'denied_actions':['inspect.report'],
-      'actions':{'inspect.report':True,'inventory.inspect':True,'ai.follow':False}},['inventory.inspect']),
-]:
-    r=request('/LORKHANserver/manage/forms/configuration-revise','POST',{'_csrf':csrf,'kind':'action_policy',
-        'configuration_id':policy_id,'content_json':json.dumps(dict(policy_content,enabled=True,max_tier=2)),
-        'change_reason':'Verify legacy policy controls'})
-    legacy_actions,_=parse(r)
-    legacy_policy=next(f for f in legacy_actions.forms if f['action'].endswith('/forms/action-policy-controls-revise') and f['fields'].get('configuration_id')==policy_id)
-    assert r.status==200 and legacy_policy.get('checked',{}).get('allowed_actions[]',[])==expected,(r.status,legacy_policy)
+overrides={action['name']:{'enabled':action['name'] in ('inspect.report','ai.follow'),
+    'display_name':'Follow Player' if action['name']=='ai.follow' else action['name'],
+    'description':action['description'],'confirmation_required':int(action['tier'])>=2,
+    'followup_enabled':action['name']=='ai.follow'} for action in editor['catalog']}
+payload={'configuration_id':None,'installation_id':valid['installation_id'],'profile_id':None,'name':policy_name,
+    'expected_revision':None,'enabled':True,'max_tier':1,'actions':overrides,'change_reason':'HTTP compact editor create'}
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload); assert r.status==401,(r.status,r.read().decode())
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); saved=json.loads(r.read().decode())
+assert r.status==200 and saved['name']==policy_name and saved['current_revision']==1,saved
+policy_id=saved['configuration_id']; payload.update(configuration_id=policy_id,expected_revision=2,max_tier=0,
+    change_reason='HTTP stale action edit')
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf)
+assert r.status==409 and json.loads(r.read().decode())['error']=='revision_conflict'
+payload.update(expected_revision=1,change_reason='HTTP labelled action edit')
+payload['actions']['inspect.report']['display_name']='Inspect Current Target'
+r=json_request('/LORKHANserver/manage/api/v1/action-policies/revisions','POST',payload,csrf); revised=json.loads(r.read().decode())
+assert r.status==200 and revised['current_revision']==2 and revised['content']['max_tier']==0
+r=json_request(editor_path); editor=json.loads(r.read().decode()); stored=next(policy for policy in editor['policies'] if policy['configuration_id']==policy_id)
+assert stored['current_revision']==2 and stored['content']['actions']['ai.follow']['followup_enabled'] is True
+assert stored['content']['actions']['inspect.report']['display_name']=='Inspect Current Target'
 r=request('/LORKHANserver/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
 player,text=parse(request('/LORKHANserver/ui/core/player_management.php'))
 assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'

@@ -38,14 +38,15 @@ final class ProductService
     }
 
     /** @param array<string,mixed> $content */
-    public function revise(string $kind, string $id, array $content, string $reason): array
+    public function revise(string $kind, string $id, array $content, string $reason, ?int $expectedRevision = null): array
     {
         $this->uuid($id);
         if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
         if ($kind !== 'provider') $this->assertNoSecrets($content);
         $content=$this->validateConfiguration($kind,$content);
-        return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso());
+        if ($expectedRevision !== null && $expectedRevision < 1) throw new InvalidArgumentException('invalid_expected_revision');
+        return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso(), $expectedRevision);
     }
 
     /** Validate and atomically save the Herika-style Core Profile editor document. */
@@ -507,11 +508,27 @@ final class ProductService
         if(array_diff(array_keys($content),$known)!==[])throw new InvalidArgumentException('invalid_action_policy');
         if(isset($content['enabled'])&&!is_bool($content['enabled']))throw new InvalidArgumentException('invalid_action_policy');
         if(isset($content['max_tier'])&&(!is_int($content['max_tier'])||$content['max_tier']<0||$content['max_tier']>3))throw new InvalidArgumentException('invalid_action_policy');
+        $definitions=[];foreach($this->repository->actionCatalogDefinitions()as$definition)$definitions[$definition['name']]=$definition;
         foreach(['allowed_actions','denied_actions']as$field){if(!array_key_exists($field,$content))continue;$values=$content[$field];
             if(!is_array($values)||!array_is_list($values)||count($values)>128)throw new InvalidArgumentException('invalid_action_policy');
             foreach($values as$value)if(!is_string($value)||$value===''||strlen($value)>128||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException('invalid_action_policy');}
         if(isset($content['actions'])){if(!is_array($content['actions'])||array_is_list($content['actions'])||count($content['actions'])>128)throw new InvalidArgumentException('invalid_action_policy');
-            foreach($content['actions']as$name=>$enabled)if(!is_string($name)||$name===''||strlen($name)>128||!is_bool($enabled))throw new InvalidArgumentException('invalid_action_policy');}
+            foreach($content['actions']as$name=>$value){
+                if(!is_string($name)||!isset($definitions[$name]))throw new InvalidArgumentException('invalid_action_policy');
+                if(is_bool($value))continue;
+                if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_action_policy');
+                $keys=array_keys($value);sort($keys);
+                if($keys!==['confirmation_required','description','display_name','enabled','followup_enabled']
+                    ||!is_bool($value['enabled'])||!is_bool($value['confirmation_required'])||!is_bool($value['followup_enabled'])
+                    ||!is_string($value['display_name'])||trim($value['display_name'])===''||mb_strlen($value['display_name'],'UTF-8')>128
+                    ||!is_string($value['description'])||trim($value['description'])===''||mb_strlen($value['description'],'UTF-8')>2048
+                    ||!mb_check_encoding($value['display_name'],'UTF-8')||!mb_check_encoding($value['description'],'UTF-8')
+                    ||($value['followup_enabled']&&($definitions[$name]['continuation_capable']??false)!==true))
+                    throw new InvalidArgumentException('invalid_action_policy');
+                $content['actions'][$name]=['enabled'=>$value['enabled'],'display_name'=>trim($value['display_name']),
+                    'description'=>trim($value['description']),'confirmation_required'=>$value['confirmation_required'],
+                    'followup_enabled'=>$value['followup_enabled']];
+            }}
         return$content;
     }
 

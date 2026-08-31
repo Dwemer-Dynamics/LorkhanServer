@@ -107,10 +107,6 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <div class="tab-navigation" role="tablist" aria-label="Oghma pages">
         <button type="button" class="tab-button active" role="tab" aria-selected="true"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
-        <span class="oghma-tab-placeholder">
-            <button type="button" class="tab-button" role="tab" disabled aria-disabled="true"><span aria-hidden="true">&#x26A1;</span>&#160;Dynamic Oghma</button>
-            <?php echo lorkhan_ui_feature_badge('config.oghma.dynamic', true); ?>
-        </span>
     </div>
 
     <?php if (isset($_GET['status'])):

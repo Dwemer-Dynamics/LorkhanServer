@@ -102,7 +102,7 @@ final class ManagementRouter
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
         catch(RuntimeException $e){
-            if($e->getMessage()==='relationship_restore_conflict')
+            if(in_array($e->getMessage(),['relationship_restore_conflict','revision_conflict'],true))
                 return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),409):Response::json(409,['error'=>$e->getMessage()]);
             if(in_array($e->getMessage(),['relationship_revision_conflict','relationship_already_exists'],true)){
                 if($this->htmlRequest($r))return $this->redirect($this->relationshipPageLocation($this->form($r),$e->getMessage()));
@@ -157,6 +157,8 @@ final class ManagementRouter
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
         }
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
+        if($r->method==='GET'&&$path==='/api/v1/action-policies/editor')return Response::json(200,$this->actionPolicyEditor($r));
+        if($r->method==='POST'&&$path==='/api/v1/action-policies/revisions')return Response::json(200,$this->saveActionPolicyRevision($this->json($r)));
         if($r->method==='GET'&&$path==='/api/v1/traces')return Response::json(200,['items'=>$this->repository->searchTraces($this->queryUuid($r,'installation_id'),(string)($r->query['q']??''))]);
         if($r->method==='GET'&&preg_match('#^/api/v1/traces/([0-9a-f-]{36})$#D',$path,$m))return Response::json(200,$this->repository->traceDetail($m[1]));
         if(preg_match('#^/api/v1/(profiles|core-profiles|playthroughs|prompts|providers|tts-providers|stt-providers|action-policies)$#D',$path,$m)){
@@ -747,6 +749,40 @@ final class ManagementRouter
         foreach($selected as$name){if(!is_string($name)||!in_array($name,$known,true)||isset($enabled[$name]))throw new InvalidArgumentException('invalid_allowed_actions');$enabled[$name]=true;}
         $actions=[];foreach($known as$name)$actions[$name]=isset($enabled[$name]);
         return['enabled'=>isset($values['enabled']),'max_tier'=>(int)$tier,'actions'=>$actions];
+    }
+
+    /** Return one exact policy scope and the immutable OpenMW contracts used to edit it. */
+    private function actionPolicyEditor(Request $request):array
+    {
+        $installation=$this->queryUuid($request,'installation_id');
+        $profile=trim((string)($request->query['profile_id']??''));
+        if($profile==='')$profile=null;else$this->uuid($profile,'profile_id');
+        return['catalog'=>$this->repository->actionCatalogDefinitions(),
+            'policies'=>$this->repository->actionPoliciesForEditor($installation,$profile)];
+    }
+
+    /** Create or atomically revise the policy document produced by the compact editor. */
+    private function saveActionPolicyRevision(array $values):array
+    {
+        $keys=array_keys($values);sort($keys);$expected=['actions','change_reason','configuration_id','enabled',
+            'expected_revision','installation_id','max_tier','name','profile_id'];sort($expected);
+        if($keys!==$expected||!is_bool($values['enabled']??null)||!is_int($values['max_tier']??null)
+            ||!is_array($values['actions']??null)||array_is_list($values['actions']))
+            throw new InvalidArgumentException('invalid_action_policy_editor');
+        $installation=(string)$values['installation_id'];$this->uuid($installation,'installation_id');
+        $profile=$values['profile_id'];
+        if($profile!==null){if(!is_string($profile))throw new InvalidArgumentException('invalid_profile_id');$this->uuid($profile,'profile_id');}
+        $configuration=$values['configuration_id'];$revision=$values['expected_revision'];
+        if(($configuration===null)!==($revision===null))throw new InvalidArgumentException('invalid_expected_revision');
+        $content=['enabled'=>$values['enabled'],'max_tier'=>$values['max_tier'],'actions'=>$values['actions']];
+        $reason=$this->need($values,'change_reason');$name=$this->need($values,'name');
+        if($configuration===null)return$this->service->createRevisioned('action_policy',['installation_id'=>$installation,
+            'profile_id'=>$profile,'name'=>$name,'content'=>$content,'change_reason'=>$reason]);
+        if(!is_string($configuration)||!is_int($revision))throw new InvalidArgumentException('invalid_expected_revision');
+        $this->uuid($configuration,'configuration_id');$current=$this->repository->getRevisioned('action_policy',$configuration);
+        if((string)$current['installation_id']!==$installation||($current['profile_id']??null)!==$profile
+            ||(string)$current['name']!==$name)throw new InvalidArgumentException('action_policy_scope_mismatch');
+        return$this->service->revise('action_policy',$configuration,$content,$reason,$revision);
     }
 
     /** Validate the document identifier before applying the repository's soft delete. */

@@ -222,14 +222,17 @@ final class ProductRepository
         return$rows;
     }
 
-    public function revise(string $kind, string $id, array $content, string $reason, string $now): array
+    public function revise(string $kind, string $id, array $content, string $reason, string $now, ?int $expectedRevision = null): array
     {
-        return $this->transaction(function () use ($kind,$id,$content,$reason,$now): array {
+        return $this->transaction(function () use ($kind,$id,$content,$reason,$now,$expectedRevision): array {
             [$table,$key,$revisions] = $this->revisionMeta($kind);
             $stmt = $this->db->prepare("SELECT current_revision FROM {$table} WHERE {$key}=:id AND deleted_at IS NULL FOR UPDATE");
             $stmt->execute(['id'=>$id]);
             $current = $stmt->fetchColumn();
             if ($current === false) throw new RuntimeException('not_found');
+            if ($expectedRevision !== null && (int) $current !== $expectedRevision) {
+                throw new RuntimeException('revision_conflict');
+            }
             if($kind==='memory_policy'){
                 $policy=$this->getRevisioned($kind,$id);
                 (new MemorySummaryRepository($this->db))->assertProvider($policy['installation_id'],$content);
@@ -876,6 +879,28 @@ final class ProductRepository
     {
         $statement=$this->db->query('SELECT action_name FROM action_catalog WHERE enabled=true ORDER BY tier,action_name');
         return array_map(static fn(array$row):string=>(string)$row['action_name'],$statement->fetchAll());
+    }
+
+    /** Return immutable action contracts used by management policy validation and the editor API. */
+    public function actionCatalogDefinitions():array
+    {
+        return (new ActionCatalogRepository($this->db))->enabledDefinitions();
+    }
+
+    /** Return current policies at exactly one installation or NPC-profile scope. */
+    public function actionPoliciesForEditor(string $installationId,?string $profileId):array
+    {
+        $sql="SELECT c.configuration_id,c.installation_id,c.profile_id,c.name,c.current_revision,r.content "
+            ."FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
+            ."WHERE c.installation_id=:installation AND c.kind='action_policy' AND c.deleted_at IS NULL "
+            .($profileId===null?"AND c.profile_id IS NULL ":"AND c.profile_id=:profile ")
+            ."ORDER BY lower(c.name),c.configuration_id LIMIT 100";
+        $statement=$this->db->prepare($sql);
+        $parameters=['installation'=>$installationId];if($profileId!==null)$parameters['profile']=$profileId;
+        $statement->execute($parameters);
+        $rows=$statement->fetchAll();
+        foreach($rows as&$row){$row['current_revision']=(int)$row['current_revision'];$row['content']=$this->json($row['content']);}unset($row);
+        return$rows;
     }
 
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-$pageTitle = 'LORKHAN Home';
+$pageTitle = 'Home';
 $topNavSection = 'home';
 require __DIR__ . '/ui_bootstrap.php';
 $dashboard = $uiRepository->dashboard();

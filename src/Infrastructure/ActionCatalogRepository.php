@@ -18,7 +18,8 @@ final class ActionCatalogRepository
     public function enabledDefinitions(): array
     {
         $rows = $this->db->query(
-            'SELECT action_name, tier, description, parameter_schema, client_capability, server_owned, continuation_capable '
+            'SELECT action_name, tier, description, parameter_schema, result_schema, client_capability, server_owned, '
+            . 'terminal_result_required, continuation_capable '
             . 'FROM action_catalog WHERE enabled = true ORDER BY action_name'
         )->fetchAll();
 
@@ -82,12 +83,15 @@ final class ActionCatalogRepository
         return $row;
     }
 
-    public function claimContinuation(string $actionId, string $continuationTurnId): bool
+    public function claimContinuation(string $actionId,string $continuationTurnId,string $sessionId,int $generation):bool
     {
         $this->db->beginTransaction();
         try {
-            $statement = $this->db->prepare("UPDATE action_delivery d SET continuation_state='consumed', continuation_turn_id=:turn, updated_at=clock_timestamp() FROM action_results r,action_intents a,action_catalog c WHERE d.action_id=:action AND r.action_id=d.action_id AND a.action_id=d.action_id AND c.action_name=a.action_name AND c.continuation_capable AND d.continuation_state='eligible' AND d.terminal_at IS NOT NULL AND (SELECT count(*) FROM action_delivery x WHERE x.continuation_turn_id=:turn)<16");
-            $statement->execute(['action'=>$actionId,'turn'=>$continuationTurnId]);
+            $statement=$this->db->prepare("UPDATE action_delivery d SET continuation_state='consumed',continuation_turn_id=:turn,updated_at=clock_timestamp() "
+                ."FROM action_results r,action_intents a WHERE d.action_id=:action AND r.action_id=d.action_id AND a.action_id=d.action_id "
+                ."AND a.session_id=:session AND a.generation=:generation AND a.followup_enabled AND d.continuation_state='eligible' "
+                ."AND d.terminal_at IS NOT NULL AND NOT EXISTS(SELECT 1 FROM action_delivery x WHERE x.continuation_turn_id=:turn)");
+            $statement->execute(['action'=>$actionId,'turn'=>$continuationTurnId,'session'=>$sessionId,'generation'=>$generation]);
             $claimed = $statement->rowCount() === 1;
             $this->db->commit();
             return $claimed;
@@ -103,10 +107,13 @@ final class ActionCatalogRepository
         return [
             'name' => (string) $row['action_name'],
             'tier' => (int) $row['tier'],
+            'enabled'=>true,
             'description' => (string) $row['description'],
             'parameter_schema' => $this->json($row['parameter_schema']),
+            'result_schema' => $this->json($row['result_schema']),
             'client_capability' => (string) $row['client_capability'],
             'server_owned' => $this->boolean($row['server_owned']),
+            'terminal_result_required'=>$this->boolean($row['terminal_result_required']),
             'continuation_capable'=>$this->boolean($row['continuation_capable']),
         ];
     }
