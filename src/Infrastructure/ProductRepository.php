@@ -2660,14 +2660,56 @@ SQL);
     /** Queue one fixed, validated debug operation for the selected live game session. */
     public function queueDebugCommand(string $sessionId,string $name,array $parameters):array
     {
-        $empty=['status.snapshot','shaders.reload'];
+        $empty=['status.snapshot','shaders.reload','player.vitals.restore','target.actor.kill','target.actor.restore','target.teleport.to_player'];
         $enabled=['god_mode.set','collision.set','ai.set','mwscript.set','shader_hot_reload.set'];
         $renderModes=['collision','wireframe','pathgrid','water','scene','navmesh','actors_paths','recast_mesh'];
+        $hasKeys=static function(array $value,array $expected):bool{$actual=array_keys($value);sort($actual);sort($expected);return $actual===$expected;};
+        $attributes=['strength','intelligence','willpower','agility','speed','endurance','personality','luck'];
+        $skills=['block','armorer','mediumarmor','heavyarmor','bluntweapon','longblade','axe','spear','athletics','enchant',
+            'destruction','alteration','illusion','conjuration','mysticism','restoration','alchemy','unarmored','security',
+            'sneak','acrobatics','lightarmor','shortblade','marksman','mercantile','speechcraft','handtohand'];
+        $recordId=static fn(mixed $value):bool=>is_string($value)&&$value!==''&&strlen($value)<=256
+            &&preg_match('/[\\\\\/\r\n\t]/',$value)!==1;
+        $number=static fn(mixed $value,float $minimum,float $maximum):bool=>(is_int($value)||is_float($value))
+            &&is_finite((float)$value)&&(float)$value>=$minimum&&(float)$value<=$maximum;
         if(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
-        elseif(in_array($name,$enabled,true)){if(array_keys($parameters)!==['enabled']||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
+        elseif(in_array($name,$enabled,true)){if(!$hasKeys($parameters,['enabled'])||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
         elseif($name==='render_mode.toggle'){
-            if(array_keys($parameters)!==['mode']||!is_string($parameters['mode'])||!in_array($parameters['mode'],$renderModes,true))
+            if(!$hasKeys($parameters,['mode'])||!is_string($parameters['mode'])||!in_array($parameters['mode'],$renderModes,true))
                 throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.inventory.add','player.inventory.remove'],true)){
+            if(!$hasKeys($parameters,['record_id','count'])||!$recordId($parameters['record_id'])||!is_int($parameters['count'])
+                ||$parameters['count']<1||$parameters['count']>10000)throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.spell.add','player.spell.remove'],true)){
+            if(!$hasKeys($parameters,['record_id'])||!$recordId($parameters['record_id']))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.stat.set'){
+            if(!$hasKeys($parameters,['stat','value'])||!in_array($parameters['stat']??null,['health','magicka','fatigue'],true)
+                ||!$number($parameters['value']??null,0,1000000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.attribute.set'){
+            if(!$hasKeys($parameters,['attribute','value'])||!in_array($parameters['attribute']??null,$attributes,true)
+                ||!$number($parameters['value']??null,0,1000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.skill.set'){
+            if(!$hasKeys($parameters,['skill','value'])||!in_array($parameters['skill']??null,$skills,true)
+                ||!$number($parameters['value']??null,0,1000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.level.set','player.bounty.set'],true)){
+            $minimum=$name==='player.level.set'?1:0;$maximum=$name==='player.level.set'?1000:1000000000;
+            if(!$hasKeys($parameters,['value'])||!is_int($parameters['value'])||$parameters['value']<$minimum
+                ||$parameters['value']>$maximum)throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.scale.set','target.scale.set'],true)){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0.01,100))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.timescale.set'){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0,10000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.time.advance'){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0,8760))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.teleport'){
+            if(!$hasKeys($parameters,['cell','x','y','z'])||!is_string($parameters['cell'])||$parameters['cell']===''
+                ||strlen($parameters['cell'])>300||preg_match('/[\\\\\/\r\n\t]/',$parameters['cell'])===1
+                ||!$number($parameters['x'],-100000000,100000000)||!$number($parameters['y'],-100000000,100000000)
+                ||!$number($parameters['z'],-100000000,100000000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.weather.set'){
+            $weathers=['clear','cloudy','foggy','overcast','rain','thunderstorm','ashstorm','blight','snow','blizzard'];
+            if(!$hasKeys($parameters,['region_id','weather'])||!$recordId($parameters['region_id'])
+                ||!in_array($parameters['weather']??null,$weathers,true))throw new InvalidArgumentException('invalid_debug_parameters');
         }else throw new InvalidArgumentException('invalid_debug_command');
         return$this->transaction(function()use($sessionId,$name,$parameters):array{
             $session=$this->db->prepare("SELECT installation_id,generation,capabilities FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
