@@ -65,8 +65,8 @@ actions carry both canonical fields and fail closed if the current inventory win
 | `POST /sessions` | Authenticate, validate runtime/content, bind profile/playthrough, negotiate caps. |
 | `DELETE /sessions/{id}` | End/cancel current session generation idempotently. |
 | `POST /turns` | Persist validated source turn, enqueue/process provider pipeline, return acceptance/cursor. |
-| `POST /controls/query` | Return safe revisioned model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
-| `POST /controls/select` | Idempotently select a session model slot, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
+| `POST /controls/query` | Return four semantic profile model slots, NPC profiles, narrator ID, and target-effective settings for the active session. |
+| `POST /controls/select` | Idempotently select an installation model preference, bind an NPC profile, or queue revision-safe bound-NPC/narrator generation. |
 | `POST /stt` | Authenticate and persist a bounded WAV request, enqueue durable transcription, and return `lorkhan.stt.accepted.v1`. |
 | `POST /menu-dialogue-tts` | Synthesize one authenticated regular Morrowind dialogue response with the actor's normal TTS route and return short-lived media. |
 | `GET /events` | Return current session events after cursor, optionally wait at most 15 seconds. |
@@ -123,9 +123,11 @@ durations from 3600 through 86400 seconds because API 129 stores Wander duration
 inspection is read-only; and Halt/session/generation replacement cancels owned work.
 The frozen-catalog disposition is recorded in `docs/evidence/openmw-action-parity-audit.md`.
 
-Controls are authenticated and generation-scoped. They expose no credentials or endpoints. A
-`configured` provider slot freezes only a selected model plus configuration revision; the worker keeps
-its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile
+Controls are authenticated and generation-scoped. They expose no credentials or endpoints. The fixed
+semantic keys Standard, Fast, Powerful, and Experimental persist per installation and resolve through
+the active target profile. Random LLM takes precedence; an empty selected slot falls back to the first
+configured profile slot. A resolved `configured` provider freezes only its selected model plus configuration
+revision; the worker keeps its endpoint, allowlist, timeout, and API-key environment in server process configuration. NPC profile
 bindings use stable OpenMW identity within one installation/playthrough; special player/narrator profiles are
 excluded from the binding list. Narrator generation accepts only the installation narrator ID returned by the
 same authenticated control query. The selected actor profile owns relationship and manual-memory
@@ -214,8 +216,8 @@ runtime playthrough state.
 LLM model slots and TTS/STT preset pages support portable single-preset JSON export, import, and
 same-installation cloning. Portable documents contain only the preset kind where needed, name, and
 validated public configuration; installation ownership, revision history, runtime endpoints, and
-credentials are excluded. Active speech connectors, profile-assigned TTS connectors, and model slots
-selected by an active session or assigned to a profile cannot be deleted until their use is removed.
+credentials are excluded. Active speech connectors and profile-assigned TTS or model connectors cannot
+be deleted until their use is removed. The semantic LLM preference does not reference a connector directly.
 Prompt Manager uses the same ownership-free JSON boundary for individual prompt export, import, and
 same-installation cloning; imports still pass normal prompt validation and become independent revisions.
 Core Profile settings presets use `lorkhan.core-profile-settings.v1` and carry only a name plus the

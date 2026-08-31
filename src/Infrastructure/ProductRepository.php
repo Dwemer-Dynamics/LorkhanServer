@@ -17,6 +17,12 @@ use Throwable;
 final class ProductRepository
 {
     private const PROFILE_RULE_MATCH_FIELDS=['names','races','classes','genders','factions','content_files'];
+    private const MODEL_SLOTS=[
+        'standard'=>['label'=>'Standard','field'=>'llm_configuration_id'],
+        'fast'=>['label'=>'Fast','field'=>'llm_fast_configuration_id'],
+        'powerful'=>['label'=>'Powerful','field'=>'llm_powerful_configuration_id'],
+        'experimental'=>['label'=>'Experimental','field'=>'llm_experimental_configuration_id'],
+    ];
     private ?MorrowindGeographyCatalog $morrowindGeography=null;
 
     public function __construct(private readonly PDO $db) {}
@@ -631,6 +637,29 @@ final class ProductRepository
         $statement->execute(['installation'=>$installationId,'enabled'=>$enabled?'true':'false','now'=>$now]);
     }
 
+    /** Return the persisted CHIM-style semantic model slot, defaulting to Standard. */
+    public function selectedModelSlot(string $installationId):string
+    {
+        $statement=$this->db->prepare('SELECT llm_model_slot FROM installation_profile_preferences WHERE installation_id=:installation');
+        $statement->execute(['installation'=>$installationId]);$slot=$statement->fetchColumn();
+        return is_string($slot)&&isset(self::MODEL_SLOTS[$slot])?$slot:'standard';
+    }
+
+    /** Persist one allowlisted semantic model slot for this installation. */
+    public function selectModelSlot(array $session,string $slot,string $now):void
+    {
+        if(!isset(self::MODEL_SLOTS[$slot]))throw new \InvalidArgumentException('invalid_model_slot');
+        $this->transaction(function()use($session,$slot,$now):void{
+            $active=$this->db->prepare("SELECT 1 FROM sessions WHERE session_id=:session AND generation=:generation AND state='active' FOR SHARE");
+            $active->execute(['session'=>$session['session_id'],'generation'=>$session['generation']]);
+            if(!$active->fetchColumn())throw new \OutOfBoundsException('unknown_session');
+            $statement=$this->db->prepare('INSERT INTO installation_profile_preferences(installation_id,llm_model_slot,updated_at) '
+                .'VALUES(:installation,:slot,:now) ON CONFLICT(installation_id) DO UPDATE SET '
+                .'llm_model_slot=EXCLUDED.llm_model_slot,updated_at=EXCLUDED.updated_at');
+            $statement->execute(['installation'=>$session['installation_id'],'slot'=>$slot,'now'=>$now]);
+        });
+    }
+
     /** Return installation-global Oghma retrieval controls with stable first-run defaults. */
     public function oghmaSettings(string $installationId):array
     {
@@ -736,8 +765,6 @@ final class ProductRepository
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
-                $session=$this->db->prepare("SELECT 1 FROM sessions WHERE provider_configuration_id=:id AND state='active' LIMIT 1");
-                $session->execute(['id'=>$id]);if($session->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
@@ -1610,27 +1637,40 @@ SQL);
     /** Return only safe, displayable in-game controls for this active session and actor. */
     public function sessionControls(array $session, array $target): array
     {
-        $providers=$this->db->prepare("SELECT c.configuration_id,c.name,c.current_revision,r.content FROM configuration_sets c "
-            ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
-            ."WHERE c.installation_id=:installation AND c.kind='provider' AND c.deleted_at IS NULL ORDER BY c.name,c.configuration_id LIMIT 32");
-        $providers->execute(['installation'=>$session['installation_id']]);
-        $modelSlots=[];
-        foreach($providers->fetchAll() as$row){$content=$this->json($row['content']);$modelSlots[]=[
-            'configuration_id'=>(string)$row['configuration_id'],'name'=>(string)$row['name'],
-            'revision'=>(int)$row['current_revision'],'driver'=>($content['driver']??'mock')==='mock'?'mock':'configured',
-            'model'=>(string)($content['model']??'deterministic-mock-v1')];}
         $profiles=$this->db->prepare("SELECT profile_id,name,current_revision FROM profiles "
             ."WHERE installation_id=:installation AND deleted_at IS NULL "
             ."AND COALESCE(actor_identity->>'kind','actor') NOT IN ('player','narrator','template') ORDER BY name,profile_id LIMIT 100");
         $profiles->execute(['installation'=>$session['installation_id']]);
         $profileRows=array_map(static fn(array$row):array=>['profile_id'=>(string)$row['profile_id'],
             'name'=>(string)$row['name'],'revision'=>(int)$row['current_revision']],$profiles->fetchAll());
-        $selectedModel=$session['provider_configuration_id']!==null?(string)$session['provider_configuration_id']:null;
-        if($selectedModel!==null&&!in_array($selectedModel,array_column($modelSlots,'configuration_id'),true))$selectedModel=null;
         $narrator=$this->narratorProfileForInstallation((string)$session['installation_id']);
         $effective=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
         $profile=is_array($effective['npc_profile']??null)?$effective['npc_profile']:null;
         $core=is_array($effective['core_profile']??null)?$effective['core_profile']:null;
+        $routing=is_array($effective['routing']??null)?$effective['routing']:[];
+        $configurationIds=[];
+        foreach(self::MODEL_SLOTS as$definition){$id=trim((string)($routing[$definition['field']]??''));if($id!=='')$configurationIds[$id]=true;}
+        $providerRows=[];
+        if($configurationIds!==[]){
+            $placeholders=[];$parameters=['installation'=>$session['installation_id']];$index=0;
+            foreach(array_keys($configurationIds)as$id){$key='model_'.$index++;$placeholders[]=':'.$key;$parameters[$key]=$id;}
+            $providers=$this->db->prepare("SELECT c.configuration_id,c.name,c.current_revision,r.content FROM configuration_sets c "
+                ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
+                ."WHERE c.installation_id=:installation AND c.kind='provider' AND c.deleted_at IS NULL "
+                ."AND c.configuration_id IN(".implode(',',$placeholders).')');
+            $providers->execute($parameters);foreach($providers->fetchAll()as$row)$providerRows[(string)$row['configuration_id']]=$row;
+        }
+        $modelSlots=[];$configuredKeys=[];
+        foreach(self::MODEL_SLOTS as$key=>$definition){$id=trim((string)($routing[$definition['field']]??''));$row=$id===''?null:($providerRows[$id]??null);
+            if($row!==null){$content=$this->json($row['content']);$configuredKeys[]=$key;$modelSlots[]=[
+                'key'=>$key,'label'=>$definition['label'],'available'=>true,'configuration_id'=>(string)$row['configuration_id'],
+                'configuration_name'=>(string)$row['name'],'revision'=>(int)$row['current_revision'],
+                'driver'=>($content['driver']??'mock')==='mock'?'mock':'configured','model'=>(string)($content['model']??'deterministic-mock-v1')];
+            }else{$modelSlots[]=['key'=>$key,'label'=>$definition['label'],'available'=>false,'configuration_id'=>null,
+                'configuration_name'=>null,'revision'=>null,'driver'=>null,'model'=>null];}}
+        $selectedModel=$this->selectedModelSlot((string)$session['installation_id']);
+        $resolvedModel=$this->routingFlag($routing,'llm_randomizer_enabled')?null:
+            (in_array($selectedModel,$configuredKeys,true)?$selectedModel:($configuredKeys[0]??null));
         $effectiveSettings=[
             'schema'=>'lorkhan.effective-settings.v1',
             'profile_id'=>$profile===null?null:(string)$profile['profile_id'],
@@ -1640,7 +1680,7 @@ SQL);
         ]+EffectiveSettingsResolver::controlsProjection($effective);
         $effectiveSettings['change_token']=hash('sha256',$this->encodeCanonical($effectiveSettings));
         return ['model_slots'=>$modelSlots,'profiles'=>$profileRows,
-            'selected_model_slot_id'=>$selectedModel,
+            'selected_model_slot_key'=>$selectedModel,'resolved_model_slot_key'=>$resolvedModel,
             'narrator_profile_id'=>$narrator===null?null:(string)$narrator['profile_id'],
             'selected_profile_id'=>$this->selectedActorProfileId((string)$session['installation_id'],
                 (string)$session['playthrough_id'],$target),
@@ -1781,21 +1821,6 @@ SQL);
         $statement->execute(['now'=>$now,'id'=>$backupId]);if($statement->rowCount()!==1)throw new RuntimeException('not_found');
     }
 
-    /** Select a server-owned model slot for future turns in the active session. */
-    public function selectSessionProvider(array $session, ?string $configurationId): void
-    {
-        $this->transaction(function()use($session,$configurationId):void{
-            if($configurationId!==null){$slot=$this->db->prepare("SELECT 1 FROM configuration_sets WHERE configuration_id=:id "
-                ."AND installation_id=:installation AND kind='provider' AND deleted_at IS NULL");
-                $slot->execute(['id'=>$configurationId,'installation'=>$session['installation_id']]);
-                if(!$slot->fetchColumn())throw new \OutOfBoundsException('not_found');}
-            $update=$this->db->prepare("UPDATE sessions SET provider_configuration_id=:provider WHERE session_id=:session "
-                ."AND generation=:generation AND state='active'");
-            $update->execute(['provider'=>$configurationId,'session'=>$session['session_id'],'generation'=>$session['generation']]);
-            if($update->rowCount()!==1)throw new \OutOfBoundsException('unknown_session');
-        });
-    }
-
     /** Assign or clear a roleplay profile for one stable OpenMW actor identity. */
     public function bindActorProfile(array $session, array $target, ?string $profileId, string $now): void
     {
@@ -1820,23 +1845,20 @@ SQL);
     /** Snapshot the selected model slot without returning any server credential material. */
     public function providerContext(array $turn): ?array
     {
-        $statement=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM sessions s "
-            ."JOIN configuration_sets c ON c.configuration_id=s.provider_configuration_id AND c.installation_id=s.installation_id "
-            ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
-            ."WHERE s.session_id=:session AND s.generation=:generation AND s.state='active' "
-            ."AND c.kind='provider' AND c.deleted_at IS NULL");
-        $statement->execute(['session'=>$turn['session_id'],'generation'=>$turn['generation']]);$row=$statement->fetch();
-        if($row)return ['configuration_id'=>(string)$row['configuration_id'],'revision'=>(int)$row['current_revision'],
-            'content'=>$this->json($row['content'])];
         $target=$turn['payload']['target']??null;if(!is_array($target)||array_is_list($target))return null;
         $routing=$this->routingForActor((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target);
-        $fields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id'];
+        $fields=array_column(self::MODEL_SLOTS,'field');
         $configured=array_values(array_filter($fields,static fn(string$field):bool=>trim((string)($routing[$field]??''))!==''));
-        if($configured===[])return null;$field=$configured[0];
+        if($configured===[])return null;$field=self::MODEL_SLOTS[$this->selectedModelSlot((string)$turn['installation_id'])]['field'];
+        if(!in_array($field,$configured,true))$field=$configured[0];
         if($this->routingFlag($routing,'llm_randomizer_enabled')&&count($configured)>1){
             $turnId=(string)($turn['turn_id']??'');$index=(int)(hexdec(substr(hash('sha256',$turnId),0,8))%count($configured));$field=$configured[$index];
         }
-        return$this->connectorForActor((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target,'provider',$field);
+        $selected=$this->connectorForActor((string)$turn['installation_id'],(string)$turn['playthrough_id'],$target,'provider',$field);
+        if($selected!==null)return$selected;
+        foreach($configured as$fallbackField){$fallback=$this->connectorForActor((string)$turn['installation_id'],
+            (string)$turn['playthrough_id'],$target,'provider',$fallbackField);if($fallback!==null)return$fallback;}
+        return null;
     }
 
     /** Resolve an enabled profile fallback that differs from the already selected primary connector. */

@@ -345,7 +345,10 @@ final class Router
         return $this->repository->serializedIdempotency((string)$session['installation_id'],$m['message_id'],'/controls/select',function()use($m,$session):Response{
             $hash=$this->semanticHash($m);$cached=$this->repository->idempotent((string)$session['installation_id'],$m['message_id'],'/controls/select',$hash);
             if($cached!==null)return Response::json($cached['status'],$cached['body']);
-            if($m['kind']==='model_slot')$this->products->selectSessionProvider($session,$m['selection_id']);
+            if($m['kind']==='model_slot'){
+                if($m['selection_id']!==null||!is_string($m['selection_key']))throw new ApiException(422,'invalid_schema','The selected model slot is invalid.');
+                $this->products->selectModelSlot($session,$m['selection_key'],$m['created_at']);
+            }elseif($m['selection_key']!==null)throw new ApiException(422,'invalid_schema','The selected control is invalid.');
             elseif($m['kind']==='actor_profile')$this->products->bindActorProfile($session,$m['target'],$m['selection_id'],$m['created_at']);
             elseif($m['kind']==='profile_generate')$this->products->enqueueBoundProfileGeneration($session,$m['target'],(string)$m['selection_id']);
             else{$narrator=$this->products->narratorProfileForInstallation((string)$session['installation_id']);
