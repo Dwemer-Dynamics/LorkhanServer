@@ -6,7 +6,7 @@ use LORKHANserver\Application\DeterministicClock;
 use LORKHANserver\Application\ProductService;
 use LORKHANserver\Infrastructure\ProductRepository;
 
-$uiRootDir=dirname(__DIR__);$pageTitle='LORKHAN NPC Portrait';$topNavSection='configuration';
+$uiRootDir=dirname(__DIR__);$pageTitle='NPC Portrait';$topNavSection='configuration';
 require $uiRootDir.'/ui_bootstrap.php';
 
 $portraitRoot=(string)($config['portrait_storage_path']??(is_dir('/var/lib/lorkhanserver')?'/var/lib/lorkhanserver/profile-portraits':($applicationRoot.'/storage/profile-portraits')));

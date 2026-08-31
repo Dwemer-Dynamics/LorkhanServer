@@ -118,13 +118,13 @@ assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LOR
 assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
-for path,marker in [
-    ('/LORKHANserver/ui/home.php','dashboard-container'),
-    ('/LORKHANserver/ui/events-memories.php','events-memories-navigation'),
-    ('/LORKHANserver/ui/core/config_hub.php','config-navigation'),
-    ('/LORKHANserver/ui/control_panel.php','config-navigation'),
+for path,marker,title in [
+    ('/LORKHANserver/ui/home.php','dashboard-container','Home'),
+    ('/LORKHANserver/ui/events-memories.php','events-memories-navigation','Roleplay'),
+    ('/LORKHANserver/ui/core/config_hub.php','config-navigation','Configuration'),
+    ('/LORKHANserver/ui/control_panel.php','config-navigation','Control Panel'),
 ]:
-    page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path
+    page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path; assert '<title>'+title+'</title>' in text,path
     if path != '/LORKHANserver/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=eventlog'))
 assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text

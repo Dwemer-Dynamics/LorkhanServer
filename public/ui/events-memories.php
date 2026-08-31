@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 use LORKHANserver\Infrastructure\EventLogRepository;
 
-$pageTitle = 'LORKHAN Roleplay';
+$pageTitle = 'Roleplay';
 $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
