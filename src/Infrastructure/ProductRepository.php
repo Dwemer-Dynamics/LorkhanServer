@@ -2633,6 +2633,62 @@ SQL);
 
     public function diagnostics():array{return ['database'=>['connected'=>true,'version'=>(string)$this->db->query('SHOW server_version')->fetchColumn()],'counts'=>['installations'=>(int)$this->db->query('SELECT count(*) FROM installations WHERE revoked_at IS NULL')->fetchColumn(),'active_sessions'=>(int)$this->db->query("SELECT count(*) FROM sessions WHERE state='active'")->fetchColumn(),'queued_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='queued'")->fetchColumn(),'dead_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='dead'")->fetchColumn(),'memory_records'=>(int)$this->db->query('SELECT count(*) FROM memory_records WHERE deleted_at IS NULL')->fetchColumn()]];}
 
+    /** Return active sessions and whether their negotiated client supports typed debug commands. */
+    public function debugCommandSessions():array
+    {
+        $rows=$this->db->query("SELECT s.session_id,s.installation_id,s.generation,s.created_at,COALESCE(p.name,s.session_id::text) AS label,"
+            ."('debug.commands.v1'=ANY(s.capabilities)) AS supported FROM sessions s LEFT JOIN playthroughs p ON p.playthrough_id=s.playthrough_id "
+            ."WHERE s.state='active' ORDER BY s.created_at DESC LIMIT 50")->fetchAll();
+        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['supported']=filter_var($row['supported'],FILTER_VALIDATE_BOOL);}unset($row);
+        return$rows;
+    }
+
+    /** Return the bounded recent operator debug-command audit for one active session. */
+    public function debugCommands(string $sessionId):array
+    {
+        $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
+            ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+            ->execute(['session'=>$sessionId]);
+        $stmt=$this->db->prepare('SELECT command_id,session_id,generation,command_name AS name,parameters,state,reason_code,observed,'
+            .'created_at,delivered_at,completed_at,expires_at FROM debug_commands WHERE session_id=:session ORDER BY created_at DESC LIMIT 50');
+        $stmt->execute(['session'=>$sessionId]);$rows=$stmt->fetchAll();
+        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['parameters']=$this->json($row['parameters']);
+            $row['observed']=$row['observed']===null?null:$this->json($row['observed']);}unset($row);
+        return$rows;
+    }
+
+    /** Queue one fixed, validated debug operation for the selected live game session. */
+    public function queueDebugCommand(string $sessionId,string $name,array $parameters):array
+    {
+        $empty=['status.snapshot','shaders.reload'];
+        $enabled=['god_mode.set','collision.set','ai.set','mwscript.set','shader_hot_reload.set'];
+        $renderModes=['collision','wireframe','pathgrid','water','scene','navmesh','actors_paths','recast_mesh'];
+        if(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
+        elseif(in_array($name,$enabled,true)){if(array_keys($parameters)!==['enabled']||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
+        elseif($name==='render_mode.toggle'){
+            if(array_keys($parameters)!==['mode']||!is_string($parameters['mode'])||!in_array($parameters['mode'],$renderModes,true))
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }else throw new InvalidArgumentException('invalid_debug_command');
+        return$this->transaction(function()use($sessionId,$name,$parameters):array{
+            $session=$this->db->prepare("SELECT installation_id,generation,capabilities FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
+            $session->execute(['session'=>$sessionId]);$row=$session->fetch();if(!$row)throw new InvalidArgumentException('invalid_session_id');
+            $capabilities=$this->parsePgArray((string)$row['capabilities']);
+            if(!in_array('debug.commands.v1',$capabilities,true))throw new InvalidArgumentException('debug_commands_unsupported');
+            $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
+                ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+                ->execute(['session'=>$sessionId]);
+            $pending=$this->db->prepare("SELECT count(*) FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered')");
+            $pending->execute(['session'=>$sessionId]);if((int)$pending->fetchColumn()>=16)throw new InvalidArgumentException('debug_command_queue_full');
+            $id=Uuid::v4();$insert=$this->db->prepare('INSERT INTO debug_commands '
+                .'(command_id,installation_id,session_id,generation,command_name,parameters,expires_at) '
+                ."VALUES (:id,:installation,:session,:generation,:name,CAST(:parameters AS jsonb),clock_timestamp()+interval '30 seconds') RETURNING *");
+            $insert->execute(['id'=>$id,'installation'=>$row['installation_id'],'session'=>$sessionId,'generation'=>$row['generation'],
+                'name'=>$name,'parameters'=>$this->encode($parameters)]);$created=$insert->fetch();
+            return['command_id'=>$id,'session_id'=>$sessionId,'generation'=>(int)$row['generation'],'name'=>$name,
+                'parameters'=>$parameters,'state'=>'queued','created_at'=>$created['created_at'],'expires_at'=>$created['expires_at']];
+        });
+    }
+
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}

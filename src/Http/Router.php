@@ -78,6 +78,8 @@ final class Router
             if ($request->method === 'POST' && $path === '/gamedata') return $this->gameData($request);
             if ($request->method === 'POST' && $path === '/controls/query') return $this->controlsQuery($request);
             if ($request->method === 'POST' && $path === '/controls/select') return $this->controlsSelect($request);
+            if ($request->method === 'POST' && $path === '/debug-commands/query') return $this->debugCommandQuery($request);
+            if ($request->method === 'POST' && $path === '/debug-command-results') return $this->debugCommandResult($request);
             if ($request->method === 'GET' && $path === '/events') return $this->events($request);
             if ($request->method === 'GET' && preg_match('#^/media/([0-9a-f-]{36})$#D', $path, $m)) return $this->media($m[1]);
             if ($request->method === 'POST' && $path === '/interruptions') return $this->interrupt($request);
@@ -368,6 +370,28 @@ final class Router
         if($controls===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
         return ['schema'=>'lorkhan.controls.v1','message_id'=>$request['message_id'],'request_id'=>$request['request_id'],
             'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
+    }
+
+    /** Return at most one current-generation operator debug command. */
+    private function debugCommandQuery(Request $request):Response
+    {
+        $m=$this->json($request,'lorkhan.debug-command.query.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $command=$this->repository->claimDebugCommand($m);
+        return Response::json(200,['schema'=>'lorkhan.debug-command.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'command'=>$command]);
+    }
+
+    /** Accept the terminal observed result of one claimed operator debug command. */
+    private function debugCommandResult(Request $request):Response
+    {
+        $m=$this->json($request,'lorkhan.debug-command-result.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $this->requireIdempotency($request,$m['message_id']);
+        $duplicate=$this->repository->completeDebugCommand($m);
+        return Response::json(200,['schema'=>'lorkhan.debug-command-result.accepted.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'command_id'=>$m['command_id'],'session_id'=>$m['session_id'],
+            'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$duplicate]);
     }
 
     private function media(string $mediaId): Response

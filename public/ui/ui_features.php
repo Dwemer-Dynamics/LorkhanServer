@@ -143,6 +143,7 @@ function lorkhan_ui_feature_registry(): array
         'control.cache' => ['title' => 'Audio & Image Cache', 'state' => 'live', 'description' => 'Private media metadata browser.'],
         'control.playthroughs' => ['title' => 'Playthrough Manager', 'state' => 'live', 'description' => 'Playthrough backup and restore.'],
         'control.database' => ['title' => 'Database Manager', 'state' => 'live', 'description' => 'Schema, backup, and retention operations.'],
+        'control.game-debug' => ['title' => 'Game Debug', 'state' => 'live', 'description' => 'Typed operator-only OpenMW diagnostics for the connected local game.'],
         'control.updater' => ['title' => 'Update Server', 'state' => 'replaced', 'description' => 'Server updates are performed through the guarded LORKHAN deployment workflow.', 'controls' => ['Check for Updates', 'Install Update']],
     ];
 
