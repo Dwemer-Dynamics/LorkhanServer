@@ -127,7 +127,8 @@ for path,marker,title in [
     page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path; assert '<title>'+title+'</title>' in text,path
     if path != '/LORKHANserver/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=eventlog'))
-assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text
+assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text and 'data-tab="backgroundlife"' not in text and 'Background Life' not in text
+excluded_background,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=backgroundlife')); assert excluded_background.current==1 and 'id="eventlog-app"' in text and 'data-tab="backgroundlife"' not in text
 journal,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/LORKHANserver/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
@@ -218,6 +219,7 @@ exported=request('/LORKHANserver/manage/exports/biographies/custom.csv?installat
 export_rows=[row for row in csv.DictReader(io.StringIO(exported)) if row['record_id']==biography_record]
 assert len(export_rows)==1 and export_rows[0]['content_file']=='HTTP Test.esp' and export_rows[0]['biography']=='Imported biography v2.' and export_rows[0]['oghma_tags']=='Balmora',export_rows
 descriptions,text=parse(request('/LORKHANserver/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
+oghma_response=request('/LORKHANserver/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LORKHANserver/ui/server_plugins.php').status==404
 assert request('/LORKHANserver/manage/server-plugins').status==404
 llm,text=parse(request('/LORKHANserver/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
@@ -254,6 +256,7 @@ for path in [
 ]:
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LORKHANserver/ui/core/npc_master.php'))
+assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
 profile_labels=['Voice sample','Standard LLM','Fast LLM','Powerful LLM','Experimental LLM','Fallback LLM','Diary LLM','LLM randomizer','Fallback retry','TTS connector','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
