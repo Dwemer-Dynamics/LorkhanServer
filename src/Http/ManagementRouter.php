@@ -1751,9 +1751,11 @@ final class ManagementRouter
     /** List the connector and installed-voice choices the pronunciation preview strip may offer. */
     private function speechPreviewOptions(string $installation):array
     {
+        $narrator=$this->repository->narratorProfileForInstallation($installation);
         return SpeechPreviewCatalog::options($this->repository->listRevisioned('tts_provider',$installation),
             $this->repository->connectorVoiceCatalog(),(string)($this->providerConfig['voice_storage_path']??''),
-            (string)($this->repository->connectorForInstallation($installation,'tts_provider')['configuration_id']??''));
+            (string)($this->repository->connectorForInstallation($installation,'tts_provider')['configuration_id']??''),
+            SpeechPreviewCatalog::narratorVoice($narrator),SpeechPreviewCatalog::narratorConnector($narrator));
     }
 
     /**
@@ -1771,8 +1773,11 @@ final class ManagementRouter
             ||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$text)===1)throw new InvalidArgumentException('invalid_tts_preview_text');
         $voice=trim((string)($values['voice']??''));
         $options=$this->speechPreviewOptions($installation);
-        if(!in_array($configuration,array_column($options['connectors'],'id'),true))throw new InvalidArgumentException('invalid_tts_preview_connector');
-        if(!in_array($voice,$options['voices'],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
+        $offered=array_column($options['connectors'],'voices','id');
+        if(!isset($offered[$configuration]))throw new InvalidArgumentException('invalid_tts_preview_connector');
+        // A voice is only accepted for the connector that actually lists it, so a local sample
+        // name can never be posted to a provider that needs its own voice id.
+        if(!in_array($voice,$offered[$configuration],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
         $preset=$this->repository->getRevisioned('tts_provider',$configuration);
         if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
         try{

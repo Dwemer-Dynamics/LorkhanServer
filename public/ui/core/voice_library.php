@@ -28,8 +28,8 @@ $defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoi
 $studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
 $activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
-$sampleUploadDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
-$voiceDiscoveryDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
+$sampleUploadDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
+$voiceDiscoveryDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
 $pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationNotice='';$pronunciationError='';
 // The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
@@ -70,7 +70,7 @@ function lorkhan_voice_language(string $language):string
 function lorkhan_voice_can_sync(array $preset):bool
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
-    if(!in_array($driver,['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'],true))return false;
+    if(!in_array($driver,ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,true))return false;
     $endpoint=strtolower(rtrim((string)($content['endpoint']??''),'/'));
     return$driver!=='pockettts'||(!str_contains($endpoint,':8086')&&!str_ends_with($endpoint,'/v1/audio/speech'));
 }
@@ -263,8 +263,12 @@ usort($samples,static fn(array$a,array$b):int=>strcasecmp($a['name'],$b['name'])
 
 // The pronunciation preview strip offers exactly the connectors and installed voices the
 // management preview endpoint will accept, so a play control can never post an unusable pair.
+// The preview opens on the narrator voice so a pronunciation can be judged in the voice LORKHAN
+// actually narrates with, falling back to the connector default when that connector cannot speak it.
+$narratorPreviewProfile=$installationId===''?null:$products->narratorProfileForInstallation($installationId);
 $pronunciationPreview=SpeechPreviewCatalog::options($ttsPresets,$products->connectorVoiceCatalog(),$voiceRoot,
-    (string)($activeTts['configuration_id']??''));
+    (string)($activeTts['configuration_id']??''),
+    SpeechPreviewCatalog::narratorVoice($narratorPreviewProfile),SpeechPreviewCatalog::narratorConnector($narratorPreviewProfile));
 $pronunciationPreviewEndpoint=$managementBasePath.'/api/v1/tts-previews';
 
 $additionalStylesheets=['herika-tts-studio.css?v='.(string)filemtime($uiRootDir.'/css/herika-tts-studio.css')];

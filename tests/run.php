@@ -924,21 +924,52 @@ $check(ConnectorCatalog::defaults('tts_provider','pockettts')['endpoint']==='htt
 $previewVoiceRoot=sys_get_temp_dir().'/lorkhan-preview-voices-'.bin2hex(random_bytes(4));mkdir($previewVoiceRoot,0700);
 file_put_contents($previewVoiceRoot.'/Nerevarine.wav','RIFF');file_put_contents($previewVoiceRoot.'/almalexia.wav','RIFF');
 file_put_contents($previewVoiceRoot.'/notes.txt','ignored');
-$previewOptions=SpeechPreviewCatalog::options([
+$previewPresets=[
     ['configuration_id'=>'cfg-xtts','name'=>'Local XTTS','content'=>'{"driver":"xtts-fastapi","voice":"almalexia"}'],
     ['id'=>'cfg-cartesia','name'=>'Cartesia','content'=>['driver'=>'cartesia','voice'=>'sonic-en']],
     ['configuration_id'=>'cfg-broken','name'=>'Unsupported','content'=>['driver'=>'not-a-driver','voice'=>'ghost']],
     ['configuration_id'=>'','name'=>'No identity','content'=>['driver'=>'xtts']],
-],[['configuration_id'=>'cfg-cartesia','id'=>'Discovered Voice'],['configuration_id'=>'cfg-broken','id'=>'Unreachable Voice'],
-    ['configuration_id'=>'cfg-xtts','id'=>"Control\x07Voice"]],$previewVoiceRoot,'cfg-cartesia');
+];
+$previewCatalogVoices=[['configuration_id'=>'cfg-cartesia','id'=>'Discovered Voice'],['configuration_id'=>'cfg-broken','id'=>'Unreachable Voice'],
+    ['configuration_id'=>'cfg-xtts','id'=>"Control\x07Voice"]];
+$previewOptions=SpeechPreviewCatalog::options($previewPresets,$previewCatalogVoices,$previewVoiceRoot,'cfg-cartesia');
 $check(array_column($previewOptions['connectors'],'id')===['cfg-xtts','cfg-cartesia']
     &&$previewOptions['connectors'][0]['label']==='Local XTTS (XTTS FastAPI)'
-    &&$previewOptions['voices']===['almalexia','Discovered Voice','Nerevarine','sonic-en']
+    &&$previewOptions['connectors'][0]['voices']===['almalexia','Nerevarine']
+    &&$previewOptions['connectors'][1]['voices']===['Discovered Voice','sonic-en']
+    &&$previewOptions['voices']===['Discovered Voice','sonic-en']
     &&$previewOptions['default_connector_id']==='cfg-cartesia'&&$previewOptions['default_voice']==='sonic-en',
-    'pronunciation preview offers only previewable connectors and their installed voices');
+    'pronunciation preview scopes installed voices to the connector that can speak them');
 $check(SpeechPreviewCatalog::options([],[],$previewVoiceRoot)===['connectors'=>[],'voices'=>[],
     'default_connector_id'=>'','default_voice'=>''],
     'pronunciation preview reports no choices when no TTS connector is configured');
+$check(SpeechPreviewCatalog::narratorVoice(['content'=>['voice'=>['id'=>' Nerevarine ','language'=>'en']]])==='Nerevarine'
+    &&SpeechPreviewCatalog::narratorVoice(['content'=>['voice'=>[]]])===''
+    &&SpeechPreviewCatalog::narratorVoice(null)==='',
+    'pronunciation preview reads the narrator voice from the narrator profile voice document');
+$check(SpeechPreviewCatalog::narratorConnector(['content'=>['routing'=>['tts_configuration_id'=>' cfg-xtts ']]])==='cfg-xtts'
+    &&SpeechPreviewCatalog::narratorConnector(['content'=>['routing'=>[]]])===''
+    &&SpeechPreviewCatalog::narratorConnector(null)==='',
+    'pronunciation preview reads the narrator TTS connector from existing profile routing');
+$previewNarrated=SpeechPreviewCatalog::options($previewPresets,$previewCatalogVoices,$previewVoiceRoot,'cfg-xtts','nerevarine');
+$check($previewNarrated['default_connector_id']==='cfg-xtts'&&$previewNarrated['default_voice']==='Nerevarine',
+    'pronunciation preview opens on the configured narrator voice instead of the connector default');
+$previewForeign=SpeechPreviewCatalog::options($previewPresets,$previewCatalogVoices,$previewVoiceRoot,'cfg-cartesia','Nerevarine');
+$check($previewForeign['default_connector_id']==='cfg-cartesia'&&$previewForeign['default_voice']==='sonic-en'
+    &&!in_array('Nerevarine',$previewForeign['voices'],true),
+    'a narrator voice the selected connector cannot speak falls back to that connector default');
+$previewNarratorConnector=SpeechPreviewCatalog::options($previewPresets,$previewCatalogVoices,$previewVoiceRoot,
+    'cfg-cartesia','Nerevarine','cfg-xtts');
+$check($previewNarratorConnector['default_connector_id']==='cfg-xtts'&&$previewNarratorConnector['default_voice']==='Nerevarine',
+    'pronunciation preview prefers the narrator TTS connector and voice over installation defaults');
+$previewInworld=SpeechPreviewCatalog::options([
+    ['configuration_id'=>'cfg-inworld','name'=>'Inworld','content'=>['driver'=>'inworld','voice'=>'']],
+    ['configuration_id'=>'cfg-inworld-set','name'=>'Inworld Set','content'=>['driver'=>'inworld','voice'=>'Ashley']],
+],[['configuration_id'=>'cfg-inworld','id'=>'workspace__narrator']],$previewVoiceRoot,'cfg-inworld','Nerevarine');
+$check(array_column($previewInworld['connectors'],'id')===['cfg-inworld']
+    &&$previewInworld['default_connector_id']==='cfg-inworld'&&$previewInworld['default_voice']==='workspace__narrator'
+    &&!in_array('Ashley',$previewInworld['voices'],true)&&!in_array('Nerevarine',$previewInworld['voices'],true),
+    'Inworld offers only workspace-qualified provider voices and never raw local or preset labels');
 array_map('unlink',glob($previewVoiceRoot.'/*')?:[]);rmdir($previewVoiceRoot);
 $credentialRoot=sys_get_temp_dir().'/lorkhan-credentials-'.bin2hex(random_bytes(4));mkdir($credentialRoot,0700);
 $credentialPath=$credentialRoot.'/provider-keys.json';$credentialStore=new CredentialStore($credentialPath);

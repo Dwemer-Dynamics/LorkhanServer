@@ -16,11 +16,50 @@
     const buttons = Array.from(document.querySelectorAll('[data-pron-play]'));
     if (buttons.length === 0) return;
 
+    /* Each connector speaks only its own voices, so the list is rebuilt rather than shared. */
+    let connectorVoices = {};
+    try {
+        const parsed = JSON.parse(root.getAttribute('data-pron-connector-voices') || '{}');
+        if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) connectorVoices = parsed;
+    } catch (_voicesError) {
+        connectorVoices = {};
+    }
+
     let pending = null;
     /* The previous clip is owned by this page, so it is released before another replaces it. */
     let objectUrl = '';
 
     const announce = (message) => { if (statusLine) statusLine.textContent = message; };
+
+    /* Refill the voice select for the chosen connector, keeping the current voice when that
+       connector also offers it so switching back and forth does not lose the selection. */
+    const syncVoices = () => {
+        if (!voiceSelect || !connectorSelect) return;
+        const voices = connectorVoices[connectorSelect.value];
+        if (!Array.isArray(voices)) return;
+        const previous = voiceSelect.value;
+        voiceSelect.textContent = '';
+        if (voices.length === 0) {
+            const empty = document.createElement('option');
+            empty.value = '';
+            empty.textContent = 'No voice installed';
+            voiceSelect.appendChild(empty);
+            voiceSelect.disabled = true;
+            announce('That connector has no installed voice to preview with.');
+            return;
+        }
+        voices.forEach((voice) => {
+            const option = document.createElement('option');
+            option.value = String(voice);
+            option.textContent = String(voice);
+            voiceSelect.appendChild(option);
+        });
+        voiceSelect.disabled = !ready;
+        voiceSelect.value = voices.indexOf(previous) === -1 ? String(voices[0]) : previous;
+        announce('Voice set to "' + voiceSelect.value + '" for this connector.');
+    };
+
+    if (connectorSelect) connectorSelect.addEventListener('change', syncVoices);
 
     const releaseAudio = () => {
         if (audio) {

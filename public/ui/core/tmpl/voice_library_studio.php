@@ -99,13 +99,20 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $pronPreviewVoices = is_array($pronPreviewOptions['voices'] ?? null) ? $pronPreviewOptions['voices'] : [];
         $pronPreviewConnectorId = (string) ($pronPreviewOptions['default_connector_id'] ?? '');
         $pronPreviewVoice = (string) ($pronPreviewOptions['default_voice'] ?? '');
+        // Each connector carries only the voices it can actually speak, so switching connectors
+        // rebuilds the voice list instead of leaving another connector's voice selected.
+        $pronPreviewConnectorVoices = [];
+        foreach ($pronPreviewConnectors as $pronPreviewConnector) {
+            $pronPreviewConnectorVoices[(string) $pronPreviewConnector['id']] =
+                is_array($pronPreviewConnector['voices'] ?? null) ? array_values($pronPreviewConnector['voices']) : [];
+        }
         $pronPreviewEndpoint = isset($pronunciationPreviewEndpoint) ? trim((string) $pronunciationPreviewEndpoint) : '';
         $pronPreviewInstallation = isset($installationId) ? (string) $installationId : '';
         $pronPreviewNotice = '';
         if ($pronPreviewEndpoint === '' || $pronPreviewInstallation === '') {
             $pronPreviewNotice = 'Preview is unavailable: this server has no paired installation to preview with.';
         } elseif ($pronPreviewConnectors === []) {
-            $pronPreviewNotice = 'Preview is unavailable: no TTS connector is configured yet.';
+            $pronPreviewNotice = 'Preview is unavailable: no TTS connector with an installed voice is configured yet.';
         } elseif ($pronPreviewVoices === []) {
             $pronPreviewNotice = 'Preview is unavailable: no installed voices were found.';
         }
@@ -143,7 +150,8 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                  data-pron-installation="<?php echo lorkhan_ui_h($pronPreviewInstallation); ?>"
                  data-pron-csrf="<?php echo lorkhan_ui_h($csrf); ?>"
                  data-pron-max-length="<?php echo (int) \LorkhanServer\Application\SpeechPreviewCatalog::MAX_TEXT_LENGTH; ?>"
-                 data-pron-ready="<?php echo $pronPreviewReady ? '1' : '0'; ?>">
+                 data-pron-ready="<?php echo $pronPreviewReady ? '1' : '0'; ?>"
+                 data-pron-connector-voices="<?php echo lorkhan_ui_h(json_encode($pronPreviewConnectorVoices, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES)); ?>">
                 <p class="pron-preview-caption">Preview voice</p>
                 <div class="pron-preview-field">
                     <label class="pron-label" for="pron-preview-connector">Connector</label>

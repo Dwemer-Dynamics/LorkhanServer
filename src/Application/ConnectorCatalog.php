@@ -44,6 +44,13 @@ final class ConnectorCatalog
         'inworld' => ['Inworld', false, 'LORKHAN_TTS_INWORLD_API_KEY'],
     ];
 
+    /**
+     * TTS drivers whose voice is the name of a WAV sample held in this server's local voice
+     * library. Every other driver names a voice the provider owns, so a local sample name is
+     * not a voice it can speak.
+     */
+    public const SAMPLE_LIBRARY_TTS_DRIVERS = ['pockettts', 'omnivoice', 'chatterbox', 'xtts-fastapi', 'xtts'];
+
     private const TTS_OPTIONS = [
         'pockettts'=>[['speed','Speed','number',0.25,4.0],['temperature','Temperature','number',0.0,5.0]],
         'omnivoice'=>[['speed','Speed','number',0.25,4.0]],
