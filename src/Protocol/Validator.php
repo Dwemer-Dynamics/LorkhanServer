@@ -152,7 +152,7 @@ final class Validator
         if($type==='actor_profile'){
             $this->keys($payload,['actor','race','class','gender','level','disposition','factions']);
             $this->identity($payload['actor']??null);
-            if(($payload['actor']['kind']??null)!=='npc'||!is_string($payload['race']??null)||$payload['race']===''
+            if(!in_array($payload['actor']['kind']??null,['creature','npc'],true)||!is_string($payload['race']??null)||$payload['race']===''
                 ||!mb_check_encoding($payload['race'],'UTF-8')||mb_strlen($payload['race'],'UTF-8')>128
                 ||!is_string($payload['class']??null)||!mb_check_encoding($payload['class'],'UTF-8')
                 ||mb_strlen($payload['class'],'UTF-8')>128

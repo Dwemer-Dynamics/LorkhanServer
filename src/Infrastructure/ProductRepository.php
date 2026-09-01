@@ -959,8 +959,8 @@ final class ProductRepository
         return$result;
     }
 
-    /** Create and bind an NPC profile from trusted current-session metadata before its first prompt is assembled. */
-    public function ensureMorrowindActorProfile(array $turn,array $resolvedVoice,string $now):string
+    /** Create and bind an actor profile before its first prompt, even when a creature has no catalog voice. */
+    public function ensureMorrowindActorProfile(array $turn,?array $resolvedVoice,string $now):string
     {
         $target=$turn['payload']['target']??null;
         if(!is_array($target)||array_is_list($target))throw new RuntimeException('invalid_actor_identity');
@@ -983,9 +983,14 @@ final class ProductRepository
                     'content'=>$target['content_file']??'','ref_index'=>(string)($refnum['index']??''),
                     'ref_content'=>(string)($refnum['content_file']??'')]);$matches=$existing->fetchAll();
                 if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
-                else{$template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$resolvedVoice);
+                else{$targetIdentity=(array)($turn['payload']['context']['targetState']['identity']??[]);
+                    $profileTraits=$resolvedVoice??['race'=>(string)($targetIdentity['race']??''),
+                        'gender'=>(string)($targetIdentity['gender']??'')];
+                    $template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$profileTraits);
                     $seed=is_array($template['content']??null)?$template['content']:[];unset($seed['management'],$seed['portrait']);
-                    $seed['gender']=$resolvedVoice['gender'];$seed['race']=$resolvedVoice['race'];$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
+                    if(trim((string)($profileTraits['gender']??''))!=='')$seed['gender']=$profileTraits['gender'];
+                    if(trim((string)($profileTraits['race']??''))!=='')$seed['race']=$profileTraits['race'];
+                    if($resolvedVoice!==null)$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
                     $seed=$this->morrowindLocalityContent($seed,$target,(string)$turn['installation_id']);
                     $seed['management']=['locked'=>false,'favorite'=>false];
                     $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
@@ -1003,7 +1008,7 @@ final class ProductRepository
                     $target,$profileId,$now);
                 $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
             }
-            $this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
+            if($resolvedVoice!==null)$this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
             return$profileId;
         });
     }

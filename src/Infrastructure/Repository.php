@@ -1058,9 +1058,10 @@ final class Repository
 
     private function ensureSessionOwners(array $message): void
     {
-        $profile = $this->db->prepare('SELECT installation_id FROM profiles WHERE profile_id = :id');
+        $profile = $this->db->prepare('SELECT installation_id,deleted_at FROM profiles WHERE profile_id = :id FOR UPDATE');
         $profile->execute(['id' => $message['profile_id']]);
-        $profileOwner = $profile->fetchColumn();
+        $profileRow = $profile->fetch();
+        $profileOwner = $profileRow === false ? false : $profileRow['installation_id'];
         if ($profileOwner !== false && $profileOwner !== $message['installation_id']) {
             throw new \DomainException('profile_scope_conflict');
         }
@@ -1072,6 +1073,10 @@ final class Repository
             $this->db->prepare("INSERT INTO profile_revisions (profile_id, revision, content, change_reason, created_at) VALUES "
                 . "(:id, 1, '{\"source\":\"session-binding\"}'::jsonb, 'session binding', :created)")
                 ->execute(['id' => $message['profile_id'], 'created' => $message['created_at']]);
+        } elseif ($profileRow['deleted_at'] !== null) {
+            // A configured save profile remains authoritative when the game opens that save again.
+            $this->db->prepare('UPDATE profiles SET deleted_at=NULL WHERE profile_id=:id')
+                ->execute(['id'=>$message['profile_id']]);
         }
 
         $playthrough = $this->db->prepare('SELECT installation_id, profile_id FROM playthroughs WHERE playthrough_id = :id');

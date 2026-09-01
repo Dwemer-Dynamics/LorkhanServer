@@ -598,6 +598,27 @@ $autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarge
 $assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
     'replayed auto-activation created a duplicate NPC profile');
 
+$creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
+        'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',
+        'personality'=>'Offended by an Argonian Nerevarine.'],'change_reason'=>'fixture creature template'],gmdate('Y-m-d\TH:i:s\Z'));
+$creatureTarget=['kind'=>'creature','record_id'=>'dagoth_creature_sentinel','refnum'=>['index'=>855,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Dagoth Ur, Facility Cavern'],
+    'display_name'=>'Dagoth Creature Sentinel'];
+$creatureProfileData=$autoProfileData;$creatureProfileData['request_id']=$newUuid(855);
+$creatureProfileData['payload']=['actor'=>$creatureTarget,'race'=>'Creature','class'=>'','gender'=>'none',
+    'level'=>20,'disposition'=>0,'factions'=>[]];
+[$creatureStatus]=$call($router,'POST',$base.'/gamedata',$headers($creatureProfileData['request_id']),[],$creatureProfileData);
+$creatureControls=$controlsQuery;$creatureControls['message_id']=$newUuid(856);$creatureControls['request_id']=$newUuid(857);
+$creatureControls['target']=$creatureTarget;
+[$creatureControlsStatus,$creatureControlsBody]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$creatureControls);
+$creatureProfileId=$creatureControlsBody['selected_profile_id']??null;
+$creatureProfile=is_string($creatureProfileId)?$products->getRevisioned('profile',$creatureProfileId):null;
+$assert($creatureStatus===202&&$creatureControlsStatus===200&&is_array($creatureProfile)
+    &&($creatureProfile['content']['biography']??null)==='Exact creature template biography.'
+    &&($creatureProfile['content']['personality']??null)==='Offended by an Argonian Nerevarine.',
+    'auto-activated creature did not materialize its exact profile template');
+
 $turnMoodTemplates=\LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
@@ -2133,9 +2154,13 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
 $settingsService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
 $settingsService->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Global Settings','content'=>$settingsDocument]);
 $configuredSession=$session;$configuredSession['message_id']=$newUuid(304);$configuredSession['generation']=8;
+$db->prepare('UPDATE profiles SET deleted_at=clock_timestamp() WHERE profile_id=:profile')
+    ->execute(['profile'=>$configuredSession['profile_id']]);
 [$status,$configuredAccepted]=$call($router,'POST',$base.'/sessions',$headers($configuredSession['message_id']),[],$configuredSession);
+$restoredSessionProfile=$db->prepare('SELECT deleted_at IS NULL FROM profiles WHERE profile_id=:profile');
+$restoredSessionProfile->execute(['profile'=>$configuredSession['profile_id']]);
 $assert($status===201&&$configuredAccepted['config_revision']==='global-settings-r1'
-    &&$configuredAccepted['client_settings']==$settingsDocument,
+    &&$configuredAccepted['client_settings']==$settingsDocument&&filter_var($restoredSessionProfile->fetchColumn(),FILTER_VALIDATE_BOOL),
     'revisioned installation settings were not returned by the next OpenMW session handshake');
 $configuredDeleteKey=$newUuid(305);
 [$status,$configuredEnded]=$call($router,'DELETE',$base.'/sessions/'.$configuredAccepted['session_id'],['Idempotency-Key'=>$configuredDeleteKey]);

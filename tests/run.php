@@ -352,9 +352,11 @@ $actorProfileGameData['payload']=['actor'=>$actorProfileGameData['payload']['spe
     'class'=>'Commoner','gender'=>'male','level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
 $validator->validate($actorProfileGameData,'lorkhan.gamedata.v1');
 $check(true,'auto-activated NPC profile snapshot validates');
-try{$invalidActorProfile=$actorProfileGameData;$invalidActorProfile['payload']['actor']['kind']='creature';
-    $validator->validate($invalidActorProfile,'lorkhan.gamedata.v1');$check(false,'creature actor profile snapshot rejected');}
-catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','creature actor profile snapshot rejected');}
+$creatureActorProfile=$actorProfileGameData;$creatureActorProfile['payload']['actor']['kind']='creature';
+$creatureActorProfile['payload']['race']='Creature';$creatureActorProfile['payload']['class']='';
+$creatureActorProfile['payload']['gender']='none';$creatureActorProfile['payload']['disposition']=0;
+$validator->validate($creatureActorProfile,'lorkhan.gamedata.v1');
+$check(true,'auto-activated creature profile snapshot validates');
 $menuDialogueRequest = [
     'schema' => 'lorkhan.menu-dialogue-tts.v1',
     'message_id' => '00000000-0000-4000-8000-000000000031',

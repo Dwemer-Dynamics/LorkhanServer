@@ -187,9 +187,11 @@ final class Router
             }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
-                $resolvedVoice=$this->morrowindVoices?->resolve((array)$m['payload']['target'],(array)$m['payload']['context']);
-                if($resolvedVoice!==null){$resolvedVoice=$this->products->preferExactProviderActorVoice(
-                        (string)$m['installation_id'],(array)$m['payload']['target'],$resolvedVoice);
+                $target=(array)$m['payload']['target'];
+                $resolvedVoice=$this->morrowindVoices?->resolve($target,(array)$m['payload']['context']);
+                if($resolvedVoice!==null)$resolvedVoice=$this->products->preferExactProviderActorVoice(
+                        (string)$m['installation_id'],$target,$resolvedVoice);
+                if(in_array($target['kind']??null,['creature','npc'],true)){
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
                 $oghmaExtraction=$this->oghmaExtraction($m);$semanticMemory=$this->semanticMemory($m);
@@ -251,8 +253,7 @@ final class Router
             'stats'=>['level'=>$payload['level']],'disposition'=>$payload['disposition'],
             'factions'=>array_map(static fn(string$faction):array=>['id'=>$faction],$payload['factions'])]];
         $resolved=$this->morrowindVoices->resolve($actor,$context);
-        if($resolved===null)throw new ApiException(422,'invalid_schema','The actor profile cannot be resolved.');
-        $resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
+        if($resolved!==null)$resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
         $this->products->ensureMorrowindActorProfile([
             'installation_id'=>$message['installation_id'],'profile_id'=>$session['profile_id'],
             'playthrough_id'=>$message['playthrough_id'],'session_id'=>$message['session_id'],
