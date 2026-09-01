@@ -65,30 +65,13 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             CURLOPT_SSL_VERIFYHOST => 2,
             CURLOPT_HTTPHEADER => $headers,
             CURLOPT_WRITEFUNCTION => static function ($handle, string $bytes) use (
-                &$networkBuffer, &$responseBody, &$content, &$streamed, $visible, $onDialogueDelta, $cancellation
+                &$networkBuffer, &$responseBody, $cancellation
             ): int {
                 unset($handle);
                 if ($cancellation->isCancellationRequested()) return 0;
                 $responseBody .= $bytes;
                 if (strlen($responseBody) > 2_097_152) return 0;
                 $networkBuffer .= $bytes;
-                while (($newline = strpos($networkBuffer, "\n")) !== false) {
-                    $line = trim(substr($networkBuffer, 0, $newline));
-                    $networkBuffer = substr($networkBuffer, $newline + 1);
-                    if (!str_starts_with($line, 'data:')) continue;
-                    $streamed = true;
-                    $data = trim(substr($line, 5));
-                    if ($data === '' || $data === '[DONE]') continue;
-                    try {
-                        $event = json_decode($data, true, 64, JSON_THROW_ON_ERROR);
-                    } catch (\JsonException) {
-                        return 0;
-                    }
-                    $delta = $event['choices'][0]['delta']['content'] ?? '';
-                    if (!is_string($delta)) return 0;
-                    $content .= $delta;
-                    foreach ($visible->push($delta) as $text) $onDialogueDelta($text);
-                }
                 return strlen($bytes);
             },
             CURLOPT_NOPROGRESS => false,
@@ -97,14 +80,63 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 return $cancellation->isCancellationRequested() ? 1 : 0;
             },
         ]);
+        // Run dialogue callbacks only after libcurl yields so they may start first-sentence TTS safely.
+        $drainStream = static function () use (
+            &$networkBuffer, &$content, &$streamed, $visible, $onDialogueDelta, $cancellation
+        ): void {
+            while (($newline = strpos($networkBuffer, "\n")) !== false) {
+                if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
+                $line = trim(substr($networkBuffer, 0, $newline));
+                $networkBuffer = substr($networkBuffer, $newline + 1);
+                if (!str_starts_with($line, 'data:')) continue;
+                $streamed = true;
+                $data = trim(substr($line, 5));
+                if ($data === '' || $data === '[DONE]') continue;
+                try {
+                    $event = json_decode($data, true, 64, JSON_THROW_ON_ERROR);
+                } catch (\JsonException) {
+                    throw new RuntimeException('provider_unavailable');
+                }
+                $delta = $event['choices'][0]['delta']['content'] ?? '';
+                if (!is_string($delta)) throw new RuntimeException('provider_unavailable');
+                $content .= $delta;
+                foreach ($visible->push($delta) as $text) $onDialogueDelta($text);
+            }
+        };
+        $multi = curl_multi_init();
+        if ($multi === false) {
+            curl_close($handle);
+            throw new RuntimeException('provider_unavailable');
+        }
+        $added = false;
         try {
-            $ok = curl_exec($handle);
+            if (curl_multi_add_handle($multi, $handle) !== CURLM_OK) {
+                throw new RuntimeException('provider_unavailable');
+            }
+            $added = true;
+            $running = 0;
+            do {
+                do {
+                    $multiStatus = curl_multi_exec($multi, $running);
+                } while ($multiStatus === CURLM_CALL_MULTI_PERFORM);
+                $drainStream();
+                if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
+                if ($multiStatus !== CURLM_OK) throw new RuntimeException('provider_unavailable');
+                if ($running > 0 && curl_multi_select($multi, 0.1) === -1) usleep(1000);
+            } while ($running > 0);
+            $drainStream();
+            $curlResult = CURLE_OK;
+            while (($info = curl_multi_info_read($multi)) !== false) {
+                if (($info['handle'] ?? null) === $handle) $curlResult = (int) ($info['result'] ?? CURLE_OK);
+            }
             $status = (int) curl_getinfo($handle, CURLINFO_RESPONSE_CODE);
             if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
-            if ($ok !== true || $status < 200 || $status >= 300 || strlen($responseBody) > 2_097_152) {
+            if ($curlResult !== CURLE_OK || $status < 200 || $status >= 300 || strlen($responseBody) > 2_097_152) {
                 throw new RuntimeException('provider_unavailable');
             }
         } finally {
+            if ($added) curl_multi_remove_handle($multi, $handle);
+            curl_multi_close($multi);
             curl_close($handle);
         }
         if (!$streamed) {
