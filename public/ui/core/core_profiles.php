@@ -84,8 +84,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
 <main class="profiles-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-header lorkhan-page-head">
-        <h1 class="api-title lorkhan-page-head-title">LORKHAN Profiles</h1>
-        <p class="page-subtitle lorkhan-page-head-note">Manage NPC profiles with LLM and TTS connectors</p>
+        <h1 class="api-title lorkhan-page-head-title">Profiles</h1>
+        <p class="page-subtitle lorkhan-page-head-note">Manage Core Profiles, response models, voice, prompts, and inherited NPC settings.</p>
     </div>
 
     <?php if (isset($_GET['status'])): ?><div class="lorkhan-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Settings preset imported as a new unassigned Core Profile. Review it below.' : 'Core Profile change saved.'; ?></div><?php endif; ?>

@@ -11,6 +11,7 @@ use LorkhanServer\Application\PromptAssembler;
 use LorkhanServer\Application\Provider;
 use LorkhanServer\Application\ProviderFactory;
 use LorkhanServer\Application\RechatCoordinator;
+use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\SpeechProvider;
 use LorkhanServer\Application\SpeechToTextProvider;
 use LorkhanServer\Application\TranslationPolicy;
@@ -131,16 +132,7 @@ final class Router
     {
         $saved=$this->products?->globalSettingsForInstallation($installationId);
         if($saved!==null)return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$saved['content']];
-        return['revision'=>'global-settings-default-v1','content'=>['schema'=>'lorkhan.client-settings.v1',
-            'behavior'=>['auto_greeting'=>false,'rechat'=>false,'rechat_delay_seconds'=>45,'rechat_max_depth'=>2,
-                'rechat_probability_percent'=>50,'rechat_mode'=>'random','rechat_strict_targeting'=>false,
-                'open_rechat'=>true,'rechat_allow_actions'=>false,'end_conversation_cooldown_seconds'=>60,
-                'boredom'=>false,'boredom_delay_seconds'=>180,'combat_barks'=>false,'combat_bark_period_seconds'=>20],
-            'memory'=>['recent_turn_limit'=>20,'knowledge_limit'=>5],
-            'narrator'=>['enabled'=>false,'name'=>'The Narrator','context_visibility'=>true,'inline_mode'=>'Disabled',
-                'welcome_events'=>false,'random_events'=>false,'quest_events'=>false,'book_events'=>false],
-            'presentation'=>['show_status_hud'=>true,'transcript_rows'=>8,'tts_volume_boost'=>3],
-            'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>false]]];
+        return['revision'=>'global-settings-default-v1','content'=>SettingsCatalog::clientDefaults()];
     }
 
     private function endSession(Request $request, string $sessionId): Response

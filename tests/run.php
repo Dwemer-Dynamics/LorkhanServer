@@ -1204,8 +1204,10 @@ $projectionInput['routing']['diary_generation_configuration_id']='00000000-0000-
 $projectionInput['settings']['diary']=$diaryOverrides;
 $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
 $check($projection['settings']['behavior']['rechat']===false
-    &&$projection['settings']['memory']['knowledge_limit']===0&&$projection['routing']['llm_configuration_id']===''
+    &&$projection['settings']['memory']['knowledge_limit']===EffectiveSettingsResolver::defaults()['memory']['knowledge_limit']
+    &&$projection['routing']['llm_configuration_id']===''
     &&$projection['source_map']['settings.behavior.rechat']==='core_profile'
+    &&!array_key_exists('settings.memory.knowledge_limit',$projection['source_map'])
     &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],
     'controls retain typed overrides while presentation remains inert v1 compatibility data');
 $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])

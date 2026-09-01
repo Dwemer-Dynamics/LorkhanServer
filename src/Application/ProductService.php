@@ -433,34 +433,6 @@ final class ProductService
         return LlmConnector::validate($content);
     }
 
-    /** Keep server-to-client settings bounded, typed, and free of executable or transport values. */
-    private function validateGlobalSettings(array $content):array
-    {
-        $expected=['behavior','memory','narrator','presentation','safety','schema'];$keys=array_keys($content);sort($keys);
-        if($keys!==$expected||($content['schema']??null)!=='lorkhan.client-settings.v1')throw new InvalidArgumentException('invalid_global_settings');
-        $sections=['behavior'=>[
-            'auto_greeting'=>'bool','rechat'=>'bool','rechat_delay_seconds'=>[30,3600],'rechat_max_depth'=>[1,20],
-            'rechat_probability_percent'=>[0,100],'rechat_mode'=>['tight','conversational','group','random'],
-            'rechat_strict_targeting'=>'bool','open_rechat'=>'bool','rechat_allow_actions'=>'bool',
-            'end_conversation_cooldown_seconds'=>[0,300],
-            'boredom'=>'bool','boredom_delay_seconds'=>[30,86400],'combat_barks'=>'bool','combat_bark_period_seconds'=>[5,300],
-        ],'memory'=>['recent_turn_limit'=>[1,100],'knowledge_limit'=>[0,20]],
-        'narrator'=>[
-            'enabled'=>'bool','name'=>'string','context_visibility'=>'bool','inline_mode'=>['Disabled','Narrator','NPC','Text Only'],
-            'welcome_events'=>'bool','random_events'=>'bool','quest_events'=>'bool','book_events'=>'bool',
-        ],'presentation'=>['show_status_hud'=>'bool','transcript_rows'=>[2,20],'tts_volume_boost'=>[1,4]],
-        'safety'=>['actions_enabled'=>'bool','allow_hostile'=>'bool','allow_creatures'=>'bool']];
-        $result=['schema'=>'lorkhan.client-settings.v1'];
-        foreach($sections as$section=>$fields){$value=$content[$section]??null;if(!is_array($value)||array_is_list($value))throw new InvalidArgumentException('invalid_global_settings');
-            $sectionKeys=array_keys($value);sort($sectionKeys);$expectedKeys=array_keys($fields);sort($expectedKeys);if($sectionKeys!==$expectedKeys)throw new InvalidArgumentException('invalid_global_settings');$result[$section]=[];
-            foreach($fields as$field=>$rule){$item=$value[$field];if($rule==='bool'){if(!is_bool($item))throw new InvalidArgumentException('invalid_global_settings');}
-                elseif($rule==='string'){if(!is_string($item)||trim($item)===''||strlen($item)>128||!mb_check_encoding($item,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings');$item=trim($item);}
-                elseif(isset($rule[0])&&is_int($rule[0])){if(!is_int($item)||$item<$rule[0]||$item>$rule[1])throw new InvalidArgumentException('invalid_global_settings');}
-                elseif(!is_string($item)||!in_array($item,$rule,true))throw new InvalidArgumentException('invalid_global_settings');
-                $result[$section][$field]=$item;}}
-        return$result;
-    }
-
     /** Validate the editable CHIM-lineage NPC fields while preserving a compact OpenMW profile document. */
     private function validateProfile(array $content):array
     {
