@@ -33,7 +33,7 @@ final class MorrowindVoiceCatalog
     /** Resolve the most specific bundled voice family from one authoritative OpenMW actor snapshot. */
     public function resolve(array $identity,array $context=[]):?array
     {
-        if(!in_array(strtolower((string)($identity['kind']??'')),['actor','npc'],true))return null;
+        if(!in_array(strtolower((string)($identity['kind']??'')),['actor','creature','npc'],true))return null;
         $actorState=is_array($context['targetState']??null)?$context['targetState']:[];
         $metadata=is_array($actorState['identity']??null)?$actorState['identity']:[];
         $recordId=$this->normalize((string)($identity['record_id']??''));

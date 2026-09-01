@@ -273,6 +273,9 @@ $automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','class'=>'Com
     'factions'=>[['id'=>'fighters guild','rank'=>1,'reputation'=>4],['id'=>'former guild','rank'=>-1,'reputation'=>0]]]];
 $automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
 $assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
+$dagothVoice=$morrowindVoices->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_1'],[]);
+$assert(($dagothVoice['id']??null)==='dagoth_ur_1'&&($dagothVoice['source']??null)==='actor_catalog',
+    'Morrowind voice catalog did not resolve Dagoth Ur from his unique vanilla sample');
 $assert(($morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],
     ['targetState'=>['identity'=>['race'=>'','gender'=>'']]])['id']??null)==='mw_wood_elf_male',
     'known legacy NPC fallback was hidden by empty profile metadata');
