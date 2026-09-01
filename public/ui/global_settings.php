@@ -101,35 +101,37 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <div class="page-header-row">
             <h1 class="gs-title">Global Settings</h1>
             <div class="page-header-actions">
+                <?php if ($hasStoredSettings): ?>
+                <a class="btn-settings-transfer" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/global-settings/' . $settingsConfigurationId . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.globals.export')['description']); ?>">&#128228; Export Settings</a>
+                <?php endif; ?>
+                <?php if ($installations !== []): ?>
+                <button type="button" class="btn-settings-transfer" data-gs-portability-toggle="import" aria-controls="gs-portability-panel" aria-expanded="false">&#128229; Import Settings</button>
+                <?php endif; ?>
                 <button type="submit" class="btn-save-green" name="save_all" value="1" form="gs_form">Save All</button>
             </div>
         </div>
+        <?php if ($installations !== []): ?>
+        <div class="gs-portability-row">
+            <?php if ($hasStoredSettings): ?>
+            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo lorkhan_ui_h($settingsSavedAt); ?><?php endif; ?></span>
+            <?php else: ?>
+            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
+            <?php endif; ?>
+            <button type="button" class="btn-settings-transfer preset-btn-compact" data-gs-portability-toggle="history" aria-controls="gs-portability-panel" aria-expanded="false">Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></button>
+            <details class="gs-scope-details">
+                <summary id="gs-portability-scope">What portable settings include</summary>
+                <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
+            </details>
+        </div>
+        <?php endif; ?>
     </header>
 
     <?php if (isset($_GET['status'])): $statusKey = is_string($_GET['status']) ? $_GET['status'] : ''; ?><div class="result-ok" role="status"><?php echo lorkhan_ui_h($statusMessages[$statusKey] ?? $statusMessages['saved']); ?></div><?php endif; ?>
     <?php if (count($installations) > 1): ?><div class="installation-row"><label>Installation <select data-installation-select><?php foreach ($installations as $row): ?><option value="<?php echo lorkhan_ui_h($row['installation_id']); ?>"<?php echo $row['installation_id'] === $installationId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($row['display_name']); ?></option><?php endforeach; ?></select></label></div><?php endif; ?>
 
     <?php if ($installations !== []): ?>
-    <section class="gs-portability" aria-labelledby="gs-portability-title">
-        <div class="gs-portability-head">
-            <h2 class="gs-portability-title" id="gs-portability-title">Portable Global Settings</h2>
-            <?php if ($hasStoredSettings): ?>
-            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo lorkhan_ui_h($settingsSavedAt); ?><?php endif; ?></span>
-            <?php else: ?>
-            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
-            <?php endif; ?>
-            <div class="gs-portability-actions">
-                <?php if ($hasStoredSettings): ?>
-                <a class="btn-action-blue" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/global-settings/' . $settingsConfigurationId . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.globals.export')['description']); ?>">Export Settings</a>
-                <?php endif; ?>
-            </div>
-        </div>
-        <details class="gs-scope-details">
-            <summary id="gs-portability-scope">What portable settings include</summary>
-            <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
-        </details>
-
-        <details class="gs-disclosure">
+    <section class="gs-portability-panel" id="gs-portability-panel" aria-label="Portable Global Settings">
+        <details class="gs-disclosure" data-gs-disclosure="import">
             <summary>Import a settings preset</summary>
             <form class="gs-disclosure-body" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-import">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
@@ -148,7 +150,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </form>
         </details>
 
-        <details class="gs-disclosure">
+        <details class="gs-disclosure" data-gs-disclosure="history">
             <summary>Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></summary>
             <div class="gs-disclosure-body">
                 <?php if (!$hasStoredSettings): ?>
@@ -191,11 +193,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     </section>
     <?php endif; ?>
 
-    <nav class="settings-tabs" role="tablist" aria-label="Global settings categories">
+    <div class="settings-tabs" role="tablist" aria-label="Global settings categories">
         <?php foreach (['prompt-rechat' => '&#x1F501; Rechat', 'ai-memory' => '&#x1F310; Profiles & Translation', 'context-knowledge' => '&#x1F4DA; Context & Knowledge'] as $tabId => $tabLabel): ?>
-        <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" data-settings-tab="<?php echo lorkhan_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
+        <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" aria-controls="settings-panel-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-tab="<?php echo lorkhan_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
         <?php endforeach; ?>
-    </nav>
+    </div>
 
     <?php if ($installations === []): ?><section class="content-section">Connect OpenMW once before configuring installation settings.</section><?php else: ?>
     <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-save" id="gs_form">
@@ -203,8 +205,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">
         <div class="content-grid">
+            <?php $seenTabs = []; ?>
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
-            <section class="content-section" role="tabpanel" aria-labelledby="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-panel="<?php echo lorkhan_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
+            <?php $isFirstTabPanel = !isset($seenTabs[$tabId]); $seenTabs[$tabId] = true; ?>
+            <section class="content-section"<?php if ($isFirstTabPanel): ?> id="settings-panel-<?php echo lorkhan_ui_h($tabId); ?>"<?php endif; ?> role="tabpanel" aria-labelledby="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-panel="<?php echo lorkhan_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
                 <h2><?php echo lorkhan_ui_h($sectionTitle); ?></h2>
                 <?php if (isset($sectionNotes[$sectionTitle])): ?><p class="gs-help gs-section-note"><?php echo lorkhan_ui_h($sectionNotes[$sectionTitle]); ?></p><?php endif; ?>
                 <div class="provider-grid">

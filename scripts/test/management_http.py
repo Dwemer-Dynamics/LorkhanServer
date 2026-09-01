@@ -210,6 +210,7 @@ deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[LORKHAN_DEEP
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
 narrator,text=parse(request('/LorkhanServer/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
 globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom"' not in text and 'name="auto_greeting"' not in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
+assert 'class="page-header-actions"' in text and '&#128229; Import Settings' in text and 'class="gs-portability"' not in text and 'aria-controls="settings-panel-prompt-rechat"' in text and 'id="settings-panel-prompt-rechat"' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
 assert 'data-json-import-target="gs-preset-json"' in text and 'typed Global Settings document only' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
