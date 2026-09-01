@@ -217,25 +217,47 @@ final class Router
         });
     }
 
-    /** Persist one authenticated vanilla dialogue observation without starting a model turn. */
+    /** Persist one authenticated game observation without starting a model turn. */
     private function gameData(Request $request): Response
     {
         $message = $this->json($request, 'lorkhan.gamedata.v1');
-        if (($message['type'] ?? null) !== 'captured_dialogue') {
-            throw new ApiException(422, 'invalid_schema', 'Unsupported game-data type.');
-        }
         $this->assertPrincipal((string) $message['installation_id']);
         $this->requireIdempotency($request, (string) $message['request_id']);
         return $this->repository->serializedIdempotency((string) $message['installation_id'],
             (string) $message['request_id'], '/gamedata', function () use ($message): Response {
                 return $this->idempotent((string) $message['installation_id'], (string) $message['request_id'],
                     '/gamedata', $message, function () use ($message): array {
-                        $this->repository->acceptGameData($message);
+                        if($message['type']==='actor_profile')$this->materializeActorProfile($message);
+                        else$this->repository->acceptGameData($message);
                         return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
                             'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                             'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];
                     });
             });
+    }
+
+    /** Create and bind the NPC profile represented by one current-session OpenMW snapshot. */
+    private function materializeActorProfile(array $message):void
+    {
+        if($this->products===null||$this->morrowindVoices===null)
+            throw new ApiException(503,'provider_unavailable','Actor profiles unavailable.',true);
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        if(!hash_equals((string)$session['installation_id'],(string)$message['installation_id'])
+            ||!hash_equals((string)$session['playthrough_id'],(string)$message['playthrough_id']))
+            throw new ApiException(409,'stale_generation','The session generation is stale.',true);
+        $payload=(array)$message['payload'];$actor=(array)$payload['actor'];
+        $context=['targetState'=>['identity'=>['race'=>$payload['race'],'class'=>$payload['class'],
+            'gender'=>$payload['gender'],'is_male'=>$payload['gender']==='male'],
+            'stats'=>['level'=>$payload['level']],'disposition'=>$payload['disposition'],
+            'factions'=>array_map(static fn(string$faction):array=>['id'=>$faction],$payload['factions'])]];
+        $resolved=$this->morrowindVoices->resolve($actor,$context);
+        if($resolved===null)throw new ApiException(422,'invalid_schema','The actor profile cannot be resolved.');
+        $resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
+        $this->products->ensureMorrowindActorProfile([
+            'installation_id'=>$message['installation_id'],'profile_id'=>$session['profile_id'],
+            'playthrough_id'=>$message['playthrough_id'],'session_id'=>$message['session_id'],
+            'generation'=>$message['generation'],'payload'=>['target'=>$actor,'context'=>$context],
+        ],$resolved,(string)$message['observed_at']);
     }
 
     /** Ground topics locally first, then make one guarded connector fallback for unresolved explicit requests. */

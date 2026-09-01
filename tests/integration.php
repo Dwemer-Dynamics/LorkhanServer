@@ -571,6 +571,33 @@ $wrongNarrator['selection_id']=$actorProfile['profile_id'];
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
 $assert($status===422,'in-game narrator generation accepted a non-narrator profile');
 
+$autoTarget=['kind'=>'npc','record_id'=>'auto_profile_sentinel','refnum'=>['index'=>852,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Balmora'],
+    'display_name'=>'Auto Profile Sentinel'];
+$autoProfileData=$fixture('gamedata-captured-dialogue');
+$autoProfileData['installation_id']=$installationId;$autoProfileData['playthrough_id']=$session['playthrough_id'];
+$autoProfileData['session_id']=$sessionId;$autoProfileData['generation']=7;$autoProfileData['runtime_generation']=7;
+$autoProfileData['request_id']=$newUuid(852);$autoProfileData['type']='actor_profile';
+$autoProfileData['payload']=['actor'=>$autoTarget,'race'=>'Wood Elf','class'=>'Commoner','gender'=>'male',
+    'level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
+[$status,$autoAccepted]=$call($router,'POST',$base.'/gamedata',$headers($autoProfileData['request_id']),[],$autoProfileData);
+$autoControls=$controlsQuery;$autoControls['message_id']=$newUuid(853);$autoControls['request_id']=$newUuid(854);
+$autoControls['target']=$autoTarget;
+[$autoControlsStatus,$autoControlsBody]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$autoControls);
+$autoProfileId=$autoControlsBody['selected_profile_id']??null;
+$autoProfile=is_string($autoProfileId)?$products->getRevisioned('profile',$autoProfileId):null;
+$assert($status===202&&($autoAccepted['type']??null)==='actor_profile'&&$autoControlsStatus===200
+    &&is_array($autoProfile)&&strtolower((string)($autoProfile['content']['race']??''))==='wood elf'
+    &&($autoProfile['content']['gender']??null)==='Male'
+    &&($autoProfile['core_profile_id']??null)===$ruleCoreLow['core_profile_id'],
+    'auto-activated NPC did not create and bind its server profile: '.json_encode([
+        'status'=>$status,'body'=>$autoAccepted,'controls'=>$autoControlsBody,'profile'=>$autoProfile],JSON_UNESCAPED_SLASHES));
+[$duplicateAutoStatus]=$call($router,'POST',$base.'/gamedata',$headers($autoProfileData['request_id']),[],$autoProfileData);
+$autoProfileCount=$db->prepare("SELECT count(*) FROM profiles WHERE installation_id=:installation AND actor_identity->>'record_id'=:record");
+$autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarget['record_id']]);
+$assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
+    'replayed auto-activation created a duplicate NPC profile');
+
 $turnMoodTemplates=\LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',

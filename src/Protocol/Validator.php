@@ -133,13 +133,15 @@ final class Validator
         }
     }
 
-    /** Validate the one standalone game-data family currently implemented by the runtime. */
+    /** Validate the standalone game-data families implemented by the runtime. */
     private function gameData(array $message): void
     {
         $this->keys($message,['schema','installation_id','playthrough_id','session_id','request_id','generation',
             'runtime_generation','observed_at','game','type','payload']);
+        $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||($message['type']??null)!=='captured_dialogue'||!is_int($message['generation'])||$message['generation']<1
+            ||!in_array($type,['actor_profile','captured_dialogue'],true)
+            ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
             throw new ValidationException('invalid_schema');
@@ -147,6 +149,25 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='actor_profile'){
+            $this->keys($payload,['actor','race','class','gender','level','disposition','factions']);
+            $this->identity($payload['actor']??null);
+            if(($payload['actor']['kind']??null)!=='npc'||!is_string($payload['race']??null)||$payload['race']===''
+                ||!mb_check_encoding($payload['race'],'UTF-8')||mb_strlen($payload['race'],'UTF-8')>128
+                ||!is_string($payload['class']??null)||!mb_check_encoding($payload['class'],'UTF-8')
+                ||mb_strlen($payload['class'],'UTF-8')>128
+                ||!in_array($payload['gender']??null,['female','male','none','unknown'],true)
+                ||!is_int($payload['level']??null)||$payload['level']<1||$payload['level']>255
+                ||!is_int($payload['disposition']??null)||$payload['disposition']<0||$payload['disposition']>100
+                ||!is_array($payload['factions']??null)||!array_is_list($payload['factions'])
+                ||count($payload['factions'])>32)throw new ValidationException('invalid_schema');
+            $seen=[];foreach($payload['factions']as$faction){
+                if(!is_string($faction)||$faction===''||!mb_check_encoding($faction,'UTF-8')
+                    ||mb_strlen($faction,'UTF-8')>256||isset($seen[$faction]))throw new ValidationException('invalid_schema');
+                $seen[$faction]=true;
+            }
+            return;
+        }
         $payloadKeys=['source','speaker','listener','audience','text','topic'];
         if(array_key_exists('game_time',$payload))$payloadKeys[]='game_time';
         $this->keys($payload,$payloadKeys);
