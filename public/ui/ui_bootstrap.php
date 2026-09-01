@@ -51,7 +51,9 @@ try {
     header('Set-Cookie: lorkhan_csrf=; Path=' . $managementBasePath . '; Max-Age=0; SameSite=Strict', false);
 
     header('Content-Type: text/html; charset=utf-8');
-    header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
+    // media-src covers audio the page builds in memory, such as the TTS Studio pronunciation
+    // preview, which fetches bytes over connect-src and plays them from a blob: object URL.
+    header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
 } catch (Throwable) {

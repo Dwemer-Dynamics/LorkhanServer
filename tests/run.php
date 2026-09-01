@@ -25,6 +25,7 @@ use LORKHANserver\Application\StreamingDialogueText;
 use LORKHANserver\Application\OpenAiCompatibleSpeechProvider;
 use LORKHANserver\Application\OpenAiCompatibleSpeechToTextProvider;
 use LORKHANserver\Application\PromptAssembler;
+use LORKHANserver\Application\SpeechPreviewCatalog;
 use LORKHANserver\Application\PlayerMoodPolicy;
 use LORKHANserver\Application\MemoryPromptSelection;
 use LORKHANserver\Application\InlineNarrationRouter;
@@ -920,6 +921,25 @@ $check(ConnectorCatalog::defaults('tts_provider','pockettts')['endpoint']==='htt
     &&ConnectorCatalog::defaults('stt_provider','parakeet')['endpoint']==='http://127.0.0.1:8022'
     &&ConnectorCatalog::defaults('stt_provider','gemini')['model']==='gemini-2.5-flash',
     'connector catalog exposes driver-specific create defaults for local and cloud providers');
+$previewVoiceRoot=sys_get_temp_dir().'/lorkhan-preview-voices-'.bin2hex(random_bytes(4));mkdir($previewVoiceRoot,0700);
+file_put_contents($previewVoiceRoot.'/Nerevarine.wav','RIFF');file_put_contents($previewVoiceRoot.'/almalexia.wav','RIFF');
+file_put_contents($previewVoiceRoot.'/notes.txt','ignored');
+$previewOptions=SpeechPreviewCatalog::options([
+    ['configuration_id'=>'cfg-xtts','name'=>'Local XTTS','content'=>'{"driver":"xtts-fastapi","voice":"almalexia"}'],
+    ['id'=>'cfg-cartesia','name'=>'Cartesia','content'=>['driver'=>'cartesia','voice'=>'sonic-en']],
+    ['configuration_id'=>'cfg-broken','name'=>'Unsupported','content'=>['driver'=>'not-a-driver','voice'=>'ghost']],
+    ['configuration_id'=>'','name'=>'No identity','content'=>['driver'=>'xtts']],
+],[['configuration_id'=>'cfg-cartesia','id'=>'Discovered Voice'],['configuration_id'=>'cfg-broken','id'=>'Unreachable Voice'],
+    ['configuration_id'=>'cfg-xtts','id'=>"Control\x07Voice"]],$previewVoiceRoot,'cfg-cartesia');
+$check(array_column($previewOptions['connectors'],'id')===['cfg-xtts','cfg-cartesia']
+    &&$previewOptions['connectors'][0]['label']==='Local XTTS (XTTS FastAPI)'
+    &&$previewOptions['voices']===['almalexia','Discovered Voice','Nerevarine','sonic-en']
+    &&$previewOptions['default_connector_id']==='cfg-cartesia'&&$previewOptions['default_voice']==='sonic-en',
+    'pronunciation preview offers only previewable connectors and their installed voices');
+$check(SpeechPreviewCatalog::options([],[],$previewVoiceRoot)===['connectors'=>[],'voices'=>[],
+    'default_connector_id'=>'','default_voice'=>''],
+    'pronunciation preview reports no choices when no TTS connector is configured');
+array_map('unlink',glob($previewVoiceRoot.'/*')?:[]);rmdir($previewVoiceRoot);
 $credentialRoot=sys_get_temp_dir().'/lorkhan-credentials-'.bin2hex(random_bytes(4));mkdir($credentialRoot,0700);
 $credentialPath=$credentialRoot.'/provider-keys.json';$credentialStore=new CredentialStore($credentialPath);
 $credentialStore->set('LORKHAN_DEEPL_API_KEY','deepl-managed-secret');

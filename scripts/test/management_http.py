@@ -10,6 +10,10 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     uploads=[]
     llm_requests=[]
     embedding_requests=[]
+    speech_requests=[]
+    samples=b'\x00'*160
+    silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
+             +(16000).to_bytes(4,'little')+(32000).to_bytes(4,'little')+(2).to_bytes(2,'little')+(16).to_bytes(2,'little')+b'data'+len(samples).to_bytes(4,'little')+samples)
     def do_GET(self):
         if self.path.startswith('/speakers_list'):
             payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
@@ -28,6 +32,9 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
             else:
                 payload=json.dumps({'choices':[{'message':{'content':content}}]}).encode(); content_type='application/json'
             self.send_response(200); self.send_header('Content-Type',content_type); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
+        if self.path=='/tts_to_audio':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.speech_requests.append(body)
+            self.send_response(200); self.send_header('Content-Type','audio/wav'); self.send_header('Content-Length',str(len(self.silence))); self.end_headers(); self.wfile.write(self.silence); return
         if self.path!='/upload_sample': self.send_error(404); return
         body=self.rfile.read(int(self.headers.get('Content-Length','0'))); self.uploads.append((dict(self.headers),body))
         payload=b'{"status":"ok"}'
@@ -174,6 +181,27 @@ r=request('/LORKHANserver/ui/core/voice_library.php','POST',{'_csrf':csrf,'actio
 assert r.status==200 and '1 provider voices discovered.' in body and 'MockProviderVoice' in body,(r.status,r.geturl(),body)
 profiles_with_provider_voice=request('/LORKHANserver/ui/core/npc_master.php').read().decode()
 assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in profiles_with_provider_voice,profiles_with_provider_voice
+pron,text=parse(request('/LORKHANserver/ui/core/voice_library.php?tab=pronunciations'))
+assert pron.current==1 and 'id="pron-preview"' in text and 'data-pron-endpoint="/LORKHANserver/manage/api/v1/tts-previews"' in text
+assert 'Written vs Spoken Preview' not in text and 'Preview is unavailable' not in text and 'id="pron-preview-audio"' in text
+assert text.count('data-pron-play="1"')>=4 and 'data-pron-input="pron-add-source"' in text and 'data-pron-input="pron-add-spoken"' in text
+assert '>Play Original</span>' in text and '>Play Spoken version</span>' in text and '<option value="'+batch_voice+'"' in text
+tts_installation=create_sync_tts['fields']['installation_id']
+def preview(payload,token=csrf): return json_request('/LORKHANserver/manage/api/v1/tts-previews','POST',payload,token)
+r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
+assert r.status==200 and r.headers.get('Content-Type')=='audio/wav' and clip.startswith(b'RIFF'),(r.status,r.headers.get('Content-Type'),clip[:160])
+assert VoiceProvider.speech_requests==[{'text':'Vvardenfell','speaker_wav':batch_voice,'language':'en'}],VoiceProvider.speech_requests
+r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':'NotInstalled','text':'Vvardenfell'}); body=r.read().decode()
+assert r.status==422 and json.loads(body)=={'error':'invalid_tts_preview_voice'},(r.status,body)
+r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'V'*241}); body=r.read().decode()
+assert r.status==422 and json.loads(body)=={'error':'invalid_tts_preview_text'},(r.status,body)
+r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'},None)
+assert r.status==401 and len(VoiceProvider.speech_requests)==1,(r.status,VoiceProvider.speech_requests)
+for _ in range(27):
+    r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
+    assert r.status==200 and clip.startswith(b'RIFF'),(r.status,clip[:160])
+r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); body=r.read().decode()
+assert r.status==429 and json.loads(body)=={'error':'tts_preview_rate_limited'} and len(VoiceProvider.speech_requests)==28,(r.status,body,len(VoiceProvider.speech_requests))
 r=request('/LORKHANserver/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/LORKHANserver/ui/core/npc_master.php').read().decode()
 keys,text=parse(request('/LORKHANserver/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text

@@ -13,6 +13,7 @@ use LORKHANserver\Application\PlayerMoodPolicy;
 use LORKHANserver\Application\ProductService;
 use LORKHANserver\Application\Provider;
 use LORKHANserver\Application\ProviderFactory;
+use LORKHANserver\Application\SpeechPreviewCatalog;
 use LORKHANserver\Application\TranslationPolicy;
 use LORKHANserver\Infrastructure\ManagementRepository;
 use LORKHANserver\Infrastructure\EventLogRepository;
@@ -27,6 +28,9 @@ use Throwable;
 final class ManagementRouter
 {
     private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics','game-debug'];
+    /** One pronunciation term never needs a long clip, so an oversized answer is treated as a failure. */
+    private const MAX_PREVIEW_AUDIO_BYTES=8_388_608;
+    private const PREVIEW_AUDIO_MIME_TYPES=['audio/wav','audio/mpeg','audio/ogg','audio/webm','audio/flac','audio/mp4'];
     private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
         'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
     private const UI_PAGES=[
@@ -98,7 +102,7 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['lorkhan_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','lorkhan_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
-            if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
+            if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path,$session);
             if($r->method==='POST'&&preg_match('#^/forms/([a-z-]+)$#D',$path,$m))return$this->submit($m[1],$r);
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
@@ -114,7 +118,7 @@ final class ManagementRouter
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
-    private function api(Request $r,string $path):Response
+    private function api(Request $r,string $path,string $browserSession):Response
     {
         if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
@@ -165,6 +169,7 @@ final class ManagementRouter
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
         }
+        if($r->method==='POST'&&$path==='/api/v1/tts-previews')return$this->speechPreview($this->json($r),$browserSession);
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/action-policies/editor')return Response::json(200,$this->actionPolicyEditor($r));
         if($r->method==='POST'&&$path==='/api/v1/action-policies/revisions')return Response::json(200,$this->saveActionPolicyRevision($this->json($r)));
@@ -1741,6 +1746,44 @@ final class ManagementRouter
         $audio=ProviderFactory::speechForPreset($this->providerConfig,$speechPreset)->synthesize('Greetings, traveler. This is LORKHAN.',$token);
         $result=ProviderFactory::speechToTextForPreset($this->providerConfig,$preset)->transcribe($audio['bytes'],$audio['codec'],'en',$token);
         return trim((string)$result['text']).' ('.(int)round((microtime(true)-$started)*1000).' ms)';
+    }
+
+    /** List the connector and installed-voice choices the pronunciation preview strip may offer. */
+    private function speechPreviewOptions(string $installation):array
+    {
+        return SpeechPreviewCatalog::options($this->repository->listRevisioned('tts_provider',$installation),
+            $this->repository->connectorVoiceCatalog(),(string)($this->providerConfig['voice_storage_path']??''),
+            (string)($this->repository->connectorForInstallation($installation,'tts_provider')['configuration_id']??''));
+    }
+
+    /**
+     * Speak exactly one bounded pronunciation field with an explicitly chosen connector and voice.
+     * Nothing is queued, stored, or logged: the audio is streamed straight back to the browser and
+     * any provider failure collapses into one opaque code so credentials never reach the page.
+     */
+    private function speechPreview(array $values,string $browserSession):Response
+    {
+        if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $text=trim((string)($values['text']??''));
+        if($text===''||!mb_check_encoding($text,'UTF-8')||mb_strlen($text,'UTF-8')>SpeechPreviewCatalog::MAX_TEXT_LENGTH
+            ||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$text)===1)throw new InvalidArgumentException('invalid_tts_preview_text');
+        $voice=trim((string)($values['voice']??''));
+        $options=$this->speechPreviewOptions($installation);
+        if(!in_array($configuration,array_column($options['connectors'],'id'),true))throw new InvalidArgumentException('invalid_tts_preview_connector');
+        if(!in_array($voice,$options['voices'],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
+        $preset=$this->repository->getRevisioned('tts_provider',$configuration);
+        if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        try{
+            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)
+                ->synthesize($text,new NeverCancelledToken(),['voice'=>$voice]);
+            $bytes=(string)($audio['bytes']??'');
+            if($bytes===''||strlen($bytes)>self::MAX_PREVIEW_AUDIO_BYTES)throw new RuntimeException('tts_preview_failed');
+        }catch(Throwable){return Response::json(502,['error'=>'tts_preview_failed']);}
+        $mime=(string)($audio['mime_type']??'');
+        if(!in_array($mime,self::PREVIEW_AUDIO_MIME_TYPES,true))$mime='application/octet-stream';
+        return new Response(200,$bytes,['Content-Type'=>$mime,'Content-Disposition'=>'inline','X-Content-Type-Options'=>'nosniff']);
     }
 
     /** Exercise one saved LLM model slot without persisting the fixed diagnostic turn or its response. */
