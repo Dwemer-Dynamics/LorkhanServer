@@ -531,6 +531,16 @@ $assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsP
 $profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
 $assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
     'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
+$playerContent=$playerProfile['content'];
+$playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
+$playerContent['voice']=['id'=>'MaleArgonian','language'=>'en-US'];
+$products->revise('profile',$playerProfile['profile_id'],$playerContent,'integration player TTS route',$now);
+$playerProfile=$products->playerProfileForInstallation($installationId);
+$playerSpeech=$products->connectorForActor($installationId,$session['playthrough_id'],$playerProfile['actor_identity'],'tts_provider');
+$playerSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$playerProfile['actor_identity'],$playerSpeech);
+$assert(($playerSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id']
+    &&$playerSpeechContext===['voice'=>'MaleArgonian','language'=>'en-US'],
+    'player profile did not supply its TTS connector and voice: '.json_encode($playerSpeechContext));
 
 $generateProfile=$selectProfile;$generateProfile['message_id']=$newUuid(12);$generateProfile['request_id']=$newUuid(13);
 $generateProfile['kind']='profile_generate';

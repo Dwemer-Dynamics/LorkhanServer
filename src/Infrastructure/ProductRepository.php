@@ -834,9 +834,11 @@ final class ProductRepository
     /** Resolve the revisioned Global -> Core Profile -> NPC layers for one stable actor identity. */
     public function effectiveSettingsForActor(string $installationId,string $playthroughId,array $identity):array
     {
-        $profileId=($identity['kind']??null)==='narrator'
-            ?($this->narratorProfileForInstallation($installationId)['profile_id']??null)
-            :$this->selectedActorProfileId($installationId,$playthroughId,$identity);
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
         return$this->effectiveSettingsForProfile($installationId,is_string($profileId)?$profileId:null);
     }
 
@@ -934,9 +936,11 @@ final class ProductRepository
     /** Resolve an actor profile's voice without exposing the rest of its roleplay document to a connector. */
     public function speechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
     {
-        $profileId=($identity['kind']??null)==='narrator'
-            ?($this->narratorProfileForInstallation($installationId)['profile_id']??null)
-            :$this->selectedActorProfileId($installationId,$playthroughId,$identity);
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
         if(!is_string($profileId)||$profileId==='')return[];
         $profile=$this->getRevisioned('profile',$profileId);$content=$profile['content']??[];$voice=$content['voice']??null;
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];

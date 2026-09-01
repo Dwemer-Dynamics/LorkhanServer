@@ -454,7 +454,7 @@ final class Router
                     function()use($installation,$message,$session):array{
                         $actor=(array)$message['actor'];
                         $resolvedVoice=$this->morrowindVoices?->resolve($actor);
-                        if($resolvedVoice!==null&&$this->products!==null){
+                        if(($actor['kind']??null)!=='player'&&$resolvedVoice!==null&&$this->products!==null){
                             $resolvedVoice=$this->products->preferExactProviderActorVoice($installation,$actor,$resolvedVoice);
                             $this->products->ensureMorrowindActorProfile([
                                 'installation_id'=>$installation,'profile_id'=>$session['profile_id'],
@@ -463,6 +463,8 @@ final class Router
                             ],$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));
                         }
                         $preset=$this->products?->connectorForActor($installation,(string)$session['playthrough_id'],$actor,'tts_provider');
+                        if(($actor['kind']??null)==='player'&&$preset===null)
+                            throw new ApiException(503,'provider_unavailable','Player speech is disabled.',false);
                         $preset??=$this->products?->connectorForInstallation($installation,'tts_provider');
                         $provider=$preset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
                         if($provider===null)throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);

@@ -240,7 +240,8 @@ immutable server catalog. These policies can only further restrict catalog rows 
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.
 Player Management can queue a durable analysis of at most the latest 200 real player turns. The job
 updates only the player profile's `speech_style` when its base revision is still current; it does not
-enable player TTS or synthesize unsupported OpenMW player-respeech behavior.
+enable autonomous player chat. Typed player messages may reuse the bounded speech synthesis lane when
+the installation player profile selects a TTS connector.
 Playthrough export/restore remains scoped and transactional; management pages do not expose private
 media bytes, credential files, provider keys, database passwords, or arbitrary log paths.
 Playthrough Manager derives bounded session, turn, response, memory, relationship, narrative, and

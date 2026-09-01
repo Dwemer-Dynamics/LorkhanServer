@@ -10,6 +10,7 @@ require dirname(__DIR__) . '/ui_bootstrap.php';
 
 $installations = $uiRepository->rows('installations');
 $rows = $uiRepository->rows('player');
+$ttsRows = $uiRepository->rows('tts');
 $byInstallation = [];
 foreach ($rows as $row) $byInstallation[(string) $row['installation_id']] = $row;
 
@@ -21,6 +22,7 @@ $installationId = $requested !== '' && array_filter(
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
+$voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $generationId = (string) ($routing['profile_generation_configuration_id'] ?? '');
 $generationValue = array_key_exists('profile_generation_configuration_id', $routing) && $generationId === '' ? '__disabled__' : $generationId;
 $generationOptions = ['' => 'Inherit Core Profile', '__disabled__' => 'Use server runtime'];
@@ -159,9 +161,26 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </section>
 
                     <section class="content-section player-tts-section">
-                        <h2 class="section-title-with-status"><span>Player Autochat and TTS</span><?php echo lorkhan_ui_feature_badge('config.player.autochat-tts', true); ?></h2>
-                        <div class="field-block"><label>Player TTS Connector</label><select disabled aria-disabled="true"><option>Use active LORKHAN TTS route</option></select><span class="hint">Per-player re-speech connector selection is not connected to OpenMW yet.</span></div>
-                        <div class="field-block"><label>Voice ID Override</label><input type="text" value="" placeholder="TheNarrator" disabled aria-disabled="true"><span class="hint">A copied Herika control retained for future typed player speech routing.</span></div>
+                        <h2>Player TTS and Speech Style</h2>
+                        <div class="field-block">
+                            <label for="player-tts">Player TTS Connector</label>
+                            <select id="player-tts" name="tts_configuration_id" aria-describedby="player-tts-help">
+                                <option value="__disabled__"<?php echo array_key_exists('tts_configuration_id', $routing) && (string) $routing['tts_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
+                                <?php foreach ($ttsRows as $tts): if ((string) ($tts['installation_id'] ?? '') !== $installationId) continue; ?>
+                                    <option value="<?php echo lorkhan_ui_h($tts['configuration_id']); ?>"<?php echo (string) ($routing['tts_configuration_id'] ?? '') === (string) $tts['configuration_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($tts['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="hint" id="player-tts-help">Enables spoken playback of typed player messages through this connector.</span>
+                        </div>
+                        <div class="field-block">
+                            <label for="player-voice">Voice ID Override</label>
+                            <input id="player-voice" name="voice_id" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($voice['id'] ?? ''); ?>" placeholder="MaleArgonian" aria-describedby="player-voice-help">
+                            <span class="hint" id="player-voice-help">Overrides the selected connector's default voice for the player.</span>
+                        </div>
+                        <div class="field-block">
+                            <label for="player-voice-language">Voice Language</label>
+                            <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
+                        </div>
                         <div class="field-block"><label>Player Autochat Connector</label><select disabled aria-disabled="true"><option>Use active LORKHAN model route</option></select><span class="hint">LORKHAN uses the inherited typed model pipeline.</span></div>
                         <label for="player-speech-style">Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo lorkhan_ui_h($content['speech_style'] ?? ''); ?></textarea>
@@ -202,7 +221,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <details class="player-portability">
                     <summary class="player-portability-summary"><span class="player-portability-summary-icon">&#x25B6;</span><span>Portable Player Settings</span></summary>
                     <div class="player-portability-body">
-                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only.</p>
+                        <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only. TTS connector and voice routing stay with this installation.</p>
                         <div class="player-portability-actions">
                             <a class="btn-portable" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/player-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.export')['description']); ?>">Export Settings</a>
                         </div>
@@ -217,7 +236,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <label for="player-preset-json">Preset JSON</label>
                                 <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
                             </div>
-                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, and playthrough context, or the excluded autochat, TTS, and diary controls.</p>
+                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, TTS connector and voice routing, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, playthrough context, or the excluded autochat and diary controls.</p>
                             <div class="player-portability-actions">
                                 <button type="submit" class="btn-portable" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
                             </div>
