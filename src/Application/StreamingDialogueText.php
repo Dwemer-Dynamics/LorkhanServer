@@ -7,7 +7,7 @@ namespace LORKHANserver\Application;
 /** Extracts safe visible text growth from a streamed structured response. */
 final class StreamingDialogueText
 {
-    private const MAX_CHUNKS = 4;
+    private const MAX_CHUNKS = DialoguePlanner::MAX_UTTERANCES;
     private const MIN_CHUNK_BYTES = 20;
 
     private string $content = '';
@@ -43,7 +43,8 @@ final class StreamingDialogueText
             if (!mb_check_encoding($chunk, 'UTF-8')) break;
             $this->emitted .= $chunk;
             ++$this->chunkCount;
-            $chunks[] = $chunk;
+            $chunk=preg_replace('/\s+/u',' ',trim($chunk))??trim($chunk);
+            if($chunk!=='')$chunks[]=$chunk;
         }
         return $chunks;
     }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use LORKHANserver\Application\ConnectorCatalog;
 use LORKHANserver\Infrastructure\ProductRepository;
+use LORKHANserver\Infrastructure\TtsPronunciationRepository;
 use LORKHANserver\Security\OutboundUrlPolicy;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='Voice Management';$topNavSection='configuration';
@@ -24,11 +25,16 @@ $requestedConfigurationId=(string)($_GET['configuration_id']??$_POST['configurat
 $defaultPreset=is_array($requestedPreset)?$requestedPreset:(is_array($activeTts)?$activeTts:[]);$defaultDriver=(string)($defaultPreset['content']['driver']??'');
 $defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoice','chatterbox'=>'chatterbox','cartesia'=>'cartesia','inworld'=>'inworld','xtts-fastapi','xtts'=>'xtts',default=>'xtts'};
 $studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
-$activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks'],true)?$studioTab:$defaultTab;
+$activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
 $sampleUploadDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
 $voiceDiscoveryDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
+$pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationPreviewText='';
+$pronunciationPreviewSpoken='';$pronunciationNotice='';$pronunciationError='';
+// The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
+$pronunciationFilter=trim((string)($_GET['oghma_tag']??''));
+if($pronunciationFilter!==''&&(!mb_check_encoding($pronunciationFilter,'UTF-8')||mb_strlen($pronunciationFilter,'UTF-8')>64))$pronunciationFilter='';
 
 /** Validate a user-facing voice name and map it to one bounded local WAV filename. */
 function lorkhan_voice_filename(string $name):string
@@ -181,10 +187,31 @@ function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,s
 }
 
 if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
+    $postedAction=(string)($_POST['action']??'');$pronunciationAction=str_starts_with($postedAction,'pronunciation_');
     try{
         if(!hash_equals($csrf,(string)($_POST['_csrf']??'')))throw new RuntimeException('unauthorized');
-        $action=(string)($_POST['action']??'');$voice=(string)($_POST['voice_name']??'');
-        if($action==='discover'){
+        $action=$postedAction;$voice=(string)($_POST['voice_name']??'');
+        if($action==='pronunciation_save'){
+            $idValue=trim((string)($_POST['id']??''));
+            if($idValue!==''&&(!ctype_digit($idValue)||(int)$idValue<1))throw new InvalidArgumentException('invalid_pronunciation');
+            $pronunciations->saveCustom($idValue===''?null:(int)$idValue,(string)($_POST['source_text']??''),
+                (string)($_POST['spoken_text']??''),(string)($_POST['npc_names']??''),(string)($_POST['races']??''),
+                (string)($_POST['oghma_tags']??''),($_POST['enabled']??'')==='1');
+            $pronunciationNotice=$idValue===''?'Custom pronunciation added.':'Custom pronunciation saved.';
+        }elseif($action==='pronunciation_toggle'){
+            $idValue=(string)($_POST['id']??'');$enabled=(string)($_POST['enabled']??'');
+            if(!ctype_digit($idValue)||!in_array($enabled,['0','1'],true))throw new InvalidArgumentException('invalid_pronunciation');
+            $pronunciations->setEnabled((int)$idValue,$enabled==='1');
+            $pronunciationNotice=$enabled==='1'?'Pronunciation enabled.':'Pronunciation disabled.';
+        }elseif($action==='pronunciation_delete'){
+            $idValue=(string)($_POST['id']??'');if(!ctype_digit($idValue))throw new InvalidArgumentException('invalid_pronunciation');
+            $pronunciations->deleteCustom((int)$idValue);$pronunciationNotice='Custom pronunciation deleted.';
+        }elseif($action==='pronunciation_preview'){
+            $pronunciationPreviewText=trim((string)($_POST['pronunciation_preview_text']??''));
+            if($pronunciationPreviewText===''||!mb_check_encoding($pronunciationPreviewText,'UTF-8')
+                ||mb_strlen($pronunciationPreviewText,'UTF-8')>500)throw new InvalidArgumentException('invalid_pronunciation_preview');
+            $pronunciationPreviewSpoken=$pronunciations->apply($pronunciationPreviewText);
+        }elseif($action==='discover'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
             $discoverLanguage=strtolower(trim((string)($_POST['language']??'en'))?:'en');
@@ -210,8 +237,21 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             if($errorReferences!==[])throw new InvalidArgumentException('voice_sample_in_use');
             if(!is_file($path)||!unlink($path))throw new RuntimeException('voice_delete_failed');$notice='Local voice sample deleted.';
         }else throw new InvalidArgumentException('invalid_voice_action');
-    }catch(Throwable $exception){$error=in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','unauthorized'],true)?$exception->getMessage():'voice_action_failed';}
+    }catch(Throwable $exception){
+        if($pronunciationAction){
+            $pronunciationError=match($exception->getMessage()){
+                'invalid_pronunciation'=>'Enter a valid written term and spoken form.',
+                'invalid_pronunciation_preview'=>'Enter a sample line of 500 characters or fewer.',
+                'pronunciation_not_editable'=>'That built-in pronunciation cannot be edited or deleted.',
+                'pronunciation_not_found'=>'That pronunciation no longer exists.',
+                'unauthorized'=>'Your management session expired. Reload the page and try again.',
+                default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
+            };
+        }else{$error=in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','unauthorized'],true)?$exception->getMessage():'voice_action_failed';}
+    }
 }
+
+$pronunciationEntries=$pronunciations->rows();
 
 if($discoveredPreset===null){
     $selectedDiscoveryId=(string)($_GET['configuration_id']??($activeTts['configuration_id']??''));

@@ -9,7 +9,7 @@ use Throwable;
 
 final class Repository
 {
-    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'action.inspect.report', 'action.ai.follow',
+    private const SERVER_CAPABILITIES = ['dialogue.text', 'speech.say', 'speech.listen', 'controls.session', 'debug.commands.v1', 'action.inspect.report', 'action.ai.follow',
         'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect','action.confirmation','action.result-followup'];
@@ -182,6 +182,58 @@ final class Repository
     }
 
     public function sessionInstallation(string $sessionId):string{$s=$this->db->prepare('SELECT installation_id FROM sessions WHERE session_id=:id');$s->execute(['id'=>$sessionId]);$v=$s->fetchColumn();if($v===false)throw new \OutOfBoundsException('unknown_session');return(string)$v;}
+
+    /** Claim one operator-authored, typed debug command for the current game generation. */
+    public function claimDebugCommand(array $message):?array
+    {
+        return $this->transaction(function()use($message):?array{
+            $session=$this->session((string)$message['session_id'],(int)$message['generation'],true);
+            if(!in_array('debug.commands.v1',$session['capabilities'],true))throw new \DomainException('debug_commands_unsupported');
+            $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
+                ."WHERE session_id=:session AND generation=:generation AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+                ->execute(['session'=>$message['session_id'],'generation'=>$message['generation']]);
+            $select=$this->db->prepare("SELECT command_id,command_name,parameters,expires_at FROM debug_commands "
+                ."WHERE session_id=:session AND generation=:generation AND state='queued' AND expires_at>clock_timestamp() "
+                ."ORDER BY created_at,command_id LIMIT 1 FOR UPDATE SKIP LOCKED");
+            $select->execute(['session'=>$message['session_id'],'generation'=>$message['generation']]);
+            $row=$select->fetch();if(!$row)return null;
+            $this->db->prepare("UPDATE debug_commands SET state='delivered',delivered_at=clock_timestamp() WHERE command_id=:id AND state='queued'")
+                ->execute(['id'=>$row['command_id']]);
+            return['command_id'=>(string)$row['command_id'],'name'=>(string)$row['command_name'],
+                'parameters'=>$this->json($row['parameters']),'expires_at'=>$this->utc((string)$row['expires_at'])];
+        });
+    }
+
+    /** Persist exactly one terminal result for an operator debug command. */
+    public function completeDebugCommand(array $message):bool
+    {
+        return $this->transaction(function()use($message):bool{
+            $session=$this->session((string)$message['session_id'],(int)$message['generation'],true);
+            if(!in_array('debug.commands.v1',$session['capabilities'],true))throw new \DomainException('debug_commands_unsupported');
+            $select=$this->db->prepare('SELECT installation_id,session_id,generation,state,result_message_id,expires_at FROM debug_commands WHERE command_id=:id FOR UPDATE');
+            $select->execute(['id'=>$message['command_id']]);$row=$select->fetch();
+            if(!$row)throw new \OutOfBoundsException('debug_command_not_found');
+            if((string)$row['installation_id']!==(string)$session['installation_id']
+                ||(string)$row['session_id']!==(string)$message['session_id']||(int)$row['generation']!==(int)$message['generation'])
+                throw new \UnexpectedValueException('stale_generation');
+            if($row['result_message_id']!==null){
+                if(hash_equals((string)$row['result_message_id'],(string)$message['message_id']))return true;
+                throw new \DomainException('debug_command_terminal');
+            }
+            if($row['state']!=='delivered')throw new \DomainException('debug_command_not_delivered');
+            if(new \DateTimeImmutable((string)$row['expires_at'])<=new \DateTimeImmutable((string)$message['completed_at'])){
+                $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' WHERE command_id=:id")
+                    ->execute(['id'=>$message['command_id']]);
+                throw new \DomainException('debug_command_expired');
+            }
+            $update=$this->db->prepare('UPDATE debug_commands SET state=:state,completed_at=:completed,result_message_id=:message,'
+                .'reason_code=:reason,observed=CAST(:observed AS jsonb) WHERE command_id=:id AND state=\'delivered\'');
+            $update->execute(['state'=>$message['status'],'completed'=>$message['completed_at'],'message'=>$message['message_id'],
+                'reason'=>$message['reason_code'],'observed'=>$this->encode($message['observed']),'id'=>$message['command_id']]);
+            if($update->rowCount()!==1)throw new \DomainException('debug_command_terminal');
+            return false;
+        });
+    }
 
     public function endSession(string $sessionId, string $requestId): array
     {
@@ -459,7 +511,7 @@ final class Repository
     public function appendStreamedDialogue(array $m, string $text, array $fence, int $index): array
     {
         if ($text === '' || strlen($text) > 16_384 || !mb_check_encoding($text, 'UTF-8')
-            || $index < 1 || $index > 4) {
+            || $index < 1 || $index > \LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES) {
             throw new \DomainException('provider_invalid_output');
         }
         return $this->transaction(function () use ($m, $text, $fence, $index): array {
@@ -477,10 +529,12 @@ final class Repository
                 'dialogue.complete', ['speaker' => $speaker, 'addressee' => $addressee, 'text' => $text], $lineId);
             $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
                 . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
-                . '(:id,:session,:turn,:request,:generation,:idx,4,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'
+                . '(:id,:session,:turn,:request,:generation,:idx,:count,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'
                 . 'CAST(:audience AS jsonb),:text,:emitted,CAST(:emitted AS timestamptz)+interval \'5 minutes\')')
                 ->execute(['id'=>$dialogue['message_id'],'session'=>$m['session_id'],'turn'=>$m['turn_id'],'request'=>$turn['request_id'],
-                    'generation'=>$m['generation'],'idx'=>$index,'line'=>$lineId,'utterance'=>$utteranceId,
+                    'generation'=>$m['generation'],'idx'=>$index,
+                    'count'=>\LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES,
+                    'line'=>$lineId,'utterance'=>$utteranceId,
                     'runtime_generation'=>(int)$turn['runtime_generation'],'speaker'=>$this->encode($speaker),
                     'addressee'=>$this->encode($addressee),'audience'=>$this->encode($audience),'text'=>$text,
                     'emitted'=>$dialogue['created_at']]);
@@ -1006,9 +1060,10 @@ final class Repository
 
     private function ensureSessionOwners(array $message): void
     {
-        $profile = $this->db->prepare('SELECT installation_id FROM profiles WHERE profile_id = :id');
+        $profile = $this->db->prepare('SELECT installation_id,deleted_at FROM profiles WHERE profile_id = :id FOR UPDATE');
         $profile->execute(['id' => $message['profile_id']]);
-        $profileOwner = $profile->fetchColumn();
+        $profileRow = $profile->fetch();
+        $profileOwner = $profileRow === false ? false : $profileRow['installation_id'];
         if ($profileOwner !== false && $profileOwner !== $message['installation_id']) {
             throw new \DomainException('profile_scope_conflict');
         }
@@ -1020,6 +1075,10 @@ final class Repository
             $this->db->prepare("INSERT INTO profile_revisions (profile_id, revision, content, change_reason, created_at) VALUES "
                 . "(:id, 1, '{\"source\":\"session-binding\"}'::jsonb, 'session binding', :created)")
                 ->execute(['id' => $message['profile_id'], 'created' => $message['created_at']]);
+        } elseif ($profileRow['deleted_at'] !== null) {
+            // A configured save profile remains authoritative when the game opens that save again.
+            $this->db->prepare('UPDATE profiles SET deleted_at=NULL WHERE profile_id=:id')
+                ->execute(['id'=>$message['profile_id']]);
         }
 
         $playthrough = $this->db->prepare('SELECT installation_id, profile_id FROM playthroughs WHERE playthrough_id = :id');

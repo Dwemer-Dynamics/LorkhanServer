@@ -42,6 +42,8 @@ final class Validator
             'lorkhan.menu-dialogue-tts.v1' => $this->menuDialogueTts($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
+            'lorkhan.debug-command.query.v1' => $this->debugCommandQuery($message),
+            'lorkhan.debug-command-result.v1' => $this->debugCommandResult($message),
             'lorkhan.response.v1' => $this->response($message),
             default => throw new ValidationException('invalid_schema'),
         };
@@ -131,13 +133,15 @@ final class Validator
         }
     }
 
-    /** Validate the one standalone game-data family currently implemented by the runtime. */
+    /** Validate the standalone game-data families implemented by the runtime. */
     private function gameData(array $message): void
     {
         $this->keys($message,['schema','installation_id','playthrough_id','session_id','request_id','generation',
             'runtime_generation','observed_at','game','type','payload']);
+        $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||($message['type']??null)!=='captured_dialogue'||!is_int($message['generation'])||$message['generation']<1
+            ||!in_array($type,['actor_profile','captured_dialogue'],true)
+            ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
             throw new ValidationException('invalid_schema');
@@ -145,6 +149,25 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='actor_profile'){
+            $this->keys($payload,['actor','race','class','gender','level','disposition','factions']);
+            $this->identity($payload['actor']??null);
+            if(!in_array($payload['actor']['kind']??null,['creature','npc'],true)||!is_string($payload['race']??null)||$payload['race']===''
+                ||!mb_check_encoding($payload['race'],'UTF-8')||mb_strlen($payload['race'],'UTF-8')>128
+                ||!is_string($payload['class']??null)||!mb_check_encoding($payload['class'],'UTF-8')
+                ||mb_strlen($payload['class'],'UTF-8')>128
+                ||!in_array($payload['gender']??null,['female','male','none','unknown'],true)
+                ||!is_int($payload['level']??null)||$payload['level']<1||$payload['level']>255
+                ||!is_int($payload['disposition']??null)||$payload['disposition']<0||$payload['disposition']>100
+                ||!is_array($payload['factions']??null)||!array_is_list($payload['factions'])
+                ||count($payload['factions'])>32)throw new ValidationException('invalid_schema');
+            $seen=[];foreach($payload['factions']as$faction){
+                if(!is_string($faction)||$faction===''||!mb_check_encoding($faction,'UTF-8')
+                    ||mb_strlen($faction,'UTF-8')>256||isset($seen[$faction]))throw new ValidationException('invalid_schema');
+                $seen[$faction]=true;
+            }
+            return;
+        }
         $payloadKeys=['source','speaker','listener','audience','text','topic'];
         if(array_key_exists('game_time',$payload))$payloadKeys[]='game_time';
         $this->keys($payload,$payloadKeys);
@@ -243,6 +266,57 @@ final class Validator
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
         if(($message['selection_id']??null)!==null)$this->uuid($message['selection_id']);
         $this->identity($message['target']??null);$this->timestamp($message['created_at']??null);
+    }
+
+    private function debugCommandQuery(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation']);
+        if(($message['schema']??null)!=='lorkhan.debug-command.query.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991)
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
+    }
+
+    private function debugCommandResult(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','command_id','session_id','generation','status',
+            'reason_code','observed','completed_at']);
+        if(($message['schema']??null)!=='lorkhan.debug-command-result.v1'||!is_int($message['generation'])
+            ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
+            ||!in_array($message['status']??null,['succeeded','failed','rejected'],true)
+            ||!is_string($message['reason_code']??null)
+            ||preg_match('/^[a-z][a-z0-9_]{0,127}$/D',$message['reason_code'])!==1)
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','command_id','session_id']as$field)$this->uuid($message[$field]??null);
+        $this->timestamp($message['completed_at']??null);
+        $observed=$message['observed']??null;
+        if(!is_array($observed)||($observed!==[]&&array_is_list($observed))||count($observed)>8)
+            throw new ValidationException('invalid_schema');
+        $boolean=['ai_enabled','collision_enabled','god_mode','mwscript_enabled','shader_hot_reload_enabled',
+            'shaders_reload_requested'];
+        $integer=['count'=>[0,1_000_000_000],'level'=>[1,1_000],'bounty'=>[0,1_000_000_000]];
+        $number=['base'=>[0,1_000_000],'current'=>[0,1_000_000],'health'=>[0,1_000_000],
+            'magicka'=>[0,1_000_000],'fatigue'=>[0,1_000_000],'scale'=>[0.01,100],
+            'timescale'=>[0,10_000],'hours_advanced'=>[0,8_760],
+            'x'=>[-100_000_000,100_000_000],'y'=>[-100_000_000,100_000_000],
+            'z'=>[-100_000_000,100_000_000]];
+        $string=['error'=>256,'record_id'=>256,'operation'=>64,'stat'=>16,'attribute'=>32,'skill'=>32,
+            'cell'=>300,'region_id'=>128,'weather'=>32,'target'=>256,'render_mode_toggled'=>32];
+        foreach($observed as$key=>$value){
+            if(in_array($key,$boolean,true)){if(!is_bool($value))throw new ValidationException('invalid_schema');continue;}
+            if(isset($integer[$key])){[$minimum,$maximum]=$integer[$key];
+                if(!is_int($value)||$value<$minimum||$value>$maximum)throw new ValidationException('invalid_schema');continue;}
+            if(isset($number[$key])){[$minimum,$maximum]=$number[$key];
+                if((!is_int($value)&&!is_float($value))||!is_finite((float)$value)
+                    ||$value<$minimum||$value>$maximum)throw new ValidationException('invalid_schema');continue;}
+            if(isset($string[$key])){if(!is_string($value)||!mb_check_encoding($value,'UTF-8')
+                ||mb_strlen($value,'UTF-8')>$string[$key])throw new ValidationException('invalid_schema');
+                if($key==='render_mode_toggled'&&!in_array($value,
+                    ['collision','wireframe','pathgrid','water','scene','navmesh','actors_paths','recast_mesh'],true))
+                    throw new ValidationException('invalid_schema');
+                continue;}
+            throw new ValidationException('invalid_schema');
+        }
     }
 
     private function embeddedActionResult(mixed $result): void

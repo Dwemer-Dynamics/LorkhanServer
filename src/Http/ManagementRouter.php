@@ -26,7 +26,7 @@ use Throwable;
 
 final class ManagementRouter
 {
-    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics'];
+    private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics','game-debug'];
     private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
         'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
     private const UI_PAGES=[
@@ -64,6 +64,7 @@ final class ManagementRouter
         'database-manager'=>'/ui/database_manager.php',
         'server-logs'=>'/ui/control_panel.php?tab=server-logs-page',
         'diagnostics'=>'/ui/control_panel.php?tab=srvlogs',
+        'game-debug'=>'/ui/control_panel.php?tab=game-debug',
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
@@ -152,6 +153,14 @@ final class ManagementRouter
             }
         }
         if($r->method==='GET'&&$path==='/api/v1/diagnostics')return Response::json(200,$this->repository->diagnostics());
+        if($r->method==='GET'&&$path==='/api/v1/debug-command-sessions')return Response::json(200,['items'=>$this->repository->debugCommandSessions()]);
+        if($path==='/api/v1/debug-commands'){
+            if($r->method==='GET')return Response::json(200,['items'=>$this->repository->debugCommands($this->queryUuid($r,'session_id'))]);
+            if($r->method==='POST'){$body=$this->json($r);$session=(string)($body['session_id']??'');$this->uuid($session,'session_id');
+                $name=$body['name']??null;$parameters=$body['parameters']??null;
+                if(!is_string($name)||!is_array($parameters)||($parameters!==[]&&array_is_list($parameters)))throw new InvalidArgumentException('invalid_debug_command');
+                return Response::json(201,['command'=>$this->repository->queueDebugCommand($session,$name,$parameters)]);}
+        }
         if($path==='/api/v1/profile-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);

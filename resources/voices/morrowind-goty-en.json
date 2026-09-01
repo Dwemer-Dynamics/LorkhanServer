@@ -2,6 +2,7 @@
   "schema": "lorkhan.morrowind-voice-catalog.v1",
   "language": "en",
   "known_actor_defaults": {
+    "dagoth ur 1": {"race": "dark elf", "gender": "male"},
     "fargoth": {"race": "wood elf", "gender": "male"}
   },
   "voices": [
@@ -25,6 +26,7 @@
     {"key": "redguard:female", "voice_id": "mw_redguard_female", "display_name": "Morrowind Redguard Female", "race": "redguard", "gender": "female", "sample_path": "Sound/Vo/r/f/Hlo_RF121.mp3", "reference_text": "Greetings! It's not often I find such good company. Please, speak, Khajiit."},
     {"key": "wood elf:male", "voice_id": "mw_wood_elf_male", "display_name": "Morrowind Wood Elf Male", "race": "wood elf", "gender": "male", "sample_path": "Sound/Vo/w/m/Hlo_WM085.mp3", "reference_text": "Hello. I don't know if I can help you, but I'll try."},
     {"key": "wood elf:female", "voice_id": "mw_wood_elf_female", "display_name": "Morrowind Wood Elf Female", "race": "wood elf", "gender": "female", "sample_path": "Sound/Vo/w/f/Hlo_WF092.mp3", "reference_text": "I've rarely seen one as lovely as you. Please, ask your question."},
-    {"key": "special:ordinator", "voice_id": "mw_ordinator_male", "display_name": "Morrowind Ordinator Male", "race": "dark elf", "gender": "male", "record_id_contains": "ordinator", "sample_path": "Sound/Vo/ord/Hlo_ORM020.mp3", "reference_text": "Welcome, citizen. How may I be of assistance?"}
+    {"key": "special:ordinator", "voice_id": "mw_ordinator_male", "display_name": "Morrowind Ordinator Male", "race": "dark elf", "gender": "male", "record_id_contains": "ordinator", "sample_path": "Sound/Vo/ord/Hlo_ORM020.mp3", "reference_text": "Welcome, citizen. How may I be of assistance?"},
+    {"key": "special:dagoth_ur", "voice_id": "dagoth_ur_1", "display_name": "Morrowind Dagoth Ur", "race": "dark elf", "gender": "male", "record_id_contains": "dagoth_ur_1", "sample_path": "Sound/Vo/Misc/Dagoth Ur Welcome A.mp3", "reference_text": "Dagoth Ur welcomes you, Nerevar, my old friend. But to this place where destiny is made, why have you come unprepared?"}
   ]
 }

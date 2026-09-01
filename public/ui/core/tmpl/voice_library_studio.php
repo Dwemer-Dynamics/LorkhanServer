@@ -10,6 +10,7 @@ $studioTabs = [
     'cartesia' => ['label' => 'Cartesia', 'drivers' => ['cartesia']],
     'inworld' => ['label' => 'Inworld', 'drivers' => ['inworld']],
     'fallbacks' => ['label' => 'Fallback Voices', 'drivers' => []],
+    'pronunciations' => ['label' => 'Pronunciations', 'drivers' => []],
 ];
 $activeContent = is_array($activeTts['content'] ?? null) ? $activeTts['content'] : [];
 $activeDriver = (string) ($activeContent['driver'] ?? '');
@@ -27,7 +28,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 <main class="tts-studio-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-header">
         <h1>Voice Management</h1>
-        <p class="page-subtitle">Manage voice samples and global NPC fallback voices across all TTS providers.</p>
+        <p class="page-subtitle">Manage voice samples, global NPC fallback voices, and pronunciations across all TTS providers.</p>
         <p class="page-note"><strong>Note:</strong> XTTS, Chatterbox, and PocketTTS share a simple voice sample flow. OmniVoice imports voices into the selected language library.</p>
     </div>
 
@@ -35,9 +36,11 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         <span class="visually-hidden">Configured TTS Connectors</span>
         <?php foreach ($studioTabs as $tabKey => $tab):
             $tabPresets = $presetsForTab($tabKey);
-            $isActiveProvider = $tabKey !== 'fallbacks' && in_array($activeDriver, $tab['drivers'], true);
-            $statusClass = $tabKey === 'fallbacks' ? 'configured' : ($isActiveProvider ? 'connected' : ($tabPresets !== [] ? 'configured' : 'unconfigured'));
-            $statusLabel = $tabKey === 'fallbacks' ? 'Global' : ($isActiveProvider ? 'Active' : ($tabPresets !== [] ? 'Configured' : 'Unconfigured'));
+            // Fallback voices and the pronunciation dictionary apply to every connector, so both report one global status.
+            $isGlobalTab = in_array($tabKey, ['fallbacks', 'pronunciations'], true);
+            $isActiveProvider = !$isGlobalTab && in_array($activeDriver, $tab['drivers'], true);
+            $statusClass = $isGlobalTab ? 'configured' : ($isActiveProvider ? 'connected' : ($tabPresets !== [] ? 'configured' : 'unconfigured'));
+            $statusLabel = $isGlobalTab ? 'Global' : ($isActiveProvider ? 'Active' : ($tabPresets !== [] ? 'Configured' : 'Unconfigured'));
         ?>
             <a class="tab-btn tab-<?php echo lorkhan_ui_h($tabKey); ?><?php echo $activeTab === $tabKey ? ' active' : ''; ?>" href="<?php echo lorkhan_ui_h($tabUrl($tabKey)); ?>">
                 <span class="tab-label"><?php echo lorkhan_ui_h($tab['label']); ?></span>
@@ -49,7 +52,234 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     <?php if ($notice !== ''): ?><p class="page-status" role="status"><?php echo lorkhan_ui_h($notice); ?></p><?php endif; ?>
     <?php if ($error !== ''): ?><div class="page-error" role="alert"><p><?php echo lorkhan_ui_h($error); ?></p><?php if ($errorReferences !== []): ?><ul><?php foreach ($errorReferences as $reference): ?><li><?php echo lorkhan_ui_h($reference); ?></li><?php endforeach; ?></ul><?php endif; ?></div><?php endif; ?>
 
-    <?php if ($activeTab === 'fallbacks'):
+    <?php if ($activeTab === 'pronunciations'):
+        // The dictionary is global to every TTS connector, so it owns one tab instead of
+        // repeating beneath each provider. Every input still comes from the controller.
+        $pronEntries = (isset($pronunciationEntries) && is_array($pronunciationEntries)) ? $pronunciationEntries : [];
+        $pronPreviewWritten = isset($pronunciationPreviewText) ? (string) $pronunciationPreviewText : '';
+        $pronPreviewSpoken = isset($pronunciationPreviewSpoken) ? (string) $pronunciationPreviewSpoken : '';
+        $pronNotice = isset($pronunciationNotice) ? (string) $pronunciationNotice : '';
+        $pronError = isset($pronunciationError) ? (string) $pronunciationError : '';
+        $pronFilter = isset($pronunciationFilter) ? (string) $pronunciationFilter : '';
+        $pronBaseUrl = $tabUrl('pronunciations');
+        // Posting back to the filtered URL keeps the visible list stable across a save.
+        $pronUrl = $webRoot . '/ui/core/voice_library.php?' . http_build_query(array_filter(['tab' => 'pronunciations', 'embed' => $embedded ? '1' : null, 'oghma_tag' => $pronFilter !== '' ? $pronFilter : null]));
+        $pronBool = static fn(mixed $value): bool => in_array($value, [true, 1, '1', 't', 'true', 'on', 'yes', 'y'], true);
+        $pronScopeList = static function (mixed $value): array {
+            $parts = array_map('trim', explode(',', (string) $value));
+            return array_values(array_filter($parts, static fn(string $part): bool => $part !== ''));
+        };
+        // Only populated scope groups are announced so a row never claims a filter it does not use.
+        $pronScopeGroups = static function (array $entry) use ($pronScopeList): array {
+            $groups = [];
+            foreach (['npc_names' => 'NPC names', 'races' => 'Races', 'oghma_tags' => 'Oghma tags'] as $field => $label) {
+                $values = $pronScopeList($entry[$field] ?? '');
+                if ($values !== []) $groups[] = ['label' => $label, 'values' => $values];
+            }
+            return $groups;
+        };
+        $pronLower = static fn(string $value): string => mb_strtolower($value, 'UTF-8');
+        $pronTags = [];
+        $pronBuiltinEntries = [];
+        $pronCustomEntries = [];
+        foreach ($pronEntries as $pronIndex => $pronEntry) {
+            if (!is_array($pronEntry)) continue;
+            $pronEntry['_key'] = preg_replace('/[^A-Za-z0-9_-]/', '', (string) ($pronEntry['id'] ?? '')) . '-' . (int) $pronIndex;
+            $pronEntryTags = $pronScopeList($pronEntry['oghma_tags'] ?? '');
+            foreach ($pronEntryTags as $pronEntryTag) $pronTags[$pronLower($pronEntryTag)] = $pronEntryTag;
+            if ($pronBool($pronEntry['is_builtin'] ?? false)) { $pronBuiltinEntries[] = $pronEntry; continue; }
+            // The tag filter narrows only the editable custom list; built-in defaults stay listed in full.
+            if ($pronFilter !== '' && !in_array($pronLower($pronFilter), array_map($pronLower, $pronEntryTags), true)) continue;
+            $pronCustomEntries[] = $pronEntry;
+        }
+        ksort($pronTags, SORT_NATURAL | SORT_FLAG_CASE);
+    ?>
+        <?php if ($pronNotice !== ''): ?><p class="page-status" role="status"><?php echo lorkhan_ui_h($pronNotice); ?></p><?php endif; ?>
+        <?php if ($pronError !== ''): ?><div class="page-error" role="alert"><p><?php echo lorkhan_ui_h($pronError); ?></p></div><?php endif; ?>
+
+        <section class="content-section pron-section" aria-labelledby="pron-heading">
+            <h1 id="pron-heading">Pronunciations</h1>
+            <p>Rewrite how the TTS engine says a term without changing anything the player reads. These entries apply to every TTS connector.</p>
+            <ul class="pron-intro-list">
+                <li><strong>Audio only:</strong> subtitles and stored dialogue keep the written spelling &mdash; only the text handed to the voice engine is rewritten.</li>
+                <li><strong>Joined spelling:</strong> write phonetic forms without hyphens because some voice engines pause at every dash.</li>
+                <li><strong>Blank field:</strong> that filter is not applied. With NPC names, races, and Oghma tags all blank the entry is global and every NPC uses it.</li>
+                <li><strong>Commas inside one field</strong> are alternatives &mdash; <em>Nord, Dark Elf</em> matches either race.</li>
+                <li><strong>Two or more fields filled:</strong> the speaker must match all of them, so <em>Dark Elf</em> plus <em>companion</em> only fires for a Dark Elf carrying that Oghma tag.</li>
+                <li><strong>Built-in entries</strong> cannot be deleted, but any of them can be disabled.</li>
+            </ul>
+
+            <h2 class="pron-subhead">Written vs Spoken Preview</h2>
+            <p class="pron-hint" id="pron-preview-help">Check a sample line against the enabled entries. The preview only reports the text that would reach the voice engine; subtitle text is never altered.</p>
+            <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" class="pron-preview">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <input type="hidden" name="action" value="pronunciation_preview">
+                <input type="hidden" name="studio_tab" value="pronunciations">
+                <div class="pron-preview-field">
+                    <label class="pron-label" for="pron-preview-text">Sample line</label>
+                    <textarea class="pron-field" id="pron-preview-text" name="pronunciation_preview_text" rows="2" maxlength="500" spellcheck="false" aria-describedby="pron-preview-help" placeholder="Vivec waits in Vvardenfell."><?php echo lorkhan_ui_h($pronPreviewWritten); ?></textarea>
+                </div>
+                <div class="pron-preview-actions"><button class="btn-secondary pron-btn" type="submit">Preview Spoken Text</button></div>
+            </form>
+            <?php if ($pronPreviewWritten !== '' || $pronPreviewSpoken !== ''): ?>
+                <div class="pron-preview-result" role="status" aria-live="polite">
+                    <div><span class="pron-result-label">Written (subtitle, unchanged)</span><p class="pron-static"><?php echo lorkhan_ui_h($pronPreviewWritten); ?></p></div>
+                    <div><span class="pron-result-label">Spoken (sent to TTS)</span><p class="pron-static pron-static-spoken"><?php echo lorkhan_ui_h($pronPreviewSpoken); ?></p></div>
+                </div>
+            <?php endif; ?>
+        </section>
+
+        <section class="content-section pron-section">
+            <h1>Add Custom Pronunciation</h1>
+            <p>The written term is matched as a whole term. Leave every access field blank to apply the entry to all NPCs.</p>
+
+            <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" class="pron-cols pron-add-row">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <input type="hidden" name="action" value="pronunciation_save">
+                <input type="hidden" name="studio_tab" value="pronunciations">
+                <div>
+                    <label class="pron-label" for="pron-add-written">Written term</label>
+                    <input class="pron-field" type="text" id="pron-add-written" name="source_text" maxlength="120" required autocomplete="off" spellcheck="false" placeholder="Vvardenfell">
+                </div>
+                <div>
+                    <label class="pron-label" for="pron-add-spoken">Spoken form</label>
+                    <input class="pron-field" type="text" id="pron-add-spoken" name="spoken_text" maxlength="240" required autocomplete="off" spellcheck="false" placeholder="Vardenfell">
+                </div>
+                <div class="pron-access">
+                    <p class="pron-scope pron-scope-hint" id="pron-add-help">Blank fields add no restriction. Fill more than one and the speaker must match them all.</p>
+                    <div class="pron-access-field"><label class="pron-label" for="pron-add-names">NPC names (optional)</label><input class="pron-field" type="text" id="pron-add-names" name="npc_names" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Caius Cosades, Jiub" aria-describedby="pron-add-help"></div>
+                    <div class="pron-access-field"><label class="pron-label" for="pron-add-races">Races (optional)</label><input class="pron-field" type="text" id="pron-add-races" name="races" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Nord, Dark Elf" aria-describedby="pron-add-help"></div>
+                    <div class="pron-access-field"><label class="pron-label" for="pron-add-tags">Oghma tags (optional)</label><input class="pron-field" type="text" id="pron-add-tags" name="oghma_tags" maxlength="512" autocomplete="off" spellcheck="false" list="pron-tag-options" placeholder="companion, balmora" aria-describedby="pron-add-help"></div>
+                </div>
+                <div class="pron-toggle">
+                    <input type="hidden" name="enabled" value="0">
+                    <input type="checkbox" id="pron-add-enabled" name="enabled" value="1" checked>
+                    <label class="pron-toggle-label" for="pron-add-enabled">Enabled</label>
+                </div>
+                <div class="pron-actions"><button class="btn-primary pron-btn" type="submit">Add Entry</button></div>
+            </form>
+
+            <datalist id="pron-tag-options">
+                <?php foreach ($pronTags as $pronTagOption): ?><option value="<?php echo lorkhan_ui_h($pronTagOption); ?>"></option><?php endforeach; ?>
+            </datalist>
+        </section>
+
+        <section class="content-section pron-section">
+            <h1>Custom Pronunciations</h1>
+
+            <form method="get" action="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/voice_library.php" class="pron-toolbar">
+                <input type="hidden" name="tab" value="pronunciations">
+                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <div class="pron-toolbar-field">
+                    <label class="pron-label" for="pron-tag-filter">Filter by Oghma tag</label>
+                    <select class="pron-field" id="pron-tag-filter" name="oghma_tag">
+                        <option value=""<?php echo $pronFilter === '' ? ' selected' : ''; ?>>All tags</option>
+                        <?php foreach ($pronTags as $pronTagOption): ?><option value="<?php echo lorkhan_ui_h($pronTagOption); ?>"<?php echo $pronFilter !== '' && $pronLower($pronFilter) === $pronLower($pronTagOption) ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($pronTagOption); ?></option><?php endforeach; ?>
+                    </select>
+                </div>
+                <button class="btn-secondary pron-btn" type="submit">Apply Filter</button>
+                <?php if ($pronFilter !== ''): ?><a class="pron-clear-filter" href="<?php echo lorkhan_ui_h($pronBaseUrl); ?>">Clear filter</a><?php endif; ?>
+            </form>
+
+            <p class="pron-count"><?php echo count($pronCustomEntries); ?> custom <?php echo count($pronCustomEntries) === 1 ? 'entry' : 'entries'; ?><?php echo $pronFilter !== '' ? ' tagged &quot;' . lorkhan_ui_h($pronFilter) . '&quot;' : ''; ?>.</p>
+
+            <div class="pron-grid">
+                <div class="pron-cols pron-head" aria-hidden="true"><span>Written term</span><span>Spoken form</span><span>Applies to</span><span>Enabled</span><span>Actions</span></div>
+
+                <?php if ($pronCustomEntries === []): ?>
+                    <p class="pron-empty">
+                        <?php if ($pronFilter !== ''): ?>No custom entries use the tag &quot;<?php echo lorkhan_ui_h($pronFilter); ?>&quot;. Choose <strong>All tags</strong> to see every entry.<?php else: ?>No custom pronunciations yet. Add one above to override how a term is spoken.<?php endif; ?>
+                    </p>
+                <?php else: ?>
+                    <?php foreach ($pronCustomEntries as $pronEntry):
+                        $pronKey = (string) $pronEntry['_key'];
+                        $pronId = (string) ($pronEntry['id'] ?? '');
+                        $pronWritten = (string) ($pronEntry['source_text'] ?? '');
+                        $pronEnabled = $pronBool($pronEntry['enabled'] ?? false);
+                        $pronGroups = $pronScopeGroups($pronEntry);
+                    ?>
+                        <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" class="pron-cols pron-row<?php echo $pronEnabled ? '' : ' is-disabled'; ?>">
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                            <input type="hidden" name="action" value="pronunciation_save">
+                            <input type="hidden" name="studio_tab" value="pronunciations">
+                            <input type="hidden" name="id" value="<?php echo lorkhan_ui_h($pronId); ?>">
+                            <div>
+                                <label class="pron-label" for="pron-written-<?php echo lorkhan_ui_h($pronKey); ?>">Written term</label>
+                                <input class="pron-field" type="text" id="pron-written-<?php echo lorkhan_ui_h($pronKey); ?>" name="source_text" value="<?php echo lorkhan_ui_h($pronWritten); ?>" maxlength="120" required autocomplete="off" spellcheck="false">
+                            </div>
+                            <div>
+                                <label class="pron-label" for="pron-spoken-<?php echo lorkhan_ui_h($pronKey); ?>">Spoken form</label>
+                                <input class="pron-field" type="text" id="pron-spoken-<?php echo lorkhan_ui_h($pronKey); ?>" name="spoken_text" value="<?php echo lorkhan_ui_h((string) ($pronEntry['spoken_text'] ?? '')); ?>" maxlength="240" required autocomplete="off" spellcheck="false">
+                            </div>
+                            <div class="pron-access">
+                                <p class="pron-scope" id="pron-scope-<?php echo lorkhan_ui_h($pronKey); ?>"><?php if ($pronGroups === []): ?><span class="pron-badge">Global</span> Every NPC uses this entry.<?php else: ?>Speaker must match <?php foreach ($pronGroups as $pronGroupIndex => $pronGroup): ?><?php echo $pronGroupIndex > 0 ? ' <strong>and</strong> ' : ''; ?><span class="pron-scope-label"><?php echo lorkhan_ui_h($pronGroup['label']); ?>:</span> <?php echo lorkhan_ui_h(implode(' or ', $pronGroup['values'])); ?><?php endforeach; ?>.<?php endif; ?></p>
+                                <div class="pron-access-field"><label class="pron-label" for="pron-names-<?php echo lorkhan_ui_h($pronKey); ?>">NPC names</label><input class="pron-field" type="text" id="pron-names-<?php echo lorkhan_ui_h($pronKey); ?>" name="npc_names" value="<?php echo lorkhan_ui_h((string) ($pronEntry['npc_names'] ?? '')); ?>" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Blank = any name" aria-describedby="pron-scope-<?php echo lorkhan_ui_h($pronKey); ?>"></div>
+                                <div class="pron-access-field"><label class="pron-label" for="pron-races-<?php echo lorkhan_ui_h($pronKey); ?>">Races</label><input class="pron-field" type="text" id="pron-races-<?php echo lorkhan_ui_h($pronKey); ?>" name="races" value="<?php echo lorkhan_ui_h((string) ($pronEntry['races'] ?? '')); ?>" maxlength="512" autocomplete="off" spellcheck="false" placeholder="Blank = any race" aria-describedby="pron-scope-<?php echo lorkhan_ui_h($pronKey); ?>"></div>
+                                <div class="pron-access-field"><label class="pron-label" for="pron-tags-<?php echo lorkhan_ui_h($pronKey); ?>">Oghma tags</label><input class="pron-field" type="text" id="pron-tags-<?php echo lorkhan_ui_h($pronKey); ?>" name="oghma_tags" value="<?php echo lorkhan_ui_h((string) ($pronEntry['oghma_tags'] ?? '')); ?>" maxlength="512" autocomplete="off" spellcheck="false" list="pron-tag-options" placeholder="Blank = any tag" aria-describedby="pron-scope-<?php echo lorkhan_ui_h($pronKey); ?>"></div>
+                            </div>
+                            <div class="pron-toggle">
+                                <input type="hidden" name="enabled" value="0">
+                                <input type="checkbox" id="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>" name="enabled" value="1" aria-label="<?php echo lorkhan_ui_h('Enable ' . $pronWritten); ?>"<?php echo $pronEnabled ? ' checked' : ''; ?>>
+                                <label class="pron-toggle-label" for="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>">Enabled</label>
+                            </div>
+                            <div class="pron-actions">
+                                <button class="btn-primary pron-btn" type="submit" aria-label="<?php echo lorkhan_ui_h('Save ' . $pronWritten); ?>">Save</button>
+                                <button class="btn-danger pron-btn" type="submit" form="pron-delete-form-<?php echo lorkhan_ui_h($pronKey); ?>" aria-label="<?php echo lorkhan_ui_h('Delete ' . $pronWritten); ?>">Delete</button>
+                            </div>
+                        </form>
+                        <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" id="pron-delete-form-<?php echo lorkhan_ui_h($pronKey); ?>" class="pron-hidden-form" data-confirm="<?php echo lorkhan_ui_h('Delete the custom pronunciation for "' . $pronWritten . '"?'); ?>">
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                            <input type="hidden" name="action" value="pronunciation_delete">
+                            <input type="hidden" name="studio_tab" value="pronunciations">
+                            <input type="hidden" name="id" value="<?php echo lorkhan_ui_h($pronId); ?>">
+                        </form>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </section>
+
+        <section class="content-section pron-section">
+            <h1>Built-in Pronunciations</h1>
+            <p>Shipped defaults for common TES3 names. They cannot be deleted, but any of them can be disabled and replaced with a custom entry above. The <strong>Applies to</strong> column shows who each default actually reaches.</p>
+
+            <div class="pron-grid">
+                <div class="pron-cols pron-head" aria-hidden="true"><span>Written term</span><span>Spoken form</span><span>Applies to</span><span>Enabled</span><span>Actions</span></div>
+
+                <?php if ($pronBuiltinEntries === []): ?>
+                    <p class="pron-empty">No built-in pronunciations are available.</p>
+                <?php else: ?>
+                    <?php foreach ($pronBuiltinEntries as $pronEntry):
+                        $pronKey = 'b' . (string) $pronEntry['_key'];
+                        $pronWritten = (string) ($pronEntry['source_text'] ?? '');
+                        $pronEnabled = $pronBool($pronEntry['enabled'] ?? false);
+                        $pronGroups = $pronScopeGroups($pronEntry);
+                    ?>
+                        <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" class="pron-cols pron-row<?php echo $pronEnabled ? '' : ' is-disabled'; ?>">
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                            <input type="hidden" name="action" value="pronunciation_toggle">
+                            <input type="hidden" name="studio_tab" value="pronunciations">
+                            <input type="hidden" name="id" value="<?php echo lorkhan_ui_h((string) ($pronEntry['id'] ?? '')); ?>">
+                            <div><span class="pron-static-label">Written term</span><p class="pron-static"><?php echo lorkhan_ui_h($pronWritten); ?></p></div>
+                            <div><span class="pron-static-label">Spoken form</span><p class="pron-static"><?php echo lorkhan_ui_h((string) ($pronEntry['spoken_text'] ?? '')); ?></p></div>
+                            <div><span class="pron-static-label">Applies to</span>
+                                <?php if ($pronGroups === []): ?><p class="pron-scope"><span class="pron-badge">Global</span></p><?php else: ?>
+                                    <?php foreach ($pronGroups as $pronGroup): ?><p class="pron-scope"><span class="pron-scope-label"><?php echo lorkhan_ui_h($pronGroup['label']); ?>:</span> <?php echo lorkhan_ui_h(implode(' or ', $pronGroup['values'])); ?></p><?php endforeach; ?>
+                                    <?php if (count($pronGroups) > 1): ?><p class="pron-scope pron-scope-hint">All of these must match.</p><?php endif; ?>
+                                <?php endif; ?>
+                            </div>
+                            <div class="pron-toggle">
+                                <input type="hidden" name="enabled" value="0">
+                                <input type="checkbox" id="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>" name="enabled" value="1" aria-label="<?php echo lorkhan_ui_h('Enable built-in ' . $pronWritten); ?>"<?php echo $pronEnabled ? ' checked' : ''; ?>>
+                                <label class="pron-toggle-label" for="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>">Enabled</label>
+                            </div>
+                            <div class="pron-actions"><button class="btn-secondary pron-btn" type="submit" aria-label="<?php echo lorkhan_ui_h('Apply enabled state for built-in ' . $pronWritten); ?>">Apply</button></div>
+                        </form>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </div>
+        </section>
+
+    <?php elseif ($activeTab === 'fallbacks'):
         $morrowindRaces = ['argonian' => 'Argonian', 'breton' => 'Breton', 'dark_elf' => 'Dark Elf', 'high_elf' => 'High Elf', 'imperial' => 'Imperial', 'khajiit' => 'Khajiit', 'nord' => 'Nord', 'orc' => 'Orc', 'redguard' => 'Redguard', 'wood_elf' => 'Wood Elf'];
     ?>
         <section class="content-section">

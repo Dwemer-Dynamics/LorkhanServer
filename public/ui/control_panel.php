@@ -21,12 +21,13 @@ $controlSections = [
         'jobs' => ['Workers & Jobs', '&#x1F4E8;', 'control.jobs', $webRoot . '/ui/jobs.php?embed=1'],
     ]],
     'data-tools' => ['label' => 'Data & Tools', 'tabs' => [
+        'game-debug' => ['Game Debug', '&#x1F6E0;&#xFE0F;', 'control.game-debug', $webRoot . '/ui/game_debug.php?embed=1'],
         'cache' => ['Audio & Image Cache', '&#x1F3BC;', 'control.cache', $webRoot . '/ui/cache_browser.php?embed=1'],
         'playthrough' => ['Playthrough Manager', '&#x1F3AE;', 'control.playthroughs', $webRoot . '/ui/playthrough_manager.php?embed=1'],
         'dbmgr' => ['Database Manager', '&#x1F5C4;&#xFE0F;', 'control.database', $webRoot . '/ui/database_manager.php?embed=1'],
     ]],
 ];
-$aliases = ['server-logs-page'=>'srvlogs','requests-page'=>'requests','oghma-audit-page'=>'oghmaaudit','relationships-page'=>'rellogs','usage-page'=>'audit','queue-page'=>'responses','providers-page'=>'providers','jobs-page'=>'jobs','cache-page'=>'cache','playthrough-page'=>'playthrough','database-page'=>'dbmgr','health-page'=>'srvlogs'];
+$aliases = ['server-logs-page'=>'srvlogs','requests-page'=>'requests','oghma-audit-page'=>'oghmaaudit','relationships-page'=>'rellogs','usage-page'=>'audit','queue-page'=>'responses','providers-page'=>'providers','jobs-page'=>'jobs','cache-page'=>'cache','playthrough-page'=>'playthrough','database-page'=>'dbmgr','health-page'=>'srvlogs','game-debug-page'=>'game-debug'];
 $requested = (string)($_GET['tab'] ?? 'srvlogs');
 $requested = $aliases[$requested] ?? $requested;
 $allTabs=[];foreach($controlSections as$section)foreach($section['tabs']as$id=>$tab)$allTabs[$id]=$tab;

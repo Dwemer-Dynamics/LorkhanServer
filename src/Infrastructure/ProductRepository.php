@@ -24,6 +24,7 @@ final class ProductRepository
         'experimental'=>['label'=>'Experimental','field'=>'llm_experimental_configuration_id'],
     ];
     private ?MorrowindGeographyCatalog $morrowindGeography=null;
+    private ?TtsPronunciationRepository $ttsPronunciations=null;
 
     public function __construct(private readonly PDO $db) {}
 
@@ -834,9 +835,11 @@ final class ProductRepository
     /** Resolve the revisioned Global -> Core Profile -> NPC layers for one stable actor identity. */
     public function effectiveSettingsForActor(string $installationId,string $playthroughId,array $identity):array
     {
-        $profileId=($identity['kind']??null)==='narrator'
-            ?($this->narratorProfileForInstallation($installationId)['profile_id']??null)
-            :$this->selectedActorProfileId($installationId,$playthroughId,$identity);
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
         return$this->effectiveSettingsForProfile($installationId,is_string($profileId)?$profileId:null);
     }
 
@@ -934,9 +937,11 @@ final class ProductRepository
     /** Resolve an actor profile's voice without exposing the rest of its roleplay document to a connector. */
     public function speechContext(string $installationId,string $playthroughId,array $identity,?array $connector=null):array
     {
-        $profileId=($identity['kind']??null)==='narrator'
-            ?($this->narratorProfileForInstallation($installationId)['profile_id']??null)
-            :$this->selectedActorProfileId($installationId,$playthroughId,$identity);
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
         if(!is_string($profileId)||$profileId==='')return[];
         $profile=$this->getRevisioned('profile',$profileId);$content=$profile['content']??[];$voice=$content['voice']??null;
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
@@ -955,8 +960,32 @@ final class ProductRepository
         return$result;
     }
 
-    /** Create and bind an NPC profile from trusted current-session metadata before its first prompt is assembled. */
-    public function ensureMorrowindActorProfile(array $turn,array $resolvedVoice,string $now):string
+    /** Transform provider-only speech text while retaining the original subtitle and history text. */
+    public function applyTtsPronunciation(string $text,array $context=[]):string
+    {
+        return($this->ttsPronunciations??=new TtsPronunciationRepository($this->db))->apply($text,$context);
+    }
+
+    /** Resolve only the actor fields used by optional CHIM-style pronunciation scopes. */
+    public function ttsPronunciationContext(string $installationId,string $playthroughId,array $identity):array
+    {
+        $scope=['npc_name'=>trim((string)($identity['display_name']??$identity['record_id']??'')),
+            'race'=>trim((string)($identity['race']??'')),'oghma_tags'=>[]];
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
+        if(!is_string($profileId)||$profileId==='')return['pronunciation_scope'=>$scope];
+        $profile=$this->getRevisioned('profile',$profileId);$content=is_array($profile['content']??null)?$profile['content']:[];
+        $scope['npc_name']=trim((string)($profile['name']??$scope['npc_name']));
+        $scope['race']=trim((string)($content['race']??$scope['race']));
+        $scope['oghma_tags']=$content['oghma_knowledge_tags']??$content['oghma_tags']??[];
+        return['pronunciation_scope'=>$scope];
+    }
+
+    /** Create and bind an actor profile before its first prompt, even when a creature has no catalog voice. */
+    public function ensureMorrowindActorProfile(array $turn,?array $resolvedVoice,string $now):string
     {
         $target=$turn['payload']['target']??null;
         if(!is_array($target)||array_is_list($target))throw new RuntimeException('invalid_actor_identity');
@@ -979,9 +1008,14 @@ final class ProductRepository
                     'content'=>$target['content_file']??'','ref_index'=>(string)($refnum['index']??''),
                     'ref_content'=>(string)($refnum['content_file']??'')]);$matches=$existing->fetchAll();
                 if(count($matches)===1)$profileId=(string)$matches[0]['profile_id'];
-                else{$template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$resolvedVoice);
+                else{$targetIdentity=(array)($turn['payload']['context']['targetState']['identity']??[]);
+                    $profileTraits=$resolvedVoice??['race'=>(string)($targetIdentity['race']??''),
+                        'gender'=>(string)($targetIdentity['gender']??'')];
+                    $template=$this->matchingBiographyTemplate((string)$turn['installation_id'],$target,$profileTraits);
                     $seed=is_array($template['content']??null)?$template['content']:[];unset($seed['management'],$seed['portrait']);
-                    $seed['gender']=$resolvedVoice['gender'];$seed['race']=$resolvedVoice['race'];$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
+                    if(trim((string)($profileTraits['gender']??''))!=='')$seed['gender']=$profileTraits['gender'];
+                    if(trim((string)($profileTraits['race']??''))!=='')$seed['race']=$profileTraits['race'];
+                    if($resolvedVoice!==null)$seed['voice']=$this->catalogVoiceDocument($resolvedVoice);
                     $seed=$this->morrowindLocalityContent($seed,$target,(string)$turn['installation_id']);
                     $seed['management']=['locked'=>false,'favorite'=>false];
                     $name=trim((string)($target['display_name']??$target['record_id']??'Morrowind NPC'));
@@ -999,7 +1033,7 @@ final class ProductRepository
                     $target,$profileId,$now);
                 $this->applyMorrowindCatalogLocality($profileId,$target,(string)$turn['installation_id'],$now);
             }
-            $this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
+            if($resolvedVoice!==null)$this->applyMorrowindCatalogVoice($profileId,$target,$resolvedVoice,$now,false);
             return$profileId;
         });
     }
@@ -2632,6 +2666,104 @@ SQL);
     public function traceDetail(string $id):array{$s=$this->db->prepare('SELECT * FROM source_events WHERE source_event_id=:id');$s->execute(['id'=>$id]);$r=$s->fetch();if(!$r)throw new RuntimeException('not_found');$r['payload']=$this->json($r['payload']);return$r;}
 
     public function diagnostics():array{return ['database'=>['connected'=>true,'version'=>(string)$this->db->query('SHOW server_version')->fetchColumn()],'counts'=>['installations'=>(int)$this->db->query('SELECT count(*) FROM installations WHERE revoked_at IS NULL')->fetchColumn(),'active_sessions'=>(int)$this->db->query("SELECT count(*) FROM sessions WHERE state='active'")->fetchColumn(),'queued_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='queued'")->fetchColumn(),'dead_jobs'=>(int)$this->db->query("SELECT count(*) FROM durable_jobs WHERE state='dead'")->fetchColumn(),'memory_records'=>(int)$this->db->query('SELECT count(*) FROM memory_records WHERE deleted_at IS NULL')->fetchColumn()]];}
+
+    /** Return active sessions and whether their negotiated client supports typed debug commands. */
+    public function debugCommandSessions():array
+    {
+        $rows=$this->db->query("SELECT s.session_id,s.installation_id,s.generation,s.created_at,COALESCE(p.name,s.session_id::text) AS label,"
+            ."('debug.commands.v1'=ANY(s.capabilities)) AS supported FROM sessions s LEFT JOIN playthroughs p ON p.playthrough_id=s.playthrough_id "
+            ."WHERE s.state='active' ORDER BY s.created_at DESC LIMIT 50")->fetchAll();
+        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['supported']=filter_var($row['supported'],FILTER_VALIDATE_BOOL);}unset($row);
+        return$rows;
+    }
+
+    /** Return the bounded recent operator debug-command audit for one active session. */
+    public function debugCommands(string $sessionId):array
+    {
+        $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
+            ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+            ->execute(['session'=>$sessionId]);
+        $stmt=$this->db->prepare('SELECT command_id,session_id,generation,command_name AS name,parameters,state,reason_code,observed,'
+            .'created_at,delivered_at,completed_at,expires_at FROM debug_commands WHERE session_id=:session ORDER BY created_at DESC LIMIT 50');
+        $stmt->execute(['session'=>$sessionId]);$rows=$stmt->fetchAll();
+        foreach($rows as&$row){$row['generation']=(int)$row['generation'];$row['parameters']=$this->json($row['parameters']);
+            $row['observed']=$row['observed']===null?null:$this->json($row['observed']);}unset($row);
+        return$rows;
+    }
+
+    /** Queue one fixed, validated debug operation for the selected live game session. */
+    public function queueDebugCommand(string $sessionId,string $name,array $parameters):array
+    {
+        $empty=['status.snapshot','shaders.reload','player.vitals.restore','target.actor.kill','target.actor.restore','target.teleport.to_player'];
+        $enabled=['god_mode.set','collision.set','ai.set','mwscript.set','shader_hot_reload.set'];
+        $renderModes=['collision','wireframe','pathgrid','water','scene','navmesh','actors_paths','recast_mesh'];
+        $hasKeys=static function(array $value,array $expected):bool{$actual=array_keys($value);sort($actual);sort($expected);return $actual===$expected;};
+        $attributes=['strength','intelligence','willpower','agility','speed','endurance','personality','luck'];
+        $skills=['block','armorer','mediumarmor','heavyarmor','bluntweapon','longblade','axe','spear','athletics','enchant',
+            'destruction','alteration','illusion','conjuration','mysticism','restoration','alchemy','unarmored','security',
+            'sneak','acrobatics','lightarmor','shortblade','marksman','mercantile','speechcraft','handtohand'];
+        $recordId=static fn(mixed $value):bool=>is_string($value)&&$value!==''&&strlen($value)<=256
+            &&preg_match('/[\\\\\/\r\n\t]/',$value)!==1;
+        $number=static fn(mixed $value,float $minimum,float $maximum):bool=>(is_int($value)||is_float($value))
+            &&is_finite((float)$value)&&(float)$value>=$minimum&&(float)$value<=$maximum;
+        if(in_array($name,$empty,true)){if($parameters!==[])throw new InvalidArgumentException('invalid_debug_parameters');}
+        elseif(in_array($name,$enabled,true)){if(!$hasKeys($parameters,['enabled'])||!is_bool($parameters['enabled']))throw new InvalidArgumentException('invalid_debug_parameters');}
+        elseif($name==='render_mode.toggle'){
+            if(!$hasKeys($parameters,['mode'])||!is_string($parameters['mode'])||!in_array($parameters['mode'],$renderModes,true))
+                throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.inventory.add','player.inventory.remove'],true)){
+            if(!$hasKeys($parameters,['record_id','count'])||!$recordId($parameters['record_id'])||!is_int($parameters['count'])
+                ||$parameters['count']<1||$parameters['count']>10000)throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.spell.add','player.spell.remove'],true)){
+            if(!$hasKeys($parameters,['record_id'])||!$recordId($parameters['record_id']))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.stat.set'){
+            if(!$hasKeys($parameters,['stat','value'])||!in_array($parameters['stat']??null,['health','magicka','fatigue'],true)
+                ||!$number($parameters['value']??null,0,1000000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.attribute.set'){
+            if(!$hasKeys($parameters,['attribute','value'])||!in_array($parameters['attribute']??null,$attributes,true)
+                ||!$number($parameters['value']??null,0,1000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.skill.set'){
+            if(!$hasKeys($parameters,['skill','value'])||!in_array($parameters['skill']??null,$skills,true)
+                ||!$number($parameters['value']??null,0,1000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.level.set','player.bounty.set'],true)){
+            $minimum=$name==='player.level.set'?1:0;$maximum=$name==='player.level.set'?1000:1000000000;
+            if(!$hasKeys($parameters,['value'])||!is_int($parameters['value'])||$parameters['value']<$minimum
+                ||$parameters['value']>$maximum)throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif(in_array($name,['player.scale.set','target.scale.set'],true)){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0.01,100))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.timescale.set'){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0,10000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.time.advance'){
+            if(!$hasKeys($parameters,['value'])||!$number($parameters['value'],0,8760))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='player.teleport'){
+            if(!$hasKeys($parameters,['cell','x','y','z'])||!is_string($parameters['cell'])||$parameters['cell']===''
+                ||strlen($parameters['cell'])>300||preg_match('/[\\\\\/\r\n\t]/',$parameters['cell'])===1
+                ||!$number($parameters['x'],-100000000,100000000)||!$number($parameters['y'],-100000000,100000000)
+                ||!$number($parameters['z'],-100000000,100000000))throw new InvalidArgumentException('invalid_debug_parameters');
+        }elseif($name==='world.weather.set'){
+            $weathers=['clear','cloudy','foggy','overcast','rain','thunderstorm','ashstorm','blight','snow','blizzard'];
+            if(!$hasKeys($parameters,['region_id','weather'])||!$recordId($parameters['region_id'])
+                ||!in_array($parameters['weather']??null,$weathers,true))throw new InvalidArgumentException('invalid_debug_parameters');
+        }else throw new InvalidArgumentException('invalid_debug_command');
+        return$this->transaction(function()use($sessionId,$name,$parameters):array{
+            $session=$this->db->prepare("SELECT installation_id,generation,capabilities FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
+            $session->execute(['session'=>$sessionId]);$row=$session->fetch();if(!$row)throw new InvalidArgumentException('invalid_session_id');
+            $capabilities=$this->parsePgArray((string)$row['capabilities']);
+            if(!in_array('debug.commands.v1',$capabilities,true))throw new InvalidArgumentException('debug_commands_unsupported');
+            $this->db->prepare("UPDATE debug_commands SET state='expired',completed_at=clock_timestamp(),reason_code='command_expired' "
+                ."WHERE session_id=:session AND state IN ('queued','delivered') AND expires_at<=clock_timestamp()")
+                ->execute(['session'=>$sessionId]);
+            $pending=$this->db->prepare("SELECT count(*) FROM debug_commands WHERE session_id=:session AND state IN ('queued','delivered')");
+            $pending->execute(['session'=>$sessionId]);if((int)$pending->fetchColumn()>=16)throw new InvalidArgumentException('debug_command_queue_full');
+            $id=Uuid::v4();$insert=$this->db->prepare('INSERT INTO debug_commands '
+                .'(command_id,installation_id,session_id,generation,command_name,parameters,expires_at) '
+                ."VALUES (:id,:installation,:session,:generation,:name,CAST(:parameters AS jsonb),clock_timestamp()+interval '30 seconds') RETURNING *");
+            $insert->execute(['id'=>$id,'installation'=>$row['installation_id'],'session'=>$sessionId,'generation'=>$row['generation'],
+                'name'=>$name,'parameters'=>$this->encode($parameters)]);$created=$insert->fetch();
+            return['command_id'=>$id,'session_id'=>$sessionId,'generation'=>(int)$row['generation'],'name'=>$name,
+                'parameters'=>$parameters,'state'=>'queued','created_at'=>$created['created_at'],'expires_at'=>$created['expires_at']];
+        });
+    }
 
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 

@@ -78,6 +78,8 @@ final class Router
             if ($request->method === 'POST' && $path === '/gamedata') return $this->gameData($request);
             if ($request->method === 'POST' && $path === '/controls/query') return $this->controlsQuery($request);
             if ($request->method === 'POST' && $path === '/controls/select') return $this->controlsSelect($request);
+            if ($request->method === 'POST' && $path === '/debug-commands/query') return $this->debugCommandQuery($request);
+            if ($request->method === 'POST' && $path === '/debug-command-results') return $this->debugCommandResult($request);
             if ($request->method === 'GET' && $path === '/events') return $this->events($request);
             if ($request->method === 'GET' && preg_match('#^/media/([0-9a-f-]{36})$#D', $path, $m)) return $this->media($m[1]);
             if ($request->method === 'POST' && $path === '/interruptions') return $this->interrupt($request);
@@ -185,9 +187,11 @@ final class Router
             }
             $assembled = null;
             if ($directAction === null && $this->products !== null && $this->promptAssembler !== null) {
-                $resolvedVoice=$this->morrowindVoices?->resolve((array)$m['payload']['target'],(array)$m['payload']['context']);
-                if($resolvedVoice!==null){$resolvedVoice=$this->products->preferExactProviderActorVoice(
-                        (string)$m['installation_id'],(array)$m['payload']['target'],$resolvedVoice);
+                $target=(array)$m['payload']['target'];
+                $resolvedVoice=$this->morrowindVoices?->resolve($target,(array)$m['payload']['context']);
+                if($resolvedVoice!==null)$resolvedVoice=$this->products->preferExactProviderActorVoice(
+                        (string)$m['installation_id'],$target,$resolvedVoice);
+                if(in_array($target['kind']??null,['creature','npc'],true)){
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
                 $oghmaExtraction=$this->oghmaExtraction($m);$semanticMemory=$this->semanticMemory($m);
@@ -215,25 +219,46 @@ final class Router
         });
     }
 
-    /** Persist one authenticated vanilla dialogue observation without starting a model turn. */
+    /** Persist one authenticated game observation without starting a model turn. */
     private function gameData(Request $request): Response
     {
         $message = $this->json($request, 'lorkhan.gamedata.v1');
-        if (($message['type'] ?? null) !== 'captured_dialogue') {
-            throw new ApiException(422, 'invalid_schema', 'Unsupported game-data type.');
-        }
         $this->assertPrincipal((string) $message['installation_id']);
         $this->requireIdempotency($request, (string) $message['request_id']);
         return $this->repository->serializedIdempotency((string) $message['installation_id'],
             (string) $message['request_id'], '/gamedata', function () use ($message): Response {
                 return $this->idempotent((string) $message['installation_id'], (string) $message['request_id'],
                     '/gamedata', $message, function () use ($message): array {
-                        $this->repository->acceptGameData($message);
+                        if($message['type']==='actor_profile')$this->materializeActorProfile($message);
+                        else$this->repository->acceptGameData($message);
                         return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
                             'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                             'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];
                     });
             });
+    }
+
+    /** Create and bind the NPC profile represented by one current-session OpenMW snapshot. */
+    private function materializeActorProfile(array $message):void
+    {
+        if($this->products===null||$this->morrowindVoices===null)
+            throw new ApiException(503,'provider_unavailable','Actor profiles unavailable.',true);
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        if(!hash_equals((string)$session['installation_id'],(string)$message['installation_id'])
+            ||!hash_equals((string)$session['playthrough_id'],(string)$message['playthrough_id']))
+            throw new ApiException(409,'stale_generation','The session generation is stale.',true);
+        $payload=(array)$message['payload'];$actor=(array)$payload['actor'];
+        $context=['targetState'=>['identity'=>['race'=>$payload['race'],'class'=>$payload['class'],
+            'gender'=>$payload['gender'],'is_male'=>$payload['gender']==='male'],
+            'stats'=>['level'=>$payload['level']],'disposition'=>$payload['disposition'],
+            'factions'=>array_map(static fn(string$faction):array=>['id'=>$faction],$payload['factions'])]];
+        $resolved=$this->morrowindVoices->resolve($actor,$context);
+        if($resolved!==null)$resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
+        $this->products->ensureMorrowindActorProfile([
+            'installation_id'=>$message['installation_id'],'profile_id'=>$session['profile_id'],
+            'playthrough_id'=>$message['playthrough_id'],'session_id'=>$message['session_id'],
+            'generation'=>$message['generation'],'payload'=>['target'=>$actor,'context'=>$context],
+        ],$resolved,(string)$message['observed_at']);
     }
 
     /** Ground topics locally first, then make one guarded connector fallback for unresolved explicit requests. */
@@ -370,6 +395,28 @@ final class Router
             'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
     }
 
+    /** Return at most one current-generation operator debug command. */
+    private function debugCommandQuery(Request $request):Response
+    {
+        $m=$this->json($request,'lorkhan.debug-command.query.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $command=$this->repository->claimDebugCommand($m);
+        return Response::json(200,['schema'=>'lorkhan.debug-command.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'session_id'=>$m['session_id'],'generation'=>$m['generation'],'command'=>$command]);
+    }
+
+    /** Accept the terminal observed result of one claimed operator debug command. */
+    private function debugCommandResult(Request $request):Response
+    {
+        $m=$this->json($request,'lorkhan.debug-command-result.v1');
+        $this->assertPrincipal($this->repository->sessionInstallation($m['session_id']));
+        $this->requireIdempotency($request,$m['message_id']);
+        $duplicate=$this->repository->completeDebugCommand($m);
+        return Response::json(200,['schema'=>'lorkhan.debug-command-result.accepted.v1','message_id'=>$m['message_id'],
+            'request_id'=>$m['request_id'],'command_id'=>$m['command_id'],'session_id'=>$m['session_id'],
+            'generation'=>$m['generation'],'status'=>$m['status'],'duplicate'=>$duplicate]);
+    }
+
     private function media(string $mediaId): Response
     {
         if (!$this->uuid($mediaId) || $this->mediaStore === null) throw new ApiException(404, 'media_unavailable', 'Media unavailable.');
@@ -430,7 +477,7 @@ final class Router
                     function()use($installation,$message,$session):array{
                         $actor=(array)$message['actor'];
                         $resolvedVoice=$this->morrowindVoices?->resolve($actor);
-                        if($resolvedVoice!==null&&$this->products!==null){
+                        if(($actor['kind']??null)!=='player'&&$resolvedVoice!==null&&$this->products!==null){
                             $resolvedVoice=$this->products->preferExactProviderActorVoice($installation,$actor,$resolvedVoice);
                             $this->products->ensureMorrowindActorProfile([
                                 'installation_id'=>$installation,'profile_id'=>$session['profile_id'],
@@ -439,20 +486,26 @@ final class Router
                             ],$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));
                         }
                         $preset=$this->products?->connectorForActor($installation,(string)$session['playthrough_id'],$actor,'tts_provider');
+                        if(($actor['kind']??null)==='player'&&$preset===null)
+                            throw new ApiException(503,'provider_unavailable','Player speech is disabled.',false);
                         $preset??=$this->products?->connectorForInstallation($installation,'tts_provider');
                         $provider=$preset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
                         if($provider===null)throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);
                         $context=$this->products?->speechContext($installation,(string)$session['playthrough_id'],$actor,$preset)??[];
+                        $pronunciationContext=$this->products?->ttsPronunciationContext($installation,
+                            (string)$session['playthrough_id'],$actor)??[];
+                        $ttsText=$this->products?->applyTtsPronunciation((string)$message['text'],$pronunciationContext)??(string)$message['text'];
                         $providerName=match(true){$provider instanceof \LORKHANserver\Application\PocketTtsSpeechProvider=>'pockettts',
                             $provider instanceof \LORKHANserver\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
+                            $provider instanceof \LORKHANserver\Application\CloudSpeechConnectorProvider=>'cloud-speech',
                             $provider instanceof \LORKHANserver\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
                         $attemptId=Uuid::v4();$mediaId=null;
                         $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
-                            (string)$message['request_id'],null,inputBytes:strlen((string)$message['text']),
+                            (string)$message['request_id'],null,inputBytes:strlen($ttsText),
                             metadata:['mode'=>'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
                                 'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
                         try{
-                            $generated=$provider->synthesize((string)$message['text'],new NeverCancelledToken(),$context);
+                            $generated=$provider->synthesize($ttsText,new NeverCancelledToken(),$context);
                             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
                             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),
                                 'codec'=>$generated['codec'],'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],

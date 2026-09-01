@@ -27,6 +27,7 @@ use LORKHANserver\Infrastructure\MigrationRunner;
 use LORKHANserver\Infrastructure\ProviderAttemptRepository;
 use LORKHANserver\Infrastructure\ProductRepository;
 use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\TtsPronunciationRepository;
 use LORKHANserver\Protocol\Validator;
 use LORKHANserver\Security\PairingToken;
 use LORKHANserver\Security\RequestMac;
@@ -69,6 +70,23 @@ $call = function (Router $target, string $method, string $path, array $headers =
 $assert = function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
 $headers = fn(string $key): array => $jsonAuth + ['Idempotency-Key' => $key];
 $newUuid = function (int $n): string { return sprintf('10000000-0000-4000-8000-%012d', $n); };
+$pronunciations=new TtsPronunciationRepository($db);
+$pronunciationRows=$pronunciations->rows();
+$builtinPronunciations=array_values(array_filter($pronunciationRows,static fn(array $row):bool=>in_array($row['is_builtin']??false,[true,1,'1','t'],true)));
+$assert(count($builtinPronunciations)>=40&&$pronunciations->apply('The Nerevarine returned to Vvardenfell under the Tribunal.')
+    ==='The Nerevareen returned to Vardenfell under the Trybyoonal.','joined Morrowind pronunciations were not seeded or applied');
+$assert($pronunciations->apply('Azura called Nerevar.')==='Azura called Nerevar.',
+    'Azura or Nerevar should not override the TTS engine pronunciation');
+$assert(array_reduce($builtinPronunciations,static fn(bool $clean,array $row):bool=>$clean&&!str_contains((string)($row['spoken_text']??''),'-'),true),
+    'built-in pronunciations must not contain pause-inducing hyphens');
+$customPronunciation=$pronunciations->saveCustom(null,'TestTerm','Spoken Test','','Dark Elf','sixth-house',true);
+$assert($pronunciations->apply('TestTerm')==='TestTerm','scoped pronunciation leaked into the global dictionary');
+$assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark Elf','oghma_tags'=>['sixth-house']]])==='Spoken Test',
+    'matching race and Oghma scopes did not apply the custom pronunciation');
+$pronunciations->setEnabled($customPronunciation,false);
+$assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark Elf','oghma_tags'=>['sixth-house']]])==='TestTerm',
+    'disabled pronunciation remained active');
+$pronunciations->deleteCustom($customPronunciation);
 $defaultInstallationId='00000000-0000-4000-8000-000000000099';
 $defaultVoicePath=sys_get_temp_dir().'/lorkhan-default-voices-'.bin2hex(random_bytes(8));
 mkdir($defaultVoicePath,0700,true);file_put_contents($defaultVoicePath.'/mw_dark_elf_male.wav','test');
@@ -273,6 +291,9 @@ $automaticContext=['targetState'=>['identity'=>['race'=>'Wood Elf','class'=>'Com
     'factions'=>[['id'=>'fighters guild','rank'=>1,'reputation'=>4],['id'=>'former guild','rank'=>-1,'reputation'=>0]]]];
 $automaticVoice=$morrowindVoices->resolve($automaticTarget,$automaticContext);
 $assert(($automaticVoice['id']??null)==='mw_wood_elf_male','Morrowind voice catalog did not resolve Wood Elf male');
+$dagothVoice=$morrowindVoices->resolve(['kind'=>'creature','record_id'=>'dagoth_ur_1'],[]);
+$assert(($dagothVoice['id']??null)==='dagoth_ur_1'&&($dagothVoice['source']??null)==='actor_catalog',
+    'Morrowind voice catalog did not resolve Dagoth Ur from his unique vanilla sample');
 $assert(($morrowindVoices->resolve(['kind'=>'actor','record_id'=>'fargoth'],
     ['targetState'=>['identity'=>['race'=>'','gender'=>'']]])['id']??null)==='mw_wood_elf_male',
     'known legacy NPC fallback was hidden by empty profile metadata');
@@ -531,6 +552,16 @@ $assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsP
 $profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
 $assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
     'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
+$playerContent=$playerProfile['content'];
+$playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
+$playerContent['voice']=['id'=>'MaleArgonian','language'=>'en-US'];
+$products->revise('profile',$playerProfile['profile_id'],$playerContent,'integration player TTS route',$now);
+$playerProfile=$products->playerProfileForInstallation($installationId);
+$playerSpeech=$products->connectorForActor($installationId,$session['playthrough_id'],$playerProfile['actor_identity'],'tts_provider');
+$playerSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$playerProfile['actor_identity'],$playerSpeech);
+$assert(($playerSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id']
+    &&$playerSpeechContext===['voice'=>'MaleArgonian','language'=>'en-US'],
+    'player profile did not supply its TTS connector and voice: '.json_encode($playerSpeechContext));
 
 $generateProfile=$selectProfile;$generateProfile['message_id']=$newUuid(12);$generateProfile['request_id']=$newUuid(13);
 $generateProfile['kind']='profile_generate';
@@ -560,6 +591,54 @@ $wrongNarrator=$generateNarrator;$wrongNarrator['message_id']=$newUuid(712);$wro
 $wrongNarrator['selection_id']=$actorProfile['profile_id'];
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($wrongNarrator['message_id']),[],$wrongNarrator);
 $assert($status===422,'in-game narrator generation accepted a non-narrator profile');
+
+$autoTarget=['kind'=>'npc','record_id'=>'auto_profile_sentinel','refnum'=>['index'=>852,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Balmora'],
+    'display_name'=>'Auto Profile Sentinel'];
+$autoProfileData=$fixture('gamedata-captured-dialogue');
+$autoProfileData['installation_id']=$installationId;$autoProfileData['playthrough_id']=$session['playthrough_id'];
+$autoProfileData['session_id']=$sessionId;$autoProfileData['generation']=7;$autoProfileData['runtime_generation']=7;
+$autoProfileData['request_id']=$newUuid(852);$autoProfileData['type']='actor_profile';
+$autoProfileData['payload']=['actor'=>$autoTarget,'race'=>'Wood Elf','class'=>'Commoner','gender'=>'male',
+    'level'=>1,'disposition'=>50,'factions'=>['fighters guild']];
+[$status,$autoAccepted]=$call($router,'POST',$base.'/gamedata',$headers($autoProfileData['request_id']),[],$autoProfileData);
+$autoControls=$controlsQuery;$autoControls['message_id']=$newUuid(853);$autoControls['request_id']=$newUuid(854);
+$autoControls['target']=$autoTarget;
+[$autoControlsStatus,$autoControlsBody]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$autoControls);
+$autoProfileId=$autoControlsBody['selected_profile_id']??null;
+$autoProfile=is_string($autoProfileId)?$products->getRevisioned('profile',$autoProfileId):null;
+$assert($status===202&&($autoAccepted['type']??null)==='actor_profile'&&$autoControlsStatus===200
+    &&is_array($autoProfile)&&strtolower((string)($autoProfile['content']['race']??''))==='wood elf'
+    &&($autoProfile['content']['gender']??null)==='Male'
+    &&($autoProfile['core_profile_id']??null)===$ruleCoreLow['core_profile_id'],
+    'auto-activated NPC did not create and bind its server profile: '.json_encode([
+        'status'=>$status,'body'=>$autoAccepted,'controls'=>$autoControlsBody,'profile'=>$autoProfile],JSON_UNESCAPED_SLASHES));
+[$duplicateAutoStatus]=$call($router,'POST',$base.'/gamedata',$headers($autoProfileData['request_id']),[],$autoProfileData);
+$autoProfileCount=$db->prepare("SELECT count(*) FROM profiles WHERE installation_id=:installation AND actor_identity->>'record_id'=:record");
+$autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarget['record_id']]);
+$assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
+    'replayed auto-activation created a duplicate NPC profile');
+
+$creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
+        'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',
+        'personality'=>'Offended by an Argonian Nerevarine.'],'change_reason'=>'fixture creature template'],gmdate('Y-m-d\TH:i:s\Z'));
+$creatureTarget=['kind'=>'creature','record_id'=>'dagoth_creature_sentinel','refnum'=>['index'=>855,'content_file'=>0],
+    'content_file'=>'Morrowind.esm','cell'=>['kind'=>'interior','name'=>'Dagoth Ur, Facility Cavern'],
+    'display_name'=>'Dagoth Creature Sentinel'];
+$creatureProfileData=$autoProfileData;$creatureProfileData['request_id']=$newUuid(855);
+$creatureProfileData['payload']=['actor'=>$creatureTarget,'race'=>'Creature','class'=>'','gender'=>'none',
+    'level'=>20,'disposition'=>0,'factions'=>[]];
+[$creatureStatus]=$call($router,'POST',$base.'/gamedata',$headers($creatureProfileData['request_id']),[],$creatureProfileData);
+$creatureControls=$controlsQuery;$creatureControls['message_id']=$newUuid(856);$creatureControls['request_id']=$newUuid(857);
+$creatureControls['target']=$creatureTarget;
+[$creatureControlsStatus,$creatureControlsBody]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$creatureControls);
+$creatureProfileId=$creatureControlsBody['selected_profile_id']??null;
+$creatureProfile=is_string($creatureProfileId)?$products->getRevisioned('profile',$creatureProfileId):null;
+$assert($creatureStatus===202&&$creatureControlsStatus===200&&is_array($creatureProfile)
+    &&($creatureProfile['content']['biography']??null)==='Exact creature template biography.'
+    &&($creatureProfile['content']['personality']??null)==='Offended by an Argonian Nerevarine.',
+    'auto-activated creature did not materialize its exact profile template');
 
 $turnMoodTemplates=\LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
@@ -2096,9 +2175,13 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
 $settingsService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
 $settingsService->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Global Settings','content'=>$settingsDocument]);
 $configuredSession=$session;$configuredSession['message_id']=$newUuid(304);$configuredSession['generation']=8;
+$db->prepare('UPDATE profiles SET deleted_at=clock_timestamp() WHERE profile_id=:profile')
+    ->execute(['profile'=>$configuredSession['profile_id']]);
 [$status,$configuredAccepted]=$call($router,'POST',$base.'/sessions',$headers($configuredSession['message_id']),[],$configuredSession);
+$restoredSessionProfile=$db->prepare('SELECT deleted_at IS NULL FROM profiles WHERE profile_id=:profile');
+$restoredSessionProfile->execute(['profile'=>$configuredSession['profile_id']]);
 $assert($status===201&&$configuredAccepted['config_revision']==='global-settings-r1'
-    &&$configuredAccepted['client_settings']==$settingsDocument,
+    &&$configuredAccepted['client_settings']==$settingsDocument&&filter_var($restoredSessionProfile->fetchColumn(),FILTER_VALIDATE_BOOL),
     'revisioned installation settings were not returned by the next OpenMW session handshake');
 $configuredDeleteKey=$newUuid(305);
 [$status,$configuredEnded]=$call($router,'DELETE',$base.'/sessions/'.$configuredAccepted['session_id'],['Idempotency-Key'=>$configuredDeleteKey]);
