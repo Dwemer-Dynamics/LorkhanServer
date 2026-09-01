@@ -1615,11 +1615,15 @@ $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
+// Keep every offline group speaker on the same route-free Core Profile so the injected mock TTS remains deterministic.
 $groupAfter=(int)$fallbackEvents['next_after'];
 foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+$groupCount*3);$bounded['request_id']=$newUuid(51+$groupCount*3);
     $bounded['turn_id']=$newUuid(52+$groupCount*3);$bounded['payload']['input']['text']='[group] Bounded report.';$bounded['payload']['audience']=[];
     for($i=1;$i<$groupCount;++$i){$actor=$bounded['payload']['target'];$actor['record_id']='bounded_'.$groupCount.'_'.$i;
-        $actor['display_name']='Bounded Actor '.$groupCount.'-'.$i;$actor['refnum']['index']=150+$groupCount*10+$i;$bounded['payload']['audience'][]=$actor;}
+        $actor['display_name']='Bounded Actor '.$groupCount.'-'.$i;$actor['refnum']['index']=150+$groupCount*10+$i;
+        $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+            $actor,$actorProfile['profile_id'],$now);
+        $bounded['payload']['audience'][]=$actor;}
     [$status]=$call($router,'POST',$base.'/turns',$headers($bounded['message_id']),[],$bounded);$assert($status===202,'bounded group acceptance failed');
     $boundedStats=$runTurnWorker(new MockProvider());$assert($boundedStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'bounded group worker failed');
     [$status,$boundedEvents]=$call($router,'GET',$base.'/events',[],[
@@ -1638,7 +1642,11 @@ foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+
 $groupTurn=$turn;$groupTurn['message_id']=$newUuid(60);$groupTurn['request_id']=$newUuid(61);$groupTurn['turn_id']=$newUuid(62);
 $groupTurn['payload']['input']['text']='[group] Report in.';
 $groupTurn['payload']['audience']=[];
-for($i=0;$i<3;++$i){$actor=$groupTurn['payload']['target'];$actor['record_id']='group_actor_'.($i+1);$actor['display_name']='Group Actor '.($i+1);$actor['refnum']['index']=200+$i;$groupTurn['payload']['audience'][]=$actor;}
+for($i=0;$i<3;++$i){$actor=$groupTurn['payload']['target'];$actor['record_id']='group_actor_'.($i+1);
+    $actor['display_name']='Group Actor '.($i+1);$actor['refnum']['index']=200+$i;
+    $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+        $actor,$actorProfile['profile_id'],$now);
+    $groupTurn['payload']['audience'][]=$actor;}
 [$status,$groupAccepted]=$call($router,'POST',$base.'/turns',$headers($groupTurn['message_id']),[],$groupTurn);
 $assert($status===202,'group turn acceptance failed');
 $groupWorker=$runTurnWorker(new MockProvider());
