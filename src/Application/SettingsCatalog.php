@@ -8,6 +8,7 @@ namespace LorkhanServer\Application;
 final class SettingsCatalog
 {
     public const CLIENT_SCHEMA = 'lorkhan.client-settings.v1';
+    public const GLOBAL_SCHEMA = 'lorkhan.global-settings.v2';
 
     private const CLIENT_DEFAULTS = [
         'schema' => self::CLIENT_SCHEMA,
@@ -50,6 +51,61 @@ final class SettingsCatalog
         'location_context_enabled' => true,
         'extractor_fallback_enabled' => false,
         'extractor_timeout_ms' => 1500,
+    ];
+
+    private const CONTEXT_SECTION_DEFAULTS = [
+        'player_narrator' => true,
+        'world' => true,
+        'people_present' => true,
+        'nearby_actors' => true,
+        'nearby_items' => true,
+        'points_of_interest' => true,
+        'record_descriptions' => true,
+        'oghma' => true,
+        'relationships' => true,
+        'memories' => true,
+        'narratives' => true,
+        'conversation_history' => true,
+        'recent_action_results' => true,
+    ];
+
+    private const CONTEXT_DETAIL_DEFAULTS = [
+        'npc_summary' => true,
+        'npc_personality' => true,
+        'npc_appearance' => true,
+        'npc_occupation' => true,
+        'npc_skills' => true,
+        'npc_speech_style' => true,
+        'npc_moods_goals' => true,
+        'npc_relationships_notes' => true,
+        'npc_race_gender' => true,
+        'npc_current_state' => true,
+        'npc_equipment_inventory' => true,
+        'npc_magic_effects' => false,
+        'nearby_actor_summary' => true,
+        'nearby_actor_personality' => true,
+        'nearby_actor_appearance' => true,
+        'nearby_actor_occupation' => true,
+        'nearby_actor_activity' => true,
+        'nearby_actor_equipment' => true,
+        'group_duplicate_items' => true,
+        'item_descriptions' => true,
+    ];
+
+    private const EVENT_TYPES = [
+        'inputtext', 'chat', 'chat_background', 'location', 'weather', 'death',
+        'infoaction', 'rechat', 'narration', 'quest', 'book',
+    ];
+
+    private const CORE_ROUTING_FIELDS = [
+        'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
+        'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
+        'llm_fallback_configuration_id', 'diary_generation_configuration_id',
+        'tts_configuration_id', 'llm_randomizer_enabled', 'llm_fallback_enabled',
+    ];
+
+    private const SYSTEM_ROUTING_FIELDS = [
+        'oghma_configuration_id', 'profile_generation_configuration_id', 'relationship_configuration_id',
     ];
 
     private const ROUTING_TYPES = [
@@ -111,6 +167,57 @@ final class SettingsCatalog
     public static function oghmaDefaults(): array
     {
         return self::OGHMA_DEFAULTS;
+    }
+
+    /** Return the server-owned Global Settings document used by management and prompt assembly. */
+    public static function globalDefaults(): array
+    {
+        return [
+            'schema' => self::GLOBAL_SCHEMA,
+            'client' => self::CLIENT_DEFAULTS,
+            'profile_management' => ['auto_lock_profile' => true],
+            'translation' => TranslationPolicy::defaults(),
+            'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
+            'context' => [
+                'sections' => self::CONTEXT_SECTION_DEFAULTS,
+                'details' => self::CONTEXT_DETAIL_DEFAULTS,
+                'event_types' => self::EVENT_TYPES,
+                'location_blacklist' => [],
+                'item_blacklist' => [],
+                'magic_effects_blacklist' => [],
+            ],
+            'relationship' => ['enabled' => false, 'update_chance_percent' => 0],
+            'system_routing' => [
+                'oghma_configuration_id' => '',
+                'profile_generation_configuration_id' => '',
+                'relationship_configuration_id' => '',
+            ],
+        ];
+    }
+
+    public static function contextSectionDefaults(): array
+    {
+        return self::CONTEXT_SECTION_DEFAULTS;
+    }
+
+    public static function contextDetailDefaults(): array
+    {
+        return self::CONTEXT_DETAIL_DEFAULTS;
+    }
+
+    public static function eventTypes(): array
+    {
+        return self::EVENT_TYPES;
+    }
+
+    public static function coreRoutingFields(): array
+    {
+        return self::CORE_ROUTING_FIELDS;
+    }
+
+    public static function systemRoutingFields(): array
+    {
+        return self::SYSTEM_ROUTING_FIELDS;
     }
 
     public static function routingTypes(): array

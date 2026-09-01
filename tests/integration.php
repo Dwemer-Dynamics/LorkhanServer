@@ -106,12 +106,17 @@ $assert($defaultModels===[
     'new installation did not receive the pinned CHIM LLM connector set: '.json_encode($defaultModels));
 $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($defaultInstallationId);
 $defaultRouting=$defaultCore['content']['routing']??[];
+$defaultGlobal=(new ProductRepository($db))->globalSettingsForInstallation($defaultInstallationId);
+$defaultSystemRouting=$defaultGlobal['content']['system_routing']??[];
 $assert(count(array_filter($defaultRouting,static fn(mixed$value,string$key):bool=>str_starts_with($key,'llm_')
     &&str_ends_with($key,'_configuration_id'),ARRAY_FILTER_USE_BOTH))===4
     &&!array_key_exists('llm_fallback_configuration_id',$defaultRouting)
     &&isset($defaultRouting['tts_configuration_id'],$defaultRouting['prompt_configuration_id'])
-    &&($defaultRouting['oghma_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null),
-    'new installation Core Profile routing did not match CHIM slots');
+    &&!isset($defaultRouting['oghma_configuration_id'],$defaultRouting['profile_generation_configuration_id'],$defaultRouting['relationship_configuration_id'])
+    &&($defaultSystemRouting['oghma_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
+    &&($defaultSystemRouting['profile_generation_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null)
+    &&($defaultSystemRouting['relationship_configuration_id']??null)===($defaultRouting['llm_fast_configuration_id']??null),
+    'new installation routing was not split between Core Profiles and Global Settings');
 $defaultPrompt=$db->prepare("SELECT p.prompt_key,p.default_prompt,p.custom_prompt,p.description FROM prompts p WHERE p.installation_id=:installation AND p.prompt_key='roleplay_dialogue'");
 $defaultPrompt->execute(['installation'=>$defaultInstallationId]);$defaultPromptRow=$defaultPrompt->fetch();
 $assert($defaultPromptRow&&$defaultPromptRow['custom_prompt']===null
@@ -177,7 +182,7 @@ $assert($status === 201 && $accepted['generation'] === 7
         'action.ai.stop', 'action.ai.approach', 'action.ai.wait', 'action.ai.travel', 'action.ai.escort', 'action.ai.face', 'action.ai.wander',
         'action.combat.start', 'action.combat.stop', 'action.animation.play', 'action.item.equip', 'action.item.unequip', 'action.item.use',
         'action.inventory.inspect']
-    &&$accepted['config_revision']==='global-settings-default-v1'
+    &&$accepted['config_revision']==='global-settings-r1'
     &&($accepted['client_settings']['schema']??null)==='lorkhan.client-settings.v1'
     &&($accepted['client_settings']['behavior']['rechat']??null)===false, 'session create failed');
 $sessionId = $accepted['session_id'];
@@ -202,10 +207,14 @@ $fastModelSlot=$products->createRevisioned('provider',['installation_id'=>$insta
     'content'=>['driver'=>'mock','model'=>'deterministic-fast-v1','mock_prefix'=>'[fast] ']],$now);
 $fallbackModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Profile fallback mock',
     'content'=>['driver'=>'mock','model'=>'deterministic-fallback-v1','mock_prefix'=>'[fallback] ']],$now);
-$actorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fargoth scholar',
-    'actor_identity'=>['record_id'=>'fargoth'],'content'=>['persona'=>'A cautious Dwemer scholar.',
+$actorCoreProfile=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Integration Actor',
+    'default_npc'=>false,'slot'=>null,'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'',
         'routing'=>['llm_configuration_id'=>$profileModelSlot['configuration_id'],
-            'llm_fast_configuration_id'=>$modelSlot['configuration_id'],'llm_powerful_configuration_id'=>'']]],$now);
+            'llm_fast_configuration_id'=>$modelSlot['configuration_id'],'llm_powerful_configuration_id'=>''],
+        'settings_overrides'=>[]]],$now);
+$actorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fargoth scholar',
+    'actor_identity'=>['record_id'=>'fargoth'],'core_profile_id'=>$actorCoreProfile['core_profile_id'],
+    'content'=>['persona'=>'A cautious Dwemer scholar.']],$now);
 $profileTtsPreset=$products->createRevisioned('tts_provider',['installation_id'=>$installationId,'name'=>'Profile-routed speech',
     'content'=>['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8086','model'=>'tts-1','voice'=>'default',
         'language'=>'en','timeout_ms'=>30000,'options'=>['fallback_female'=>'fallback_female_voice']]],$now);
@@ -423,14 +432,18 @@ $assert($backfilled['updated']>=1&&($automaticProfile['content']['voice']['id']?
 $assert(($fargothProfile['content']['voice']['id']??null)==='fargoth'
     &&($fargothProfile['content']['voice']['source']??null)==='morrowind_actor_provider_catalog',
     'voice backfill did not upgrade the current Fargoth profile to its exact provider sample');
+$actorProfile=$fargothProfile;
 $automaticSpeech=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$profileTtsPreset);
 $assert($automaticSpeech===['voice'=>'mw_wood_elf_male','language'=>'en'],
     'catalog voice was not selected when the routed connector contained it');
 $db->prepare("DELETE FROM installation_provider_selections WHERE installation_id=:installation AND provider_kind='tts_provider'")
     ->execute(['installation'=>$installationId]);
+$speechCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Integration Speech',
+    'default_npc'=>false,'slot'=>null,'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'',
+        'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']],'settings_overrides'=>[]]],$now);
 $speechProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Jiub speech route',
-    'actor_identity'=>['record_id'=>'jiub'],'content'=>['gender'=>'Female','race'=>'Dunmer',
-        'routing'=>['tts_configuration_id'=>$profileTtsPreset['configuration_id']]]],$now);
+    'actor_identity'=>['record_id'=>'jiub'],'core_profile_id'=>$speechCore['core_profile_id'],
+    'content'=>['gender'=>'Female','race'=>'Dunmer']],$now);
 $narratorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'The Test Narrator',
     'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN'],
     'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','speech_style'=>'Measured narration.']],$now);
@@ -482,7 +495,7 @@ $turnLike=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installa
     'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$controlsQuery['target']]];
 $explicitContext=$products->providerContext($turnLike);
 $assert(($explicitContext['configuration_id']??null)===$modelSlot['configuration_id'],
-    'Fast model selection did not resolve through the NPC profile');
+    'Fast model selection did not resolve through the assigned Core Profile');
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'powerful',$now);
 $missingSlotContext=$products->providerContext($turnLike);$missingSlotControls=$products->sessionControls($session,$controlsQuery['target']);
 $assert(($missingSlotContext['configuration_id']??null)===$profileModelSlot['configuration_id']
@@ -494,10 +507,10 @@ $clearModel=$selectModel;$clearModel['message_id']=$newUuid(706);$clearModel['re
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($clearModel['message_id']),[],$clearModel);
 $profileContext=$products->providerContext($turnLike);
 $assert($status===200&&($profileContext['configuration_id']??null)===$profileModelSlot['configuration_id'],
-    'NPC profile did not supply its primary LLM model slot');
+    'assigned Core Profile did not supply its primary LLM model slot');
 $coreModelSlot=$products->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Core-profile mock',
     'content'=>['driver'=>'mock','model'=>'deterministic-core-v1','mock_prefix'=>'[core] ']],$now);
-$coreProfile=$products->defaultCoreProfileForInstallation($installationId);
+$coreProfile=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],[
     'schema'=>'lorkhan.core-profile.v1','prompt'=>'CORE PROFILE INSTRUCTION SENTINEL',
     'routing'=>['llm_configuration_id'=>$coreModelSlot['configuration_id']],
@@ -512,7 +525,7 @@ $effectiveControlsQuery=$controlsQuery;$effectiveControlsQuery['message_id']=$ne
 [$effectiveControlsStatus,$effectiveControls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$effectiveControlsQuery);
 $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configuration_id']
     &&$effectiveSettings['settings']['behavior']['rechat']===true
-    &&$effectiveSettings['settings']['memory']['knowledge_limit']===0
+    &&$effectiveSettings['settings']['memory']['knowledge_limit']===5
     &&($effectiveSettings['sources']['settings.behavior.rechat']??null)==='core_profile'
     &&$effectiveControlsStatus===200
     &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
@@ -520,35 +533,35 @@ $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configur
     &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===5
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat']??null)===true
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat_probability_percent']??null)===0
-    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===false
+    &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===true
     &&!array_key_exists('settings.memory.knowledge_limit',$effectiveControls['effective_settings']['source_map']??[]),
-    'Core Profile routing and typed setting overrides did not reach runtime resolution');
+    'Core Profile response routing and explicit profile settings did not reach runtime resolution');
 $coreContent=$coreProfile['content'];$coreContent['settings_overrides']['behavior']=['rechat'=>true];
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$coreContent,'restore rechat fixture probability',$now);
 $maskedContent=$actorProfile['content'];$maskedContent['routing']=['llm_configuration_id'=>''];
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$maskedContent,'explicit NPC route disable',$now);
-$assert($products->providerContext($turnLike)===null,
-    'explicit empty NPC routing did not mask the inherited Core Profile connector');
-$randomizedContent=$actorProfile['content'];$randomizedContent['routing']=[
+$assert(($products->providerContext($turnLike)['configuration_id']??null)===$coreModelSlot['configuration_id'],
+    'legacy NPC routing unexpectedly masked the assigned Core Profile connector');
+$randomizedContent=$coreProfile['content'];$randomizedContent['routing']=[
     'llm_configuration_id'=>$profileModelSlot['configuration_id'],
     'llm_fast_configuration_id'=>$fastModelSlot['configuration_id'],
     'llm_randomizer_enabled'=>true,
 ];
-$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$randomizedContent,'integration LLM routing',$now);
+$coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$randomizedContent,'integration LLM routing',$now);
 $randomizedSelections=[];
 for($i=720;$i<752;$i++){$candidate=$turnLike;$candidate['turn_id']=$newUuid($i);
     $context=$products->providerContext($candidate);$randomizedSelections[$context['configuration_id']??'']=true;}
 $assert(isset($randomizedSelections[$profileModelSlot['configuration_id']],$randomizedSelections[$fastModelSlot['configuration_id']])
-    &&count($randomizedSelections)===2,'profile LLM randomizer did not use every configured general-purpose slot');
-$manualContent=$actorProfile['content'];$manualContent['routing']['llm_randomizer_enabled']=false;
-$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$manualContent,'restore manual LLM slot selection',$now);
+    &&count($randomizedSelections)===2,'Core Profile LLM randomizer did not use every configured general-purpose slot');
+$manualContent=$coreProfile['content'];$manualContent['routing']['llm_randomizer_enabled']=false;
+$coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$manualContent,'restore manual LLM slot selection',$now);
 $restoreModel=$selectModel;$restoreModel['message_id']=$newUuid(708);$restoreModel['request_id']=$newUuid(709);
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($restoreModel['message_id']),[],$restoreModel);
 $speechTarget=$controlsQuery['target'];$speechTarget['record_id']='jiub';$speechTarget['display_name']='Jiub';$speechTarget['refnum']['index']=99;
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],$speechTarget,$speechProfile['profile_id'],$now);
 $profileSpeech=$products->connectorForActor($installationId,$session['playthrough_id'],$speechTarget,'tts_provider');
 $assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id'],
-    'NPC profile did not supply its TTS connector');
+    'assigned Core Profile did not supply its TTS connector');
 $profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
 $assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
     'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
@@ -644,11 +657,14 @@ $turnMoodTemplates=\LorkhanServer\Application\PlayerMoodPolicy::defaultTemplates
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
     'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
-$turnProfileContent=$actorProfile['content'];$turnProfileContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
+$turnProfileContent=$actorProfile['content'];
 $turnProfileContent['prompt_head']='NPC PROMPT HEAD SENTINEL';
 $turnProfileContent['core']='NPC CORE IDENTITY SENTINEL';
 $turnProfileContent['emote_moods']='NPC EMOTE MOODS SENTINEL';
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$turnProfileContent,'route integration mood prompt',$now);
+$turnCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);
+$turnCoreContent=$turnCore['content'];$turnCoreContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
+$coreProfile=$products->revise('core_profile',$turnCore['core_profile_id'],$turnCoreContent,'route integration mood prompt',$now);
 $captured=$fixture('gamedata-captured-dialogue');
 $captured['installation_id']=$installationId;$captured['playthrough_id']=$session['playthrough_id'];
 $captured['session_id']=$sessionId;$captured['generation']=7;$captured['runtime_generation']=7;
@@ -749,7 +765,7 @@ $assert($status === 422, 'oversized event wait accepted');
 [$status, $events] = $call($router, 'GET', $base . '/events', [], [
     'session_id' => $sessionId, 'generation' => '7', 'after' => '0', 'wait_ms' => '15000']);
 $assert($status === 200 && array_column($events['events'], 'type') === ['turn.accepted','response.complete','dialogue.complete',
-    'action.intent','turn.complete','speech.ready'], 'event order failed');
+    'action.intent','turn.complete','speech.ready'], 'event order failed: '.json_encode(array_column($events['events'],'type')));
 $canonicalStatement=$db->prepare('SELECT response_id,response_payload,runtime_generation FROM turns WHERE turn_id=:turn');
 $canonicalStatement->execute(['turn'=>$turn['turn_id']]);$canonicalRow=$canonicalStatement->fetch();
 $canonicalResponse=json_decode((string)$canonicalRow['response_payload'],true,64,JSON_THROW_ON_ERROR);
@@ -829,11 +845,12 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
 $db->beginTransaction();
 $relationships=new \LorkhanServer\Infrastructure\RelationshipEvaluationRepository($db);
 $assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
-$relationshipContent=$actorProfile['content'];
-$relationshipContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
-$relationshipContent['settings_overrides']['relationship']=['update_chance_percent'=>100,'locked'=>false];
-$relationshipContent['management']['locked']=true;
-$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'enable relationship test',$now);
+$relationshipGlobal=$products->globalSettingsForInstallation($installationId);
+$relationshipContent=$relationshipGlobal['content'];
+$relationshipContent['relationship']=['enabled'=>true,'update_chance_percent'=>100];
+$relationshipContent['system_routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$relationshipGlobal=$products->revise('global_settings',$relationshipGlobal['configuration_id'],$relationshipContent,
+    'enable relationship test',$now);
 $relationshipJob=$relationships->enqueue($delivery['message_id']);
 $assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
 $relationshipProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
@@ -861,7 +878,7 @@ $relationshipStats=$relationshipWorker();
 $relationshipReceipt=$db->query('SELECT * FROM relationship_evaluation_results')->fetch();
 $assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
     &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
-    'played relationship worker did not persist one bounded result despite independent profile lock');
+    'played relationship worker did not persist one bounded result under the global policy');
 $assert($products->relationships(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
     'playthrough_id'=>$session['playthrough_id']])[0]['relationship_type']==='neutral',
     'low-affinity romantic proposal changed type or blocked safe score deltas');
@@ -880,17 +897,18 @@ try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/0
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
     'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
-$relationshipContent['settings_overrides']['relationship']['locked']=true;
-$products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock queued relationship',$now);
+$disabledRelationshipContent=$relationshipContent;$disabledRelationshipContent['relationship']['enabled']=false;
+$products->revise('global_settings',$relationshipGlobal['configuration_id'],$disabledRelationshipContent,'disable queued relationship',$now);
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1,
-    'relationship lock failed to cancel queued provider work');
+    'global relationship disable failed to cancel queued provider work');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
-$relationshipProvider->during=static function()use($products,$actorProfile,$relationshipContent,$now):void{
-    $products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'lock during provider call',$now);
+$relationshipProvider->during=static function()use($products,$relationshipGlobal,$disabledRelationshipContent,$now):void{
+    $products->revise('global_settings',$relationshipGlobal['configuration_id'],$disabledRelationshipContent,
+        'disable during provider call',$now);
 };
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===2
     &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
-    'late relationship output survived a profile policy revision');
+    'late relationship output survived a Global Settings policy revision');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
 $relationshipProvider->during=static function()use($products,$actorProfile,$installationId,$session,$turn,$now):void{
     $record=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
@@ -914,10 +932,10 @@ $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===3
 $db->rollBack();
 // A manual build spans recent history, works offline at chance zero, and applies one atomic score set.
 $db->beginTransaction();
-$historyContent=$actorProfile['content'];$historyContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
-$historyContent['settings_overrides']['relationship']=['update_chance_percent'=>0,'locked'=>false];
-$historyContent['management']['locked']=true;
-$products->revise('profile',$actorProfile['profile_id'],$historyContent,'manual history fixture',$now);
+$historyGlobal=$products->globalSettingsForInstallation($installationId);$historyContent=$historyGlobal['content'];
+$historyContent['relationship']=['enabled'=>true,'update_chance_percent'=>0];
+$historyContent['system_routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
+$products->revise('global_settings',$historyGlobal['configuration_id'],$historyContent,'manual history fixture',$now);
 $historyTurn=$turn;$historyTurn['message_id']=$newUuid(5700);$historyTurn['turn_id']=$newUuid(5701);$historyTurn['request_id']=$newUuid(5702);
 $historyTurn['payload']['speaker']=$speechTarget;$historyTurn['payload']['input']['text']='Thank you for keeping your promise.';
 [$historyStatus]=$call($router,'POST',$base.'/turns',$headers($historyTurn['message_id']),[],$historyTurn);
@@ -1036,6 +1054,13 @@ $conversionContent=['relationships'=>$conversionText,
     'management'=>['locked'=>true]];
 $conversionOwner=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Conversion Owner',
     'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
+$otherConversionOwners=$db->prepare('SELECT p.profile_id,r.content FROM profiles p JOIN profile_revisions r '
+    .'ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation '
+    .'AND p.profile_id<>:owner AND p.deleted_at IS NULL');
+$otherConversionOwners->execute(['installation'=>$installationId,'owner'=>$conversionOwner['profile_id']]);
+foreach($otherConversionOwners->fetchAll()as$otherOwner){$otherContent=json_decode($otherOwner['content'],true,64,JSON_THROW_ON_ERROR);
+    if(trim((string)($otherContent['relationships']??''))==='')continue;unset($otherContent['relationships']);
+    $products->revise('profile',$otherOwner['profile_id'],$otherContent,'isolate relationship conversion fixture',$now);}
 $conversionScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
 $conversionRecordScope=$conversionScope+['profile_id'=>$conversionOwner['profile_id']];
 $conversions=new \LorkhanServer\Infrastructure\RelationshipConversionRepository($db);
@@ -1424,9 +1449,9 @@ $rechatHistoryText=json_encode(array_column($rechatHistory,'content'),JSON_THROW
 $assert(str_contains($rechatHistoryText,'SHARED CONVERSATION SENTINEL')
     &&!str_contains($rechatHistoryText,'Please follow me.'),
     'rechat history bypassed the original conversation audience');
-$limitedProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
-$limitedContent=$limitedProfile['content'];$limitedContent['settings_overrides']['memory']['recent_turn_limit']=1;
-$products->revise('profile',$actorProfile['profile_id'],$limitedContent,'test recent-turn limit',$memoryNow);
+$limitedCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);
+$limitedContent=$limitedCore['content'];$limitedContent['settings_overrides']['memory']['recent_turn_limit']=1;
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$limitedContent,'test recent-turn limit',$memoryNow);
 $limitedHistory=$products->promptContext($memoryProbe,$memoryNow)['history'];
 $limitedTurns=array_values(array_unique(array_column(array_column($limitedHistory,'content'),'turn_id')));
 $assert($limitedTurns===[$sharedTurn]&&count($limitedHistory)===2,
@@ -1554,10 +1579,12 @@ $assert($failedResponse['schema']==='lorkhan.response.v1'&&$failedResponse['ok']
 // A profile fallback is frozen with the accepted turn and is attempted once after the default provider fails.
 $fallbackTarget=$controlsQuery['target'];$fallbackTarget['record_id']='fallback_actor';$fallbackTarget['display_name']='Fallback Actor';
 $fallbackTarget['refnum']['index']=733;
-$fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback-only actor',
-    'actor_identity'=>['record_id'=>'fallback_actor'],'content'=>['routing'=>[
+$fallbackCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Fallback Core',
+    'default_npc'=>false,'slot'=>null,'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[
         'llm_configuration_id'=>'','llm_fallback_configuration_id'=>$fallbackModelSlot['configuration_id'],
-        'llm_fallback_enabled'=>true]]],$now);
+        'llm_fallback_enabled'=>true],'settings_overrides'=>[]]],$now);
+$fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fallback-only actor',
+    'actor_identity'=>['record_id'=>'fallback_actor'],'core_profile_id'=>$fallbackCore['core_profile_id'],'content'=>[]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $fallbackTarget,$fallbackProfile['profile_id'],$now);
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'standard',$now);
@@ -1572,10 +1599,10 @@ $fallbackSnapshotStatement->execute(['turn'=>$fallbackTurn['turn_id']]);
 $fallbackSnapshot=json_decode((string)$fallbackSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $assert($status===202&&!isset($fallbackSnapshot['message']['_provider_configuration'])
     &&($fallbackSnapshot['message']['_fallback_provider_configuration']['configuration_id']??null)===$fallbackModelSlot['configuration_id'],
-    'accepted turn did not freeze the profile fallback connector');
+    'accepted turn did not freeze the Core Profile fallback connector');
 $fallbackWorkerStats=$runTurnWorker($failingProvider);
 $assert($fallbackWorkerStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
-    'explicit profile fallback did not complete the durable turn');
+    'explicit Core Profile fallback did not complete the durable turn');
 [$status,$fallbackEvents]=$call($router,'GET',$base.'/events',[],[
     'session_id'=>$sessionId,'generation'=>'7','after'=>(string)$failedEvents['next_after']]);
 $fallbackTypes=array_column($fallbackEvents['events'],'type');
@@ -1588,11 +1615,15 @@ $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'
 $products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
+// Keep every offline group speaker on the same route-free Core Profile so the injected mock TTS remains deterministic.
 $groupAfter=(int)$fallbackEvents['next_after'];
 foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+$groupCount*3);$bounded['request_id']=$newUuid(51+$groupCount*3);
     $bounded['turn_id']=$newUuid(52+$groupCount*3);$bounded['payload']['input']['text']='[group] Bounded report.';$bounded['payload']['audience']=[];
     for($i=1;$i<$groupCount;++$i){$actor=$bounded['payload']['target'];$actor['record_id']='bounded_'.$groupCount.'_'.$i;
-        $actor['display_name']='Bounded Actor '.$groupCount.'-'.$i;$actor['refnum']['index']=150+$groupCount*10+$i;$bounded['payload']['audience'][]=$actor;}
+        $actor['display_name']='Bounded Actor '.$groupCount.'-'.$i;$actor['refnum']['index']=150+$groupCount*10+$i;
+        $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+            $actor,$actorProfile['profile_id'],$now);
+        $bounded['payload']['audience'][]=$actor;}
     [$status]=$call($router,'POST',$base.'/turns',$headers($bounded['message_id']),[],$bounded);$assert($status===202,'bounded group acceptance failed');
     $boundedStats=$runTurnWorker(new MockProvider());$assert($boundedStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],'bounded group worker failed');
     [$status,$boundedEvents]=$call($router,'GET',$base.'/events',[],[
@@ -1611,7 +1642,11 @@ foreach([2,3] as $groupCount){$bounded=$turn;$bounded['message_id']=$newUuid(50+
 $groupTurn=$turn;$groupTurn['message_id']=$newUuid(60);$groupTurn['request_id']=$newUuid(61);$groupTurn['turn_id']=$newUuid(62);
 $groupTurn['payload']['input']['text']='[group] Report in.';
 $groupTurn['payload']['audience']=[];
-for($i=0;$i<3;++$i){$actor=$groupTurn['payload']['target'];$actor['record_id']='group_actor_'.($i+1);$actor['display_name']='Group Actor '.($i+1);$actor['refnum']['index']=200+$i;$groupTurn['payload']['audience'][]=$actor;}
+for($i=0;$i<3;++$i){$actor=$groupTurn['payload']['target'];$actor['record_id']='group_actor_'.($i+1);
+    $actor['display_name']='Group Actor '.($i+1);$actor['refnum']['index']=200+$i;
+    $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+        $actor,$actorProfile['profile_id'],$now);
+    $groupTurn['payload']['audience'][]=$actor;}
 [$status,$groupAccepted]=$call($router,'POST',$base.'/turns',$headers($groupTurn['message_id']),[],$groupTurn);
 $assert($status===202,'group turn acceptance failed');
 $groupWorker=$runTurnWorker(new MockProvider());
@@ -1834,6 +1869,10 @@ $rechatTurn['payload']['context']['rechat']=['speaker'=>$dialogueEvent['payload'
 $speakerIdentity=$dialogueEvent['payload']['speaker'];
 $thirdTarget=$secondaryTarget;$thirdTarget['record_id']='vivec_guard';$thirdTarget['display_name']='Vivec Guard';
 $thirdTarget['kind']='npc';$thirdTarget['refnum']['index']=114;
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $secondaryTarget,$actorProfile['profile_id'],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $thirdTarget,$actorProfile['profile_id'],$now);
 $participantRow=static fn(array $identity,string $state):array=>['identity'=>$identity,'state'=>$state];
 $resolveRechatError=static function(array $message)use($rechatCoordinator):string{
     try{$rechatCoordinator->resolve($message);return '';}
@@ -1896,9 +1935,13 @@ $assert(!array_key_exists('participant_states',$legacyResolved['payload']['conte
 
 $disabledTarget=$thirdTarget;$disabledTarget['record_id']='disabled_rechat_actor';
 $disabledTarget['display_name']='Disabled Rechat Actor';$disabledTarget['refnum']['index']=115;
+$disabledCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,
+    'name'=>'Disabled rechat Core Profile','default_npc'=>false,'slot'=>null,
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],
+        'settings_overrides'=>['behavior'=>['rechat'=>false]]]],$now);
 $disabledProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
     'name'=>'Disabled rechat actor','actor_identity'=>['record_id'=>'disabled_rechat_actor'],
-    'content'=>['settings_overrides'=>['behavior'=>['rechat'=>false]]]],$now);
+    'core_profile_id'=>$disabledCore['core_profile_id'],'content'=>[]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $disabledTarget,$disabledProfile['profile_id'],$now);
 $disabledProbe=$rechatTurn;$disabledProbe['payload']['audience']=[$speakerIdentity,$disabledTarget];
@@ -1968,10 +2011,6 @@ $cooldownRechat['payload']['context']['rechat']['chain_id']=$newUuid(839);
 $assert($status===409&&($cooldownError['code']??null)==='rechat_cooldown',
     'closed rechat chain did not enforce the Herika end-conversation cooldown');
 
-$oghmaActorProfile=$products->getRevisioned('profile',$actorProfile['profile_id']);
-$oghmaActorContent=is_array($oghmaActorProfile['content']??null)?$oghmaActorProfile['content']:[];
-$oghmaActorContent['settings_overrides']['memory']['knowledge_limit']=6;
-$products->revise('profile',$actorProfile['profile_id'],$oghmaActorContent,'enable Oghma integration knowledge budget',$now);
 foreach([
     ['topic'=>'sixth_house','aliases'=>'House Dagoth','content'=>'The Sixth House is the hidden House Dagoth.'],
     ['topic'=>'vivec','aliases'=>'Warrior-Poet','content'=>'Vivec is one of the living gods of the Tribunal.'],
@@ -1981,8 +2020,11 @@ foreach([
     'aliases'=>$oghmaRow['aliases'],'topic_desc_basic'=>$oghmaRow['content'],'knowledge_class'=>'',
     'knowledge_class_basic'=>'','tags'=>'','category'=>'lore',
 ],preg_split('/[^a-z0-9]+/',strtolower($oghmaRow['topic']))?:[],$now);
-$products->setOghmaSettings($installationId,['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>false,
-    'location_context_enabled'=>false,'topic_count'=>2,'extractor_enabled'=>true],$now);
+$oghmaGlobal=$products->globalSettingsForInstallation($installationId);$oghmaGlobalContent=$oghmaGlobal['content'];
+$oghmaGlobalContent['oghma']=array_replace($oghmaGlobalContent['oghma'],['enabled'=>true,'knowledge_tags'=>'',
+    'racial_context_enabled'=>false,'location_context_enabled'=>false,'topic_count'=>2,
+    'extractor_fallback_enabled'=>true,'extractor_enabled'=>true]);
+$products->revise('global_settings',$oghmaGlobal['configuration_id'],$oghmaGlobalContent,'enable Oghma integration',$now);
 $oghmaTurn=$turn;$oghmaTurn['message_id']=$newUuid(840);$oghmaTurn['request_id']=$newUuid(841);$oghmaTurn['turn_id']=$newUuid(842);
 $oghmaTurn['payload']['input']['text']='Tell me about House Dagoth and Vivec.';
 [$status,$oghmaAccepted]=$call($router,'POST',$base.'/turns',$headers($oghmaTurn['message_id']),[],$oghmaTurn);
@@ -2178,15 +2220,19 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
         'welcome_events'=>true,'random_events'=>false,'quest_events'=>true,'book_events'=>true],
     'presentation'=>['show_status_hud'=>true,'transcript_rows'=>10,'tts_volume_boost'=>4],
     'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>true]];
-$settingsService=new ProductService($products,new DeterministicClock(new \DateTimeImmutable($now)));
-$settingsService->createRevisioned('global_settings',['installation_id'=>$installationId,'name'=>'Global Settings','content'=>$settingsDocument]);
+$settingsGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
+$settingsGlobal['client']=$settingsDocument;
+$existingGlobal=$products->globalSettingsForInstallation($installationId);
+$configuredGlobal=$products->revise('global_settings',$existingGlobal['configuration_id'],$settingsGlobal,
+    'integration session settings',$now);
+$configuredRevision='global-settings-r'.$configuredGlobal['current_revision'];
 $configuredSession=$session;$configuredSession['message_id']=$newUuid(304);$configuredSession['generation']=8;
 $db->prepare('UPDATE profiles SET deleted_at=clock_timestamp() WHERE profile_id=:profile')
     ->execute(['profile'=>$configuredSession['profile_id']]);
 [$status,$configuredAccepted]=$call($router,'POST',$base.'/sessions',$headers($configuredSession['message_id']),[],$configuredSession);
 $restoredSessionProfile=$db->prepare('SELECT deleted_at IS NULL FROM profiles WHERE profile_id=:profile');
 $restoredSessionProfile->execute(['profile'=>$configuredSession['profile_id']]);
-$assert($status===201&&$configuredAccepted['config_revision']==='global-settings-r1'
+$assert($status===201&&$configuredAccepted['config_revision']===$configuredRevision
     &&$configuredAccepted['client_settings']==$settingsDocument&&filter_var($restoredSessionProfile->fetchColumn(),FILTER_VALIDATE_BOOL),
     'revisioned installation settings were not returned by the next OpenMW session handshake');
 $configuredDeleteKey=$newUuid(305);

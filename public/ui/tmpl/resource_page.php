@@ -129,7 +129,7 @@ $forms = match ($view) {
         ],
     ]] : [],
     'characters' => [[
-        'route' => 'profile-create', 'legend' => 'Add LORKHAN NPC', 'hidden'=>['management_fields'=>'1','llm_routing_fields'=>'1'],
+        'route' => 'profile-create', 'legend' => 'Add LORKHAN NPC', 'hidden'=>['management_fields'=>'1'],
         'fields' => [
             ['installation_id', 'Installation', 'select', '', $installationOptions],
             ['name', 'NPC name'], ['record_id', 'Morrowind record ID', 'text', '', [], false],
@@ -148,16 +148,6 @@ $forms = match ($view) {
             ['goals', 'Goals', 'textarea', '', [], false],
             ['relationships', 'Relationships', 'textarea', '', [], false],
             ['emote_moods', 'Allowed moods and emotes', 'text', '', [], false],
-            ['prompt_configuration_id', 'Dialogue prompt', 'select', '', $promptRoutingOptions],
-            ['llm_configuration_id', 'Standard LLM', 'select', '', $llmRoutingOptions],
-            ['llm_fast_configuration_id', 'Fast LLM', 'select', '', $llmRoutingOptions],
-            ['llm_powerful_configuration_id', 'Powerful LLM', 'select', '', $llmRoutingOptions],
-            ['llm_experimental_configuration_id', 'Experimental LLM', 'select', '', $llmRoutingOptions],
-            ['llm_randomizer_enabled', 'LLM randomizer', 'checkbox', '1', [], false],
-            ['llm_fallback_configuration_id', 'Fallback LLM', 'select', '', $llmRoutingOptions],
-            ['oghma_configuration_id', 'Oghma Extractor', 'select', '', $llmRoutingOptions],
-            ['llm_fallback_enabled', 'Fallback retry', 'checkbox', '1', [], false],
-            ['tts_configuration_id', 'TTS connector', 'select', '', $ttsRoutingOptions],
             ['voice_id', 'Voice sample', 'datalist', '', $voiceOptions, false],
             ['voice_language', 'Voice language', 'text', 'en'],
             ['locked', 'Lock against automatic AI profile generation', 'checkbox', '1', [], false],
@@ -179,7 +169,7 @@ $forms = match ($view) {
             ],
         ],
         [
-            'route' => 'profile-create', 'legend' => 'Create profile', 'hidden'=>['management_fields'=>'1','llm_routing_fields'=>'1'],
+            'route' => 'profile-create', 'legend' => 'Create profile', 'hidden'=>['management_fields'=>'1'],
             'fields' => [
                 ['installation_id', 'Installation', 'select', '', $installationOptions],
                 ['name', 'Profile name'], ['record_id', 'Morrowind record ID', 'text', '', [], false],
@@ -198,16 +188,6 @@ $forms = match ($view) {
                 ['goals', 'Goals', 'textarea', '', [], false],
                 ['relationships', 'Relationships', 'textarea', '', [], false],
                 ['emote_moods', 'Allowed moods and emotes', 'text', '', [], false],
-                ['prompt_configuration_id', 'Dialogue prompt', 'select', '', $promptRoutingOptions],
-                ['llm_configuration_id', 'Standard LLM', 'select', '', $llmRoutingOptions],
-                ['llm_fast_configuration_id', 'Fast LLM', 'select', '', $llmRoutingOptions],
-                ['llm_powerful_configuration_id', 'Powerful LLM', 'select', '', $llmRoutingOptions],
-                ['llm_experimental_configuration_id', 'Experimental LLM', 'select', '', $llmRoutingOptions],
-                ['llm_randomizer_enabled', 'LLM randomizer', 'checkbox', '1', [], false],
-                ['llm_fallback_configuration_id', 'Fallback LLM', 'select', '', $llmRoutingOptions],
-                ['oghma_configuration_id', 'Oghma Extractor', 'select', '', $llmRoutingOptions],
-                ['llm_fallback_enabled', 'Fallback retry', 'checkbox', '1', [], false],
-                ['tts_configuration_id', 'TTS connector', 'select', '', $ttsRoutingOptions],
                 ['voice_id', 'Voice sample', 'datalist', '', $voiceOptions, false],
                 ['voice_language', 'Voice language', 'text', 'en'],
                 ['locked', 'Lock against automatic AI profile generation', 'checkbox', '1', [], false],
@@ -588,15 +568,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];
         $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LorkhanServer/ui/core/profile_portrait.php';
-        $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
-        $promptId=(string)($routing['prompt_configuration_id']??'');$llmId=(string)($routing['llm_configuration_id']??'');
-        $fastLlmId=(string)($routing['llm_fast_configuration_id']??'');$powerfulLlmId=(string)($routing['llm_powerful_configuration_id']??'');
-        $experimentalLlmId=(string)($routing['llm_experimental_configuration_id']??'');$fallbackLlmId=(string)($routing['llm_fallback_configuration_id']??'');$oghmaLlmId=(string)($routing['oghma_configuration_id']??'');
-        $randomizerEnabled=($routing['llm_randomizer_enabled']??false)===true;$fallbackEnabled=($routing['llm_fallback_enabled']??false)===true;
-        $ttsId=(string)($routing['tts_configuration_id']??'');
-        $promptOptions=lorkhan_ui_profile_connector_options($promptRows,$installationId,'Use the first applicable installation prompt','');
-        $llmOptions=lorkhan_ui_profile_connector_options($llmRows,$installationId,'Use the current session model slot','model');
-        $ttsOptions=lorkhan_ui_profile_connector_options($ttsRows,$installationId,'Use the active installation TTS connector','driver');
         $coreProfileOptions=[''=>'Use installation default'];
         foreach($coreProfileRows as$coreProfileRow){
             if((string)($coreProfileRow['installation_id']??'')!==$installationId)continue;
@@ -605,9 +576,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         }
         $coreProfileId=(string)($row['core_profile_id']??'');
         if($coreProfileId!==''&&!isset($coreProfileOptions[$coreProfileId]))$coreProfileOptions[$coreProfileId]=(string)($row['core_profile_label']??'Unavailable Core Profile');
-        if($promptId!==''&&!isset($promptOptions[$promptId]))$promptOptions[$promptId]='Unavailable prompt';
-        foreach([$llmId,$fastLlmId,$powerfulLlmId,$experimentalLlmId,$fallbackLlmId]as$routeId)if($routeId!==''&&!isset($llmOptions[$routeId]))$llmOptions[$routeId]='Unavailable model slot';
-        if($ttsId!==''&&!isset($ttsOptions[$ttsId]))$ttsOptions[$ttsId]='Unavailable TTS connector';
         echo '<article class="profile-card'.($compact?' profile-card-compact':'').'"><header><div><span class="connector-kind">'.($isTemplate?'Biography template':'OpenMW NPC').'</span><h3>' . lorkhan_ui_h($row['name'] ?? '') . '</h3></div>';
         echo '<div class="profile-statuses">'.($favorite?'<span class="status-badge connector-active">Favorite</span>':'').($locked?'<span class="status-badge profile-locked">Locked</span>':'').'<span class="status-badge">Revision ' . lorkhan_ui_h($row['current_revision'] ?? '') . '</span></div></header>';
         if($portrait!==[])echo'<div class="profile-portrait"><img src="'.lorkhan_ui_h($portraitEndpoint.'?profile_id='.rawurlencode($profileId).'&revision='.(int)($row['current_revision']??1)).'" alt="Portrait of '.lorkhan_ui_h($row['name']??'NPC').'" width="160" height="160"></div>';
@@ -616,11 +584,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '<dl><dt>'.($isTemplate?'Record match':'Record').'</dt><dd><code>' . lorkhan_ui_h($identity['record_id'] ?? ($isTemplate?'Any record':'Unbound profile')) . '</code></dd>';
         echo '<dt>Content file</dt><dd>' . lorkhan_ui_h($identity['content_file'] ?? '') . '</dd>';
         echo '<dt>Gender / race</dt><dd>' . lorkhan_ui_h(trim((string)($content['gender']??'').' '.(string)($content['race']??''))?:'Unspecified') . '</dd>';
-        echo '<dt>Dialogue prompt</dt><dd>' . lorkhan_ui_h($promptOptions[$promptId]??$promptOptions['']) . '</dd>';
-        echo '<dt>Standard LLM</dt><dd>' . lorkhan_ui_h($llmOptions[$llmId]??$llmOptions['']) . '</dd>';
-        echo '<dt>LLM routing</dt><dd>' . lorkhan_ui_h($randomizerEnabled?'Randomized configured slots':'Standard slot') . '</dd>';
-        echo '<dt>Fallback LLM</dt><dd>' . lorkhan_ui_h($fallbackEnabled?($llmOptions[$fallbackLlmId]??$llmOptions['']):'Disabled') . '</dd>';
-        echo '<dt>TTS connector</dt><dd>' . lorkhan_ui_h($ttsOptions[$ttsId]??$ttsOptions['']) . '</dd>';
         echo '<dt>Voice</dt><dd>' . lorkhan_ui_h($voice['id'] ?? 'Connector default') . '</dd>';
         echo '<dt>Core Profile</dt><dd>' . lorkhan_ui_h($coreProfileOptions[$coreProfileId]??$coreProfileOptions['']) . '</dd>';
         echo '<dt>In-game bindings</dt><dd>' . lorkhan_ui_h($row['binding_count'] ?? 0) . '</dd></dl>';
@@ -628,7 +591,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '<details class="profile-primary-editor"'.($editorOpen?' open':'').'><summary>Edit roleplay and voice</summary>';
         lorkhan_ui_management_form([
             'route'=>'profile-revise','id'=>'profile-' . $profileId,'legend'=>'Save NPC profile revision',
-            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1','llm_routing_fields'=>'1'],
+            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1'],
             'fields'=>[
                 ['prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],false],
                 ['core','Core identity and boundaries','textarea',(string)($content['core']??''),[],false],
@@ -644,16 +607,6 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['relationships','Relationships','textarea',(string)($content['relationships']??''),[],false],
                 ['emote_moods','Allowed moods and emotes','text',(string)($content['emote_moods']??''),[],false],
                 ['core_profile_id','Core Profile','select',$coreProfileId,$coreProfileOptions],
-                ['prompt_configuration_id','Dialogue prompt','select',$promptId,$promptOptions],
-                ['llm_configuration_id','Standard LLM','select',$llmId,$llmOptions],
-                ['llm_fast_configuration_id','Fast LLM','select',$fastLlmId,$llmOptions],
-                ['llm_powerful_configuration_id','Powerful LLM','select',$powerfulLlmId,$llmOptions],
-                ['llm_experimental_configuration_id','Experimental LLM','select',$experimentalLlmId,$llmOptions],
-                ['llm_randomizer_enabled','Randomize configured LLM slots','checkbox','1',[],false,$randomizerEnabled],
-                ['llm_fallback_configuration_id','Fallback LLM','select',$fallbackLlmId,$llmOptions],
-                ['oghma_configuration_id','Oghma Extractor','select',$oghmaLlmId,$llmOptions],
-                ['llm_fallback_enabled','Use fallback when the selected LLM fails','checkbox','1',[],false,$fallbackEnabled],
-                ['tts_configuration_id','TTS connector','select',$ttsId,$ttsOptions],
                 ['voice_id','TTS voice ID (type or choose a stored sample)','datalist',(string)($voice['id']??''),$voiceOptions,false],
                 ['voice_language','Voice language','text',(string)($voice['language']??'en')],
                 ['locked','Lock against automatic AI profile generation','checkbox','1',[],false,$locked],
@@ -672,7 +625,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo'<details><summary>Clone profile</summary>';
         lorkhan_ui_management_form(['route'=>'profile-clone','id'=>'profile-clone-'.$profileId,'legend'=>'Create independent profile copy',
             'hidden'=>['profile_id'=>$profileId],'fields'=>[['name','New profile name','text',(string)($row['name']??'').' Copy']]],$managementBasePath,$csrf);
-        echo'<p class="management-note">The copy starts at revision 1 with the same roleplay and connector settings. Actor bindings and the private portrait file stay with the original.</p></details>';
+        echo'<p class="management-note">The copy starts at revision 1 with the same roleplay details and voice. Actor bindings and the private portrait file stay with the original.</p></details>';
         echo '<div class="connector-actions"><a class="btn-base" href="'.lorkhan_ui_h($managementBasePath.'/exports/profiles/'.$profileId.'.json').'">Export profile</a>';
         if(!$locked)echo '<form method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/profile-generate').'"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><button class="btn-base btn-primary" type="submit">Generate profile with AI</button></form>';
         echo'</div>';
@@ -688,12 +641,9 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
 {
     $content=is_array($row['content']??null)?$row['content']:[];$identity=is_array($row['actor_identity']??null)?$row['actor_identity']:[];
     $profileId=$creating?'create':(string)($row['profile_id']??'');$installationId=$creating?(string)(array_key_first($installationOptions)??''):(string)($row['installation_id']??'');$formId='management-form-profile-'.$profileId;
-    $management=is_array($content['management']??null)?$content['management']:[];$routing=is_array($content['routing']??null)?$content['routing']:[];
-    $overrides=is_array($content['settings_overrides']??null)?$content['settings_overrides']:[];$voice=$content['voice']??[];
+    $management=is_array($content['management']??null)?$content['management']:[];$voice=$content['voice']??[];
     if(is_string($voice))$voice=['id'=>$voice];if(!is_array($voice))$voice=[];
     $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
-    $promptOptions=lorkhan_ui_profile_connector_options($promptRows,$installationId,'Inherit Core Profile','');
-    $llmOptions=lorkhan_ui_profile_connector_options($llmRows,$installationId,'Inherit Core Profile','model');
     $coreProfileOptions=[''=>'Use installation default'];foreach($coreProfileRows as$coreProfileRow){
         if((string)($coreProfileRow['installation_id']??'')!==$installationId)continue;$id=(string)($coreProfileRow['core_profile_id']??'');
         if($id!=='')$coreProfileOptions[$id]=(string)($coreProfileRow['label']??$id);
@@ -712,20 +662,10 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         echo'</div>';
     };
     $checkbox=function(string$name,string$label,bool$checked,string$hint='')use($formId):void{echo'<div class="form-item npc-editor-check"><label><input name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="1"'.($checked?' checked':'').'> '.lorkhan_ui_h($label).'</label>'.($hint===''?'':'<small class="hint">'.lorkhan_ui_h($hint).'</small>').'</div>';};
-    $inheritBool=function(string$name,string$label,mixed$value)use($field):void{$field($name,$label,'select',$value===true?'1':($value===false?'0':'inherit'),['inherit'=>'Inherit Core Profile','1'=>'Enabled','0'=>'Disabled']);};
-    $number=function(string$section,string$name,string$label,int$min,int$max)use($formId,$overrides):void{$id='npc-editor-'.substr(hash('sha256',$formId.$section.$name),0,14);$value=$overrides[$section][$name]??'';echo'<div class="form-item"><label for="'.$id.'">'.lorkhan_ui_h($label).'</label><input id="'.$id.'" name="setting_'.lorkhan_ui_h($section.'_'.$name).'" form="'.lorkhan_ui_h($formId).'" type="number" min="'.$min.'" max="'.$max.'" value="'.lorkhan_ui_h($value).'" placeholder="Inherit Core Profile"></div>';};
     $disabled=function(string$label,string$feature,string$value='',string$classes='')use($formId):void{$id='npc-disabled-'.substr(hash('sha256',$formId.$label),0,14);echo'<div class="form-item npc-editor-disabled'.($classes===''?'':' '.lorkhan_ui_h($classes)).'"><label for="'.$id.'">'.lorkhan_ui_h($label).' '.lorkhan_ui_feature_badge($feature,true).'</label><input id="'.$id.'" type="text" value="'.lorkhan_ui_h($value).'" disabled aria-disabled="true" title="'.lorkhan_ui_h(lorkhan_ui_feature($feature)['description']).'"></div>';};
-    $routingValue=static fn(array$r,string$key):string=>array_key_exists($key,$r)?((string)$r[$key]===''?'__disabled__':(string)$r[$key]):'';
-    $routingOptions=static fn(array$options):array=>[''=>'Inherit Core Profile','__disabled__'=>'Disabled for this NPC']+$options;
-    $labelOf=static fn(array$options,string$id):string=>(string)($options[$id]??($id===''?'Inherit Core Profile':'Unavailable'));
-    $oghma=$routingValue($routing,'oghma_configuration_id');
-    $generation=$routingValue($routing,'profile_generation_configuration_id');$diary=$routingValue($routing,'diary_generation_configuration_id');
-    $diaryOptions=$routingOptions($llmOptions);if(!isset($diaryOptions[$diary]))$diaryOptions[$diary]='Unavailable connector';
-    $generationOptions=[''=>'Inherit Core Profile','__disabled__'=>'Use server runtime']+$llmOptions;
-    if(!isset($generationOptions[$generation]))$generationOptions[$generation]='Unavailable connector';
     $uiRoot=preg_replace('#/manage$#','',$managementBasePath)?:'/LorkhanServer';
     echo'<div class="npc-editor-meta"><label for="npc-editor-tags-'.$profileId.'">Tags:</label><input id="npc-editor-tags-'.$profileId.'" name="tags" form="'.lorkhan_ui_h($formId).'" value="'.lorkhan_ui_h(is_array($content['tags']??null)?implode(', ',array_map('strval',$content['tags'])):(string)($content['tags']??'')).'" placeholder="tags">'.($creating?'':'<a class="btn-base" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/oghma_knowledge.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId)).'">Oghma Knowledge</a>').'<label class="npc-editor-favorite" title="Favorite NPC"><input type="checkbox" name="favorite" form="'.lorkhan_ui_h($formId).'" value="1"'.($favorite?' checked':'').'><span>'.($favorite?'&#9733;':'&#9734;').'</span></label></div>';
-    echo'<div class="npc-profile-llms"><strong>NPC Routing</strong><span>&#129517; '.lorkhan_ui_h($coreProfileOptions[$coreProfileId]??'Use installation default').' | &#128172; '.lorkhan_ui_h($labelOf($promptOptions,$routingValue($routing,'prompt_configuration_id'))).' | &#128209; '.lorkhan_ui_h($labelOf($diaryOptions,$diary)).'</span></div>';
+    echo'<div class="npc-profile-llms"><strong>NPC Profile</strong><span>&#129517; '.lorkhan_ui_h($coreProfileOptions[$coreProfileId]??'Use installation default').' | &#128266; '.lorkhan_ui_h((string)($voice['id']??'Connector default')).'</span></div>';
     echo'<div class="npc-editor-tabs" role="tablist" aria-label="NPC editor categories" data-npc-editor-tabs>';
     foreach(['general'=>'&#129517; General','roleplay'=>'&#128214; Roleplay','relationships'=>'&#129309; Relationships','info'=>'&#128736;&#65039; Info','actions'=>'&#9889; Actions','history'=>'&#128220; History']as$key=>$label)echo'<button type="button" class="npc-editor-tab'.($key==='general'?' is-active':'').'" role="tab" aria-selected="'.($key==='general'?'true':'false').'" tabindex="'.($key==='general'?'0':'-1').'" data-npc-editor-tab="'.$key.'">'.$label.'</button>';
     echo'</div><div class="npc-editor-panels">';
@@ -742,24 +682,15 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $field('core','Core identity and boundaries','textarea',(string)($content['core']??''),[],'span-2');$field('biography','Biography','textarea',(string)($content['biography']??''),[],'span-2');$field('appearance','Appearance','textarea',(string)($content['appearance']??''));$field('personality','Personality','textarea',(string)($content['personality']??''));$field('occupation','Occupation','text',(string)($content['occupation']??''));$field('skills','Skills and capabilities','textarea',(string)($content['skills']??''));$field('emote_moods','Allowed moods and emotes','textarea',(string)($content['emote_moods']??''));$field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''));$field('goals','Goals','textarea',(string)($content['goals']??''));echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="relationships" hidden>';
     $field('relationships','Relationships','textarea',(string)($content['relationships']??''),[],'span-2');
-    $relationshipRoute=$routingValue($routing,'relationship_configuration_id');$relationshipOptions=$routingOptions($llmOptions);
-    if(!isset($relationshipOptions[$relationshipRoute]))$relationshipOptions[$relationshipRoute]='Unavailable connector';
-    $field('relationship_configuration_id','Relationship LLM','select',$relationshipRoute,$relationshipOptions,'span-2','Inherit uses the Core Profile connector. Disabled stops automatic updates and manual builds. Chance 0 stops automatic calls; 100 evaluates every eligible played response. Saved relationships still appear in prompts.');
-    $number('relationship','update_chance_percent','Relationship Update Chance (0-100)',0,100);
-    $relationshipLock=$overrides['relationship']['locked']??null;
-    $field('setting_relationship_locked','Relationship Lock','select',$relationshipLock===true?'1':($relationshipLock===false?'0':'inherit'),['inherit'=>'Inherit Core Profile','1'=>'Locked','0'=>'Unlocked'],'','Stop AI relationship updates and manual builds. Separate from the profile lock on the General tab.');
     echo'<div class="npc-editor-placeholder span-2"><h3>Build with AI</h3><p>Analyze recent played conversations for this NPC. Choose a playthrough on Relationship Audit.</p>';
     if($creating)echo'<button type="button" class="btn-base" disabled>Save this NPC first</button>';
     else echo'<a class="btn-base btn-primary" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/relationship_logs.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId).'#relationship-builder').'">Build with AI</a>';
     echo'</div></section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
-    $field('prompt_configuration_id','Dialogue Prompt','select',$routingValue($routing,'prompt_configuration_id'),$routingOptions($promptOptions),'span-2','Overrides only the prompt template for this NPC. Live response LLM and TTS connectors are inherited from the assigned Core Profile.');
-    $field('oghma_configuration_id','Oghma Extractor','select',$oghma,$routingOptions($llmOptions));$field('profile_generation_configuration_id','Profile Generation LLM','select',$generation,$generationOptions,'','Applies to newly queued generation jobs. Queued jobs keep their frozen connector revision; saving never calls a provider.');
-    $field('diary_generation_configuration_id','Diary LLM','select',$diary,$diaryOptions,'','Routes newly queued manual diary jobs for this NPC. Inherit Core Profile uses the Core Profile diary connector. Disabled for this NPC refuses manual diary generation. Already queued jobs keep their frozen connector revision, and saving never calls a provider.');
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="actions" hidden>';
-    $inheritBool('setting_behavior_rechat','Rechat',$overrides['behavior']['rechat']??null);$number('behavior','rechat_max_depth','Rechat Rounds',1,20);$number('behavior','rechat_probability_percent','Rechat Probability',0,100);$field('setting_behavior_rechat_mode','Rechat Mode','select',(string)($overrides['behavior']['rechat_mode']??''),[''=>'Inherit Core Profile','tight'=>'Tight','conversational'=>'Conversational','group'=>'Group','random'=>'Random']);$inheritBool('setting_behavior_rechat_strict_targeting','Strict Targeting',$overrides['behavior']['rechat_strict_targeting']??null);$inheritBool('setting_behavior_open_rechat','Open Rechat',$overrides['behavior']['open_rechat']??null);$number('behavior','end_conversation_cooldown_seconds','End Cooldown',0,300);$number('memory','recent_turn_limit','Recent Turns',1,100);$inheritBool('setting_oghma_enabled','Oghma Enabled',$overrides['oghma']['enabled']??null);$number('oghma','topic_count','Oghma Topics',1,3);$number('oghma','result_limit','Oghma Results',1,5);$inheritBool('setting_oghma_racial_context_enabled','Oghma Racial Context',$overrides['oghma']['racial_context_enabled']??null);$inheritBool('setting_oghma_location_context_enabled','Oghma Location Context',$overrides['oghma']['location_context_enabled']??null);$inheritBool('setting_oghma_extractor_fallback_enabled','Oghma Extractor Fallback',$overrides['oghma']['extractor_fallback_enabled']??null);$number('oghma','extractor_timeout_ms','Oghma Extractor Timeout',250,3000);$inheritBool('setting_diary_enabled','Manual Diary Generation',$overrides['diary']['enabled']??null);$inheritBool('setting_diary_include_in_context','Diary In Context',$overrides['diary']['include_in_context']??null);$number('diary','context_turn_limit','Diary Context Turns',1,100);$field('setting_diary_prompt','Diary Instruction','textarea',(string)($overrides['diary']['prompt']??''),[],'span-2');echo'<div class="npc-editor-placeholder span-2"><h3>Action Policy</h3><p>NPC overrides inherit Global Settings through the assigned Core Profile. The Action Editor remains the source of negotiated OpenMW capabilities.</p></div></section>';
+    echo'<div class="npc-editor-placeholder span-2"><h3>Inherited behavior</h3><p>Response models, Rechat, memory limits, diary behavior, context, and system connectors come from the assigned Core Profile and Global Settings. NPC profiles only keep character details and voice.</p><p><a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/core/core_profiles.php').'">Core Profiles</a> <a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/global_settings.php').'">Global Settings</a> <a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/function_editor.php').'">Action Editor</a></p></div></section>';
     lorkhan_ui_npc_history_panel($profileId,$creating,is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[],$managementBasePath,$csrf);
     echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
     if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_content_json" value="'.lorkhan_ui_h(json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)).'">';

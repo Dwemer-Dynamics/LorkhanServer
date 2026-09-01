@@ -7,6 +7,7 @@ namespace LorkhanServer\Infrastructure;
 use LorkhanServer\Application\DeterministicClock;
 use LorkhanServer\Application\MorrowindVoiceCatalog;
 use LorkhanServer\Application\ProductService;
+use LorkhanServer\Application\SettingsCatalog;
 use PDO;
 use RuntimeException;
 use Throwable;
@@ -51,7 +52,11 @@ final class DefaultConnectorProvisioner
                     $aliases,
                 );
             }
-            $routes['oghma_configuration_id'] = $routes['llm_fast_configuration_id'];
+            $systemRoutes = [
+                'oghma_configuration_id' => $routes['llm_fast_configuration_id'],
+                'profile_generation_configuration_id' => $routes['llm_fast_configuration_id'],
+                'relationship_configuration_id' => $routes['llm_fast_configuration_id'],
+            ];
 
             $defaultPrompt = 'Respond in character as the selected Morrowind actor. Use only the scoped profile, '
                 . 'conversation history, memories, relationships, world knowledge, narrative context, and current '
@@ -88,6 +93,17 @@ final class DefaultConnectorProvisioner
                 $selectedTtsId = (string) $selection['configuration_id'];
             }
             $routes['tts_configuration_id'] = $selectedTtsId;
+
+            if ($repository->globalSettingsForInstallation($installationId) === null) {
+                $global = SettingsCatalog::globalDefaults();
+                $global['system_routing'] = $systemRoutes;
+                $service->createRevisioned('global_settings', [
+                    'installation_id' => $installationId,
+                    'name' => 'Global Settings',
+                    'content' => $global,
+                    'change_reason' => 'Provision Global Settings defaults',
+                ]);
+            }
 
             $deepgramSttId = $this->ensureConfiguration($service, $installationId, 'stt_provider', 'Global STT Connector', [
                 'driver' => 'deepgram',

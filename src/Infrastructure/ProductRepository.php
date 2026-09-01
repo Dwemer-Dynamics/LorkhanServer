@@ -766,6 +766,8 @@ final class ProductRepository
                 $policy=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision
                     WHERE c.kind='memory_policy' AND c.deleted_at IS NULL AND r.content->>'provider_configuration_id'=:id LIMIT 1");
                 $policy->execute(['id'=>$id]);if($policy->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
+                $global=$this->db->prepare("SELECT 1 FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='global_settings' AND c.deleted_at IS NULL AND :id IN (r.content#>>'{system_routing,oghma_configuration_id}',r.content#>>'{system_routing,profile_generation_configuration_id}',r.content#>>'{system_routing,relationship_configuration_id}') LIMIT 1");
+                $global->execute(['id'=>$id]);if($global->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $profile=$this->db->prepare("SELECT 1 FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
                 $profile->execute(['id'=>$id]);if($profile->fetchColumn())throw new \InvalidArgumentException('provider_in_use');
                 $core=$this->db->prepare("SELECT 1 FROM core_profile_revisions r JOIN core_profiles c ON c.core_profile_id=r.core_profile_id AND c.current_revision=r.revision WHERE c.deleted_at IS NULL AND (r.content->'routing'->>'llm_configuration_id'=:id OR r.content->'routing'->>'llm_fast_configuration_id'=:id OR r.content->'routing'->>'llm_powerful_configuration_id'=:id OR r.content->'routing'->>'llm_experimental_configuration_id'=:id OR r.content->'routing'->>'llm_fallback_configuration_id'=:id OR r.content->'routing'->>'oghma_configuration_id'=:id OR r.content->'routing'->>'profile_generation_configuration_id'=:id OR r.content->'routing'->>'relationship_configuration_id'=:id OR r.content->'routing'->>'diary_generation_configuration_id'=:id) LIMIT 1");
@@ -849,9 +851,9 @@ final class ProductRepository
         $global=$this->globalSettingsForInstallation($installationId);
         $profile=null;
         if($profileId!==null&&$profileId!==''){
-            $statement=$this->db->prepare('SELECT p.profile_id,p.core_profile_id,p.current_revision AS revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
+            $statement=$this->db->prepare('SELECT p.profile_id,p.core_profile_id,p.actor_identity,p.current_revision AS revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
             $statement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$statement->fetch();
-            if($profile){$profile['revision']=(int)$profile['revision'];$profile['content']=$this->json($profile['content']);}
+            if($profile){$profile['revision']=(int)$profile['revision'];$profile['content']=$this->json($profile['content']);$profile['actor_identity']=$this->json($profile['actor_identity']);}
         }
         $core=null;$coreId=is_array($profile)?($profile['core_profile_id']??null):null;
         if(is_string($coreId)&&$coreId!==''){
@@ -861,6 +863,7 @@ final class ProductRepository
         }
         if(!$core)$core=$this->defaultCoreProfileForInstallation($installationId);
         $installationOghma=$this->oghmaSettings($installationId);
+        $profileKind=is_array($profile['actor_identity']??null)?($profile['actor_identity']['kind']??'actor'):'actor';
         $resolved=(new EffectiveSettingsResolver())->resolve(
             is_array($global['content']??null)?$global['content']:[],
             is_array($core['content']??null)?$core['content']:[],
@@ -874,14 +877,8 @@ final class ProductRepository
                 'extractor_fallback_enabled'=>$installationOghma['extractor_enabled'],
                 'extractor_timeout_ms'=>$installationOghma['extractor_timeout_ms'],
             ],
+            in_array($profileKind,['player','narrator'],true),
         );
-        $globalTags=(string)$installationOghma['knowledge_tags'];
-        if(($resolved['sources']['settings.memory.oghma_knowledge_tags']??'')==='server_default'){
-            $resolved['settings']['memory']['oghma_knowledge_tags']=$globalTags;
-            $resolved['document']['settings']['memory']['oghma_knowledge_tags']=$globalTags;
-            $resolved['sources']['settings.memory.oghma_knowledge_tags']='global';
-            $resolved['sha256']=hash('sha256',$this->encodeCanonical($resolved['document']));
-        }
         return$resolved+['global_settings'=>$global,'core_profile'=>$core,'npc_profile'=>$profile];
     }
 
@@ -1914,6 +1911,7 @@ SQL);
             ?$this->effectiveSettingsForActor($installation,(string)$turn['playthrough_id'],$target)
             :$this->effectiveSettingsForProfile($installation,null);
         $settings=(array)($effective['settings']['oghma']??[]);
+        if(($effective['context']['sections']['oghma']??true)!==true)return['settings'=>$settings,'connector'=>null,'context'=>'','grounding_text'=>'','status'=>'disabled'];
         $parts=[];$input=trim((string)($turn['payload']['input']['text']??''));if($input!=='')$parts[]='Current player input: '.$input;
         $origin=$turn['payload']['rechat']['origin_line']??$turn['payload']['origin_line']??null;
         if(is_string($origin)&&trim($origin)!=='')$parts[]='Conversation origin: '.trim($origin);
@@ -2023,6 +2021,7 @@ SQL);
         $activeProfileId=$selectedProfileId??$turn['profile_id'];
         $profile = $this->getRevisioned('profile', $activeProfileId);
         $effective=$this->effectiveSettingsForProfile((string)$turn['installation_id'],$activeProfileId);
+        $contextPolicy=$effective['context'];$contextSections=$contextPolicy['sections'];
         $routing=$effective['routing'];
         $selectedPrompt=(string)($routing['prompt_configuration_id']??'');$prompt=false;
         if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$selectedPrompt)===1){
@@ -2051,16 +2050,17 @@ SQL);
             $coreProfile['content']=['prompt'=>(string)($coreContent['prompt']??'')];
         }
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
-        $knowledgeSelection=$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
+        $knowledgeSelection=$contextSections['oghma']?$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
             $this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
-            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now);
+            (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now)
+            :['rows'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
         $knowledgeSelection['trace']['settings']=$effective['settings']['oghma']??[];
         $knowledgeSelection['trace']['settings_sources']=array_filter($effective['sources'],static fn(string$key):bool=>
             str_starts_with($key,'settings.oghma.')||$key==='settings.memory.oghma_knowledge_tags'||$key==='routing.oghma_configuration_id',ARRAY_FILTER_USE_KEY);
         $knowledge=$knowledgeSelection['rows'];
-        $narratives=$this->narratives($scope);
-        if($activeProfileId!==$scope['profile_id']){
+        $narratives=$contextSections['narratives']?$this->narratives($scope):[];
+        if($contextSections['narratives']&&$activeProfileId!==$scope['profile_id']){
             $narrativeScope=$scope;$narrativeScope['profile_id']=$activeProfileId;
             foreach($this->narratives($narrativeScope)as$row)$narratives[$row['narrative_id']]=$row;
             $narratives=array_values($narratives);usort($narratives,static fn(array$a,array$b):int=>
@@ -2069,9 +2069,9 @@ SQL);
         }
         if(($effective['settings']['diary']['include_in_context']??true)!==true)
             $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>($row['kind']??null)!=='diary'));
-        $actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
-        $actions->execute(['session'=>$turn['session_id']]);
-        $recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());
+        $recent=[];
+        if($contextSections['recent_action_results']){$actions=$this->db->prepare('SELECT r.action_id,r.status,r.reason_code,r.observed,r.completed_at FROM action_results r JOIN action_intents a ON a.action_id=r.action_id WHERE a.session_id=:session ORDER BY r.completed_at DESC,r.action_id LIMIT 16');
+            $actions->execute(['session'=>$turn['session_id']]);$recent=array_map(function($r){$r['observed']=$this->json($r['observed']);return$r;},$actions->fetchAll());}
         $actor=(array)$turn['payload']['target'];
         $actorKey=[];
         foreach(['kind','record_id','content_file']as$field){if(is_string($actor[$field]??null)&&$actor[$field]!=='')$actorKey[$field]=$actor[$field];}
@@ -2084,13 +2084,17 @@ SQL);
         $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
         // Relationship records describe their owning NPC, never a shared session or witness pool.
         $relationshipScope=$scope;$relationshipScope['profile_id']=$activeProfileId;
-        $relationships=$ownsProfile?$this->relationships($relationshipScope):[];
+        $relationships=$ownsProfile&&$contextSections['relationships']?$this->relationships($relationshipScope):[];
         usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
-        $memorySelection=$this->selectPromptMemories($turn,$scope,
-            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory);
+        $memorySelection=$contextSections['memories']?$this->selectPromptMemories($turn,$scope,
+            $this->promptMemoryCandidates($turn,$actorKey,$activeProfileId,$ownsProfile,$now,$semanticMemory),$now,$semanticMemory)
+            :['rows'=>[],'candidates'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
         $memories=$memorySelection['rows'];
         $recentTurnLimit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
-        $historyStatement=$this->db->prepare(<<<'SQL'
+        $history=[];
+        if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
+        foreach($contextPolicy['event_types']as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
+        $eventTypeSql=implode(',',$typeParameters);$historyStatement=$this->db->prepare(<<<SQL
 SELECT 'event:'||e.rowid::text AS id,
        m.turn_id,
        COALESCE(e.ts,NULLIF(e.gamets,0),(extract(epoch FROM m.created_at)*1000)::bigint) AS sort_ts,
@@ -2124,7 +2128,7 @@ FROM eventlog e
 JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
-  AND e.type IN ('inputtext','chat','chat_background','location','weather','death','infoaction','rechat','narration','quest','book')
+  AND e.type IN ($eventTypeSql)
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
        OR m.target @> CAST(:event_target AS jsonb)
@@ -2132,29 +2136,32 @@ WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.su
 ORDER BY sort_ts DESC,sort_created_at DESC,source_rank DESC,sort_id DESC
 LIMIT :candidate_limit
 SQL);
-        $historyStatement->execute([
+        $historyStatement->execute($historyParameters+[
             'installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
             'current_turn'=>$turn['turn_id']??null,
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
             'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
         // Count conversation turns, not individual input, response, and world-event rows.
-        $history=[];$historyTurns=[];
+        $historyTurns=[];$locationBlacklist=[];foreach($contextPolicy['location_blacklist']as$location)$locationBlacklist[mb_strtolower(trim((string)$location),'UTF-8')]=true;
         foreach($historyStatement->fetchAll()as$row){
+            $content=$this->json($row['content']);$location=mb_strtolower(trim((string)($content['location']??$content['details']['location']??'')),'UTF-8');
+            if($location!==''&&isset($locationBlacklist[$location]))continue;
             $turnKey=(string)($row['turn_id']??$row['id']);
             if(!isset($historyTurns[$turnKey])&&count($historyTurns)>=$recentTurnLimit)continue;
             $historyTurns[$turnKey]=true;
             $history[]=['id'=>(string)$row['id'],'installation_id'=>$turn['installation_id'],
                 'playthrough_id'=>$turn['playthrough_id'],'created_at'=>(string)$row['sort_created_at'],
-                'content'=>$this->json($row['content'])];
+                'content'=>$content];
         }
         $history=array_reverse($history);
+        }
         return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
-            'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources']],
+            'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
-            'nearby_actor_profiles'=>$this->nearbyActorProfilesForTurn($turn),
-            'item_descriptions'=>$this->itemDescriptionsForTurn($turn),
+            'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
+            'item_descriptions'=>$contextSections['record_descriptions']?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
             'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],

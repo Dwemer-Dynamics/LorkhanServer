@@ -32,6 +32,7 @@ use LorkhanServer\Application\InlineNarrationRouter;
 use LorkhanServer\Application\DialoguePlanner;
 use LorkhanServer\Application\DeepLTranslationProvider;
 use LorkhanServer\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\ProviderFactory;
 use LorkhanServer\Application\TranslationPolicy;
 use LorkhanServer\Application\ZonosGradioSpeechProvider;
@@ -1140,34 +1141,46 @@ $check((fileperms($stateFile) & 0777) === 0600, 'state file is private');
 unlink($stateFile);
 rmdir($temporary);
 
-$globalSettings=EffectiveSettingsResolver::defaults();
-$globalSettings['behavior']['rechat']=true;
-$globalSettings['memory']['knowledge_limit']=5;
-$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false],'memory'=>['knowledge_limit'=>0],
-    'oghma'=>['topic_count'=>2,'racial_context_enabled'=>false]],
-    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111','oghma_configuration_id'=>'00000000-0000-4000-8000-000000000222']];
-$globalSettings['behavior']['auto_greeting']=true;
-$globalSettings['narrator']['welcome_events']=true;
-$coreLayer['settings_overrides']['behavior']['rechat_allow_actions']=true;
-$npcLayer=['settings_overrides'=>['behavior'=>['combat_barks'=>true],'oghma'=>['topic_count'=>3]],'routing'=>['llm_configuration_id'=>''],
-    'oghma_knowledge_tags'=>''];
-$effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[
-    'enabled'=>true,'topic_count'=>1,'result_limit'=>3,'racial_context_enabled'=>true,
-    'location_context_enabled'=>true,'extractor_fallback_enabled'=>false,'extractor_timeout_ms'=>1500]);
+$globalSettings=SettingsCatalog::globalDefaults();
+$globalSettings['client']['behavior']['rechat']=true;
+$globalSettings['client']['behavior']['auto_greeting']=true;
+$globalSettings['client']['narrator']['welcome_events']=true;
+$globalSettings['oghma']['topic_count']=2;
+$globalSettings['oghma']['racial_context_enabled']=false;
+$globalSettings['oghma']['knowledge_tags']='Vvardenfell, Tribunal';
+$globalSettings['oghma']['extractor_fallback_enabled']=true;
+$globalSettings['oghma']['extractor_enabled']=true;
+$globalSettings['relationship']=['enabled'=>true,'update_chance_percent'=>75];
+$globalSettings['system_routing']=[
+    'oghma_configuration_id'=>'00000000-0000-4000-8000-000000000222',
+    'profile_generation_configuration_id'=>'00000000-0000-4000-8000-000000000333',
+    'relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'];
+$globalSettings['context']['sections']['nearby_items']=false;
+$globalSettings['context']['item_blacklist']=['iron dagger'];
+$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_max_depth'=>4],
+        'memory'=>['recent_turn_limit'=>7,'knowledge_limit'=>0],
+        'oghma'=>['topic_count'=>3]],
+    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111',
+        'oghma_configuration_id'=>'00000000-0000-4000-8000-000000000555']];
+$npcLayer=['settings_overrides'=>['behavior'=>['rechat'=>true]],
+    'routing'=>['llm_configuration_id'=>''],'oghma_knowledge_tags'=>'Dagoth Ur'];
+$effective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer);
 $check($effective['settings']['behavior']['rechat']===false
-    && $effective['settings']['memory']['knowledge_limit']===0
-    && $effective['routing']['llm_configuration_id']===''
-    && $effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222',
-    'Global to Core Profile to NPC resolution preserves explicit false, zero, and empty overrides');
-$check($effective['settings']['oghma']['topic_count']===3
+    &&$effective['settings']['behavior']['rechat_max_depth']===4
+    &&$effective['settings']['memory']['recent_turn_limit']===7
+    &&$effective['settings']['memory']['knowledge_limit']===5
+    &&$effective['routing']['llm_configuration_id']==='00000000-0000-4000-8000-000000000111'
+    &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222',
+    'Core Profiles own explicit response settings while NPC behavior and routing overrides stay inert');
+$check($effective['settings']['oghma']['topic_count']===2
     &&$effective['settings']['oghma']['racial_context_enabled']===false
-    &&($effective['sources']['settings.oghma.topic_count']??null)==='npc'
-    &&($effective['sources']['settings.oghma.racial_context_enabled']??null)==='core_profile'
+    &&($effective['sources']['settings.oghma.topic_count']??null)==='global'
+    &&($effective['sources']['settings.oghma.racial_context_enabled']??null)==='global'
     &&($effective['sources']['settings.oghma.result_limit']??null)==='global',
-    'Oghma controls use Global to Core Profile to NPC inheritance with per-field sources');
-$check($effective['settings']['memory']['oghma_knowledge_tags']===''
-    &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='server_default',
-    'blank generated NPC knowledge tags inherit the empty installation default');
+    'Oghma controls are installation-wide Global Settings');
+$check($effective['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur'
+    &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='npc',
+    'non-empty NPC knowledge tags remain character classification instead of a behavior override');
 $check($effective['settings']['behavior']['auto_greeting']===false
     && $effective['settings']['behavior']['rechat_allow_actions']===false
     && $effective['settings']['behavior']['combat_barks']===false
@@ -1175,21 +1188,22 @@ $check($effective['settings']['behavior']['auto_greeting']===false
     && ($effective['sources']['settings.behavior.combat_barks']??null)==='excluded',
     'excluded automation compatibility fields cannot become effective');
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
-    && ($effective['sources']['routing.llm_configuration_id']??null)==='npc'
+    &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
+    &&$effective['context']['sections']['nearby_items']===false
+    &&$effective['context']['item_blacklist']===['iron dagger']
     && preg_match('/^[0-9a-f]{64}$/D',$effective['sha256'])===1,
-    'effective settings retain per-field provenance and a canonical hash');
-$relationshipCore=['routing'=>['relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'],
-    'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]];
-$relationshipResolved=(new EffectiveSettingsResolver())->resolve([],$relationshipCore,
-    ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>false]]]);
-$check($relationshipResolved['settings']['relationship']===['update_chance_percent'=>100,'locked'=>false]
-    &&$relationshipResolved['routing']['relationship_configuration_id']===''
-    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='core_profile',
-    'relationship policy inherits Core while explicit NPC disable and unlock win');
+    'effective settings retain ownership provenance, context policy, and a canonical hash');
+$relationshipResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,
+    ['routing'=>[],'settings_overrides'=>['relationship'=>['update_chance_percent'=>100,'locked'=>true]]],
+    ['routing'=>['relationship_configuration_id'=>''],'settings_overrides'=>['relationship'=>['locked'=>true]]]);
+$check($relationshipResolved['settings']['relationship']===['update_chance_percent'=>75,'locked'=>false]
+    &&$relationshipResolved['routing']['relationship_configuration_id']==='00000000-0000-4000-8000-000000000444'
+    &&$relationshipResolved['sources']['settings.relationship.update_chance_percent']==='global',
+    'relationship policy and connector routing are installation-wide Global Settings');
 try{EffectiveSettingsResolver::validateSettingsOverrides(['relationship'=>['update_chance_percent'=>101]]);
     $check(false,'relationship chance outside 0-100 rejected');}
 catch(InvalidArgumentException){$check(true,'relationship chance outside 0-100 rejected');}
-$diaryResolved=(new EffectiveSettingsResolver())->resolve([],['routing'=>[
+$diaryResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,['routing'=>[
     'diary_generation_configuration_id'=>'00000000-0000-4000-8000-000000000555'],
     'settings_overrides'=>['diary'=>$diaryOverrides]],[]);
 $check($diaryResolved['settings']['diary']===$diaryOverrides
@@ -1205,7 +1219,7 @@ $projectionInput['settings']['diary']=$diaryOverrides;
 $projection=EffectiveSettingsResolver::controlsProjection($projectionInput);
 $check($projection['settings']['behavior']['rechat']===false
     &&$projection['settings']['memory']['knowledge_limit']===EffectiveSettingsResolver::defaults()['memory']['knowledge_limit']
-    &&$projection['routing']['llm_configuration_id']===''
+    &&$projection['routing']['llm_configuration_id']==='00000000-0000-4000-8000-000000000111'
     &&$projection['source_map']['settings.behavior.rechat']==='core_profile'
     &&!array_key_exists('settings.memory.knowledge_limit',$projection['source_map'])
     &&$projection['settings']['presentation']===EffectiveSettingsResolver::defaults()['presentation'],

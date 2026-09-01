@@ -50,8 +50,9 @@ final class RechatCoordinator
             (int) $message['generation'],
         );
         $global = $this->products->globalSettingsForInstallation((string) $message['installation_id']);
-        $globalSettings = is_array($global['content'] ?? null) ? $global['content'] : EffectiveSettingsResolver::defaults();
-        $behavior = is_array($globalSettings['behavior'] ?? null) ? $globalSettings['behavior'] : [];
+        $globalSettings = EffectiveSettingsResolver::validateGlobalSettings(
+            is_array($global['content'] ?? null) ? $global['content'] : SettingsCatalog::globalDefaults());
+        $behavior = $globalSettings['client']['behavior'];
         $configuredMode = (string) ($existing['configured_mode'] ?? $behavior['rechat_mode'] ?? 'random');
         if (!in_array($configuredMode, ['tight', 'conversational', 'group', 'random'], true)) {
             throw new DomainException('invalid_rechat_context');

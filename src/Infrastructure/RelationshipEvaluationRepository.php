@@ -150,7 +150,7 @@ final class RelationshipEvaluationRepository
         return $source;
     }
 
-    /** Read only the two profile layers; relationship work never needs Oghma or global settings. */
+    /** Resolve the installation-wide relationship policy while fencing every owning revision. */
     public function policy(string $installation,string $profile):?array
     {
         $query=$this->db->prepare('SELECT profile_id,core_profile_id,current_revision FROM profiles '
@@ -166,9 +166,17 @@ final class RelationshipEvaluationRepository
         $query=$this->db->prepare('SELECT content FROM profile_revisions WHERE profile_id=:profile AND revision=:revision');
         $query->execute(['profile'=>$profile,'revision'=>$owner['current_revision']]);
         $content=json_decode($query->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
-        $resolved=(new EffectiveSettingsResolver())->resolve([],$core?json_decode($core['content'],true,32,JSON_THROW_ON_ERROR):[],$content);
+        $query=$this->db->prepare("SELECT c.configuration_id,c.current_revision,r.content FROM configuration_sets c "
+            ."JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision "
+            ."WHERE c.installation_id=:installation AND c.kind='global_settings' AND c.deleted_at IS NULL LIMIT 1 FOR SHARE OF c");
+        $query->execute(['installation'=>$installation]);$global=$query->fetch();
+        $globalContent=$global?json_decode($global['content'],true,32,JSON_THROW_ON_ERROR):[];
+        $resolved=(new EffectiveSettingsResolver())->resolve($globalContent,
+            $core?json_decode($core['content'],true,32,JSON_THROW_ON_ERROR):[],$content);
         return ['profile_revision'=>(int)$owner['current_revision'],'core_profile_id'=>$core['core_profile_id']??null,
             'core_profile_revision'=>isset($core['current_revision'])?(int)$core['current_revision']:null,
+            'global_configuration_id'=>$global['configuration_id']??null,
+            'global_revision'=>isset($global['current_revision'])?(int)$global['current_revision']:null,
             'provider_configuration_id'=>$resolved['routing']['relationship_configuration_id']??'']+$resolved['settings']['relationship'];
     }
 

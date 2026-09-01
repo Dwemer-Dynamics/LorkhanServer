@@ -110,14 +110,14 @@ function lorkhan_ui_effective_settings_summary(array $effective, string $title =
 {
     $sources = is_array($effective['sources'] ?? null) ? $effective['sources'] : [];
     if ($sources === []) return;
-    $sourceLabels = ['default' => 'Built-in default', 'global' => 'Global', 'core_profile' => 'Core Profile', 'npc' => 'NPC override'];
+    $sourceLabels = ['default' => 'Built-in default', 'global' => 'Global Settings', 'core_profile' => 'Core Profile', 'npc' => 'Character profile'];
     $activeBehaviorPaths = array_fill_keys([
         'settings.behavior.rechat', 'settings.behavior.rechat_max_depth', 'settings.behavior.rechat_probability_percent',
         'settings.behavior.rechat_mode', 'settings.behavior.rechat_strict_targeting', 'settings.behavior.open_rechat',
         'settings.behavior.end_conversation_cooldown_seconds',
     ], true);
     echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . lorkhan_ui_h($title) . '</summary>';
-    echo '<p>Resolution order: NPC override &gt; assigned Core Profile &gt; Global &gt; built-in default.</p><div class="effective-settings-grid">';
+    echo '<p>Resolution order: character voice or knowledge &gt; assigned Core Profile &gt; Global Settings &gt; built-in default.</p><div class="effective-settings-grid">';
     foreach ($sources as $path => $source) {
         if (!is_string($path) || ($source === 'excluded') || $path === 'settings.memory.knowledge_limit'
             || (str_starts_with($path, 'settings.behavior.') && !isset($activeBehaviorPaths[$path]))
