@@ -338,6 +338,8 @@ foreach ([
     'interrupt.json' => 'lorkhan.interrupt.v1',
     'controls-query.json' => 'lorkhan.controls.query.v1',
     'controls-select.json' => 'lorkhan.controls.select.v1',
+    'debug-command-query.json' => 'lorkhan.debug-command.query.v1',
+    'debug-command-result.json' => 'lorkhan.debug-command-result.v1',
 ] as $fixture => $schema) {
     $document = json_decode((string) file_get_contents($fixtureRoot . '/' . $fixture), true, 64, JSON_THROW_ON_ERROR);
     $validator->validate($document['instance'], $schema);
