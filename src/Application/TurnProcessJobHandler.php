@@ -68,7 +68,8 @@ final class TurnProcessJobHandler implements JobHandler
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
-                if(!$streamSpeech||str_contains($delta,'*')||count($streamedDialogues)>=4)return;
+                if(!$streamSpeech||str_contains($delta,'*')
+                    ||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
                 $index=count($streamedDialogues)+1;
                 $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index);
                 $streamedDialogues[]=$dialogue;

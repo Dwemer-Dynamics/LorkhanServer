@@ -511,7 +511,7 @@ final class Repository
     public function appendStreamedDialogue(array $m, string $text, array $fence, int $index): array
     {
         if ($text === '' || strlen($text) > 16_384 || !mb_check_encoding($text, 'UTF-8')
-            || $index < 1 || $index > 4) {
+            || $index < 1 || $index > \LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES) {
             throw new \DomainException('provider_invalid_output');
         }
         return $this->transaction(function () use ($m, $text, $fence, $index): array {
@@ -529,10 +529,12 @@ final class Repository
                 'dialogue.complete', ['speaker' => $speaker, 'addressee' => $addressee, 'text' => $text], $lineId);
             $this->db->prepare('INSERT INTO dialogue_utterances (dialogue_message_id,session_id,turn_id,request_id,generation,utterance_index,'
                 . 'utterance_count,response_line_id,utterance_id,runtime_generation,speaker,addressee,audience,text,emitted_at,delivery_deadline_at) VALUES '
-                . '(:id,:session,:turn,:request,:generation,:idx,4,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'
+                . '(:id,:session,:turn,:request,:generation,:idx,:count,:line,:utterance,:runtime_generation,CAST(:speaker AS jsonb),CAST(:addressee AS jsonb),'
                 . 'CAST(:audience AS jsonb),:text,:emitted,CAST(:emitted AS timestamptz)+interval \'5 minutes\')')
                 ->execute(['id'=>$dialogue['message_id'],'session'=>$m['session_id'],'turn'=>$m['turn_id'],'request'=>$turn['request_id'],
-                    'generation'=>$m['generation'],'idx'=>$index,'line'=>$lineId,'utterance'=>$utteranceId,
+                    'generation'=>$m['generation'],'idx'=>$index,
+                    'count'=>\LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES,
+                    'line'=>$lineId,'utterance'=>$utteranceId,
                     'runtime_generation'=>(int)$turn['runtime_generation'],'speaker'=>$this->encode($speaker),
                     'addressee'=>$this->encode($addressee),'audience'=>$this->encode($audience),'text'=>$text,
                     'emitted'=>$dialogue['created_at']]);

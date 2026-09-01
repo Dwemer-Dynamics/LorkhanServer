@@ -8,7 +8,7 @@ use DomainException;
 
 final class DialoguePlanner
 {
-    private const MAX_UTTERANCES = 4;
+    public const MAX_UTTERANCES = 32;
     private const MAX_TOTAL_BYTES = 32_768;
 
     /** @param array<string,mixed> $turn @param array<string,mixed> $providerResult @return list<array<string,mixed>> */

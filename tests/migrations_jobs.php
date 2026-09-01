@@ -50,6 +50,14 @@ $expectedVersions = array_map(
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
 $check($runner->up() === $expectedVersions, 'fresh up did not apply ordered migrations');
+$dialogueIndexConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+    ."WHERE conrelid='lorkhan_internal.dialogue_utterances'::regclass "
+    ."AND conname='dialogue_utterances_utterance_index_check'")->fetchColumn();
+$dialogueCountConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
+    ."WHERE conrelid='lorkhan_internal.dialogue_utterances'::regclass "
+    ."AND conname='dialogue_utterances_utterance_count_check'")->fetchColumn();
+$check(str_contains($dialogueIndexConstraint,'<= 32')&&str_contains($dialogueCountConstraint,'<= 32'),
+    'fresh schema does not allow bounded sentence-sized dialogue streaming');
 $oghmaRowConstraint=(string)$db->query("SELECT pg_get_constraintdef(oid) FROM pg_constraint "
     ."WHERE conrelid='lorkhan_internal.oghma_catalogs'::regclass AND conname='oghma_catalogs_row_count_check'")->fetchColumn();
 $check(str_contains($oghmaRowConstraint,'row_count >= 1')&&!str_contains($oghmaRowConstraint,'2000'),

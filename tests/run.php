@@ -252,6 +252,19 @@ $check(implode('',$streamChunks)==='Hello there, traveler. Welcome to Balmora!',
     'streaming dialogue exposes only decoded utterance text in bounded deltas');
 $check($streamChunks===['Hello there, traveler. ','Welcome to Balmora!'],
     'streaming dialogue releases complete CHIM-style sentence chunks');
+$longStreamText=new StreamingDialogueText();
+$longStreamSource=implode(' ',[
+    'First sentence arrives without delay.','Second sentence stays independently queued.',
+    'Third sentence remains a readable subtitle.','Fourth sentence does not absorb the rest.',
+    'Fifth sentence continues the same stream.','Sixth sentence is still its own audio item.',
+    'Seventh sentence remains separately visible.','Eighth sentence finishes the response.',
+]);
+$longStreamJson=json_encode(['utterances'=>[['text'=>$longStreamSource]],'action'=>null],JSON_THROW_ON_ERROR);
+$longStreamChunks=$longStreamText->push($longStreamJson,true);
+$check(count($longStreamChunks)===8&&implode('',$longStreamChunks)===$longStreamSource,
+    'streaming dialogue keeps long replies sentence-sized after the fourth chunk');
+$check(max(array_map('strlen',$longStreamChunks))<80,
+    'streaming dialogue does not collapse a long final tail into one subtitle');
 $actionProvider = new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key');
 $normalizeAction = new ReflectionMethod($actionProvider, 'normalizeAction');
 $normalizedAction = $normalizeAction->invoke($actionProvider,
