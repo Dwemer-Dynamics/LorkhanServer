@@ -131,7 +131,8 @@ final class Router
     private function clientSettings(string $installationId):array
     {
         $saved=$this->products?->globalSettingsForInstallation($installationId);
-        if($saved!==null)return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$saved['content']];
+        if($saved!==null){$content=is_array($saved['content']['client']??null)?$saved['content']['client']:$saved['content'];
+            return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$content];}
         return['revision'=>'global-settings-default-v1','content'=>SettingsCatalog::clientDefaults()];
     }
 

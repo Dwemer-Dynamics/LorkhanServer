@@ -76,12 +76,16 @@ final class PromptAssembler
         if ($coreProfile !== null) $this->assertSourceScope($coreProfile, $turn, 'core_profile');
         $this->assertSourceScope($prompt, $turn, 'prompt');
 
-        $history = $this->limitedSelection($selection, 'history');
+        $contextPolicy = is_array($selection['effective_settings']['context'] ?? null)
+            ? $selection['effective_settings']['context'] : SettingsCatalog::globalDefaults()['context'];
+        $enabled = $contextPolicy['sections'];
+        $history = $enabled['conversation_history'] ? $this->limitedSelection($selection, 'history') : [];
         $memory = array_slice($this->selectedList($selection, array_key_exists('memory_candidates', $selection) ? 'memory_candidates' : 'memory'), 0, 500);
-        $relationships = $this->limitedSelection($selection, 'relationship');
-        $knowledge = $this->limitedSelection($selection, 'knowledge');
-        $narrative = $this->limitedSelection($selection, 'narrative');
-        $actions = $this->terminalActionResults($selection);
+        if (!$enabled['memories']) $memory = [];
+        $relationships = $enabled['relationships'] ? $this->limitedSelection($selection, 'relationship') : [];
+        $knowledge = $enabled['oghma'] ? $this->limitedSelection($selection, 'knowledge') : [];
+        $narrative = $enabled['narratives'] ? $this->limitedSelection($selection, 'narrative') : [];
+        $actions = $enabled['recent_action_results'] ? $this->terminalActionResults($selection) : [];
         foreach ([
             'history' => $history,
             'memory' => $memory,
@@ -117,6 +121,7 @@ final class PromptAssembler
             $actorName,
             $playerName,
             $systemBudget,
+            $contextPolicy,
         );
 
         $system = $built['system'];
@@ -261,6 +266,7 @@ final class PromptAssembler
         string $actorName,
         string $playerName,
         int $budget,
+        array $contextPolicy,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
@@ -273,7 +279,10 @@ final class PromptAssembler
         $npc = $this->xmlTag('roleplay_instructions', $roleplay);
         $promptHead = $this->fieldText($profile['content'] ?? [], ['prompt_head']);
         if ($promptHead !== '') $npc .= $this->xmlTag('npc_prompt_head', $promptHead);
-        $npc .= $this->characterXml($turn, $profile, $actorName);
+        $details = $contextPolicy['details'];
+        $itemBlacklist = $this->blacklistSet($contextPolicy['item_blacklist']);
+        $magicBlacklist = $this->blacklistSet($contextPolicy['magic_effects_blacklist']);
+        $npc .= $this->characterXml($turn, $profile, $actorName, $details, $itemBlacklist, $magicBlacklist);
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
         if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
@@ -282,25 +291,26 @@ final class PromptAssembler
 
         $context = $turn['payload']['context'] ?? [];
         $morrowind = '';
-        $world = $this->worldXml($context);
+        $world = $contextPolicy['sections']['world'] ? $this->worldXml($context, $this->blacklistSet($contextPolicy['location_blacklist'])) : '';
         if ($world !== '') $morrowind .= '<world>' . $world . '</world>';
-        $people = $this->peoplePresentXml($turn, $context);
+        $people = $contextPolicy['sections']['people_present'] ? $this->peoplePresentXml($turn, $context) : '';
         if ($people !== '') $morrowind .= '<people_present>' . $people . '</people_present>';
-        $nearbyActors = $this->nearbyActorsXml($turn, $context);
+        $nearbyActors = $contextPolicy['sections']['nearby_actors'] ? $this->nearbyActorsXml($turn, $context, $details, $itemBlacklist) : '';
         if ($nearbyActors !== '') $morrowind .= '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
-        $nearbyItems = $this->nearbyObjectsXml($context, ['items'], 'item');
+        $nearbyItems = $contextPolicy['sections']['nearby_items'] ? $this->nearbyObjectsXml($context, ['items'], 'item', $itemBlacklist, $details['group_duplicate_items']) : '';
         if ($nearbyItems !== '') $morrowind .= '<nearby_items>' . $nearbyItems . '</nearby_items>';
-        $pointsOfInterest = $this->nearbyObjectsXml($context, ['doors', 'containers', 'activators'], 'point');
+        $pointsOfInterest = $contextPolicy['sections']['points_of_interest'] ? $this->nearbyObjectsXml($context, ['doors', 'containers', 'activators'], 'point', [], true) : '';
         if ($pointsOfInterest !== '') $morrowind .= '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
 
         $playerNarrator = '';
-        $player = $this->playerXml($turn, $playerName);
+        $player = $contextPolicy['sections']['player_narrator'] ? $this->playerXml($turn, $playerName, $details, $itemBlacklist, $magicBlacklist) : '';
         if ($player !== '') $playerNarrator .= '<player_character>' . $player . '</player_character>';
-        $narrator = $this->narratorXml($turn);
+        $narrator = $contextPolicy['sections']['player_narrator'] ? $this->narratorXml($turn) : '';
         if ($narrator !== '') $playerNarrator .= '<narrator>' . $narrator . '</narrator>';
-        $descriptions = $this->recordDescriptionsXml($turn['_item_descriptions'] ?? []);
+        $descriptions = $contextPolicy['sections']['record_descriptions'] && $details['item_descriptions']
+            ? $this->recordDescriptionsXml($turn['_item_descriptions'] ?? [], $itemBlacklist) : '';
         if ($descriptions !== '') $morrowind .= '<record_descriptions>' . $descriptions . '</record_descriptions>';
-        $oghma = $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus);
+        $oghma = $contextPolicy['sections']['oghma'] ? $this->oghmaKnowledgeFragment($knowledge, $knowledgeStatus) : '';
         $narrativeXml = $this->sourceItemsXml($narrative, 'narrative');
         if ($narrativeXml !== '') $morrowind .= '<narrative_context>' . $narrativeXml . '</narrative_context>';
 
@@ -461,7 +471,7 @@ final class PromptAssembler
             . "- **General Instructions:** Write {$actorName}'s next dialogue line and return the required JSON object.";
     }
 
-    private function characterXml(array $turn, array $profile, string $actorName): string
+    private function characterXml(array $turn, array $profile, string $actorName, array $details, array $itemBlacklist, array $magicBlacklist): string
     {
         $content = is_array($profile['content'] ?? null) && !array_is_list($profile['content']) ? $profile['content'] : [];
         $identity = is_array($profile['actor_identity'] ?? null) && !array_is_list($profile['actor_identity'])
@@ -475,32 +485,34 @@ final class PromptAssembler
         }
         $xml .= '</identity>';
         $fields = [
-            'core_identity' => ['core'],
-            'basic_summary' => ['biography', 'background', 'basic_summary', 'persona'],
-            'personality' => ['personality'],
-            'appearance' => ['appearance'],
-            'occupation' => ['occupation', 'class'],
-            'skills' => ['skills'],
-            'speech_style' => ['speech_style'],
-            'allowed_moods_and_emotes' => ['emote_moods'],
-            'goals' => ['goals'],
-            'relationships' => ['relationships'],
-            'notes' => ['notes'],
-            'race' => ['race'],
-            'gender' => ['gender'],
+            'core_identity' => [['core'], true],
+            'basic_summary' => [['biography', 'background', 'basic_summary', 'persona'], $details['npc_summary']],
+            'personality' => [['personality'], $details['npc_personality']],
+            'appearance' => [['appearance'], $details['npc_appearance']],
+            'occupation' => [['occupation', 'class'], $details['npc_occupation']],
+            'skills' => [['skills'], $details['npc_skills']],
+            'speech_style' => [['speech_style'], $details['npc_speech_style']],
+            'allowed_moods_and_emotes' => [['emote_moods'], $details['npc_moods_goals']],
+            'goals' => [['goals'], $details['npc_moods_goals']],
+            'relationships' => [['relationships'], $details['npc_relationships_notes']],
+            'notes' => [['notes'], $details['npc_relationships_notes']],
+            'race' => [['race'], $details['npc_race_gender']],
+            'gender' => [['gender'], $details['npc_race_gender']],
         ];
-        foreach ($fields as $tag => $keys) {
+        foreach ($fields as $tag => [$keys, $include]) {
+            if (!$include) continue;
             $value = $this->fieldText($content, $keys);
             if ($value !== '') $xml .= $this->xmlTag($tag, $value);
         }
         $state = is_array(($turn['payload']['context']['targetState'] ?? null))
             ? $turn['payload']['context']['targetState'] : [];
-        $stateXml = $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent']);
+        $stateXml = $details['npc_current_state'] ? $this->actorStateXml($state, ['activity', 'disposition', 'health', 'health_percent'],
+            $details['npc_equipment_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist) : '';
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return '<character>' . $xml . '</character>';
     }
 
-    private function playerXml(array $turn, string $playerName): string
+    private function playerXml(array $turn, string $playerName, array $details, array $itemBlacklist, array $magicBlacklist): string
     {
         $xml = $this->xmlTag('name', $playerName);
         $player = $turn['_player_profile'] ?? null;
@@ -523,7 +535,8 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['playerState'] ?? null))
             ? $turn['payload']['context']['playerState'] : [];
-        $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent']);
+        $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
+            $details['npc_equipment_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';
         return $xml;
     }
@@ -553,7 +566,7 @@ final class PromptAssembler
     }
 
     /** Render actor state as semantic XML rather than embedding OpenMW state JSON. */
-    private function actorStateXml(array $state, array $scalarKeys): string
+    private function actorStateXml(array $state, array $scalarKeys, bool $includeItems, bool $includeMagic, array $itemBlacklist, array $magicBlacklist): string
     {
         $xml = $this->knownFieldsXml($state, $scalarKeys);
         $identity = $state['identity'] ?? null;
@@ -571,26 +584,37 @@ final class PromptAssembler
                 if ($summary !== []) $xml .= $this->xmlTag($name, implode(', ', $summary));
             }
         }
-        foreach (['equipment'=>'equipment','inventory'=>'inventory'] as $field=>$tag) {
+        if ($includeItems) foreach (['equipment'=>'equipment','inventory'=>'inventory'] as $field=>$tag) {
             $items = $this->contextItems($state[$field] ?? []);
             $itemsXml = '';
             foreach (array_slice($items, 0, 48) as $item) {
                 if (!is_array($item) || array_is_list($item)) continue;
                 $name = trim((string)($item['display_name'] ?? $item['record_id'] ?? ''));
-                if ($name === '') continue;
+                if ($name === '' || $this->blocked($itemBlacklist, $name, (string)($item['record_id'] ?? ''))) continue;
                 $suffix = isset($item['slot']) ? ' [' . $item['slot'] . ']' : '';
                 if (isset($item['count']) && (int)$item['count'] > 1) $suffix .= ' x' . (int)$item['count'];
                 $itemsXml .= $this->xmlTag('item', $name . $suffix);
             }
             if ($itemsXml !== '') $xml .= '<' . $tag . '>' . $itemsXml . '</' . $tag . '>';
         }
+        if ($includeMagic) {
+            $magicXml = '';
+            foreach (['spells', 'activeEffects', 'active_effects'] as $field) foreach ($this->contextItems($state[$field] ?? []) as $effect) {
+                $name = is_array($effect) ? trim((string)($effect['display_name'] ?? $effect['name'] ?? $effect['record_id'] ?? '')) : trim((string)$effect);
+                $recordId = is_array($effect) ? (string)($effect['record_id'] ?? '') : '';
+                if ($name === '' || $this->blocked($magicBlacklist, $name, $recordId)) continue;
+                $magicXml .= $this->xmlTag('effect', $name);
+            }
+            if ($magicXml !== '') $xml .= '<magic_and_effects>' . $magicXml . '</magic_and_effects>';
+        }
         return $xml;
     }
 
-    private function worldXml(mixed $context): string
+    private function worldXml(mixed $context, array $locationBlacklist): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
         $world = is_array($context['world'] ?? null) && !array_is_list($context['world']) ? $context['world'] : $context;
+        if ($this->blocked($locationBlacklist, (string)($world['cell'] ?? ''), (string)($world['region'] ?? ''))) return '';
         $xml = '';
         foreach (['cell'=>'location','region'=>'region'] as $field=>$tag) {
             if (is_scalar($world[$field] ?? null) && trim((string)$world[$field]) !== '') {
@@ -639,7 +663,7 @@ final class PromptAssembler
         return $xml;
     }
 
-    private function nearbyActorsXml(array $turn, mixed $context): string
+    private function nearbyActorsXml(array $turn, mixed $context, array $details, array $itemBlacklist): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
         $activities = [];
@@ -657,21 +681,24 @@ final class PromptAssembler
             $profile = $this->nearbyProfile($turn, $actor);
             if ($profile !== null) {
                 $content = is_array($profile['content'] ?? null) && !array_is_list($profile['content']) ? $profile['content'] : [];
-                foreach (['basic_summary'=>['biography','background','basic_summary','persona'],
-                    'personality'=>['personality'],'appearance'=>['appearance'],'occupation'=>['occupation','class']] as $tag=>$keys) {
+                foreach (['basic_summary'=>[['biography','background','basic_summary','persona'],$details['nearby_actor_summary']],
+                    'personality'=>[['personality'],$details['nearby_actor_personality']],
+                    'appearance'=>[['appearance'],$details['nearby_actor_appearance']],
+                    'occupation'=>[['occupation','class'],$details['nearby_actor_occupation']]] as $tag=>[$keys,$include]) {
+                    if(!$include)continue;
                     $value=$this->fieldText($content,$keys);if($value!=='')$entry.=$this->xmlTag($tag,$value);
                 }
             }
             if (isset($actor['distance']) && is_numeric($actor['distance'])) $entry .= $this->xmlTag('distance', (string)$actor['distance']);
             $activity = $activities[$this->actorSemanticKey($actor)] ?? '';
-            if ($activity !== '') $entry .= $this->xmlTag('current_activity', $activity);
+            if ($details['nearby_actor_activity'] && $activity !== '') $entry .= $this->xmlTag('current_activity', $activity);
             $equipment = $this->contextItems($actor['equipment'] ?? []);
-            if ($equipment !== []) {
+            if ($details['nearby_actor_equipment'] && $equipment !== []) {
                 $equipmentXml = '';
                 foreach ($equipment as $item) {
                     if (!is_array($item) || array_is_list($item)) continue;
                     $label = trim((string)($item['display_name'] ?? $item['record_id'] ?? ''));
-                    if ($label !== '') $equipmentXml .= $this->xmlTag('item', $label . (isset($item['slot']) ? ' [' . $item['slot'] . ']' : ''));
+                    if ($label !== '' && !$this->blocked($itemBlacklist, $label, (string)($item['record_id'] ?? ''))) $equipmentXml .= $this->xmlTag('item', $label . (isset($item['slot']) ? ' [' . $item['slot'] . ']' : ''));
                 }
                 if ($equipmentXml !== '') $entry .= '<equipment>' . $equipmentXml . '</equipment>';
             }
@@ -681,15 +708,15 @@ final class PromptAssembler
     }
 
     /** @param list<string> $kinds */
-    private function nearbyObjectsXml(mixed $context, array $kinds, string $tag): string
+    private function nearbyObjectsXml(mixed $context, array $kinds, string $tag, array $itemBlacklist, bool $groupDuplicates): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
         $groups = [];
-        foreach ($this->contextItems($context['nearbyObjects'] ?? []) as $object) {
+        foreach ($this->contextItems($context['nearbyObjects'] ?? []) as $index => $object) {
             if (!is_array($object) || array_is_list($object) || !in_array($object['kind'] ?? null, $kinds, true)) continue;
             $name = trim((string)($object['display_name'] ?? $object['record_id'] ?? ''));
-            if ($name === '') continue;
-            $key = mb_strtolower((string)($object['kind'] ?? '') . '|' . $name, 'UTF-8');
+            if ($name === '' || $this->blocked($itemBlacklist, $name, (string)($object['record_id'] ?? ''))) continue;
+            $key = mb_strtolower((string)($object['kind'] ?? '') . '|' . $name . ($groupDuplicates ? '' : '|' . $index), 'UTF-8');
             if (!isset($groups[$key])) $groups[$key] = ['name'=>$name,'kind'=>(string)$object['kind'],'count'=>0,'distance'=>$object['distance'] ?? null,'lock'=>$object['lock'] ?? null];
             $groups[$key]['count'] += max(1, (int)($object['count'] ?? 1));
             if (is_numeric($object['distance'] ?? null) && (!is_numeric($groups[$key]['distance']) || $object['distance'] < $groups[$key]['distance'])) $groups[$key]['distance'] = $object['distance'];
@@ -1025,16 +1052,32 @@ final class PromptAssembler
         return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE | ENT_XML1, 'UTF-8');
     }
 
-    private function recordDescriptionsXml(mixed $rows): string
+    private function recordDescriptionsXml(mixed $rows, array $itemBlacklist): string
     {
         if (!is_array($rows) || !array_is_list($rows)) return '';
         $safe = [];
         foreach (array_slice($rows, 0, 64) as $row) {
             if (!is_array($row) || array_is_list($row)) continue;
             $record = $this->allow($row, ['record_id', 'content_file', 'name', 'description', 'source']);
+            if ($this->blocked($itemBlacklist, (string)($record['name'] ?? ''), (string)($record['record_id'] ?? ''))) continue;
             if (isset($record['record_id'], $record['description'])) $safe[] = $record;
         }
         return $this->itemsXml($safe, 'record');
+    }
+
+    /** Match normalized exact names or record IDs against a bounded management blacklist. */
+    private function blocked(array $blacklist, string ...$values): bool
+    {
+        if ($blacklist === []) return false;
+        foreach ($values as $value) if ($value !== '' && isset($blacklist[mb_strtolower(trim($value), 'UTF-8')])) return true;
+        return false;
+    }
+
+    private function blacklistSet(array $values): array
+    {
+        $set = [];
+        foreach ($values as $value) if (is_string($value) && trim($value) !== '') $set[mb_strtolower(trim($value), 'UTF-8')] = true;
+        return $set;
     }
 
     private function xmlTag(string $tag, string $value): string

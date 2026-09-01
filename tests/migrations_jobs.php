@@ -530,6 +530,18 @@ $savedOghmaSettings=$products->oghmaSettings($installation);
     &&$savedOghmaSettings['knowledge_tags']===''
     &&$savedOghmaSettings['racial_context_enabled']===true&&$savedOghmaSettings['location_context_enabled']===true,
     'installation-global Oghma runtime controls were not persisted');
+$globalSettings=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
+$globalSettings['oghma']=array_replace($globalSettings['oghma'],[
+    'enabled'=>$savedOghmaSettings['enabled'],'knowledge_tags'=>$savedOghmaSettings['knowledge_tags'],
+    'racial_context_enabled'=>$savedOghmaSettings['racial_context_enabled'],
+    'location_context_enabled'=>$savedOghmaSettings['location_context_enabled'],
+    'topic_count'=>$savedOghmaSettings['topic_count'],'result_limit'=>$savedOghmaSettings['result_limit'],
+    'extractor_fallback_enabled'=>$savedOghmaSettings['extractor_enabled'],
+    'extractor_enabled'=>$savedOghmaSettings['extractor_enabled'],
+    'extractor_timeout_ms'=>$savedOghmaSettings['extractor_timeout_ms'],
+]);
+$globalConfiguration=$service->createRevisioned('global_settings',['installation_id'=>$installation,
+    'name'=>'Global Settings','content'=>$globalSettings]);
 $oghmaRows=[];foreach([
     ['00000000-0000-4000-8000-000000000301','Dunmer'],['00000000-0000-4000-8000-000000000302','Balmora'],
     ['00000000-0000-4000-8000-000000000303','Vivec'],['00000000-0000-4000-8000-000000000304','Tribunal'],
@@ -616,11 +628,12 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         &&($deniedSelection['rows'][0]['content']??null)===''
         &&($deniedSelection['trace']['reasons']['_context']['denied_topics']??[])===['Forbidden Lore'],
         'recognized unauthorized Oghma topic was not preserved as structured denied prompt context');
-    $products->setOghmaSettings($installation,array_merge($savedOghmaSettings,['enabled'=>false]),$clock->iso());
+    $disabledGlobal=$globalSettings;$disabledGlobal['oghma']['enabled']=false;
+    $service->revise('global_settings',$globalConfiguration['configuration_id'],$disabledGlobal,'disable Oghma fixture');
     $disabledSelection=$products->groundedOghmaExtraction($groundedTurn);
     $check($disabledSelection['status']==='disabled'&&$disabledSelection['topics']===[]
         &&$disabledSelection['fallback_eligible']===false,'Oghma master switch did not disable all retrieval');
-    $products->setOghmaSettings($installation,$savedOghmaSettings,$clock->iso());
+    $service->revise('global_settings',$globalConfiguration['configuration_id'],$globalSettings,'restore Oghma fixture');
     $oghmaFixtureRoot=sys_get_temp_dir().'/lorkhan-oghma-catalog-'.bin2hex(random_bytes(6));
     if(!mkdir($oghmaFixtureRoot,0700,true)&&!is_dir($oghmaFixtureRoot))throw new RuntimeException('Oghma catalog fixture directory failed');
     $writeOghmaCatalogFixture=static function(string$version,array$rows)use($oghmaFixtureRoot):array{
@@ -1100,9 +1113,12 @@ $check($products->bulkUnlockNpcProfiles($installation,$clock->iso())===1,'bulk u
 // Route an existing manual generation job without changing later connector choices or using runtime credentials.
 $generationConnector=$service->createRevisioned('provider',['installation_id'=>$installation,'name'=>'Generation connector',
     'content'=>['driver'=>'mock','model'=>'generation-v1']]);
+$generationGlobal=$globalSettings;
+$generationGlobal['system_routing']['profile_generation_configuration_id']=$generationConnector['configuration_id'];
+$service->revise('global_settings',$globalConfiguration['configuration_id'],$generationGlobal,'route profile generation');
 $generationCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Generation core',
     'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],
-        'routing'=>['profile_generation_configuration_id'=>$generationConnector['configuration_id']]]]);
+        'routing'=>[]]]);
 $generationProfile=$service->createRevisioned('profile',['installation_id'=>$installation,'name'=>'Routed generation NPC',
     'core_profile_id'=>$generationCore['core_profile_id'],'actor_identity'=>['kind'=>'npc','record_id'=>'route_test','content_file'=>'Morrowind.esm'],
     'content'=>['biography'=>'Unchanged until generation finishes.']]);
@@ -1114,7 +1130,8 @@ $check($generationPayload==['profile_id'=>$generationProfile['profile_id'],'base
 $service->revise('provider',$generationConnector['configuration_id'],['driver'=>'mock','model'=>'generation-v2'],'new connector revision');
 $sameGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
 $check($sameGenerationJob['job_id']===$generationJob['job_id'],'requeue replaced the frozen generation job');
-$service->revise('core_profile',$generationCore['core_profile_id'],array_replace($generationCore['content'],['routing'=>[]]),'use runtime for future jobs');
+$runtimeGlobal=$generationGlobal;$runtimeGlobal['system_routing']['profile_generation_configuration_id']='';
+$service->revise('global_settings',$globalConfiguration['configuration_id'],$runtimeGlobal,'use runtime for future jobs');
 try{$service->deleteRevisioned('provider',$generationConnector['configuration_id']);throw new RuntimeException('queued generation connector deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued generation deletion guard failed');}
 $generationRows=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->rows('llm');
@@ -1129,7 +1146,6 @@ $check($generationStats['succeeded']===1&&$generationAttempt['model']==='generat
 $generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
 $check((int)$generationCurrent['current_revision']===2&&str_contains($generationCurrent['content']['notes'],'Deterministic mock generation'),
     'routed provider did not produce the profile revision');
-$service->revise('core_profile',$generationCore['core_profile_id'],$generationCore['content'],'restore inherited generator');
 $service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content']+['routing'=>['profile_generation_configuration_id'=>'']],'explicit runtime override');
 $runtimeGenerationJob=$products->enqueueProfileGeneration($generationProfile['profile_id']);
 $runtimeGenerationPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$runtimeGenerationJob['job_id']}'")->fetchColumn(),true,32,JSON_THROW_ON_ERROR);
@@ -1141,10 +1157,17 @@ $foreignGenerator=$service->createRevisioned('provider',['installation_id'=>$leg
 $generationCurrent=$products->getRevisioned('profile',$generationProfile['profile_id']);
 $generationCurrent['content']['routing']=['profile_generation_configuration_id'=>$foreignGenerator['configuration_id']];
 $service->revise('profile',$generationProfile['profile_id'],$generationCurrent['content'],'invalid foreign route');
+$foreignGlobal=$runtimeGlobal;$foreignGlobal['system_routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
+$service->revise('global_settings',$globalConfiguration['configuration_id'],$foreignGlobal,'invalid foreign route');
 try{$products->enqueueProfileGeneration($generationProfile['profile_id']);throw new RuntimeException('foreign generation connector accepted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','generation ownership check failed');}
 try{$products->providerRevisionForInstallation($installation,$foreignGenerator['configuration_id'],1);throw new RuntimeException('foreign generation revision loaded');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='profile_generation_connector_unavailable','worker revision ownership check failed');}
+$service->revise('global_settings',$globalConfiguration['configuration_id'],$generationGlobal,'restore profile generation route');
+$legacyGenerationGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
+$legacyGenerationGlobal['system_routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
+$service->createRevisioned('global_settings',['installation_id'=>$legacyInstallation,'name'=>'Global Settings',
+    'content'=>$legacyGenerationGlobal]);
 foreach([[$playerProfile['profile_id'],'enqueuePlayerSpeechStyleGeneration'],[$narratorProfile['profile_id'],'enqueueNarratorProfileGeneration']]as[$routedProfileId,$enqueueMethod]){
     $routedProfile=$products->getRevisioned('profile',$routedProfileId);$routedContent=$routedProfile['content'];
     $routedContent['routing']['profile_generation_configuration_id']=$foreignGenerator['configuration_id'];
@@ -1182,12 +1205,11 @@ $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id
     ->execute(['rowid'=>$diaryRowId,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],
         'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
         'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
-$diaryProfileContent=$products->getRevisioned('profile',$diaryProfile['profile_id'])['content'];
-$diaryProfileContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
-$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'route future manual diaries for this NPC');
+$diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'route future manual diaries for this profile');
 $diaryJob=$products->enqueueDiaryGeneration($diaryScope);
 $diaryPayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$diaryJob['job_id']}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$check($diaryPayload['profile_revision']===2&&$diaryPayload['provider_revision']===1
+$check($diaryPayload['profile_revision']===1&&$diaryPayload['provider_revision']===1
     &&$diaryPayload['source_turn_ids']===[$diaryTurn]&&count($diaryPayload['input']['witnessed_context'])===1
     &&!isset($diaryPayload['input']['endpoint'],$diaryPayload['input']['api_key']),
     'manual diary request was not idempotent, revision-frozen, bounded, or secret-free');
@@ -1197,7 +1219,7 @@ $diaryConnectorRow=array_values(array_filter($diaryConnectorRows,static fn(array
 $check((int)$diaryConnectorRow['queued_job_usage']===1&&(int)$diaryConnectorRow['profile_usage']===1,
     'manual diary connector use was not visible to connector management');
 $service->revise('provider',$diaryConnector['configuration_id'],['driver'=>'mock','model'=>'diary-v2'],'new diary connector revision');
-$diaryProfileContent['routing']=[];$service->revise('profile',$diaryProfile['profile_id'],$diaryProfileContent,'leave queued diary frozen');
+$diaryCoreContent['routing']=[];$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'leave queued diary frozen');
 $diaryReplay=$products->enqueueDiaryGeneration($diaryScope);
 $check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id']===$diaryJob['narrative_id']
     &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
@@ -1211,7 +1233,7 @@ $diaryProvenance=json_decode((string)$diaryRow['provenance'],true,32,JSON_THROW_
 $diaryAttempt=$db->query("SELECT operation,model,config_revision,state FROM provider_attempts WHERE job_id='{$diaryJob['job_id']}'")->fetch();
 $check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['title']==='Diary NPC diary'
     &&str_contains($diaryRow['content'],'1 witnessed Morrowind event')
-    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===2
+    &&$diaryProvenance['source']==='manual-diary-generation'&&$diaryProvenance['profile_revision']===1
     &&$diaryProvenance['provider_revision']===1&&$diaryProvenance['source_turn_ids']===[$diaryTurn]
     &&$diaryAttempt['operation']==='generate_diary'&&$diaryAttempt['model']==='diary-v1'
     &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',

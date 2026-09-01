@@ -136,8 +136,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <span class="pf-line"><span class="pf-icon">&#x1F9EA;</span><span class="pf-key">Experimental LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'llm_experimental_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F504;</span><span class="pf-key">Fallback LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'llm_fallback_configuration_id')); ?></span></span>
                                     <span class="pf-line"><span class="pf-icon">&#x1F4AC;</span><span class="pf-key">Dialogue Prompt</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'prompt_configuration_id')); ?></span></span>
-                                    <span class="pf-line"><span class="pf-icon">&#x1F58B;&#xFE0F;</span><span class="pf-key">Profile Generation</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'profile_generation_configuration_id', 'Server runtime')); ?></span></span>
-                                    <span class="pf-line"><span class="pf-icon">&#x1F91D;</span><span class="pf-key">Relationship LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'relationship_configuration_id', 'Disabled')); ?></span></span>
+                                    <span class="pf-line"><span class="pf-icon">&#x1F4D3;</span><span class="pf-key">Diary LLM</span><span class="pf-val"><?php echo lorkhan_ui_h($profileRouteLabel($profile, 'diary_generation_configuration_id', 'Disabled')); ?></span></span>
                                 </span>
                             </a>
                             <div class="actions profile-card-actions">

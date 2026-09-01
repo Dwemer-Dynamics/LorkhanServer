@@ -21,13 +21,6 @@ $installationId = $requested !== '' && array_filter(
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
-$generationId = (string) ($routing['profile_generation_configuration_id'] ?? '');
-$generationValue = array_key_exists('profile_generation_configuration_id', $routing) && $generationId === '' ? '__disabled__' : $generationId;
-$generationOptions = ['' => 'Inherit Core Profile', '__disabled__' => 'Use server runtime'];
-foreach ($uiRepository->rows('llm') as $connector) {
-    if ((string) ($connector['installation_id'] ?? '') === $installationId) $generationOptions[(string) $connector['configuration_id']] = (string) $connector['name'];
-}
-if ($generationId !== '' && !isset($generationOptions[$generationId])) $generationOptions[$generationId] = 'Unavailable connector';
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
 
@@ -171,13 +164,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <div class="narrator-content-grid">
                     <section class="narrator-content-section">
                         <h2>Profile &amp; Voice</h2>
-                        <label for="narrator-generation-llm">Profile Generation LLM</label>
-                        <select id="narrator-generation-llm" name="profile_generation_configuration_id" aria-describedby="narrator-generation-help">
-                            <?php foreach ($generationOptions as $id => $label): ?>
-                                <option value="<?php echo lorkhan_ui_h($id); ?>"<?php echo $id === $generationValue ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($label); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                        <span class="narrator-hint" id="narrator-generation-help">Applies to newly queued generation jobs. Queued jobs keep their frozen connector revision; saving never calls a provider.</span>
+                        <span class="narrator-hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
                         <div class="narrator-placeholder-field">
                             <label>Profile <?php echo lorkhan_ui_feature_badge('config.narrator.profile-connectors', true); ?></label>
                             <select disabled aria-disabled="true"><option>LORKHAN narrator profile</option></select>

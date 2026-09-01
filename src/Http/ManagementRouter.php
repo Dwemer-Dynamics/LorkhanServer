@@ -6,6 +6,7 @@ namespace LorkhanServer\Http;
 
 use LorkhanServer\Application\DeterministicRetrieval;
 use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\DiaryGenerationPolicy;
 use LorkhanServer\Application\EffectiveSettingsResolver;
 use LorkhanServer\Application\LlmConnector;
 use LorkhanServer\Application\NeverCancelledToken;
@@ -839,7 +840,8 @@ final class ManagementRouter
             try{$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('not_found');}
         }
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new RuntimeException('not_found');
-        $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
+        $content=is_array($row['content']??null)?$row['content']:[];
+        unset($content['portrait'],$content['routing'],$content['settings_overrides']);
         $document=['schema'=>'lorkhan.profile-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'name'=>(string)$row['name'],
             'actor_identity'=>$identity===[]?(object)[]:$identity,'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-profile';
@@ -857,7 +859,8 @@ final class ManagementRouter
             throw new InvalidArgumentException('profile_not_cloneable');
         $name=$this->need($values,'name');
         if(strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_name');
-        $content=is_array($row['content']??null)?$row['content']:[];unset($content['portrait']);
+        $content=is_array($row['content']??null)?$row['content']:[];
+        unset($content['portrait'],$content['routing'],$content['settings_overrides']);
         return$this->service->createRevisioned('profile',['installation_id'=>(string)$row['installation_id'],
             'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
     }
@@ -867,9 +870,9 @@ final class ManagementRouter
     {
         $this->uuid($coreProfileId,'core_profile_id');$row=$this->repository->getRevisioned('core_profile',$coreProfileId);
         $content=EffectiveSettingsResolver::validateCoreProfile(is_array($row['content']??null)?$row['content']:[]);
-        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
+        $overrides=$this->portableCoreProfileOverrides($content['settings_overrides']);
         if($this->containsSecretKey($overrides))throw new RuntimeException('core_profile_settings_export_rejected');
-        $document=['schema'=>'lorkhan.core-profile-settings.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.core-profile-settings.v2','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'settings_overrides'=>$overrides===[]?(object)[]:$overrides];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');
         if($filename==='')$filename='lorkhan-core-profile';
@@ -882,18 +885,32 @@ final class ManagementRouter
     {
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
         if($keys!==['exported_at','name','schema','settings_overrides']
-            ||($document['schema']??null)!=='lorkhan.core-profile-settings.v1'
+            ||!in_array($document['schema']??null,['lorkhan.core-profile-settings.v1','lorkhan.core-profile-settings.v2'],true)
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings_overrides']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException('invalid_core_profile_settings_preset');
         $name=trim((string)($document['name']??''));
         if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_core_profile_settings_preset');
-        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($document['settings_overrides']);
+        $overrides=$this->portableCoreProfileOverrides($document['settings_overrides']);
         return$this->service->createRevisioned('core_profile',[
             'installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'default_npc'=>false,'slot'=>null,
             'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],'settings_overrides'=>$overrides],
         ]);
+    }
+
+    /** Keep portable Core Profile presets limited to explicit response, history, and diary behavior. */
+    private function portableCoreProfileOverrides(array $overrides):array
+    {
+        $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
+        return['behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
+            'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
+            'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50)],
+            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)],
+            'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
+                'include_in_context'=>($overrides['diary']['include_in_context']??true)===true,
+                'context_turn_limit'=>(int)($overrides['diary']['context_turn_limit']??$diary['context_turn_limit']),
+                'prompt'=>(string)($overrides['diary']['prompt']??$diary['prompt'])]];
     }
 
     /** Download the editable, ownership-free portion of the Player or Narrator singleton. */
@@ -988,15 +1005,21 @@ final class ManagementRouter
         return$settings;
     }
 
-    /** Download one strict Global Settings revision without installation ownership or audit history. */
+    /** Download the complete portable Global Settings document without installation ownership or secrets. */
     private function exportGlobalSettings(string $configurationId):Response
     {
         $this->uuid($configurationId,'configuration_id');
         if($this->repository->resourceKind($configurationId)!=='global_settings')throw new RuntimeException('not_found');
         $row=$this->repository->getRevisioned('global_settings',$configurationId);
-        $settings=EffectiveSettingsResolver::validateGlobalSettings(is_array($row['content']??null)?$row['content']:[]);
+        $installation=(string)$row['installation_id'];
+        $settings=EffectiveSettingsResolver::globalDocument(
+            is_array($row['content']??null)?$row['content']:[],
+            $this->repository->oghmaSettings($installation),
+            $this->repository->translationPolicyForInstallation($installation)['content'],
+            $this->repository->profileAutoLockEnabled($installation)
+        );
         if($this->containsSecretKey($settings))throw new RuntimeException('global_settings_export_rejected');
-        $document=['schema'=>'lorkhan.global-settings-preset.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+        $document=['schema'=>'lorkhan.global-settings-preset.v2','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'settings'=>$settings];
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-global-settings.json"',
@@ -1008,14 +1031,20 @@ final class ManagementRouter
     {
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
         if($keys!==['exported_at','name','schema','settings']
-            ||($document['schema']??null)!=='lorkhan.global-settings-preset.v1'
+            ||!in_array($document['schema']??null,['lorkhan.global-settings-preset.v1','lorkhan.global-settings-preset.v2'],true)
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException('invalid_global_settings_preset');
         $name=trim((string)($document['name']??''));
         if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings_preset');
-        $settings=EffectiveSettingsResolver::validateGlobalSettings($document['settings']);
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $settings=EffectiveSettingsResolver::globalDocument(
+            $document['settings'],
+            $this->repository->oghmaSettings($installation),
+            $this->repository->translationPolicyForInstallation($installation)['content'],
+            $this->repository->profileAutoLockEnabled($installation)
+        );
+        $this->syncGlobalSettingsSidecars($settings,$installation,'imported portable Global Settings');
         $existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',[
             'installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings,
@@ -1035,7 +1064,14 @@ final class ManagementRouter
         if($existing===null||!hash_equals((string)$existing['configuration_id'],$configurationId)
             ||$revision===false||$revision<1||$revision>=(int)$existing['current_revision'])
             throw new InvalidArgumentException('invalid_global_settings_revision');
-        return$this->service->rollback('global_settings',$configurationId,(int)$revision,'management Global Settings restore');
+        $settings=EffectiveSettingsResolver::globalDocument(
+            $this->repository->revisionContent('global_settings',$configurationId,(int)$revision),
+            $this->repository->oghmaSettings($installation),
+            $this->repository->translationPolicyForInstallation($installation)['content'],
+            $this->repository->profileAutoLockEnabled($installation)
+        );
+        $this->syncGlobalSettingsSidecars($settings,$installation,'management Global Settings restore');
+        return$this->service->revise('global_settings',$configurationId,$settings,'management Global Settings restore');
     }
 
     /** Download a validated portable connector without credentials or a binding to the recipient's saved keys. */
@@ -1330,6 +1366,7 @@ final class ManagementRouter
             if(!$validString&&!$validObject)throw new InvalidArgumentException('invalid_profile_export');}
         $name=trim($document['name']);if($name===''||strlen($name)>256||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_profile_export');
         $identity['kind']='actor';$identity['display_name']??=$name;
+        unset($content['routing'],$content['settings_overrides'],$content['portrait']);
         return['name'=>$name,'actor_identity'=>$identity,'content'=>$content];
     }
 
@@ -1369,7 +1406,7 @@ final class ManagementRouter
     /** Convert the focused narration form into an opt-in roleplay and routing document. */
     private function narratorContent(array $values):array
     {
-        $content=$this->profileContent($values);$mode=(string)($values['inline_narration_mode']??'Disabled');
+        $content=$this->profileContent($values,true);$mode=(string)($values['inline_narration_mode']??'Disabled');
         if(!in_array($mode,['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException('invalid_inline_narration_mode');
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
         $content['context_visibility']=isset($values['context_visibility']);
@@ -1434,19 +1471,9 @@ final class ManagementRouter
     private function saveGlobalSettings(array $values,array $scope):array
     {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
-        $this->saveTranslationPolicy($values,$installation);
-        $this->repository->setProfileAutoLock($installation,isset($values['auto_lock_profile']),gmdate('Y-m-d\TH:i:s\Z'));
-        $this->repository->setOghmaSettings($installation,[
-            'enabled'=>isset($values['oghma_enabled']),
-            'knowledge_tags'=>$this->npcKnowledgeTags($values['oghma_knowledge_tags']??''),
-            'racial_context_enabled'=>isset($values['oghma_racial_context_enabled']),
-            'location_context_enabled'=>isset($values['oghma_location_context_enabled']),
-            'topic_count'=>$values['oghma_topic_count']??1,
-            'result_limit'=>$values['oghma_result_limit']??3,
-            'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
-            'extractor_timeout_ms'=>$values['oghma_extractor_timeout_ms']??1500,
-        ],gmdate('Y-m-d\TH:i:s\Z'));
-        $content=$this->globalSettingsContent($values);$existing=$this->repository->globalSettingsForInstallation($installation);
+        $content=$this->globalSettingsContent($values);
+        $this->syncGlobalSettingsSidecars($content,$installation,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
+        $existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
     }
@@ -1470,6 +1497,24 @@ final class ManagementRouter
         if($existing['content']===$content)return$existing;
         return$this->service->revise('translation_policy',(string)$existing['configuration_id'],$content,
             trim((string)($values['change_reason']??'management translation policy'))?:'management translation policy');
+    }
+
+    /** Keep legacy runtime sidecars synchronized with the authoritative v2 Global Settings revision. */
+    private function syncGlobalSettingsSidecars(array $settings,string $installation,string $reason):void
+    {
+        $settings=EffectiveSettingsResolver::validateGlobalSettings($settings);$now=gmdate('Y-m-d\TH:i:s\Z');
+        $this->repository->setProfileAutoLock($installation,$settings['profile_management']['auto_lock_profile'],$now);
+        $oghma=$settings['oghma'];
+        $this->repository->setOghmaSettings($installation,[
+            'enabled'=>$oghma['enabled'],'knowledge_tags'=>$oghma['knowledge_tags'],
+            'racial_context_enabled'=>$oghma['racial_context_enabled'],'location_context_enabled'=>$oghma['location_context_enabled'],
+            'topic_count'=>$oghma['topic_count'],'result_limit'=>$oghma['result_limit'],
+            'extractor_enabled'=>$oghma['extractor_enabled'],'extractor_timeout_ms'=>$oghma['extractor_timeout_ms'],
+        ],$now);
+        $translation=$settings['translation'];$existing=$this->repository->translationPolicyForInstallation($installation);
+        if($existing['configuration_id']===null)$this->service->createRevisioned('translation_policy',[
+            'installation_id'=>$installation,'name'=>'NPC Output Translation','content'=>$translation]);
+        elseif($existing['content']!==$translation)$this->service->revise('translation_policy',(string)$existing['configuration_id'],$translation,$reason);
     }
 
     /** Create one typed Core Profile between installation defaults and NPC overrides. */
@@ -1506,54 +1551,72 @@ final class ManagementRouter
     {
         $routing=[];
         foreach(['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
-            'relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
+            'llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id']as$field){
             $value=trim((string)($values[$field]??''));if($value==='')continue;$this->uuid($value,$field);$routing[$field]=$value;
         }
-        foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){
-            $value=(string)($values[$field]??'inherit');
-            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$field);
-            $routing[$field]=$value==='1';
-        }
+        $routing['llm_randomizer_enabled']=isset($values['llm_randomizer_enabled']);
+        $routing['llm_fallback_enabled']=isset($values['llm_fallback_enabled']);
 
-        $overrides=[];
-        $booleanFields=SettingsCatalog::overrideBooleanFields();
-        foreach($booleanFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$value=(string)($values[$key]??'inherit');
-            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$key);
-            $overrides[$section][$field]=$value==='1';}
-        $integerFields=SettingsCatalog::overrideIntegerFields();
-        foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
-            if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
-            $overrides[$section][$field]=(int)$value;}
-        $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
-        if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
-        $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
-        if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
-        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
-        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
+        $number=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
+            if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
+        $overrides=[
+            'behavior'=>['rechat'=>isset($values['setting_behavior_rechat']),
+                'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
+                'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50)],
+            'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)],
+            'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
+                'include_in_context'=>isset($values['setting_diary_include_in_context']),
+                'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
+                'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
+        ];
 
         return['schema'=>'lorkhan.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];
     }
 
-    /** Convert labelled management controls into the strict client-settings protocol document. */
+    /** Convert labelled management controls into the authoritative v2 Global Settings document. */
     private function globalSettingsContent(array $values):array
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
-        $content=SettingsCatalog::clientDefaults();
-        $content['behavior']['rechat']=isset($values['rechat']);
-        $content['behavior']['rechat_max_depth']=$integer($values,'rechat_max_depth',$content['behavior']['rechat_max_depth']);
-        $content['behavior']['rechat_probability_percent']=$integer($values,'rechat_probability_percent',$content['behavior']['rechat_probability_percent']);
-        $content['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$content['behavior']['rechat_mode']));
-        $content['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
-        $content['behavior']['open_rechat']=isset($values['open_rechat']);
-        $content['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$content['behavior']['end_conversation_cooldown_seconds']);
-        $content['memory']['recent_turn_limit']=$integer($values,'recent_turn_limit',$content['memory']['recent_turn_limit']);
+        $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $client['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$client['behavior']['rechat_mode']));
+        $client['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
+        $client['behavior']['open_rechat']=isset($values['open_rechat']);
+        $client['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$client['behavior']['end_conversation_cooldown_seconds']);
+        $content['profile_management']['auto_lock_profile']=isset($values['auto_lock_profile']);
+        $provider=strtolower(trim((string)($values['translation_provider']??'none')));$active=$provider==='deepl';
+        $content['translation']=TranslationPolicy::validate(['schema'=>'lorkhan.translation-policy.v1','provider'=>$provider,
+            'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
+            'save_translated_text'=>$active&&isset($values['translation_save_text']),
+            'source_language'=>trim((string)($values['translation_source_language']??'')),
+            'target_language'=>trim((string)($values['translation_target_language']??'')),
+            'endpoint'=>trim((string)($values['translation_endpoint_url']??TranslationPolicy::FREE_ENDPOINT))]);
+        $content['oghma']=[
+            'enabled'=>isset($values['oghma_enabled']),'topic_count'=>$integer($values,'oghma_topic_count',1),
+            'result_limit'=>$integer($values,'oghma_result_limit',3),
+            'racial_context_enabled'=>isset($values['oghma_racial_context_enabled']),
+            'location_context_enabled'=>isset($values['oghma_location_context_enabled']),
+            'extractor_fallback_enabled'=>isset($values['oghma_extractor_enabled']),
+            'extractor_timeout_ms'=>$integer($values,'oghma_extractor_timeout_ms',1500),
+            'knowledge_tags'=>$this->npcKnowledgeTags($values['oghma_knowledge_tags']??''),
+            'extractor_enabled'=>isset($values['oghma_extractor_enabled']),
+        ];
+        foreach(SettingsCatalog::contextSectionDefaults()as$key=>$default)$content['context']['sections'][$key]=isset($values['context_section_'.$key]);
+        foreach(SettingsCatalog::contextDetailDefaults()as$key=>$default)$content['context']['details'][$key]=isset($values['context_detail_'.$key]);
+        $eventTypes=$values['context_event_types']??[];if(!is_array($eventTypes))throw new InvalidArgumentException('invalid_context_event_types');
+        $content['context']['event_types']=array_values($eventTypes);
+        foreach(['location_blacklist','item_blacklist','magic_effects_blacklist']as$field){
+            $raw=(string)($values['context_'.$field]??'');$content['context'][$field]=preg_split('/\R/u',$raw)?:[];
+        }
+        $content['relationship']=['enabled'=>isset($values['relationship_enabled']),
+            'update_chance_percent'=>$integer($values,'relationship_update_chance_percent',0)];
+        foreach(SettingsCatalog::systemRoutingFields()as$field){$value=trim((string)($values[$field]??''));
+            if($value!=='')$this->uuid($value,$field);$content['system_routing'][$field]=$value;}
         return EffectiveSettingsResolver::validateGlobalSettings($content);
     }
 
     /** Convert labelled NPC editor fields into the bounded roleplay document consumed by prompts and TTS. */
-    private function profileContent(array $values):array
+    private function profileContent(array $values,bool $allowSpecialTtsRouting=false):array
     {
         $content=isset($values['base_content_json'])?$this->jsonField($values,'base_content_json'):[];
         foreach(['prompt_head','core','appearance','biography','personality','speech_style','occupation','skills','goals','relationships','emote_moods','gender','race','tags','notes']as$field){
@@ -1562,32 +1625,12 @@ final class ManagementRouter
         }
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
-        $llmRoutingFields=['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id',
-            'llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id',
-            'relationship_configuration_id','diary_generation_configuration_id'];
-        if(array_key_exists('llm_configuration_id',$values)||array_key_exists('tts_configuration_id',$values)
-            ||array_key_exists('prompt_configuration_id',$values)||array_key_exists('profile_generation_configuration_id',$values)
-            ||array_key_exists('relationship_configuration_id',$values)||array_key_exists('diary_generation_configuration_id',$values)||isset($values['llm_routing_fields'])){
-            $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
-            foreach(array_merge($llmRoutingFields,['tts_configuration_id','prompt_configuration_id'])as$field){
-                if(!array_key_exists($field,$values))continue;$id=trim((string)($values[$field]??''));
-                if($id==='')unset($routing[$field]);elseif($id==='__disabled__')$routing[$field]='';else{$this->uuid($id,$field);$routing[$field]=$id;}
-            }
-            if(isset($values['llm_routing_fields'])){
-                foreach(['llm_randomizer_enabled','llm_fallback_enabled']as$field){$value=(string)($values[$field]??'inherit');
-                    if($value==='inherit')unset($routing[$field]);elseif(in_array($value,['0','1'],true))$routing[$field]=$value==='1';
-                    else throw new InvalidArgumentException('invalid_'.$field);}
-            }
+        unset($content['settings_overrides']);
+        if($allowSpecialTtsRouting){
+            $routing=[];$id=trim((string)($values['tts_configuration_id']??''));
+            if($id==='__disabled__')$routing['tts_configuration_id']='';elseif($id!==''){$this->uuid($id,'tts_configuration_id');$routing['tts_configuration_id']=$id;}
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
-        }
-        if(array_filter(array_keys($values),static fn(string$key):bool=>str_starts_with($key,'setting_'))!==[]){
-            $existingOverrides=is_array($content['settings_overrides']??null)&&!array_is_list($content['settings_overrides'])?$content['settings_overrides']:[];
-            $overrides=$this->profileSettingsOverrides($values);
-            if(!array_key_exists('setting_diary_enabled',$values)&&!array_key_exists('setting_diary_include_in_context',$values)
-                &&!array_key_exists('setting_diary_context_turn_limit',$values)&&!array_key_exists('setting_diary_prompt',$values)
-                &&is_array($existingOverrides['diary']??null))$overrides['diary']=$existingOverrides['diary'];
-            if($overrides===[])unset($content['settings_overrides']);else$content['settings_overrides']=$overrides;
-        }
+        }else unset($content['routing']);
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
@@ -1597,32 +1640,13 @@ final class ManagementRouter
     /** Add the player-only biography audience flag to the shared bounded profile document. */
     private function playerContent(array $values):array
     {
-        $content=$this->profileContent($values);
+        $content=$this->profileContent($values,true);
         if(!array_key_exists('biography_known_by_all',$values))return$content;
         $value=$values['biography_known_by_all'];
         if(is_bool($value))$content['biography_known_by_all']=$value;
         elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
         else throw new InvalidArgumentException('invalid_biography_visibility');
         return$content;
-    }
-
-    /** Parse optional per-NPC setting values; absent keys continue to inherit from the Core Profile. */
-    private function profileSettingsOverrides(array $values):array
-    {
-        $overrides=[];$booleanFields=SettingsCatalog::overrideBooleanFields();
-        foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
-            if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
-            $overrides[$section][$field]=$value==='1';}
-        $integerFields=SettingsCatalog::overrideIntegerFields();
-        foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
-            $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
-        $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
-        if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
-        $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
-        if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
-        $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
-        if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
-        return$overrides;
     }
 
     /** Remove article-only markers before management forms write NPC access permissions. */

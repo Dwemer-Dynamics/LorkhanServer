@@ -207,13 +207,13 @@ assert 'MockProviderVoice' not in request('/LorkhanServer/ui/core/npc_master.php
 keys,text=parse(request('/LorkhanServer/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text
 deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert deepl_key_input,text
 deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[LORKHAN_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
-player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower(),text
-narrator,text=parse(request('/LorkhanServer/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'narrator routing' in text.lower()
-globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat" value="1" aria-label="Rechat"' in text and 'name="rechat" value="1" disabled' not in text and 'name="boredom"' not in text and 'name="auto_greeting"' not in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
+player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower() and 'Profile generation uses the connector selected in' in text,text
+narrator,text=parse(request('/LorkhanServer/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'Configure narrator behavior and settings' in text and 'Profile generation uses the connector selected in' in text
+globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat_mode"' in text and 'name="relationship_enabled" value="1"' in text and 'name="context_section_conversation_history" value="1"' in text and 'name="context_location_blacklist"' in text and 'name="profile_generation_configuration_id"' in text and 'name="boredom"' not in text and 'name="auto_greeting"' not in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
 assert 'class="page-header-actions"' in text and '&#128229; Import Settings' in text and 'class="gs-portability"' not in text and 'aria-controls="settings-panel-prompt-rechat"' in text and 'id="settings-panel-prompt-rechat"' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
-assert 'data-json-import-target="gs-preset-json"' in text and 'typed Global Settings document only' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
+assert 'data-json-import-target="gs-preset-json"' in text and 'replaces every value in the typed document' in text and global_settings_import['fields'].get('installation_id')==global_settings_form['fields'].get('installation_id')
 assert global_settings_form['fields'].get('oghma_enabled')=='1' and 'oghma_extractor_enabled' not in global_settings_form['fields'] and global_settings_form['fields'].get('oghma_topic_count')=='1' and global_settings_form['fields'].get('oghma_result_limit')=='3' and global_settings_form['fields'].get('oghma_extractor_timeout_ms')=='1500',global_settings_form['fields']
 assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/LorkhanServer/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
@@ -286,7 +286,7 @@ for path in [
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
-profile_labels=['Voice sample','Dialogue Prompt','Oghma Extractor','Profile Generation LLM','Diary LLM','Relationship LLM','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC']
+profile_labels=['Voice sample','Core Profile','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC','Inherited behavior']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
@@ -308,8 +308,8 @@ valid['favorite']='1'
 r=request(form['action'],'POST',valid); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl(),body); assert 'NPC profile change saved.' in body
 profile_match=re.search(re.escape(profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert profile_match,profile_name
 profile_id=profile_match.group(1)
-profile_export=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode()); profile_overrides=profile_export['content']['settings_overrides']
-assert profile_overrides['behavior']=={'rechat':True,'rechat_max_depth':4} and 'presentation' not in profile_overrides,profile_overrides
+profile_export=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
+assert 'settings_overrides' not in profile_export['content'] and 'routing' not in profile_export['content'],profile_export['content']
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); body=r.read().decode()
 assert r.status==200 and 'voice_sample_in_use' in body and 'Profile: '+profile_name in body and batch_voice in body,(r.status,r.geturl(),body)
 managed_for_clone,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
@@ -510,15 +510,17 @@ assert r.status==200 and revised_title in body and revised_text in body,(r.statu
 r=request('/LorkhanServer/manage/forms/narrative-delete','POST',{'_csrf':csrf,'narrative_id':narrative_id}); body=r.read().decode(); assert r.status==200 and revised_title not in body,(r.status,r.geturl())
 globals_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
-values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],recent_turn_limit='20',auto_lock_profile='1',change_reason='HTTP layered global settings')
+values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],rechat_mode='group',
+    relationship_enabled='1',relationship_update_chance_percent='75',context_location_blacklist='Balmora',
+    auto_lock_profile='1',change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
 globals_page,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
-assert 'name="recent_turn_limit" value="20"' in body and 'name="knowledge_limit"' not in body and 'name="rechat" value="1" aria-label="Rechat"' in body and 'name="rechat" value="1" disabled' not in body and 'name="auto_lock_profile" value="1" checked' in body
-assert all('<h2>'+section+'</h2>' in body for section in ['Rechat','Profiles','Translation','Context &amp; Knowledge']) and all(name in body for name in ['recent_turn_limit','auto_lock_profile','oghma_enabled','translation_provider']) and not any(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','Background Life Trigger Time'])
+assert '<option value="group" selected>group</option>' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body
+assert all('<h2>'+section+'</h2>' in body for section in ['Prompt &amp; Rechat','Memory &amp; Others','Translation','Oghma Infinium','Context Sections','Context Details','Context Filters','Global Connectors']) and all(name in body for name in ['auto_lock_profile','oghma_enabled','translation_provider','context_location_blacklist','profile_generation_configuration_id']) and not any(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','Background Life Trigger Time'])
 assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
 assert '<option value="none" selected>None</option>' in body and '<option value="deepl">DeepL</option>' in body and 'name="translation_provider" data-translation-control="provider" aria-label="Provider"' in body
 assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body and '<option value="https://api.deepl.com/v2/translate">Pro account (api.deepl.com)</option>' in body
-assert 'translates NPC output only' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
+assert 'translates NPC subtitles and speech audio' in body and not any(name in body for name in ['translation_player_audio','translation_save_player_text','translation_player_source_language','translation_player_target_language'])
 translation_values=dict(values,translation_provider='deepl',translation_text='1')
 r=request(settings_form['action'],'POST',translation_values); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_translation_activation' in invalid_body,(r.status,invalid_body)
@@ -534,24 +536,25 @@ global_configuration_id=global_export_match.group(1)
 global_preset_response=request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json')
 global_preset=json.loads(global_preset_response.read().decode())
 assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','name','schema','settings']
-assert global_preset['schema']=='lorkhan.global-settings-preset.v1' and global_preset['settings']['schema']=='lorkhan.client-settings.v1'
-assert global_preset['settings']['memory']=={'recent_turn_limit':20,'knowledge_limit':5} and not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','oghma','auto_lock_profile','npc_assignments'])
+assert global_preset['schema']=='lorkhan.global-settings-preset.v2' and global_preset['settings']['schema']=='lorkhan.global-settings.v2'
+assert global_preset['settings']['client']['behavior']['rechat_mode']=='group' and global_preset['settings']['context']['location_blacklist']==['Balmora'] and global_preset['settings']['profile_management']['auto_lock_profile'] is True and global_preset['settings']['relationship']=={'enabled':True,'update_chance_percent':75}
+assert not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','npc_assignments'])
 invalid_global_preset=dict(global_preset,unexpected='rejected')
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_global_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
 secret_global_preset=dict(global_preset,settings=dict(global_preset['settings'],api_key='never'))
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_global_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
-global_preset['settings']['memory']['knowledge_limit']=9
+global_preset['settings']['context']['location_blacklist']=['Balmora','Seyda Neen']
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(global_preset))); imported_page,imported_body=parse(r)
 imported_export=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read().decode())
-assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit"' not in imported_body and imported_export['settings']['memory']['knowledge_limit']==9,(r.status,r.geturl(),imported_export)
+assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit"' not in imported_body and imported_export['settings']['context']['location_blacklist']==['Balmora','Seyda Neen'],(r.status,r.geturl(),imported_export)
 assert 'name="auto_lock_profile" value="1" checked' in imported_body and 'name="oghma_result_limit" value="3"' in imported_body
 global_rollback=next(f for f in imported_page.forms if f['action'].endswith('/forms/global-settings-rollback'))
 assert global_rollback['fields']['configuration_id']==global_configuration_id and int(global_rollback['fields']['revision'])>=1
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf)); rolled_page,rolled_body=parse(r)
 rolled_export=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read().decode())
-assert r.status==200 and 'status=rolled-back' in r.geturl() and 'name="knowledge_limit"' not in rolled_body and rolled_export['settings']['memory']['knowledge_limit']==5,(r.status,r.geturl(),rolled_export)
+assert r.status==200 and 'status=rolled-back' in r.geturl() and 'name="knowledge_limit"' not in rolled_body and rolled_export['settings']['context']['location_blacklist']!=['Balmora','Seyda Neen'],(r.status,r.geturl(),rolled_export)
 assert 'Earlier revision restored as a new Global Settings revision.' in rolled_body
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf,configuration_id=str(uuid.uuid4()))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.status,invalid_body)
@@ -757,25 +760,27 @@ assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-op
 core_import_page,core_import_body=parse(request('/LorkhanServer/ui/core/core_profiles.php?import=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
 assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
-# Validate the live Core Profile relationship and manual diary controls.
+# Validate the compact Core Profile response, Rechat, context, and manual diary controls.
 core_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 core_page=Page(); core_page.feed(core_body)
-assert 'aria-labelledby="relationship_configuration_id-label"' in core_body
-assert 'aria-label="Relationship Update Chance"' in core_body and 'for="relationship-lock"' in core_body
 assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Manual Diary Generation' in core_body
+assert 'aria-labelledby="relationship_configuration_id-label"' not in core_body and 'Relationship Update Chance' not in core_body
+assert 'name="setting_behavior_rechat"' in core_body and 'name="setting_memory_recent_turn_limit"' in core_body
 assert 'Generate nearby NPC diaries during sleep or wait.' not in core_body and 'Create a physical in-game diary that can be read.' not in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
-core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,relationship_configuration_id=slot_id,
-    setting_relationship_update_chance_percent='100',setting_relationship_locked='1',diary_generation_configuration_id=slot_id,
-    setting_diary_enabled='1',setting_diary_include_in_context='0',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
+core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,
+    setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',
+    setting_memory_recent_turn_limit='24',diary_generation_configuration_id=slot_id,
+    setting_diary_enabled='1',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
+core_values.pop('setting_diary_include_in_context',None)
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
-assert core_saved['fields']['relationship_configuration_id']==slot_id and core_saved['fields']['setting_relationship_update_chance_percent']=='100'
-assert core_saved['fields']['setting_relationship_locked']=='1',core_saved
 assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
-assert core_saved['fields']['setting_diary_include_in_context']=='0' and core_saved['fields']['setting_diary_context_turn_limit']=='12'
-assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192" placeholder="Inherit" aria-describedby="profile-diary-prompt-help">Record only witnessed events.</textarea>' in core_body
+assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fields']['setting_behavior_rechat_max_depth']=='5' and core_saved['fields']['setting_behavior_rechat_probability_percent']=='65'
+assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
+assert 'setting_diary_include_in_context' not in core_saved['fields'] and core_saved['fields']['setting_diary_context_turn_limit']=='12'
+assert '<textarea id="profile-diary-prompt" name="setting_diary_prompt" rows="3" maxlength="8192">Record only witnessed events.</textarea>' in core_body
 assert len(VoiceProvider.llm_requests)==provider_calls_before_diary,core_saved
 connector_plan_calls=len(VoiceProvider.llm_requests)
 connector_plan_response=json_request('/LorkhanServer/manage/api/v1/profile-connector-tests?installation_id='+valid['installation_id'])
@@ -785,7 +790,7 @@ matching_jobs=[job for job in connector_plan['jobs'] if job['configuration_id']=
 assert len(matching_jobs)==1 and matching_jobs[0]['kind']=='provider' and matching_jobs[0]['label']==slot_name,connector_plan
 matching_profile=next(profile for profile in connector_plan['profiles'] if profile['id']==core_edit.group(1))
 matching_slots=[slot for slot in matching_profile['slots'] if slot['configuration_id']==slot_id]
-assert {slot['field'] for slot in matching_slots}=={'llm_configuration_id','llm_fast_configuration_id','relationship_configuration_id','diary_generation_configuration_id'} and len({slot['job_key'] for slot in matching_slots})==1,matching_slots
+assert {slot['field'] for slot in matching_slots}=={'llm_configuration_id','llm_fast_configuration_id','diary_generation_configuration_id'} and len({slot['job_key'] for slot in matching_slots})==1,matching_slots
 assert any(job['configuration_id']==tts_id and job['kind']=='tts_provider' for job in connector_plan['jobs']),connector_plan
 assert not any(key in json.dumps(connector_plan).lower() for key in ['api_key','credential','endpoint','content']),connector_plan
 bulk_values={'installation_id':valid['installation_id'],'kind':'provider','configuration_id':slot_id}
@@ -823,7 +828,8 @@ assert json.loads(json_request(rules_path+'?installation_id='+valid['installatio
 core_preset_response=request('/LorkhanServer/manage/exports/core-profile-settings/'+core_edit.group(1)+'.json')
 core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
-assert core_preset['schema']=='lorkhan.core-profile-settings.v1' and core_preset['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
+assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65}
+assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24}
 assert core_preset['settings_overrides']['diary']=={'enabled':True,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
@@ -835,10 +841,11 @@ assert imported_id_match,body
 imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page.feed(body)
 imported_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
 assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
-assert imported_form['fields']['setting_relationship_update_chance_percent']=='100' and imported_form['fields']['setting_relationship_locked']=='1'
-assert imported_form['fields']['setting_diary_enabled']=='1' and imported_form['fields']['setting_diary_include_in_context']=='0'
+assert imported_form['fields']['setting_behavior_rechat']=='1' and imported_form['fields']['setting_behavior_rechat_max_depth']=='5'
+assert imported_form['fields']['setting_behavior_rechat_probability_percent']=='65' and imported_form['fields']['setting_memory_recent_turn_limit']=='24'
+assert imported_form['fields']['setting_diary_enabled']=='1' and 'setting_diary_include_in_context' not in imported_form['fields']
 assert imported_form['fields']['setting_diary_context_turn_limit']=='12' and '>Record only witnessed events.</textarea>' in body
-assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','oghma_configuration_id','profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
+assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
 assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
 invalid_preset=dict(core_preset,unexpected='rejected')
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_preset))); body=r.read().decode()
@@ -847,15 +854,18 @@ secret_preset=dict(core_preset,settings_overrides={'memory':{'api_key':'never'}}
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_preset))); body=r.read().decode()
 assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.status,body)
 r=request('/LorkhanServer/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
-core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',relationship_configuration_id='',diary_generation_configuration_id='',
-    setting_relationship_update_chance_percent='',setting_relationship_locked='inherit',setting_diary_enabled='inherit',
-    setting_diary_include_in_context='inherit',setting_diary_context_turn_limit='',setting_diary_prompt='')
-assert request(core_form['action'],'POST',core_reset).status==200
+core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',diary_generation_configuration_id='',
+    setting_behavior_rechat_max_depth='2',setting_behavior_rechat_probability_percent='50',setting_memory_recent_turn_limit='20',
+    setting_diary_context_turn_limit='20')
+for field in ['setting_behavior_rechat','setting_diary_enabled','setting_diary_include_in_context']:
+    core_reset.pop(field,None)
+core_reset_response=request(core_form['action'],'POST',core_reset); core_reset_body=core_reset_response.read().decode()
+assert core_reset_response.status==200,(core_reset_response.status,core_reset_response.geturl(),core_reset_body)
 profiles_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 routing_form=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-create'))
-routing_profile_name='HTTP routed profile '+uuid.uuid4().hex
+routing_profile_name='HTTP ownership profile '+uuid.uuid4().hex
 values=dict(routing_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=routing_profile_name,
-    biography='Exercises Core Profile inherited response routing.',voice_language='en',
+    biography='Exercises strict character-only profile ownership.',voice_language='en',
     profile_generation_configuration_id=slot_id,relationship_configuration_id=slot_id,diary_generation_configuration_id=slot_id,
     setting_relationship_update_chance_percent='100',setting_relationship_locked='1')
 provider_calls_before_routing_save=len(VoiceProvider.llm_requests)
@@ -864,40 +874,26 @@ routing_match=re.search(re.escape(routing_profile_name)+r'.*?name="profile_id" v
 routing_profile_id=routing_match.group(1)
 routing_page=Page(); routing_page.feed(body)
 saved_routing=next(f for f in routing_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
-saved_routing_content=json.loads(saved_routing['fields']['base_content_json']); saved_routing_values=saved_routing_content.get('routing',{})
-assert saved_routing_values.get('profile_generation_configuration_id')==slot_id and 'Use server runtime' in body
-assert saved_routing_values['relationship_configuration_id']==slot_id
-assert saved_routing_values['diary_generation_configuration_id']==slot_id and 'Routes newly queued manual diary jobs for this NPC.' in body
-assert saved_routing_content['settings_overrides']['relationship']=={'update_chance_percent':100,'locked':True}
-assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Saving an NPC route never calls a provider.
-locked_build=dict(build_values,profile_id=routing_profile_id,request_id=str(uuid.uuid4()))
-r=request(build_form['action'],'POST',locked_build); assert r.status==200 and 'relationship_build_locked' in r.geturl()
-assert r.status==200 and not any(field in saved_routing_values for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id']),(r.status,r.geturl(),saved_routing_values)
+saved_routing_content=json.loads(saved_routing['fields']['base_content_json'])
+assert 'routing' not in saved_routing_content and 'settings_overrides' not in saved_routing_content,saved_routing_content
+assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Saving character details never calls a provider.
+assert not any(field in saved_routing['fields'] for field in ['profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','setting_relationship_locked'])
+
+# System connectors are installation-owned Global Settings, never NPC profile fields.
+global_route_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_route_form=next(f for f in global_route_page.forms if f['action'].endswith('/forms/global-settings-save'))
+global_route_values=dict(global_route_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,
+    relationship_configuration_id=slot_id,change_reason='HTTP global connector ownership')
+r=request(global_route_form['action'],'POST',global_route_values); assert r.status==200,(r.status,r.read().decode())
 llm_page,body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected='+slot_id))
-assert '>1 profiles</span>' in body and 'Connector is in use.' in body,body
+assert 'Connector is in use.' in body,body
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()
 assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 profiles_page,_=parse(request('/LorkhanServer/ui/core/npc_master.php?selected='+routing_profile_id))
 clear_routing=next(f for f in profiles_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
-assert {'profile_generation_configuration_id','diary_generation_configuration_id'} <= {control[2] for control in profiles_page.controls},'live NPC editor is missing a generation route'
-runtime_route=dict(clear_routing['fields'],_csrf=csrf,profile_generation_configuration_id='__disabled__',relationship_configuration_id='__disabled__',diary_generation_configuration_id='__disabled__',
-    setting_relationship_update_chance_percent='0',setting_relationship_locked='0',change_reason='Use runtime generator')
-r=request(clear_routing['action'],'POST',runtime_route); assert r.status==200
-runtime_content=json.loads(request('/LorkhanServer/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
-assert runtime_content['routing']['profile_generation_configuration_id']=='',runtime_content['routing']
-assert runtime_content['routing']['relationship_configuration_id']==''
-assert runtime_content['routing']['diary_generation_configuration_id']==''
-assert runtime_content['settings_overrides']['relationship']=={'update_chance_percent':0,'locked':False}
-values=dict(clear_routing['fields'],_csrf=csrf,llm_configuration_id='',llm_fast_configuration_id='',
-    llm_powerful_configuration_id='',llm_experimental_configuration_id='',llm_fallback_configuration_id='',profile_generation_configuration_id='',relationship_configuration_id='',diary_generation_configuration_id='',setting_relationship_update_chance_percent='',
-    setting_relationship_locked='inherit',change_reason='Clear routing')
-values.pop('llm_randomizer_enabled',None); values.pop('llm_fallback_enabled',None)
-r=request(clear_routing['action'],'POST',values); assert r.status==200
-inherited_content=json.loads(request('/LorkhanServer/manage/exports/profiles/'+routing_profile_id+'.json').read().decode())['content']
-assert 'profile_generation_configuration_id' not in inherited_content.get('routing',{}),inherited_content.get('routing')
-assert 'relationship_configuration_id' not in inherited_content.get('routing',{})
-assert 'diary_generation_configuration_id' not in inherited_content.get('routing',{})
-assert 'relationship' not in inherited_content.get('settings_overrides',{})
+assert not {'profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id'} & {control[2] for control in profiles_page.controls}
+global_route_values['profile_generation_configuration_id']=''; global_route_values['relationship_configuration_id']=''
+assert request(global_route_form['action'],'POST',global_route_values).status==200
 r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':routing_profile_id}); assert r.status==200
 provider_export_response=request('/LorkhanServer/manage/exports/providers/'+slot_id+'.json'); provider_export=json.loads(provider_export_response.read().decode())
 assert provider_export_response.status==200 and provider_export['schema']=='lorkhan.provider-export.v1' and 'installation_id' not in provider_export and 'endpoint' not in provider_export and 'api_key' not in json.dumps(provider_export).lower()
@@ -913,7 +909,7 @@ r=request(import_provider['action'],'POST',dict(import_provider['fields'],_csrf=
 assert r.status==200 and provider_export['name'] in body,(r.status,r.geturl(),body)
 import_provider_id=connector_editor_id(body,provider_export['name'])
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':import_provider_id}); assert r.status==200
-r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==200 and r.geturl().endswith('/ui/core/llm_connectors.php?status=saved')
+# Keep the shared model available for the later player and narrator generation checks.
 # Exercise the real adapter with a disposable local HTTP provider, never a paid endpoint.
 direct_name='HTTP direct '+uuid.uuid4().hex
 direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test',
@@ -965,14 +961,8 @@ values['player_mood_prompt_playful']='({PLAYER_NAME} sounds {MOOD}.)'; values['p
 r=request(prompt_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl())
 match=re.search(re.escape(prompt_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
 prompt_id=match.group(1)
-profiles_for_prompt,_=parse(request('/LorkhanServer/ui/core/npc_master.php'))
-prompt_profile_form=next(f for f in profiles_for_prompt.forms if f['action'].endswith('/forms/profile-create'))
-prompt_profile_name='HTTP prompt profile '+uuid.uuid4().hex
-r=request(prompt_profile_form['action'],'POST',dict(prompt_profile_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=prompt_profile_name,biography='Profile used to verify explicit prompt routing.',voice_language='en')); body=r.read().decode()
-prompt_profile_match=re.search(re.escape(prompt_profile_name)+r'.*?name="profile_id" value="([0-9a-f-]{36})"',body,re.S); assert prompt_profile_match,body
-prompt_profile_id=prompt_profile_match.group(1)
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
-profile_prompt=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==prompt_profile_id)
+core_for_prompt=Page(); core_for_prompt.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode())
+profile_prompt=next(f for f in core_for_prompt.forms if f['action'].endswith('/forms/core-profile-save'))
 values=dict(profile_prompt['fields'],_csrf=csrf,prompt_configuration_id=prompt_id,change_reason='Assign explicit dialogue prompt')
 r=request(profile_prompt['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl(),body)
 prompts,body=parse(request('/LorkhanServer/ui/prompts_manager.php')); assert '1 explicit profile assignments' in body and 'Assigned prompts cannot be deleted.' in body,body
@@ -1003,11 +993,10 @@ imported_prompt_form=next(f for f in imported_page.forms if f['action'].endswith
 assert 'prompt_format' not in imported_prompt_form['fields'] and imported_prompt_form['fields'].get('player_mood_prompt_playful')=='({PLAYER_NAME} answers in a {MOOD} way.)'
 assert '&quot;format&quot;' not in imported_body and '&quot;player_mood_prompts&quot;' not in imported_body
 r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':import_match.group(1),'kind':'prompt'}); assert r.status==200
-characters,_=parse(request('/LorkhanServer/ui/core/character_manager.php'))
-profile_prompt=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==prompt_profile_id)
+core_for_prompt=Page(); core_for_prompt.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode())
+profile_prompt=next(f for f in core_for_prompt.forms if f['action'].endswith('/forms/core-profile-save'))
 r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=csrf,prompt_configuration_id='',change_reason='Remove explicit dialogue prompt')); assert r.status==200
 r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':prompt_id,'kind':'prompt'}); assert r.status==200
-r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':prompt_profile_id}); assert r.status==200
 actions,body=parse(request('/LorkhanServer/ui/function_editor.php'))
 assert 'data-action-editor' in body and 'Configure available actions exposed to AI prompting and execution' in body and 'Save all changes' in body
 editor_path='/LorkhanServer/manage/api/v1/action-policies/editor?'+urllib.parse.urlencode({'installation_id':valid['installation_id']})
@@ -1067,8 +1056,11 @@ assert set(stored['content']['actions']['inspect.report'])==set([
     'available_to_narrator','is_activated','parameters_json','metadata','game_function','import_version',
     'script_proxy_program'])
 r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':policy_id,'kind':'action_policy'}); assert r.status==200
+global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))
+r=request(global_generation_form['action'],'POST',dict(global_generation_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,change_reason='HTTP special profile generation route')); assert r.status==200,(r.status,r.read().decode())
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php'))
-assert 'profile_generation_configuration_id' in {control[2] for control in player.controls},'live player editor has no generation route'
+assert 'profile_generation_configuration_id' not in {control[2] for control in player.controls} and 'Global Settings' in text
 create_player=next((f for f in player.forms if f['action'].endswith('/forms/player-profile-create')),None)
 if create_player is not None:
     player_name='HTTP player '+uuid.uuid4().hex
@@ -1083,7 +1075,7 @@ if create_player is not None:
     player_id=match.group(1)
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',profile_generation_configuration_id=slot_id,change_reason='HTTP parity test')
+    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
@@ -1120,12 +1112,12 @@ if create_player is not None:
     assert imported_player['settings']['goals']=='' and imported_player['settings']['personality']=='Portable and patient' and imported_player['settings']['biography_known_by_all'] is True
     imported_player_page,_=parse(request('/LorkhanServer/ui/core/player_management.php'))
     imported_player_form=next(f for f in imported_player_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    assert imported_player_form['fields']['profile_generation_configuration_id']==slot_id
+    assert 'profile_generation_configuration_id' not in imported_player_form['fields']
     r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':player_id}); assert r.status==200
 else:
     assert any(f['action'].endswith('/forms/player-profile-revise') for f in player.forms),'existing player profile is not editable'
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
-assert 'profile_generation_configuration_id' in {control[2] for control in narrator_page.controls},'live narrator editor has no generation route'
+assert 'profile_generation_configuration_id' not in {control[2] for control in narrator_page.controls} and 'Global Settings' in body
 create_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-create')),None)
 if create_narrator is not None:
     narrator_name='HTTP narrator '+uuid.uuid4().hex
@@ -1138,7 +1130,7 @@ generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
 narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
-narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',profile_generation_configuration_id=slot_id,change_reason='HTTP narrator portability route')
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',change_reason='HTTP narrator portability route')
 r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 generate_narrator=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate'))
@@ -1159,6 +1151,11 @@ assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),im
 imported_narrator_page,imported_narrator_body=parse(request('/LorkhanServer/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
 assert 'Portable narrator settings imported as a new narrator profile revision.' in imported_narrator_body and 'Portable narrator persona' in imported_narrator_body,imported_narrator_body
 imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
-assert '<option selected>Text Only</option>' in imported_narrator_body and imported_narrator_form['fields']['profile_generation_configuration_id']==slot_id,imported_narrator_form['fields']
+assert '<option selected>Text Only</option>' in imported_narrator_body and 'profile_generation_configuration_id' not in imported_narrator_form['fields'],imported_narrator_form['fields']
+global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))
+r=request(global_generation_form['action'],'POST',dict(global_generation_form['fields'],_csrf=csrf,profile_generation_configuration_id='',change_reason='HTTP special profile generation cleanup')); assert r.status==200,(r.status,r.read().decode())
+r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()
+assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 r=request('/LorkhanServer/manage/login'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 print('browser-like management HTTP forms passed')
