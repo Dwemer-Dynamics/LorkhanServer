@@ -82,7 +82,7 @@
         <a href="api_badge.php">API Badges</a>
         <a href="llm_connectors.php">LLM Connectors</a>
         <a href="core_profiles.php">Profiles</a>
-        <a href="npc_master.php">CHIM NPCs</a>
+        <a href="npc_master.php">Lorkhan NPCs</a>
     </div>
 </nav>
 

@@ -517,11 +517,11 @@ $assert(($inheritedContext['configuration_id']??null)===$coreModelSlot['configur
     &&$effectiveControlsStatus===200
     &&($effectiveControls['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
     &&($effectiveControls['effective_settings']['core_profile_id']??null)===$coreProfile['core_profile_id']
-    &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===0
+    &&($effectiveControls['effective_settings']['settings']['memory']['knowledge_limit']??null)===5
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat']??null)===true
     &&($effectiveControls['effective_settings']['settings']['behavior']['rechat_probability_percent']??null)===0
     &&($effectiveControls['effective_settings']['settings']['behavior']['open_rechat']??null)===false
-    &&($effectiveControls['effective_settings']['source_map']['settings.memory.knowledge_limit']??null)==='core_profile',
+    &&!array_key_exists('settings.memory.knowledge_limit',$effectiveControls['effective_settings']['source_map']??[]),
     'Core Profile routing and typed setting overrides did not reach runtime resolution');
 $coreContent=$coreProfile['content'];$coreContent['settings_overrides']['behavior']=['rechat'=>true];
 $coreProfile=$products->revise('core_profile',$coreProfile['core_profile_id'],$coreContent,'restore rechat fixture probability',$now);
@@ -645,6 +645,9 @@ $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
     'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
 $turnProfileContent=$actorProfile['content'];$turnProfileContent['routing']['prompt_configuration_id']=$turnPrompt['configuration_id'];
+$turnProfileContent['prompt_head']='NPC PROMPT HEAD SENTINEL';
+$turnProfileContent['core']='NPC CORE IDENTITY SENTINEL';
+$turnProfileContent['emote_moods']='NPC EMOTE MOODS SENTINEL';
 $actorProfile=$products->revise('profile',$actorProfile['profile_id'],$turnProfileContent,'route integration mood prompt',$now);
 $captured=$fixture('gamedata-captured-dialogue');
 $captured['installation_id']=$installationId;$captured['playthrough_id']=$session['playthrough_id'];
@@ -717,6 +720,9 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
     &&($moodProjectionPayload['input']['resolved_mood_cue']??null)==='(Player answers in a playful voice.)'
     &&!array_key_exists('resolved_mood_cue',$moodSourcePayload['payload']['input']??[])
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'CORE PROFILE INSTRUCTION SENTINEL')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'NPC PROMPT HEAD SENTINEL')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'NPC CORE IDENTITY SENTINEL')
+    &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'NPC EMOTE MOODS SENTINEL')
     &&str_contains($snapshot['message']['_prompt']['_assembled_prompt'],'Dwemer scholar')
     &&($snapshot['message']['_selected_profile_id']??null)===$actorProfile['profile_id']
     &&($layerTrace['core_profile_id']??null)===$coreProfile['core_profile_id']

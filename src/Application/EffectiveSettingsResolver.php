@@ -9,80 +9,21 @@ use InvalidArgumentException;
 /** Resolve typed settings without collapsing explicit false, zero, or empty-string overrides. */
 final class EffectiveSettingsResolver
 {
-    private const OGHMA_DEFAULTS = [
-        'enabled' => true,
-        'topic_count' => 1,
-        'result_limit' => 3,
-        'racial_context_enabled' => true,
-        'location_context_enabled' => true,
-        'extractor_fallback_enabled' => false,
-        'extractor_timeout_ms' => 1500,
-    ];
-
-    private const DEFAULT_SETTINGS = [
-        'schema' => 'lorkhan.client-settings.v1',
-        'behavior' => [
-            'auto_greeting' => false,
-            'rechat' => false,
-            'rechat_delay_seconds' => 45,
-            'rechat_max_depth' => 2,
-            'rechat_probability_percent' => 50,
-            'rechat_mode' => 'random',
-            'rechat_strict_targeting' => false,
-            'open_rechat' => true,
-            'rechat_allow_actions' => false,
-            'end_conversation_cooldown_seconds' => 60,
-            'boredom' => false,
-            'boredom_delay_seconds' => 180,
-            'combat_barks' => false,
-            'combat_bark_period_seconds' => 20,
-        ],
-        'memory' => ['recent_turn_limit' => 20, 'knowledge_limit' => 5],
-        'narrator' => [
-            'enabled' => false,
-            'name' => 'The Narrator',
-            'context_visibility' => true,
-            'inline_mode' => 'Disabled',
-            'welcome_events' => false,
-            'random_events' => false,
-            'quest_events' => false,
-            'book_events' => false,
-        ],
-        'presentation' => ['show_status_hud' => true, 'transcript_rows' => 8, 'tts_volume_boost' => 3],
-        'safety' => ['actions_enabled' => true, 'allow_hostile' => false, 'allow_creatures' => false],
-    ];
-
-    private const ROUTING_TYPES = [
-        'prompt_configuration_id' => 'uuid_or_empty',
-        'llm_configuration_id' => 'uuid_or_empty',
-        'llm_fast_configuration_id' => 'uuid_or_empty',
-        'llm_powerful_configuration_id' => 'uuid_or_empty',
-        'llm_experimental_configuration_id' => 'uuid_or_empty',
-        'llm_fallback_configuration_id' => 'uuid_or_empty',
-        'oghma_configuration_id' => 'uuid_or_empty',
-        'profile_generation_configuration_id' => 'uuid_or_empty',
-        'relationship_configuration_id' => 'uuid_or_empty',
-        'diary_generation_configuration_id' => 'uuid_or_empty',
-        'tts_configuration_id' => 'uuid_or_empty',
-        'llm_randomizer_enabled' => 'bool',
-        'llm_fallback_enabled' => 'bool',
-    ];
 
     /** @return array<string,mixed> */
     public static function defaults(): array
     {
-        return self::DEFAULT_SETTINGS;
+        return SettingsCatalog::clientDefaults();
     }
 
     /** Project internal settings into the unchanged strict v1 controls contract. */
     public static function controlsProjection(array $resolved): array
     {
-        $settings = self::DEFAULT_SETTINGS;
+        $settings = SettingsCatalog::clientDefaults();
         unset($settings['schema']);
-        $rechatFields = array_fill_keys(['rechat', 'rechat_max_depth', 'rechat_probability_percent',
-            'rechat_mode', 'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'], true);
-        foreach (['behavior', 'memory', 'narrator', 'safety'] as $section) {
-            $allowed = $section === 'behavior' ? $rechatFields : $settings[$section];
+        $projectionFields = SettingsCatalog::controlsProjectionFields();
+        foreach ($projectionFields as $section => $fields) {
+            $allowed = array_fill_keys($fields, true);
             $settings[$section] = array_replace($settings[$section],
                 array_intersect_key($resolved['settings'][$section], $allowed));
         }
@@ -96,10 +37,8 @@ final class EffectiveSettingsResolver
         ], true));
         $routing += ['llm_randomizer_enabled' => false, 'llm_fallback_enabled' => false];
         $sources = [];
-        foreach ($settings as $section => $values) {
-            if ($section === 'presentation') continue;
-            foreach ($values as $field => $_) {
-                if ($section === 'behavior' && !isset($rechatFields[$field])) continue;
+        foreach ($projectionFields as $section => $fields) {
+            foreach ($fields as $field) {
                 $path = 'settings.' . $section . '.' . $field;
                 $source = $resolved['sources'][$path] ?? null;
                 if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
@@ -121,7 +60,7 @@ final class EffectiveSettingsResolver
      */
     public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = []): array
     {
-        $settings = self::DEFAULT_SETTINGS;
+        $settings = SettingsCatalog::clientDefaults();
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $sources = [];
         $this->markLeaves($settings, 'default', 'settings', $sources);
@@ -137,7 +76,7 @@ final class EffectiveSettingsResolver
         $settings['memory']['oghma_knowledge_tags'] = '';
         $sources['settings.memory.oghma_knowledge_tags'] = 'server_default';
         self::validateOghmaSettings($oghmaGlobal, true);
-        $settings['oghma'] = array_replace(self::OGHMA_DEFAULTS, $oghmaGlobal);
+        $settings['oghma'] = array_replace(SettingsCatalog::oghmaDefaults(), $oghmaGlobal);
         foreach ($settings['oghma'] as $field => $_) {
             $sources['settings.oghma.' . $field] = array_key_exists($field, $oghmaGlobal) ? 'global' : 'default';
         }
@@ -212,7 +151,7 @@ final class EffectiveSettingsResolver
     /** @param array<string,mixed> $content */
     public static function validateGlobalSettings(array $content): array
     {
-        $expected = self::DEFAULT_SETTINGS;
+        $expected = SettingsCatalog::clientDefaults();
         $keys = array_keys($content);
         sort($keys);
         $expectedKeys = array_keys($expected);
@@ -249,18 +188,18 @@ final class EffectiveSettingsResolver
             self::validateOghmaSettings($validation['oghma'], true);
             unset($validation['oghma']);
         }
-        self::validateSettingsShape($validation, self::DEFAULT_SETTINGS, true);
+        self::validateSettingsShape($validation, SettingsCatalog::clientDefaults(), true);
         return $overrides;
     }
 
     private static function validateOghmaSettings(mixed $settings, bool $partial): void
     {
         if (!is_array($settings) || ($settings !== [] && array_is_list($settings))
-            || array_diff(array_keys($settings), array_keys(self::OGHMA_DEFAULTS)) !== []) {
+            || array_diff(array_keys($settings), array_keys(SettingsCatalog::oghmaDefaults())) !== []) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         foreach ($settings as $field => $value) {
-            if (get_debug_type($value) !== get_debug_type(self::OGHMA_DEFAULTS[$field])) {
+            if (get_debug_type($value) !== get_debug_type(SettingsCatalog::oghmaDefaults()[$field])) {
                 throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
             }
             $valid = match ($field) {
@@ -271,7 +210,7 @@ final class EffectiveSettingsResolver
             };
             if (!$valid) throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
-        if (!$partial && count($settings) !== count(self::OGHMA_DEFAULTS)) {
+        if (!$partial && count($settings) !== count(SettingsCatalog::oghmaDefaults())) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
     }
@@ -279,11 +218,12 @@ final class EffectiveSettingsResolver
     /** @param mixed $routing */
     public static function validateRouting(mixed $routing): array
     {
-        if (!is_array($routing) || ($routing !== [] && array_is_list($routing)) || array_diff(array_keys($routing), array_keys(self::ROUTING_TYPES)) !== []) {
+        $routingTypes = SettingsCatalog::routingTypes();
+        if (!is_array($routing) || ($routing !== [] && array_is_list($routing)) || array_diff(array_keys($routing), array_keys($routingTypes)) !== []) {
             throw new InvalidArgumentException('invalid_profile_routing');
         }
         foreach ($routing as $field => $value) {
-            if (self::ROUTING_TYPES[$field] === 'bool') {
+            if ($routingTypes[$field] === 'bool') {
                 if (!is_bool($value)) throw new InvalidArgumentException('invalid_profile_routing');
                 continue;
             }
@@ -317,27 +257,12 @@ final class EffectiveSettingsResolver
 
     private static function validateSettingValue(string $section, string $field, mixed $value, bool $partial): void
     {
-        $ranges = [
-            'behavior.rechat_delay_seconds' => [30, 3600],
-            'behavior.rechat_max_depth' => [1, 20],
-            'behavior.rechat_probability_percent' => [0, 100],
-            'behavior.end_conversation_cooldown_seconds' => [0, 300],
-            'behavior.boredom_delay_seconds' => [30, 86400],
-            'behavior.combat_bark_period_seconds' => [5, 300],
-            'memory.recent_turn_limit' => [1, 100],
-            'memory.knowledge_limit' => [0, 20],
-            'relationship.update_chance_percent' => [0, 100],
-            'presentation.transcript_rows' => [2, 20],
-            'presentation.tts_volume_boost' => [1, 4],
-        ];
+        $ranges = SettingsCatalog::ranges();
         $path = $section . '.' . $field;
         if (isset($ranges[$path]) && ($value < $ranges[$path][0] || $value > $ranges[$path][1])) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
-        if ($path === 'narrator.inline_mode' && !in_array($value, ['Disabled', 'Narrator', 'NPC', 'Text Only'], true)) {
-            throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
-        }
-        if ($path === 'behavior.rechat_mode' && !in_array($value, ['tight', 'conversational', 'group', 'random'], true)) {
+        if (isset(SettingsCatalog::enums()[$path]) && !in_array($value, SettingsCatalog::enums()[$path], true)) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 128 || !mb_check_encoding($value, 'UTF-8'))) {

@@ -111,11 +111,19 @@ function lorkhan_ui_effective_settings_summary(array $effective, string $title =
     $sources = is_array($effective['sources'] ?? null) ? $effective['sources'] : [];
     if ($sources === []) return;
     $sourceLabels = ['default' => 'Built-in default', 'global' => 'Global', 'core_profile' => 'Core Profile', 'npc' => 'NPC override'];
+    $activeBehaviorPaths = array_fill_keys([
+        'settings.behavior.rechat', 'settings.behavior.rechat_max_depth', 'settings.behavior.rechat_probability_percent',
+        'settings.behavior.rechat_mode', 'settings.behavior.rechat_strict_targeting', 'settings.behavior.open_rechat',
+        'settings.behavior.end_conversation_cooldown_seconds',
+    ], true);
     echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . lorkhan_ui_h($title) . '</summary>';
     echo '<p>Resolution order: NPC override &gt; assigned Core Profile &gt; Global &gt; built-in default.</p><div class="effective-settings-grid">';
     foreach ($sources as $path => $source) {
-        if (!is_string($path) || (!str_starts_with($path, 'settings.memory.') && !str_starts_with($path, 'settings.narrator.')
-            && !str_starts_with($path, 'settings.relationship.') && !str_starts_with($path, 'settings.safety.') && !str_starts_with($path, 'routing.'))) continue;
+        if (!is_string($path) || ($source === 'excluded') || $path === 'settings.memory.knowledge_limit'
+            || (str_starts_with($path, 'settings.behavior.') && !isset($activeBehaviorPaths[$path]))
+            || (!str_starts_with($path, 'settings.behavior.') && !str_starts_with($path, 'settings.memory.')
+                && !str_starts_with($path, 'settings.relationship.') && !str_starts_with($path, 'settings.diary.')
+                && !str_starts_with($path, 'settings.oghma.') && !str_starts_with($path, 'routing.'))) continue;
         $value = $effective;
         foreach (explode('.', $path) as $segment) {
             if (!is_array($value) || !array_key_exists($segment, $value)) { $value = null; break; }

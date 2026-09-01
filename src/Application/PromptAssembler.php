@@ -270,8 +270,10 @@ final class PromptAssembler
             . 'This world is your reality. Remain ' . $actorName . ' and never speak, decide, or narrate dialogue for ' . $playerName . '.';
         $general = "Write {$actorName}'s next dialogue line. Address {$playerName} or the most recent speaker, review the conversation, and avoid repeating prior dialogue.";
 
-        $npc = $this->xmlTag('roleplay_instructions', $roleplay)
-            . $this->characterXml($turn, $profile, $actorName);
+        $npc = $this->xmlTag('roleplay_instructions', $roleplay);
+        $promptHead = $this->fieldText($profile['content'] ?? [], ['prompt_head']);
+        if ($promptHead !== '') $npc .= $this->xmlTag('npc_prompt_head', $promptHead);
+        $npc .= $this->characterXml($turn, $profile, $actorName);
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
         if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
@@ -473,12 +475,14 @@ final class PromptAssembler
         }
         $xml .= '</identity>';
         $fields = [
+            'core_identity' => ['core'],
             'basic_summary' => ['biography', 'background', 'basic_summary', 'persona'],
             'personality' => ['personality'],
             'appearance' => ['appearance'],
             'occupation' => ['occupation', 'class'],
             'skills' => ['skills'],
             'speech_style' => ['speech_style'],
+            'allowed_moods_and_emotes' => ['emote_moods'],
             'goals' => ['goals'],
             'relationships' => ['relationships'],
             'notes' => ['notes'],

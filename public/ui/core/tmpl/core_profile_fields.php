@@ -9,7 +9,7 @@ $creatingProfile = ($coreProfileMode ?? 'edit') === 'create';
 $profileIsDefault = filter_var($profileMeta['default_npc'] ?? false, FILTER_VALIDATE_BOOL);
 
 $routeSelect = static function (string $name, string $label, string $icon, string $description, array $rows, ?string $blankLabel = null, string $help = '') use ($routing): void {
-    $labelId = $blankLabel === null && $help === '' ? '' : $name . '-label';
+    $labelId = $name . '-label';
     $helpId = $help === '' ? '' : $name . '-help';
     // Retain an unavailable generation route until the user explicitly chooses its replacement.
     if ($blankLabel !== null && ($routing[$name] ?? '') !== '' && !in_array($routing[$name], array_column($rows, 'configuration_id'), true)) {
@@ -29,9 +29,9 @@ $routeSelect = static function (string $name, string $label, string $icon, strin
     <?php
 };
 
-$inheritSelect = static function (string $name, mixed $value): void {
+$inheritSelect = static function (string $name, mixed $value, string $ariaLabel = ''): void {
     ?>
-    <select class="profile-inherit-select" name="<?php echo lorkhan_ui_h($name); ?>">
+    <select class="profile-inherit-select" name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $ariaLabel === '' ? '' : ' aria-label="' . lorkhan_ui_h($ariaLabel) . '"'; ?>>
         <option value="inherit"<?php echo $value === null ? ' selected' : ''; ?>>Inherit</option>
         <option value="1"<?php echo $value === true ? ' selected' : ''; ?>>On</option>
         <option value="0"<?php echo $value === false ? ' selected' : ''; ?>>Off</option>
@@ -48,21 +48,12 @@ $toggleCard = static function (string $name, string $icon, string $title, string
     <?php
 };
 
-$placeholderCard = static function (string $icon, string $title, string $description, string $featureId): void {
-    ?>
-    <div class="profile-toggle-card feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
-        <span class="profile-toggle-heading"><span><?php echo $icon; ?> <?php echo lorkhan_ui_h($title); ?></span><?php echo lorkhan_ui_feature_badge($featureId, true); ?></span>
-        <span class="profile-toggle-description"><?php echo lorkhan_ui_h($description); ?></span>
-    </div>
-    <?php
-};
-
 $numberField = static function (string $section, string $field, string $label, string $description, int $min, int $max) use ($overrides): void {
     $value = $overrides[$section][$field] ?? '';
     ?>
     <div class="setting-row">
         <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo lorkhan_ui_h($section . '_' . $field); ?>"<?php echo in_array($section, ['relationship', 'diary'], true) ? ' aria-label="' . lorkhan_ui_h($label) . '"' : ''; ?> value="<?php echo lorkhan_ui_h($value); ?>" placeholder="Inherit"></div>
+        <div class="setting-control"><input type="number" min="<?php echo $min; ?>" max="<?php echo $max; ?>" name="setting_<?php echo lorkhan_ui_h($section . '_' . $field); ?>" aria-label="<?php echo lorkhan_ui_h($label); ?>" value="<?php echo lorkhan_ui_h($value); ?>" placeholder="Inherit"></div>
     </div>
     <?php
 };
@@ -71,27 +62,7 @@ $selectSetting = static function (string $name, string $label, string $descripti
     ?>
     <div class="setting-row">
         <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
-        <div class="setting-control"><?php $inheritSelect($name, $value); ?></div>
-    </div>
-    <?php
-};
-
-$disabledSelectSetting = static function (string $name, string $label, string $description, mixed $value, string $featureId): void {
-    $display = $value === true ? 'On' : ($value === false ? 'Off' : 'Inherit');
-    ?>
-    <div class="setting-row feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
-        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?> <?php echo lorkhan_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
-        <div class="setting-control"><select disabled aria-disabled="true"><option><?php echo lorkhan_ui_h($display); ?></option></select></div>
-    </div>
-    <?php
-};
-
-$disabledNumberField = static function (string $section, string $field, string $label, string $description, string $featureId) use ($overrides): void {
-    $value = $overrides[$section][$field] ?? '';
-    ?>
-    <div class="setting-row feature-placeholder-card" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>">
-        <div><div class="setting-key"><?php echo lorkhan_ui_h($label); ?> <?php echo lorkhan_ui_feature_badge($featureId, true); ?></div><div class="setting-desc"><?php echo lorkhan_ui_h($description); ?></div></div>
-        <div class="setting-control"><input type="text" value="<?php echo lorkhan_ui_h($value === '' ? 'Inherit' : $value); ?>" disabled aria-disabled="true"></div>
+        <div class="setting-control"><?php $inheritSelect($name, $value, $label); ?></div>
     </div>
     <?php
 };
@@ -130,20 +101,10 @@ $disabledNumberField = static function (string $section, string $field, string $
 
     <div class="profile-toggle-groups">
         <section class="profile-toggle-group">
-            <h3 class="profile-toggle-group-title">Profiles &amp; Memories</h3>
-            <div class="profile-toggle-grid">
-                <?php $placeholderCard('&#x267B;&#xFE0F;', 'Dynamic Profile', 'Allow gameplay events to evolve NPC profiles.', 'config.profiles.dynamic-profile'); ?>
-                <?php $placeholderCard('&#x1F4C3;', 'Middle Term Memory', 'Include periodic middle-term memory summaries.', 'config.profiles.middle-term-memory'); ?>
-            </div>
-        </section>
-        <section class="profile-toggle-group">
             <h3 class="profile-toggle-group-title">Diary</h3>
             <div class="profile-toggle-grid">
                 <?php $toggleCard('setting_diary_enabled', '&#x1F4D3;', 'Manual Diary Generation', 'Off by default. On lets Narratives queue one requested diary for NPCs using this profile.', $overrides['diary']['enabled'] ?? null); ?>
                 <?php $toggleCard('setting_diary_include_in_context', '&#x1F4D6;', 'Diary In Context', 'On by default. Off hides scoped diary narratives from this profile roleplay context.', $overrides['diary']['include_in_context'] ?? null); ?>
-                <?php $placeholderCard('&#x1F4D9;', 'Auto Diary', 'Generate nearby NPC diaries during sleep or wait.', 'config.profiles.auto-diary'); ?>
-                <?php $placeholderCard('&#x23F3;', 'Auto Diary Wait', 'Include wait events when Auto Diary is enabled.', 'config.profiles.auto-diary'); ?>
-                <?php $placeholderCard('&#x1F4D5;', 'Physical Diary', 'Create a physical in-game diary that can be read.', 'config.profiles.physical-diary'); ?>
             </div>
         </section>
         <section class="profile-toggle-group">
@@ -172,7 +133,7 @@ $disabledNumberField = static function (string $section, string $field, string $
         </section>
         <section class="connector-group-card">
             <h3 class="connector-group-title">Other Connectors</h3>
-            <div class="connector-group-subtitle">Voice, prompt, fallback, generation, diary, and formatting services.</div>
+            <div class="connector-group-subtitle">Voice, prompt, fallback, generation, and diary services.</div>
             <div class="connector-group-fields">
                 <?php $routeSelect('tts_configuration_id', 'TTS Connector', '&#x1F50A;', 'Voice synthesis connector used for spoken output.', $tts); ?>
                 <?php $routeSelect('prompt_configuration_id', 'Dialogue Prompt', '&#x1F4AC;', 'Prompt template inherited by NPCs using this profile.', $prompts); ?>
@@ -181,7 +142,6 @@ $disabledNumberField = static function (string $section, string $field, string $
                 <?php $routeSelect('profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'Connector for requested NPC and narrator profile generation and player speech-style analysis.', $llm, 'Use server runtime', 'Applies to newly queued generation jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
                 <?php $routeSelect('relationship_configuration_id', 'Relationship LLM', '&#x1F91D;', 'Connector for relationship updates after fully played conversations.', $llm, 'Disabled', 'No connector means no evaluation. Saving never calls a provider.'); ?>
                 <?php $routeSelect('diary_generation_configuration_id', 'Diary LLM', '&#x1F4D3;', 'Connector for diary generation that a person explicitly requests from Narratives.', $llm, 'Disabled', 'Disabled refuses manual diary requests. Applies to newly queued diary jobs; already queued jobs keep their selected connector revision. Saving never calls a provider.'); ?>
-                <div class="connector-option-card feature-placeholder-card"><div class="setting-key"><span class="setting-icon">&#x1F9FE;</span><span>Formatter LLM</span><?php echo lorkhan_ui_feature_badge('config.profiles.formatter-llm', true); ?></div><div class="setting-desc">Connector used for structured background tasks.</div><div class="setting-control"><select disabled aria-disabled="true"><option>Not configured</option></select></div></div>
             </div>
         </section>
     </div>
@@ -189,33 +149,19 @@ $disabledNumberField = static function (string $section, string $field, string $
 
 <div class="connector-card profile-settings-card">
     <div class="connector-title">Profile Settings</div>
-    <div class="profile-feature-grid">
-        <div class="provider-card feature-placeholder-card">
-            <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F310;</div><div>Language</div></div><?php echo lorkhan_ui_feature_badge('config.profiles.language', true); ?></div>
-            <div class="provider-body"><div class="setting-row"><div><div class="setting-key">Profile Language</div><div class="setting-desc">Language used for profile-specific dialogue.</div></div><div class="setting-control"><select disabled aria-disabled="true"><option>Installation default</option></select></div></div></div>
-        </div>
-        <div class="provider-card">
-            <div class="provider-head"><div class="provider-title"><div class="provider-icon">&#x1F4AC;</div><div>Conversation</div></div></div>
-            <div class="provider-body">
-                <?php $disabledSelectSetting('setting_behavior_auto_greeting', 'Automatic Greeting', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['auto_greeting'] ?? null, 'autonomy'); ?>
-                <?php $selectSetting('setting_behavior_rechat', 'Rechat', 'Continue a player-started conversation after its speech queue completes.', $overrides['behavior']['rechat'] ?? null); ?>
-                <?php $disabledSelectSetting('setting_behavior_boredom', 'Bored Event', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['boredom'] ?? null, 'autonomy'); ?>
-                <?php $disabledSelectSetting('setting_behavior_combat_barks', 'Combat Barks', 'Automatic model-triggering is excluded from this milestone.', $overrides['behavior']['combat_barks'] ?? null, 'autonomy'); ?>
-            </div>
-        </div>
-    </div>
     <div class="profile-settings-columns">
-        <section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat &amp; Bored Event</h3><div class="provider-card">
-            <?php $disabledNumberField('behavior', 'rechat_delay_seconds', 'Rechat Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+        <section class="profile-settings-group"><h3 class="profile-settings-heading">Rechat</h3><div class="provider-card">
+            <?php $selectSetting('setting_behavior_rechat', 'Rechat', 'Continue a player-started conversation after its speech queue completes.', $overrides['behavior']['rechat'] ?? null); ?>
             <?php $numberField('behavior', 'rechat_max_depth', 'Rechat Rounds', 'Maximum inherited NPC-to-NPC continuation rounds.', 1, 20); ?>
             <?php $numberField('behavior', 'rechat_probability_percent', 'Rechat Probability', 'Inherited chance, from 0 to 100, that the conversation continues.', 0, 100); ?>
-            <?php $disabledNumberField('behavior', 'boredom_delay_seconds', 'Bored Event Delay', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
-            <?php $disabledNumberField('behavior', 'combat_bark_period_seconds', 'Combat Bark Period', 'Automatic model-triggering is excluded from this milestone.', 'autonomy'); ?>
+            <div class="setting-row"><div><label class="setting-key" for="profile-rechat-mode">Rechat Mode</label><div class="setting-desc">Choose how the next speaker is selected. Blank inherits the installation setting.</div></div><div class="setting-control"><select id="profile-rechat-mode" name="setting_behavior_rechat_mode"><option value="">Inherit</option><?php foreach (['tight' => 'Tight', 'conversational' => 'Conversational', 'group' => 'Group', 'random' => 'Random'] as $value => $label): ?><option value="<?php echo $value; ?>"<?php echo ($overrides['behavior']['rechat_mode'] ?? '') === $value ? ' selected' : ''; ?>><?php echo $label; ?></option><?php endforeach; ?></select></div></div>
+            <?php $selectSetting('setting_behavior_rechat_strict_targeting', 'Strict Targeting', 'Require the selected responder to address the previous speaker.', $overrides['behavior']['rechat_strict_targeting'] ?? null); ?>
+            <?php $selectSetting('setting_behavior_open_rechat', 'Open Rechat', 'Allow nearby scene participants to enter the conversation.', $overrides['behavior']['open_rechat'] ?? null); ?>
+            <?php $numberField('behavior', 'end_conversation_cooldown_seconds', 'End Cooldown', 'Seconds before an NPC can enter another rechat chain.', 0, 300); ?>
         </div></section>
-        <section class="profile-settings-group"><h3 class="profile-settings-heading">Context &amp; Presentation</h3><div class="provider-card">
+        <section class="profile-settings-group"><h3 class="profile-settings-heading">Context &amp; Knowledge</h3><div class="provider-card">
             <?php $numberField('memory', 'recent_turn_limit', 'Recent Turns', 'Maximum recent conversation turns in context.', 1, 100); ?>
-            <?php $numberField('memory', 'knowledge_limit', 'Knowledge Results', 'Maximum scoped knowledge documents returned.', 0, 20); ?>
-            <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" maxlength="4096" value="<?php echo lorkhan_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
+            <div class="setting-row"><div><div class="setting-key">Oghma Knowledge Tags</div><div class="setting-desc">Comma-separated access classes inherited from Global Settings unless overridden here.</div></div><div class="setting-control"><input name="setting_memory_oghma_knowledge_tags" aria-label="Oghma Knowledge Tags" maxlength="4096" value="<?php echo lorkhan_ui_h($overrides['memory']['oghma_knowledge_tags'] ?? ''); ?>" placeholder="Inherit"></div></div>
             <?php $selectSetting('setting_oghma_enabled', 'Oghma Enabled', 'Override catalog grounding and prompt injection for this profile.', $overrides['oghma']['enabled'] ?? null); ?>
             <?php $numberField('oghma', 'topic_count', 'Oghma Topics', 'Maximum conversational topics extracted.', 1, 3); ?>
             <?php $numberField('oghma', 'result_limit', 'Oghma Results', 'Maximum Oghma articles or denials injected.', 1, 5); ?>
@@ -223,9 +169,6 @@ $disabledNumberField = static function (string $section, string $field, string $
             <?php $selectSetting('setting_oghma_location_context_enabled', 'Location Context', 'Override location-topic injection.', $overrides['oghma']['location_context_enabled'] ?? null); ?>
             <?php $selectSetting('setting_oghma_extractor_fallback_enabled', 'Extractor Fallback', 'Override the one-call connector fallback.', $overrides['oghma']['extractor_fallback_enabled'] ?? null); ?>
             <?php $numberField('oghma', 'extractor_timeout_ms', 'Extractor Timeout', 'Connector fallback timeout in milliseconds.', 250, 3000); ?>
-            <?php $disabledSelectSetting('setting_presentation_show_status_hud', 'Show Status HUD', 'Controlled by local OpenMW settings.', $overrides['presentation']['show_status_hud'] ?? null, 'presentation.local'); ?>
-            <?php $disabledNumberField('presentation', 'transcript_rows', 'Transcript Rows', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
-            <?php $disabledNumberField('presentation', 'tts_volume_boost', 'TTS Volume Boost', 'Controlled by local OpenMW settings.', 'presentation.local'); ?>
         </div></section>
         <section class="profile-settings-group profile-diary-settings"><h3 class="profile-settings-heading">Diary</h3><div class="provider-card">
             <?php $numberField('diary', 'context_turn_limit', 'Diary Context Turns', 'Maximum witnessed turns frozen into one manual diary request, from 1 to 100. Blank uses the server default of 20.', 1, 100); ?>
@@ -235,21 +178,9 @@ $disabledNumberField = static function (string $section, string $field, string $
             </div>
             <p class="setting-desc" id="profile-diary-prompt-help">Turn Manual Diary Generation on and choose a Diary LLM before requesting a diary from Narratives. Saving this page never calls a provider.</p>
         </div></section>
-        <section class="profile-settings-group"><h3 class="profile-settings-heading">Narrator</h3><div class="provider-card">
-            <?php $selectSetting('setting_narrator_enabled', 'Enable Narrator', 'Allow inherited narrator events for this profile.', $overrides['narrator']['enabled'] ?? null); ?>
-            <?php $selectSetting('setting_narrator_context_visibility', 'Narrator Context', 'Include narrator-visible context for this profile.', $overrides['narrator']['context_visibility'] ?? null); ?>
-            <?php foreach (['welcome_events' => 'Welcome Events', 'random_events' => 'Random Events', 'quest_events' => 'Quest Events', 'book_events' => 'Book Events'] as $field => $label) $disabledSelectSetting('setting_narrator_' . $field, $label, 'Automatic narrator triggers are excluded from this milestone.', $overrides['narrator'][$field] ?? null, 'autonomy'); ?>
-            <div class="setting-row"><div><div class="setting-key">Narrator Name</div><div class="setting-desc">Optional profile-specific narrator display name.</div></div><div class="setting-control"><input name="setting_narrator_name" maxlength="128" value="<?php echo lorkhan_ui_h($overrides['narrator']['name'] ?? ''); ?>" placeholder="Inherit"></div></div>
-            <div class="setting-row"><div><div class="setting-key">Inline Mode</div><div class="setting-desc">How narrator text is routed to dialogue output.</div></div><div class="setting-control"><select name="setting_narrator_inline_mode"><option value="">Inherit</option><?php foreach (['Disabled', 'Narrator', 'NPC', 'Text Only'] as $mode): ?><option<?php echo ($overrides['narrator']['inline_mode'] ?? null) === $mode ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($mode); ?></option><?php endforeach; ?></select></div></div>
-        </div></section>
         <section class="profile-settings-group profile-relationship-settings"><h3 class="profile-settings-heading">Relationships</h3><div class="provider-card">
             <?php $numberField('relationship', 'update_chance_percent', 'Relationship Update Chance', 'Default 0: no automatic evaluation. 100: every eligible played response. Saved relationships still appear in prompts.', 0, 100); ?>
             <div class="setting-row"><div><label class="setting-key" for="relationship-lock">Relationship Lock</label><div class="setting-desc">Stop relationship evaluation. Separate from the NPC profile lock.</div></div><div class="setting-control"><select id="relationship-lock" name="setting_relationship_locked"><?php foreach (['inherit'=>'Inherit (unlocked)', '1'=>'Locked', '0'=>'Unlocked'] as $value=>$label): ?><option value="<?php echo $value; ?>"<?php echo ($overrides['relationship']['locked'] ?? null) === ($value === 'inherit' ? null : (string)$value === '1') ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($label); ?></option><?php endforeach; ?></select></div></div>
-        </div></section>
-        <section class="profile-settings-group"><h3 class="profile-settings-heading">Safety</h3><div class="provider-card">
-            <?php $selectSetting('setting_safety_actions_enabled', 'Negotiated Actions', 'Allow bounded action negotiation.', $overrides['safety']['actions_enabled'] ?? null); ?>
-            <?php $selectSetting('setting_safety_allow_hostile', 'Hostile NPC Targets', 'Allow hostile NPCs to participate.', $overrides['safety']['allow_hostile'] ?? null); ?>
-            <?php $selectSetting('setting_safety_allow_creatures', 'Creature Targets', 'Allow eligible creature targets.', $overrides['safety']['allow_creatures'] ?? null); ?>
         </div></section>
     </div>
 </div>

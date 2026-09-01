@@ -14,6 +14,7 @@ use LorkhanServer\Application\ProductService;
 use LorkhanServer\Application\Provider;
 use LorkhanServer\Application\ProviderFactory;
 use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\TranslationPolicy;
 use LorkhanServer\Infrastructure\ManagementRepository;
 use LorkhanServer\Infrastructure\EventLogRepository;
@@ -1516,22 +1517,11 @@ final class ManagementRouter
         }
 
         $overrides=[];
-        $booleanFields=[
-            'behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],
-            'diary'=>['enabled','include_in_context'],
-            'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
-            'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled'],
-        ];
+        $booleanFields=SettingsCatalog::overrideBooleanFields();
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$value=(string)($values[$key]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_'.$key);
             $overrides[$section][$field]=$value==='1';}
-        $integerFields=[
-            'behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],
-            'diary'=>['context_turn_limit'],
-            'oghma'=>['topic_count','result_limit','extractor_timeout_ms'],
-        ];
+        $integerFields=SettingsCatalog::overrideIntegerFields();
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$key='setting_'.$section.'_'.$field;$raw=trim((string)($values[$key]??''));
             if($raw==='')continue;$value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);
             $overrides[$section][$field]=(int)$value;}
@@ -1539,7 +1529,6 @@ final class ManagementRouter
         if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
-        foreach(['name','inline_mode']as$field){$key='setting_narrator_'.$field;$value=trim((string)($values[$key]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
         $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
         if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
 
@@ -1551,25 +1540,16 @@ final class ManagementRouter
     private function globalSettingsContent(array $values):array
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
-        $mode=(string)($values['narrator_inline_mode']??'Disabled');
-        return['schema'=>'lorkhan.client-settings.v1','behavior'=>[
-            'auto_greeting'=>false,'rechat'=>isset($values['rechat']),
-            'rechat_delay_seconds'=>$integer($values,'rechat_delay_seconds',45),'rechat_max_depth'=>$integer($values,'rechat_max_depth',2),
-            'rechat_probability_percent'=>$integer($values,'rechat_probability_percent',50),
-            'rechat_mode'=>trim((string)($values['rechat_mode']??'random')),
-            'rechat_strict_targeting'=>isset($values['rechat_strict_targeting']),
-            'open_rechat'=>isset($values['open_rechat']),'rechat_allow_actions'=>false,
-            'end_conversation_cooldown_seconds'=>$integer($values,'end_conversation_cooldown_seconds',60),
-            'boredom'=>false,'boredom_delay_seconds'=>180,
-            'combat_barks'=>false,'combat_bark_period_seconds'=>20,
-        ],'memory'=>['recent_turn_limit'=>$integer($values,'recent_turn_limit',20),'knowledge_limit'=>$integer($values,'knowledge_limit',5)],
-        'narrator'=>['enabled'=>isset($values['narrator_enabled']),'name'=>trim((string)($values['narrator_name']??'The Narrator')),
-            'context_visibility'=>isset($values['narrator_context_visibility']),'inline_mode'=>$mode,
-            'welcome_events'=>false,'random_events'=>false,'quest_events'=>false,'book_events'=>false],
-        'presentation'=>['show_status_hud'=>isset($values['show_status_hud']),'transcript_rows'=>$integer($values,'transcript_rows',8),
-            'tts_volume_boost'=>$integer($values,'tts_volume_boost',3)],
-        'safety'=>['actions_enabled'=>isset($values['actions_enabled']),'allow_hostile'=>isset($values['allow_hostile']),
-            'allow_creatures'=>isset($values['allow_creatures'])]];
+        $content=SettingsCatalog::clientDefaults();
+        $content['behavior']['rechat']=isset($values['rechat']);
+        $content['behavior']['rechat_max_depth']=$integer($values,'rechat_max_depth',$content['behavior']['rechat_max_depth']);
+        $content['behavior']['rechat_probability_percent']=$integer($values,'rechat_probability_percent',$content['behavior']['rechat_probability_percent']);
+        $content['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$content['behavior']['rechat_mode']));
+        $content['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
+        $content['behavior']['open_rechat']=isset($values['open_rechat']);
+        $content['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$content['behavior']['end_conversation_cooldown_seconds']);
+        $content['memory']['recent_turn_limit']=$integer($values,'recent_turn_limit',$content['memory']['recent_turn_limit']);
+        return EffectiveSettingsResolver::validateGlobalSettings($content);
     }
 
     /** Convert labelled NPC editor fields into the bounded roleplay document consumed by prompts and TTS. */
@@ -1629,23 +1609,17 @@ final class ManagementRouter
     /** Parse optional per-NPC setting values; absent keys continue to inherit from the Core Profile. */
     private function profileSettingsOverrides(array $values):array
     {
-        $overrides=[];$booleanFields=['behavior'=>['rechat','rechat_strict_targeting','open_rechat'],
-            'relationship'=>['locked'],'narrator'=>['enabled','context_visibility'],'diary'=>['enabled','include_in_context'],
-            'safety'=>['actions_enabled','allow_hostile','allow_creatures'],
-            'oghma'=>['enabled','racial_context_enabled','location_context_enabled','extractor_fallback_enabled']];
+        $overrides=[];$booleanFields=SettingsCatalog::overrideBooleanFields();
         foreach($booleanFields as$section=>$fields)foreach($fields as$field){$value=(string)($values['setting_'.$section.'_'.$field]??'inherit');
             if($value==='inherit')continue;if(!in_array($value,['0','1'],true))throw new InvalidArgumentException('invalid_setting_override');
             $overrides[$section][$field]=$value==='1';}
-        $integerFields=['behavior'=>['rechat_max_depth','rechat_probability_percent','end_conversation_cooldown_seconds'],
-            'relationship'=>['update_chance_percent'],'memory'=>['recent_turn_limit','knowledge_limit'],'diary'=>['context_turn_limit'],
-            'oghma'=>['topic_count','result_limit','extractor_timeout_ms']];
+        $integerFields=SettingsCatalog::overrideIntegerFields();
         foreach($integerFields as$section=>$fields)foreach($fields as$field){$raw=trim((string)($values['setting_'.$section.'_'.$field]??''));if($raw==='')continue;
             $value=filter_var($raw,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_setting_override');$overrides[$section][$field]=(int)$value;}
         $oghmaTags=$this->npcKnowledgeTags($values['setting_memory_oghma_knowledge_tags']??'');
         if($oghmaTags!=='')$overrides['memory']['oghma_knowledge_tags']=$oghmaTags;
         $rechatMode=trim((string)($values['setting_behavior_rechat_mode']??''));
         if($rechatMode!=='')$overrides['behavior']['rechat_mode']=$rechatMode;
-        foreach(['name','inline_mode']as$field){$value=trim((string)($values['setting_narrator_'.$field]??''));if($value!=='')$overrides['narrator'][$field]=$value;}
         $diaryPrompt=trim((string)($values['setting_diary_prompt']??''));
         if($diaryPrompt!=='')$overrides['diary']['prompt']=$diaryPrompt;
         return$overrides;
