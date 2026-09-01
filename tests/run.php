@@ -246,12 +246,16 @@ foreach([
     catch(InvalidArgumentException){$check(true,'unsafe or untyped LLM connector rejected');}
 }
 $streamText=new StreamingDialogueText();$streamChunks=[];
-foreach(['{"utterances":[{"text":"Hello there, ','traveler. Welcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
+foreach(['{"utterances":[{"text":"Hello there, ','traveler.\\n\\nWelcome to ','Balmora!"}],"action":null}'] as $index=>$chunk)
     foreach($streamText->push($chunk,$index===2) as $delta)$streamChunks[]=$delta;
-$check(implode('',$streamChunks)==='Hello there, traveler. Welcome to Balmora!',
+$check(implode(' ',$streamChunks)==='Hello there, traveler. Welcome to Balmora!',
     'streaming dialogue exposes only decoded utterance text in bounded deltas');
-$check($streamChunks===['Hello there, traveler. ','Welcome to Balmora!'],
-    'streaming dialogue releases complete CHIM-style sentence chunks');
+$check($streamChunks===['Hello there, traveler.','Welcome to Balmora!'],
+    'streaming dialogue releases complete CHIM-style sentence chunks without blank subtitle lines');
+$shortParagraph=new StreamingDialogueText();
+$shortParagraphChunks=$shortParagraph->push('{"utterances":[{"text":"First line.\\n\\nSecond line."}],"action":null}',true);
+$check($shortParagraphChunks===['First line. Second line.'],
+    'short streamed paragraphs collapse internal line breaks instead of creating blank menu subtitles');
 $longStreamText=new StreamingDialogueText();
 $longStreamSource=implode(' ',[
     'First sentence arrives without delay.','Second sentence stays independently queued.',
@@ -261,7 +265,7 @@ $longStreamSource=implode(' ',[
 ]);
 $longStreamJson=json_encode(['utterances'=>[['text'=>$longStreamSource]],'action'=>null],JSON_THROW_ON_ERROR);
 $longStreamChunks=$longStreamText->push($longStreamJson,true);
-$check(count($longStreamChunks)===8&&implode('',$longStreamChunks)===$longStreamSource,
+$check(count($longStreamChunks)===8&&implode(' ',$longStreamChunks)===$longStreamSource,
     'streaming dialogue keeps long replies sentence-sized after the fourth chunk');
 $check(max(array_map('strlen',$longStreamChunks))<80,
     'streaming dialogue does not collapse a long final tail into one subtitle');
@@ -887,20 +891,21 @@ $check($planned[0]['speech_enabled']===false&&$planned[1]['speech_enabled']===tr
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Disabled';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
     ['utterances'=>[['text'=>'*Fargoth waves.* Welcome. *He smiles.*'],['text'=>'**He nods.**']],'action'=>null]));
-$check($planned[0]['text']==='Welcome.'&&$planned[0]['speech_enabled']===true
-    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===false,
-    'disabled narration removes stage directions from mixed speech and keeps pure emotes text-only');
+$check($planned[0]['text']==='*Fargoth waves.* Welcome. *He smiles.*'&&$planned[0]['speech_enabled']===true
+    &&$planned[1]['text']==='**He nods.**'&&$planned[1]['speech_enabled']===true,
+    'disabled narration preserves asterisks as ordinary Markdown dialogue');
 $narrationTurn['_narrator_profile']['content']['enabled']=false;
 $narrationTurn['_narrator_profile']['content']['inline_narration_mode']='Narrator';
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
     ['text'=>'*The wind rises.* Stay safe.','action'=>null]));
-$check(count($planned)===1&&$planned[0]['speaker']['kind']==='npc'&&$planned[0]['text']==='Stay safe.',
-    'disabled narrator profile cannot route stage directions into NPC speech through the text fallback');
+$check(count($planned)===1&&$planned[0]['speaker']['kind']==='npc'
+    &&$planned[0]['text']==='*The wind rises.* Stay safe.',
+    'disabled narrator profile preserves Markdown without routing it through the narrator');
 unset($narrationTurn['_narrator_profile']);
 $planned=(new DialoguePlanner())->plan($narrationTurn,(new InlineNarrationRouter())->route($narrationTurn,
     ['utterances'=>[['text'=>'*He bows.* Greetings.'],['text'=>'Plain speech.']],'action'=>null]));
-$check(array_column($planned,'text')===['Greetings.','Plain speech.'],
-    'missing narrator profile strips stage directions without changing plain speech');
+$check(array_column($planned,'text')===['*He bows.* Greetings.','Plain speech.'],
+    'missing narrator profile preserves Markdown dialogue');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
 $check(count($ttsCatalog)===22 && count($sttCatalog)===8

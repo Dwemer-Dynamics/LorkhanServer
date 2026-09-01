@@ -27,6 +27,7 @@ use LORKHANserver\Infrastructure\MigrationRunner;
 use LORKHANserver\Infrastructure\ProviderAttemptRepository;
 use LORKHANserver\Infrastructure\ProductRepository;
 use LORKHANserver\Infrastructure\Repository;
+use LORKHANserver\Infrastructure\TtsPronunciationRepository;
 use LORKHANserver\Protocol\Validator;
 use LORKHANserver\Security\PairingToken;
 use LORKHANserver\Security\RequestMac;
@@ -69,6 +70,23 @@ $call = function (Router $target, string $method, string $path, array $headers =
 $assert = function (bool $condition, string $message): void { if (!$condition) throw new RuntimeException($message); };
 $headers = fn(string $key): array => $jsonAuth + ['Idempotency-Key' => $key];
 $newUuid = function (int $n): string { return sprintf('10000000-0000-4000-8000-%012d', $n); };
+$pronunciations=new TtsPronunciationRepository($db);
+$pronunciationRows=$pronunciations->rows();
+$builtinPronunciations=array_values(array_filter($pronunciationRows,static fn(array $row):bool=>in_array($row['is_builtin']??false,[true,1,'1','t'],true)));
+$assert(count($builtinPronunciations)>=40&&$pronunciations->apply('The Nerevarine returned to Vvardenfell under the Tribunal.')
+    ==='The Nerevareen returned to Vardenfell under the Trybyoonal.','joined Morrowind pronunciations were not seeded or applied');
+$assert($pronunciations->apply('Azura called Nerevar.')==='Azura called Nerevar.',
+    'Azura or Nerevar should not override the TTS engine pronunciation');
+$assert(array_reduce($builtinPronunciations,static fn(bool $clean,array $row):bool=>$clean&&!str_contains((string)($row['spoken_text']??''),'-'),true),
+    'built-in pronunciations must not contain pause-inducing hyphens');
+$customPronunciation=$pronunciations->saveCustom(null,'TestTerm','Spoken Test','','Dark Elf','sixth-house',true);
+$assert($pronunciations->apply('TestTerm')==='TestTerm','scoped pronunciation leaked into the global dictionary');
+$assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark Elf','oghma_tags'=>['sixth-house']]])==='Spoken Test',
+    'matching race and Oghma scopes did not apply the custom pronunciation');
+$pronunciations->setEnabled($customPronunciation,false);
+$assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark Elf','oghma_tags'=>['sixth-house']]])==='TestTerm',
+    'disabled pronunciation remained active');
+$pronunciations->deleteCustom($customPronunciation);
 $defaultInstallationId='00000000-0000-4000-8000-000000000099';
 $defaultVoicePath=sys_get_temp_dir().'/lorkhan-default-voices-'.bin2hex(random_bytes(8));
 mkdir($defaultVoicePath,0700,true);file_put_contents($defaultVoicePath.'/mw_dark_elf_male.wav','test');

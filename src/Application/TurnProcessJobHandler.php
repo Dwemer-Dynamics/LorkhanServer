@@ -62,21 +62,30 @@ final class TurnProcessJobHandler implements JobHandler
         });
         try {
             $policy=$this->translationPolicy($message);
-            $streamedDialogues=[];
+            $streamedDialogues=[];$pendingInlineSpeech=null;
             $streamSpeech=$this->canStreamSpeech($message,$policy);
-            $progress = function (string $delta) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech, &$streamedDialogues): void {
+            $progress = function (string $delta) use ($message, $fence, $policy, $job, $heartbeat, $streamSpeech,
+                &$streamedDialogues,&$pendingInlineSpeech): void {
                 if($policy['content']['translate_text'])return;
                 if($delta==='')return;
                 $this->repository->appendDialogueDelta($message,$delta,$fence);
-                if(!$streamSpeech||str_contains($delta,'*')
-                    ||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
+                if(!$streamSpeech||count($streamedDialogues)>=DialoguePlanner::MAX_UTTERANCES)return;
                 $index=count($streamedDialogues)+1;
                 $dialogue=$this->repository->appendStreamedDialogue($message,$delta,$fence,$index);
                 $streamedDialogues[]=$dialogue;
-                if($index!==1||!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat))
-                    $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
+                if($index===1){
+                    if(!$this->synthesizeStreamedDialogue($message,$dialogue,$fence,$job,$heartbeat,1))$pendingInlineSpeech=$dialogue;
+                    return;
+                }
+                if($pendingInlineSpeech!==null){
+                    if(!$this->synthesizeStreamedDialogue($message,$pendingInlineSpeech,$fence,$job,$heartbeat))
+                        $this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
+                    $pendingInlineSpeech=null;
+                }
+                $this->repository->queueStreamedDialogueSpeech($message,$dialogue,$fence);
             };
             $result = (new InlineNarrationRouter())->route($message,$this->completeWithFallback($message,$job,$token,$progress));
+            if($pendingInlineSpeech!==null)$this->repository->queueStreamedDialogueSpeech($message,$pendingInlineSpeech,$fence);
             $token->throwIfCancellationRequested();
             $result=$this->translateResult($message,$result,$policy,$job,$token);
             if($streamedDialogues!==[])$result=$this->reconcileStreamedResult($message,$result,$streamedDialogues);
@@ -112,8 +121,9 @@ final class TurnProcessJobHandler implements JobHandler
         return count($identities)===1;
     }
 
-    /** Generate only the first sentence inline without consuming the LLM request deadline. */
-    private function synthesizeStreamedDialogue(array $message,array $dialogue,array $fence,array $job,callable $heartbeat):bool
+    /** Generate a streamed sentence inline, optionally retrying one transient provider failure immediately. */
+    private function synthesizeStreamedDialogue(array $message,array $dialogue,array $fence,array $job,callable $heartbeat,
+        int $unavailableRetries=0):bool
     {
         $mediaId=null;$attemptId=Uuid::v4();$timedOut=false;$aborted=false;$lastCheck=0;
         $deadline=hrtime(true)+self::INLINE_SPEECH_TIMEOUT_MS*1_000_000;
@@ -131,14 +141,19 @@ final class TurnProcessJobHandler implements JobHandler
             if($provider===null)return false;
             $context=$this->products?->speechContext((string)$message['installation_id'],
                 (string)$message['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+            $pronunciationContext=$this->products?->ttsPronunciationContext((string)$message['installation_id'],
+                (string)$message['playthrough_id'],(array)$dialogue['speaker'])??[];
+            $ttsText=$this->products?->applyTtsPronunciation((string)$dialogue['text'],$pronunciationContext)??(string)$dialogue['text'];
             $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
                 $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+                $provider instanceof CloudSpeechConnectorProvider=>'cloud-speech',
                 $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
             $this->attempts?->start($attemptId,'tts',$providerName,'synthesize_streamed',(int)$dialogue['utterance_index'],
-                $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen((string)$dialogue['text']),
+                $message['request_id'],$message['turn_id'],$job['job_id'],inputBytes:strlen($ttsText),
                 metadata:['job'=>true,'streamed'=>true,'utterance_index'=>$dialogue['utterance_index'],
+                    'unavailable_retries_remaining'=>$unavailableRetries,
                     'configuration_id'=>$preset['configuration_id']??null,'configuration_revision'=>$preset['revision']??null]);
-            $generated=$provider->synthesize((string)$dialogue['text'],$token,$context);$token->throwIfCancellationRequested();
+            $generated=$provider->synthesize($ttsText,$token,$context);$token->throwIfCancellationRequested();
             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),'codec'=>$generated['codec'],
                 'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],
@@ -157,6 +172,8 @@ final class TurnProcessJobHandler implements JobHandler
             if($mediaId!==null)$this->mediaStore?->delete($mediaId);
             try{$this->attempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
             if($aborted)throw new OperationCancelled();
+            if($unavailableRetries>0)return$this->synthesizeStreamedDialogue(
+                $message,$dialogue,$fence,$job,$heartbeat,$unavailableRetries-1);
             return false;
         }
     }
@@ -165,8 +182,8 @@ final class TurnProcessJobHandler implements JobHandler
     private function reconcileStreamedResult(array $message,array $result,array $streamedDialogues):array
     {
         $planned=(new DialoguePlanner())->plan($message,$result);
-        $finalText=implode("\n",array_column($planned,'_history_text'));
-        $streamedText=implode('',array_column($streamedDialogues,'text'));
+        $finalText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($planned,'_history_text'))));
+        $streamedText=preg_replace('/\s+/u',' ',trim(implode("\n",array_column($streamedDialogues,'text'))));
         if($finalText!==$streamedText)throw new DomainException('provider_invalid_output');
         $utterances=[];
         foreach($streamedDialogues as$dialogue)$utterances[]=['text'=>$dialogue['text']];

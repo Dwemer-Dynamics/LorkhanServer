@@ -61,9 +61,13 @@ final class SpeechSynthesizeJobHandler implements JobHandler
 
         $providerName=match(true){$provider instanceof PocketTtsSpeechProvider=>'pockettts',
             $provider instanceof XttsCompatibleSpeechProvider=>'xtts-compatible',
+            $provider instanceof CloudSpeechConnectorProvider=>'cloud-speech',
             $provider instanceof OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
         $context=$this->products?->speechContext((string)$dialogue['installation_id'],
             (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'],$preset)??[];
+        $pronunciationContext=$this->products?->ttsPronunciationContext((string)$dialogue['installation_id'],
+            (string)$dialogue['playthrough_id'],(array)$dialogue['speaker'])??[];
+        $ttsText=$this->products?->applyTtsPronunciation($ttsText,$pronunciationContext)??$ttsText;
         $attemptId=Uuid::v4();$mediaId=null;
         $attemptNumber=(($job['attempt']-1)*4)+(int)$dialogue['utterance_index'];
         $this->attempts?->start($attemptId,'tts',$providerName,'synthesize',$attemptNumber,

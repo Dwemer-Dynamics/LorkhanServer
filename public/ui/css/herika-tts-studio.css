@@ -70,6 +70,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .tab-cartesia,
 .tts-studio-page .tab-inworld { min-width: 142.109px; }
 .tts-studio-page .tab-fallbacks { min-width: 123.484px; }
+.tts-studio-page .tab-pronunciations { min-width: 137.734px; }
 .tts-studio-page .tab-label { line-height: 1.1; }
 .tts-studio-page .tab-status { display: inline-block; padding: 2px 8px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .05em; line-height: 1.1; text-transform: uppercase; }
 .tts-studio-page .tab-status.connected { border-color: rgba(76, 175, 80, .35); background: rgba(76, 175, 80, .16); color: #7ee08a; }
@@ -137,4 +138,90 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
     .tts-studio-page .page-header h1 { font-size: 1.5em; }
     .tts-studio-page .content-section h1 { font-size: 1.3em; }
     .tts-studio-page .button-group { flex-direction: column; }
+}
+
+/* Pronunciation dictionary: compact CHIM-style rows kept on the LORKHAN gold/blue palette. */
+.tts-studio-page .pron-section :focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
+.tts-studio-page .pron-subhead { margin: 24px 0 6px; color: #f5f1e8; font: 400 1.25em/1.2 MagicCards, serif; word-spacing: 6px; }
+.tts-studio-page .pron-subhead:first-of-type { margin-top: 18px; }
+.tts-studio-page .pron-intro-list { margin: 10px 0 0; padding-left: 20px; color: #aeb8c4; font-size: .92em; }
+.tts-studio-page .pron-intro-list li { margin-bottom: 4px; }
+.tts-studio-page .pron-intro-list strong { color: #cfd8e3; }
+.tts-studio-page .pron-hint { margin: 0 0 10px; color: #8b98a8 !important; font-size: 12px; line-height: 1.45; }
+.tts-studio-page .pron-count { display: block; margin: 4px 0 0; color: #8b98a8 !important; font-size: 12px; }
+.tts-studio-page .pron-label,
+.tts-studio-page .pron-result-label,
+.tts-studio-page .pron-static-label,
+.tts-studio-page .pron-toggle-label { display: block; margin-bottom: 5px; color: #cfd8e3; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.tts-studio-page .pron-field { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; font-family: inherit; font-size: 14px; }
+.tts-studio-page textarea.pron-field { min-height: 56px; resize: vertical; }
+.tts-studio-page .pron-field:focus { border-color: rgba(188, 157, 90, .8); }
+
+.tts-studio-page .pron-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 0; }
+.tts-studio-page .pron-toolbar-field { min-width: 220px; }
+.tts-studio-page .pron-clear-filter { padding-bottom: 9px; color: #93c5fd; font-size: 13px; }
+
+.tts-studio-page .pron-preview { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; margin: 0; padding: 10px 12px; border: 1px solid #414141; border-radius: 7px; background: #202020; }
+.tts-studio-page .pron-preview-field { flex: 1 1 320px; min-width: 0; }
+.tts-studio-page .pron-preview-actions { flex: 0 0 auto; }
+.tts-studio-page .pron-preview-result { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 10px; padding: 10px 12px; border: 1px solid #4a8ab6; border-radius: 7px; background: rgba(74, 138, 182, .1); }
+.tts-studio-page .pron-preview-result > div { min-width: 0; }
+.tts-studio-page .pron-preview-result .pron-static { margin: 0; }
+.tts-studio-page .pron-static-spoken { color: rgb(188, 157, 90) !important; }
+
+.tts-studio-page .pron-cols { display: grid; align-items: center; gap: 10px; padding: 10px 12px; grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(200px, 1.6fr) minmax(112px, .8fr) 150px; }
+.tts-studio-page .pron-add-row { align-items: start; margin: 0; padding: 0; }
+/* The stacked scope column makes the add row tall, so keep the toggle and submit level with row one. */
+.tts-studio-page .pron-add-row .pron-toggle,
+.tts-studio-page .pron-add-row .pron-actions { margin-top: 22px; }
+.tts-studio-page .pron-grid { margin-top: 4px; border: 1px solid #414141; border-radius: 7px; overflow: hidden; }
+.tts-studio-page .pron-head { background: #202020; border-bottom: 1px solid #414141; color: #8b98a8; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.tts-studio-page .pron-row { align-items: start; background: #242424; border-bottom: 1px solid #363636; }
+.tts-studio-page .pron-row:last-child { border-bottom: 0; }
+.tts-studio-page .pron-row:hover,
+.tts-studio-page .pron-row:focus-within { background: #2b2b2b; }
+.tts-studio-page .pron-row.is-disabled .pron-field,
+.tts-studio-page .pron-row.is-disabled .pron-static,
+.tts-studio-page .pron-row.is-disabled .pron-scope { opacity: .62; }
+/* Each row is one form, so a single Save posts every editable cell in it. */
+.tts-studio-page form.pron-row { margin: 0; }
+.tts-studio-page .pron-row > div { min-width: 0; }
+.tts-studio-page .pron-hidden-form { display: none; }
+.tts-studio-page .pron-empty { margin: 0; padding: 14px 12px; background: #242424; color: #aeb8c4 !important; }
+.tts-studio-page .pron-static { margin: 0; color: #f2f2f2 !important; font-size: 14px; overflow-wrap: anywhere; }
+.tts-studio-page .pron-access { display: grid; gap: 7px; min-width: 0; }
+.tts-studio-page .pron-access-field { min-width: 0; }
+.tts-studio-page .pron-scope { margin: 0; color: #aeb8c4 !important; font-size: 12px; line-height: 1.45; overflow-wrap: anywhere; }
+.tts-studio-page .pron-scope-label { color: #cfd8e3; font-weight: 700; }
+.tts-studio-page .pron-scope strong { color: rgb(188, 157, 90); font-weight: 700; }
+.tts-studio-page .pron-scope-hint { color: #8b98a8 !important; }
+.tts-studio-page .pron-badge { display: inline-block; padding: 2px 9px; border: 1px solid rgba(74, 138, 182, .35); border-radius: 999px; background: rgba(74, 138, 182, .16); color: #93c5fd; font-size: 11px; font-weight: 700; letter-spacing: .03em; text-transform: uppercase; white-space: nowrap; }
+.tts-studio-page .pron-toggle { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; }
+.tts-studio-page .pron-toggle-label { margin: 0; }
+.tts-studio-page .pron-toggle input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: rgb(188, 157, 90); cursor: pointer; }
+.tts-studio-page .pron-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.tts-studio-page .pron-btn { min-height: 32px; margin: 0 !important; padding: 6px 12px !important; font-size: 13px; }
+/* Column headers already name each grid cell, so per-row labels stay screen-reader only until the grid stacks. */
+.tts-studio-page .pron-grid .pron-label,
+.tts-studio-page .pron-grid .pron-static-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+/* Three inputs share the scope cell, so their labels must stay on screen. */
+.tts-studio-page .pron-grid .pron-access .pron-label { position: static; width: auto; height: auto; margin: 0 0 4px; overflow: visible; clip: auto; white-space: normal; }
+
+@media (max-width: 900px) {
+    .tts-studio-page .pron-head { display: none; }
+    .tts-studio-page .pron-cols { align-items: stretch; grid-template-columns: 1fr; }
+    .tts-studio-page .pron-row { padding: 14px 12px; }
+    .tts-studio-page .pron-grid .pron-label,
+    .tts-studio-page .pron-grid .pron-static-label { position: static; width: auto; height: auto; margin: 0 0 5px; overflow: visible; clip: auto; white-space: normal; }
+    .tts-studio-page .pron-add-row .pron-toggle,
+    .tts-studio-page .pron-add-row .pron-actions { margin-top: 0; }
+    .tts-studio-page .pron-preview-field,
+    .tts-studio-page .pron-preview-actions { flex: 1 1 100%; }
+    .tts-studio-page .pron-toolbar-field { min-width: 0; width: 100%; }
+    .tts-studio-page .pron-preview-result { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 480px) {
+    .tts-studio-page .pron-actions .pron-btn,
+    .tts-studio-page .pron-toolbar .pron-btn { flex: 1 1 auto; }
 }

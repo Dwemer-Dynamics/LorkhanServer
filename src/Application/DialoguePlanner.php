@@ -63,6 +63,7 @@ final class DialoguePlanner
                 throw new DomainException('provider_addressee_not_allowed');
             }
             $text = $candidate['text'] ?? null;
+            if(is_string($text))$text=trim($text);
             if (!is_string($text) || $text === '' || !mb_check_encoding($text, 'UTF-8')
                 || mb_strlen($text, 'UTF-8') > 4096 || strlen($text) > 16_384) {
                 throw new DomainException('provider_invalid_output');
@@ -71,7 +72,7 @@ final class DialoguePlanner
             if ($totalBytes > self::MAX_TOTAL_BYTES) throw new DomainException('provider_invalid_output');
             $variants=[];
             foreach(['_history_text','_subtitle','_tts_text']as$field){
-                $value=$candidate[$field]??$text;
+                $value=$candidate[$field]??$text;if(is_string($value))$value=trim($value);
                 if(!is_string($value)||$value===''||!mb_check_encoding($value,'UTF-8')
                     ||mb_strlen($value,'UTF-8')>4096||strlen($value)>16_384)
                     throw new DomainException('provider_invalid_output');

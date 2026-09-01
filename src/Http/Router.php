@@ -492,16 +492,20 @@ final class Router
                         $provider=$preset===null?$this->speechProvider:ProviderFactory::speechForPreset($this->providerConfig,$preset);
                         if($provider===null)throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);
                         $context=$this->products?->speechContext($installation,(string)$session['playthrough_id'],$actor,$preset)??[];
+                        $pronunciationContext=$this->products?->ttsPronunciationContext($installation,
+                            (string)$session['playthrough_id'],$actor)??[];
+                        $ttsText=$this->products?->applyTtsPronunciation((string)$message['text'],$pronunciationContext)??(string)$message['text'];
                         $providerName=match(true){$provider instanceof \LORKHANserver\Application\PocketTtsSpeechProvider=>'pockettts',
                             $provider instanceof \LORKHANserver\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
+                            $provider instanceof \LORKHANserver\Application\CloudSpeechConnectorProvider=>'cloud-speech',
                             $provider instanceof \LORKHANserver\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
                         $attemptId=Uuid::v4();$mediaId=null;
                         $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
-                            (string)$message['request_id'],null,inputBytes:strlen((string)$message['text']),
+                            (string)$message['request_id'],null,inputBytes:strlen($ttsText),
                             metadata:['mode'=>'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
                                 'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
                         try{
-                            $generated=$provider->synthesize((string)$message['text'],new NeverCancelledToken(),$context);
+                            $generated=$provider->synthesize($ttsText,new NeverCancelledToken(),$context);
                             $mediaId=Uuid::v4();$sha=$this->mediaStore->put($mediaId,$generated['bytes'],$generated['codec'],$generated['mime_type']);
                             $speech=['media_id'=>$mediaId,'sha256'=>$sha,'bytes'=>strlen($generated['bytes']),
                                 'codec'=>$generated['codec'],'mime_type'=>$generated['mime_type'],'duration_ms'=>$generated['duration_ms'],

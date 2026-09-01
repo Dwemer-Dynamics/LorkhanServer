@@ -43,7 +43,8 @@ final class StreamingDialogueText
             if (!mb_check_encoding($chunk, 'UTF-8')) break;
             $this->emitted .= $chunk;
             ++$this->chunkCount;
-            $chunks[] = $chunk;
+            $chunk=preg_replace('/\s+/u',' ',trim($chunk))??trim($chunk);
+            if($chunk!=='')$chunks[]=$chunk;
         }
         return $chunks;
     }

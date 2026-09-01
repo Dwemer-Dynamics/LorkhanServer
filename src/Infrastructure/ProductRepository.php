@@ -24,6 +24,7 @@ final class ProductRepository
         'experimental'=>['label'=>'Experimental','field'=>'llm_experimental_configuration_id'],
     ];
     private ?MorrowindGeographyCatalog $morrowindGeography=null;
+    private ?TtsPronunciationRepository $ttsPronunciations=null;
 
     public function __construct(private readonly PDO $db) {}
 
@@ -957,6 +958,30 @@ final class ProductRepository
         }
         if($id!==''&&strlen($id)<=512)$result['voice']=$id;if($language!==''&&strlen($language)<=35)$result['language']=$language;
         return$result;
+    }
+
+    /** Transform provider-only speech text while retaining the original subtitle and history text. */
+    public function applyTtsPronunciation(string $text,array $context=[]):string
+    {
+        return($this->ttsPronunciations??=new TtsPronunciationRepository($this->db))->apply($text,$context);
+    }
+
+    /** Resolve only the actor fields used by optional CHIM-style pronunciation scopes. */
+    public function ttsPronunciationContext(string $installationId,string $playthroughId,array $identity):array
+    {
+        $scope=['npc_name'=>trim((string)($identity['display_name']??$identity['record_id']??'')),
+            'race'=>trim((string)($identity['race']??'')),'oghma_tags'=>[]];
+        $profileId=match($identity['kind']??null){
+            'player'=>$this->playerProfileForInstallation($installationId)['profile_id']??null,
+            'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
+            default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
+        };
+        if(!is_string($profileId)||$profileId==='')return['pronunciation_scope'=>$scope];
+        $profile=$this->getRevisioned('profile',$profileId);$content=is_array($profile['content']??null)?$profile['content']:[];
+        $scope['npc_name']=trim((string)($profile['name']??$scope['npc_name']));
+        $scope['race']=trim((string)($content['race']??$scope['race']));
+        $scope['oghma_tags']=$content['oghma_knowledge_tags']??$content['oghma_tags']??[];
+        return['pronunciation_scope'=>$scope];
     }
 
     /** Create and bind an actor profile before its first prompt, even when a creature has no catalog voice. */
