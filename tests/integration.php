@@ -186,7 +186,8 @@ $fallbackModelSlot=$products->createRevisioned('provider',['installation_id'=>$i
     'content'=>['driver'=>'mock','model'=>'deterministic-fallback-v1','mock_prefix'=>'[fallback] ']],$now);
 $actorProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Fargoth scholar',
     'actor_identity'=>['record_id'=>'fargoth'],'content'=>['persona'=>'A cautious Dwemer scholar.',
-        'routing'=>['llm_configuration_id'=>$profileModelSlot['configuration_id']]]],$now);
+        'routing'=>['llm_configuration_id'=>$profileModelSlot['configuration_id'],
+            'llm_fast_configuration_id'=>$modelSlot['configuration_id'],'llm_powerful_configuration_id'=>'']]],$now);
 $profileTtsPreset=$products->createRevisioned('tts_provider',['installation_id'=>$installationId,'name'=>'Profile-routed speech',
     'content'=>['driver'=>'pockettts','endpoint'=>'http://127.0.0.1:8086','model'=>'tts-1','voice'=>'default',
         'language'=>'en','timeout_ms'=>30000,'options'=>['fallback_female'=>'fallback_female_voice']]],$now);
@@ -419,11 +420,12 @@ $directControlSlot=$products->createRevisioned('provider',['installation_id'=>$i
     'content'=>['driver'=>'openai-compatible','model'=>'controls-test','endpoint'=>'http://127.0.0.1:1234/v1/chat/completions']],$now);
 [$status,$controls]=$call($router,'POST',$base.'/controls/query',$jsonAuth,[],$controlsQuery);
 $assert($status===200&&$controls['schema']==='lorkhan.controls.v1'
-    &&in_array($modelSlot['configuration_id'],array_column($controls['model_slots'],'configuration_id'),true)
+    &&array_column($controls['model_slots'],'key')===['standard','fast','powerful','experimental']
+    &&count($controls['model_slots'])===4
     &&in_array($actorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&!in_array($narratorProfile['profile_id'],array_column($controls['profiles'],'profile_id'),true)
     &&$controls['narrator_profile_id']===$narratorProfile['profile_id']
-    &&$controls['selected_model_slot_id']===null&&$controls['selected_profile_id']===null
+    &&$controls['selected_model_slot_key']==='standard'&&$controls['selected_profile_id']===null
     &&($controls['effective_settings']['schema']??null)==='lorkhan.effective-settings.v1'
     &&preg_match('/^[0-9a-f]{64}$/D',(string)($controls['effective_settings']['change_token']??''))===1
     &&($controls['effective_settings']['profile_id']??null)===null
@@ -432,26 +434,26 @@ $assert($status===200&&$controls['schema']==='lorkhan.controls.v1'
     &&$controls['effective_settings']['settings']['presentation']===\LORKHANserver\Application\EffectiveSettingsResolver::defaults()['presentation']
     &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
     'in-game controls query did not return safe model/profile choices');
-$controlSlots=array_column($controls['model_slots'],null,'configuration_id');
-$assert($controlSlots[$directControlSlot['configuration_id']]['driver']==='configured'
-    &&!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
-    'explicit connectors must retain their server-side driver and endpoint behind a v1 configured model slot');
+$assert(!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
+    'unrouted connectors or endpoint secrets reached the semantic model slots');
 
 $selectModel=$fixture('controls-select');
 $selectModel['message_id']=$newUuid(8);$selectModel['request_id']=$newUuid(9);
 $selectModel['session_id']=$sessionId;$selectModel['generation']=7;$selectModel['created_at']=$now;
 $selectModel['target']=$controlsQuery['target'];$selectModel['kind']='model_slot';
-$selectModel['selection_id']=$modelSlot['configuration_id'];
+$selectModel['selection_id']=null;$selectModel['selection_key']='fast';
 [$status,$modelSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectModel['message_id']),[],$selectModel);
-$assert($status===200&&$modelSelected['selected_model_slot_id']===$modelSlot['configuration_id'],
+$assert($status===200&&$modelSelected['selected_model_slot_key']==='fast'
+    &&$products->selectedModelSlot($installationId)==='fast',
     'in-game model slot selection failed');
 [$status,$modelReplay]=$call($router,'POST',$base.'/controls/select',$headers($selectModel['message_id']),[],$selectModel);
 $assert($status===200&&$modelReplay==$modelSelected,'in-game model slot selection was not idempotent');
 
 $selectProfile=$selectModel;$selectProfile['message_id']=$newUuid(10);$selectProfile['request_id']=$newUuid(11);
-$selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProfile['profile_id'];
+$selectProfile['kind']='actor_profile';$selectProfile['selection_id']=$actorProfile['profile_id'];$selectProfile['selection_key']=null;
 [$status,$profileSelected]=$call($router,'POST',$base.'/controls/select',$headers($selectProfile['message_id']),[],$selectProfile);
     $assert($status===200&&$profileSelected['selected_profile_id']===$actorProfile['profile_id']
+        &&$profileSelected['selected_model_slot_key']==='fast'&&$profileSelected['resolved_model_slot_key']==='fast'
         &&($profileSelected['effective_settings']['profile_id']??null)===$actorProfile['profile_id']
         &&($profileSelected['effective_settings']['change_token']??null)!==($controls['effective_settings']['change_token']??null),
         'in-game actor profile selection failed');
@@ -459,8 +461,15 @@ $turnLike=['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installa
     'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$controlsQuery['target']]];
 $explicitContext=$products->providerContext($turnLike);
 $assert(($explicitContext['configuration_id']??null)===$modelSlot['configuration_id'],
-    'explicit in-game model slot did not override profile routing');
-$clearModel=$selectModel;$clearModel['message_id']=$newUuid(706);$clearModel['request_id']=$newUuid(707);$clearModel['selection_id']=null;
+    'Fast model selection did not resolve through the NPC profile');
+$products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'powerful',$now);
+$missingSlotContext=$products->providerContext($turnLike);$missingSlotControls=$products->sessionControls($session,$controlsQuery['target']);
+$assert(($missingSlotContext['configuration_id']??null)===$profileModelSlot['configuration_id']
+    &&$missingSlotControls['selected_model_slot_key']==='powerful'&&$missingSlotControls['resolved_model_slot_key']==='standard',
+    'an unavailable selected model slot did not fall back to the first configured profile slot: '.json_encode([
+        'provider'=>$missingSlotContext['configuration_id']??null,'selected'=>$missingSlotControls['selected_model_slot_key']??null,
+        'resolved'=>$missingSlotControls['resolved_model_slot_key']??null]));
+$clearModel=$selectModel;$clearModel['message_id']=$newUuid(706);$clearModel['request_id']=$newUuid(707);$clearModel['selection_key']='standard';
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($clearModel['message_id']),[],$clearModel);
 $profileContext=$products->providerContext($turnLike);
 $assert($status===200&&($profileContext['configuration_id']??null)===$profileModelSlot['configuration_id'],
@@ -510,6 +519,8 @@ for($i=720;$i<752;$i++){$candidate=$turnLike;$candidate['turn_id']=$newUuid($i);
     $context=$products->providerContext($candidate);$randomizedSelections[$context['configuration_id']??'']=true;}
 $assert(isset($randomizedSelections[$profileModelSlot['configuration_id']],$randomizedSelections[$fastModelSlot['configuration_id']])
     &&count($randomizedSelections)===2,'profile LLM randomizer did not use every configured general-purpose slot');
+$manualContent=$actorProfile['content'];$manualContent['routing']['llm_randomizer_enabled']=false;
+$actorProfile=$products->revise('profile',$actorProfile['profile_id'],$manualContent,'restore manual LLM slot selection',$now);
 $restoreModel=$selectModel;$restoreModel['message_id']=$newUuid(708);$restoreModel['request_id']=$newUuid(709);
 [$status]=$call($router,'POST',$base.'/controls/select',$headers($restoreModel['message_id']),[],$restoreModel);
 $speechTarget=$controlsQuery['target'];$speechTarget['record_id']='jiub';$speechTarget['display_name']='Jiub';$speechTarget['refnum']['index']=99;
@@ -639,7 +650,7 @@ $assert(is_string($snapshot['message']['_prompt']['_assembled_prompt']??null)
         'negotiated_actions','current_turn']
     &&count(array_filter($promptSections,static fn(array$row):bool=>preg_match('/^[0-9a-f]{64}$/D',(string)$row['source_sha256'])===1))===11
     &&($memoryRetrieval['prompt_section']??null)==='memory_context'
-    &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$modelSlot['configuration_id'],
+    &&($snapshot['message']['_provider_configuration']['configuration_id']??null)===$fastModelSlot['configuration_id'],
     'accepted turn did not freeze the layered Core Profile prompt, settings trace, and provider input for the worker');
 $successfulWorkerStats=$runTurnWorker(new MockProvider());
 $successfulJob=$db->query("SELECT state,last_error_code,last_error_detail FROM durable_jobs WHERE job_type='turn.process' ORDER BY created_at DESC LIMIT 1")->fetch();
@@ -1464,7 +1475,7 @@ $fallbackProfile=$products->createRevisioned('profile',['installation_id'=>$inst
         'llm_fallback_enabled'=>true]]],$now);
 $products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
     $fallbackTarget,$fallbackProfile['profile_id'],$now);
-$products->selectSessionProvider(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],null);
+$products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'standard',$now);
 $fallbackRouter=new Router($repo,new Validator(),$failingProvider,$tokenHash,rateLimitRequests:1000,
     providerAttempts:$attempts,products:$products,promptAssembler:new PromptAssembler());
 $fallbackTurn=$turn;$fallbackTurn['message_id']=$newUuid(740);$fallbackTurn['request_id']=$newUuid(741);
@@ -1489,7 +1500,7 @@ $fallbackAttempts=$db->query("SELECT state,metadata->>'fallback' AS fallback FRO
     .$db->quote($fallbackTurn['turn_id'])." ORDER BY started_at,provider_attempt_id")->fetchAll();
 $assert($fallbackAttempts===[['state'=>'failed','fallback'=>'false'],['state'=>'succeeded','fallback'=>'true']],
     'profile fallback attempts were not recorded as one primary failure and one fallback success');
-$products->selectSessionProvider(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],$modelSlot['configuration_id']);
+$products->selectModelSlot(['session_id'=>$sessionId,'generation'=>7,'installation_id'=>$installationId],'fast',$now);
 
 // Exercise the lower group bounds through the same durable provider/TTS pipeline.
 $groupAfter=(int)$fallbackEvents['next_after'];
@@ -1975,7 +1986,7 @@ $translationJobPayload=json_decode((string)$translationJobStatement->fetchColumn
 $translationAttemptStatement=$db->prepare("SELECT state,provider_name,operation,metadata FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
 $translationAttemptStatement->execute(['turn'=>$translationTurn['turn_id']]);$translationAttempt=$translationAttemptStatement->fetch();
 $translationAttemptMetadata=$translationAttempt?json_decode((string)$translationAttempt['metadata'],true,16,JSON_THROW_ON_ERROR):[];
-$expectedOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Translate this reply.';
+$expectedOriginal='[fast] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Translate this reply.';
 $expectedTranslation='DE: '.$expectedOriginal;
 $assert($status===202&&$translationStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
     &&$translationProvider->calls===1
@@ -2028,7 +2039,7 @@ $translationResponseStatement->execute(['turn'=>$translationFailureTurn['turn_id
 $translationFailureResponse=json_decode((string)$translationResponseStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $translationFailureAttempt=$db->prepare("SELECT state,error_code,error_detail FROM provider_attempts WHERE turn_id=:turn AND provider_kind='translation'");
 $translationFailureAttempt->execute(['turn'=>$translationFailureTurn['turn_id']]);
-$translationFailureOriginal='[slot] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Keep the original reply.';
+$translationFailureOriginal='[fast] '.(string)$turn['payload']['target']['display_name'].' heard: [oghma: Vivec] Keep the original reply.';
 $assert($status===202&&$translationFailureStats===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
     &&$translationFailureResponse['ok']===true
     &&$translationFailureResponse['lines'][0]['text']===$translationFailureOriginal

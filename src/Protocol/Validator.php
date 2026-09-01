@@ -231,10 +231,14 @@ final class Validator
 
     private function controlsSelect(array $message): void
     {
-        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','target']);
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','selection_key','target']);
+        $modelSlot=($message['kind']??null)==='model_slot';
         if(($message['schema']??null)!=='lorkhan.controls.select.v1'||!is_int($message['generation'])
             ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
             ||!in_array($message['kind']??null,['actor_profile','model_slot','profile_generate','narrator_profile_generate'],true)
+            ||($modelSlot&&(($message['selection_id']??null)!==null
+                ||!in_array($message['selection_key']??null,['standard','fast','powerful','experimental'],true)))
+            ||(!$modelSlot&&($message['selection_key']??null)!==null)
             ||(in_array($message['kind']??null,['profile_generate','narrator_profile_generate'],true)&&($message['selection_id']??null)===null))throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
         if(($message['selection_id']??null)!==null)$this->uuid($message['selection_id']);
