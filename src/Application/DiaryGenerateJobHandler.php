@@ -2,12 +2,12 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\FirstPartyJobRepository;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\FirstPartyJobRepository;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\Uuid;
 use InvalidArgumentException;
 use Throwable;
 

@@ -1,8 +1,8 @@
-# LORKHANserver architecture
+# LorkhanServer architecture
 
 ## System boundary
 
-LORKHANserver is a single-user local-first web application in WSL2. Apache serves the browser UI and
+LorkhanServer is a single-user local-first web application in WSL2. Apache serves the browser UI and
 strict game API on WSL port `8090`, exposed to Windows through the launcher's `127.0.0.1:7514` loopback proxy; PHP owns validation/application services; PostgreSQL/pgvector
 owns durable state; supervised CLI workers own derived memory/profile/relationship jobs. Provider
 calls are outbound server-side only.
@@ -48,7 +48,7 @@ layout if its equivalent is stronger. Preserve separation and ownership, not fol
 The browser surface deliberately follows the maintained Dwemer server page composition. Each
 top-level PHP page loads `public/ui/ui_bootstrap.php`, includes the common head and navbar, renders
 its own page family, and includes the common footer. Embedded pages use the same bootstrap and CSRF
-session but omit the navbar when requested with `embed=1`. Apache aliases `/LORKHANserver` to the
+session but omit the navbar when requested with `embed=1`. Apache aliases `/LorkhanServer` to the
 public directory so source, configuration, storage, and secrets stay outside the served tree.
 
 ## Request lifecycle

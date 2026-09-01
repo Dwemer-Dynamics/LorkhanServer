@@ -13,7 +13,7 @@ become an OpenMW/TES3 backend.
 | OpenMW | Game world, objects, saves, audio/rendering and sandboxed Lua runtime | AI profiles/providers/memory. |
 | LORKHAN native bridge | Authenticated typed loopback transport/media and cancellation | Prompts, arbitrary HTTP, engine actions. |
 | LORKHAN Lua | Player input/UI, current world context, actor identity and typed action execution | Provider keys/database/long-term memory. |
-| LORKHANserver | Events, prompts/providers, profiles, memory, relationships, knowledge, media, management/workers | Direct game mutation or assumed action success. |
+| LorkhanServer | Events, prompts/providers, profiles, memory, relationships, knowledge, media, management/workers | Direct game mutation or assumed action success. |
 | Optional content addon | Original records/assets only after separate gate | Core transport/server/product logic. |
 
 ## Physical flow
@@ -48,7 +48,7 @@ flowchart LR
 
 ## First-run setup
 
-1. Install/verify WSL stack and immutable LORKHANserver release.
+1. Install/verify WSL stack and immutable LorkhanServer release.
 2. Create least-privilege database roles, migrate and seed safe defaults/mock providers.
 3. Start supervised workers and verify heartbeat.
 4. Bind Apache port 8090 in WSL and prove Windows reachability through the launcher's loopback port 7514.

@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Http\Request;
-use LORKHANserver\Security\BrowserSession;
-use LORKHANserver\Security\RequestMac;
+use LorkhanServer\Http\Request;
+use LorkhanServer\Security\BrowserSession;
+use LorkhanServer\Security\RequestMac;
 use PDO;
 use RuntimeException;
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\EventLogRepository;
+use LorkhanServer\Infrastructure\EventLogRepository;
 
 $pageTitle = 'Roleplay';
 $topNavSection = 'roleplay';

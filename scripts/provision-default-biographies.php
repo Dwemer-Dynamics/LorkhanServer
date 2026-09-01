@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\BiographyCatalogImporter;
-use LORKHANserver\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\BiographyCatalogImporter;
+use LorkhanServer\Infrastructure\Connection;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 

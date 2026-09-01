@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\MemorySummaryPolicy;
+use LorkhanServer\Application\MemorySummaryPolicy;
 use PDO;
 
 /** Model projections never replace original memory content or its privacy provenance. */

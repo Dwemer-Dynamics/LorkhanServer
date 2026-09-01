@@ -142,7 +142,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                  data-pron-endpoint="<?php echo lorkhan_ui_h($pronPreviewEndpoint); ?>"
                  data-pron-installation="<?php echo lorkhan_ui_h($pronPreviewInstallation); ?>"
                  data-pron-csrf="<?php echo lorkhan_ui_h($csrf); ?>"
-                 data-pron-max-length="<?php echo (int) \LORKHANserver\Application\SpeechPreviewCatalog::MAX_TEXT_LENGTH; ?>"
+                 data-pron-max-length="<?php echo (int) \LorkhanServer\Application\SpeechPreviewCatalog::MAX_TEXT_LENGTH; ?>"
                  data-pron-ready="<?php echo $pronPreviewReady ? '1' : '0'; ?>">
                 <p class="pron-preview-caption">Preview voice</p>
                 <div class="pron-preview-field">

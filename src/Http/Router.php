@@ -1,28 +1,28 @@
 <?php
 declare(strict_types=1);
 
-namespace LORKHANserver\Http;
+namespace LorkhanServer\Http;
 
-use LORKHANserver\Application\MorrowindVoiceCatalog;
-use LORKHANserver\Application\MemoryEmbeddingPolicy;
-use LORKHANserver\Application\MiniMeEmbeddingProvider;
-use LORKHANserver\Application\NeverCancelledToken;
-use LORKHANserver\Application\PromptAssembler;
-use LORKHANserver\Application\Provider;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Application\RechatCoordinator;
-use LORKHANserver\Application\SpeechProvider;
-use LORKHANserver\Application\SpeechToTextProvider;
-use LORKHANserver\Application\TranslationPolicy;
-use LORKHANserver\Infrastructure\ManagementRepository;
-use LORKHANserver\Infrastructure\MediaStore;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\Repository;
-use LORKHANserver\Infrastructure\Uuid;
-use LORKHANserver\Protocol\ValidationException;
-use LORKHANserver\Protocol\Validator;
-use LORKHANserver\Security\RequestMac;
+use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\MemoryEmbeddingPolicy;
+use LorkhanServer\Application\MiniMeEmbeddingProvider;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\PromptAssembler;
+use LorkhanServer\Application\Provider;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Application\RechatCoordinator;
+use LorkhanServer\Application\SpeechProvider;
+use LorkhanServer\Application\SpeechToTextProvider;
+use LorkhanServer\Application\TranslationPolicy;
+use LorkhanServer\Infrastructure\ManagementRepository;
+use LorkhanServer\Infrastructure\MediaStore;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\Repository;
+use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Protocol\ValidationException;
+use LorkhanServer\Protocol\Validator;
+use LorkhanServer\Security\RequestMac;
 use DomainException;
 use OutOfBoundsException;
 use Throwable;
@@ -36,7 +36,7 @@ final class Router
         private readonly Validator $validator,
         private readonly Provider $provider,
         private readonly string $pairingTokenHash,
-        private readonly string $basePath = '/LORKHANserver/api/v1',
+        private readonly string $basePath = '/LorkhanServer/api/v1',
         private readonly int $maxJsonBytes = 2_097_152,
         private readonly int $eventLimit = 100,
         private readonly int $rateLimitRequests = 120,
@@ -443,7 +443,7 @@ final class Router
     private function synthesize(array $message, array $capabilities, string $text): ?array
     {
         if (!in_array('speech.say', $capabilities, true) || $this->mediaStore === null || $this->speechProvider === null) return null;
-        $cancellation = new \LORKHANserver\Application\NeverCancelledToken();
+        $cancellation = new \LorkhanServer\Application\NeverCancelledToken();
         $attemptId = Uuid::v4();
         try {
             $this->providerAttempts?->start($attemptId, 'tts', 'mock', 'synthesize', 1, $message['request_id'], $message['turn_id'],
@@ -495,10 +495,10 @@ final class Router
                         $pronunciationContext=$this->products?->ttsPronunciationContext($installation,
                             (string)$session['playthrough_id'],$actor)??[];
                         $ttsText=$this->products?->applyTtsPronunciation((string)$message['text'],$pronunciationContext)??(string)$message['text'];
-                        $providerName=match(true){$provider instanceof \LORKHANserver\Application\PocketTtsSpeechProvider=>'pockettts',
-                            $provider instanceof \LORKHANserver\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
-                            $provider instanceof \LORKHANserver\Application\CloudSpeechConnectorProvider=>'cloud-speech',
-                            $provider instanceof \LORKHANserver\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
+                        $providerName=match(true){$provider instanceof \LorkhanServer\Application\PocketTtsSpeechProvider=>'pockettts',
+                            $provider instanceof \LorkhanServer\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
+                            $provider instanceof \LorkhanServer\Application\CloudSpeechConnectorProvider=>'cloud-speech',
+                            $provider instanceof \LorkhanServer\Application\OpenAiCompatibleSpeechProvider=>'openai-compatible',default=>'mock'};
                         $attemptId=Uuid::v4();$mediaId=null;
                         $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
                             (string)$message['request_id'],null,inputBytes:strlen($ttsText),

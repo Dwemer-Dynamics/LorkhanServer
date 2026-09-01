@@ -2,25 +2,25 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Http;
+namespace LorkhanServer\Http;
 
-use LORKHANserver\Application\DeterministicRetrieval;
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Application\EffectiveSettingsResolver;
-use LORKHANserver\Application\LlmConnector;
-use LORKHANserver\Application\NeverCancelledToken;
-use LORKHANserver\Application\PlayerMoodPolicy;
-use LORKHANserver\Application\ProductService;
-use LORKHANserver\Application\Provider;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Application\SpeechPreviewCatalog;
-use LORKHANserver\Application\TranslationPolicy;
-use LORKHANserver\Infrastructure\ManagementRepository;
-use LORKHANserver\Infrastructure\EventLogRepository;
-use LORKHANserver\Infrastructure\OghmaCatalogImporter;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\Uuid;
-use LORKHANserver\Security\BrowserSession;
+use LorkhanServer\Application\DeterministicRetrieval;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\LlmConnector;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\PlayerMoodPolicy;
+use LorkhanServer\Application\ProductService;
+use LorkhanServer\Application\Provider;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\TranslationPolicy;
+use LorkhanServer\Infrastructure\ManagementRepository;
+use LorkhanServer\Infrastructure\EventLogRepository;
+use LorkhanServer\Infrastructure\OghmaCatalogImporter;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -72,7 +72,7 @@ final class ManagementRouter
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
-        private readonly ProductService $service,private readonly string $basePath='/LORKHANserver/manage',
+        private readonly ProductService $service,private readonly string $basePath='/LorkhanServer/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
         private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
         private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
@@ -1273,7 +1273,7 @@ final class ManagementRouter
         $memoryPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_policy')continue;
-            \LORKHANserver\Application\MemorySummaryPolicy::validate($row['content']);
+            \LorkhanServer\Application\MemorySummaryPolicy::validate($row['content']);
             $provider=$row['content']['provider_configuration_id'];
             if(++$memoryPolicies>1||$row['profile_id']!==null
                 ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
@@ -1281,7 +1281,7 @@ final class ManagementRouter
         $embeddingPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_embedding_policy')continue;
-            \LORKHANserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+            \LorkhanServer\Application\MemoryEmbeddingPolicy::validate($row['content']);
             if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
         }
         $translationPolicies=0;
@@ -1407,8 +1407,8 @@ final class ManagementRouter
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $timeout=filter_var($values['timeout_ms']??null,FILTER_VALIDATE_INT);
         if($timeout===false)throw new InvalidArgumentException('invalid_memory_embedding_timeout');
-        $content=\LORKHANserver\Application\MemoryEmbeddingPolicy::validate([
-            'schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,
+        $content=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate([
+            'schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['enabled']),'endpoint'=>trim((string)($values['endpoint']??'')),
             'timeout_ms'=>$timeout,
         ]);
@@ -1949,7 +1949,7 @@ final class ManagementRouter
         if(!is_file($articles)||!is_file($manifest))throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
         return$importer->apply($articles,$manifest,$version);
     }
-    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LORKHANserver';}
+    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LorkhanServer';}
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/');}

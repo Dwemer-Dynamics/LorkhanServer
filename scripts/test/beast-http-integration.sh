@@ -42,7 +42,7 @@ start_http() {
         >>"$TMP/php.log" 2>&1 &
     PHP_PID=$!
     attempts=0
-    until curl -fsS "http://127.0.0.1:$HTTP_PORT/LORKHANserver/api/v1/health" >/dev/null 2>&1; do
+    until curl -fsS "http://127.0.0.1:$HTTP_PORT/LorkhanServer/api/v1/health" >/dev/null 2>&1; do
         if ! kill -0 "$PHP_PID" >/dev/null 2>&1; then
             printf 'PHP test server exited before readiness\n' >&2
             return 1
@@ -72,7 +72,7 @@ fi
 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHAN_TEST_PROVIDER_CONTROL="$TMP/control" \
  LORKHAN_TEST_SERVER_STATE="$TMP/server-state" php "$ROOT/workers/worker.php" >>"$TMP/worker.log" 2>&1 &
 WORKER_PID=$!
-"$CLIENT_BIN" --live-url "http://127.0.0.1:$HTTP_PORT/LORKHANserver/api/v1" --control-dir "$CONTROL_DIR_ARG" &
+"$CLIENT_BIN" --live-url "http://127.0.0.1:$HTTP_PORT/LorkhanServer/api/v1" --control-dir "$CONTROL_DIR_ARG" &
 CLIENT_PID=$!
 attempts=0
 until [ -f "$TMP/control/server-restart.ready" ]; do

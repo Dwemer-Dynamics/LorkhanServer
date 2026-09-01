@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\MigrationRunner;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\MigrationRunner;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 

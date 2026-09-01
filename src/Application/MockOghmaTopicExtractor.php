@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Deterministic extractor used by existing unit and integration test configurations. */
 final class MockOghmaTopicExtractor implements OghmaTopicExtractor

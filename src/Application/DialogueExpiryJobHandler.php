@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\Repository;
+use LorkhanServer\Infrastructure\Repository;
 
 final class DialogueExpiryJobHandler implements JobHandler
 {

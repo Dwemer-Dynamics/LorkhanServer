@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\RelationshipBuildRepository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\RelationshipBuildRepository;
+use LorkhanServer\Infrastructure\Uuid;
 
 /** One explicit, bounded history analysis with no external I/O inside the write transaction. */
 final class RelationshipBuildJobHandler implements JobHandler

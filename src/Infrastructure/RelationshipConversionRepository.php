@@ -1,10 +1,10 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\OperationCancelled;
-use LORKHANserver\Application\RelationshipBuildPolicy;
-use LORKHANserver\Application\RelationshipType;
+use LorkhanServer\Application\OperationCancelled;
+use LorkhanServer\Application\RelationshipBuildPolicy;
+use LorkhanServer\Application\RelationshipType;
 use PDO;
 
 /** Explicitly convert bounded profile relationship text without inventing OpenMW actors. */

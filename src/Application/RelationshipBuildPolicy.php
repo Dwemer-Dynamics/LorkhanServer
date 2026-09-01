@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Manual history analysis accepts scores only for server-selected interlocutors. */
 final class RelationshipBuildPolicy

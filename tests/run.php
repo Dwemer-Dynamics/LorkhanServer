@@ -5,46 +5,46 @@ declare(strict_types=1);
 require dirname(__DIR__) . '/src/Autoload.php';
 require __DIR__ . '/Support/StateStore.php';
 
-use LORKHANserver\Config\Settings;
-use LORKHANserver\Application\ActionPolicyValidator;
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Application\CredentialStore;
-use LORKHANserver\Application\LlmConnector;
-use LORKHANserver\Application\CloudSpeechConnectorProvider;
-use LORKHANserver\Application\CloudSpeechToTextConnectorProvider;
-use LORKHANserver\Application\CanonicalResponseNormalizer;
-use LORKHANserver\Application\MockSpeechProvider;
-use LORKHANserver\Application\PocketTtsSpeechProvider;
-use LORKHANserver\Application\LocalSpeechConnectorProvider;
-use LORKHANserver\Application\MockOghmaTopicExtractor;
-use LORKHANserver\Application\MorrowindGeographyCatalog;
-use LORKHANserver\Application\OghmaGroundedRetriever;
-use LORKHANserver\Application\NeverCancelledToken;
-use LORKHANserver\Application\OpenAiCompatibleProvider;
-use LORKHANserver\Application\StreamingDialogueText;
-use LORKHANserver\Application\OpenAiCompatibleSpeechProvider;
-use LORKHANserver\Application\OpenAiCompatibleSpeechToTextProvider;
-use LORKHANserver\Application\PromptAssembler;
-use LORKHANserver\Application\SpeechPreviewCatalog;
-use LORKHANserver\Application\PlayerMoodPolicy;
-use LORKHANserver\Application\MemoryPromptSelection;
-use LORKHANserver\Application\InlineNarrationRouter;
-use LORKHANserver\Application\DialoguePlanner;
-use LORKHANserver\Application\DeepLTranslationProvider;
-use LORKHANserver\Application\EffectiveSettingsResolver;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Application\TranslationPolicy;
-use LORKHANserver\Application\ZonosGradioSpeechProvider;
-use LORKHANserver\Application\XvaSynthSpeechProvider;
-use LORKHANserver\Http\Response;
-use LORKHANserver\Infrastructure\MediaStore;
-use LORKHANserver\Tests\Support\StateStore;
-use LORKHANserver\Protocol\ValidationException;
-use LORKHANserver\Protocol\Validator;
-use LORKHANserver\Security\PairingToken;
-use LORKHANserver\Security\Redactor;
-use LORKHANserver\Security\RequestMac;
-use LORKHANserver\Http\Request;
+use LorkhanServer\Config\Settings;
+use LorkhanServer\Application\ActionPolicyValidator;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\CredentialStore;
+use LorkhanServer\Application\LlmConnector;
+use LorkhanServer\Application\CloudSpeechConnectorProvider;
+use LorkhanServer\Application\CloudSpeechToTextConnectorProvider;
+use LorkhanServer\Application\CanonicalResponseNormalizer;
+use LorkhanServer\Application\MockSpeechProvider;
+use LorkhanServer\Application\PocketTtsSpeechProvider;
+use LorkhanServer\Application\LocalSpeechConnectorProvider;
+use LorkhanServer\Application\MockOghmaTopicExtractor;
+use LorkhanServer\Application\MorrowindGeographyCatalog;
+use LorkhanServer\Application\OghmaGroundedRetriever;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\OpenAiCompatibleProvider;
+use LorkhanServer\Application\StreamingDialogueText;
+use LorkhanServer\Application\OpenAiCompatibleSpeechProvider;
+use LorkhanServer\Application\OpenAiCompatibleSpeechToTextProvider;
+use LorkhanServer\Application\PromptAssembler;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\PlayerMoodPolicy;
+use LorkhanServer\Application\MemoryPromptSelection;
+use LorkhanServer\Application\InlineNarrationRouter;
+use LorkhanServer\Application\DialoguePlanner;
+use LorkhanServer\Application\DeepLTranslationProvider;
+use LorkhanServer\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Application\TranslationPolicy;
+use LorkhanServer\Application\ZonosGradioSpeechProvider;
+use LorkhanServer\Application\XvaSynthSpeechProvider;
+use LorkhanServer\Http\Response;
+use LorkhanServer\Infrastructure\MediaStore;
+use LorkhanServer\Tests\Support\StateStore;
+use LorkhanServer\Protocol\ValidationException;
+use LorkhanServer\Protocol\Validator;
+use LorkhanServer\Security\PairingToken;
+use LorkhanServer\Security\Redactor;
+use LorkhanServer\Security\RequestMac;
+use LorkhanServer\Http\Request;
 
 $failures = 0;
 $checks = 0;
@@ -80,7 +80,7 @@ $check(($ravenRock['tags']??null)===['solstheim','raven_rock'],
 $check($geography->resolve([...$fargoth,'cell'=>['kind'=>'interior','name'=>'Unknown Cell']],null)===null,
     'Morrowind geography abstains when neither RefNum nor current cell is recognized');
 $key=random_bytes(32);$installation='00000000-0000-4000-8000-000000000001';$timestamp=gmdate('Y-m-d\\TH:i:s\\Z');$nonce=bin2hex(random_bytes(16));
-$unsigned=new Request('POST','/LORKHANserver/api/v1/turns',['Content-Type'=>'application/json; charset=utf-8'],[],'{}');$digest=RequestMac::bodyDigest($unsigned->body);$signature=RequestMac::sign($key,$unsigned,$installation,$timestamp,$nonce,'application/json; charset=utf-8',$digest);
+$unsigned=new Request('POST','/LorkhanServer/api/v1/turns',['Content-Type'=>'application/json; charset=utf-8'],[],'{}');$digest=RequestMac::bodyDigest($unsigned->body);$signature=RequestMac::sign($key,$unsigned,$installation,$timestamp,$nonce,'application/json; charset=utf-8',$digest);
 $signed=new Request($unsigned->method,$unsigned->path,$unsigned->headers+['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installation,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>$digest,'X-LORKHAN-Signature'=>$signature],[],$unsigned->body);
 $check(RequestMac::verify($signed,$key)===$installation,'request MAC binds method target content installation timestamp and nonce');
 $check(RequestMac::verify(new Request('GET',$signed->path,$signed->headers,[],$signed->body),$key)===false,'request MAC rejects method tampering');
@@ -100,95 +100,95 @@ $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions'
     'OpenAI-compatible provider permits endpoints that do not require a key');
 $inheritedLlm=['driver'=>'configured','model'=>'existing-model'];
 $relationshipOutput=['disposition_delta'=>2,'affinity_delta'=>-1,'reason'=>'A witnessed disagreement.'];
-$check(\LORKHANserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput)===$relationshipOutput
-    &&!\LORKHANserver\Application\RelationshipEvaluationPolicy::eligible(0,'one-response')
-    &&\LORKHANserver\Application\RelationshipEvaluationPolicy::eligible(100,'one-response'),
+$check(\LorkhanServer\Application\RelationshipEvaluationPolicy::output($relationshipOutput)===$relationshipOutput
+    &&!\LorkhanServer\Application\RelationshipEvaluationPolicy::eligible(0,'one-response')
+    &&\LorkhanServer\Application\RelationshipEvaluationPolicy::eligible(100,'one-response'),
     'relationship output and automatic chance boundaries');
 foreach([['disposition_delta'=>11],['affinity_delta'=>'1'],['reason'=>"bad\0reason"],['actor'=>'somebody else']]as$invalidChange){
-    try{\LORKHANserver\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
+    try{\LorkhanServer\Application\RelationshipEvaluationPolicy::output(array_replace($relationshipOutput,$invalidChange));$check(false,'unsafe relationship output accepted');}
     catch(InvalidArgumentException){$check(true,'unsafe relationship output rejected');}
 }
-$availableTypes=\LORKHANserver\Application\RelationshipType::available(['trusted_companion','romance']);
-$check(\LORKHANserver\Application\RelationshipType::manual(' Married ')==='romantic'
+$availableTypes=\LorkhanServer\Application\RelationshipType::available(['trusted_companion','romance']);
+$check(\LorkhanServer\Application\RelationshipType::manual(' Married ')==='romantic'
     &&in_array('trusted_companion',$availableTypes,true)
-    &&\LORKHANserver\Application\RelationshipType::model('trusted_companion',$availableTypes,40,'Earned trust')==='trusted_companion'
-    &&\LORKHANserver\Application\RelationshipType::model('invented_by_model',$availableTypes,90,'Invented')===null
-    &&\LORKHANserver\Application\RelationshipType::model('romantic',$availableTypes,55,'Too soon')===null
-    &&\LORKHANserver\Application\RelationshipType::model('romantic',$availableTypes,56,'A defining confession')==='romantic'
-    &&\LORKHANserver\Application\RelationshipType::model('crush',$availableTypes,10,'Changed nuance','romantic')==='crush',
+    &&\LorkhanServer\Application\RelationshipType::model('trusted_companion',$availableTypes,40,'Earned trust')==='trusted_companion'
+    &&\LorkhanServer\Application\RelationshipType::model('invented_by_model',$availableTypes,90,'Invented')===null
+    &&\LorkhanServer\Application\RelationshipType::model('romantic',$availableTypes,55,'Too soon')===null
+    &&\LorkhanServer\Application\RelationshipType::model('romantic',$availableTypes,56,'A defining confession')==='romantic'
+    &&\LorkhanServer\Application\RelationshipType::model('crush',$availableTypes,10,'Changed nuance','romantic')==='crush',
     'relationship types canonicalize manual aliases and fence model choices');
 foreach([null,'two words','-enemy',str_repeat('x',51)]as$invalidType){
-    try{\LORKHANserver\Application\RelationshipType::manual($invalidType);$check(false,'invalid manual relationship type accepted');}
+    try{\LorkhanServer\Application\RelationshipType::manual($invalidType);$check(false,'invalid manual relationship type accepted');}
     catch(InvalidArgumentException){$check(true,'invalid manual relationship type rejected');}
 }
 $buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
-$check(\LORKHANserver\Application\RelationshipCustomInfo::validate('')===''
-    &&\LORKHANserver\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
+$check(\LorkhanServer\Application\RelationshipCustomInfo::validate('')===''
+    &&\LorkhanServer\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
     'private relationship text is optional and Unicode bounded');
 foreach([null,[],"bad\0note",str_repeat('x',2001)] as $badNote){
-    try{\LORKHANserver\Application\RelationshipCustomInfo::validate($badNote);$check(false,'invalid custom info accepted');}
+    try{\LorkhanServer\Application\RelationshipCustomInfo::validate($badNote);$check(false,'invalid custom info accepted');}
     catch(InvalidArgumentException){$check(true,'invalid custom info rejected');}
 }
 $legacyRelationshipIdentity=['record_id'=>'legacy_actor','display_name'=>'Legacy actor'];
-$check(\LORKHANserver\Application\RelationshipIdentity::validate($legacyRelationshipIdentity,true)===$legacyRelationshipIdentity,
+$check(\LorkhanServer\Application\RelationshipIdentity::validate($legacyRelationshipIdentity,true)===$legacyRelationshipIdentity,
     'restore accepts a bounded legacy relationship identity');
 foreach([[$legacyRelationshipIdentity,false],[['kind'=>'invented','record_id'=>'bad'],true]]as[$badIdentity,$allowLegacy]){
-    try{\LORKHANserver\Application\RelationshipIdentity::validate($badIdentity,$allowLegacy);$check(false,'invalid relationship identity accepted');}
+    try{\LorkhanServer\Application\RelationshipIdentity::validate($badIdentity,$allowLegacy);$check(false,'invalid relationship identity accepted');}
     catch(InvalidArgumentException){$check(true,'invalid relationship identity rejected');}
 }
-$check(\LORKHANserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
+$check(\LorkhanServer\Application\RelationshipBuildPolicy::output(['relationships'=>[$buildRow]])===['relationships'=>[$buildRow]],
     'history build accepts bounded absolute scores');
 $typedBuildRow=$buildRow+['relationship_type'=>'rival'];
-$check(\LORKHANserver\Application\RelationshipBuildPolicy::output(['relationships'=>[$typedBuildRow]])===['relationships'=>[$typedBuildRow]]
-    &&\LORKHANserver\Application\RelationshipEvaluationPolicy::output($relationshipOutput+['relationship_type'=>'suspicious'])
+$check(\LorkhanServer\Application\RelationshipBuildPolicy::output(['relationships'=>[$typedBuildRow]])===['relationships'=>[$typedBuildRow]]
+    &&\LorkhanServer\Application\RelationshipEvaluationPolicy::output($relationshipOutput+['relationship_type'=>'suspicious'])
         ===$relationshipOutput+['relationship_type'=>'suspicious'],
     'relationship workers accept one optional bounded type proposal');
 foreach([['relationships'=>[$buildRow,$buildRow]],['relationships'=>[array_replace($buildRow,['disposition'=>101])]],
     ['relationships'=>[array_replace($buildRow,['target_key'=>'Fargoth'])]],['relationships'=>[],'action'=>'follow']] as $invalidBuild){
-    try{\LORKHANserver\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}
+    try{\LorkhanServer\Application\RelationshipBuildPolicy::output($invalidBuild);$check(false,'unsafe history build accepted');}
     catch(InvalidArgumentException){$check(true,'unsafe history build rejected');}
 }
-$conversionMock=(new \LORKHANserver\Application\MockProfileGenerationProvider())->generate(
-    ['generation_mode'=>'relationship_text_conversion'],new \LORKHANserver\Application\NeverCancelledToken());
+$conversionMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
+    ['generation_mode'=>'relationship_text_conversion'],new \LorkhanServer\Application\NeverCancelledToken());
 $check($conversionMock===['relationships'=>[]]
-    &&in_array('relationship.convert',\LORKHANserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    &&in_array('relationship.convert',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'relationship text conversion is not registered as a bounded first-party job');
-$diaryDefaults=\LORKHANserver\Application\DiaryGenerationPolicy::defaults();
+$diaryDefaults=\LorkhanServer\Application\DiaryGenerationPolicy::defaults();
 $diaryOverrides=['enabled'=>true,'include_in_context'=>false,'context_turn_limit'=>12,'prompt'=>'Remember only what was witnessed.'];
-$diaryMock=(new \LORKHANserver\Application\MockProfileGenerationProvider())->generate(
+$diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
 $check($diaryDefaults['enabled']===false&&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
-    &&\LORKHANserver\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
+    &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
-    &&in_array('narrative.generate',\LORKHANserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+    &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'manual diary generation is opt-in, bounded, deterministic under the mock provider, and registered as durable work');
 foreach([
     ['enabled'=>'true'],['include_in_context'=>1],['context_turn_limit'=>0],['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
 ]as$invalidDiary){
-    try{\LORKHANserver\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
+    try{\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
     catch(InvalidArgumentException){$check(true,'invalid diary settings rejected');}
 }
 foreach([
     ['title'=>'','content'=>'entry'],['title'=>'entry','content'=>''],['title'=>str_repeat('x',257),'content'=>'entry'],
     ['title'=>'entry','content'=>'entry','action'=>'wait'],
 ]as$invalidDiaryOutput){
-    try{\LORKHANserver\Application\DiaryGenerationPolicy::output($invalidDiaryOutput);$check(false,'invalid diary provider output accepted');}
+    try{\LorkhanServer\Application\DiaryGenerationPolicy::output($invalidDiaryOutput);$check(false,'invalid diary provider output accepted');}
     catch(RuntimeException){$check(true,'invalid diary provider output rejected');}
 }
 $memoryPolicy=['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
-$check(\LORKHANserver\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
+$check(\LorkhanServer\Application\MemorySummaryPolicy::validate($memoryPolicy)===$memoryPolicy,
     'model memory defaults can stay off without a provider');
 foreach([array_replace($memoryPolicy,['enabled'=>true]),array_replace($memoryPolicy,['enabled'=>'true']),
     array_replace($memoryPolicy,['provider_configuration_id'=>'not-a-uuid'])]as$invalidPolicy){
-    try{\LORKHANserver\Application\MemorySummaryPolicy::validate($invalidPolicy);$check(false,'invalid model memory policy accepted');}
+    try{\LorkhanServer\Application\MemorySummaryPolicy::validate($invalidPolicy);$check(false,'invalid model memory policy accepted');}
     catch(InvalidArgumentException){$check(true,'invalid model memory policy rejected');}
 }
-$embeddingPolicy=\LORKHANserver\Application\MemoryEmbeddingPolicy::defaults();
-$loopbackEmbeddingPolicy=['schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+$embeddingPolicy=\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
+$loopbackEmbeddingPolicy=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085/','timeout_ms'=>1500];
-$check(\LORKHANserver\Application\MemoryEmbeddingPolicy::validate($embeddingPolicy)===$embeddingPolicy
-    &&\LORKHANserver\Application\MemoryEmbeddingPolicy::validate($loopbackEmbeddingPolicy)['endpoint']==='http://127.0.0.1:8085'
-    &&in_array('memory.embed',\LORKHANserver\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
+$check(\LorkhanServer\Application\MemoryEmbeddingPolicy::validate($embeddingPolicy)===$embeddingPolicy
+    &&\LorkhanServer\Application\MemoryEmbeddingPolicy::validate($loopbackEmbeddingPolicy)['endpoint']==='http://127.0.0.1:8085'
+    &&in_array('memory.embed',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'semantic memory is opt-in, accepts loopback MiniMe, and registers bounded durable work');
 foreach([
     array_replace($embeddingPolicy,['enabled'=>true]),
@@ -196,20 +196,20 @@ foreach([
     array_replace($embeddingPolicy,['endpoint'=>'https://user:pass@example.com']),
     array_replace($embeddingPolicy,['timeout_ms'=>5001]),
 ]as$invalidEmbeddingPolicy){
-    try{\LORKHANserver\Application\MemoryEmbeddingPolicy::validate($invalidEmbeddingPolicy);
+    try{\LorkhanServer\Application\MemoryEmbeddingPolicy::validate($invalidEmbeddingPolicy);
         $check(false,'invalid semantic memory policy accepted');}
     catch(InvalidArgumentException){$check(true,'invalid semantic memory policy rejected');}
 }
-$semanticScore=\LORKHANserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+$semanticScore=\LorkhanServer\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
     [1,0,0,0,0,0,0,0],[1,0,0,0,0,0,0,0]);
-$fallbackScore=\LORKHANserver\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
+$fallbackScore=\LorkhanServer\Application\DeterministicRetrieval::promptScore('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0],
     [1,0,0,0,0,0,0,0],[1,0]);
 $check($semanticScore===['score'=>1.0,'lexical_score'=>1.0,'semantic_score'=>1.0,'source'=>'minime']
     &&$fallbackScore['source']==='deterministic-fallback'
-    &&$fallbackScore['score']===\LORKHANserver\Application\DeterministicRetrieval::score('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0]),
+    &&$fallbackScore['score']===\LorkhanServer\Application\DeterministicRetrieval::score('red mountain',['red','mountain'],[1,0,0,0,0,0,0,0]),
     'semantic recall uses cosine only for matching vectors and preserves exact deterministic fallback');
 foreach([['summary'=>''],['summary'=>str_repeat('古',1400)],['summary'=>"bad\0text"],['summary'=>'fact','action'=>'follow']]as$invalidSummary){
-    try{\LORKHANserver\Application\MemorySummaryPolicy::summary($invalidSummary);$check(false,'invalid model summary accepted');}
+    try{\LorkhanServer\Application\MemorySummaryPolicy::summary($invalidSummary);$check(false,'invalid model summary accepted');}
     catch(InvalidArgumentException){$check(true,'invalid model summary rejected');}
 }
 $check(LlmConnector::validate($inheritedLlm)===$inheritedLlm
@@ -225,14 +225,14 @@ $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
     'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
 $directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
 $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
-    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LORKHANserver\Application\OpenAiCompatibleOghmaTopicExtractor
-    &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LORKHANserver\Application\OpenAiCompatibleProfileGenerationProvider,
+    &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor
+    &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,
     'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
-$pinned=\LORKHANserver\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
+$pinned=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
 $check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
     'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');
 foreach(['127.0.0.1','[::1]','[::ffff:127.0.0.1]','[::ffff:192.168.1.1]']as$privateHost){
-    try{\LORKHANserver\Security\OutboundUrlPolicy::validate('https://'.$privateHost.'/v1/chat/completions',[$privateHost]);$check(false,'private HTTPS provider rejected');}
+    try{\LorkhanServer\Security\OutboundUrlPolicy::validate('https://'.$privateHost.'/v1/chat/completions',[$privateHost]);$check(false,'private HTTPS provider rejected');}
     catch(InvalidArgumentException){$check(true,'private HTTPS provider rejected');}
 }
 foreach([
@@ -292,9 +292,9 @@ $check(new OpenAiCompatibleSpeechProvider('https://api.openai.com/v1/audio/speec
     'OpenAI-compatible TTS accepts a vetted HTTPS endpoint');
 $check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
     'OpenAI-compatible STT accepts a vetted HTTPS endpoint');
-$check(ProviderFactory::dialogue([]) instanceof \LORKHANserver\Application\MockProvider
+$check(ProviderFactory::dialogue([]) instanceof \LorkhanServer\Application\MockProvider
     && ProviderFactory::speech([]) instanceof MockSpeechProvider
-    && ProviderFactory::speechToText([]) instanceof \LORKHANserver\Application\MockSpeechToTextProvider,
+    && ProviderFactory::speechToText([]) instanceof \LorkhanServer\Application\MockSpeechToTextProvider,
     'shared provider factory gives HTTP and worker the same safe defaults');
 $mockExtractor=new MockOghmaTopicExtractor();
 $check($mockExtractor->extract('Recent line [oghma: House Redoran, Vivec, Dagoth Ur, ignored]',3,new NeverCancelledToken())
@@ -332,7 +332,7 @@ $ambiguousCatalog=[
 $check($groundedOghma->extract('Tell me about Shared Lore.',$ambiguousCatalog,1)['topics']===[]
     &&$groundedOghma->resolveSuggestions(['Shared Lore'],$ambiguousCatalog,1)===[],
     'grounded Oghma abstains from ambiguous catalog aliases in local and fallback extraction');
-$mockActionProvider=new \LORKHANserver\Application\MockProvider();
+$mockActionProvider=new \LorkhanServer\Application\MockProvider();
 foreach ([
     ['Check your inventory.','action.inventory.inspect','inventory.inspect',[]],
     ['Come closer.','action.ai.approach','ai.approach',[]],
@@ -340,7 +340,7 @@ foreach ([
 ] as [$text,$capability,$name,$parameters]) {
     $mockAction=$mockActionProvider->complete(['payload'=>[
         'input'=>['text'=>$text],'target'=>['record_id'=>'fargoth'],'speaker'=>['record_id'=>'player'],
-    ],'_negotiated_capabilities'=>[$capability]],new \LORKHANserver\Application\NeverCancelledToken())['action']??null;
+    ],'_negotiated_capabilities'=>[$capability]],new \LorkhanServer\Application\NeverCancelledToken())['action']??null;
     $check(is_array($mockAction)&&($mockAction['name']??null)===$name&&($mockAction['parameters']??null)===$parameters,
         "mock provider emits {$name} only through its negotiated capability");
 }
@@ -956,7 +956,7 @@ $translationPolicy=array_replace(TranslationPolicy::defaults(),['provider'=>'dee
     'save_translated_text'=>true,'source_language'=>'en','target_language'=>'de']);
 $translationPolicy=TranslationPolicy::validate($translationPolicy);
 $deepLRequest=[];$deepL=new DeepLTranslationProvider($translationPolicy['endpoint'],'test-key',5000,
-    static function(string$endpoint,array$headers,string$body,int$timeout,\LORKHANserver\Application\CancellationToken$token)use(&$deepLRequest):string{
+    static function(string$endpoint,array$headers,string$body,int$timeout,\LorkhanServer\Application\CancellationToken$token)use(&$deepLRequest):string{
         $deepLRequest=compact('endpoint','headers','body','timeout');$token->throwIfCancellationRequested();
         return'{"translations":[{"text":"Guten Tag"},{"text":"Auf Wiedersehen"}]}';
     });
@@ -984,15 +984,15 @@ $check(ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8024'
     &&ProviderFactory::speechForPreset([],$pocketPreset('http://127.0.0.1:8086')) instanceof PocketTtsSpeechProvider,
     'PocketTTS selected connectors use one runtime-compatible adapter for both API families');
 $pocketAttempts=[];$pocketDetections=[];
-$unavailableProvider=new class implements \LORKHANserver\Application\SpeechProvider {
-    public function synthesize(string$text,\LORKHANserver\Application\CancellationToken$cancellation,array$context=[]):array
+$unavailableProvider=new class implements \LorkhanServer\Application\SpeechProvider {
+    public function synthesize(string$text,\LorkhanServer\Application\CancellationToken$cancellation,array$context=[]):array
     {throw new RuntimeException('provider_unavailable');}
 };
 $workingProvider=new MockSpeechProvider();
 $pocketFallback=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
-    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider,$workingProvider):\LORKHANserver\Application\SpeechProvider{
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider,$workingProvider):\LorkhanServer\Application\SpeechProvider{
         $pocketAttempts[]=$endpoint.'|'.$mode;return str_contains($endpoint,':8086')?$workingProvider:$unavailableProvider;},
-    static function(string$endpoint,\LORKHANserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+    static function(string$endpoint,\LorkhanServer\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
         $pocketDetections[]=$endpoint;return str_contains($endpoint,':8086')?'audio_cpp':'';});
 $fallbackSpeech=$pocketFallback->synthesize('fallback route',new NeverCancelledToken());
 $check(substr($fallbackSpeech['bytes'],0,4)==='RIFF'
@@ -1001,17 +1001,17 @@ $check(substr($fallbackSpeech['bytes'],0,4)==='RIFF'
     'unavailable known PocketTTS ports retry the first detected compatible same-host runtime');
 $pocketAttempts=[];$pocketDetections=[];
 $pocketHealthyFailure=new PocketTtsSpeechProvider('http://127.0.0.1:8024','pocket-tts','default','en',[], '',30000,null,
-    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider):\LORKHANserver\Application\SpeechProvider{
+    static function(string$endpoint,string$mode)use(&$pocketAttempts,$unavailableProvider):\LorkhanServer\Application\SpeechProvider{
         $pocketAttempts[]=$endpoint.'|'.$mode;return$unavailableProvider;},
-    static function(string$endpoint,\LORKHANserver\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
+    static function(string$endpoint,\LorkhanServer\Application\CancellationToken$cancellation)use(&$pocketDetections):string{
         $pocketDetections[]=$endpoint;return'standard';});
 try{$pocketHealthyFailure->synthesize('do not reroute',new NeverCancelledToken());$check(false,'healthy PocketTTS errors stay on the configured runtime');}
 catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'
     &&$pocketAttempts===['http://127.0.0.1:8024|standard']&&$pocketDetections===['http://127.0.0.1:8024'],
     'a detected configured PocketTTS service does not reroute valid provider failures');}
 $customPortDetections=0;$pocketCustomPort=new PocketTtsSpeechProvider('http://127.0.0.1:8999','pocket-tts','default','en',[], '',30000,null,
-    static fn(string$endpoint,string$mode):\LORKHANserver\Application\SpeechProvider=>$unavailableProvider,
-    static function(string$endpoint,\LORKHANserver\Application\CancellationToken$cancellation)use(&$customPortDetections):string{$customPortDetections++;return'';});
+    static fn(string$endpoint,string$mode):\LorkhanServer\Application\SpeechProvider=>$unavailableProvider,
+    static function(string$endpoint,\LorkhanServer\Application\CancellationToken$cancellation)use(&$customPortDetections):string{$customPortDetections++;return'';});
 try{$pocketCustomPort->synthesize('custom port',new NeverCancelledToken());$check(false,'custom PocketTTS ports remain authoritative');}
 catch(RuntimeException$error){$check($error->getMessage()==='provider_unavailable'&&$customPortDetections===0,
     'custom PocketTTS ports never trigger known-port discovery');}

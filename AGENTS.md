@@ -1,4 +1,4 @@
-# LORKHANserver engineering rules
+# LorkhanServer engineering rules
 
 ## Scope and lineage
 

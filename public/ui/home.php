@@ -43,7 +43,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <div class="container home-version-info">
     <div class="home-version-stack">
-        <span>Server: LORKHANserver · PostgreSQL <?php echo lorkhan_ui_h($dashboard['database_version']); ?></span>
+        <span>Server: LorkhanServer · PostgreSQL <?php echo lorkhan_ui_h($dashboard['database_version']); ?></span>
         <span>Client: OpenMW 0.51 / Lua API 129</span>
     </div>
     <div class="home-social-links" aria-label="Dwemer Dynamics links">

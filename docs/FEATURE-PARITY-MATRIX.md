@@ -1,4 +1,4 @@
-# LORKHANserver feature parity matrix
+# LorkhanServer feature parity matrix
 
 Parity means the user outcome works end to end and is observable/persisted, not that a similarly named
 route or table exists. The implementation ledger adds state and evidence to every row.

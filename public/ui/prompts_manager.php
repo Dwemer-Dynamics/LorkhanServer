@@ -10,7 +10,7 @@ require __DIR__ . '/ui_bootstrap.php';
 $rows = $uiRepository->rows('prompts');
 $installations = $uiRepository->rows('installations');
 // Player mood cue templates live on the prompt document; labelled controls own them so the raw JSON editor stays free of them.
-$playerMoodSupplied = method_exists(\LORKHANserver\Application\PlayerMoodPolicy::class, 'defaultTemplates') ? (array) \LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates() : [];
+$playerMoodSupplied = method_exists(\LorkhanServer\Application\PlayerMoodPolicy::class, 'defaultTemplates') ? (array) \LorkhanServer\Application\PlayerMoodPolicy::defaultTemplates() : [];
 $playerMoodDefaults = ['happy' => '(speaks in a happy tone.)', 'sad' => '(speaks in a sad tone.)', 'angry' => '(speaks in an angry tone.)', 'annoyed' => '(speaks in an annoyed tone.)', 'scared' => '(speaks in a frightened tone.)', 'surprised' => '(speaks in a surprised tone.)', 'confused' => '(speaks in a confused tone.)', 'suspicious' => '(speaks in a suspicious tone.)', 'playful' => '(speaks in a playful tone.)', 'flirty' => '(speaks in a flirtatious tone.)', 'custom' => '(speaks {CUSTOM_MOOD}.)'];
 foreach (array_keys($playerMoodDefaults) as $moodKey) {
     $suppliedDefault = $playerMoodSupplied[$moodKey] ?? null;

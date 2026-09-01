@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\Uuid;
 use DomainException;
 
 /** Convert one validated provider result into the immutable LORKHAN response/line contract. */

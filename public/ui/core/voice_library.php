@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Application\SpeechPreviewCatalog;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\TtsPronunciationRepository;
-use LORKHANserver\Security\OutboundUrlPolicy;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\TtsPronunciationRepository;
+use LorkhanServer\Security\OutboundUrlPolicy;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='Voice Management';$topNavSection='configuration';
 $embedded=($_GET['embed']??'')==='1';

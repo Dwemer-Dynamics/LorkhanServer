@@ -46,14 +46,14 @@ php <<'PHP'
 <?php
 declare(strict_types=1);
 
-use LORKHANserver\Application\NeverCancelledToken;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\ProductRepository;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\ProductRepository;
 
 require __DIR__ . '/src/Autoload.php';
 $config = require (string) getenv('LORKHAN_CONFIG');
-if (!is_array($config)) throw new RuntimeException('LORKHAN server configuration is invalid.');
+if (!is_array($config)) throw new RuntimeException('LorkhanServer configuration is invalid.');
 $config['database_password'] = (string) (getenv('LORKHAN_DATABASE_PASSWORD') ?: ($config['database_password'] ?? ''));
 $db = Connection::open($config);
 $installationId = (string) $db->query("SELECT installation_id FROM installations WHERE revoked_at IS NULL ORDER BY created_at LIMIT 1")->fetchColumn();

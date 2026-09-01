@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Tests\Support\ControllableProvider;
+use LorkhanServer\Tests\Support\ControllableProvider;
 
 require_once dirname(__DIR__) . '/tests/Support/ControllableProvider.php';
 
@@ -17,7 +17,7 @@ if ($dsn === '') {
 
 return [
     'environment' => 'test',
-    'base_path' => '/LORKHANserver/api/v1',
+    'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => $dsn,
     'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
     'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '',

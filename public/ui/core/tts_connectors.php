@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ConnectorCatalog;
+use LorkhanServer\Application\ConnectorCatalog;
 
 $pageTitle = 'TTS Connectors';
 $topNavSection = 'configuration';

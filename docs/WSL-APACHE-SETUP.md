@@ -37,8 +37,8 @@ Composer/dependency locks. Run `apache2ctl configtest` before every reload.
 ## Files and identities
 
 ```text
-/var/www/LORKHANserver/releases/<version>   immutable source/vendor/built UI
-/var/www/LORKHANserver/current              atomic symlink
+/var/www/LorkhanServer/releases/<version>   immutable source/vendor/built UI
+/var/www/LorkhanServer/current              atomic symlink
 /etc/lorkhanserver/                         restrictive config/secrets
 /var/lib/lorkhanserver/                     media/job/runtime state
 /var/log/lorkhanserver/                     application logs
@@ -50,7 +50,7 @@ Only media/runtime/log paths are writable. Config/secrets must reject group/worl
 under the document root. Git checkout is not a writable production release.
 
 For local Dwemer development, `scripts/deploy-local-wsl.sh` intentionally mirrors the active source
-to `/var/www/html/LORKHANserver`, matching the HerikaServer/DialecticServer workstation layout. It
+to `/var/www/html/LorkhanServer`, matching the HerikaServer/DialecticServer workstation layout. It
 keeps the same `/etc`, `/var/lib`, and `/var/log` persistence boundaries and leaves the immutable
 release tree intact. The sibling `LORKHAN/scripts/deploy/full-local.ps1` is the normal two-stage local
 entrypoint. `scripts/deploy-wsl.sh` remains the immutable release/rollback workflow described here.
@@ -79,9 +79,9 @@ Listen 127.0.0.1:8090
 <VirtualHost 127.0.0.1:8090>
     ServerName lorkhanserver.local
     DocumentRoot /var/www/html
-    Alias /LORKHANserver /var/www/LORKHANserver/current/public
+    Alias /LorkhanServer /var/www/LorkhanServer/current/public
 
-    <Directory /var/www/LORKHANserver/current/public>
+    <Directory /var/www/LorkhanServer/current/public>
         Options -Indexes -ExecCGI
         AllowOverride None
         Require local

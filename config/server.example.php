@@ -3,14 +3,14 @@ declare(strict_types=1);
 
 return [
     'environment' => 'production',
-    'base_path' => '/LORKHANserver/api/v1',
+    'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
     'database_user' => 'lorkhan_runtime',
     // public/index.php reads LORKHAN_DATABASE_PASSWORD, LORKHAN_PAIRING_TOKEN_HASH, and
     // LORKHAN_MANAGEMENT_SECRET_HASH from a restrictive service EnvironmentFile. Only hashes are accepted.
     'database_password' => '',
     'pairing_token_hash' => '',
-    'management_base_path' => '/LORKHANserver/manage',
+    'management_base_path' => '/LorkhanServer/manage',
     'management_secret_hash' => '',
     'browser_session_ttl_seconds' => 3600,
     'max_json_bytes' => 2 * 1024 * 1024,

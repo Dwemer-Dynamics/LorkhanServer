@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Security\OutboundUrlPolicy;
+use LorkhanServer\Security\OutboundUrlPolicy;
 use InvalidArgumentException;
 use RuntimeException;
 
@@ -162,7 +162,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
             . htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</voice></speak>';
         return [$url, $xml, ['Ocp-Apim-Subscription-Key: ' . $this->apiKey,
             'Content-Type: application/ssml+xml', 'X-Microsoft-OutputFormat: riff-24khz-16bit-mono-pcm',
-            'User-Agent: LORKHANserver', 'Accept: audio/wav']];
+            'User-Agent: LorkhanServer', 'Accept: audio/wav']];
     }
 
     /** Decode connectors that envelope audio and retain validated WAV bytes for every driver. */

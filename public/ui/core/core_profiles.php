@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\EffectiveSettingsResolver;
 
 $pageTitle = 'Core Profiles';
 $topNavSection = 'configuration';

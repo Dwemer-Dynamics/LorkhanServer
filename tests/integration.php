@@ -1,36 +1,36 @@
 <?php
 declare(strict_types=1);
 
-use LORKHANserver\Application\ActionPolicyValidator;
-use LORKHANserver\Application\CancellationToken;
-use LORKHANserver\Application\FirstPartyJobHandlerFactory;
-use LORKHANserver\Application\DeterministicClock;
-use LORKHANserver\Application\MockProvider;
-use LORKHANserver\Application\MockSpeechProvider;
-use LORKHANserver\Application\MockSpeechToTextProvider;
-use LORKHANserver\Application\MorrowindVoiceCatalog;
-use LORKHANserver\Application\Provider;
-use LORKHANserver\Application\PromptAssembler;
-use LORKHANserver\Application\ProductService;
-use LORKHANserver\Application\RechatCoordinator;
-use LORKHANserver\Application\Worker;
-use LORKHANserver\Http\Request;
-use LORKHANserver\Http\Router;
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\ActionCatalogRepository;
-use LORKHANserver\Infrastructure\BiographyCatalogImporter;
-use LORKHANserver\Infrastructure\DefaultConnectorProvisioner;
-use LORKHANserver\Infrastructure\EventLogRepository;
-use LORKHANserver\Infrastructure\JobRepository;
-use LORKHANserver\Infrastructure\MediaStore;
-use LORKHANserver\Infrastructure\MigrationRunner;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\Repository;
-use LORKHANserver\Infrastructure\TtsPronunciationRepository;
-use LORKHANserver\Protocol\Validator;
-use LORKHANserver\Security\PairingToken;
-use LORKHANserver\Security\RequestMac;
+use LorkhanServer\Application\ActionPolicyValidator;
+use LorkhanServer\Application\CancellationToken;
+use LorkhanServer\Application\FirstPartyJobHandlerFactory;
+use LorkhanServer\Application\DeterministicClock;
+use LorkhanServer\Application\MockProvider;
+use LorkhanServer\Application\MockSpeechProvider;
+use LorkhanServer\Application\MockSpeechToTextProvider;
+use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\Provider;
+use LorkhanServer\Application\PromptAssembler;
+use LorkhanServer\Application\ProductService;
+use LorkhanServer\Application\RechatCoordinator;
+use LorkhanServer\Application\Worker;
+use LorkhanServer\Http\Request;
+use LorkhanServer\Http\Router;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\ActionCatalogRepository;
+use LorkhanServer\Infrastructure\BiographyCatalogImporter;
+use LorkhanServer\Infrastructure\DefaultConnectorProvisioner;
+use LorkhanServer\Infrastructure\EventLogRepository;
+use LorkhanServer\Infrastructure\JobRepository;
+use LorkhanServer\Infrastructure\MediaStore;
+use LorkhanServer\Infrastructure\MigrationRunner;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\Repository;
+use LorkhanServer\Infrastructure\TtsPronunciationRepository;
+use LorkhanServer\Protocol\Validator;
+use LorkhanServer\Security\PairingToken;
+use LorkhanServer\Security\RequestMac;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
@@ -54,13 +54,13 @@ $router = new Router($repo, new Validator(), new MockProvider(), $tokenHash, rat
     mediaStore: $mediaStore, speechProvider: new MockSpeechProvider(), providerAttempts: $attempts,
     products:$products,promptAssembler:new PromptAssembler(),
     morrowindVoices:$morrowindVoices,rechatCoordinator:$rechatCoordinator);
-$base = '/LORKHANserver/api/v1';
+$base = '/LorkhanServer/api/v1';
 $jsonAuth = ['Content-Type' => 'application/json; charset=utf-8'];
 $fixture = fn(string $name): array => json_decode(file_get_contents(dirname(__DIR__) . '/protocol/fixtures/v1/valid/' . $name . '.json'), true, 64, JSON_THROW_ON_ERROR)['instance'];
 $call = function (Router $target, string $method, string $path, array $headers = [], array $query = [], array|string|null $body = null) use($macKey,$installationId): array {
     $encoded = is_array($body) ? json_encode($body, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES) : ($body ?? '');
     $request=new Request($method,$path,$headers,$query,$encoded);
-    if(!isset($headers['Authorization'])&&$path!=='/LORKHANserver/api/v1/health'){$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$digest=hash('sha256',$encoded);$headers+=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installationId,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>$digest,'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$request,$installationId,$timestamp,$nonce,(string)($headers['Content-Type']??''),$digest)];$request=new Request($method,$path,$headers,$query,$encoded);}
+    if(!isset($headers['Authorization'])&&$path!=='/LorkhanServer/api/v1/health'){$timestamp=gmdate('Y-m-d\TH:i:s\Z');$nonce=bin2hex(random_bytes(16));$digest=hash('sha256',$encoded);$headers+=['X-LORKHAN-Auth'=>RequestMac::ALGORITHM,'X-LORKHAN-Installation-Id'=>$installationId,'X-LORKHAN-Timestamp'=>$timestamp,'X-LORKHAN-Nonce'=>$nonce,'X-LORKHAN-Content-SHA256'=>$digest,'X-LORKHAN-Signature'=>RequestMac::sign($macKey,$request,$installationId,$timestamp,$nonce,(string)($headers['Content-Type']??''),$digest)];$request=new Request($method,$path,$headers,$query,$encoded);}
     $response = $target->dispatch($request);
     $decoded = json_decode($response->body, true, 64, JSON_THROW_ON_ERROR);
     $capture = getenv('LORKHAN_RESPONSE_CAPTURE') ?: '';
@@ -133,17 +133,17 @@ $defaultCore=(new ProductRepository($db))->defaultCoreProfileForInstallation($de
 $assert(count($defaultRows->fetchAll())===$beforeConfigurations&&(int)$defaultCore['current_revision']===$beforeRevision,
     'default connector provisioning was not idempotent');
 unlink($defaultVoicePath.'/mw_dark_elf_male.wav');rmdir($defaultVoicePath);
-$runWorker = function (array $types, ?Provider $provider = null, ?\LORKHANserver\Application\SpeechToTextProvider $sttProvider=null,
-    ?\LORKHANserver\Application\TranslationProvider $translationProvider=null,
-    ?\LORKHANserver\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
+$runWorker = function (array $types, ?Provider $provider = null, ?\LorkhanServer\Application\SpeechToTextProvider $sttProvider=null,
+    ?\LorkhanServer\Application\TranslationProvider $translationProvider=null,
+    ?\LorkhanServer\Application\SpeechProvider $speechProvider=null) use ($db,$mediaStore): array {
     return (new Worker(new JobRepository($db), FirstPartyJobHandlerFactory::registry($db,$mediaStore,
         provider:$provider,speechProvider:$speechProvider??($provider === null ? null : new MockSpeechProvider()),providerTimeoutMs:1000,
         sttProvider:$sttProvider,translationProvider:$translationProvider),
         'integration-worker',5,10,100,0,10,$types,
         static fn(int $microseconds):mixed=>null))->run();
 };
-$runTurnWorker = function(Provider $provider,?\LORKHANserver\Application\TranslationProvider $translationProvider=null,
-    ?\LORKHANserver\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
+$runTurnWorker = function(Provider $provider,?\LorkhanServer\Application\TranslationProvider $translationProvider=null,
+    ?\LorkhanServer\Application\SpeechProvider $speechProvider=null) use($runWorker):array {
     $turnStats=$runWorker(['turn.process'],$provider,null,$translationProvider,$speechProvider);
     $runWorker(['speech.synthesize'],$provider,null,$translationProvider,$speechProvider);
     return $turnStats;
@@ -452,7 +452,7 @@ $assert($status===200&&$controls['schema']==='lorkhan.controls.v1'
     &&($controls['effective_settings']['profile_id']??null)===null
     &&isset($controls['effective_settings']['settings']['memory'],$controls['effective_settings']['settings']['narrator'],$controls['effective_settings']['settings']['safety'])
     &&isset($controls['effective_settings']['settings']['behavior'])
-    &&$controls['effective_settings']['settings']['presentation']===\LORKHANserver\Application\EffectiveSettingsResolver::defaults()['presentation']
+    &&$controls['effective_settings']['settings']['presentation']===\LorkhanServer\Application\EffectiveSettingsResolver::defaults()['presentation']
     &&!isset($controls['effective_settings']['settings']['memory']['oghma_knowledge_tags']),
     'in-game controls query did not return safe model/profile choices');
 $assert(!str_contains(json_encode($controls,JSON_THROW_ON_ERROR),'127.0.0.1:1234'),
@@ -640,7 +640,7 @@ $assert($creatureStatus===202&&$creatureControlsStatus===200&&is_array($creature
     &&($creatureProfile['content']['personality']??null)==='Offended by an Argonian Nerevarine.',
     'auto-activated creature did not materialize its exact profile template');
 
-$turnMoodTemplates=\LORKHANserver\Application\PlayerMoodPolicy::defaultTemplates();
+$turnMoodTemplates=\LorkhanServer\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',
     'content'=>['instruction'=>'Stay grounded in Morrowind.','player_mood_prompts'=>$turnMoodTemplates]],$now);
@@ -821,7 +821,7 @@ $assert($memoryWorkerStats['succeeded']===1&&($deliveredMemory['tier']??null)===
     'delivery-fenced recent-memory worker did not persist the correlated revisioned source');
 // Exercise the optional worker with a real played source; roll back only these synthetic fixtures.
 $db->beginTransaction();
-$relationships=new \LORKHANserver\Infrastructure\RelationshipEvaluationRepository($db);
+$relationships=new \LorkhanServer\Infrastructure\RelationshipEvaluationRepository($db);
 $assert($relationships->enqueue($delivery['message_id'])===null,'default relationship policy launched work');
 $relationshipContent=$actorProfile['content'];
 $relationshipContent['routing']['relationship_configuration_id']=$profileModelSlot['configuration_id'];
@@ -830,10 +830,10 @@ $relationshipContent['management']['locked']=true;
 $products->revise('profile',$actorProfile['profile_id'],$relationshipContent,'enable relationship test',$now);
 $relationshipJob=$relationships->enqueue($delivery['message_id']);
 $assert(is_array($relationshipJob),'eligible played response did not queue relationship evaluation');
-$relationshipProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
+$relationshipProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
     public int $calls=0;
     public mixed $during=null;
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if(($input['generation_mode']??'')!=='relationship_evaluation'||!isset($input['played_reply'],$input['interlocutor'])
             ||($input['relationship_type']??null)!=='neutral'
@@ -844,9 +844,9 @@ $relationshipProvider=new class implements \LORKHANserver\Application\ProfileGen
             'reason'=>'A friendly played exchange.'];
     }
 };
-$relationshipRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipEvaluateJobHandler(
-    $relationships,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
-$relationshipWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
+$relationshipRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\RelationshipEvaluateJobHandler(
+    $relationships,$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),[],$relationshipProvider)]);
+$relationshipWorker=static fn()=> (new \LorkhanServer\Application\Worker(new \LorkhanServer\Infrastructure\JobRepository($db),
     $relationshipRegistry,'relationship-integration',5,1,1,0,10,['relationship.evaluate']))->run();
 $db->exec('SAVEPOINT relationship_queued');
 $products->revise('provider',$profileModelSlot['configuration_id'],
@@ -925,7 +925,7 @@ $historyDelivery['completed_at']=gmdate('Y-m-d\TH:i:s\Z');
 [$historyStatus,$historyAck]=$call($router,'POST',$base.'/dialogue-delivery-results',$headers($historyDelivery['message_id']),[],$historyDelivery);
 $assert($historyStatus===200,'second historical delivery failed: '.json_encode([$historyStatus,$historyAck]));
 $db->prepare("UPDATE sessions SET state='ended',ended_at=clock_timestamp() WHERE session_id=:session")->execute(['session'=>$sessionId]);
-$builds=new \LORKHANserver\Infrastructure\RelationshipBuildRepository($db);
+$builds=new \LorkhanServer\Infrastructure\RelationshipBuildRepository($db);
 $buildScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$session['playthrough_id']];
 $privateBuildNote='PLAYER-ONLY CUSTOM INFO';
 $products->setRelationship($buildScope+['actor_identity'=>$turn['payload']['speaker'],
@@ -937,9 +937,9 @@ $buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildReques
 $assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
 try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_pending','unexpected pending-build error');}
-$buildProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
+$buildProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
     public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2
             ||!in_array('professional',$input['available_relationship_types']??[],true))throw new RuntimeException('history was reduced to one exchange or target');
@@ -952,9 +952,9 @@ $buildProvider=new class implements \LORKHANserver\Application\ProfileGeneration
         return $result;
     }
 };
-$buildRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipBuildJobHandler(
-    $builds,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
-$buildWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
+$buildRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\RelationshipBuildJobHandler(
+    $builds,$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),[],$buildProvider)]);
+$buildWorker=static fn()=> (new \LorkhanServer\Application\Worker(new \LorkhanServer\Infrastructure\JobRepository($db),
     $buildRegistry,'relationship-build-integration',5,1,1,0,10,['relationship.build']))->run();
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
@@ -1032,16 +1032,16 @@ $conversionOwner=$products->createRevisioned('profile',['installation_id'=>$inst
     'actor_identity'=>$conversionOwnerIdentity,'content'=>$conversionContent],$now);
 $conversionScope=['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']];
 $conversionRecordScope=$conversionScope+['profile_id'=>$conversionOwner['profile_id']];
-$conversions=new \LORKHANserver\Infrastructure\RelationshipConversionRepository($db);
+$conversions=new \LorkhanServer\Infrastructure\RelationshipConversionRepository($db);
 $conversionRequest=$newUuid(5800);$conversionSummary=$conversions->enqueue($conversionScope,$conversionRequest,'missing');
 $assert($conversionSummary['queued']===1&&$conversionSummary['existing']===0
     &&$conversions->enqueue($conversionScope,$conversionRequest,'missing')==$conversionSummary,
     'missing-mode conversion was not bounded and idempotent: '.json_encode($conversionSummary));
 try{$conversions->enqueue($conversionScope,$conversionRequest,'rebuild');throw new RuntimeException('conversion request mode changed');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_conversion_request_conflict','unexpected conversion request conflict');}
-$conversionProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
+$conversionProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
     public int $calls=0;public string $phase='all';public mixed $during=null;
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();$encoded=json_encode($input,JSON_THROW_ON_ERROR);
         if(($input['generation_mode']??null)!=='relationship_text_conversion'||isset($input['exchanges'])
             ||!str_contains((string)($input['relationship_text']??''),'Unknown Conversion Stranger')
@@ -1059,9 +1059,9 @@ $conversionProvider=new class implements \LORKHANserver\Application\ProfileGener
         return['relationships'=>$rows];
     }
 };
-$conversionRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\RelationshipConversionJobHandler(
-    $conversions,$products,new \LORKHANserver\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
-$conversionWorker=static fn()=> (new \LORKHANserver\Application\Worker(new \LORKHANserver\Infrastructure\JobRepository($db),
+$conversionRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\RelationshipConversionJobHandler(
+    $conversions,$products,new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db),[],$conversionProvider)]);
+$conversionWorker=static fn()=> (new \LorkhanServer\Application\Worker(new \LorkhanServer\Infrastructure\JobRepository($db),
     $conversionRegistry,'relationship-conversion-integration',5,1,1,0,10,['relationship.convert']))->run();
 $firstConversionRun=$conversionWorker();
 $assert($firstConversionRun['succeeded']===1&&$conversionProvider->calls===1,
@@ -1161,7 +1161,7 @@ $derivedEdit=array_replace($relationshipEdit,['expected_revision'=>2,'source_mod
 $derivedEdit['reason']='A witnessed act increased trust';unset($derivedEdit['relationship_type']);
 $derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
 $derivedExport=$products->exportScope($privateScope)['relationships'][0];
-$derivedUi=(new \LORKHANserver\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
+$derivedUi=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
 $derivedUi=array_values(array_filter($derivedUi,static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']))[0];
 $assert($derivedExport['custom_info']===$privateNote&&$derivedExport['relationship_type']==='trusted_companion'
     &&(int)$derivedUi['strongest_positive_delta']===7,'derived writer replaced player text/type or lost its strongest affinity signal');
@@ -1199,7 +1199,7 @@ $db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,p
 $legacyEdit=$relationshipEdit;$legacyEdit['relationship_id']=$legacyId;
 $assert($memoryService->setRelationship($legacyEdit)['revision']===2,'legacy identity could not be edited by explicit record ID');
 $memoryService->deleteRelationship($ownedRelationship['relationship_id'],2);
-$relationshipUi=new \LORKHANserver\Infrastructure\ManagementUiRepository($db);
+$relationshipUi=new \LorkhanServer\Infrastructure\ManagementUiRepository($db);
 $currentRelationships=$relationshipUi->rows('relationships');
 $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true)
     &&in_array($legacyId,array_column($currentRelationships,'relationship_id'),true)
@@ -1356,7 +1356,7 @@ $assert(in_array($manualMemory['memory_id'],$visibleIds,true)
     &&!in_array($mixedMemory['memory_id'],$hiddenIds,true)
     &&!in_array($manualMemory['memory_id'],$hiddenIds,true),
     'NPC-profile manual memory or all-source summary eligibility was not enforced');
-$semanticPolicyContent=['schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+$semanticPolicyContent=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
 $semanticPolicy=$memoryService->createRevisioned('memory_embedding_policy',['installation_id'=>$installationId,
     'name'=>'Semantic memory integration','content'=>$semanticPolicyContent]);
@@ -1365,9 +1365,9 @@ $db->prepare('INSERT INTO memory_embeddings(memory_id,memory_revision,policy_con
     VALUES(:memory,1,:policy,1,8,CAST(:embedding AS jsonb),:sha,:model,:now)')->execute([
         'memory'=>$manualMemory['memory_id'],'policy'=>$semanticPolicy['configuration_id'],
         'embedding'=>json_encode($semanticVector,JSON_THROW_ON_ERROR),'sha'=>hash('sha256',$manualMemory['content']),
-        'model'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
+        'model'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::MODEL,'now'=>$memoryNow]);
 $semanticSignal=['status'=>'succeeded','policy_configuration_id'=>$semanticPolicy['configuration_id'],
-    'policy_revision'=>1,'model'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
+    'policy_revision'=>1,'model'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::MODEL,'embedding'=>$semanticVector];
 $semanticSelection=$products->promptContext($memoryProbe,$memoryNow,[],$semanticSignal);
 $semanticReasons=$semanticSelection['memory_retrieval']['reasons'];
 $fallbackSelection=$products->promptContext($memoryProbe,$memoryNow,[],
@@ -1409,7 +1409,7 @@ $assert($originalRows[$mixedMemory['memory_id']]['content']==='MIXED PRIVATE SUM
 $modelPolicyContent['enabled']=true;
 $memoryService->revise('memory_policy',$modelPolicy['configuration_id'],$modelPolicyContent,'privacy fixture on');
 $products->updateMemory($mixedMemory['memory_id'],'MIXED EDITED MEMORY SENTINEL',['edited'],
-    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
+    \LorkhanServer\Application\DeterministicRetrieval::fakeVector('MIXED EDITED MEMORY SENTINEL'),$memoryNow);
 $editedRows=array_column($products->promptContext($memoryProbe,$memoryNow)['memory'],null,'id');
 $assert($editedRows[$mixedMemory['memory_id']]['content']==='MIXED EDITED MEMORY SENTINEL'
     &&!isset($editedRows[$mixedMemory['memory_id']]['_model_summary']),'an older model projection hid a manual memory edit');
@@ -1680,7 +1680,7 @@ $assert($status===200&&count($combatIntents)===1&&$combatIntents[0]['payload']['
     &&$combatIntents[0]['payload']['tier']===2,'combat.start tier-2 proposal was not emitted E2E');
 
 // Authenticated binary STT is durable and returns its transcript through the session event stream.
-$sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \LORKHANserver\Application\NeverCancelledToken())['bytes'];
+$sttAudio=(new MockSpeechProvider())->synthesize('pre-turn stt',new \LorkhanServer\Application\NeverCancelledToken())['bytes'];
 $sttMessage=$newUuid(90);$sttRequest=$newUuid(91);$sttTurn=$newUuid(92);$sttCreated=gmdate('Y-m-d\TH:i:s\Z');
 $sttHeaders=['Content-Type'=>'application/octet-stream','Idempotency-Key'=>$sttMessage,
     'X-LORKHAN-Schema'=>'lorkhan.stt.request.v1','X-LORKHAN-Message-Id'=>$sttMessage,'X-LORKHAN-Request-Id'=>$sttRequest,
@@ -2029,7 +2029,7 @@ $assert($fallbackOghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=
     'fallback-grounded Oghma turn did not complete through the normal response pipeline');
 
 // Freeze NPC output translation at acceptance and keep stored history, subtitle, and TTS text independent.
-$translationEnabled=array_replace(\LORKHANserver\Application\TranslationPolicy::defaults(),[
+$translationEnabled=array_replace(\LorkhanServer\Application\TranslationPolicy::defaults(),[
     'provider'=>'deepl','translate_text'=>true,'translate_audio'=>true,'source_language'=>'EN','target_language'=>'DE']);
 $translationSaved=$biographyService->createRevisioned('translation_policy',['installation_id'=>$installationId,
     'name'=>'NPC Output Translation','content'=>$translationEnabled]);
@@ -2040,10 +2040,10 @@ $translationSnapshotStatement=$db->prepare('SELECT source_manifest FROM turn_pro
 $translationSnapshotStatement->execute(['turn'=>$translationTurn['turn_id']]);
 $translationSnapshot=json_decode((string)$translationSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $biographyService->revise('translation_policy',$translationSaved['configuration_id'],
-    \LORKHANserver\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
-$translationProvider=new class implements \LORKHANserver\Application\TranslationProvider {
+    \LorkhanServer\Application\TranslationPolicy::defaults(),'disable after accepted translation turn');
+$translationProvider=new class implements \LorkhanServer\Application\TranslationProvider {
     public int$calls=0;
-    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LORKHANserver\Application\CancellationToken$token):array{
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LorkhanServer\Application\CancellationToken$token):array{
         ++$this->calls;$token->throwIfCancellationRequested();
         if($sourceLanguage!=='EN'||$targetLanguage!=='DE')throw new RuntimeException('translation policy not frozen');
         return array_map(static fn(string$text):string=>'DE: '.$text,$texts);
@@ -2082,13 +2082,13 @@ $assert($status===202&&$translationStats===['claimed'=>1,'succeeded'=>1,'retried
         'dialogue'=>$translationDialogue,'event'=>$translationEvent,'job'=>$translationJobPayload,
         'attempt'=>$translationAttempt,'attempt_metadata'=>$translationAttemptMetadata,'expected'=>$expectedOriginal],JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES));
 
-$capturedSpeech=new class implements \LORKHANserver\Application\SpeechProvider {
+$capturedSpeech=new class implements \LorkhanServer\Application\SpeechProvider {
     public array$inputs=[];
-    public function synthesize(string$text,\LORKHANserver\Application\CancellationToken$cancellation,array$context=[]):array{
+    public function synthesize(string$text,\LorkhanServer\Application\CancellationToken$cancellation,array$context=[]):array{
         $this->inputs[]=$text;return(new MockSpeechProvider())->synthesize($text,$cancellation,$context);
     }
 };
-$speechRegistry=new \LORKHANserver\Application\JobHandlerRegistry([new \LORKHANserver\Application\SpeechSynthesizeJobHandler(
+$speechRegistry=new \LorkhanServer\Application\JobHandlerRegistry([new \LorkhanServer\Application\SpeechSynthesizeJobHandler(
     new Repository($db),$capturedSpeech,$mediaStore,$attempts,null)]);
 $translationSpeechStats=(new Worker(new JobRepository($db),$speechRegistry,'translation-speech-worker',5,1,1,0,10,
     ['speech.synthesize'],static fn(int$microseconds):mixed=>null))->run();
@@ -2107,9 +2107,9 @@ $translationFailureTurn['turn_id']=$newUuid(865);$translationFailureTurn['payloa
 [$status]=$call($router,'POST',$base.'/turns',$headers($translationFailureTurn['message_id']),[],$translationFailureTurn);
 $translationCurrent=$products->translationPolicyForInstallation($installationId);
 $biographyService->revise('translation_policy',$translationCurrent['configuration_id'],
-    \LORKHANserver\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
-$unavailableTranslation=new class implements \LORKHANserver\Application\TranslationProvider {
-    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LORKHANserver\Application\CancellationToken$token):array{
+    \LorkhanServer\Application\TranslationPolicy::defaults(),'disable after failed translation acceptance');
+$unavailableTranslation=new class implements \LorkhanServer\Application\TranslationProvider {
+    public function translate(array$texts,string$sourceLanguage,string$targetLanguage,\LorkhanServer\Application\CancellationToken$token):array{
         throw new RuntimeException('sensitive upstream detail');
     }
 };

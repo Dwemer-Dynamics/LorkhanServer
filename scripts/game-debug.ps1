@@ -13,7 +13,7 @@ param(
 
     [string] $ParametersJson = '{}',
     [string] $SessionId,
-    [string] $BaseUrl = 'http://127.0.0.1:7514/LORKHANserver',
+    [string] $BaseUrl = 'http://127.0.0.1:7514/LorkhanServer',
     [ValidateRange(1, 60)]
     [int] $TimeoutSeconds = 35
 )

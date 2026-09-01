@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Deterministically grounds conversational mentions in canonical Oghma catalog entities. */
 final class OghmaGroundedRetriever

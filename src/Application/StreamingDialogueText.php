@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Extracts safe visible text growth from a streamed structured response. */
 final class StreamingDialogueText

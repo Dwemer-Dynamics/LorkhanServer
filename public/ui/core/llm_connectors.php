@@ -83,7 +83,7 @@ function lorkhan_llm_option_rules(): array
     static $rules = null;
     if ($rules !== null) return $rules;
     $rules = [];
-    $class = 'LORKHANserver\\Application\\LlmConnector';
+    $class = 'LorkhanServer\\Application\\LlmConnector';
     if (class_exists($class) && defined($class . '::OPTION_RULES')) {
         $declared = constant($class . '::OPTION_RULES');
         if (is_array($declared)) $rules = $declared;
@@ -305,7 +305,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
                                 <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
-                                <p class="llm-help">The endpoint and the API key come from the LORKHAN server runtime. This mode has no per-connector endpoint or credential of its own.</p>
+                                <p class="llm-help">The endpoint and the API key come from the LorkhanServer runtime. This mode has no per-connector endpoint or credential of its own.</p>
                             </section>
 
                             <section class="llm-mode-panel llm-connection-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>

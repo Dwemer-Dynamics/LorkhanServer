@@ -22,7 +22,7 @@ PHP_CLI_SERVER_WORKERS=2 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHA
  LORKHAN_PAIRING_TOKEN_HASH="$TOKEN_HASH" LORKHAN_MANAGEMENT_SECRET_HASH="$MANAGE_HASH" \
  php -S "127.0.0.1:$HTTP_PORT" -t "$ROOT/public" "$ROOT/public/index.php" >"$TMP/php.log" 2>&1 &
 PHP_PID=$!
-i=0; until curl -fsS "http://127.0.0.1:$HTTP_PORT/LORKHANserver/api/v1/health" >/dev/null 2>&1; do i=$((i+1)); if [ "$i" -ge 100 ]; then python3 -c 'import sys;print(open(sys.argv[1]).read())' "$TMP/php.log" >&2; exit 1; fi; sleep .05; done
+i=0; until curl -fsS "http://127.0.0.1:$HTTP_PORT/LorkhanServer/api/v1/health" >/dev/null 2>&1; do i=$((i+1)); if [ "$i" -ge 100 ]; then python3 -c 'import sys;print(open(sys.argv[1]).read())' "$TMP/php.log" >&2; exit 1; fi; sleep .05; done
 if ! python3 "$ROOT/scripts/test/management_http.py" "http://127.0.0.1:$HTTP_PORT"; then
   cat "$TMP/php.log" >&2
   exit 1

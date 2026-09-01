@@ -872,7 +872,7 @@ def main() -> int:
     checkpoint_chim = dict(resume_chim)
 
     session = requests.Session()
-    session.headers.update({"User-Agent": "LORKHANserver biography builder/0.1 (local development)"})
+    session.headers.update({"User-Agent": "LorkhanServer biography builder/0.1 (local development)"})
     results: list[dict[str, Any]] = []
     chim_rows: list[dict[str, Any]] = []
     refresh_keys = {value.casefold() for value in args.refresh_npc}

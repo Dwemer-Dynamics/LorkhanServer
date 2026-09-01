@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\RelationshipEvaluationRepository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\RelationshipEvaluationRepository;
+use LorkhanServer\Infrastructure\Uuid;
 
 /** Optional response-driven evaluation with frozen connector selection and checked writes. */
 final class RelationshipEvaluateJobHandler implements JobHandler

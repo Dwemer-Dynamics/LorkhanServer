@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\EffectiveSettingsResolver;
-use LORKHANserver\Application\TranslationPolicy;
+use LorkhanServer\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\TranslationPolicy;
 
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'Global Settings';

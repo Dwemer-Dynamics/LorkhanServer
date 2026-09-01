@@ -1,6 +1,6 @@
-# LORKHANserver
+# LorkhanServer
 
-LORKHANserver is the local Apache/PHP/PostgreSQL backend and browser management application for
+LorkhanServer is the local Apache/PHP/PostgreSQL backend and browser management application for
 `RANGROO/LORKHAN`, designed around TES3/OpenMW semantics and the shared CHIM/Dialectic product model.
 
 ## Status
@@ -11,7 +11,7 @@ relationships, knowledge, narrative, durable jobs, diagnostics/backups, and the
 CSRF-protected CHIM-styled management surface. New installations receive CHIM's Standard, Fast,
 Powerful, and Experimental OpenRouter model slots plus PocketTTS; the API key remains in protected
 server credential storage, and mock providers remain available for deterministic tests. Default
-Direct WSL URL: `http://127.0.0.1:8090/LORKHANserver/ui/home.php`. The DwemerDistro Launcher exposes the Windows route on `http://127.0.0.1:7514`. Apache and PostgreSQL are access-controlled for
+Direct WSL URL: `http://127.0.0.1:8090/LorkhanServer/ui/home.php`. The DwemerDistro Launcher exposes the Windows route on `http://127.0.0.1:7514`. Apache and PostgreSQL are access-controlled for
 the local machine and are not exposed as a public service.
 
 ## Responsibilities
@@ -72,7 +72,7 @@ Saving routing settings makes no provider call; requesting generation can incur 
 
 ## Local deployment
 
-The normal developer deploy mirrors the active source to `/var/www/html/LORKHANserver`, keeps
+The normal developer deploy mirrors the active source to `/var/www/html/LorkhanServer`, keeps
 database credentials and pairing secrets under `/etc/lorkhanserver`, and preserves media/log state
 under `/var/lib/lorkhanserver` and `/var/log/lorkhanserver`. Run the sibling client's
 `scripts/deploy/full-local.ps1` for the Herika-style two-stage server plus game-client deployment.

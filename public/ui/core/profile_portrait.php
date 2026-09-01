@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\DeterministicClock;
-use LORKHANserver\Application\ProductService;
-use LORKHANserver\Infrastructure\ProductRepository;
+use LorkhanServer\Application\DeterministicClock;
+use LorkhanServer\Application\ProductService;
+use LorkhanServer\Infrastructure\ProductRepository;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='NPC Portrait';$topNavSection='configuration';
 require $uiRootDir.'/ui_bootstrap.php';

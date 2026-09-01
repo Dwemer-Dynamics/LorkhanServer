@@ -208,4 +208,4 @@ WHERE c.kind='global_settings' AND c.deleted_at IS NULL
 ORDER BY c.created_at DESC LIMIT 1;
 
 INSERT INTO herika_compat.database_versioning (tablename,version)
-SELECT 'LORKHANserver',max(version) FROM lorkhan_internal.schema_migrations;
+SELECT 'LorkhanServer',max(version) FROM lorkhan_internal.schema_migrations;

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Security;
+namespace LorkhanServer\Security;
 
-use LORKHANserver\Http\Request;
+use LorkhanServer\Http\Request;
 
 final class RequestMac
 {

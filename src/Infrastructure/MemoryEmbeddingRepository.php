@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\MemoryEmbeddingPolicy;
+use LorkhanServer\Application\MemoryEmbeddingPolicy;
 use PDO;
 
 /** Freeze opt-in embedding policy and memory revisions across MiniMe calls. */
