@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** The same bounded, verbatim player text is accepted by edits and explicit restores. */
 final class RelationshipCustomInfo

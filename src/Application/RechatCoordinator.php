@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\Repository;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\Repository;
 use DomainException;
 
 /** Resolve Herika-compatible rechat mode, budget, and next responder on the server. */

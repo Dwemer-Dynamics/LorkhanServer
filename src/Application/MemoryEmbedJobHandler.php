@@ -1,11 +1,11 @@
 <?php
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\MemoryEmbeddingRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\MemoryEmbeddingRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\Uuid;
 use InvalidArgumentException;
 use Throwable;
 

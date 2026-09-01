@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Infrastructure\ProductRepository;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Infrastructure\ProductRepository;
 
 if (!isset($uiRootDir, $view, $pageTitle, $topNavSection)) throw new RuntimeException('Incomplete management page definition.');
 require $uiRootDir . '/ui_bootstrap.php';
@@ -587,7 +587,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         $management=is_array($content['management']??null)?$content['management']:[];
         $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];
-        $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LORKHANserver/ui/core/profile_portrait.php';
+        $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LorkhanServer/ui/core/profile_portrait.php';
         $routing=is_array($content['routing']??null)&&!array_is_list($content['routing'])?$content['routing']:[];
         $promptId=(string)($routing['prompt_configuration_id']??'');$llmId=(string)($routing['llm_configuration_id']??'');
         $fastLlmId=(string)($routing['llm_fast_configuration_id']??'');$powerfulLlmId=(string)($routing['llm_powerful_configuration_id']??'');
@@ -727,7 +727,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $diaryOptions=$routingOptions($llmOptions);if(!isset($diaryOptions[$diary]))$diaryOptions[$diary]='Unavailable connector';
     $generationOptions=[''=>'Inherit Core Profile','__disabled__'=>'Use server runtime']+$llmOptions;
     if(!isset($generationOptions[$generation]))$generationOptions[$generation]='Unavailable connector';
-    $uiRoot=preg_replace('#/manage$#','',$managementBasePath)?:'/LORKHANserver';
+    $uiRoot=preg_replace('#/manage$#','',$managementBasePath)?:'/LorkhanServer';
     echo'<div class="npc-editor-meta"><label for="npc-editor-tags-'.$profileId.'">Tags:</label><input id="npc-editor-tags-'.$profileId.'" name="tags" form="'.lorkhan_ui_h($formId).'" value="'.lorkhan_ui_h(is_array($content['tags']??null)?implode(', ',array_map('strval',$content['tags'])):(string)($content['tags']??'')).'" placeholder="tags">'.($creating?'':'<a class="btn-base" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/oghma_knowledge.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId)).'">Oghma Knowledge</a>').'<label class="npc-editor-favorite" title="Favorite NPC"><input type="checkbox" name="favorite" form="'.lorkhan_ui_h($formId).'" value="1"'.($favorite?' checked':'').'><span>'.($favorite?'&#9733;':'&#9734;').'</span></label></div>';
     echo'<div class="npc-profile-llms"><strong>Profile LLMs</strong><span>&#127918; '.lorkhan_ui_h($labelOf($llmOptions,$standard)).' | &#127939; '.lorkhan_ui_h($labelOf($llmOptions,$fast)).' | &#128170; '.lorkhan_ui_h($labelOf($llmOptions,$power)).' | &#129514; '.lorkhan_ui_h($labelOf($llmOptions,$experimental)).' | &#128209; '.lorkhan_ui_h($labelOf($diaryOptions,$diary)).' | &#129534; '.lorkhan_ui_feature_badge('config.profiles.formatter-llm',true).'</span></div>';
     echo'<div class="npc-editor-tabs" role="tablist" aria-label="NPC editor categories" data-npc-editor-tabs>';
@@ -812,7 +812,7 @@ function lorkhan_ui_narrator_page(array $rows,array $forms,array $voiceOptions,a
 function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $promptRows,array $llmRows,array $ttsRows,array $coreProfileRows,array $effectiveProfileSettings,string $managementBasePath,string $csrf,array $playthroughOptionsByInstallation=[],array $listState=[]):void
 {
     if($rows===[]){echo'<p class="npc-empty-state">No NPC profiles match these filters.</p>';return;}
-    $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LORKHANserver/ui/core/profile_portrait.php';
+    $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LorkhanServer/ui/core/profile_portrait.php';
     echo'<div class="npc-grid">';
     foreach($rows as$row){
         $content=is_array($row['content']??null)?$row['content']:[];$identity=is_array($row['actor_identity']??null)?$row['actor_identity']:[];
@@ -845,8 +845,8 @@ function lorkhan_ui_chim_profile_cards(array $rows,array $voiceOptions,array $pr
         echo'</div></div></article>';
 
         $exportUrl=$managementBasePath.'/exports/profiles/'.$profileId.'.json';
-        $narrativeUrl=preg_replace('#/manage$#','/ui/narrative_manager.php',$managementBasePath)?:'/LORKHANserver/ui/narrative_manager.php';
-        $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LORKHANserver/ui/core/npc_biographies.php';
+        $narrativeUrl=preg_replace('#/manage$#','/ui/narrative_manager.php',$managementBasePath)?:'/LorkhanServer/ui/narrative_manager.php';
+        $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';
         echo'<div class="npc-modal-overlay" id="'.$modalKey.'-edit" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="'.$modalKey.'-edit-title"><header class="npc-editor-header"><h2 id="'.$modalKey.'-edit-title">Edit NPC</h2><div class="npc-modal-actions">';
         echo'<button type="submit" class="btn-save" form="management-form-profile-'.lorkhan_ui_h($profileId).'">Save</button>';
         echo'<a class="btn-cancel" href="'.lorkhan_ui_h($exportUrl).'">Export Bio</a>';
@@ -920,15 +920,15 @@ function lorkhan_ui_character_manager(array $rows,array $observedNpcs,array $pro
     echo'<aside class="npc-history-pullback"><strong>History Pullback:</strong> LORKHAN preserves every NPC revision. OpenMW save-time profile pullback is not available yet, so loading an older save does not silently replace server profiles.<br><span>Lock a profile (&#128274;) to protect it from automatic AI generation.</span> Use Profile Versions in the edit modal to inspect and restore an earlier version, and the History tab to read recorded narrative events.</aside>';
     echo'<div class="npc-profile-results">';lorkhan_ui_chim_profile_cards($pageRows,$voiceOptions,$promptRows,$llmRows,$ttsRows,$coreProfileRows,$effectiveProfileSettings,$managementBasePath,$csrf,$playthroughOptionsByInstallation,$postState);echo'</div>';
 
-    $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LORKHANserver/ui/core/npc_biographies.php';
+    $biographiesUrl=preg_replace('#/manage$#','/ui/core/npc_biographies.php',$managementBasePath)?:'/LorkhanServer/ui/core/npc_biographies.php';
     echo'<div class="npc-modal-overlay" id="npc-create-modal" data-npc-modal hidden><section class="npc-modal npc-editor-modal" role="dialog" aria-modal="true" aria-labelledby="npc-create-title"><header class="npc-editor-header"><h2 id="npc-create-title">Edit NPC</h2><div class="npc-modal-actions"><button type="submit" class="btn-save" form="management-form-profile-create">Save</button><button type="button" class="btn-cancel" disabled aria-disabled="true">Reset NPC '.lorkhan_ui_feature_badge('config.npc.reset',true).'</button><button type="button" class="btn-cancel" disabled aria-disabled="true">View Diary '.lorkhan_ui_feature_badge('config.npc.saved-only',true).'</button><button type="button" class="btn-cancel" disabled aria-disabled="true">View History '.lorkhan_ui_feature_badge('config.npc.saved-only',true).'</button><button type="button" class="btn-cancel" disabled aria-disabled="true">AI Generate Profile '.lorkhan_ui_feature_badge('config.npc.saved-only',true).'</button><button type="button" class="btn-cancel" data-npc-modal-close>Close</button></div></header><div class="npc-modal-tabs"><button type="button" class="active">&#9997;&#65039; Manual</button><a href="'.lorkhan_ui_h($biographiesUrl).'">&#128218; NPC Biographies</a></div><div class="npc-modal-body">';
     lorkhan_ui_npc_editor_form(['profile_id'=>'create','installation_id'=>(string)(array_key_first($installationOptions)??''),'name'=>'','content'=>[],'actor_identity'=>[]],$voiceOptions,$promptRows,$llmRows,$ttsRows,$coreProfileRows,$managementBasePath,$csrf,true,$installationOptions,[],$playthroughOptionsByInstallation,$postState);
     echo'<details class="npc-observed-picker"><summary>Observed OpenMW NPCs <span class="npc-toolbar-count">'.count($observedNpcs).'</span></summary>';lorkhan_ui_observed_npcs($observedNpcs,$managementBasePath,$csrf);echo'</details></div></section></div>';
     echo'<div class="npc-modal-overlay" id="npc-import-modal" data-npc-modal hidden><section class="npc-modal" role="dialog" aria-modal="true" aria-labelledby="npc-import-title"><header><h2 id="npc-import-title">Import NPC</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body">';lorkhan_ui_management_form(['route'=>'profile-import','id'=>'npc-profile-import','legend'=>'Import LORKHAN profile','hidden'=>$postState,'fields'=>[['installation_id','Installation','select','',$installationOptions],['profile_json','Portable LORKHAN profile JSON','jsonfile']]],$managementBasePath,$csrf);echo'</div></section></div>';
-    $relationshipUrl=preg_replace('#/manage$#','/ui/relationship_logs.php',$managementBasePath)?:'/LORKHANserver/ui/relationship_logs.php';
-    $jobsUrl=preg_replace('#/manage$#','/ui/jobs.php',$managementBasePath)?:'/LORKHANserver/ui/jobs.php';
+    $relationshipUrl=preg_replace('#/manage$#','/ui/relationship_logs.php',$managementBasePath)?:'/LorkhanServer/ui/relationship_logs.php';
+    $jobsUrl=preg_replace('#/manage$#','/ui/jobs.php',$managementBasePath)?:'/LorkhanServer/ui/jobs.php';
     echo'<div class="npc-modal-overlay" id="npc-relationships-modal" data-npc-modal hidden><section class="npc-modal npc-confirm-modal" role="dialog" aria-modal="true" aria-labelledby="npc-relationships-title"><header><h2 id="npc-relationships-title">&#128279; Build Relationships</h2><button type="button" class="npc-modal-close" data-npc-modal-close aria-label="Close">&times;</button></header><div class="npc-modal-body"><p>Convert the Relationships text saved on NPC profiles into typed relationship records for one playthrough.</p><p>This uses each NPC&#39;s saved Relationship LLM and can cost provider tokens. It reads only Relationships text. It never reads Custom Info, and Custom Info on existing records is never changed.</p><p>Only this explicit form queues provider work. Opening this page or saving an NPC profile does not call a provider.</p>';
-    if($playthroughOptions!==[])lorkhan_ui_management_form(['route'=>'relationship-text-convert','id'=>'npc-relationship-convert','legend'=>'Build relationships','hidden'=>$postState+['request_id'=>\LORKHANserver\Infrastructure\Uuid::v4()],
+    if($playthroughOptions!==[])lorkhan_ui_management_form(['route'=>'relationship-text-convert','id'=>'npc-relationship-convert','legend'=>'Build relationships','hidden'=>$postState+['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4()],
         'fields'=>[['playthrough_id','Playthrough','select','',$playthroughOptions],
             ['mode','Conversion mode','select','missing',['missing'=>'Only NPCs without relationship records','rebuild'=>'Rebuild matched relationship scores']],
             ['confirm','Type Build to confirm']]],$managementBasePath,$csrf);
@@ -1220,7 +1220,7 @@ function lorkhan_ui_global_settings_page(array $rows,array $installationRows,arr
     echo'<section class="global-settings-panel"><h2>Server-owned effective settings</h2><p>These revisioned values sync at session start. Local OpenMW safety settings can further restrict actions, hostile actors, and creatures; the server cannot loosen them.</p>';
     $configured=[];foreach($rows as$row){$configured[(string)($row['installation_id']??'')]=true;echo'<details class="global-settings-document" open><summary>'.lorkhan_ui_h($row['display_name']??'Installation').' <span class="status-badge">Revision '.lorkhan_ui_h($row['current_revision']??1).'</span></summary>';lorkhan_ui_global_settings_form($row,$installationOptions,$managementBasePath,$csrf);echo'</details>';}
     foreach($installationOptions as$id=>$label)if(!isset($configured[$id])){echo'<details class="global-settings-document" open><summary>Create settings for '.lorkhan_ui_h($label).'</summary>';lorkhan_ui_global_settings_form(['installation_id'=>$id],$installationOptions,$managementBasePath,$csrf);echo'</details>';}
-    if($installationOptions===[])echo'<p class="empty-state">No OpenMW installation has paired with LORKHANserver yet.</p>';echo'</section>';
+    if($installationOptions===[])echo'<p class="empty-state">No OpenMW installation has paired with LorkhanServer yet.</p>';echo'</section>';
     echo'<section class="global-settings-panel"><h2>Conversation Continuation</h2><p>Rechat is playback-gated profile behavior, not an idle schedule.</p>';
     lorkhan_ui_schedule_cards($scheduleRows,$sessionOptions,$managementBasePath,$csrf);echo'</section>';
     echo'<section class="global-settings-panel"><h2>Registered Installations</h2>';lorkhan_ui_table($installationRows);echo'</section></div>';
@@ -1398,7 +1398,7 @@ $relationshipConversionNotice=$view==='characters'?lorkhan_ui_relationship_conve
     <?php elseif ($view === 'actions'): ?>
     <?php lorkhan_ui_actions_page($rows,$policyRows,$installationOptions,$actionProfileOptions,$descriptions[$view],$managementBasePath,$csrf); ?>
     <?php else: ?>
-    <header class="configuration-page-header"><h1><?php echo lorkhan_ui_h($pageTitle); ?></h1><p><?php echo lorkhan_ui_h($descriptions[$view] ?? 'LORKHANserver management page.'); ?></p></header>
+    <header class="configuration-page-header"><h1><?php echo lorkhan_ui_h($pageTitle); ?></h1><p><?php echo lorkhan_ui_h($descriptions[$view] ?? 'LorkhanServer management page.'); ?></p></header>
     <?php if ($view === 'worldknowledge'): ?>
     <section class="knowledge-search-logic"><h2>&#128269; Article Search Logic</h2><div class="knowledge-steps">
         <article><span>1</span><div><h3>Scoped Retrieval</h3><p>Only knowledge for the current installation, profile, and playthrough can be selected.</p></div></article>

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\MediaStore;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\Repository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Infrastructure\MediaStore;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\Repository;
+use LorkhanServer\Infrastructure\Uuid;
 use Throwable;
 
 final class SpeechSynthesizeJobHandler implements JobHandler

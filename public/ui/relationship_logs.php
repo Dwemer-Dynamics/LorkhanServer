@@ -8,7 +8,7 @@ $selected=is_string($_GET['installation_id']??null)?$_GET['installation_id']:'';
 if(!isset($installations[$selected]))$selected=(string)(array_key_first($installations)??'');
 $rows=$selected===''?[]:$uiRepository->rows('relationships',$selected);
 $history=$selected===''?[]:$uiRepository->rows('relationship_logs',$selected);
-$relationshipTypes=\LORKHANserver\Application\RelationshipType::available(array_values(array_filter(
+$relationshipTypes=\LorkhanServer\Application\RelationshipType::available(array_values(array_filter(
     array_column($rows,'relationship_type'),'is_string')));
 $owners=[];$actors=[];$playthroughs=[];$buildOwners=[];
 foreach($selected===''?[]:$uiRepository->rows('relationship_profiles',$selected) as $row){
@@ -26,7 +26,7 @@ $buildLimit=filter_var($_GET['history_limit']??100,FILTER_VALIDATE_INT);
 if(!in_array($buildLimit,[10,25,50,100],true))$buildLimit=100;
 $buildScope=['installation_id'=>$selected,'profile_id'=>$buildProfile,'playthrough_id'=>$buildPlaythrough];
 $buildScoped=$selected!==''&&$buildProfile!==''&&$buildPlaythrough!=='';
-$buildJobs=$buildScoped?(new \LORKHANserver\Infrastructure\RelationshipBuildRepository($database))->recentJobs($buildScope):[];
+$buildJobs=$buildScoped?(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($database))->recentJobs($buildScope):[];
 $buildQuery=$buildScope+['history_limit'=>$buildLimit];if($embedded)$buildQuery['embed']='1';
 $buildUrl=$webRoot.'/ui/relationship_logs.php?'.http_build_query($buildQuery).'#relationship-builder';
 $buildStatus=is_string($_GET['status']??null)?$_GET['status']:'';
@@ -99,7 +99,7 @@ include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.ph
         <form class="management-form relationship-build-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath.'/forms/relationship-history-build'); ?>">
             <?php foreach($buildScope as $field=>$value): ?><input type="hidden" name="<?php echo $field; ?>" value="<?php echo lorkhan_ui_h($value); ?>"><?php endforeach; ?>
             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-            <input type="hidden" name="request_id" value="<?php echo \LORKHANserver\Infrastructure\Uuid::v4(); ?>">
+            <input type="hidden" name="request_id" value="<?php echo \LorkhanServer\Infrastructure\Uuid::v4(); ?>">
             <input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
             <div class="management-field"><?php lorkhan_relationship_select('history_limit','Recent conversations to check',[10=>'10',25=>'25',50=>'50',100=>'100'],(string)$buildLimit); ?></div>
             <button class="btn-base btn-primary" type="submit">Build relationships</button>

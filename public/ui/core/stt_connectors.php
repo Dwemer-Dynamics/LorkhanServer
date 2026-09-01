@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Application\CredentialStore;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\CredentialStore;
 
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'STT Connector';
@@ -79,7 +79,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
      <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="kind" value="stt_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="change_reason" value="Management STT update"><input type="hidden" name="voice" value=""><input type="hidden" name="option_fields_present" value="1">
      <div class="editor-grid">
       <div class="field-block"><label>Name</label><input type="text" value="<?php echo lorkhan_ui_h($selected['name']); ?>" readonly><div class="field-help">One connector is shared by every Core Profile and NPC in this installation.</div></div>
-      <div class="field-block"><label for="stt-driver">Service</label><select id="stt-driver" name="driver" data-route-select><?php foreach($groups as $group=>$providers): ?><optgroup label="<?php echo lorkhan_ui_h($group); ?>"><?php foreach($providers as [$driver,$name]): ?><option value="<?php echo lorkhan_ui_h($driver); ?>" data-url="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"<?php echo $driver===$activeDriver?' selected':''; ?>><?php echo lorkhan_ui_h($name); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">Choose the speech-to-text backend LORKHANserver loads globally.</div></div>
+      <div class="field-block"><label for="stt-driver">Service</label><select id="stt-driver" name="driver" data-route-select><?php foreach($groups as $group=>$providers): ?><optgroup label="<?php echo lorkhan_ui_h($group); ?>"><?php foreach($providers as [$driver,$name]): ?><option value="<?php echo lorkhan_ui_h($driver); ?>" data-url="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"<?php echo $driver===$activeDriver?' selected':''; ?>><?php echo lorkhan_ui_h($name); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">Choose the speech-to-text backend LorkhanServer loads globally.</div></div>
       <div class="field-block"><label>API Badge</label><select disabled aria-disabled="true"><option><?php echo $credentialVariable===''?'Not required':lorkhan_ui_h($definitions[$activeDriver]['label']); ?></option></select><div class="api-key-notice <?php echo $credentialVariable===''||($credentialStatus['configured']??false)?'ok':'warn'; ?>"><?php echo $credentialVariable===''?'This service does not require an API key.':(($credentialStatus['configured']??false)?'Selected API badge is configured via '.lorkhan_ui_h($credentialStatus['source']).'.':'Selected API badge does not have a configured key yet.'); ?> <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></div></div>
       <div class="field-block"><label for="stt-endpoint">URL</label><input id="stt-endpoint" type="text" name="endpoint" required maxlength="2048" value="<?php echo lorkhan_ui_h($sameDriver?($content['endpoint']??$driverDefaults['endpoint']):$driverDefaults['endpoint']); ?>"><div class="field-help">Provider endpoint; Parakeet adds /v1/audio/transcriptions automatically.</div></div>
      </div>

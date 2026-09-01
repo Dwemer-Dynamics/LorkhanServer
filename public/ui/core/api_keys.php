@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\CredentialStore;
+use LorkhanServer\Application\CredentialStore;
 
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'API Keys';

@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\TtsPronunciationRepository;
-use LORKHANserver\Security\OutboundUrlPolicy;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\TtsPronunciationRepository;
+use LorkhanServer\Security\OutboundUrlPolicy;
 
 $uiRootDir=dirname(__DIR__);$pageTitle='Voice Management';$topNavSection='configuration';
 $embedded=($_GET['embed']??'')==='1';
@@ -27,11 +28,10 @@ $defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoi
 $studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
 $activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
-$sampleUploadDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
-$voiceDiscoveryDrivers=['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'];
+$sampleUploadDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
+$voiceDiscoveryDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
-$pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationPreviewText='';
-$pronunciationPreviewSpoken='';$pronunciationNotice='';$pronunciationError='';
+$pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationNotice='';$pronunciationError='';
 // The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
 $pronunciationFilter=trim((string)($_GET['oghma_tag']??''));
 if($pronunciationFilter!==''&&(!mb_check_encoding($pronunciationFilter,'UTF-8')||mb_strlen($pronunciationFilter,'UTF-8')>64))$pronunciationFilter='';
@@ -70,7 +70,7 @@ function lorkhan_voice_language(string $language):string
 function lorkhan_voice_can_sync(array $preset):bool
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
-    if(!in_array($driver,['pockettts','omnivoice','chatterbox','xtts-fastapi','xtts'],true))return false;
+    if(!in_array($driver,ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,true))return false;
     $endpoint=strtolower(rtrim((string)($content['endpoint']??''),'/'));
     return$driver!=='pockettts'||(!str_contains($endpoint,':8086')&&!str_ends_with($endpoint,'/v1/audio/speech'));
 }
@@ -206,11 +206,6 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
         }elseif($action==='pronunciation_delete'){
             $idValue=(string)($_POST['id']??'');if(!ctype_digit($idValue))throw new InvalidArgumentException('invalid_pronunciation');
             $pronunciations->deleteCustom((int)$idValue);$pronunciationNotice='Custom pronunciation deleted.';
-        }elseif($action==='pronunciation_preview'){
-            $pronunciationPreviewText=trim((string)($_POST['pronunciation_preview_text']??''));
-            if($pronunciationPreviewText===''||!mb_check_encoding($pronunciationPreviewText,'UTF-8')
-                ||mb_strlen($pronunciationPreviewText,'UTF-8')>500)throw new InvalidArgumentException('invalid_pronunciation_preview');
-            $pronunciationPreviewSpoken=$pronunciations->apply($pronunciationPreviewText);
         }elseif($action==='discover'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
@@ -240,8 +235,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
     }catch(Throwable $exception){
         if($pronunciationAction){
             $pronunciationError=match($exception->getMessage()){
-                'invalid_pronunciation'=>'Enter a valid written term and spoken form.',
-                'invalid_pronunciation_preview'=>'Enter a sample line of 500 characters or fewer.',
+                'invalid_pronunciation'=>'Enter a valid original term and spoken version.',
                 'pronunciation_not_editable'=>'That built-in pronunciation cannot be edited or deleted.',
                 'pronunciation_not_found'=>'That pronunciation no longer exists.',
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
@@ -266,6 +260,16 @@ if($discoveredPreset===null){
 
 $samples=[];foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){$samples[]=['name'=>pathinfo($path,PATHINFO_FILENAME),'bytes'=>(int)filesize($path),'updated_at'=>gmdate('Y-m-d H:i:s',filemtime($path)?:time()).' UTC'];}
 usort($samples,static fn(array$a,array$b):int=>strcasecmp($a['name'],$b['name']));
+
+// The pronunciation preview strip offers exactly the connectors and installed voices the
+// management preview endpoint will accept, so a play control can never post an unusable pair.
+// The preview opens on the narrator voice so a pronunciation can be judged in the voice LORKHAN
+// actually narrates with, falling back to the connector default when that connector cannot speak it.
+$narratorPreviewProfile=$installationId===''?null:$products->narratorProfileForInstallation($installationId);
+$pronunciationPreview=SpeechPreviewCatalog::options($ttsPresets,$products->connectorVoiceCatalog(),$voiceRoot,
+    (string)($activeTts['configuration_id']??''),
+    SpeechPreviewCatalog::narratorVoice($narratorPreviewProfile),SpeechPreviewCatalog::narratorConnector($narratorPreviewProfile));
+$pronunciationPreviewEndpoint=$managementBasePath.'/api/v1/tts-previews';
 
 $additionalStylesheets=['herika-tts-studio.css?v='.(string)filemtime($uiRootDir.'/css/herika-tts-studio.css')];
 require __DIR__.'/tmpl/voice_library_studio.php';

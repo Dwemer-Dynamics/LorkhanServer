@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\DeterministicRetrieval;
+use LorkhanServer\Application\DeterministicRetrieval;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;

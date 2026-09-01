@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Deterministic profile generator used only by mock and test configurations. */
 final class MockProfileGenerationProvider implements ProfileGenerationProvider

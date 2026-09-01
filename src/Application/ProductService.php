@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProductRepository;
 use InvalidArgumentException;
 
 final class ProductService

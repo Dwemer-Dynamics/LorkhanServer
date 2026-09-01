@@ -1,6 +1,6 @@
 <?php
 declare(strict_types=1);
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Validate a bounded TES3 relationship identity, optionally retaining an incomplete legacy record. */
 final class RelationshipIdentity

@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\DefaultConnectorProvisioner;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\DefaultConnectorProvisioner;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 

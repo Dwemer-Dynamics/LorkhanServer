@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\FirstPartyJobRepository;
-use LORKHANserver\Infrastructure\MediaStore;
+use LorkhanServer\Infrastructure\FirstPartyJobRepository;
+use LorkhanServer\Infrastructure\MediaStore;
 use DateTimeImmutable;
 use DateTimeZone;
 use InvalidArgumentException;

@@ -18,9 +18,9 @@ Create `docs/evidence/import-ledger.csv` with target path, source URL/SHA/path, 
 
 ## Semantic translation map
 
-| Synthserver/Fallout concept | LORKHANserver concept |
+| Synthserver/Fallout concept | LorkhanServer concept |
 | --- | --- |
-| SYNTH/Synthserver | LORKHAN/LORKHANserver |
+| SYNTH/Synthserver | LORKHAN/LorkhanServer |
 | Fallout 4 / FO4 | Morrowind/TES3 on OpenMW |
 | Sole Survivor | Player/Nerevarine only when lore role is actually known |
 | Commonwealth/worldspace | Tamriel, region, interior/exterior cell |

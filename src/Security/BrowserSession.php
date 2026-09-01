@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Security;
+namespace LorkhanServer\Security;
 
 final class BrowserSession
 {
     public static function token(): string { return rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '='); }
     public static function hash(string $value): string { return hash('sha256', $value); }
 
-    public static function cookie(string $token, int $maxAge,string $path='/LORKHANserver'): string
+    public static function cookie(string $token, int $maxAge,string $path='/LorkhanServer'): string
     {
         return 'lorkhan_management=' . rawurlencode($token) . '; Path='.$path.'; Max-Age=' . $maxAge
             . '; HttpOnly; SameSite=Strict';
     }
 
-    public static function csrfCookie(string $token, int $maxAge,string $path='/LORKHANserver'): string
+    public static function csrfCookie(string $token, int $maxAge,string $path='/LorkhanServer'): string
     {
         return 'lorkhan_csrf=' . rawurlencode($token) . '; Path='.$path.'; Max-Age=' . $maxAge . '; SameSite=Strict';
     }
 
     public static function clearCookies(): string
     {
-        return 'lorkhan_management=; Path=/LORKHANserver; Max-Age=0; HttpOnly; SameSite=Strict, '
-            . 'lorkhan_csrf=; Path=/LORKHANserver; Max-Age=0; SameSite=Strict';
+        return 'lorkhan_management=; Path=/LorkhanServer; Max-Age=0; HttpOnly; SameSite=Strict, '
+            . 'lorkhan_csrf=; Path=/LorkhanServer; Max-Age=0; SameSite=Strict';
     }
 
     public static function parse(?string $cookie): ?string

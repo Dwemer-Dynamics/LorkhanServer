@@ -2,28 +2,28 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\ActionPolicyValidator;
-use LORKHANserver\Application\DeterministicClock;
-use LORKHANserver\Application\FirstPartyJobHandlerFactory;
-use LORKHANserver\Application\JobHandler;
-use LORKHANserver\Application\JobHandlerRegistry;
-use LORKHANserver\Application\ProductService;
-use LORKHANserver\Application\Worker;
-use LORKHANserver\Http\ManagementRouter;
-use LORKHANserver\Http\Request;
-use LORKHANserver\Infrastructure\ActionCatalogRepository;
-use LORKHANserver\Infrastructure\BiographyCatalogImporter;
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\DescriptionCatalogImporter;
-use LORKHANserver\Infrastructure\EventLogRepository;
-use LORKHANserver\Infrastructure\JobRepository;
-use LORKHANserver\Infrastructure\ManagementRepository;
-use LORKHANserver\Infrastructure\ManagementUiRepository;
-use LORKHANserver\Infrastructure\MigrationRunner;
-use LORKHANserver\Infrastructure\OghmaCatalogImporter;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\ProviderAttemptRepository;
-use LORKHANserver\Infrastructure\Uuid;
+use LorkhanServer\Application\ActionPolicyValidator;
+use LorkhanServer\Application\DeterministicClock;
+use LorkhanServer\Application\FirstPartyJobHandlerFactory;
+use LorkhanServer\Application\JobHandler;
+use LorkhanServer\Application\JobHandlerRegistry;
+use LorkhanServer\Application\ProductService;
+use LorkhanServer\Application\Worker;
+use LorkhanServer\Http\ManagementRouter;
+use LorkhanServer\Http\Request;
+use LorkhanServer\Infrastructure\ActionCatalogRepository;
+use LorkhanServer\Infrastructure\BiographyCatalogImporter;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\DescriptionCatalogImporter;
+use LorkhanServer\Infrastructure\EventLogRepository;
+use LorkhanServer\Infrastructure\JobRepository;
+use LorkhanServer\Infrastructure\ManagementRepository;
+use LorkhanServer\Infrastructure\ManagementUiRepository;
+use LorkhanServer\Infrastructure\MigrationRunner;
+use LorkhanServer\Infrastructure\OghmaCatalogImporter;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\ProviderAttemptRepository;
+use LorkhanServer\Infrastructure\Uuid;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 
@@ -880,34 +880,34 @@ $clock->advance(1);$syncCustom=$products->createKnowledge([
     'topic_desc_basic'=>'User-authored factory sync fixture.','knowledge_class'=>'scholar','knowledge_class_basic'=>'common',
     'tags'=>'factory sync fixture','category'=>'lore'],['factory','sync','custom'],$clock->iso());
 $managementRouter=new ManagementRouter($management,$products,$service,eventLogRepository:$eventLogs,oghmaCatalogImporter:$oghmaImporter);
-$denied=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/diagnostics'));
+$denied=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/diagnostics'));
 $check($denied->status===401, 'management API accepted missing browser session');
-$signed=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/quickstart'));
-$check($signed->status===303 && ($signed->headers['Location']??'')==='/LORKHANserver/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
+$signed=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/quickstart'));
+$check($signed->status===303 && ($signed->headers['Location']??'')==='/LorkhanServer/ui/home.php', 'legacy management route did not redirect to sibling-style PHP page');
 $csrf=$browser['csrf'];$cookie='lorkhan_management='.$browser['session'].'; lorkhan_csrf='.$csrf;
-$descriptionCsv=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
+$descriptionCsv=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/exports/descriptions/example.csv',['Cookie'=>$cookie]));
 $check($descriptionCsv->status===200&&str_contains($descriptionCsv->body,'plugin,baseid,name,description')
     &&($descriptionCsv->headers['Content-Type']??'')==='text/csv; charset=utf-8','description example CSV export failed');
-$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
-$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/LORKHANserver/ui/home.php',
+$descriptionResetDenied=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/description-reset',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation,'confirm'=>'Reset'])));
+$check($descriptionResetDenied->status===303&&($descriptionResetDenied->headers['Location']??'')==='/LorkhanServer/ui/home.php',
     'description reset did not reject missing CSRF');
-$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
-$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/LORKHANserver/ui/home.php',
+$factorySyncDenied=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['installation_id'=>$installation])));
+$check($factorySyncDenied->status===303&&($factorySyncDenied->headers['Location']??'')==='/LorkhanServer/ui/home.php',
     'Oghma factory sync did not reject missing CSRF');
-$factorySync=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
+$factorySync=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query([
     '_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1'])));
-$expectedSyncLocation='/LORKHANserver/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
+$expectedSyncLocation='/LorkhanServer/ui/worldknowledge_upload.php?status=factory-synced&count=3741&installation_id='.$installation.'&embed=1';
 $factorySyncVersion=$db->query("SELECT catalog_version FROM oghma_catalogs WHERE state='active'")->fetchColumn();
 $factorySyncRows=(int)$db->query("SELECT count(*) FROM oghma_factory_documents WHERE installation_id='{$installation}'")->fetchColumn();
 $factorySyncCustomRows=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn();
 $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$expectedSyncLocation
     &&$factorySyncVersion==='morrowind-official-3e427-v5.21'&&$factorySyncRows===3741&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
-$home=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/quickstart',['Cookie'=>$cookie]));
-$check($home->status===303 && ($home->headers['Location']??'')==='/LORKHANserver/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
-$diagnostics=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
+$home=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/quickstart',['Cookie'=>$cookie]));
+$check($home->status===303 && ($home->headers['Location']??'')==='/LorkhanServer/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
+$diagnostics=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');
-$historyPath='/LORKHANserver/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
+$historyPath='/LorkhanServer/manage/api/v1/profiles/'.$historyOwner['profile_id'].'/eventlog';
 $historyPayload=['playthrough_id'=>$playthrough['playthrough_id'],'event'=>'(History Owner gave History Recipient a kwama egg.)',
     'recipient_profile_ids'=>[$historyRecipient['profile_id']]];
 $historyDenied=$managementRouter->dispatch(new Request('POST',$historyPath,['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode($historyPayload)));
@@ -925,10 +925,10 @@ $check($historyInjected->status===201&&$historyRowId>0
 $historyQuery=['playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'100'];
 $ownerHistory=$managementRouter->dispatch(new Request('GET',$historyPath,['Cookie'=>$cookie],$historyQuery));
 $ownerHistoryBody=json_decode($ownerHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
-$recipientHistory=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
+$recipientHistory=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog',
     ['Cookie'=>$cookie],$historyQuery));
 $recipientHistoryBody=json_decode($recipientHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
-$outsiderHistory=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
+$outsiderHistory=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog',
     ['Cookie'=>$cookie],$historyQuery));
 $outsiderHistoryBody=json_decode($outsiderHistory->body,true,32,JSON_THROW_ON_ERROR)['data'];
 $check($ownerHistory->status===200&&$recipientHistory->status===200&&$outsiderHistory->status===200
@@ -943,11 +943,11 @@ $hiddenHistoryType=$managementRouter->dispatch(new Request('GET',$historyPath,['
 $check($filteredHistory->status===200
     &&array_column(json_decode($filteredHistory->body,true,32,JSON_THROW_ON_ERROR)['data']['events'],'rowid')===[$historyRowId]
     &&$hiddenHistoryType->status===422,'NPC history event-type filter escaped the visible narrative types');
-$historyDeletePath='/LORKHANserver/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
+$historyDeletePath='/LorkhanServer/manage/api/v1/profiles/'.$historyRecipient['profile_id'].'/eventlog/'.$historyRowId;
 $historyDeleteDenied=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
     ['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
 $check($historyDeleteDenied->status===401,'NPC history deletion accepted missing CSRF');
-$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
+$historyWrongOwner=$managementRouter->dispatch(new Request('DELETE','/LorkhanServer/manage/api/v1/profiles/'.$historyOutsider['profile_id'].'/eventlog/'.$historyRowId,
     ['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['playthrough_id'=>$playthrough['playthrough_id']])));
 $check($historyWrongOwner->status===422,'NPC history deletion escaped exact identity ownership');
 $historyDeleted=$managementRouter->dispatch(new Request('DELETE',$historyDeletePath,
@@ -963,25 +963,25 @@ $check($historyForeignScope->status===422,'NPC history accepted a foreign playth
 $service->deleteRevisioned('profile',$historyOwner['profile_id']);
 $service->deleteRevisioned('profile',$historyRecipient['profile_id']);
 $service->deleteRevisioned('profile',$historyOutsider['profile_id']);
-$eventlogResponse=$managementRouter->dispatch(new Request('GET','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
+$eventlogResponse=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/eventlog',['Cookie'=>$cookie],['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],'limit'=>'10']));
 $eventlogBody=json_decode($eventlogResponse->body,true,32,JSON_THROW_ON_ERROR);
 $check($eventlogResponse->status===200&&count($eventlogBody['data'])===10,'authenticated CHIM eventlog API failed');
-$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogFilterDenied=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogFilterDenied->status===401,'eventlog filter mutation accepted missing CSRF');
-$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogFilterAccepted=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/api/v1/eventlog/hidden-types',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['action'=>'hide','type'=>'death','installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogFilterAccepted->status===200,'eventlog filter mutation rejected valid browser CSRF');
 $eventLogs->suppress(['mode'=>'latest','count'=>5,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']]);
 $hiddenCursorSuppressions=(int)$db->query("SELECT count(*) FROM eventlog_metadata WHERE rowid>{$baseEventRow} AND projection_kind='cursor_test' AND suppressed_at IS NOT NULL")->fetchColumn();
 $check($hiddenCursorSuppressions===0,'delete latest suppressed a custom-hidden event type');
 $deleteRow=min($firstCursorIds);
-$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogDeleteDenied=$managementRouter->dispatch(new Request('DELETE','/LorkhanServer/manage/api/v1/eventlog',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogDeleteDenied->status===401,'eventlog delete accepted missing CSRF');
-$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/LORKHANserver/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
+$eventlogDeleteAccepted=$managementRouter->dispatch(new Request('DELETE','/LorkhanServer/manage/api/v1/eventlog',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],json_encode(['mode'=>'row','rowid'=>$deleteRow,'installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']])));
 $check($eventlogDeleteAccepted->status===200&&json_decode($eventlogDeleteAccepted->body,true,8,JSON_THROW_ON_ERROR)['deleted_count']===1,
     'eventlog row delete rejected valid browser CSRF or escaped its scope');
-$csrfDenied=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$csrfDenied=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/api/v1/operations/retention',['Cookie'=>$cookie,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfDenied->status===401, 'management write accepted missing CSRF');
-$csrfAccepted=$managementRouter->dispatch(new Request('POST','/LORKHANserver/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
+$csrfAccepted=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/api/v1/operations/retention',['Cookie'=>$cookie,'X-CSRF-Token'=>$csrf,'Content-Type'=>'application/json'],[],'{"days":30}'));
 $check($csrfAccepted->status===200, 'management write rejected valid CSRF');
 
 $jobs = new JobRepository($db);
@@ -1035,7 +1035,7 @@ $check($provider->finish($providerId, 'succeeded', 24), 'provider attempt did no
 $check(!$provider->finish($providerId, 'failed', null, 'late', 'late completion'), 'provider attempt completed twice');
 
 $firstPartyMediaRoot=sys_get_temp_dir().'/lorkhan-first-party-'.bin2hex(random_bytes(6));
-$firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
+$firstPartyRegistry=FirstPartyJobHandlerFactory::registry($db,new \LorkhanServer\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),$clock);
 $profileBefore=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$scope['profile_id']}'")->fetchColumn();
 $profileJob=Uuid::v4();$jobs->enqueue($profileJob,'profile.generate',1,'profile.generate:test',
     ['profile_id'=>$scope['profile_id'],'base_revision'=>$profileBefore],3);
@@ -1117,10 +1117,10 @@ $check($sameGenerationJob['job_id']===$generationJob['job_id'],'requeue replaced
 $service->revise('core_profile',$generationCore['core_profile_id'],array_replace($generationCore['content'],['routing'=>[]]),'use runtime for future jobs');
 try{$service->deleteRevisioned('provider',$generationConnector['configuration_id']);throw new RuntimeException('queued generation connector deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued generation deletion guard failed');}
-$generationRows=(new \LORKHANserver\Infrastructure\ManagementUiRepository($db))->rows('llm');
+$generationRows=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->rows('llm');
 $generationRow=array_values(array_filter($generationRows,static fn(array$row):bool=>$row['configuration_id']===$generationConnector['configuration_id']))[0];
 $check((int)$generationRow['queued_job_usage']===1,'queued generation use was not visible to connector management');
-$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+$generationRegistry=FirstPartyJobHandlerFactory::registry($db,new \LorkhanServer\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
     $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
 $generationStats=(new Worker($jobs,$generationRegistry,'profile-route-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $generationAttempt=$db->query("SELECT model,config_revision,metadata FROM provider_attempts WHERE job_id='{$generationJob['job_id']}'")->fetch();
@@ -1203,7 +1203,7 @@ $check($diaryReplay['job_id']===$diaryJob['job_id']&&$diaryReplay['narrative_id'
     &&$diaryReplay['provider_revision']===1,'manual diary replay did not retain its original acceptance after configuration changed');
 try{$service->deleteRevisioned('provider',$diaryConnector['configuration_id']);throw new RuntimeException('queued diary connector deleted');}
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','queued diary deletion guard failed');}
-$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \LORKHANserver\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
+$diaryRegistry=FirstPartyJobHandlerFactory::registry($db,new \LorkhanServer\Infrastructure\MediaStore($firstPartyMediaRoot,1024,2048),
     $clock,providerConfig:['provider'=>['driver'=>'must-not-use-runtime']]);
 $diaryStats=(new Worker($jobs,$diaryRegistry,'manual-diary-test',5,1,1,0,10,['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
 $diaryRow=$db->query("SELECT kind,title,content,provenance FROM narrative_records WHERE narrative_id='{$diaryJob['narrative_id']}'")->fetch();
@@ -1294,7 +1294,7 @@ $consolidate->handle(['installation_id'=>$legacyInstallation,'profile_id'=>$lega
 $check((int)$db->query("SELECT count(*) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long') AND deleted_at IS NULL")->fetchColumn()===5
     &&(int)$db->query("SELECT max(current_revision) FROM memory_records WHERE installation_id='{$legacyInstallation}' AND profile_id='{$legacyProfile}' AND playthrough_id='{$legacyPlaythrough}' AND tier IN('mid','long')")->fetchColumn()===1,
     'memory consolidation replay was not idempotent');
-$summaryRepository=new \LORKHANserver\Infrastructure\MemorySummaryRepository($db);
+$summaryRepository=new \LorkhanServer\Infrastructure\MemorySummaryRepository($db);
 $summaryMemory=$middleRows[0];
 $check($summaryRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null
     &&(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize'")->fetchColumn()===0,
@@ -1337,7 +1337,7 @@ $attemptCount=(int)$db->query("SELECT count(*) FROM provider_attempts WHERE oper
 $editMemory=$middleRows[2];
 $editJob=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],1);
 $products->updateMemory($editMemory['memory_id'],'Manually corrected memory.',['corrected'],
-    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
+    \LorkhanServer\Application\DeterministicRetrieval::fakeVector('Manually corrected memory.'),$clock->iso());
 $editStats=(new Worker($jobs,$firstPartyRegistry,'model-memory-edited',5,1,10,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($editStats['succeeded']===1
     &&(int)$db->query("SELECT count(*) FROM provider_attempts WHERE operation='summarize_memory'")->fetchColumn()===$attemptCount
@@ -1345,15 +1345,15 @@ $check($editStats['succeeded']===1
     'stale memory job called a provider or overwrote an edit');
 $liveMemory=$middleRows[3];
 $summaryRepository->enqueue($legacyInstallation,$liveMemory['memory_id'],1);
-$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \LORKHANserver\Application\ProfileGenerationProvider {
+$disablingProvider=new class($service,$summaryPolicy['configuration_id'],$summaryPolicyContent) implements \LorkhanServer\Application\ProfileGenerationProvider {
     public function __construct(private $service,private string $policy,private array $content){}
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         $cancellation->throwIfCancellationRequested();$this->content['enabled']=false;
         $this->service->revise('memory_policy',$this->policy,$this->content,'disabled during provider execution');
         return ['summary'=>'This late output must be discarded.'];
     }
 };
-$disablingRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$disablingRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$disablingProvider)]);
 $duringStats=(new Worker($jobs,$disablingRegistry,'model-memory-disabled-during-call',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($duringStats['succeeded']===1
@@ -1374,7 +1374,7 @@ $beforeEnqueueFailure=(int)$db->query("SELECT count(*) FROM memory_records WHERE
 $newRecent=$db->query("SELECT memory_id FROM memory_records WHERE installation_id='{$legacyInstallation}' AND tier='recent' ORDER BY occurred_at DESC LIMIT 1")->fetchColumn();
 $db->exec("CREATE FUNCTION pg_temp.reject_model_enqueue() RETURNS trigger LANGUAGE plpgsql AS 'BEGIN RAISE EXCEPTION ''model enqueue test failure''; END'");
 $db->exec("CREATE TRIGGER reject_model_enqueue BEFORE INSERT ON durable_jobs FOR EACH ROW WHEN (NEW.job_type='memory.summarize') EXECUTE FUNCTION pg_temp.reject_model_enqueue()");
-try{(new \LORKHANserver\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
+try{(new \LorkhanServer\Infrastructure\FirstPartyJobRepository($db))->consolidateMemories(['installation_id'=>$legacyInstallation,'profile_id'=>$legacyProfile,'playthrough_id'=>$legacyPlaythrough],'recent',$newRecent,$clock->iso());
     throw new RuntimeException('model enqueue failure was ignored');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'model enqueue test failure'),'unexpected model enqueue failure');}
 $db->exec('DROP TRIGGER reject_model_enqueue ON durable_jobs');
@@ -1401,10 +1401,10 @@ try{$service->deleteRevisioned('provider',$summaryProvider['configuration_id']);
 catch(InvalidArgumentException $error){$check($error->getMessage()==='provider_in_use','unexpected memory provider deletion error');}
 $failedSummary=$summaryRepository->enqueue($legacyInstallation,$editMemory['memory_id'],2);
 $db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$failedSummary['job_id']]);
-$invalidSummaryProvider=new class implements \LORKHANserver\Application\ProfileGenerationProvider {
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
+$invalidSummaryProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{return ['summary'=>''];}
 };
-$invalidSummaryRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$invalidSummaryRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$invalidSummaryProvider)]);
 $failureStats=(new Worker($jobs,$invalidSummaryRegistry,'model-memory-invalid-output',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['content']==='Manually corrected memory.'
@@ -1412,15 +1412,15 @@ $check($failureStats['dead']===1&&$products->memory($editMemory['memory_id'])['c
     'invalid model output replaced the deterministic fallback');
 $leaseSummary=$summaryRepository->enqueue($legacyInstallation,$longRows[0]['memory_id'],1);
 $db->prepare('UPDATE durable_jobs SET max_attempts=1 WHERE job_id=:id')->execute(['id'=>$leaseSummary['job_id']]);
-$leaseProvider=new class($db,$leaseSummary['job_id']) implements \LORKHANserver\Application\ProfileGenerationProvider {
+$leaseProvider=new class($db,$leaseSummary['job_id']) implements \LorkhanServer\Application\ProfileGenerationProvider {
     public function __construct(private PDO $db,private string $job){}
-    public function generate(array $input,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         $cancellation->throwIfCancellationRequested();
         $this->db->prepare("UPDATE durable_jobs SET lease_expires_at=clock_timestamp()-interval '1 second' WHERE job_id=:id")->execute(['id'=>$this->job]);
         return ['summary'=>'Expired lease output'];
     }
 };
-$leaseRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemorySummaryJobHandler($summaryRepository,$products,
+$leaseRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\MemorySummaryJobHandler($summaryRepository,$products,
     new ProviderAttemptRepository($db),[],$leaseProvider)]);
 (new Worker($jobs,$leaseRegistry,'model-memory-lease-lost',5,1,1,0,10,['memory.summarize'],static fn(int $microseconds):mixed=>null))->run();
 $check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory_id='{$longRows[0]['memory_id']}'")->fetchColumn()===0,
@@ -1429,8 +1429,8 @@ $check((int)$db->query("SELECT count(*) FROM memory_model_summaries WHERE memory
 $summaryPolicyContent['enabled']=false;
 $service->revise('memory_policy',$summaryPolicy['configuration_id'],$summaryPolicyContent,'leave model fixture disabled');
 
-$embeddingRepository=new \LORKHANserver\Infrastructure\MemoryEmbeddingRepository($db);
-$embeddingPolicyContent=['schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
+$embeddingRepository=new \LorkhanServer\Infrastructure\MemoryEmbeddingRepository($db);
+$embeddingPolicyContent=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,'enabled'=>true,
     'endpoint'=>'http://127.0.0.1:8085','timeout_ms'=>1500];
 $embeddingPolicy=$service->createRevisioned('memory_embedding_policy',['installation_id'=>$legacyInstallation,
     'name'=>'Semantic memory retrieval','content'=>$embeddingPolicyContent]);
@@ -1440,16 +1440,16 @@ $embeddingJob=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['
 $embeddingReplay=$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1);
 $check(($embeddingJob['created']??false)===true&&($embeddingReplay['created']??true)===false
     &&$embeddingJob['job_id']===$embeddingReplay['job_id'],'semantic memory enqueue was not idempotent');
-$embeddingProvider=new class implements \LORKHANserver\Application\EmbeddingProvider {
+$embeddingProvider=new class implements \LorkhanServer\Application\EmbeddingProvider {
     public int $calls=0;
-    public function embed(string $text,\LORKHANserver\Application\CancellationToken $cancellation):array{
+    public function embed(string $text,\LorkhanServer\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
         if($text==='')throw new RuntimeException('missing embedding input');
         return[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0];
     }
     public function model():string{return'test-minime-v1';}
 };
-$embeddingRegistry=new JobHandlerRegistry([new \LORKHANserver\Application\MemoryEmbedJobHandler($embeddingRepository,
+$embeddingRegistry=new JobHandlerRegistry([new \LorkhanServer\Application\MemoryEmbedJobHandler($embeddingRepository,
     new ProviderAttemptRepository($db),$embeddingProvider)]);
 $embeddingStats=(new Worker($jobs,$embeddingRegistry,'semantic-memory',5,1,1,0,10,['memory.embed'],
     static fn(int $microseconds):mixed=>null))->run();
@@ -1461,7 +1461,7 @@ $check($embeddingStats['succeeded']===1&&$embeddingProvider->calls===1&&(int)$st
     &&$embeddingRepository->enqueue($legacyInstallation,$summaryMemory['memory_id'],1)===null,
     'semantic memory worker did not persist one frozen revision projection');
 $products->updateMemory($summaryMemory['memory_id'],'Semantic revision changed.',['semantic','revision'],
-    \LORKHANserver\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
+    \LorkhanServer\Application\DeterministicRetrieval::fakeVector('Semantic revision changed.'),$clock->iso());
 $queuedRevision=(int)$db->query("SELECT count(*) FROM durable_jobs WHERE job_type='memory.embed' AND state='queued' "
     ."AND payload->>'memory_id'='{$summaryMemory['memory_id']}' AND payload->>'memory_revision'='2'")->fetchColumn();
 $embeddingPolicyContent['enabled']=false;
@@ -1482,7 +1482,7 @@ $check((int)$db->query('SELECT count(*) FROM memory_embeddings')->fetchColumn()=
 $db->rollBack();
 
 $translationPolicy=$service->createRevisioned('translation_policy',['installation_id'=>$legacyInstallation,
-    'name'=>'NPC Output Translation','content'=>\LORKHANserver\Application\TranslationPolicy::defaults()]);
+    'name'=>'NPC Output Translation','content'=>\LorkhanServer\Application\TranslationPolicy::defaults()]);
 $check(($translationPolicy['current_revision']??null)===1
     &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
     'revisioned translation policy was not persisted as one installation-scoped document');

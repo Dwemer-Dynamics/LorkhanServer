@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
 /** Routes opt-in narration and keeps disabled stage directions out of speech. */
 final class InlineNarrationRouter

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Infrastructure\JobRepository;
+use LorkhanServer\Infrastructure\JobRepository;
 use Throwable;
 
 final class Worker

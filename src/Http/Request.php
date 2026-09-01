@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Http;
+namespace LorkhanServer\Http;
 
 final readonly class Request
 {

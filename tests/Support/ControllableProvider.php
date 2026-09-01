@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Tests\Support;
+namespace LorkhanServer\Tests\Support;
 
-use LORKHANserver\Application\CancellationToken;
-use LORKHANserver\Application\MockProvider;
-use LORKHANserver\Application\Provider;
+use LorkhanServer\Application\CancellationToken;
+use LorkhanServer\Application\MockProvider;
+use LorkhanServer\Application\Provider;
 use RuntimeException;
 
 final class ControllableProvider implements Provider

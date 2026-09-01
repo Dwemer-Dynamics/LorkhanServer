@@ -5,7 +5,7 @@
 # Required-Stop:     $network $postgresql
 # Default-Start:     2 3 4 5
 # Default-Stop:      0 1 6
-# Short-Description: LORKHANserver durable job worker
+# Short-Description: LorkhanServer durable job worker
 ### END INIT INFO
 
 set -eu
@@ -27,7 +27,7 @@ case "${1:-}" in
         rm -f "$pidfile"
         start-stop-daemon --start --quiet --background --make-pidfile \
             --pidfile "$pidfile" --chuid lorkhan:lorkhan \
-            --chdir /var/www/LORKHANserver/current --startas "$daemon" \
+            --chdir /var/www/LorkhanServer/current --startas "$daemon" \
             --output "$logfile"
         ;;
     stop)

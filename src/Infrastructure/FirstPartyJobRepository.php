@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\DeterministicRetrieval;
+use LorkhanServer\Application\DeterministicRetrieval;
 use PDO;
 use RuntimeException;
 
@@ -161,7 +161,7 @@ final class FirstPartyJobRepository
         // Provenance lists every input; only this separate content proof survives summary truncation.
         $completeSources = [];
         foreach ($rows as $row) {
-            if (\LORKHANserver\Application\MemoryPromptSelection::covers($content, (string) $row['content'])) $completeSources[] = (string) $row['memory_id'];
+            if (\LorkhanServer\Application\MemoryPromptSelection::covers($content, (string) $row['content'])) $completeSources[] = (string) $row['memory_id'];
         }
         $utc = new \DateTimeZone('UTC');
         $sourceFrom = (new \DateTimeImmutable((string) $rows[0]['occurred_at']))->setTimezone($utc)->format('Y-m-d\TH:i:s\Z');

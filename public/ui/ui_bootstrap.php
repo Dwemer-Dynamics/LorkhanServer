@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\ManagementRepository;
-use LORKHANserver\Infrastructure\ManagementUiRepository;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Security\BrowserSession;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\ManagementRepository;
+use LorkhanServer\Infrastructure\ManagementUiRepository;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Security\BrowserSession;
 
 $applicationRoot = dirname(__DIR__, 2);
 require_once $applicationRoot . '/src/Autoload.php';
@@ -31,8 +31,8 @@ try {
     $managementRepository = new ManagementRepository($database);
     $uiRepository = new ManagementUiRepository($database);
     $productRepository = new ProductRepository($database);
-    $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/LORKHANserver/manage'), '/');
-    $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/LORKHANserver';
+    $managementBasePath = rtrim((string) ($config['management_base_path'] ?? '/LorkhanServer/manage'), '/');
+    $webRoot = preg_replace('#/manage$#', '', $managementBasePath) ?: '/LorkhanServer';
     $sessionTtl = (int) ($config['browser_session_ttl_seconds'] ?? 3600);
 
     $cookieHeader = $_SERVER['HTTP_COOKIE'] ?? null;
@@ -51,7 +51,9 @@ try {
     header('Set-Cookie: lorkhan_csrf=; Path=' . $managementBasePath . '; Max-Age=0; SameSite=Strict', false);
 
     header('Content-Type: text/html; charset=utf-8');
-    header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
+    // media-src covers audio the page builds in memory, such as the TTS Studio pronunciation
+    // preview, which fetches bytes over connect-src and plays them from a blob: object URL.
+    header("Content-Security-Policy: default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; media-src 'self' blob:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'");
     header('X-Content-Type-Options: nosniff');
     header('Referrer-Policy: no-referrer');
 } catch (Throwable) {
@@ -61,7 +63,7 @@ try {
     $scriptPath = (string) ($_SERVER['SCRIPT_NAME'] ?? '');
     $uiOffset = strpos($scriptPath, '/ui/');
     $assetRoot = htmlspecialchars(
-        $uiOffset === false ? '/LORKHANserver' : substr($scriptPath, 0, $uiOffset),
+        $uiOffset === false ? '/LorkhanServer' : substr($scriptPath, 0, $uiOffset),
         ENT_QUOTES | ENT_SUBSTITUTE,
         'UTF-8'
     );
@@ -80,7 +82,7 @@ try {
     echo '<link rel="stylesheet" href="' . $assetRoot . '/ui/css/chim-theme.css">';
     echo '</head><body class="lorkhan-outage"><main class="lorkhan-outage-panel">';
     echo '<img class="lorkhan-outage-mark" src="' . $assetRoot . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="" aria-hidden="true">';
-    echo '<h1>LORKHANserver is unavailable</h1>';
+    echo '<h1>LorkhanServer is unavailable</h1>';
     echo '<p>Check the local server configuration and database service.</p>';
     echo '</main></body></html>';
     exit;

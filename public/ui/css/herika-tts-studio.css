@@ -142,32 +142,30 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 
 /* Pronunciation dictionary: compact CHIM-style rows kept on the LORKHAN gold/blue palette. */
 .tts-studio-page .pron-section :focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
-.tts-studio-page .pron-subhead { margin: 24px 0 6px; color: #f5f1e8; font: 400 1.25em/1.2 MagicCards, serif; word-spacing: 6px; }
-.tts-studio-page .pron-subhead:first-of-type { margin-top: 18px; }
 .tts-studio-page .pron-intro-list { margin: 10px 0 0; padding-left: 20px; color: #aeb8c4; font-size: .92em; }
 .tts-studio-page .pron-intro-list li { margin-bottom: 4px; }
 .tts-studio-page .pron-intro-list strong { color: #cfd8e3; }
-.tts-studio-page .pron-hint { margin: 0 0 10px; color: #8b98a8 !important; font-size: 12px; line-height: 1.45; }
 .tts-studio-page .pron-count { display: block; margin: 4px 0 0; color: #8b98a8 !important; font-size: 12px; }
 .tts-studio-page .pron-label,
-.tts-studio-page .pron-result-label,
 .tts-studio-page .pron-static-label,
 .tts-studio-page .pron-toggle-label { display: block; margin-bottom: 5px; color: #cfd8e3; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 .tts-studio-page .pron-field { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; font-family: inherit; font-size: 14px; }
-.tts-studio-page textarea.pron-field { min-height: 56px; resize: vertical; }
 .tts-studio-page .pron-field:focus { border-color: rgba(188, 157, 90, .8); }
 
 .tts-studio-page .pron-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 0; }
 .tts-studio-page .pron-toolbar-field { min-width: 220px; }
 .tts-studio-page .pron-clear-filter { padding-bottom: 9px; color: #93c5fd; font-size: 13px; }
 
-.tts-studio-page .pron-preview { display: flex; flex-wrap: wrap; gap: 10px 12px; align-items: flex-end; margin: 0; padding: 10px 12px; border: 1px solid #414141; border-radius: 7px; background: #202020; }
-.tts-studio-page .pron-preview-field { flex: 1 1 320px; min-width: 0; }
-.tts-studio-page .pron-preview-actions { flex: 0 0 auto; }
-.tts-studio-page .pron-preview-result { display: grid; grid-template-columns: 1fr 1fr; gap: 10px 14px; margin-top: 10px; padding: 10px 12px; border: 1px solid #4a8ab6; border-radius: 7px; background: rgba(74, 138, 182, .1); }
-.tts-studio-page .pron-preview-result > div { min-width: 0; }
-.tts-studio-page .pron-preview-result .pron-static { margin: 0; }
-.tts-studio-page .pron-static-spoken { color: rgb(188, 157, 90) !important; }
+/* Compact preview strip: connector, voice, and one shared player for the whole page. */
+.tts-studio-page .pron-preview { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: flex-end; margin: 14px 0 0; padding: 10px 12px; border: 1px solid #414141; border-radius: 7px; background: #202020; }
+.tts-studio-page .pron-preview-caption { align-self: flex-end; margin: 0; padding-bottom: 9px; color: #cfd8e3 !important; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; white-space: nowrap; }
+.tts-studio-page .pron-preview-field { flex: 1 1 170px; min-width: 0; max-width: 250px; }
+.tts-studio-page .pron-preview-player { flex: 1 1 210px; min-width: 0; max-width: 320px; }
+.tts-studio-page .pron-preview-field .pron-label,
+.tts-studio-page .pron-preview-player .pron-label { margin-bottom: 4px; }
+.tts-studio-page .pron-preview-audio { display: block; width: 100%; max-width: 100%; height: 32px; }
+.tts-studio-page .pron-preview-status { flex: 1 1 100%; min-height: 16px; margin: 0; color: #8b98a8 !important; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+.tts-studio-page .pron-preview.is-unavailable .pron-preview-status { color: #f0ad4e !important; }
 
 .tts-studio-page .pron-cols { display: grid; align-items: center; gap: 10px; padding: 10px 12px; grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(200px, 1.6fr) minmax(112px, .8fr) 150px; }
 .tts-studio-page .pron-add-row { align-items: start; margin: 0; padding: 0; }
@@ -201,6 +199,23 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .pron-toggle input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: rgb(188, 157, 90); cursor: pointer; }
 .tts-studio-page .pron-actions { display: flex; flex-wrap: wrap; gap: 6px; }
 .tts-studio-page .pron-btn { min-height: 32px; margin: 0 !important; padding: 6px 12px !important; font-size: 13px; }
+/* The play control shares its cell with the text it speaks, so it stays square and small
+   enough not to change any row height. */
+.tts-studio-page .pron-input-row,
+.tts-studio-page .pron-static-row { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.tts-studio-page .pron-input-row .pron-field,
+.tts-studio-page .pron-static-row .pron-static { flex: 1 1 auto; min-width: 0; }
+.tts-studio-page .pron-play { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px !important; min-height: 30px !important; margin: 0 !important; padding: 0 !important; border: 1px solid #4d4d4d !important; border-radius: 5px !important; background: #2f2f2f !important; }
+.tts-studio-page .pron-play:hover:not(:disabled) { border-color: rgba(188, 157, 90, .6) !important; background: #383838 !important; }
+.tts-studio-page .pron-play-icon { display: block; width: 0; height: 0; margin-left: 2px; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent rgb(188, 157, 90); }
+/* A busy control stays disabled, so opt out of the theme's dimmed disabled look and swap the
+   triangle for a pulsing block instead. */
+.tts-studio-page .pron-play.is-busy:disabled { filter: none !important; opacity: 1 !important; }
+.tts-studio-page .pron-play.is-busy .pron-play-icon { width: 9px; height: 9px; margin-left: 0; border: 0; border-radius: 2px; background: rgb(188, 157, 90); animation: pron-play-pulse .9s ease-in-out infinite; }
+/* The icon carries no text, so the button keeps a screen-reader-only name. */
+.tts-studio-page .pron-play-text { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+@keyframes pron-play-pulse { 0%, 100% { opacity: .35; } 50% { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .tts-studio-page .pron-play.is-busy .pron-play-icon { animation: none; opacity: .75; } }
 /* Column headers already name each grid cell, so per-row labels stay screen-reader only until the grid stacks. */
 .tts-studio-page .pron-grid .pron-label,
 .tts-studio-page .pron-grid .pron-static-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -216,9 +231,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
     .tts-studio-page .pron-add-row .pron-toggle,
     .tts-studio-page .pron-add-row .pron-actions { margin-top: 0; }
     .tts-studio-page .pron-preview-field,
-    .tts-studio-page .pron-preview-actions { flex: 1 1 100%; }
+    .tts-studio-page .pron-preview-player { flex: 1 1 100%; max-width: none; }
     .tts-studio-page .pron-toolbar-field { min-width: 0; width: 100%; }
-    .tts-studio-page .pron-preview-result { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 480px) {

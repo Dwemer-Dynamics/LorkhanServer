@@ -7,10 +7,10 @@ if [[ ${EUID} -ne 0 ]]; then
 fi
 
 source_root=${1:-}
-target_root=/var/www/html/LORKHANserver
+target_root=/var/www/html/LorkhanServer
 http_port=${LORKHAN_HTTP_PORT:-8090}
 if [[ -z ${source_root} || ${source_root} != /* || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
-    echo "Usage: scripts/deploy-local-wsl.sh <absolute-LORKHANserver-source-path>" >&2
+    echo "Usage: scripts/deploy-local-wsl.sh <absolute-LorkhanServer-source-path>" >&2
     exit 2
 fi
 
@@ -72,9 +72,9 @@ install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
 find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
 
-stage_root=$(mktemp -d /var/www/html/.LORKHANserver-stage.XXXXXX)
+stage_root=$(mktemp -d /var/www/html/.LorkhanServer-stage.XXXXXX)
 cleanup_stage() {
-    if [[ -n ${stage_root:-} && ${stage_root} == /var/www/html/.LORKHANserver-stage.* ]]; then
+    if [[ -n ${stage_root:-} && ${stage_root} == /var/www/html/.LorkhanServer-stage.* ]]; then
         rm -rf -- "${stage_root}"
     fi
 }
@@ -120,7 +120,7 @@ fi
 sed \
     -e "s/@WSL_GATEWAY@/${gateway}/g" \
     -e "s/@LORKHAN_HTTP_PORT@/${http_port}/g" \
-    -e 's#/var/www/LORKHANserver/current#/var/www/html/LORKHANserver#g' \
+    -e 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
     "${target_root}/deploy/apache/lorkhanserver.conf" \
     > /etc/apache2/sites-available/lorkhanserver.conf
 chmod 0644 /etc/apache2/sites-available/lorkhanserver.conf
@@ -133,7 +133,7 @@ service apache2 restart
 
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    sed 's#/var/www/LORKHANserver/current#/var/www/html/LORKHANserver#g' \
+    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
         "${target_root}/deploy/systemd/lorkhanserver-worker.service" \
         > /etc/systemd/system/lorkhanserver-worker.service
     install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.timer" \
@@ -149,11 +149,11 @@ else
         command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
     done
     install -d -m 0755 /usr/local/libexec
-    sed 's#/var/www/LORKHANserver/current#/var/www/html/LORKHANserver#g' \
+    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
         "${target_root}/deploy/sysv/lorkhanserver-worker-loop" \
         > /usr/local/libexec/lorkhanserver-worker-loop
     chmod 0755 /usr/local/libexec/lorkhanserver-worker-loop
-    sed 's#/var/www/LORKHANserver/current#/var/www/html/LORKHANserver#g' \
+    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
         "${target_root}/deploy/sysv/lorkhanserver-worker" \
         > /etc/init.d/lorkhanserver-worker
     chmod 0755 /etc/init.d/lorkhanserver-worker
@@ -168,13 +168,13 @@ else
     service lorkhanserver-worker status >/dev/null
 fi
 
-health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health")
+health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health")
 if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
     echo "Unexpected health response." >&2
     exit 1
 fi
 
 echo "Deployed ${target_root}"
-echo "Health: http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health"
-echo "Management: http://127.0.0.1:${http_port}/LORKHANserver/manage"
+echo "Health: http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health"
+echo "Management: http://127.0.0.1:${http_port}/LorkhanServer/manage"
 echo "Persistent database, media, logs, and secrets were preserved."

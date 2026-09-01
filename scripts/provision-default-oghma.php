@@ -3,8 +3,8 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\OghmaCatalogImporter;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Tests\Support;
+namespace LorkhanServer\Tests\Support;
 
 use RuntimeException;
 

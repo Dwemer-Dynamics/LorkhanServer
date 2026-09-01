@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Application;
+namespace LorkhanServer\Application;
 
-use LORKHANserver\Security\OutboundUrlPolicy;
+use LorkhanServer\Security\OutboundUrlPolicy;
 use RuntimeException;
 
 /** OpenAI-compatible chat-completions adapter with a strict JSON response contract. */

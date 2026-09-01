@@ -1,4 +1,4 @@
-# LORKHANserver implementation ledger
+# LorkhanServer implementation ledger
 
 Recorded baseline: 2026-07-19. Updated parity/CI audit: 2026-08-09. `AUTOMATED` means a repeatable local or CI no-game check passed. `PLANNED` means required implementation/proof is not complete. `EXTERNAL-DEFERRED` requires an unavailable external environment. `EXCLUDED` is a closed product boundary.
 

@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\MorrowindVoiceCatalog;
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\ProductRepository;
+use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\ProductRepository;
 
 require dirname(__DIR__).'/src/Autoload.php';
 

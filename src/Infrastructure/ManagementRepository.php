@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Http\Request;
-use LORKHANserver\Security\BrowserSession;
-use LORKHANserver\Security\RequestMac;
+use LorkhanServer\Http\Request;
+use LorkhanServer\Security\BrowserSession;
+use LorkhanServer\Security\RequestMac;
 use PDO;
 use RuntimeException;
 
@@ -28,6 +28,26 @@ final class ManagementRepository
     }
 
     public function revoke(string $session):void{$this->db->prepare('UPDATE browser_sessions SET revoked_at=clock_timestamp() WHERE session_hash=:session')->execute(['session'=>BrowserSession::hash($session)]);}
+
+    /** Atomically admit at most one bounded number of TTS previews per browser-session window. */
+    public function allowTtsPreview(string $session,int $limit=30,int $windowSeconds=60):bool
+    {
+        $statement=$this->db->prepare("UPDATE browser_sessions SET
+                tts_preview_count=CASE WHEN tts_preview_window_started_at IS NULL
+                    OR tts_preview_window_started_at<=clock_timestamp()-make_interval(secs=>:window_reset)
+                    THEN 1 ELSE tts_preview_count+1 END,
+                tts_preview_window_started_at=CASE WHEN tts_preview_window_started_at IS NULL
+                    OR tts_preview_window_started_at<=clock_timestamp()-make_interval(secs=>:window_start)
+                    THEN clock_timestamp() ELSE tts_preview_window_started_at END
+            WHERE session_hash=:session AND revoked_at IS NULL AND expires_at>clock_timestamp()
+                AND (tts_preview_window_started_at IS NULL
+                    OR tts_preview_window_started_at<=clock_timestamp()-make_interval(secs=>:window_allow)
+                    OR tts_preview_count<:request_limit)
+            RETURNING tts_preview_count");
+        $statement->execute(['window_reset'=>$windowSeconds,'window_start'=>$windowSeconds,'window_allow'=>$windowSeconds,
+            'session'=>BrowserSession::hash($session),'request_limit'=>$limit]);
+        return $statement->fetchColumn()!==false;
+    }
 
     public function rotatePairingToken(string $installationId,string $_unused,int $overlapSeconds):array
     {

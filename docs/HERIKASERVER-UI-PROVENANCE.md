@@ -1,6 +1,6 @@
 # HerikaServer UI provenance
 
-This document records the presentation-only HerikaServer baseline imported for the LORKHANserver
+This document records the presentation-only HerikaServer baseline imported for the LorkhanServer
 management UI rebuild. Herika runtime bootstrap, database access, Skyrim behavior, and provider logic
 are not sources for the LORKHAN implementation.
 
@@ -14,7 +14,7 @@ are not sources for the LORKHAN implementation.
 
 ## Imported files
 
-| HerikaServer source | LORKHANserver destination |
+| HerikaServer source | LorkhanServer destination |
 | --- | --- |
 | `ui/global_settings.php` | `public/ui/global_settings.php` |
 | `ui/core/config_hub.php` | `public/ui/core/config_hub.php` |
@@ -55,7 +55,7 @@ The imported files table records the original Herika import. The brand assets be
 that byte-identical baseline; they were regenerated from Dwemer Dynamics' LORKHAN artwork
 (`icon.png` pictorial mark, `ServerLogo.png` wordmark) and are owned by this project.
 
-| LORKHANserver path | Regenerated from | Notes |
+| LorkhanServer path | Regenerated from | Notes |
 | --- | --- | --- |
 | `public/ui/images/favicon.ico` | `icon.png` | 16/32/48 px, 32-bit BMP entries, alpha preserved |
 | `public/ui/images/lorkhan-logo.png` | `icon.png` | 512x512 RGBA navbar/brand mark; established asset path retained |

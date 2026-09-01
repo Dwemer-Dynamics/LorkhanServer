@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
 use PDO;
 
@@ -351,7 +351,7 @@ SQL);
         return array_map(function (array $row) use ($view): array {
             // Strict LLM documents contain named key references, not secrets. A generic "token"
             // redaction would blank numeric token limits and erase them on the next editor save.
-            if ($view === 'llm') $row['content'] = \LORKHANserver\Application\LlmConnector::validate(
+            if ($view === 'llm') $row['content'] = \LorkhanServer\Application\LlmConnector::validate(
                 json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
             return $this->redactRow($row);
         }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:[]));

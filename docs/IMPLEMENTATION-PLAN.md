@@ -1,4 +1,4 @@
-# LORKHANserver implementation plan
+# LorkhanServer implementation plan
 
 ## Outcome and definition of done
 

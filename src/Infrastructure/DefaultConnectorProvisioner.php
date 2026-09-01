@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\DeterministicClock;
-use LORKHANserver\Application\MorrowindVoiceCatalog;
-use LORKHANserver\Application\ProductService;
+use LorkhanServer\Application\DeterministicClock;
+use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\ProductService;
 use PDO;
 use RuntimeException;
 use Throwable;

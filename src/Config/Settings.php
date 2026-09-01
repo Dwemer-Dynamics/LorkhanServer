@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Config;
+namespace LorkhanServer\Config;
 
 use InvalidArgumentException;
 

@@ -9,7 +9,7 @@ fi
 source_root=${1:-}
 http_port=${LORKHAN_HTTP_PORT:-8090}
 if [[ -z ${source_root} || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
-    echo "Usage: scripts/deploy-wsl.sh <absolute-LORKHANserver-source-path>" >&2
+    echo "Usage: scripts/deploy-wsl.sh <absolute-LorkhanServer-source-path>" >&2
     exit 2
 fi
 
@@ -35,7 +35,7 @@ if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${http_port}$"; then
     fi
 fi
 
-install -d -m 0755 /var/www/LORKHANserver/releases /etc/lorkhanserver
+install -d -m 0755 /var/www/LorkhanServer/releases /etc/lorkhanserver
 getent group lorkhan >/dev/null || groupadd --system lorkhan
 if ! id -u lorkhan >/dev/null 2>&1; then
     useradd --system --gid lorkhan --groups www-data --home-dir /nonexistent --shell /usr/sbin/nologin lorkhan
@@ -55,7 +55,7 @@ find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json'
 install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
 
 release_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "${source_root}" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
-release_dir="/var/www/LORKHANserver/releases/${release_id}"
+release_dir="/var/www/LorkhanServer/releases/${release_id}"
 if [[ -e ${release_dir} ]]; then
     echo "Release already exists: ${release_dir}" >&2
     exit 1
@@ -63,7 +63,7 @@ fi
 install -d -m 0755 "${release_dir}"
 release_committed=false
 cleanup_failed_release() {
-    if [[ ${release_committed} != true && -n ${release_dir:-} && ${release_dir} == /var/www/LORKHANserver/releases/* ]]; then
+    if [[ ${release_committed} != true && -n ${release_dir:-} && ${release_dir} == /var/www/LorkhanServer/releases/* ]]; then
         rm -rf -- "${release_dir}"
     fi
 }
@@ -115,12 +115,12 @@ declare(strict_types=1);
 
 return [
     'environment' => 'production',
-    'base_path' => '/LORKHANserver/api/v1',
+    'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
     'database_user' => 'lorkhan_runtime',
     'database_password' => trim((string) file_get_contents('/etc/lorkhanserver/database-password')),
     'pairing_token_hash' => trim((string) file_get_contents('/etc/lorkhanserver/pairing-token-hash')),
-    'management_base_path' => '/LORKHANserver/manage',
+    'management_base_path' => '/LorkhanServer/manage',
     'management_secret_hash' => trim((string) file_get_contents('/etc/lorkhanserver/management-secret-hash')),
     'browser_session_ttl_seconds' => 3600,
     'max_json_bytes' => 2 * 1024 * 1024,
@@ -187,8 +187,8 @@ LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provisi
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/backfill-morrowind-localities.php"
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-oghma.php"
 
-ln -sfn "${release_dir}" /var/www/LORKHANserver/current.next
-mv -Tf /var/www/LORKHANserver/current.next /var/www/LORKHANserver/current
+ln -sfn "${release_dir}" /var/www/LorkhanServer/current.next
+mv -Tf /var/www/LorkhanServer/current.next /var/www/LorkhanServer/current
 release_committed=true
 gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
 if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
@@ -218,7 +218,7 @@ if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     systemctl start --no-block lorkhanserver-worker.service
     if [[ $(systemctl is-enabled lorkhanserver-worker.timer) != enabled \
         || $(systemctl is-active lorkhanserver-worker.timer) != active ]]; then
-        echo "LORKHANserver worker timer did not become active." >&2
+        echo "LorkhanServer worker timer did not become active." >&2
         exit 1
     fi
 else
@@ -235,13 +235,13 @@ else
     service lorkhanserver-worker status >/dev/null
 fi
 
-health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health")
+health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health")
 if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
     echo "Unexpected health response." >&2
     exit 1
 fi
 
 echo "Deployed ${release_dir}"
-echo "Health: http://127.0.0.1:${http_port}/LORKHANserver/api/v1/health"
-echo "Management: http://127.0.0.1:${http_port}/LORKHANserver/manage"
+echo "Health: http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health"
+echo "Management: http://127.0.0.1:${http_port}/LorkhanServer/manage"
 echo "Local secrets remain in /etc/lorkhanserver and were not printed."

@@ -1,7 +1,7 @@
 <?php
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
 use RuntimeException;
 

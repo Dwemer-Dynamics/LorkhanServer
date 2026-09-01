@@ -3,14 +3,14 @@
 
 declare(strict_types=1);
 
-use LORKHANserver\Application\FirstPartyJobHandlerFactory;
-use LORKHANserver\Application\Provider;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Application\SpeechProvider;
-use LORKHANserver\Application\Worker;
-use LORKHANserver\Infrastructure\Connection;
-use LORKHANserver\Infrastructure\JobRepository;
-use LORKHANserver\Infrastructure\MediaStore;
+use LorkhanServer\Application\FirstPartyJobHandlerFactory;
+use LorkhanServer\Application\Provider;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Application\SpeechProvider;
+use LorkhanServer\Application\Worker;
+use LorkhanServer\Infrastructure\Connection;
+use LorkhanServer\Infrastructure\JobRepository;
+use LorkhanServer\Infrastructure\MediaStore;
 
 require dirname(__DIR__) . '/src/Autoload.php';
 

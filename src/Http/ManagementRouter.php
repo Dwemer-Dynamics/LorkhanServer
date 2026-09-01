@@ -2,24 +2,25 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Http;
+namespace LorkhanServer\Http;
 
-use LORKHANserver\Application\DeterministicRetrieval;
-use LORKHANserver\Application\ConnectorCatalog;
-use LORKHANserver\Application\EffectiveSettingsResolver;
-use LORKHANserver\Application\LlmConnector;
-use LORKHANserver\Application\NeverCancelledToken;
-use LORKHANserver\Application\PlayerMoodPolicy;
-use LORKHANserver\Application\ProductService;
-use LORKHANserver\Application\Provider;
-use LORKHANserver\Application\ProviderFactory;
-use LORKHANserver\Application\TranslationPolicy;
-use LORKHANserver\Infrastructure\ManagementRepository;
-use LORKHANserver\Infrastructure\EventLogRepository;
-use LORKHANserver\Infrastructure\OghmaCatalogImporter;
-use LORKHANserver\Infrastructure\ProductRepository;
-use LORKHANserver\Infrastructure\Uuid;
-use LORKHANserver\Security\BrowserSession;
+use LorkhanServer\Application\DeterministicRetrieval;
+use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\EffectiveSettingsResolver;
+use LorkhanServer\Application\LlmConnector;
+use LorkhanServer\Application\NeverCancelledToken;
+use LorkhanServer\Application\PlayerMoodPolicy;
+use LorkhanServer\Application\ProductService;
+use LorkhanServer\Application\Provider;
+use LorkhanServer\Application\ProviderFactory;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\TranslationPolicy;
+use LorkhanServer\Infrastructure\ManagementRepository;
+use LorkhanServer\Infrastructure\EventLogRepository;
+use LorkhanServer\Infrastructure\OghmaCatalogImporter;
+use LorkhanServer\Infrastructure\ProductRepository;
+use LorkhanServer\Infrastructure\Uuid;
+use LorkhanServer\Security\BrowserSession;
 use InvalidArgumentException;
 use RuntimeException;
 use Throwable;
@@ -27,6 +28,9 @@ use Throwable;
 final class ManagementRouter
 {
     private const PAGES=['quickstart','roleplay','configuration','control-panel','characters','profiles','player','npc-biographies','providers','ai-voice','prompts-actions','action-editor','world','descriptions','traces','memory','relationships','knowledge','playthroughs','narrative-autonomy','jobs','response-queue','oghma-audit','provider-usage','cache','backup-health','database-manager','server-logs','diagnostics','game-debug'];
+    /** One pronunciation term never needs a long clip, so an oversized answer is treated as a failure. */
+    private const MAX_PREVIEW_AUDIO_BYTES=8_388_608;
+    private const PREVIEW_AUDIO_MIME_TYPES=['audio/wav','audio/mpeg','audio/ogg','audio/webm','audio/flac','audio/mp4'];
     private const BIOGRAPHY_CSV_HEADER=['content_file','record_id','name','core','biography','appearance','personality',
         'relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race'];
     private const UI_PAGES=[
@@ -68,7 +72,7 @@ final class ManagementRouter
     ];
 
     public function __construct(private readonly ManagementRepository $management,private readonly ProductRepository $repository,
-        private readonly ProductService $service,private readonly string $basePath='/LORKHANserver/manage',
+        private readonly ProductService $service,private readonly string $basePath='/LorkhanServer/manage',
         private readonly int $maxJsonBytes=2_097_152,private readonly int $sessionTtl=3600,
         private readonly array $providerConfig=[],private readonly ?EventLogRepository $eventLogRepository=null,
         private readonly ?OghmaCatalogImporter $oghmaCatalogImporter=null){ }
@@ -98,7 +102,7 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['lorkhan_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','lorkhan_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
-            if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path);
+            if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path,$session);
             if($r->method==='POST'&&preg_match('#^/forms/([a-z-]+)$#D',$path,$m))return$this->submit($m[1],$r);
             throw new RuntimeException('not_found');
         }catch(InvalidArgumentException $e){return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),422):Response::json(422,['error'=>$e->getMessage()]);}
@@ -114,7 +118,7 @@ final class ManagementRouter
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
-    private function api(Request $r,string $path):Response
+    private function api(Request $r,string $path,string $browserSession):Response
     {
         if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
@@ -165,6 +169,7 @@ final class ManagementRouter
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
         }
+        if($r->method==='POST'&&$path==='/api/v1/tts-previews')return$this->speechPreview($this->json($r),$browserSession);
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/action-policies/editor')return Response::json(200,$this->actionPolicyEditor($r));
         if($r->method==='POST'&&$path==='/api/v1/action-policies/revisions')return Response::json(200,$this->saveActionPolicyRevision($this->json($r)));
@@ -1268,7 +1273,7 @@ final class ManagementRouter
         $memoryPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_policy')continue;
-            \LORKHANserver\Application\MemorySummaryPolicy::validate($row['content']);
+            \LorkhanServer\Application\MemorySummaryPolicy::validate($row['content']);
             $provider=$row['content']['provider_configuration_id'];
             if(++$memoryPolicies>1||$row['profile_id']!==null
                 ||($provider!==''&&($configurationKinds[$provider]??null)!=='provider'))throw new RuntimeException('backup_integrity_failed');
@@ -1276,7 +1281,7 @@ final class ManagementRouter
         $embeddingPolicies=0;
         foreach($data['configurations']as$row){
             if($row['kind']!=='memory_embedding_policy')continue;
-            \LORKHANserver\Application\MemoryEmbeddingPolicy::validate($row['content']);
+            \LorkhanServer\Application\MemoryEmbeddingPolicy::validate($row['content']);
             if(++$embeddingPolicies>1||$row['profile_id']!==null)throw new RuntimeException('backup_integrity_failed');
         }
         $translationPolicies=0;
@@ -1402,8 +1407,8 @@ final class ManagementRouter
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $timeout=filter_var($values['timeout_ms']??null,FILTER_VALIDATE_INT);
         if($timeout===false)throw new InvalidArgumentException('invalid_memory_embedding_timeout');
-        $content=\LORKHANserver\Application\MemoryEmbeddingPolicy::validate([
-            'schema'=>\LORKHANserver\Application\MemoryEmbeddingPolicy::SCHEMA,
+        $content=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate([
+            'schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
             'enabled'=>isset($values['enabled']),'endpoint'=>trim((string)($values['endpoint']??'')),
             'timeout_ms'=>$timeout,
         ]);
@@ -1743,6 +1748,49 @@ final class ManagementRouter
         return trim((string)$result['text']).' ('.(int)round((microtime(true)-$started)*1000).' ms)';
     }
 
+    /** List the connector and installed-voice choices the pronunciation preview strip may offer. */
+    private function speechPreviewOptions(string $installation):array
+    {
+        $narrator=$this->repository->narratorProfileForInstallation($installation);
+        return SpeechPreviewCatalog::options($this->repository->listRevisioned('tts_provider',$installation),
+            $this->repository->connectorVoiceCatalog(),(string)($this->providerConfig['voice_storage_path']??''),
+            (string)($this->repository->connectorForInstallation($installation,'tts_provider')['configuration_id']??''),
+            SpeechPreviewCatalog::narratorVoice($narrator),SpeechPreviewCatalog::narratorConnector($narrator));
+    }
+
+    /**
+     * Speak exactly one bounded pronunciation field with an explicitly chosen connector and voice.
+     * Nothing is queued, stored, or logged: the audio is streamed straight back to the browser and
+     * any provider failure collapses into one opaque code so credentials never reach the page.
+     */
+    private function speechPreview(array $values,string $browserSession):Response
+    {
+        if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'tts_preview_rate_limited']);
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
+        $text=trim((string)($values['text']??''));
+        if($text===''||!mb_check_encoding($text,'UTF-8')||mb_strlen($text,'UTF-8')>SpeechPreviewCatalog::MAX_TEXT_LENGTH
+            ||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$text)===1)throw new InvalidArgumentException('invalid_tts_preview_text');
+        $voice=trim((string)($values['voice']??''));
+        $options=$this->speechPreviewOptions($installation);
+        $offered=array_column($options['connectors'],'voices','id');
+        if(!isset($offered[$configuration]))throw new InvalidArgumentException('invalid_tts_preview_connector');
+        // A voice is only accepted for the connector that actually lists it, so a local sample
+        // name can never be posted to a provider that needs its own voice id.
+        if(!in_array($voice,$offered[$configuration],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
+        $preset=$this->repository->getRevisioned('tts_provider',$configuration);
+        if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        try{
+            $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)
+                ->synthesize($text,new NeverCancelledToken(),['voice'=>$voice]);
+            $bytes=(string)($audio['bytes']??'');
+            if($bytes===''||strlen($bytes)>self::MAX_PREVIEW_AUDIO_BYTES)throw new RuntimeException('tts_preview_failed');
+        }catch(Throwable){return Response::json(502,['error'=>'tts_preview_failed']);}
+        $mime=(string)($audio['mime_type']??'');
+        if(!in_array($mime,self::PREVIEW_AUDIO_MIME_TYPES,true))$mime='application/octet-stream';
+        return new Response(200,$bytes,['Content-Type'=>$mime,'Content-Disposition'=>'inline','X-Content-Type-Options'=>'nosniff']);
+    }
+
     /** Exercise one saved LLM model slot without persisting the fixed diagnostic turn or its response. */
     private function testProvider(array $values):string
     {
@@ -1906,7 +1954,7 @@ final class ManagementRouter
         if(!is_file($articles)||!is_file($manifest))throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
         return$importer->apply($articles,$manifest,$version);
     }
-    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LORKHANserver';}
+    private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LorkhanServer';}
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/');}

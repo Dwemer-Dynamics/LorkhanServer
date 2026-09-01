@@ -72,7 +72,7 @@ foreach ([$configPath, $workerPath, $apachePath] as $path) {
 }
 
 $config = require $configPath;
-if (!is_array($config)) throw new RuntimeException('LORKHAN server configuration is invalid.');
+if (!is_array($config)) throw new RuntimeException('LorkhanServer configuration is invalid.');
 $config['provider'] = [
     'driver' => 'openai-compatible',
     'endpoint' => $endpoint,

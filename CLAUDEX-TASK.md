@@ -1,4 +1,4 @@
-# Azure Sol assignment: build LORKHANserver
+# Azure Sol assignment: build LorkhanServer
 
 ## Objective
 
@@ -11,7 +11,7 @@ proving the strict `lorkhan.*.v1` contract against the sibling client fake and l
 Do not import source until the parent verifies `RANGROO/SYNTH` and `RANGROO/Synthserver` have met their
 non-game stop conditions. Record their final SHAs, tests, source licenses and provenance first.
 
-- Working repo: `RANGROO/LORKHANserver`; sibling: `RANGROO/LORKHAN`.
+- Working repo: `RANGROO/LorkhanServer`; sibling: `RANGROO/LORKHAN`.
 - Direct seed: final tested `RANGROO/Synthserver` main SHA.
 - Reference server: `Dwemer-Dynamics/DialecticServer@f447a9c6b59bfc689c788fb0139a0d13c6c6dc51`.
 - Lineage/design: `abeiro/HerikaServer@0dbfa3eb4d3197d8159b5ff2c77bfdb5bf98b4d0`.

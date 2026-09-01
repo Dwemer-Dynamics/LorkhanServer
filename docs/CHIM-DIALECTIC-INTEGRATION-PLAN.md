@@ -1,4 +1,4 @@
-# LORKHANserver CHIM/Dialectic integration plan
+# LorkhanServer CHIM/Dialectic integration plan
 
 Status: finalized long-running server and data plan, audited and user-confirmed 2026-08-09.
 

@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace LORKHANserver\Http;
+namespace LorkhanServer\Http;
 
 final class ManagementView
 {
@@ -70,7 +70,7 @@ final class ManagementView
 
     private function document(string $title, string $body): string
     {
-        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LORKHANserver';
+        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LorkhanServer';
         return '<!doctype html><html lang="en" data-bs-theme="dark"><head><meta charset="utf-8">'
             . '<meta name="viewport" content="width=device-width, initial-scale=1"><meta name="theme-color" content="#111111">'
             . '<title>' . $this->e($title) . '</title>'
@@ -88,7 +88,7 @@ final class ManagementView
     private function navbar(string $slug): string
     {
         $activeSection = self::SECTIONS[$slug] ?? '';
-        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LORKHANserver';
+        $root = preg_replace('#/manage$#', '', $this->basePath) ?: '/LorkhanServer';
         $items = '';
         foreach (self::MENU as $section => $item) {
             $active = $section === $activeSection;
@@ -107,7 +107,7 @@ final class ManagementView
         return '<div class="lorkhan-navbar-wrapper"><nav class="navbar navbar-expand-lg lorkhan-navbar" aria-label="Product">'
             . '<div class="container-fluid mx-1"><div class="navbar-content-wrapper"><div class="navbar-center dropdown">'
             . '<button class="navbar-brand Title btn btn-link p-0 dropdown-toggle" type="button" data-bs-toggle="dropdown" data-bs-auto-close="true" data-bs-display="static" aria-expanded="false" title="Open menu">'
-            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="LORKHAN Server">'
+            . '<img class="brand-mark-img" src="' . $this->e($root) . '/ui/images/lorkhan-logo.png" width="512" height="512" alt="LorkhanServer">'
             . '<img class="brand-wordmark-img" src="' . $this->e($root) . '/ui/images/serverlogo.png" width="103" height="42" alt="" aria-hidden="true"></button>'
             . '<ul class="dropdown-menu brand-menu">' . $items . '</ul></div></div></div></nav></div>';
     }

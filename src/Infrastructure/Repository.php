@@ -1,9 +1,9 @@
 <?php
 declare(strict_types=1);
 
-namespace LORKHANserver\Infrastructure;
+namespace LorkhanServer\Infrastructure;
 
-use LORKHANserver\Application\ActionPolicyValidator;
+use LorkhanServer\Application\ActionPolicyValidator;
 use PDO;
 use Throwable;
 
@@ -352,7 +352,7 @@ final class Repository
             }
             if ($validatedDirectAction !== null) {
                 $canonical = $this->validatedCanonicalResponse(
-                    (new \LORKHANserver\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
+                    (new \LorkhanServer\Application\CanonicalResponseNormalizer())->actionOnly($m, $validatedDirectAction));
                 $actionLine = $canonical['lines'][0];
                 $this->event($m['session_id'],$m['generation'],$m['request_id'],$m['turn_id'],
                     'response.complete',$canonical,$canonical['response_id']);
@@ -511,7 +511,7 @@ final class Repository
     public function appendStreamedDialogue(array $m, string $text, array $fence, int $index): array
     {
         if ($text === '' || strlen($text) > 16_384 || !mb_check_encoding($text, 'UTF-8')
-            || $index < 1 || $index > \LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES) {
+            || $index < 1 || $index > \LorkhanServer\Application\DialoguePlanner::MAX_UTTERANCES) {
             throw new \DomainException('provider_invalid_output');
         }
         return $this->transaction(function () use ($m, $text, $fence, $index): array {
@@ -533,7 +533,7 @@ final class Repository
                 . 'CAST(:audience AS jsonb),:text,:emitted,CAST(:emitted AS timestamptz)+interval \'5 minutes\')')
                 ->execute(['id'=>$dialogue['message_id'],'session'=>$m['session_id'],'turn'=>$m['turn_id'],'request'=>$turn['request_id'],
                     'generation'=>$m['generation'],'idx'=>$index,
-                    'count'=>\LORKHANserver\Application\DialoguePlanner::MAX_UTTERANCES,
+                    'count'=>\LorkhanServer\Application\DialoguePlanner::MAX_UTTERANCES,
                     'line'=>$lineId,'utterance'=>$utteranceId,
                     'runtime_generation'=>(int)$turn['runtime_generation'],'speaker'=>$this->encode($speaker),
                     'addressee'=>$this->encode($addressee),'audience'=>$this->encode($audience),'text'=>$text,
@@ -614,7 +614,7 @@ final class Repository
             }
             $providerResult=$this->validateProviderResult($providerResult, $session, $m);
             $canonical = $this->validatedCanonicalResponse(
-                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult, $streamedDialogues));
+                (new \LorkhanServer\Application\CanonicalResponseNormalizer())->normalize($m, $providerResult, $streamedDialogues));
             $responseEvent=$this->event($m['session_id'],$m['generation'],$turn['request_id'],$m['turn_id'],
                 'response.complete',$canonical,$canonical['response_id']);
             $dialogueLines = array_values(array_filter($canonical['lines'],
@@ -765,7 +765,7 @@ final class Repository
             $turn=$this->lockPendingTurn($m['turn_id'],$m['session_id'],$fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
             $canonical=$this->validatedCanonicalResponse(
-                (new \LORKHANserver\Application\CanonicalResponseNormalizer())->failure($m,$reason));
+                (new \LorkhanServer\Application\CanonicalResponseNormalizer())->failure($m,$reason));
             $this->db->prepare("UPDATE turns SET state='failed',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
                 ->execute(['turn'=>$m['turn_id'],'response'=>$canonical['response_id'],
@@ -998,7 +998,7 @@ final class Repository
                 $m['created_at'], $m['schema'], $m['request_id'], $m['turn_id'], null, $m);
             $terminal=$m+['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],
                 'playthrough_id'=>$turn['playthrough_id'],'runtime_generation'=>(int)$turn['runtime_generation']];
-            $canonical=$this->validatedCanonicalResponse((new \LORKHANserver\Application\CanonicalResponseNormalizer())
+            $canonical=$this->validatedCanonicalResponse((new \LorkhanServer\Application\CanonicalResponseNormalizer())
                 ->failure($terminal,'interrupted.'.$m['reason']));
             $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
@@ -1222,7 +1222,7 @@ final class Repository
                 'playthrough_id'=>$turn['playthrough_id'],'session_id'=>$sessionId,'turn_id'=>$turn['turn_id'],
                 'request_id'=>$turn['request_id'],'generation'=>(int)$turn['generation'],
                 'runtime_generation'=>(int)$turn['runtime_generation']];
-            $canonical=$this->validatedCanonicalResponse((new \LORKHANserver\Application\CanonicalResponseNormalizer())
+            $canonical=$this->validatedCanonicalResponse((new \LorkhanServer\Application\CanonicalResponseNormalizer())
                 ->failure($terminal,$reason,in_array($reason,['session_ended','session_replaced'],true)));
             $this->db->prepare("UPDATE turns SET state='cancelled',completed_at=clock_timestamp(),response_id=:response,"
                 . "response_payload=CAST(:payload AS jsonb),response_created_at=:created WHERE turn_id=:turn")
@@ -1300,7 +1300,7 @@ final class Repository
 
     private function validatedCanonicalResponse(array $response):array
     {
-        (new \LORKHANserver\Protocol\Validator())->validate($response,'lorkhan.response.v1');
+        (new \LorkhanServer\Protocol\Validator())->validate($response,'lorkhan.response.v1');
         return $response;
     }
 
