@@ -59,10 +59,11 @@ Test and subsequent use of an assigned connector can incur provider charges.
 
 ### Profile generation routing
 
-Core Profiles can select a **Profile Generation LLM** for requested NPC/narrator generation and
-player speech-style analysis. Individual profiles can inherit that choice, select another connector,
-or choose **Use server runtime**. Leaving the Core Profile choice unset retains the existing runtime
-provider. This does not enable automatic generation or schedule additional requests.
+Core Profiles can select a **Profile Generation LLM** for requested NPC/narrator generation, automatic
+NPC profile backfill, and player speech-style analysis. Individual profiles can inherit that choice,
+select another connector, or choose **Use server runtime**. Leaving the Core Profile choice unset retains
+the existing runtime provider. Automatic backfill is enabled by default after 40 completed actor turns;
+Global Settings can disable it or set a trigger from 10 to 100 turns.
 
 New jobs keep the selected connector ID and immutable revision; later connector edits do not change
 those jobs. Credentials remain server-held and are resolved when the worker runs. Pending jobs prevent

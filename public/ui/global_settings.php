@@ -41,6 +41,8 @@ if (($storedContent['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA && $in
 }
 $settings = $globalDocument['client'];
 $autoLockProfile = $globalDocument['profile_management']['auto_lock_profile'];
+$autofillCustomProfiles = $globalDocument['profile_management']['autofill_custom_profiles'];
+$autofillCustomProfilesTrigger = $globalDocument['profile_management']['autofill_custom_profiles_trigger'];
 $oghmaSettings = $globalDocument['oghma'];
 $translationPolicy = $globalDocument['translation'];
 $contextPolicy = $globalDocument['context'];
@@ -95,6 +97,8 @@ $sections = [
     'ai-memory' => [
         'Memory & Others' => [
             ['auto_lock_profile', 'Auto Lock Profile', '&#x1F512;', 'boolean', $autoLockProfile, 'When enabled, saving an NPC profile automatically locks it to prevent automatic updates from overwriting manual edits.', []],
+            ['autofill_custom_profiles', 'Automatic Profile Backfill', '&#x2728;', 'boolean', $autofillCustomProfiles, 'Fill an unlocked NPC profile with AI after it has enough completed dialogue history.', []],
+            ['autofill_custom_profiles_trigger', 'Profile Backfill Trigger', '&#x1F4AC;', 'integer', $autofillCustomProfilesTrigger, 'Completed dialogue turns required before an empty unlocked NPC profile is generated.', ['min' => 10, 'max' => 100]],
         ],
         'Translation' => [
             ['translation_provider', 'Provider', '&#x1F310;', 'select', $translationPolicy['provider'], 'Server-only NPC output translation. None leaves NPC output untranslated; DeepL uses the server-held DeepL key and the account endpoint below.', ['values' => ['none' => 'None', 'deepl' => 'DeepL'], 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'provider']],

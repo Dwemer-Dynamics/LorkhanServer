@@ -223,8 +223,10 @@ final class Router
             (string) $message['request_id'], '/gamedata', function () use ($message): Response {
                 return $this->idempotent((string) $message['installation_id'], (string) $message['request_id'],
                     '/gamedata', $message, function () use ($message): array {
-                        if($message['type']==='actor_profile')$this->materializeActorProfile($message);
-                        else$this->repository->acceptGameData($message);
+                        $profileId=$message['type']==='actor_profile'?$this->materializeActorProfile($message):null;
+                        $this->repository->acceptGameData($message);
+                        if($profileId!==null)$this->products?->maybeEnqueueAutomaticProfileBackfill(
+                            $profileId,(string)$message['playthrough_id']);
                         return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
                             'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                             'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];
@@ -233,7 +235,7 @@ final class Router
     }
 
     /** Create and bind the NPC profile represented by one current-session OpenMW snapshot. */
-    private function materializeActorProfile(array $message):void
+    private function materializeActorProfile(array $message):string
     {
         if($this->products===null||$this->morrowindVoices===null)
             throw new ApiException(503,'provider_unavailable','Actor profiles unavailable.',true);
@@ -248,7 +250,7 @@ final class Router
             'factions'=>array_map(static fn(string$faction):array=>['id'=>$faction],$payload['factions'])]];
         $resolved=$this->morrowindVoices->resolve($actor,$context);
         if($resolved!==null)$resolved=$this->products->preferExactProviderActorVoice((string)$message['installation_id'],$actor,$resolved);
-        $this->products->ensureMorrowindActorProfile([
+        return$this->products->ensureMorrowindActorProfile([
             'installation_id'=>$message['installation_id'],'profile_id'=>$session['profile_id'],
             'playthrough_id'=>$message['playthrough_id'],'session_id'=>$message['session_id'],
             'generation'=>$message['generation'],'payload'=>['target'=>$actor,'context'=>$context],

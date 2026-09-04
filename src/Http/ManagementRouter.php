@@ -1589,6 +1589,9 @@ final class ManagementRouter
         $client['behavior']['open_rechat']=isset($values['open_rechat']);
         $client['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$client['behavior']['end_conversation_cooldown_seconds']);
         $content['profile_management']['auto_lock_profile']=isset($values['auto_lock_profile']);
+        $content['profile_management']['autofill_custom_profiles']=isset($values['autofill_custom_profiles']);
+        $content['profile_management']['autofill_custom_profiles_trigger']=$integer($values,
+            'autofill_custom_profiles_trigger',$content['profile_management']['autofill_custom_profiles_trigger']);
         $provider=strtolower(trim((string)($values['translation_provider']??'none')));$active=$provider==='deepl';
         $content['translation']=TranslationPolicy::validate(['schema'=>'lorkhan.translation-policy.v1','provider'=>$provider,
             'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),

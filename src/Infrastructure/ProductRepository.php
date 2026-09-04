@@ -9,6 +9,7 @@ use LorkhanServer\Application\MorrowindGeographyCatalog;
 use LorkhanServer\Application\MorrowindVoiceCatalog;
 use LorkhanServer\Application\DeterministicRetrieval;
 use LorkhanServer\Application\OghmaGroundedRetriever;
+use LorkhanServer\Application\SettingsCatalog;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -441,6 +442,58 @@ final class ProductRepository
         return['queued'=>$queued,'eligible'=>$eligible,'truncated'=>max(0,$eligible-count($rows))];
     }
 
+    /** Resolve one completed turn to its bound NPC profile before applying the backfill policy. */
+    public function maybeEnqueueAutomaticProfileBackfillForTurn(array $turn):array
+    {
+        $installation=$turn['installation_id']??null;$playthrough=$turn['playthrough_id']??null;
+        $target=$turn['payload']['target']??null;
+        if(!is_string($installation)||!is_string($playthrough)||!is_array($target)||array_is_list($target))
+            throw new InvalidArgumentException('invalid_profile_backfill_turn');
+        $profileId=$this->selectedActorProfileId($installation,$playthrough,$target);
+        if($profileId===null)return['queued'=>false,'reason'=>'profile_unbound','observed'=>0,'required'=>0];
+        return$this->maybeEnqueueAutomaticProfileBackfill($profileId,$playthrough);
+    }
+
+    /** Queue one revision-fenced backfill after an unlocked empty NPC has enough completed dialogue. */
+    public function maybeEnqueueAutomaticProfileBackfill(string $profileId,string $playthroughId):array
+    {
+        return$this->transaction(function()use($profileId,$playthroughId):array{
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content '
+                .'FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
+                .'JOIN playthroughs pt ON pt.playthrough_id=:playthrough AND pt.installation_id=p.installation_id '
+                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId]);$row=$select->fetch();
+            if(!$row)throw new RuntimeException('not_found');
+            $global=$this->globalSettingsForInstallation((string)$row['installation_id']);
+            $settings=EffectiveSettingsResolver::validateGlobalSettings(
+                is_array($global['content']??null)?$global['content']:SettingsCatalog::globalDefaults());
+            $policy=$settings['profile_management'];$trigger=(int)$policy['autofill_custom_profiles_trigger'];
+            if(!$policy['autofill_custom_profiles'])return['queued'=>false,'reason'=>'disabled','observed'=>0,'required'=>$trigger];
+            $identity=$this->json($row['actor_identity']);
+            if(in_array($identity['kind']??'actor',['player','narrator','template'],true))
+                return['queued'=>false,'reason'=>'profile_not_generatable','observed'=>0,'required'=>$trigger];
+            $content=$this->json($row['content']);
+            if(($content['management']['locked']??false)===true)
+                return['queued'=>false,'reason'=>'profile_locked','observed'=>0,'required'=>$trigger];
+            foreach(['appearance','biography','personality','speech_style','occupation','goals','relationships','notes']as$field)
+                if(trim((string)($content[$field]??''))!=='')
+                    return['queued'=>false,'reason'=>'profile_not_empty','observed'=>0,'required'=>$trigger];
+            $history=$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$trigger);
+            $observed=count($history['source_turn_ids']);
+            if($observed<$trigger)return['queued'=>false,'reason'=>'history_threshold','observed'=>$observed,'required'=>$trigger];
+            $revision=(int)$row['current_revision'];$key='profile-backfill:'.$profileId.':revision:'.$revision;
+            $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'npc_profile_backfill')+[
+                'playthrough_id'=>$playthroughId,'source_turn_ids'=>$history['source_turn_ids'],
+                'recent_events'=>$history['recent_events']];
+            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
+            if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");
+                $existing->execute(['key'=>$key]);$job=$existing->fetch();}
+            if(!$job)throw new RuntimeException('profile_generation_queue_failed');
+            return$job+['queued'=>true,'profile_id'=>$profileId,'base_revision'=>$revision,'observed'=>$observed,'required'=>$trigger];
+        });
+    }
+
     /** Queue a revision-safe AI regeneration only for the installation narrator profile. */
     public function enqueueNarratorProfileGeneration(string $profileId):array
     {
@@ -486,6 +539,30 @@ final class ProductRepository
         $statement->execute(['configuration'=>$configurationId,'installation'=>$installationId]);$connector=$statement->fetch();
         if(!$connector)throw new \InvalidArgumentException('profile_generation_connector_unavailable');
         return$payload+['provider_configuration_id'=>(string)$connector['configuration_id'],'provider_revision'=>(int)$connector['current_revision']];
+    }
+
+    /** Freeze a bounded chronological actor-targeted history for automatic profile generation. */
+    private function profileBackfillHistory(string $installationId,string $playthroughId,array $identity,int $limit):array
+    {
+        $stable=array_intersect_key($identity,array_fill_keys(['kind','record_id','content_file','refnum'],true));
+        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM turns t '
+            .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
+            .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' AND t.target @> CAST(:identity AS jsonb) '
+            .'AND EXISTS (SELECT 1 FROM jsonb_array_elements(COALESCE(t.response_payload->\'lines\',\'[]\'::jsonb)) line '
+            .'WHERE line->>\'action\'=\'say\' AND line->\'speaker_identity\' @> CAST(:speaker_identity AS jsonb)) '
+            .'ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
+        $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
+        $statement->bindValue(':identity',$this->encode($stable));$statement->bindValue(':speaker_identity',$this->encode($stable));
+        $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
+        $turnIds=[];$events=[];$bytes=0;$targetKey=$this->actorKey($stable);
+        foreach(array_reverse($rows)as$row){$turnIds[]=(string)$row['turn_id'];$response=$this->json($row['response_payload']);$replies=[];
+            foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
+                $speaker=$line['speaker_identity']??null;if(!is_array($speaker)||$this->actorKey($speaker)!==$targetKey)continue;
+                $text=trim((string)($line['text']??''));if($text!=='')$replies[]=$text;}
+            $event=['turn_id'=>(string)$row['turn_id'],'player_input'=>(string)$row['input_text'],'npc_responses'=>$replies];
+            $eventBytes=strlen($this->encode($event));if($bytes+$eventBytes>65_536)continue;
+            $events[]=$event;$bytes+=$eventBytes;}
+        return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 
     /** Load the exact revision queued for a task while enforcing installation and live-connector ownership. */
