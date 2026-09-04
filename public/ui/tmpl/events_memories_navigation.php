@@ -13,20 +13,8 @@ $roleplayGroups = [
     ]],
     ['key' => 'world-quests', 'label' => 'World & Quests', 'tabs' => [
         ['key' => 'journal', 'label' => 'Journal', 'icon' => '&#x1F4D6;', 'feature' => 'roleplay.journal'],
-        ['key' => 'questgen', 'label' => 'AI Quest Manager', 'icon' => '&#x1F9ED;', 'feature' => 'roleplay.quest-manager'],
-        ['key' => 'backgroundlife', 'label' => 'Background Life', 'icon' => '&#x1F5FA;&#xFE0F;', 'feature' => 'roleplay.background-life'],
     ]],
 ];
-
-// Excluded pages are not part of this release and must not appear in its navigation.
-foreach ($roleplayGroups as &$group) {
-    $group['tabs'] = array_values(array_filter(
-        $group['tabs'],
-        static fn(array $tab): bool => lorkhan_ui_feature($tab['feature'])['state'] !== 'excluded'
-    ));
-}
-unset($group);
-$roleplayGroups = array_values(array_filter($roleplayGroups, static fn(array $group): bool => $group['tabs'] !== []));
 ?>
 <nav class="config-navigation events-memories-navigation" aria-label="Roleplay sections">
     <div class="tab-groups">
