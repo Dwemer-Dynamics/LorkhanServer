@@ -609,7 +609,8 @@ final class Repository
             $session = $this->session($m['session_id'], $m['generation'], true);
             $turn = $this->lockPendingTurn($m['turn_id'], $m['session_id'], $fence);
             $m['runtime_generation'] ??= (int) $turn['runtime_generation'];
-            if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat') {
+            if (($m['payload']['ui_source'] ?? null) === 'lorkhan_rechat'
+                && ($m['payload']['context']['rechat']['allow_actions'] ?? false) !== true) {
                 $providerResult['action'] = null;
             }
             $providerResult=$this->validateProviderResult($providerResult, $session, $m);

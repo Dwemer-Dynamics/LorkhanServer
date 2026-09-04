@@ -109,7 +109,7 @@ Use one path for typed text and STT transcripts:
 9. Stream/publish correlated events without marking partial output final.
 10. Queue TTS per utterance and expose authenticated media.
 11. Accept exactly one terminal delivery result per utterance.
-12. Advance rechat only after the final successful playback result; emit a normal fresh turn with depth/target fencing and no actions.
+12. Advance rechat only after the final successful playback result; emit a normal fresh turn with depth/target fencing. Actions remain off by default and use the normal negotiated action policy when enabled.
 
 Failure, cancellation, stale generation, partial provider output, missing media, and failed playback must become explicit terminal states. They must not create memory or trigger rechat.
 
@@ -148,7 +148,7 @@ The Roleplay Events, AI Responses, Memories, Journal, and Control Panel Request/
 - Retrieval traces store selected IDs, ranking/reason, and prompt section.
 - Rebuild/edit/delete operations are revisioned, scoped, CSRF-protected, and auditable.
 - Rechat begins only after the final dialogue delivery result is successful.
-- Rechat retains the original target/playthrough/session chain, increments bounded depth, creates fresh request/turn/generation correlation, and cannot emit actions.
+- Rechat retains the original target/playthrough/session chain, increments bounded depth, creates fresh request/turn/generation correlation, and exposes policy-checked actions only when its effective profile enables them.
 - New player input, target change, interruption, load, cell change, session replacement, delivery failure, or depth exhaustion closes the chain.
 
 ## 9. Browser wiring

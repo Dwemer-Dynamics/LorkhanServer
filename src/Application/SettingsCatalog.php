@@ -125,7 +125,7 @@ final class SettingsCatalog
     ];
 
     private const OVERRIDE_BOOLEAN_FIELDS = [
-        'behavior' => ['rechat', 'rechat_strict_targeting', 'open_rechat'],
+        'behavior' => ['rechat', 'rechat_strict_targeting', 'open_rechat', 'rechat_allow_actions'],
         'relationship' => ['locked'],
         'diary' => ['enabled', 'include_in_context'],
         'oghma' => ['enabled', 'racial_context_enabled', 'location_context_enabled', 'extractor_fallback_enabled'],
@@ -259,7 +259,7 @@ final class SettingsCatalog
     public static function compatibilityPaths(): array
     {
         return [
-            'behavior.auto_greeting', 'behavior.rechat_delay_seconds', 'behavior.rechat_allow_actions',
+            'behavior.auto_greeting', 'behavior.rechat_delay_seconds',
             'behavior.boredom', 'behavior.boredom_delay_seconds', 'behavior.combat_barks', 'behavior.combat_bark_period_seconds',
             'memory.knowledge_limit', 'narrator.enabled', 'narrator.name', 'narrator.context_visibility', 'narrator.inline_mode',
             'narrator.welcome_events', 'narrator.random_events', 'narrator.quest_events', 'narrator.book_events',

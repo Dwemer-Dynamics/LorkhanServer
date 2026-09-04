@@ -1953,6 +1953,15 @@ $assert($resolveRechatError($disabledProbe)==='rechat_no_responder',
 
 $rechatTurn['payload']['context']['rechat']['participant_states']=[
     $participantRow($speakerIdentity,'active'),$participantRow($secondaryTarget,'active')];
+$disabledActionProbe=$rechatTurn;
+$disabledActionProbe['payload']['context']['rechat']['allow_actions']=true;
+$disabledActionProbe=$rechatCoordinator->resolve($disabledActionProbe);
+$assert(($disabledActionProbe['payload']['context']['rechat']['allow_actions']??null)===false,
+    'Rechat actions did not retain the disabled default or reject the client-supplied policy flag');
+$rechatGlobal=$products->globalSettingsForInstallation($installationId);
+$rechatGlobalContent=$rechatGlobal['content'];
+$rechatGlobalContent['client']['behavior']['rechat_allow_actions']=true;
+$products->revise('global_settings',$rechatGlobal['configuration_id'],$rechatGlobalContent,'enable Rechat actions',$now);
 [$status,$rechatAccepted]=$call($router,'POST',$base.'/turns',$headers($rechatTurn['message_id']),[],$rechatTurn);
 $assert($status===202,'first typed rechat continuation was rejected: '.$status.' '.json_encode($rechatAccepted));
 $rechatPrompt=$db->prepare('SELECT source_manifest FROM turn_provider_snapshots WHERE turn_id=:turn');
@@ -1964,8 +1973,9 @@ $rechatState->execute(['chain'=>$rechatChainId]);$firstRechatState=$rechatState-
 $rechatActions=$db->prepare("SELECT count(*) FROM response_events WHERE turn_id=:turn AND event_type='action.intent'");
 $rechatActions->execute(['turn'=>$rechatTurn['turn_id']]);
 $rechatActionCount=(int)$rechatActions->fetchColumn();
-    $assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
-    $rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
+$assembledRechatPrompt=(string)($rechatManifest['message']['_prompt']['_assembled_prompt']??'');
+$rechatMessages=$rechatManifest['message']['_prompt']['_messages']??[];
+$rechatDefinitions=$rechatManifest['message']['_allowed_action_definitions']??[];
     $assert($rechatWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0]
     &&is_array($rechatMessages)&&array_is_list($rechatMessages)&&count($rechatMessages)===2
     &&($rechatMessages[0]['role']??null)==='system'
@@ -1982,10 +1992,11 @@ $rechatActionCount=(int)$rechatActions->fetchColumn();
     &&(int)$firstRechatState['current_depth']===1&&(int)$firstRechatState['max_depth']===2
     &&(int)$firstRechatState['round_budget']===2
     &&$firstRechatState['origin_turn_id']===$turn['turn_id']&&$firstRechatState['latest_turn_id']===$rechatTurn['turn_id']
-    &&$rechatActionCount===0,
-    'first rechat did not preserve CHIM history, chain state, or action-free continuation semantics: '.json_encode([
+    &&is_array($rechatDefinitions)&&count($rechatDefinitions)>0
+    &&$rechatActionCount===1,
+    'enabled Rechat did not preserve CHIM history, chain state, or policy-checked action generation: '.json_encode([
         'worker'=>$rechatWorker,'message_count'=>is_array($rechatMessages)?count($rechatMessages):null,
-        'state'=>$firstRechatState,'action_count'=>$rechatActionCount]));
+        'state'=>$firstRechatState,'action_count'=>$rechatActionCount,'definition_count'=>count($rechatDefinitions)]));
 
 $finalRechat=$rechatTurn;
 $finalRechat['message_id']=$newUuid(824);$finalRechat['request_id']=$newUuid(825);$finalRechat['turn_id']=$newUuid(826);
