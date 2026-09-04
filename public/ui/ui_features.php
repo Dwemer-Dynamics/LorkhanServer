@@ -9,7 +9,7 @@ function lorkhan_ui_feature_registry(): array
         'home' => ['title' => 'Home', 'state' => 'live', 'description' => 'LORKHAN status, activity, and setup overview.'],
         'quickstart' => ['title' => 'Quickstart', 'state' => 'planned', 'description' => 'The Herika onboarding presentation is retained while LORKHAN pairing and provider setup are consolidated.'],
         'autonomy' => ['title' => 'Autonomy', 'state' => 'excluded', 'description' => 'Automatic greetings, boredom events, combat barks, schedules, and other model-triggering autonomy are excluded from this milestone.'],
-        'actions.rechat' => ['title' => 'Rechat Actions', 'state' => 'excluded', 'description' => 'Herika-style playback rechat is supported, but action generation during a rechat exchange remains disabled.'],
+        'actions.rechat' => ['title' => 'Rechat Actions', 'state' => 'live', 'description' => 'Rechat can use the same capability and policy checked action catalog as player-started dialogue when enabled.'],
         'presentation.local' => ['title' => 'Local OpenMW Presentation', 'state' => 'replaced', 'description' => 'HUD visibility, transcript size, panel layout, hotkeys, and LORKHAN TTS volume boost are local OpenMW preferences and cannot be overridden by Global, Core Profile, or NPC settings.'],
 
         'config.npc' => ['title' => 'LORKHAN NPCs', 'state' => 'live', 'description' => 'Versioned OpenMW character profiles that inherit behavior and response models from their assigned Core Profile.'],

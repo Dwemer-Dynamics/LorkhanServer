@@ -114,6 +114,7 @@ function lorkhan_ui_effective_settings_summary(array $effective, string $title =
     $activeBehaviorPaths = array_fill_keys([
         'settings.behavior.rechat', 'settings.behavior.rechat_max_depth', 'settings.behavior.rechat_probability_percent',
         'settings.behavior.rechat_mode', 'settings.behavior.rechat_strict_targeting', 'settings.behavior.open_rechat',
+        'settings.behavior.rechat_allow_actions',
         'settings.behavior.end_conversation_cooldown_seconds',
     ], true);
     echo '<details class="effective-settings-summary"' . ($open ? ' open' : '') . '><summary>' . lorkhan_ui_h($title) . '</summary>';

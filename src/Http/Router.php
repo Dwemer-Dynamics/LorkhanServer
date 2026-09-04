@@ -174,7 +174,9 @@ final class Router
             $providerInput = $directAction === null ? $m : null;
             if ($providerInput !== null) {
                 $source=$m['payload']['ui_source']??null;
-                $providerInput['_allowed_action_definitions'] = $source==='lorkhan_rechat'
+                $rechatActions=$source==='lorkhan_rechat'
+                    &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
+                $providerInput['_allowed_action_definitions'] = ($source==='lorkhan_rechat'&&!$rechatActions)
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
             }

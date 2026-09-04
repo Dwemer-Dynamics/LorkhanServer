@@ -68,7 +68,8 @@ public directory so source, configuration, storage, and secrets stay outside the
    projections, then ordered dialogue/terminal events become visible and per-utterance TTS jobs queue.
 8. TTS persists private media and emits a dialogue-correlated speech event independently; client
    delivery updates the durable speech state and action results remain immutable source events.
-9. A rechat turn must advance one same-session `rechat_chains` row monotonically. It is action-free,
+9. A rechat turn must advance one same-session `rechat_chains` row monotonically. Actions are absent by default and,
+   when explicitly enabled, use the same negotiated catalog and policy validation as player-started turns. Rechat is
    depth-bounded, cancelled by new player input/failure, and advanced by the client only after final
    playback; no timer worker creates it.
 10. Other derived jobs are enqueued after commit and process idempotently.

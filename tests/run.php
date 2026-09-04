@@ -1157,7 +1157,7 @@ $globalSettings['system_routing']=[
     'relationship_configuration_id'=>'00000000-0000-4000-8000-000000000444'];
 $globalSettings['context']['sections']['nearby_items']=false;
 $globalSettings['context']['item_blacklist']=['iron dagger'];
-$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_max_depth'=>4],
+$coreLayer=['settings_overrides'=>['behavior'=>['rechat'=>false,'rechat_max_depth'=>4,'rechat_allow_actions'=>true],
         'memory'=>['recent_turn_limit'=>7,'knowledge_limit'=>0],
         'oghma'=>['topic_count'=>3]],
     'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000111',
@@ -1182,11 +1182,12 @@ $check($effective['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur'
     &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='npc',
     'non-empty NPC knowledge tags remain character classification instead of a behavior override');
 $check($effective['settings']['behavior']['auto_greeting']===false
-    && $effective['settings']['behavior']['rechat_allow_actions']===false
+    && $effective['settings']['behavior']['rechat_allow_actions']===true
     && $effective['settings']['behavior']['combat_barks']===false
     && $effective['settings']['narrator']['welcome_events']===false
+    && ($effective['sources']['settings.behavior.rechat_allow_actions']??null)==='core_profile'
     && ($effective['sources']['settings.behavior.combat_barks']??null)==='excluded',
-    'excluded automation compatibility fields cannot become effective');
+    'Rechat actions inherit from the Core Profile while excluded automation remains inert');
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false

@@ -97,7 +97,7 @@ final class EffectiveSettingsResolver
         }
         $coreOverrides = self::validateSettingsOverrides($coreProfileContent['settings_overrides'] ?? []);
         $allowedOverrides = [];
-        foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent'] as $field) {
+        foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
         if (array_key_exists('recent_turn_limit', $coreOverrides['memory'] ?? [])) {
@@ -145,7 +145,6 @@ final class EffectiveSettingsResolver
         // Compatibility fields remain in the v1 document, but excluded automation can never become effective.
         foreach ([
             ['behavior', 'auto_greeting'],
-            ['behavior', 'rechat_allow_actions'],
             ['behavior', 'boredom'],
             ['behavior', 'combat_barks'],
             ['narrator', 'welcome_events'],

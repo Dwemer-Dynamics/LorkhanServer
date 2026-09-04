@@ -111,6 +111,7 @@ final class RechatCoordinator
             }
         }
         $message['payload']['context']['rechat'] = $resolvedRechat;
+        $message['payload']['context']['rechat']['allow_actions'] = ($selectedBehavior['rechat_allow_actions'] ?? false) === true;
         unset($message['payload']['action_request']);
         return $message;
     }

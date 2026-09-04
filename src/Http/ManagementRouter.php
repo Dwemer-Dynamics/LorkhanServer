@@ -1562,7 +1562,8 @@ final class ManagementRouter
         $overrides=[
             'behavior'=>['rechat'=>isset($values['setting_behavior_rechat']),
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
-                'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50)],
+                'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
+                'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])],
             'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)],
             'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
                 'include_in_context'=>isset($values['setting_diary_include_in_context']),
@@ -1582,6 +1583,7 @@ final class ManagementRouter
         $client['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$client['behavior']['rechat_mode']));
         $client['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
         $client['behavior']['open_rechat']=isset($values['open_rechat']);
+        $client['behavior']['rechat_allow_actions']=isset($values['rechat_allow_actions']);
         $client['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$client['behavior']['end_conversation_cooldown_seconds']);
         $content['profile_management']['auto_lock_profile']=isset($values['auto_lock_profile']);
         $provider=strtolower(trim((string)($values['translation_provider']??'none')));$active=$provider==='deepl';
