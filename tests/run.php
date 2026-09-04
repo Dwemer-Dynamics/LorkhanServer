@@ -464,6 +464,15 @@ $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&strpos((string)$systemMessage['content'],'## Output Contract')<strpos((string)$systemMessage['content'],'## NPC Context')
     &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
+$automaticCues=['lorkhan_auto_greeting'=>'Automatic greeting for Fargoth',
+    'lorkhan_auto_boredom'=>'Automatic idle remark for Fargoth',
+    'lorkhan_auto_combat_bark'=>'Automatic combat bark for Fargoth'];
+foreach($automaticCues as$source=>$expectedCue){$automaticTurn=$promptTurn;$automaticTurn['payload']['ui_source']=$source;
+    $automaticTurn['payload']['input']['text']='[Autonomy:test]';
+    $automaticMessages=$assembler->assemble($automaticTurn,$promptSelection)['provider_input']['_messages'];
+    $automaticFinal=$automaticMessages[array_key_last($automaticMessages)]['content']??'';
+    $check(str_contains((string)$automaticFinal,$expectedCue)&&!str_contains((string)$automaticFinal,'RANGROO: [Autonomy:test]'),
+        $source.' uses a server-owned action-free prompt cue');}
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
@@ -1160,6 +1169,8 @@ try{
 }catch(InvalidArgumentException){$check(true,'automatic profile backfill trigger below ten rejected');}
 $globalSettings['client']['behavior']['rechat']=true;
 $globalSettings['client']['behavior']['auto_greeting']=true;
+$globalSettings['client']['behavior']['boredom']=true;
+$globalSettings['client']['behavior']['combat_barks']=true;
 $globalSettings['client']['narrator']['welcome_events']=true;
 $globalSettings['oghma']['topic_count']=2;
 $globalSettings['oghma']['racial_context_enabled']=false;
@@ -1197,12 +1208,13 @@ $check($effective['settings']['oghma']['topic_count']===2
 $check($effective['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur'
     &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='npc',
     'non-empty NPC knowledge tags remain character classification instead of a behavior override');
-$check($effective['settings']['behavior']['auto_greeting']===false
+$check($effective['settings']['behavior']['auto_greeting']===true
+    && $effective['settings']['behavior']['boredom']===true
     && $effective['settings']['behavior']['rechat_allow_actions']===false
-    && $effective['settings']['behavior']['combat_barks']===false
+    && $effective['settings']['behavior']['combat_barks']===true
     && $effective['settings']['narrator']['welcome_events']===false
-    && ($effective['sources']['settings.behavior.combat_barks']??null)==='excluded',
-    'excluded automation compatibility fields cannot become effective');
+    && ($effective['sources']['settings.behavior.combat_barks']??null)==='global',
+    'automatic dialogue uses global settings while excluded narrator automation stays off');
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false
@@ -1248,9 +1260,9 @@ $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
-    &&$projection['settings']['behavior']['auto_greeting']===false
+    &&$projection['settings']['behavior']['auto_greeting']===true
     &&$projection['settings']['behavior']['rechat_allow_actions']===false,
-    'controls omit server-only settings and provenance without altering internal resolution or enabling automation');
+    'controls omit server-only settings and provenance while retaining automatic dialogue settings');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
     $check(false,'unknown layered setting rejected');

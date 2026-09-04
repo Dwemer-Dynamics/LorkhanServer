@@ -253,8 +253,9 @@ final class SettingsCatalog
     public static function controlsProjectionFields(): array
     {
         return [
-            'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_mode',
-                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'],
+            'behavior' => ['auto_greeting', 'rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_mode',
+                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds',
+                'boredom', 'boredom_delay_seconds', 'combat_barks', 'combat_bark_period_seconds'],
             'memory' => ['recent_turn_limit'],
         ];
     }
@@ -263,8 +264,7 @@ final class SettingsCatalog
     public static function compatibilityPaths(): array
     {
         return [
-            'behavior.auto_greeting', 'behavior.rechat_delay_seconds', 'behavior.rechat_allow_actions',
-            'behavior.boredom', 'behavior.boredom_delay_seconds', 'behavior.combat_barks', 'behavior.combat_bark_period_seconds',
+            'behavior.rechat_delay_seconds', 'behavior.rechat_allow_actions',
             'memory.knowledge_limit', 'narrator.enabled', 'narrator.name', 'narrator.context_visibility', 'narrator.inline_mode',
             'narrator.welcome_events', 'narrator.random_events', 'narrator.quest_events', 'narrator.book_events',
             'presentation.show_status_hud', 'presentation.transcript_rows', 'presentation.tts_volume_boost',

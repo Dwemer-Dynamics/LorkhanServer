@@ -1579,6 +1579,11 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $client['behavior']['auto_greeting']=isset($values['auto_greeting']);
+        $client['behavior']['boredom']=isset($values['boredom']);
+        $client['behavior']['boredom_delay_seconds']=$integer($values,'boredom_delay_seconds',$client['behavior']['boredom_delay_seconds']);
+        $client['behavior']['combat_barks']=isset($values['combat_barks']);
+        $client['behavior']['combat_bark_period_seconds']=$integer($values,'combat_bark_period_seconds',$client['behavior']['combat_bark_period_seconds']);
         $client['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$client['behavior']['rechat_mode']));
         $client['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
         $client['behavior']['open_rechat']=isset($values['open_rechat']);

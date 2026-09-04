@@ -869,6 +869,13 @@ final class PromptAssembler
 
     private function currentTurnMessage(array $turn, string $actorName, string $playerName, mixed $moodTemplates): string
     {
+        $automaticCue = match ($turn['payload']['ui_source'] ?? null) {
+            'lorkhan_auto_greeting' => "Automatic greeting for {$actorName}. Address {$playerName} with one brief, natural greeting that fits your character and the current situation.",
+            'lorkhan_auto_boredom' => "Automatic idle remark for {$actorName}. Make one brief, spontaneous in-character observation about the current situation. Address {$playerName} only when it feels natural.",
+            'lorkhan_auto_combat_bark' => "Automatic combat bark for {$actorName}. Deliver one short, urgent in-character combat line. Do not narrate actions or produce dialogue for anyone else.",
+            default => null,
+        };
+        if ($automaticCue !== null) return $automaticCue;
         $mode = $turn['payload']['context']['dialogueMode'] ?? null;
         $closeCue = '';
         if ($mode === 'Close') {

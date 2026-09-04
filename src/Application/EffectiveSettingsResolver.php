@@ -27,8 +27,8 @@ final class EffectiveSettingsResolver
             $settings[$section] = array_replace($settings[$section],
                 array_intersect_key($resolved['settings'][$section], $allowed));
         }
-        // Presentation and legacy behavior fields are inert v1 compatibility defaults.
-        // They are never projected into Lua; the client's local preferences remain authoritative.
+        // Presentation and remaining compatibility fields stay at protocol defaults.
+        // Runtime-owned behavior is projected while local presentation remains authoritative.
         $routing = array_intersect_key($resolved['routing'], array_fill_keys([
             'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
             'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
@@ -142,12 +142,9 @@ final class EffectiveSettingsResolver
             $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
         }
 
-        // Compatibility fields remain in the v1 document, but excluded automation can never become effective.
+        // Compatibility fields remain in the v1 document until their runtime slices are implemented.
         foreach ([
-            ['behavior', 'auto_greeting'],
             ['behavior', 'rechat_allow_actions'],
-            ['behavior', 'boredom'],
-            ['behavior', 'combat_barks'],
             ['narrator', 'welcome_events'],
             ['narrator', 'random_events'],
             ['narrator', 'quest_events'],
