@@ -962,11 +962,11 @@ function lorkhan_ui_biography_cards(array $rows,string $managementBasePath,strin
       echo'</div>';
   }
 
-/** Explain the disabled autonomy surface while directing rechat to inherited profile settings. */
+/** Summarize the active automatic-dialogue scheduler configured through Global Settings. */
 function lorkhan_ui_schedule_cards(array $rows,array $sessionOptions,string $managementBasePath,string $csrf):void
 {
-    echo'<div class="feature-status feature-state-excluded"><h3>Automatic schedules <span class="status-badge">Excluded</span></h3>';
-    echo'<p>Automatic greetings, boredom, combat barks, and timer-driven model requests cannot be enabled. Playback-gated rechat is inherited through Global &rarr; Core Profile &rarr; NPC settings and starts only after successful dialogue playback.</p></div>';
+    echo'<div class="feature-status feature-state-active"><h3>Automatic dialogue <span class="status-badge">Active</span></h3>';
+    echo'<p>Automatic greetings, boredom remarks, and combat barks use the game-owned idle scheduler. Configure their switches and bounded cooldowns in Global Settings.</p></div>';
 }
 
 /** Render speech presets as CHIM-style connector cards with an explicit active selection. */

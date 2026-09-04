@@ -67,7 +67,7 @@ $earlierRevisions = array_values(array_filter(
     $revisionHistory,
     static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
 ));
-$portableScopeNote = 'A portable file includes shared prompt context, blacklists, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
+$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
 $statusMessages = [
     'saved' => 'Global settings saved to the database.',
     'imported' => 'Preset imported as a new Global Settings revision.',
@@ -83,6 +83,13 @@ $sections = [
             ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC remains ineligible for another rechat chain after ending a conversation.', ['min' => 0, 'max' => 300]],
             ['relationship_enabled', 'Relationship Evaluation', '&#x1F91D;', 'boolean', $relationshipSettings['enabled'], 'Allow eligible completed conversations to update the saved relationship.', []],
             ['relationship_update_chance_percent', 'Relationship Update Chance', '&#x1F3B2;', 'integer', $relationshipSettings['update_chance_percent'], 'Chance from 0 to 100 that an eligible completed conversation is evaluated.', ['min' => 0, 'max' => 100]],
+        ],
+        'Automatic Dialogue' => [
+            ['auto_greeting', 'Automatic Greetings', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allow a newly activated nearby NPC to greet the player once when the dialogue lane is idle.', []],
+            ['boredom', 'Boredom Events', '&#x1F4AC;', 'boolean', $settings['behavior']['boredom'], 'Allow an active nearby NPC to make a brief spontaneous remark after the dialogue lane has been idle.', []],
+            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Idle seconds before a boredom event can start. Each event restarts this timer.', ['min' => 30, 'max' => 86400]],
+            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allow a managed NPC in combat to deliver a short urgent bark while the dialogue lane is idle.', []],
+            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between automatic combat barks.', ['min' => 5, 'max' => 300]],
         ],
     ],
     'ai-memory' => [

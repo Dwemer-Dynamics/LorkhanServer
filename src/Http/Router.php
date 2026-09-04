@@ -175,6 +175,7 @@ final class Router
             if ($providerInput !== null) {
                 $source=$m['payload']['ui_source']??null;
                 $providerInput['_allowed_action_definitions'] = $source==='lorkhan_rechat'
+                    ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark'],true)
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
             }

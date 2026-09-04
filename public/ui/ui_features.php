@@ -8,7 +8,7 @@ function lorkhan_ui_feature_registry(): array
     static $features = [
         'home' => ['title' => 'Home', 'state' => 'live', 'description' => 'LORKHAN status, activity, and setup overview.'],
         'quickstart' => ['title' => 'Quickstart', 'state' => 'planned', 'description' => 'The Herika onboarding presentation is retained while LORKHAN pairing and provider setup are consolidated.'],
-        'autonomy' => ['title' => 'Autonomy', 'state' => 'excluded', 'description' => 'Automatic greetings, boredom events, combat barks, schedules, and other model-triggering autonomy are excluded from this milestone.'],
+        'autonomy' => ['title' => 'Automatic Dialogue', 'state' => 'active', 'description' => 'Automatic greetings, idle remarks, and combat barks use the game-owned scheduler and the normal bounded dialogue lane.'],
         'actions.rechat' => ['title' => 'Rechat Actions', 'state' => 'excluded', 'description' => 'Herika-style playback rechat is supported, but action generation during a rechat exchange remains disabled.'],
         'presentation.local' => ['title' => 'Local OpenMW Presentation', 'state' => 'replaced', 'description' => 'HUD visibility, transcript size, panel layout, hotkeys, and LORKHAN TTS volume boost are local OpenMW preferences and cannot be overridden by Global, Core Profile, or NPC settings.'],
 
