@@ -196,11 +196,23 @@ final class EffectiveSettingsResolver
             return $migrated;
         }
         $expected = SettingsCatalog::globalDefaults();
+        // Early v2 settings predate automatic profile backfill. Normalize those saved documents
+        // to the current v2 defaults before enforcing the otherwise exact settings shape.
+        if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
+            && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
+            $content['profile_management'] += $expected['profile_management'];
+        }
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
         self::assertExactKeys($content['profile_management'], $expected['profile_management'], 'invalid_global_settings');
-        if (!is_bool($content['profile_management']['auto_lock_profile'])) throw new InvalidArgumentException('invalid_global_settings');
+        if (!is_bool($content['profile_management']['auto_lock_profile'])
+            || !is_bool($content['profile_management']['autofill_custom_profiles'])
+            || !is_int($content['profile_management']['autofill_custom_profiles_trigger'])
+            || $content['profile_management']['autofill_custom_profiles_trigger'] < 10
+            || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
+            throw new InvalidArgumentException('invalid_global_settings');
+        }
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
         $content['context'] = self::validateContextPolicy($content['context']);

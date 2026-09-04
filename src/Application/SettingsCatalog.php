@@ -175,7 +175,11 @@ final class SettingsCatalog
         return [
             'schema' => self::GLOBAL_SCHEMA,
             'client' => self::CLIENT_DEFAULTS,
-            'profile_management' => ['auto_lock_profile' => true],
+            'profile_management' => [
+                'auto_lock_profile' => true,
+                'autofill_custom_profiles' => true,
+                'autofill_custom_profiles_trigger' => 40,
+            ],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [

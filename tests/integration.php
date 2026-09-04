@@ -632,6 +632,58 @@ $autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarge
 $assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
     'replayed auto-activation created a duplicate NPC profile');
 
+$backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
+$backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
+$backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Profile Backfill Sentinel','actor_identity'=>$backfillTarget,
+    'content'=>['management'=>['locked'=>false,'favorite'=>false]]],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $backfillTarget,$backfillProfile['profile_id'],$now);
+$backfillGlobal=$products->globalSettingsForInstallation($installationId);$backfillSettings=$backfillGlobal['content'];
+$backfillSettings['profile_management']['autofill_custom_profiles']=true;
+$backfillSettings['profile_management']['autofill_custom_profiles_trigger']=10;
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'enable profile backfill fixture',$now);
+$backfillBeforeHistory=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
+$assert($backfillBeforeHistory['queued']===false&&$backfillBeforeHistory['reason']==='history_threshold'
+    &&$backfillBeforeHistory['observed']===0&&$backfillBeforeHistory['required']===10,
+    'automatic profile backfill did not wait for its configured history threshold');
+$backfillData=$autoProfileData;$backfillData['request_id']=$newUuid(6160);$backfillData['payload']['actor']=$backfillTarget;
+[$backfillStatus]=$call($router,'POST',$base.'/gamedata',$headers($backfillData['request_id']),[],$backfillData);
+$backfillSource=$db->prepare("SELECT event_kind FROM source_events WHERE source_event_id=:source");
+$backfillSource->execute(['source'=>$backfillData['request_id']]);
+$assert($backfillStatus===202&&$backfillSource->fetchColumn()==='gamedata.actor_profile',
+    'automatic profile observation was not persisted as immutable game data');
+$insertBackfillTurn=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,"
+    ."speaker,target,audience,context,state,accepted_at,completed_at,response_id,response_payload,response_created_at) VALUES "
+    ."(:turn,:request,:message,:session,7,'text','en',:input,CAST(:speaker AS jsonb),CAST(:target AS jsonb),'[]'::jsonb,'{}'::jsonb,"
+    ."'complete',:now,:now,:response,CAST(:response_payload AS jsonb),:now)");
+for($index=0;$index<10;$index++)$insertBackfillTurn->execute(['turn'=>$newUuid(6110+$index*4),
+    'request'=>$newUuid(6111+$index*4),'message'=>$newUuid(6112+$index*4),'response'=>$newUuid(6113+$index*4),
+    'session'=>$sessionId,'input'=>'Observed exchange '.($index+1),'speaker'=>json_encode($playerProfile['actor_identity'],JSON_THROW_ON_ERROR),
+    'target'=>json_encode($backfillTarget,JSON_THROW_ON_ERROR),'response_payload'=>json_encode(['lines'=>[[
+        'action'=>'say','speaker_identity'=>$backfillTarget,'text'=>'Observed NPC reply '.($index+1)]]],JSON_THROW_ON_ERROR),
+    'now'=>$now]);
+$backfillFromTurn=$products->maybeEnqueueAutomaticProfileBackfillForTurn(['installation_id'=>$installationId,
+    'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$backfillTarget]]);
+$assert($backfillFromTurn['queued']===true&&$backfillFromTurn['observed']===10,
+    'completed actor turn did not resolve its bound profile for automatic backfill');
+$backfillJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='npc_profile_backfill'");
+$backfillJob->execute(['profile'=>$backfillProfile['profile_id']]);$backfillJobRow=$backfillJob->fetch();
+$backfillPayload=$backfillJobRow?json_decode((string)$backfillJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert($backfillJobRow&&$backfillJobRow['state']==='queued'
+    &&count($backfillPayload['source_turn_ids']??[])===10&&count($backfillPayload['recent_events']??[])===10,
+    'automatic profile backfill did not freeze bounded actor history or persist its source observation: '.json_encode([
+        'status'=>$backfillStatus,'job'=>$backfillJobRow,'payload'=>$backfillPayload],JSON_UNESCAPED_SLASHES));
+$backfillHandlerPayload=$backfillPayload;unset($backfillHandlerPayload['provider_configuration_id'],$backfillHandlerPayload['provider_revision']);
+$backfillHandlerPayload['_job']=['job_id'=>$backfillJobRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($backfillHandlerPayload,'profile-backfill-test',static fn():bool=>true);
+$generatedBackfill=$products->getRevisioned('profile',$backfillProfile['profile_id']);
+$assert((int)$generatedBackfill['current_revision']===(int)$backfillPayload['base_revision']+1
+    &&str_contains((string)($generatedBackfill['content']['notes']??''),'backfill from 10 recent events'),
+    'automatic profile backfill worker did not use the frozen actor history');
+
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
     'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
         'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',

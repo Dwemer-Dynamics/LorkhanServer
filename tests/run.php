@@ -1142,6 +1142,22 @@ unlink($stateFile);
 rmdir($temporary);
 
 $globalSettings=SettingsCatalog::globalDefaults();
+$check($globalSettings['profile_management']===['auto_lock_profile'=>true,
+        'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],
+    'automatic profile backfill defaults on after forty completed actor turns');
+$legacyGlobalSettings=$globalSettings;
+unset($legacyGlobalSettings['profile_management']['autofill_custom_profiles'],
+    $legacyGlobalSettings['profile_management']['autofill_custom_profiles_trigger']);
+$normalizedLegacyGlobal=EffectiveSettingsResolver::validateGlobalSettings($legacyGlobalSettings);
+$check($normalizedLegacyGlobal['profile_management']['autofill_custom_profiles']===true
+    &&$normalizedLegacyGlobal['profile_management']['autofill_custom_profiles_trigger']===40,
+    'early v2 Global Settings normalize automatic profile backfill defaults');
+try{
+    $invalidBackfillSettings=$globalSettings;
+    $invalidBackfillSettings['profile_management']['autofill_custom_profiles_trigger']=9;
+    EffectiveSettingsResolver::validateGlobalSettings($invalidBackfillSettings);
+    $check(false,'automatic profile backfill trigger below ten rejected');
+}catch(InvalidArgumentException){$check(true,'automatic profile backfill trigger below ten rejected');}
 $globalSettings['client']['behavior']['rechat']=true;
 $globalSettings['client']['behavior']['auto_greeting']=true;
 $globalSettings['client']['narrator']['welcome_events']=true;

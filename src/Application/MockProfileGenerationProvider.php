@@ -37,6 +37,9 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
             'notes'=>'Deterministic mock narrator generation; replace or regenerate with a configured live provider.',
         ];
         $record=(string)($identity['record_id']??'an unbound Morrowind actor');$contentFile=(string)($identity['content_file']??'an unknown content file');
+        $notes=($profile['generation_mode']??'npc_profile')==='npc_profile_backfill'
+            ?'Deterministic mock backfill from '.count((array)($profile['recent_events']??[])).' recent events; replace or regenerate with a configured live provider.'
+            :'Deterministic mock generation; replace or regenerate with a configured live provider.';
         return[
             'appearance'=>$name.' has an appearance that should be refined from observed in-game context.',
             'biography'=>$name.' is a Morrowind character identified as '.$record.' from '.$contentFile.'.',
@@ -45,7 +48,7 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
             'occupation'=>'Resident of Vvardenfell',
             'goals'=>'Protect personal interests and respond credibly to the player.',
             'relationships'=>'Relationships should follow current scoped memories and disposition.',
-            'notes'=>'Deterministic mock generation; replace or regenerate with a configured live provider.',
+            'notes'=>$notes,
         ];
     }
 }
