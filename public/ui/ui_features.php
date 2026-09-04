@@ -107,7 +107,6 @@ function lorkhan_ui_feature_registry(): array
         'config.globals.worst-memory' => ['title' => 'Worst Memory Lifespan', 'state' => 'planned', 'description' => 'Game-day expiry for relationship memories is not represented in the current typed LORKHAN memory schema.'],
         'config.globals.profile-autofill' => ['title' => 'Automatic Profile Backfill', 'state' => 'excluded', 'description' => 'Automatic AI profile generation is autonomy and is excluded from this milestone.'],
         'config.globals.conversation-cooldown' => ['title' => 'End Conversation Cooldown', 'state' => 'live', 'description' => 'Herika-compatible cooldown before another playback rechat chain may begin.'],
-        'config.globals.quest-progression' => ['title' => 'CHIM AI Quest Progression', 'state' => 'not-applicable', 'description' => 'These controls target Skyrim quest-stage actions; LORKHAN exposes Morrowind quest state through the Journal instead.'],
         'config.globals.translation' => ['title' => 'Translation', 'state' => 'live', 'description' => 'Server-only DeepL translation of NPC subtitles and NPC speech audio. The policy is stored per installation, frozen for each turn, and saving it never calls DeepL.'],
         'config.oghma' => ['title' => 'Oghma Infinium', 'state' => 'live', 'description' => 'Scoped world-knowledge documents and retrieval data.'],
         'config.oghma.dynamic' => ['title' => 'Dynamic Oghma', 'state' => 'excluded', 'description' => 'Background quest-stage knowledge mutation is excluded from the current bounded LORKHAN scope.'],
@@ -128,8 +127,6 @@ function lorkhan_ui_feature_registry(): array
         'roleplay.diaries' => ['title' => 'LORKHAN Diaries', 'state' => 'live', 'description' => 'Versioned diary narratives.'],
         'roleplay.books' => ['title' => 'Books', 'state' => 'live', 'description' => 'Books observed during OpenMW sessions.'],
         'roleplay.journal' => ['title' => 'Journal', 'state' => 'live', 'description' => 'Morrowind Journal entries received through bounded typed OpenMW context.'],
-        'roleplay.quest-manager' => ['title' => 'AI Quest Manager', 'state' => 'not-applicable', 'description' => 'Herika quest creation depends on Skyrim-specific outcomes that LORKHAN does not expose.', 'controls' => ['Create AI Quest', 'Manage Quest Actors']],
-        'roleplay.background-life' => ['title' => 'Background Life', 'state' => 'excluded', 'description' => 'Background Life is intentionally excluded from the current LORKHAN scope.', 'controls' => ['Enable Background Life', 'Generate Rumors', 'View History']],
         'roleplay.destructive' => ['title' => 'Bulk Roleplay Deletion', 'state' => 'replaced', 'description' => 'LORKHAN preserves typed audit records and uses bounded retention and Database Manager backups instead of destructive browser bulk deletion.'],
 
         'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted server logs.'],

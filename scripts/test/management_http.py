@@ -134,8 +134,10 @@ for path,marker,title in [
     page,text=parse(request(path)); assert page.current==1,path; assert marker in text,path; assert '<title>'+title+'</title>' in text,path
     if path != '/LorkhanServer/ui/home.php': assert '<body class="hub-page">' in text,path
 events,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=eventlog'))
-assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and 'Soulgaze' not in text and 'data-tab="backgroundlife"' not in text and 'Background Life' not in text
-excluded_background,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=backgroundlife')); assert excluded_background.current==1 and 'id="eventlog-app"' in text and 'data-tab="backgroundlife"' not in text
+assert events.current==1 and 'id="eventlog-app"' in text and 'data-eventlog-live' in text and 'Delete Latest 5' in text and 'Delete ALL' in text and 'People Present' in text and 'Tamrielic Time' in text and 'data-eventlog-delete-row' not in text and all(removed not in text for removed in ['Soulgaze','AI Quest Manager','Active Quests','Background Life','data-tab="questgen"','data-tab="backgroundlife"'])
+for removed_tab in ['backgroundlife','questgen','quests','soulgaze']:
+    removed_page,removed_text=parse(request('/LorkhanServer/ui/events-memories.php?tab='+removed_tab))
+    assert removed_page.current==1 and 'id="eventlog-app"' in removed_text and 'id="journal-tab" class="tab-content active"' not in removed_text,removed_tab
 journal,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
 books,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h2>' in text and 'id="books-tab" class="tab-content active"' in text
 memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
@@ -251,6 +253,8 @@ descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); a
 oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LorkhanServer/ui/server_plugins.php').status==404
 assert request('/LorkhanServer/manage/server-plugins').status==404
+assert request('/LorkhanServer/ui/itt_connectors.php').status==404
+assert request('/LorkhanServer/ui/soulgaze_gallery.php').status==404
 llm,text=parse(request('/LorkhanServer/ui/core/llm_connectors.php')); assert llm.current==1 and 'LLM Connectors</h1>' in text and 'Server runtime' in text and all('api_key' not in f['fields'] for f in llm.forms)
 llm_runtime,runtime_text=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected=runtime')); assert llm_runtime.current==1 and 'LORKHAN_LLM_API_KEY' in runtime_text and all('api_key' not in f['fields'] for f in llm_runtime.forms)
 for import_path in ['/LorkhanServer/ui/core/npc_master.php','/LorkhanServer/ui/core/llm_connectors.php?import=1','/LorkhanServer/ui/core/tts_connectors.php?import=1','/LorkhanServer/ui/prompts_manager.php']:

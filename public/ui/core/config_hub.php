@@ -7,8 +7,7 @@ $topNavSection = 'configuration';
 $BODY_CLASS = 'hub-page';
 require dirname(__DIR__) . '/ui_bootstrap.php';
 
-// Grouping and order follow the current HerikaServer Configuration hub. The ITT
-// and Server Plugins pages it also lists are not part of LORKHAN and stay out.
+// Grouping and order follow the current HerikaServer Configuration hub.
 $configSections = [
     'settings' => [
         'label' => 'Settings',
