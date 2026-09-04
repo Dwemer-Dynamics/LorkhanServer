@@ -88,6 +88,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/stt') return $this->stt($request);
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts') return $this->menuDialogueTts($request);
+            if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
             return $this->error($error, $correlation);
@@ -526,6 +527,57 @@ final class Router
                             if($mediaId!==null)$this->mediaStore->delete($mediaId);
                             try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:'provider_unavailable');}catch(Throwable){}
                             throw $error;
+                        }
+                    });
+            });
+    }
+
+    /** Rewrite one player intent through the dedicated profile route before the real turn is created. */
+    private function playerAutochat(Request $request): Response
+    {
+        if($this->products===null)throw new ApiException(503,'provider_unavailable','Player Auto Chat unavailable.',false);
+        $message=$this->json($request,'lorkhan.player-autochat.v1');
+        $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
+        $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
+        $this->requireIdempotency($request,$message['message_id']);
+        return $this->repository->serializedIdempotency($installation,$message['message_id'],'/player-autochat',
+            function()use($installation,$message,$session):Response{
+                return $this->idempotent($installation,$message['message_id'],'/player-autochat',$message,
+                    function()use($installation,$message,$session):array{
+                        $player=(array)$message['player'];$profile=$this->products?->playerProfileForInstallation($installation);
+                        if($profile===null)throw new ApiException(503,'provider_unavailable','Player profile unavailable.',false);
+                        $slot=$this->products?->connectorForActor($installation,(string)$session['playthrough_id'],$player,
+                            'provider','player_autochat_configuration_id');
+                        if($slot===null)throw new ApiException(503,'provider_unavailable','Player Auto Chat is disabled.',false);
+                        $recent=array_reverse($this->products?->recentPlayerInputs($installation,20)??[]);
+                        $input=['generation_mode'=>'player_autochat','intent'=>trim((string)$message['intent']),
+                            'player'=>['name'=>(string)$profile['name'],'identity'=>$player,
+                                'profile'=>array_intersect_key((array)$profile['content'],array_fill_keys([
+                                    'appearance','biography','personality','speech_style','goals','notes'],true))],
+                            'target'=>$message['target'],'recent_player_dialogue'=>$recent];
+                        $attemptId=Uuid::v4();$providerName=(string)($slot['content']['driver']??'mock');
+                        $encoded=json_encode($input,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+                        $this->providerAttempts?->start($attemptId,'llm',$providerName,'player_autochat',1,
+                            (string)$message['request_id'],null,inputBytes:strlen($encoded),metadata:[
+                                'mode'=>'player_autochat','configuration_id'=>$slot['configuration_id'],
+                                'configuration_revision'=>$slot['revision'],'profile_id'=>$profile['profile_id'],
+                                'profile_revision'=>$profile['revision']]);
+                        try{
+                            $provider=ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
+                            $generated=$provider->generate($input,new NeverCancelledToken());
+                            $text=trim((string)($generated['text']??''));
+                            if($text===''||strlen($text)>16_384||mb_strlen($text,'UTF-8')>4096
+                                ||!mb_check_encoding($text,'UTF-8')||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$text)===1)
+                                throw new DomainException('provider_invalid_output');
+                            $this->providerAttempts?->finish($attemptId,'succeeded',strlen($text));
+                            return[201,['schema'=>'lorkhan.player-autochat.ready.v1','message_id'=>$message['message_id'],
+                                'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
+                                'generation'=>$message['generation'],'text'=>$text]];
+                        }catch(Throwable $error){
+                            try{$this->providerAttempts?->finish($attemptId,'failed',errorCode:
+                                $error instanceof DomainException?'provider_invalid_output':'provider_unavailable');}catch(Throwable){}
+                            if($error instanceof DomainException)throw $error;
+                            throw new ApiException(503,'provider_unavailable','Player Auto Chat provider unavailable.',true,1000);
                         }
                     });
             });

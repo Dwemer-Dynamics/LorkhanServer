@@ -1676,6 +1676,9 @@ final class ManagementRouter
         if($allowSpecialTtsRouting){
             $routing=[];$id=trim((string)($values['tts_configuration_id']??''));
             if($id==='__disabled__')$routing['tts_configuration_id']='';elseif($id!==''){$this->uuid($id,'tts_configuration_id');$routing['tts_configuration_id']=$id;}
+            $autochat=trim((string)($values['player_autochat_configuration_id']??''));
+            if($autochat==='__disabled__')$routing['player_autochat_configuration_id']='';
+            elseif($autochat!==''){$this->uuid($autochat,'player_autochat_configuration_id');$routing['player_autochat_configuration_id']=$autochat;}
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
         }else unset($content['routing']);
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);

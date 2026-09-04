@@ -40,6 +40,7 @@ final class Validator
             'lorkhan.stt.request.v1' => $this->stt($message),
             'lorkhan.dialogue-delivery-result.v1' => $this->delivery($message),
             'lorkhan.menu-dialogue-tts.v1' => $this->menuDialogueTts($message),
+            'lorkhan.player-autochat.v1' => $this->playerAutochat($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
             'lorkhan.debug-command.query.v1' => $this->debugCommandQuery($message),
@@ -254,6 +255,20 @@ final class Validator
             throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
         $this->timestamp($message['created_at']);$this->identity($message['actor']);
+    }
+
+    /** @param array<string, mixed> $message */
+    private function playerAutochat(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','player','target','intent']);
+        if($message['schema']!=='lorkhan.player-autochat.v1'||!is_int($message['generation'])||$message['generation']<0
+            ||!is_string($message['intent'])||trim($message['intent'])===''||strlen($message['intent'])>16_384
+            ||mb_strlen($message['intent'],'UTF-8')>4096||!mb_check_encoding($message['intent'],'UTF-8'))
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
+        $this->timestamp($message['created_at']);$this->identity($message['player']);$this->identity($message['target']);
+        if(($message['player']['kind']??null)!=='player'||($message['target']['kind']??null)==='player')
+            throw new ValidationException('invalid_schema');
     }
 
     private function controlsQuery(array $message): void

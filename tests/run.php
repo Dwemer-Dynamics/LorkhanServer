@@ -367,6 +367,7 @@ foreach ([
     'controls-select.json' => 'lorkhan.controls.select.v1',
     'debug-command-query.json' => 'lorkhan.debug-command.query.v1',
     'debug-command-result.json' => 'lorkhan.debug-command-result.v1',
+    'player-autochat.json' => 'lorkhan.player-autochat.v1',
 ] as $fixture => $schema) {
     $document = json_decode((string) file_get_contents($fixtureRoot . '/' . $fixture), true, 64, JSON_THROW_ON_ERROR);
     $validator->validate($document['instance'], $schema);
@@ -400,6 +401,15 @@ try {
     $check(false, 'empty menu dialogue TTS request rejected');
 } catch (ValidationException $exception) {
     $check($exception->getMessage() === 'invalid_schema', 'empty menu dialogue TTS request rejected');
+}
+$playerAutochatRequest=json_decode((string)file_get_contents($fixtureRoot.'/player-autochat.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($playerAutochatRequest,'lorkhan.player-autochat.v1');
+$check(true,'bounded player Auto Chat request validates');
+try{
+    $validator->validate(array_replace($playerAutochatRequest,['intent'=>'']),'lorkhan.player-autochat.v1');
+    $check(false,'empty player Auto Chat intent rejected');
+}catch(ValidationException $exception){
+    $check($exception->getMessage()==='invalid_schema','empty player Auto Chat intent rejected');
 }
 $directActionTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $secondaryTarget=$directActionTurn['payload']['target'];$secondaryTarget['record_id']='mudcrab';

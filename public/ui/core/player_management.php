@@ -11,6 +11,7 @@ require dirname(__DIR__) . '/ui_bootstrap.php';
 $installations = $uiRepository->rows('installations');
 $rows = $uiRepository->rows('player');
 $ttsRows = $uiRepository->rows('tts');
+$providerRows = $uiRepository->rows('llm');
 $byInstallation = [];
 foreach ($rows as $row) $byInstallation[(string) $row['installation_id']] = $row;
 
@@ -175,7 +176,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <label for="player-voice-language">Voice Language</label>
                             <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
                         </div>
-                        <div class="field-block"><label>Player Autochat Connector</label><select disabled aria-disabled="true"><option>Use active LORKHAN model route</option></select><span class="hint">LORKHAN uses the inherited typed model pipeline.</span></div>
+                        <div class="field-block">
+                            <label for="player-autochat">Player Auto Chat Connector</label>
+                            <select id="player-autochat" name="player_autochat_configuration_id" aria-describedby="player-autochat-help">
+                                <option value="__disabled__"<?php echo array_key_exists('player_autochat_configuration_id', $routing) && (string) $routing['player_autochat_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
+                                <?php foreach ($providerRows as $provider): if ((string) ($provider['installation_id'] ?? '') !== $installationId) continue; ?>
+                                    <option value="<?php echo lorkhan_ui_h($provider['configuration_id']); ?>"<?php echo (string) ($routing['player_autochat_configuration_id'] ?? '') === (string) $provider['configuration_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($provider['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="hint" id="player-autochat-help">Rewrites typed intent as your character's spoken line. Enable Auto Chat from the in-game Interact menu.</span>
+                        </div>
                         <label for="player-speech-style">Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo lorkhan_ui_h($content['speech_style'] ?? ''); ?></textarea>
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>

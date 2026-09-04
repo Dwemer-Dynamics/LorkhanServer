@@ -567,6 +567,7 @@ $assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
     'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
 $playerContent=$playerProfile['content'];
 $playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
+$playerContent['routing']['player_autochat_configuration_id']=$profileModelSlot['configuration_id'];
 $playerContent['voice']=['id'=>'MaleArgonian','language'=>'en-US'];
 $products->revise('profile',$playerProfile['profile_id'],$playerContent,'integration player TTS route',$now);
 $playerProfile=$products->playerProfileForInstallation($installationId);
@@ -575,6 +576,16 @@ $playerSpeechContext=$products->speechContext($installationId,$session['playthro
 $assert(($playerSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id']
     &&$playerSpeechContext===['voice'=>'MaleArgonian','language'=>'en-US'],
     'player profile did not supply its TTS connector and voice: '.json_encode($playerSpeechContext));
+$playerAutochat=$fixture('player-autochat');
+$playerAutochat['message_id']=$newUuid(714);$playerAutochat['request_id']=$newUuid(715);
+$playerAutochat['session_id']=$sessionId;$playerAutochat['generation']=7;$playerAutochat['created_at']=$now;
+$playerAutochat['target']=$controlsQuery['target'];
+$playerAutochat['intent']='ask whether he has found his ring';
+[$status,$rewritten]=$call($router,'POST',$base.'/player-autochat',$headers($playerAutochat['message_id']),[],$playerAutochat);
+$assert($status===201&&($rewritten['schema']??null)==='lorkhan.player-autochat.ready.v1'
+    &&($rewritten['request_id']??null)===$playerAutochat['request_id']
+    &&($rewritten['text']??null)===$playerAutochat['intent'],
+    'player Auto Chat did not resolve its dedicated player-profile connector: '.json_encode($rewritten));
 
 $generateProfile=$selectProfile;$generateProfile['message_id']=$newUuid(12);$generateProfile['request_id']=$newUuid(13);
 $generateProfile['kind']='profile_generate';

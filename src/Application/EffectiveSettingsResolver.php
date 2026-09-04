@@ -135,9 +135,10 @@ final class EffectiveSettingsResolver
         }
         if ($allowProfileTtsRouting) {
             $profileRouting = self::validateRouting($npcProfileContent['routing'] ?? []);
-            if (array_key_exists('tts_configuration_id', $profileRouting)) {
-                $routing['tts_configuration_id'] = $profileRouting['tts_configuration_id'];
-                $sources['routing.tts_configuration_id'] = 'npc';
+            foreach (['tts_configuration_id','player_autochat_configuration_id'] as $field) {
+                if (!array_key_exists($field, $profileRouting)) continue;
+                $routing[$field] = $profileRouting[$field];
+                $sources['routing.' . $field] = 'npc';
             }
         }
         if (is_string($npcProfileContent['oghma_knowledge_tags'] ?? null)

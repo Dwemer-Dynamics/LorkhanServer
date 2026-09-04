@@ -240,9 +240,11 @@ Action Editor exposes labelled policy enable, maximum-tier, and per-action permi
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.
 Player Management can queue a durable analysis of at most the latest 200 real player turns. The job
-updates only the player profile's `speech_style` when its base revision is still current; it does not
-enable autonomous player chat. Typed player messages may reuse the bounded speech synthesis lane when
-the installation player profile selects a TTS connector.
+updates only the player profile's `speech_style` when its base revision is still current. A separate
+Player Auto Chat connector accepts one authenticated bounded intent at `/player-autochat` and returns
+one correlated spoken line. The client subtitles and speaks that line before submitting it through the
+ordinary typed-turn contract, so the generated line becomes the real conversation input. With Auto Chat
+off, typed messages remain unchanged. Player TTS keeps its independent profile route.
 Playthrough export/restore remains scoped and transactional; management pages do not expose private
 media bytes, credential files, provider keys, database passwords, or arbitrary log paths.
 Playthrough Manager derives bounded session, turn, response, memory, relationship, narrative, and

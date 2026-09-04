@@ -25,6 +25,9 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
             $inputs=is_array($profile['recent_player_inputs']??null)?$profile['recent_player_inputs']:[];
             return['speech_style'=>'Speaks in concise, direct sentences inferred from '.count($inputs).' recent player input'.(count($inputs)===1?'':'s').'.'];
         }
+        if(($profile['generation_mode']??'npc_profile')==='player_autochat'){
+            return['text'=>trim((string)($profile['intent']??''))];
+        }
         $name=(string)($profile['name']??'Unknown');$identity=is_array($profile['actor_identity']??null)?$profile['actor_identity']:[];
         if(($profile['generation_mode']??'npc_profile')==='narrator_profile')return[
             'appearance'=>'A disembodied narrative voice without a physical form in Vvardenfell.',

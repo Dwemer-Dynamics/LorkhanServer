@@ -108,6 +108,7 @@ final class SettingsCatalog
         'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
         'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
         'llm_fallback_configuration_id', 'diary_generation_configuration_id',
+        'player_autochat_configuration_id',
         'tts_configuration_id', 'llm_randomizer_enabled', 'llm_fallback_enabled',
     ];
 
@@ -126,6 +127,7 @@ final class SettingsCatalog
         'profile_generation_configuration_id' => 'uuid_or_empty',
         'relationship_configuration_id' => 'uuid_or_empty',
         'diary_generation_configuration_id' => 'uuid_or_empty',
+        'player_autochat_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
