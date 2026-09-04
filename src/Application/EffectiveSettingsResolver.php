@@ -145,6 +145,10 @@ final class EffectiveSettingsResolver
             $settings['memory']['oghma_knowledge_tags'] = trim($npcProfileContent['oghma_knowledge_tags']);
             $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
         }
+        if (array_key_exists('diary', $npcProfileContent)) {
+            $profileDiary=DiaryGenerationPolicy::validateOverrides($npcProfileContent['diary']);
+            $this->mergeSettings($settings, ['diary'=>$profileDiary], 'npc', 'settings', $sources);
+        }
 
         if (!is_array($narratorProfileContent) || ($narratorProfileContent !== [] && array_is_list($narratorProfileContent))) {
             throw new InvalidArgumentException('invalid_settings_layer');

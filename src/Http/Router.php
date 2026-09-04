@@ -226,6 +226,7 @@ final class Router
                     '/gamedata', $message, function () use ($message): array {
                         $profileId=$message['type']==='actor_profile'?$this->materializeActorProfile($message):null;
                         $this->repository->acceptGameData($message);
+                        if($message['type']==='automatic_diary')$this->products?->enqueueAutomaticDiaries($message);
                         if($profileId!==null)$this->products?->maybeEnqueueAutomaticProfileBackfill(
                             $profileId,(string)$message['playthrough_id']);
                         if($profileId!==null){

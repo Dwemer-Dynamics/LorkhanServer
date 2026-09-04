@@ -20,6 +20,7 @@ $installationId = $requested !== '' && array_filter(
 ) ? $requested : (string) ($installations[0]['installation_id'] ?? '');
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
+$diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
@@ -103,9 +104,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_placeholder_toggle('Only the Narrator can Summarize Books', 'config.narrator.event-tuning', 'Exclusive book-summary routing is not connected to OpenMW yet.');
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
-                        lorkhan_narrator_placeholder_toggle('Narrator Diary', 'config.narrator.diaries', 'Narrator-specific manual diary permissions are planned.');
-                        lorkhan_narrator_placeholder_toggle('Narrator Auto Diary', 'config.narrator.diaries', 'Narrator-specific automatic diary generation is planned.');
-                        lorkhan_narrator_placeholder_toggle('Narrator only diary access', 'config.narrator.diaries', 'Narrator-specific diary recall permissions are planned.');
+                        lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
+                        lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
+                        lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
+                        lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 30, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
                         ?>
                     </section>
 

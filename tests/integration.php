@@ -755,6 +755,18 @@ $assert($creatureStatus===202&&$creatureControlsStatus===200&&is_array($creature
     &&($creatureProfile['content']['personality']??null)==='Offended by an Argonian Nerevarine.',
     'auto-activated creature did not materialize its exact profile template');
 
+$automaticDiary=$fixture('gamedata-automatic-diary');
+$automaticDiary['installation_id']=$installationId;$automaticDiary['playthrough_id']=$session['playthrough_id'];
+$automaticDiary['session_id']=$sessionId;$automaticDiary['generation']=7;$automaticDiary['runtime_generation']=7;
+$automaticDiary['request_id']=$newUuid(858);$automaticDiary['payload']['actors']=[];
+[$automaticDiaryStatus,$automaticDiaryAccepted]=$call($router,'POST',$base.'/gamedata',
+    $headers($automaticDiary['request_id']),[],$automaticDiary);
+$automaticDiarySource=$db->prepare('SELECT event_kind FROM source_events WHERE source_event_id=:source');
+$automaticDiarySource->execute(['source'=>$automaticDiary['request_id']]);
+$assert($automaticDiaryStatus===202&&($automaticDiaryAccepted['type']??null)==='automatic_diary'
+    &&$automaticDiarySource->fetchColumn()==='gamedata.automatic_diary',
+    'typed automatic diary candidate was not accepted and recorded through the HTTP router');
+
 $turnMoodTemplates=\LorkhanServer\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
 $turnPrompt=$products->createRevisioned('prompt',['installation_id'=>$installationId,'name'=>'Turn mood prompt',

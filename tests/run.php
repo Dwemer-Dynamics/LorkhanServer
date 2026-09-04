@@ -155,16 +155,22 @@ $check($conversionMock===['relationships'=>[]]
     &&in_array('relationship.convert',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'relationship text conversion is not registered as a bounded first-party job');
 $diaryDefaults=\LorkhanServer\Application\DiaryGenerationPolicy::defaults();
-$diaryOverrides=['enabled'=>true,'include_in_context'=>false,'context_turn_limit'=>12,'prompt'=>'Remember only what was witnessed.'];
+$diaryOverrides=['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabled'=>false,
+    'automatic_interval_seconds'=>120,'include_in_context'=>false,'context_turn_limit'=>12,
+    'prompt'=>'Remember only what was witnessed.'];
 $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
-$check($diaryDefaults['enabled']===false&&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
+$check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
+    &&$diaryDefaults['automatic_wait_enabled']===false&&$diaryDefaults['automatic_interval_seconds']===120
+    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
-    'manual diary generation is opt-in, bounded, deterministic under the mock provider, and registered as durable work');
+    'manual and automatic diary generation are opt-in, bounded, deterministic under the mock provider, and registered as durable work');
 foreach([
-    ['enabled'=>'true'],['include_in_context'=>1],['context_turn_limit'=>0],['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
+    ['enabled'=>'true'],['automatic_enabled'=>1],['automatic_wait_enabled'=>'true'],['automatic_interval_seconds'=>29],
+    ['automatic_interval_seconds'=>86401],['include_in_context'=>1],['context_turn_limit'=>0],
+    ['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
 ]as$invalidDiary){
     try{\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
     catch(InvalidArgumentException){$check(true,'invalid diary settings rejected');}
@@ -355,6 +361,7 @@ foreach ([
     'session-init.json' => 'lorkhan.session.init.v1',
     'turn.json' => 'lorkhan.turn.v1',
     'gamedata-captured-dialogue.json' => 'lorkhan.gamedata.v1',
+    'gamedata-automatic-diary.json' => 'lorkhan.gamedata.v1',
     'interrupt.json' => 'lorkhan.interrupt.v1',
     'controls-query.json' => 'lorkhan.controls.query.v1',
     'controls-select.json' => 'lorkhan.controls.select.v1',

@@ -650,6 +650,11 @@ final class ProductRepository
     {
         foreach(['installation_id','profile_id','playthrough_id','request_id']as$field)
             if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))throw new \InvalidArgumentException('invalid_diary_generation_scope');
+        $automaticTrigger=$scope['automatic_trigger']??null;
+        if($automaticTrigger!==null&&(!is_string($automaticTrigger)||!in_array($automaticTrigger,['timer','sleep','wait'],true)
+            ||!is_string($scope['automatic_source_request_id']??null)||!Uuid::isValid($scope['automatic_source_request_id'])
+            ||!is_numeric($scope['trigger_game_time']??null)||$scope['trigger_game_time']<0))
+            throw new \InvalidArgumentException('invalid_diary_generation_scope');
         return$this->transaction(function()use($scope):array{
             $key='narrative.generate:'.$scope['request_id'];
             $replay=$this->db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='narrative.generate' AND idempotency_key=:key");
@@ -713,6 +718,9 @@ final class ProductRepository
                 'profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id'],'profile_revision'=>(int)$profile['current_revision'],
                 'provider_configuration_id'=>(string)$provider['configuration_id'],'provider_revision'=>(int)$provider['current_revision'],
                 'source_turn_ids'=>array_keys($sourceIds),'input'=>$input];
+            if(isset($scope['automatic_trigger']))$payload+=['automatic_trigger'=>$scope['automatic_trigger'],
+                'automatic_source_request_id'=>$scope['automatic_source_request_id'],
+                'trigger_game_time'=>(float)$scope['trigger_game_time']];
             $jobId=Uuid::v4();
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) "
                 ."VALUES(:job,'narrative.generate',1,:key,CAST(:payload AS jsonb),3,55) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
@@ -727,6 +735,45 @@ final class ProductRepository
                 'provider_configuration_id'=>$payload['provider_configuration_id'],'provider_revision'=>$payload['provider_revision'],
                 'source_count'=>count($payload['source_turn_ids']??[])];
         });
+    }
+
+    /** Queue eligible Player, Narrator, and nearby NPC diaries for one typed game event. */
+    public function enqueueAutomaticDiaries(array $message):array
+    {
+        foreach(['installation_id','playthrough_id','request_id']as$field)
+            if(!is_string($message[$field]??null)||!Uuid::isValid($message[$field]))
+                throw new \InvalidArgumentException('invalid_automatic_diary_scope');
+        $payload=$message['payload']??null;$trigger=is_array($payload)?($payload['trigger']??null):null;
+        $gameTime=is_array($payload)?($payload['game_time']??null):null;$actors=is_array($payload)?($payload['actors']??null):null;
+        if(!in_array($trigger,['timer','sleep','wait'],true)||!is_numeric($gameTime)||$gameTime<0
+            ||!is_array($actors)||!array_is_list($actors)||count($actors)>12)
+            throw new \InvalidArgumentException('invalid_automatic_diary_scope');
+        $profileIds=[];
+        foreach([$this->playerProfileForInstallation($message['installation_id']),
+            $this->narratorProfileForInstallation($message['installation_id'])]as$profile)
+            if(is_array($profile)&&is_string($profile['profile_id']??null))$profileIds[$profile['profile_id']]=true;
+        foreach($actors as$identity){if(!is_array($identity)||array_is_list($identity))continue;
+            try{$profileId=$this->selectedActorProfileId($message['installation_id'],$message['playthrough_id'],$identity);
+            }catch(Throwable){continue;}if($profileId!==null)$profileIds[$profileId]=true;}
+        $result=['trigger'=>$trigger,'considered'=>count($profileIds),'queued'=>0,'skipped'=>[]];
+        foreach(array_keys($profileIds)as$profileId){$effective=$this->effectiveSettingsForProfile($message['installation_id'],$profileId);
+            $settings=$effective['settings']['diary']??[];
+            if(($settings['enabled']??false)!==true||($settings['automatic_enabled']??false)!==true){$result['skipped'][$profileId]='disabled';continue;}
+            if($trigger==='wait'&&($settings['automatic_wait_enabled']??false)!==true){$result['skipped'][$profileId]='wait_disabled';continue;}
+            $seconds=max(30,min(86400,(int)($settings['automatic_interval_seconds']??120)));
+            $recent=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='narrative.generate' "
+                ."AND payload->>'profile_id'=:profile AND payload->>'playthrough_id'=:playthrough "
+                ."AND jsonb_exists(payload,'automatic_trigger') AND created_at>clock_timestamp()-(:seconds||' seconds')::interval LIMIT 1");
+            $recent->execute(['profile'=>$profileId,'playthrough'=>$message['playthrough_id'],'seconds'=>(string)$seconds]);
+            if($recent->fetchColumn()!==false){$result['skipped'][$profileId]='cooldown';continue;}
+            $requestId=$this->deterministicUuid('automatic-diary:'.$message['request_id'].':'.$profileId);
+            try{$this->enqueueDiaryGeneration(['installation_id'=>$message['installation_id'],'profile_id'=>$profileId,
+                    'playthrough_id'=>$message['playthrough_id'],'request_id'=>$requestId,'automatic_trigger'=>$trigger,
+                    'automatic_source_request_id'=>$message['request_id'],'trigger_game_time'=>(float)$gameTime]);
+                $result['queued']++;
+            }catch(\InvalidArgumentException$error){$result['skipped'][$profileId]=$error->getMessage();}
+        }
+        return$result;
     }
 
     /** Queue generation only for the profile currently bound to this active session target. */

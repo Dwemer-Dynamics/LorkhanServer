@@ -428,7 +428,7 @@ final class ManagementRouter
                 ['relationships','Relationships','Manage actor disposition and affinity.'],
                 ['world','World','Add Morrowind world information.'],
                 ['knowledge','Knowledge','Manage scoped knowledge records.'],
-                ['narrative-autonomy','Narrative','Configure narrator, diary, and summary records. Autonomy is excluded.'],
+                ['narrative-autonomy','Narrative','Configure narrator, diary, and summary records.'],
             ]),
             'configuration'=>$this->hubHtml([
                 ['providers','Providers','Configure deterministic and live provider presets.'],
@@ -452,7 +452,7 @@ final class ManagementRouter
             'memory'=>$this->formHtml('memory','Create memory',$csrf,$scope.$this->select('tier','Tier',['recent','mid','long']).$this->area('content','Memory').$this->input('provenance','Provenance source')),
             'relationships'=>$this->formHtml('relationships','Save relationship',$csrf,$scope.$this->area('content_json','Actor identity JSON','{}').$this->input('disposition','Disposition','number','0').$this->input('affinity','Affinity','number','0').$this->input('reason','Reason','text','management')),
             'knowledge'=>$this->formHtml('knowledge','Create knowledge',$csrf,$scope.$this->input('title','Title').$this->area('content','Knowledge').$this->input('provenance','Provenance source')),
-            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Autonomy <span class="status-badge">Excluded</span></h2><p>Timer-driven autonomy is not part of LORKHAN. Rechat and bored-event handling remain explicit gameplay flows.</p></section>',
+            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Automatic diaries <span class="status-badge">Live</span></h2><p>Timer, sleep, and optional wait events queue diaries for eligible Player, Narrator, and nearby NPC profiles.</p></section>',
             'traces'=>'<section><h2>Events and traces</h2><p>Use the authenticated traces API with installation scope. Provider and prompt details remain redacted.</p></section>',
             'jobs'=>'<section><h2>Workers and jobs</h2><p>Queue and dead-letter counts are shown in diagnostics. Worker leases and retries are bounded.</p></section>',
             'backup-health'=>$this->formHtml('retention','Run bounded retention',$csrf,$this->input('days','Retention days','number','30').'<p>This removes expired operational metadata and never accepts a filesystem path.</p>'),
@@ -908,6 +908,9 @@ final class ManagementRouter
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50)],
             'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)],
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
+                'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
+                'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
+                'automatic_interval_seconds'=>(int)($overrides['diary']['automatic_interval_seconds']??$diary['automatic_interval_seconds']),
                 'include_in_context'=>($overrides['diary']['include_in_context']??true)===true,
                 'context_turn_limit'=>(int)($overrides['diary']['context_turn_limit']??$diary['context_turn_limit']),
                 'prompt'=>(string)($overrides['diary']['prompt']??$diary['prompt'])]];
@@ -1444,6 +1447,7 @@ final class ManagementRouter
         $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
         $content['quest_chance_percent']=$integer($values,'quest_chance_percent',10,1,100);
         $content['quest_cooldown_minutes']=$integer($values,'quest_cooldown_minutes',3,1,60);
+        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
         return$content;
     }
 
@@ -1597,6 +1601,9 @@ final class ManagementRouter
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50)],
             'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)],
             'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
+                'automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
+                'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
+                'automatic_interval_seconds'=>$number($values,'setting_diary_automatic_interval_seconds',120),
                 'include_in_context'=>isset($values['setting_diary_include_in_context']),
                 'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
@@ -1689,12 +1696,26 @@ final class ManagementRouter
     private function playerContent(array $values):array
     {
         $content=$this->profileContent($values,true);
-        if(!array_key_exists('biography_known_by_all',$values))return$content;
-        $value=$values['biography_known_by_all'];
-        if(is_bool($value))$content['biography_known_by_all']=$value;
-        elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
-        else throw new InvalidArgumentException('invalid_biography_visibility');
+        if(array_key_exists('biography_known_by_all',$values)){
+            $value=$values['biography_known_by_all'];
+            if(is_bool($value))$content['biography_known_by_all']=$value;
+            elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
+            else throw new InvalidArgumentException('invalid_biography_visibility');
+        }
+        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
         return$content;
+    }
+
+    /** Convert the shared Player and Narrator diary controls into bounded profile overrides. */
+    private function automaticDiaryFormContent(array $values):array
+    {
+        $enabled=static fn(string$key):bool=>filter_var($values[$key]??false,FILTER_VALIDATE_BOOL);
+        $interval=filter_var($values['diary_interval_seconds']??120,FILTER_VALIDATE_INT);
+        if($interval===false)throw new InvalidArgumentException('invalid_diary_interval_seconds');
+        return DiaryGenerationPolicy::validateOverrides(['enabled'=>$enabled('diary_enabled'),
+            'automatic_enabled'=>$enabled('auto_diary_enabled'),
+            'automatic_wait_enabled'=>$enabled('auto_diary_wait_enabled'),
+            'automatic_interval_seconds'=>(int)$interval]);
     }
 
     /** Remove article-only markers before management forms write NPC access permissions. */
