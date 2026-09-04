@@ -20,6 +20,7 @@ $installationId = $requested !== '' && array_filter(
 ) ? $requested : (string) ($installations[0]['installation_id'] ?? '');
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
+$diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
@@ -45,10 +46,10 @@ function lorkhan_narrator_placeholder_toggle(string $label, string $featureId, s
     echo '<label class="narrator-toggle-row is-placeholder"><span class="narrator-toggle-switch"><input type="checkbox" disabled aria-disabled="true"><span class="narrator-toggle-slider"></span></span><span class="narrator-toggle-label">' . lorkhan_ui_h($label) . '</span>' . lorkhan_ui_feature_badge($featureId, true) . '</label><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
-/** Render one inert numeric control using the same field rhythm as Herika. */
-function lorkhan_narrator_placeholder_number(string $label, string $featureId, string $value, string $hint): void
+/** Render one live bounded narrator event setting in the Herika field layout. */
+function lorkhan_narrator_number(string $name, string $label, int $value, int $minimum, int $maximum, string $hint): void
 {
-    echo '<div class="narrator-placeholder-field"><label>' . lorkhan_ui_h($label) . lorkhan_ui_feature_badge($featureId, true) . '</label><input type="number" value="' . lorkhan_ui_h($value) . '" disabled aria-disabled="true"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span></div>';
+    echo '<label for="narrator-' . lorkhan_ui_h($name) . '">' . lorkhan_ui_h($label) . '</label><input id="narrator-' . lorkhan_ui_h($name) . '" name="' . lorkhan_ui_h($name) . '" type="number" value="' . $value . '" min="' . $minimum . '" max="' . $maximum . '"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
 $additionalStylesheets = ['herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css')];
@@ -103,9 +104,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_placeholder_toggle('Only the Narrator can Summarize Books', 'config.narrator.event-tuning', 'Exclusive book-summary routing is not connected to OpenMW yet.');
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
-                        lorkhan_narrator_placeholder_toggle('Narrator Diary', 'config.narrator.diaries', 'Narrator-specific manual diary permissions are planned.');
-                        lorkhan_narrator_placeholder_toggle('Narrator Auto Diary', 'config.narrator.diaries', 'Narrator-specific automatic diary generation is planned.');
-                        lorkhan_narrator_placeholder_toggle('Narrator only diary access', 'config.narrator.diaries', 'Narrator-specific diary recall permissions are planned.');
+                        lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
+                        lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
+                        lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
+                        lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 30, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
                         ?>
                     </section>
 
@@ -130,7 +132,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Welcome Message</h2>
                         <?php
                         lorkhan_narrator_toggle('welcome_events', 'Enable Welcome Message on Load', ($content['welcome_events'] ?? false) === true, 'Allow a narrator welcome event after a supported OpenMW session load.');
-                        lorkhan_narrator_placeholder_number('Welcome Message Cooldown (minutes)', 'config.narrator.event-tuning', '10', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('welcome_cooldown_minutes', 'Welcome Message Cooldown (minutes)', (int) ($content['welcome_cooldown_minutes'] ?? 10), 1, 1440, 'Minimum in-game minutes between welcome messages. Default: 10.');
                         ?>
                     </section>
 
@@ -138,16 +140,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Random Narration</h2>
                         <?php
                         lorkhan_narrator_toggle('random_events', 'Enable Random Narration', ($content['random_events'] ?? false) === true, 'Allow supported random events to route through the narrator.');
-                        lorkhan_narrator_placeholder_number('Random Narration Chance (%)', 'config.narrator.event-tuning', '15', 'Per-event probability tuning is planned.');
-                        lorkhan_narrator_placeholder_number('Random Narration Cooldown', 'config.narrator.event-tuning', '2', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('random_chance_percent', 'Random Narration Chance (%)', (int) ($content['random_chance_percent'] ?? 15), 1, 100, 'Chance after an eligible completed conversation round. Default: 15%.');
+                        lorkhan_narrator_number('random_cooldown_rounds', 'Random Narration Cooldown', (int) ($content['random_cooldown_rounds'] ?? 2), 0, 10, 'Minimum completed non-narrator rounds between interjections. Default: 2.');
                         ?>
                     </section>
 
                     <section class="narrator-content-section">
                         <h2>Bored Events</h2>
                         <?php
-                        lorkhan_narrator_placeholder_toggle('Allow Narrator Bored Events', 'config.narrator.bored-events', 'Bored-event narrator routing is not connected yet.');
-                        lorkhan_narrator_placeholder_number('Narrator Bored Event Chance (%)', 'config.narrator.bored-events', '25', 'Bored-event probability tuning is not connected yet.');
+                        lorkhan_narrator_toggle('bored_events', 'Allow Narrator Bored Events', ($content['bored_events'] ?? false) === true, 'Route some eligible bored events through the narrator instead of the selected NPC.');
+                        lorkhan_narrator_number('bored_chance_percent', 'Narrator Bored Event Chance (%)', (int) ($content['bored_chance_percent'] ?? 25), 1, 100, 'Chance that an eligible bored event uses the narrator. Default: 25%.');
                         ?>
                     </section>
 
@@ -155,8 +157,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Quest Comments</h2>
                         <?php
                         lorkhan_narrator_toggle('quest_events', 'Enable Quest Comments', ($content['quest_events'] ?? false) === true, 'Allow the narrator to comment on supported OpenMW quest events.');
-                        lorkhan_narrator_placeholder_number('Quest Comment Chance (%)', 'config.narrator.event-tuning', '10', 'Per-event probability tuning is planned.');
-                        lorkhan_narrator_placeholder_number('Quest Comment Cooldown (minutes)', 'config.narrator.event-tuning', '3', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('quest_chance_percent', 'Quest Comment Chance (%)', (int) ($content['quest_chance_percent'] ?? 10), 1, 100, 'Chance that a newly observed journal update receives narrator commentary. Default: 10%.');
+                        lorkhan_narrator_number('quest_cooldown_minutes', 'Quest Comment Cooldown (minutes)', (int) ($content['quest_cooldown_minutes'] ?? 3), 1, 60, 'Minimum in-game minutes between quest comments. Default: 3.');
                         ?>
                     </section>
                 </div>
@@ -211,9 +213,12 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <h2>Character Description</h2>
                     <div class="narrator-dynamic-profile-card">
                         <div class="narrator-heading-with-badge"><h3>&#x267B;&#xFE0F; Dynamic Profile Updates</h3><?php echo lorkhan_ui_feature_badge('config.narrator.dynamic-profile', true); ?></div>
-                        <?php lorkhan_narrator_placeholder_toggle('Enable Dynamic Profile', 'config.narrator.dynamic-profile', 'Automatic narrator profile evolution is not connected to OpenMW yet.'); ?>
+                        <?php $dynamicProfileFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals']; ?>
+                        <input type="hidden" name="dynamic_profile_fields_present" value="1">
+                        <label class="narrator-toggle-row"><input type="checkbox" name="dynamic_profile" value="1"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span>Enable Dynamic Profile</span></label>
+                        <span class="narrator-hint">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
                         <span class="narrator-hint">Field Selection (choose 1-3)</span>
-                        <div class="narrator-field-chips"><span class="narrator-field-chip">Personality</span><span class="narrator-field-chip">Speech Style</span><span class="narrator-field-chip">Goals</span></div>
+                        <div class="narrator-field-chips"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <?php echo lorkhan_ui_h($label); ?></label><?php endforeach; ?></div>
                     </div>
 
                     <label for="narrator-core">Core Summary</label>
@@ -269,7 +274,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                                 <label for="narrator-preset-json">Preset JSON</label>
                                 <textarea id="narrator-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="narrator-portability-scope narrator-portability-help"></textarea>
                             </div>
-                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, or the excluded event tuning, bored event, dynamic profile, and diary controls.</p>
+                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary controls.</p>
                             <div class="narrator-portability-actions">
                                 <button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
                             </div>

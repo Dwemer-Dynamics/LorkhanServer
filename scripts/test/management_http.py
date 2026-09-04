@@ -211,7 +211,7 @@ deepl_key_input=re.search(r'<input id="credential-deepl"[^>]*>',text); assert de
 deepl_key_input=deepl_key_input.group(0); assert 'name="credentials[LORKHAN_DEEPL_API_KEY]"' in deepl_key_input and 'disabled' not in deepl_key_input and 'value=' not in deepl_key_input,deepl_key_input
 player,text=parse(request('/LorkhanServer/ui/core/player_management.php')); assert player.current==1 and 'Player Management</h1>' in text and 'player profile' in text.lower() and 'Profile generation uses the connector selected in' in text,text
 narrator,text=parse(request('/LorkhanServer/ui/narrator_management.php')); assert narrator.current==1 and 'Narrator Management</h1>' in text and 'Configure narrator behavior and settings' in text and 'Profile generation uses the connector selected in' in text
-globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat_mode"' in text and 'name="rechat_allow_actions" value="1"' in text and 'name="relationship_enabled" value="1"' in text and 'name="context_section_conversation_history" value="1"' in text and 'name="context_location_blacklist"' in text and 'name="profile_generation_configuration_id"' in text and 'name="boredom"' not in text and 'name="auto_greeting"' not in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
+globals_page,text=parse(request('/LorkhanServer/ui/core/global_settings.php')); assert globals_page.current==1 and 'Global Settings</h1>' in text and 'name="rechat_mode"' in text and 'name="rechat_allow_actions" value="1"' in text and 'name="relationship_enabled" value="1"' in text and 'name="context_section_conversation_history" value="1"' in text and 'name="context_location_blacklist"' in text and 'name="profile_generation_configuration_id"' in text and 'name="autofill_custom_profiles" value="1" checked' in text and 'name="autofill_custom_profiles_trigger" value="40"' in text and 'name="boredom"' in text and 'name="auto_greeting"' in text and 'name="combat_barks"' in text and 'feature-state-excluded' not in text and 'feature-state-replaced' not in text
 assert 'class="page-header-actions"' in text and '&#128229; Import Settings' in text and 'class="gs-portability"' not in text and 'aria-controls="settings-panel-prompt-rechat"' in text and 'id="settings-panel-prompt-rechat"' in text
 global_settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 global_settings_import=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-import'))
@@ -497,7 +497,7 @@ assert ('role="status"' in conversion_body or 'role="alert"' in conversion_body)
 narratives,narrative_body=parse(request('/LorkhanServer/ui/narrative_manager.php'))
 generate_diary=next(f for f in narratives.forms if f['action'].endswith('/forms/narrative-generate'))
 assert all(field in generate_diary['fields'] for field in ['installation_id','profile_id','playthrough_id'])
-assert 'Request a diary' in narrative_body and 'never generates a diary on a timer' in narrative_body and 'Diary generation queued.' not in narrative_body
+assert 'Request a diary' in narrative_body and 'Automatic timer, sleep, and optional wait diaries' in narrative_body and 'Diary generation queued.' not in narrative_body
 provider_calls_before_diary=len(VoiceProvider.llm_requests)
 r=request(generate_diary['action'],'POST',dict(generate_diary['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id)); diary_error=r.read().decode()
 assert r.status==422 and 'diary_generation_disabled' in diary_error and len(VoiceProvider.llm_requests)==provider_calls_before_diary,(r.status,diary_error)
@@ -516,11 +516,12 @@ globals_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
 values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],rechat_mode='group',
     rechat_allow_actions='1',relationship_enabled='1',relationship_update_chance_percent='75',context_location_blacklist='Balmora',
-    auto_lock_profile='1',change_reason='HTTP layered global settings')
+    auto_lock_profile='1',autofill_custom_profiles='1',autofill_custom_profiles_trigger='25',
+    change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
 globals_page,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
-assert '<option value="group" selected>group</option>' in body and 'name="rechat_allow_actions" value="1" checked' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body
-assert all('<h2>'+section+'</h2>' in body for section in ['Prompt &amp; Rechat','Memory &amp; Others','Translation','Oghma Infinium','Context Sections','Context Details','Context Filters','Global Connectors']) and all(name in body for name in ['auto_lock_profile','oghma_enabled','translation_provider','context_location_blacklist','profile_generation_configuration_id']) and not any(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','autofill_custom_profiles','chim_ai_quest_progression','Background Life Trigger Time'])
+assert '<option value="group" selected>group</option>' in body and 'name="rechat_allow_actions" value="1" checked' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body and 'name="autofill_custom_profiles" value="1" checked' in body and 'name="autofill_custom_profiles_trigger" value="25"' in body
+assert all('<h2>'+section+'</h2>' in body for section in ['Prompt &amp; Rechat','Memory &amp; Others','Translation','Oghma Infinium','Context Sections','Context Details','Context Filters','Global Connectors']) and all(name in body for name in ['auto_lock_profile','autofill_custom_profiles','autofill_custom_profiles_trigger','oghma_enabled','translation_provider','context_location_blacklist','profile_generation_configuration_id']) and not any(name in body for name in ['memory_embedding_enabled','player_worst_memory_game_days','chim_ai_quest_progression','Background Life Trigger Time'])
 assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
 assert '<option value="none" selected>None</option>' in body and '<option value="deepl">DeepL</option>' in body and 'name="translation_provider" data-translation-control="provider" aria-label="Provider"' in body
 assert '<option value="https://api-free.deepl.com/v2/translate" selected>Free account (api-free.deepl.com)</option>' in body and '<option value="https://api.deepl.com/v2/translate">Pro account (api.deepl.com)</option>' in body
@@ -541,7 +542,7 @@ global_preset_response=request('/LorkhanServer/manage/exports/global-settings/'+
 global_preset=json.loads(global_preset_response.read().decode())
 assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','name','schema','settings']
 assert global_preset['schema']=='lorkhan.global-settings-preset.v2' and global_preset['settings']['schema']=='lorkhan.global-settings.v2'
-assert global_preset['settings']['client']['behavior']['rechat_mode']=='group' and global_preset['settings']['client']['behavior']['rechat_allow_actions'] is True and global_preset['settings']['context']['location_blacklist']==['Balmora'] and global_preset['settings']['profile_management']['auto_lock_profile'] is True and global_preset['settings']['relationship']=={'enabled':True,'update_chance_percent':75}
+assert global_preset['settings']['client']['behavior']['rechat_mode']=='group' and global_preset['settings']['client']['behavior']['rechat_allow_actions'] is True and global_preset['settings']['context']['location_blacklist']==['Balmora'] and global_preset['settings']['profile_management']=={'auto_lock_profile':True,'autofill_custom_profiles':True,'autofill_custom_profiles_trigger':25} and global_preset['settings']['relationship']=={'enabled':True,'update_chance_percent':75}
 assert not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','npc_assignments'])
 invalid_global_preset=dict(global_preset,unexpected='rejected')
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_global_preset))); invalid_body=r.read().decode()
@@ -764,23 +765,28 @@ assert 'id="profile-rules-open"' in core_body and 'id="profile-connector-test-op
 core_import_page,core_import_body=parse(request('/LorkhanServer/ui/core/core_profiles.php?import=1'))
 core_import_form=next(f for f in core_import_page.forms if f['action'].endswith('/forms/core-profile-settings-import'))
 assert 'name="preset_json"' in core_import_body and 'data-json-import-target="core-profile-preset-json"' in core_import_body
-# Validate the compact Core Profile response, Rechat, context, and manual diary controls.
+# Validate the compact Core Profile response, Rechat, context, and automatic diary controls.
 core_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 core_page=Page(); core_page.feed(core_body)
-assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Manual Diary Generation' in core_body
+assert 'aria-labelledby="diary_generation_configuration_id-label"' in core_body and 'Automatic Diary' in core_body
 assert 'aria-labelledby="relationship_configuration_id-label"' not in core_body and 'Relationship Update Chance' not in core_body
 assert 'name="setting_behavior_rechat"' in core_body and 'name="setting_memory_recent_turn_limit"' in core_body
-assert 'Generate nearby NPC diaries during sleep or wait.' not in core_body and 'Create a physical in-game diary that can be read.' not in core_body
+assert 'name="setting_diary_automatic_enabled"' in core_body and 'name="setting_diary_automatic_wait_enabled"' in core_body
+assert 'Create a physical in-game diary that can be read.' not in core_body
 core_form=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_configuration_id=slot_id,llm_fast_configuration_id=slot_id,
     setting_behavior_rechat='1',setting_behavior_rechat_max_depth='5',setting_behavior_rechat_probability_percent='65',
     setting_memory_recent_turn_limit='24',diary_generation_configuration_id=slot_id,
-    setting_diary_enabled='1',setting_diary_context_turn_limit='12',setting_diary_prompt='Record only witnessed events.')
+    setting_diary_enabled='1',setting_diary_automatic_enabled='1',setting_diary_automatic_wait_enabled='1',
+    setting_diary_automatic_interval_seconds='90',setting_diary_context_turn_limit='12',
+    setting_diary_prompt='Record only witnessed events.')
 core_values.pop('setting_diary_include_in_context',None)
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
 assert core_saved['fields']['diary_generation_configuration_id']==slot_id and core_saved['fields']['setting_diary_enabled']=='1'
+assert core_saved['fields']['setting_diary_automatic_enabled']=='1' and core_saved['fields']['setting_diary_automatic_wait_enabled']=='1'
+assert core_saved['fields']['setting_diary_automatic_interval_seconds']=='90'
 assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fields']['setting_behavior_rechat_max_depth']=='5' and core_saved['fields']['setting_behavior_rechat_probability_percent']=='65'
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert 'setting_diary_include_in_context' not in core_saved['fields'] and core_saved['fields']['setting_diary_context_turn_limit']=='12'
@@ -834,7 +840,7 @@ core_preset=json.loads(core_preset_response.read().decode())
 assert core_preset_response.status==200 and sorted(core_preset)==['exported_at','name','schema','settings_overrides']
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24}
-assert core_preset['settings_overrides']['diary']=={'enabled':True,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
+assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':90,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
@@ -848,6 +854,8 @@ assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="
 assert imported_form['fields']['setting_behavior_rechat']=='1' and imported_form['fields']['setting_behavior_rechat_max_depth']=='5'
 assert imported_form['fields']['setting_behavior_rechat_probability_percent']=='65' and imported_form['fields']['setting_memory_recent_turn_limit']=='24'
 assert imported_form['fields']['setting_diary_enabled']=='1' and 'setting_diary_include_in_context' not in imported_form['fields']
+assert imported_form['fields']['setting_diary_automatic_enabled']=='1' and imported_form['fields']['setting_diary_automatic_wait_enabled']=='1'
+assert imported_form['fields']['setting_diary_automatic_interval_seconds']=='90'
 assert imported_form['fields']['setting_diary_context_turn_limit']=='12' and '>Record only witnessed events.</textarea>' in body
 assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id'])
 assert imported_form['fields'].get('slot','')=='' and 'default_npc' not in imported_form['fields']
@@ -860,8 +868,9 @@ assert r.status==422 and 'invalid_core_profile_settings_preset' in body,(r.statu
 r=request('/LorkhanServer/manage/forms/core-profile-delete','POST',{'_csrf':csrf,'core_profile_id':imported_core_id}); assert r.status==200
 core_reset=dict(core_saved['fields'],_csrf=csrf,tts_configuration_id='',llm_configuration_id='',llm_fast_configuration_id='',diary_generation_configuration_id='',
     setting_behavior_rechat_max_depth='2',setting_behavior_rechat_probability_percent='50',setting_memory_recent_turn_limit='20',
-    setting_diary_context_turn_limit='20')
-for field in ['setting_behavior_rechat','setting_diary_enabled','setting_diary_include_in_context']:
+    setting_diary_automatic_interval_seconds='120',setting_diary_context_turn_limit='20')
+for field in ['setting_behavior_rechat','setting_diary_enabled','setting_diary_automatic_enabled',
+              'setting_diary_automatic_wait_enabled','setting_diary_include_in_context']:
     core_reset.pop(field,None)
 core_reset_response=request(core_form['action'],'POST',core_reset); core_reset_body=core_reset_response.read().decode()
 assert core_reset_response.status==200,(core_reset_response.status,core_reset_response.geturl(),core_reset_body)
@@ -1079,11 +1088,14 @@ if create_player is not None:
     player_id=match.group(1)
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
-    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',change_reason='HTTP parity test')
+    values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',
+        diary_enabled='1',auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
     assert revise['fields'].get('biography_known_by_all')=='0' and 'id="player-biography-known-by-all"' in body
+    assert revise['fields'].get('diary_enabled')=='1' and revise['fields'].get('auto_diary_enabled')=='1'
+    assert revise['fields'].get('auto_diary_wait_enabled')=='1' and revise['fields'].get('diary_interval_seconds')=='90'
     player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))
     player_preset_response=request('/LorkhanServer/manage/exports/player-profile-settings/'+player_id+'.json')
     player_preset=json.loads(player_preset_response.read().decode())
@@ -1134,16 +1146,20 @@ generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
 narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
-narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',change_reason='HTTP narrator portability route')
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',diary_enabled='1',
+    auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP narrator portability route')
 r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
+saved_narrator_form=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert saved_narrator_form['fields'].get('diary_enabled')=='1' and saved_narrator_form['fields'].get('auto_diary_enabled')=='1'
+assert saved_narrator_form['fields'].get('auto_diary_wait_enabled')=='1' and saved_narrator_form['fields'].get('diary_interval_seconds')=='90'
 generate_narrator=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate'))
 narrator_import=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-settings-import'))
 narrator_id=generate_narrator['fields']['profile_id']
 narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
 narrator_preset=json.loads(narrator_preset_response.read().decode())
 assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v1' and sorted(narrator_preset['settings'])==['biography','book_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_events','random_events','speech_style','voice','welcome_events']
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()

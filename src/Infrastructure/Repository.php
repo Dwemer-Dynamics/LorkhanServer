@@ -390,7 +390,7 @@ final class Repository
                 throw new \UnexpectedValueException('stale_generation');
             }
             $this->source((string) $message['request_id'], (string) $message['installation_id'],
-                (string) $message['session_id'], (int) $message['generation'], 'gamedata.captured_dialogue',
+                (string) $message['session_id'], (int) $message['generation'], 'gamedata.' . (string) $message['type'],
                 (string) $message['observed_at'], (string) $message['schema'], (string) $message['request_id'],
                 null, null, $message);
         });

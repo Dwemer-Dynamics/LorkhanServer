@@ -11,6 +11,7 @@ require dirname(__DIR__) . '/ui_bootstrap.php';
 $installations = $uiRepository->rows('installations');
 $rows = $uiRepository->rows('player');
 $ttsRows = $uiRepository->rows('tts');
+$providerRows = $uiRepository->rows('llm');
 $byInstallation = [];
 foreach ($rows as $row) $byInstallation[(string) $row['installation_id']] = $row;
 
@@ -21,6 +22,7 @@ $installationId = $requested !== '' && array_filter(
 ) ? $requested : (string) ($installations[0]['installation_id'] ?? '');
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
+$diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
@@ -174,7 +176,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <label for="player-voice-language">Voice Language</label>
                             <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
                         </div>
-                        <div class="field-block"><label>Player Autochat Connector</label><select disabled aria-disabled="true"><option>Use active LORKHAN model route</option></select><span class="hint">LORKHAN uses the inherited typed model pipeline.</span></div>
+                        <div class="field-block">
+                            <label for="player-autochat">Player Auto Chat Connector</label>
+                            <select id="player-autochat" name="player_autochat_configuration_id" aria-describedby="player-autochat-help">
+                                <option value="__disabled__"<?php echo array_key_exists('player_autochat_configuration_id', $routing) && (string) $routing['player_autochat_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
+                                <?php foreach ($providerRows as $provider): if ((string) ($provider['installation_id'] ?? '') !== $installationId) continue; ?>
+                                    <option value="<?php echo lorkhan_ui_h($provider['configuration_id']); ?>"<?php echo (string) ($routing['player_autochat_configuration_id'] ?? '') === (string) $provider['configuration_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($provider['name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <span class="hint" id="player-autochat-help">Rewrites typed intent as your character's spoken line. Enable Auto Chat from the in-game Interact menu.</span>
+                        </div>
                         <label for="player-speech-style">Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo lorkhan_ui_h($content['speech_style'] ?? ''); ?></textarea>
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>
@@ -191,13 +202,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </section>
 
                     <section class="content-section">
-                        <h2 class="section-title-with-status"><span>&#x1F4D9; Player Diary</span><?php echo lorkhan_ui_feature_badge('config.player.diary', true); ?></h2>
+                        <h2>&#x1F4D9; Player Diary</h2>
                         <div class="status-field"><span class="status-field-label">Player Diary Connector</span><div class="status-field-value">Typed LORKHAN narrative pipeline</div><div class="status-field-source">A separate player diary connector is not configured.</div></div>
                         <?php
-                        lorkhan_player_placeholder_toggle('Enable Player Diary', 'config.player.diary', 'Manual player diary generation is planned.');
-                        lorkhan_player_placeholder_toggle('Player Auto Diary', 'config.player.diary', 'Automatic diary generation on resting is planned.');
-                        lorkhan_player_placeholder_toggle('Player Auto Diary Wait', 'config.player.diary', 'Automatic diary generation when waiting is planned.');
+                        lorkhan_player_toggle('diary_enabled', 'player-diary-enabled', 'Enable Player Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the player.');
+                        lorkhan_player_toggle('auto_diary_enabled', 'player-auto-diary-enabled', 'Player Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a player diary on the configured timer and after sleeping.');
+                        lorkhan_player_toggle('auto_diary_wait_enabled', 'player-auto-diary-wait-enabled', 'Player Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a player diary after waiting.');
                         ?>
+                        <label for="player-diary-interval">Automatic Diary Cooldown (seconds)</label>
+                        <input id="player-diary-interval" name="diary_interval_seconds" type="number" min="30" max="86400" value="<?php echo (int) ($diary['automatic_interval_seconds'] ?? 120); ?>">
+                        <span class="hint">Minimum real-time delay between automatic player diaries. Default: 120 seconds.</span>
                     </section>
                 </div>
 
@@ -223,7 +237,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <label for="player-preset-json">Preset JSON</label>
                                 <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
                             </div>
-                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, TTS connector and voice routing, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, playthrough context, or the excluded autochat and diary controls.</p>
+                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, TTS connector and voice routing, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, playthrough context, autochat, or diary controls.</p>
                             <div class="player-portability-actions">
                                 <button type="submit" class="btn-portable" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
                             </div>

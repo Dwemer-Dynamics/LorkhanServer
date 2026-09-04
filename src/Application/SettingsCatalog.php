@@ -35,8 +35,15 @@ final class SettingsCatalog
             'context_visibility' => true,
             'inline_mode' => 'Disabled',
             'welcome_events' => false,
+            'welcome_cooldown_minutes' => 10,
             'random_events' => false,
+            'random_chance_percent' => 15,
+            'random_cooldown_rounds' => 2,
+            'bored_events' => false,
+            'bored_chance_percent' => 25,
             'quest_events' => false,
+            'quest_chance_percent' => 10,
+            'quest_cooldown_minutes' => 3,
             'book_events' => false,
         ],
         'presentation' => ['show_status_hud' => true, 'transcript_rows' => 8, 'tts_volume_boost' => 3],
@@ -101,6 +108,7 @@ final class SettingsCatalog
         'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
         'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
         'llm_fallback_configuration_id', 'diary_generation_configuration_id',
+        'player_autochat_configuration_id',
         'tts_configuration_id', 'llm_randomizer_enabled', 'llm_fallback_enabled',
     ];
 
@@ -119,6 +127,7 @@ final class SettingsCatalog
         'profile_generation_configuration_id' => 'uuid_or_empty',
         'relationship_configuration_id' => 'uuid_or_empty',
         'diary_generation_configuration_id' => 'uuid_or_empty',
+        'player_autochat_configuration_id' => 'uuid_or_empty',
         'tts_configuration_id' => 'uuid_or_empty',
         'llm_randomizer_enabled' => 'bool',
         'llm_fallback_enabled' => 'bool',
@@ -146,6 +155,12 @@ final class SettingsCatalog
         'behavior.end_conversation_cooldown_seconds' => [0, 300],
         'behavior.boredom_delay_seconds' => [30, 86400],
         'behavior.combat_bark_period_seconds' => [5, 300],
+        'narrator.welcome_cooldown_minutes' => [1, 1440],
+        'narrator.random_chance_percent' => [1, 100],
+        'narrator.random_cooldown_rounds' => [0, 10],
+        'narrator.bored_chance_percent' => [1, 100],
+        'narrator.quest_chance_percent' => [1, 100],
+        'narrator.quest_cooldown_minutes' => [1, 60],
         'memory.recent_turn_limit' => [1, 100],
         'memory.knowledge_limit' => [0, 20],
         'relationship.update_chance_percent' => [0, 100],
@@ -175,7 +190,11 @@ final class SettingsCatalog
         return [
             'schema' => self::GLOBAL_SCHEMA,
             'client' => self::CLIENT_DEFAULTS,
-            'profile_management' => ['auto_lock_profile' => true],
+            'profile_management' => [
+                'auto_lock_profile' => true,
+                'autofill_custom_profiles' => true,
+                'autofill_custom_profiles_trigger' => 40,
+            ],
             'translation' => TranslationPolicy::defaults(),
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [
@@ -249,9 +268,14 @@ final class SettingsCatalog
     public static function controlsProjectionFields(): array
     {
         return [
-            'behavior' => ['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_mode',
-                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds'],
+            'behavior' => ['auto_greeting', 'rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_mode',
+                'rechat_strict_targeting', 'open_rechat', 'end_conversation_cooldown_seconds',
+                'boredom', 'boredom_delay_seconds', 'combat_barks', 'combat_bark_period_seconds'],
             'memory' => ['recent_turn_limit'],
+            'narrator' => ['enabled','name','context_visibility','inline_mode','welcome_events',
+                'welcome_cooldown_minutes','random_events','random_chance_percent','random_cooldown_rounds',
+                'bored_events','bored_chance_percent','quest_events','quest_chance_percent',
+                'quest_cooldown_minutes','book_events'],
         ];
     }
 
@@ -259,10 +283,8 @@ final class SettingsCatalog
     public static function compatibilityPaths(): array
     {
         return [
-            'behavior.auto_greeting', 'behavior.rechat_delay_seconds',
-            'behavior.boredom', 'behavior.boredom_delay_seconds', 'behavior.combat_barks', 'behavior.combat_bark_period_seconds',
-            'memory.knowledge_limit', 'narrator.enabled', 'narrator.name', 'narrator.context_visibility', 'narrator.inline_mode',
-            'narrator.welcome_events', 'narrator.random_events', 'narrator.quest_events', 'narrator.book_events',
+            'behavior.rechat_delay_seconds',
+            'memory.knowledge_limit',
             'presentation.show_status_hud', 'presentation.transcript_rows', 'presentation.tts_volume_boost',
             'safety.actions_enabled', 'safety.allow_hostile', 'safety.allow_creatures',
         ];

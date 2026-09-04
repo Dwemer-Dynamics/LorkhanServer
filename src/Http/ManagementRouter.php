@@ -428,7 +428,7 @@ final class ManagementRouter
                 ['relationships','Relationships','Manage actor disposition and affinity.'],
                 ['world','World','Add Morrowind world information.'],
                 ['knowledge','Knowledge','Manage scoped knowledge records.'],
-                ['narrative-autonomy','Narrative','Configure narrator, diary, and summary records. Autonomy is excluded.'],
+                ['narrative-autonomy','Narrative','Configure narrator, diary, and summary records.'],
             ]),
             'configuration'=>$this->hubHtml([
                 ['providers','Providers','Configure deterministic and live provider presets.'],
@@ -452,7 +452,7 @@ final class ManagementRouter
             'memory'=>$this->formHtml('memory','Create memory',$csrf,$scope.$this->select('tier','Tier',['recent','mid','long']).$this->area('content','Memory').$this->input('provenance','Provenance source')),
             'relationships'=>$this->formHtml('relationships','Save relationship',$csrf,$scope.$this->area('content_json','Actor identity JSON','{}').$this->input('disposition','Disposition','number','0').$this->input('affinity','Affinity','number','0').$this->input('reason','Reason','text','management')),
             'knowledge'=>$this->formHtml('knowledge','Create knowledge',$csrf,$scope.$this->input('title','Title').$this->area('content','Knowledge').$this->input('provenance','Provenance source')),
-            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Autonomy <span class="status-badge">Excluded</span></h2><p>Timer-driven autonomy is not part of LORKHAN. Rechat and bored-event handling remain explicit gameplay flows.</p></section>',
+            'narrative-autonomy'=>$this->formHtml('narratives','Create narrative',$csrf,$scope.$this->select('kind','Narrative kind',['narrator','diary','summary']).$this->input('title','Title').$this->area('content','Narrative').$this->input('provenance','Provenance source')).'<section class="feature-status"><h2>Automatic diaries <span class="status-badge">Live</span></h2><p>Timer, sleep, and optional wait events queue diaries for eligible Player, Narrator, and nearby NPC profiles.</p></section>',
             'traces'=>'<section><h2>Events and traces</h2><p>Use the authenticated traces API with installation scope. Provider and prompt details remain redacted.</p></section>',
             'jobs'=>'<section><h2>Workers and jobs</h2><p>Queue and dead-letter counts are shown in diagnostics. Worker leases and retries are bounded.</p></section>',
             'backup-health'=>$this->formHtml('retention','Run bounded retention',$csrf,$this->input('days','Retention days','number','30').'<p>This removes expired operational metadata and never accepts a filesystem path.</p>'),
@@ -908,6 +908,9 @@ final class ManagementRouter
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50)],
             'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)],
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
+                'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
+                'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
+                'automatic_interval_seconds'=>(int)($overrides['diary']['automatic_interval_seconds']??$diary['automatic_interval_seconds']),
                 'include_in_context'=>($overrides['diary']['include_in_context']??true)===true,
                 'context_turn_limit'=>(int)($overrides['diary']['context_turn_limit']??$diary['context_turn_limit']),
                 'prompt'=>(string)($overrides['diary']['prompt']??$diary['prompt'])]];
@@ -924,7 +927,7 @@ final class ManagementRouter
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
         if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
         $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
-        $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v1';
+        $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v2';
         $document=['schema'=>$schema,'exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
         if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
@@ -940,13 +943,14 @@ final class ManagementRouter
         $schema=$document['schema']??null;
         $validSchema=$kind==='player'
             ?in_array($schema,['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],true)
-            :$schema==='lorkhan.narrator-profile-settings.v1';
+            :in_array($schema,['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'],true);
         if($keys!==['exported_at','schema','settings']
             ||!$validSchema
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException($error);
-        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,$schema==='lorkhan.player-profile-settings.v2');
+        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,
+            $schema==='lorkhan.player-profile-settings.v2'||$schema==='lorkhan.narrator-profile-settings.v2');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
@@ -968,33 +972,52 @@ final class ManagementRouter
         }else{
             $settings=[];foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
                 $settings[$field]=($content[$field]??false)===true;
+            $settings['welcome_cooldown_minutes']=(int)($content['welcome_cooldown_minutes']??10);
+            $settings['random_chance_percent']=(int)($content['random_chance_percent']??15);
+            $settings['random_cooldown_rounds']=(int)($content['random_cooldown_rounds']??2);
+            $settings['bored_events']=($content['bored_events']??false)===true;
+            $settings['bored_chance_percent']=(int)($content['bored_chance_percent']??25);
+            $settings['quest_chance_percent']=(int)($content['quest_chance_percent']??10);
+            $settings['quest_cooldown_minutes']=(int)($content['quest_cooldown_minutes']??3);
             $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $voice=is_array($content['voice']??null)?$content['voice']:[];
             $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
         }
-        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export',$kind==='player');
+        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export',true);
     }
 
     /** Enforce the exact Player or Narrator preset keys and bounded scalar values. */
-    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error,bool $includePlayerVisibility=false):array
+    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error,bool $includeV2Fields=false):array
     {
         $textFields=$kind==='player'
             ?['appearance','biography','personality','speech_style','goals','notes']
             :['prompt_head','core','biography','personality','speech_style','goals','notes'];
         $expected=$textFields;
-        if($kind==='player'&&$includePlayerVisibility)$expected[]='biography_known_by_all';
+        if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
+        $narratorV2=$kind==='narrator'&&$includeV2Fields;
         if($kind==='narrator')$expected=array_merge($expected,
-            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice']);
+            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice'],
+            $narratorV2?['welcome_cooldown_minutes','random_chance_percent','random_cooldown_rounds',
+                'bored_events','bored_chance_percent','quest_chance_percent','quest_cooldown_minutes']:[]);
         $keys=array_keys($settings);sort($keys);sort($expected);if($keys!==$expected)throw new InvalidArgumentException($error);
         foreach($textFields as$field){$value=$settings[$field];
             if(!is_string($value)||strlen($value)>65_536||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException($error);}
         if($kind==='player'){
-            if($includePlayerVisibility&&!is_bool($settings['biography_known_by_all']))throw new InvalidArgumentException($error);
+            if($includeV2Fields&&!is_bool($settings['biography_known_by_all']))throw new InvalidArgumentException($error);
             return$settings;
         }
         foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
             if(!is_bool($settings[$field]))throw new InvalidArgumentException($error);
+        if(!$narratorV2){$settings+=['welcome_cooldown_minutes'=>10,'random_chance_percent'=>15,
+            'random_cooldown_rounds'=>2,'bored_events'=>false,'bored_chance_percent'=>25,
+            'quest_chance_percent'=>10,'quest_cooldown_minutes'=>3];}
+        if(!is_bool($settings['bored_events']))throw new InvalidArgumentException($error);
+        foreach(['welcome_cooldown_minutes'=>[1,1440],'random_chance_percent'=>[1,100],
+            'random_cooldown_rounds'=>[0,10],'bored_chance_percent'=>[1,100],
+            'quest_chance_percent'=>[1,100],'quest_cooldown_minutes'=>[1,60]]as$field=>$range)
+            if(!is_int($settings[$field])||$settings[$field]<$range[0]||$settings[$field]>$range[1])
+                throw new InvalidArgumentException($error);
         if(!is_string($settings['inline_narration_mode'])
             ||!in_array($settings['inline_narration_mode'],['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException($error);
         $voice=$settings['voice'];$voiceKeys=is_array($voice)?array_keys($voice):[];sort($voiceKeys);
@@ -1411,7 +1434,20 @@ final class ManagementRouter
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
         $content['context_visibility']=isset($values['context_visibility']);
         $content['welcome_events']=isset($values['welcome_events']);$content['random_events']=isset($values['random_events']);
+        $integer=static function(array$input,string$key,int$default,int$minimum,int$maximum):int{
+            $value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
+            if($value===false||$value<$minimum||$value>$maximum)throw new InvalidArgumentException('invalid_'.$key);
+            return(int)$value;
+        };
+        $content['welcome_cooldown_minutes']=$integer($values,'welcome_cooldown_minutes',10,1,1440);
+        $content['random_chance_percent']=$integer($values,'random_chance_percent',15,1,100);
+        $content['random_cooldown_rounds']=$integer($values,'random_cooldown_rounds',2,0,10);
+        $content['bored_events']=isset($values['bored_events']);
+        $content['bored_chance_percent']=$integer($values,'bored_chance_percent',25,1,100);
         $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
+        $content['quest_chance_percent']=$integer($values,'quest_chance_percent',10,1,100);
+        $content['quest_cooldown_minutes']=$integer($values,'quest_cooldown_minutes',3,1,60);
+        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
         return$content;
     }
 
@@ -1566,6 +1602,9 @@ final class ManagementRouter
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])],
             'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)],
             'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
+                'automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
+                'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
+                'automatic_interval_seconds'=>$number($values,'setting_diary_automatic_interval_seconds',120),
                 'include_in_context'=>isset($values['setting_diary_include_in_context']),
                 'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
@@ -1580,12 +1619,20 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $client['behavior']['auto_greeting']=isset($values['auto_greeting']);
+        $client['behavior']['boredom']=isset($values['boredom']);
+        $client['behavior']['boredom_delay_seconds']=$integer($values,'boredom_delay_seconds',$client['behavior']['boredom_delay_seconds']);
+        $client['behavior']['combat_barks']=isset($values['combat_barks']);
+        $client['behavior']['combat_bark_period_seconds']=$integer($values,'combat_bark_period_seconds',$client['behavior']['combat_bark_period_seconds']);
         $client['behavior']['rechat_mode']=trim((string)($values['rechat_mode']??$client['behavior']['rechat_mode']));
         $client['behavior']['rechat_strict_targeting']=isset($values['rechat_strict_targeting']);
         $client['behavior']['open_rechat']=isset($values['open_rechat']);
         $client['behavior']['rechat_allow_actions']=isset($values['rechat_allow_actions']);
         $client['behavior']['end_conversation_cooldown_seconds']=$integer($values,'end_conversation_cooldown_seconds',$client['behavior']['end_conversation_cooldown_seconds']);
         $content['profile_management']['auto_lock_profile']=isset($values['auto_lock_profile']);
+        $content['profile_management']['autofill_custom_profiles']=isset($values['autofill_custom_profiles']);
+        $content['profile_management']['autofill_custom_profiles_trigger']=$integer($values,
+            'autofill_custom_profiles_trigger',$content['profile_management']['autofill_custom_profiles_trigger']);
         $provider=strtolower(trim((string)($values['translation_provider']??'none')));$active=$provider==='deepl';
         $content['translation']=TranslationPolicy::validate(['schema'=>'lorkhan.translation-policy.v1','provider'=>$provider,
             'translate_text'=>$active&&isset($values['translation_text']),'translate_audio'=>$active&&isset($values['translation_audio']),
@@ -1631,11 +1678,22 @@ final class ManagementRouter
         if($allowSpecialTtsRouting){
             $routing=[];$id=trim((string)($values['tts_configuration_id']??''));
             if($id==='__disabled__')$routing['tts_configuration_id']='';elseif($id!==''){$this->uuid($id,'tts_configuration_id');$routing['tts_configuration_id']=$id;}
+            $autochat=trim((string)($values['player_autochat_configuration_id']??''));
+            if($autochat==='__disabled__')$routing['player_autochat_configuration_id']='';
+            elseif($autochat!==''){$this->uuid($autochat,'player_autochat_configuration_id');$routing['player_autochat_configuration_id']=$autochat;}
             if($routing===[])unset($content['routing']);else$content['routing']=$routing;
         }else unset($content['routing']);
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
+        if(array_key_exists('dynamic_profile_fields_present',$values)){
+            $requested=$values['dynamic_profile_fields']??[];if(!is_array($requested))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            foreach(['personality','speech_style','goals']as$field)if(isset($values['dynamic_profile_'.$field]))$requested[]=$field;
+            $fields=[];foreach(['personality','speech_style','goals']as$field)if(in_array($field,$requested,true))$fields[]=$field;
+            if(isset($values['dynamic_profile'])&&$fields===[])throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            $content['dynamic_profile']=isset($values['dynamic_profile']);
+            $content['dynamic_profile_fields']=$fields===[]?['personality','speech_style','goals']:$fields;
+        }
         return$content;
     }
 
@@ -1643,12 +1701,26 @@ final class ManagementRouter
     private function playerContent(array $values):array
     {
         $content=$this->profileContent($values,true);
-        if(!array_key_exists('biography_known_by_all',$values))return$content;
-        $value=$values['biography_known_by_all'];
-        if(is_bool($value))$content['biography_known_by_all']=$value;
-        elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
-        else throw new InvalidArgumentException('invalid_biography_visibility');
+        if(array_key_exists('biography_known_by_all',$values)){
+            $value=$values['biography_known_by_all'];
+            if(is_bool($value))$content['biography_known_by_all']=$value;
+            elseif(in_array($value,['0','1'],true))$content['biography_known_by_all']=$value==='1';
+            else throw new InvalidArgumentException('invalid_biography_visibility');
+        }
+        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
         return$content;
+    }
+
+    /** Convert the shared Player and Narrator diary controls into bounded profile overrides. */
+    private function automaticDiaryFormContent(array $values):array
+    {
+        $enabled=static fn(string$key):bool=>filter_var($values[$key]??false,FILTER_VALIDATE_BOOL);
+        $interval=filter_var($values['diary_interval_seconds']??120,FILTER_VALIDATE_INT);
+        if($interval===false)throw new InvalidArgumentException('invalid_diary_interval_seconds');
+        return DiaryGenerationPolicy::validateOverrides(['enabled'=>$enabled('diary_enabled'),
+            'automatic_enabled'=>$enabled('auto_diary_enabled'),
+            'automatic_wait_enabled'=>$enabled('auto_diary_wait_enabled'),
+            'automatic_interval_seconds'=>(int)$interval]);
     }
 
     /** Remove article-only markers before management forms write NPC access permissions. */

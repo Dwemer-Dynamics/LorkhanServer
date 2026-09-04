@@ -40,7 +40,8 @@ The immutable response envelope is stored on the turn. Its line and utterance ID
 the same envelope with `ok=false`, no lines, and a bounded terminal error.
 
 `lorkhan.gamedata.v1` accepts only typed TES3 actor, inventory, nearby-actor, world, Journal,
-captured-dialogue, and prompt-bridge payloads. AI quests, boredom, greetings, combat barks, ITT, and
+captured-dialogue, and prompt-bridge payloads. Greetings, boredom remarks, and combat barks are ordinary
+bounded turns scheduled by the game client. AI quests, ITT, and
 Background Life have no accepted variants. `lorkhan.events.v1.autonomy` remains required for v1 wire
 compatibility but must always be empty. Rechat is a normal correlated turn. Canonical envelopes require
 both response generation and runtime generation values greater than zero.
@@ -137,12 +138,12 @@ acceptance freezes the assembled prompt and provider slot snapshot so later admi
 already accepted job.
 
 The controls response also returns a strict `lorkhan.effective-settings.v1` snapshot for the active target.
-It contains resolved rechat, memory, narrator, safety, and client-visible routing values, their
+It contains resolved automatic-dialogue, rechat, memory, narrator, safety, and client-visible routing values, their
 Global/Core Profile/NPC source map, bound profile revisions, and a deterministic change token.
-The unchanged v1 wire shape retains compiled presentation and disabled legacy behavior defaults for
+The unchanged v1 wire shape retains compiled presentation and remaining legacy behavior defaults for
 strict older parsers. These compatibility fields never replace local OpenMW preferences or enable
-timer scheduling, boredom, greetings, combat barks, ITT, or Background Life. The Lua bridge receives
-only the seven playback-gated rechat fields from behavior; its safety gates require both local and
+server-owned timer scheduling, ITT, or Background Life. The Lua bridge receives
+the automatic-dialogue controls plus the seven playback-gated rechat fields; its safety gates require both local and
 server permission. Server-only Oghma tags, diary settings, and Oghma/profile/diary-generation routes
 are not exposed.
 The source map omits excluded/internal paths and compatibility-only defaults. Model-slot driver
@@ -239,9 +240,11 @@ Action Editor exposes labelled policy enable, maximum-tier, and per-action permi
 immutable server catalog. These policies can only further restrict catalog rows and OpenMW-negotiated
 capabilities; the UI cannot rewrite action names, client capabilities, or parameter/result schemas.
 Player Management can queue a durable analysis of at most the latest 200 real player turns. The job
-updates only the player profile's `speech_style` when its base revision is still current; it does not
-enable autonomous player chat. Typed player messages may reuse the bounded speech synthesis lane when
-the installation player profile selects a TTS connector.
+updates only the player profile's `speech_style` when its base revision is still current. A separate
+Player Auto Chat connector accepts one authenticated bounded intent at `/player-autochat` and returns
+one correlated spoken line. The client subtitles and speaks that line before submitting it through the
+ordinary typed-turn contract, so the generated line becomes the real conversation input. With Auto Chat
+off, typed messages remain unchanged. Player TTS keeps its independent profile route.
 Playthrough export/restore remains scoped and transactional; management pages do not expose private
 media bytes, credential files, provider keys, database passwords, or arbitrary log paths.
 Playthrough Manager derives bounded session, turn, response, memory, relationship, narrative, and

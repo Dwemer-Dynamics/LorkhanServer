@@ -23,6 +23,7 @@ SCHEMA_FOR = {
     "lorkhan.action-result.accepted.v1": "action-result-accepted.schema.json",
     "lorkhan.stt.accepted.v1": "stt-accepted.schema.json",
     "lorkhan.dialogue-delivery-result.accepted.v1": "dialogue-delivery-result-accepted.schema.json",
+    "lorkhan.player-autochat.ready.v1": "player-autochat-ready.schema.json",
     "lorkhan.session.ended.v1": "session-ended.schema.json",
 }
 

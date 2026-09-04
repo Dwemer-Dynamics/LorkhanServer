@@ -1238,6 +1238,40 @@ $check($diaryStats['succeeded']===1&&$diaryRow['kind']==='diary'&&$diaryRow['tit
     &&$diaryAttempt['operation']==='generate_diary'&&$diaryAttempt['model']==='diary-v1'
     &&$diaryAttempt['config_revision']==='1'&&$diaryAttempt['state']==='succeeded',
     'manual diary worker did not use the frozen provider revision or persist exact scoped provenance');
+
+// Automatic candidates remain server-gated by profile opt-in, wait permission, and a per-profile cooldown.
+$products->bindActorProfile(['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id']],
+    $diaryActor,$diaryProfile['profile_id'],$clock->iso());
+$diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
+$diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'automatic_enabled'=>true,
+    'automatic_wait_enabled'=>false,'automatic_interval_seconds'=>120,'include_in_context'=>true,
+    'context_turn_limit'=>12,'prompt'=>'Record only witnessed events.'];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'enable automatic sleep diaries');
+$automaticMessage=['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],
+    'request_id'=>Uuid::v4(),'payload'=>['trigger'=>'wait','game_time'=>48.0,'actors'=>[$diaryActor]]];
+$waitDisabled=$products->enqueueAutomaticDiaries($automaticMessage);
+$check($waitDisabled['queued']===0&&in_array('wait_disabled',$waitDisabled['skipped'],true),
+    'automatic wait diary ignored its separate opt-in');
+$diaryCoreContent['settings_overrides']['diary']['automatic_wait_enabled']=true;
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'enable automatic wait diaries');
+$automaticMessage['request_id']=Uuid::v4();$automaticQueued=$products->enqueueAutomaticDiaries($automaticMessage);
+$automaticJob=$db->query("SELECT job_id,payload FROM durable_jobs WHERE job_type='narrative.generate' "
+    ."AND payload->>'profile_id'='{$diaryProfile['profile_id']}' AND payload->>'automatic_trigger'='wait' ORDER BY created_at DESC LIMIT 1")->fetch();
+$automaticPayload=$automaticJob?json_decode((string)$automaticJob['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$automaticMessage['request_id']=Uuid::v4();$automaticCooldown=$products->enqueueAutomaticDiaries($automaticMessage);
+$check($automaticQueued['queued']===1&&$automaticJob&&(float)($automaticPayload['trigger_game_time']??-1)===48.0
+    &&$automaticCooldown['queued']===0&&in_array('cooldown',$automaticCooldown['skipped'],true),
+    'automatic diary did not queue once with frozen trigger metadata and then honor its cooldown: '.json_encode([
+        'queued'=>$automaticQueued,'job'=>$automaticJob,'payload'=>$automaticPayload,'cooldown'=>$automaticCooldown],JSON_UNESCAPED_SLASHES));
+$automaticStats=(new Worker($jobs,$diaryRegistry,'automatic-diary-test',5,1,1,0,10,
+    ['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
+$automaticNarrative=$db->query("SELECT provenance FROM narrative_records WHERE narrative_id='{$automaticPayload['narrative_id']}'")->fetchColumn();
+$automaticProvenance=$automaticNarrative?json_decode((string)$automaticNarrative,true,32,JSON_THROW_ON_ERROR):[];
+$check($automaticStats['succeeded']===1&&($automaticProvenance['source']??null)==='automatic-diary-generation'
+    &&($automaticProvenance['trigger']??null)==='wait'&&(float)($automaticProvenance['trigger_game_time']??-1)===48.0,
+    'automatic diary worker did not preserve its typed event provenance');
+$diaryCoreContent['routing']=[];
+$service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'remove automatic diary connector before deletion');
 $service->deleteRevisioned('provider',$diaryConnector['configuration_id']);
 $service->createNarrative(['installation_id'=>$installation,'profile_id'=>$diaryProfile['profile_id'],
     'playthrough_id'=>$playthrough['playthrough_id'],'kind'=>'summary','title'=>'Still included','content'=>'A bounded summary.',

@@ -27,8 +27,8 @@ final class EffectiveSettingsResolver
             $settings[$section] = array_replace($settings[$section],
                 array_intersect_key($resolved['settings'][$section], $allowed));
         }
-        // Presentation and legacy behavior fields are inert v1 compatibility defaults.
-        // They are never projected into Lua; the client's local preferences remain authoritative.
+        // Presentation and remaining compatibility fields stay at protocol defaults.
+        // Runtime-owned behavior is projected while local presentation remains authoritative.
         $routing = array_intersect_key($resolved['routing'], array_fill_keys([
             'prompt_configuration_id', 'llm_configuration_id', 'llm_fast_configuration_id',
             'llm_powerful_configuration_id', 'llm_experimental_configuration_id',
@@ -41,7 +41,7 @@ final class EffectiveSettingsResolver
             foreach ($fields as $field) {
                 $path = 'settings.' . $section . '.' . $field;
                 $source = $resolved['sources'][$path] ?? null;
-                if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+                if (in_array($source, ['default', 'global', 'core_profile', 'npc', 'narrator_profile'], true)) $sources[$path] = $source;
             }
         }
         foreach ($routing as $field => $_) {
@@ -58,13 +58,17 @@ final class EffectiveSettingsResolver
      * @param array<string,mixed> $npcProfileContent
      * @return array{document:array<string,mixed>,settings:array<string,mixed>,routing:array<string,mixed>,sources:array<string,string>,sha256:string}
      */
-    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = [], bool $allowProfileTtsRouting = false): array
+    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = [], bool $allowProfileTtsRouting = false, array $narratorProfileContent = []): array
     {
         $global = $globalSettings === [] ? SettingsCatalog::globalDefaults() : self::validateGlobalSettings($globalSettings);
         $settings = $global['client'];
+        // Narrator automation belongs to the installation Narrator profile. Ignore the
+        // legacy copy retained in Global Settings before applying that profile below.
+        $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $sources = [];
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
+        $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
 
         $oghmaDocument = is_array($global['oghma'] ?? null) ? $global['oghma'] : [];
@@ -131,9 +135,10 @@ final class EffectiveSettingsResolver
         }
         if ($allowProfileTtsRouting) {
             $profileRouting = self::validateRouting($npcProfileContent['routing'] ?? []);
-            if (array_key_exists('tts_configuration_id', $profileRouting)) {
-                $routing['tts_configuration_id'] = $profileRouting['tts_configuration_id'];
-                $sources['routing.tts_configuration_id'] = 'npc';
+            foreach (['tts_configuration_id','player_autochat_configuration_id'] as $field) {
+                if (!array_key_exists($field, $profileRouting)) continue;
+                $routing[$field] = $profileRouting[$field];
+                $sources['routing.' . $field] = 'npc';
             }
         }
         if (is_string($npcProfileContent['oghma_knowledge_tags'] ?? null)
@@ -141,20 +146,37 @@ final class EffectiveSettingsResolver
             $settings['memory']['oghma_knowledge_tags'] = trim($npcProfileContent['oghma_knowledge_tags']);
             $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
         }
-
-        // Compatibility fields remain in the v1 document, but excluded automation can never become effective.
-        foreach ([
-            ['behavior', 'auto_greeting'],
-            ['behavior', 'boredom'],
-            ['behavior', 'combat_barks'],
-            ['narrator', 'welcome_events'],
-            ['narrator', 'random_events'],
-            ['narrator', 'quest_events'],
-            ['narrator', 'book_events'],
-        ] as [$section, $field]) {
-            $settings[$section][$field] = false;
-            $sources['settings.' . $section . '.' . $field] = 'excluded';
+        if (array_key_exists('diary', $npcProfileContent)) {
+            $profileDiary=DiaryGenerationPolicy::validateOverrides($npcProfileContent['diary']);
+            $this->mergeSettings($settings, ['diary'=>$profileDiary], 'npc', 'settings', $sources);
         }
+
+        if (!is_array($narratorProfileContent) || ($narratorProfileContent !== [] && array_is_list($narratorProfileContent))) {
+            throw new InvalidArgumentException('invalid_settings_layer');
+        }
+        $narratorMap = [
+            'name'=>'name','enabled'=>'enabled','context_visibility'=>'context_visibility','inline_narration_mode'=>'inline_mode',
+            'welcome_events'=>'welcome_events','welcome_cooldown_minutes'=>'welcome_cooldown_minutes',
+            'random_events'=>'random_events','random_chance_percent'=>'random_chance_percent',
+            'random_cooldown_rounds'=>'random_cooldown_rounds','bored_events'=>'bored_events',
+            'bored_chance_percent'=>'bored_chance_percent','quest_events'=>'quest_events',
+            'quest_chance_percent'=>'quest_chance_percent','quest_cooldown_minutes'=>'quest_cooldown_minutes',
+            'book_events'=>'book_events',
+        ];
+        foreach ($narratorMap as $profileField => $settingsField) {
+            if (!array_key_exists($profileField, $narratorProfileContent)) continue;
+            $value=$narratorProfileContent[$profileField];$default=SettingsCatalog::clientDefaults()['narrator'][$settingsField];
+            if(gettype($value)!==gettype($default))throw new InvalidArgumentException('invalid_settings_layer');
+            if($settingsField==='name'&&(trim($value)===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')))
+                throw new InvalidArgumentException('invalid_settings_layer');
+            $path='narrator.'.$settingsField;$range=SettingsCatalog::ranges()[$path]??null;
+            if($range!==null&&($value<$range[0]||$value>$range[1]))throw new InvalidArgumentException('invalid_settings_layer');
+            if($settingsField==='inline_mode'&&!in_array($value,SettingsCatalog::enums()['narrator.inline_mode'],true))
+                throw new InvalidArgumentException('invalid_settings_layer');
+            $settings['narrator'][$settingsField] = $value;
+            $sources['settings.narrator.' . $settingsField] = 'narrator_profile';
+        }
+
 
         $context = $global['context'];
         $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context];
@@ -195,11 +217,25 @@ final class EffectiveSettingsResolver
             return $migrated;
         }
         $expected = SettingsCatalog::globalDefaults();
+        // Early v2 settings predate automatic profile backfill. Normalize those saved documents
+        // to the current v2 defaults before enforcing the otherwise exact settings shape.
+        if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
+            && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
+            $content['profile_management'] += $expected['profile_management'];
+            if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
+                $content['client']['narrator'] += $expected['client']['narrator'];
+        }
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
         self::assertExactKeys($content['profile_management'], $expected['profile_management'], 'invalid_global_settings');
-        if (!is_bool($content['profile_management']['auto_lock_profile'])) throw new InvalidArgumentException('invalid_global_settings');
+        if (!is_bool($content['profile_management']['auto_lock_profile'])
+            || !is_bool($content['profile_management']['autofill_custom_profiles'])
+            || !is_int($content['profile_management']['autofill_custom_profiles_trigger'])
+            || $content['profile_management']['autofill_custom_profiles_trigger'] < 10
+            || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
+            throw new InvalidArgumentException('invalid_global_settings');
+        }
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
         $content['context'] = self::validateContextPolicy($content['context']);
@@ -399,7 +435,7 @@ final class EffectiveSettingsResolver
         if (isset(SettingsCatalog::enums()[$path]) && !in_array($value, SettingsCatalog::enums()[$path], true)) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
-        if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 128 || !mb_check_encoding($value, 'UTF-8'))) {
+        if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 256 || !mb_check_encoding($value, 'UTF-8'))) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'memory.oghma_knowledge_tags' && (strlen($value) > 4096 || !mb_check_encoding($value, 'UTF-8'))) {

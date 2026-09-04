@@ -40,6 +40,7 @@ final class Validator
             'lorkhan.stt.request.v1' => $this->stt($message),
             'lorkhan.dialogue-delivery-result.v1' => $this->delivery($message),
             'lorkhan.menu-dialogue-tts.v1' => $this->menuDialogueTts($message),
+            'lorkhan.player-autochat.v1' => $this->playerAutochat($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
             'lorkhan.debug-command.query.v1' => $this->debugCommandQuery($message),
@@ -140,7 +141,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','captured_dialogue'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -149,6 +150,19 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='automatic_diary'){
+            $this->keys($payload,['trigger','game_time','actors']);
+            if(!in_array($payload['trigger']??null,['timer','sleep','wait'],true)
+                ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991
+                ||!is_array($payload['actors']??null)||!array_is_list($payload['actors'])||count($payload['actors'])>12)
+                throw new ValidationException('invalid_schema');
+            $seen=[];foreach($payload['actors']as$actor){$this->identity($actor);
+                if(!in_array($actor['kind']??null,['npc','creature'],true))throw new ValidationException('invalid_schema');
+                $key=json_encode($actor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
+                if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;}
+            return;
+        }
         if($type==='actor_profile'){
             $this->keys($payload,['actor','race','class','gender','level','disposition','factions']);
             $this->identity($payload['actor']??null);
@@ -241,6 +255,20 @@ final class Validator
             throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
         $this->timestamp($message['created_at']);$this->identity($message['actor']);
+    }
+
+    /** @param array<string, mixed> $message */
+    private function playerAutochat(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','player','target','intent']);
+        if($message['schema']!=='lorkhan.player-autochat.v1'||!is_int($message['generation'])||$message['generation']<0
+            ||!is_string($message['intent'])||trim($message['intent'])===''||strlen($message['intent'])>16_384
+            ||mb_strlen($message['intent'],'UTF-8')>4096||!mb_check_encoding($message['intent'],'UTF-8'))
+            throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
+        $this->timestamp($message['created_at']);$this->identity($message['player']);$this->identity($message['target']);
+        if(($message['player']['kind']??null)!=='player'||($message['target']['kind']??null)==='player')
+            throw new ValidationException('invalid_schema');
     }
 
     private function controlsQuery(array $message): void

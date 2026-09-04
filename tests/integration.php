@@ -567,6 +567,7 @@ $assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
     'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
 $playerContent=$playerProfile['content'];
 $playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
+$playerContent['routing']['player_autochat_configuration_id']=$profileModelSlot['configuration_id'];
 $playerContent['voice']=['id'=>'MaleArgonian','language'=>'en-US'];
 $products->revise('profile',$playerProfile['profile_id'],$playerContent,'integration player TTS route',$now);
 $playerProfile=$products->playerProfileForInstallation($installationId);
@@ -575,6 +576,16 @@ $playerSpeechContext=$products->speechContext($installationId,$session['playthro
 $assert(($playerSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id']
     &&$playerSpeechContext===['voice'=>'MaleArgonian','language'=>'en-US'],
     'player profile did not supply its TTS connector and voice: '.json_encode($playerSpeechContext));
+$playerAutochat=$fixture('player-autochat');
+$playerAutochat['message_id']=$newUuid(714);$playerAutochat['request_id']=$newUuid(715);
+$playerAutochat['session_id']=$sessionId;$playerAutochat['generation']=7;$playerAutochat['created_at']=$now;
+$playerAutochat['target']=$controlsQuery['target'];
+$playerAutochat['intent']='ask whether he has found his ring';
+[$status,$rewritten]=$call($router,'POST',$base.'/player-autochat',$headers($playerAutochat['message_id']),[],$playerAutochat);
+$assert($status===201&&($rewritten['schema']??null)==='lorkhan.player-autochat.ready.v1'
+    &&($rewritten['request_id']??null)===$playerAutochat['request_id']
+    &&($rewritten['text']??null)===$playerAutochat['intent'],
+    'player Auto Chat did not resolve its dedicated player-profile connector: '.json_encode($rewritten));
 
 $generateProfile=$selectProfile;$generateProfile['message_id']=$newUuid(12);$generateProfile['request_id']=$newUuid(13);
 $generateProfile['kind']='profile_generate';
@@ -632,6 +643,108 @@ $autoProfileCount->execute(['installation'=>$installationId,'record'=>$autoTarge
 $assert($duplicateAutoStatus===202&&(int)$autoProfileCount->fetchColumn()===1,
     'replayed auto-activation created a duplicate NPC profile');
 
+$backfillTarget=$autoTarget;$backfillTarget['record_id']='profile_backfill_sentinel';
+$backfillTarget['display_name']='Profile Backfill Sentinel';$backfillTarget['refnum']['index']=6100;
+$backfillProfile=$products->createRevisioned('profile',['installation_id'=>$installationId,
+    'name'=>'Profile Backfill Sentinel','actor_identity'=>$backfillTarget,
+    'content'=>['management'=>['locked'=>false,'favorite'=>false]]],$now);
+$products->bindActorProfile(['installation_id'=>$installationId,'playthrough_id'=>$session['playthrough_id']],
+    $backfillTarget,$backfillProfile['profile_id'],$now);
+$backfillGlobal=$products->globalSettingsForInstallation($installationId);$backfillSettings=$backfillGlobal['content'];
+$backfillSettings['profile_management']['autofill_custom_profiles']=true;
+$backfillSettings['profile_management']['autofill_custom_profiles_trigger']=10;
+$products->revise('global_settings',$backfillGlobal['configuration_id'],$backfillSettings,'enable profile backfill fixture',$now);
+$backfillBeforeHistory=$products->maybeEnqueueAutomaticProfileBackfill($backfillProfile['profile_id'],$session['playthrough_id']);
+$assert($backfillBeforeHistory['queued']===false&&$backfillBeforeHistory['reason']==='history_threshold'
+    &&$backfillBeforeHistory['observed']===0&&$backfillBeforeHistory['required']===10,
+    'automatic profile backfill did not wait for its configured history threshold');
+$backfillData=$autoProfileData;$backfillData['request_id']=$newUuid(6160);$backfillData['payload']['actor']=$backfillTarget;
+[$backfillStatus]=$call($router,'POST',$base.'/gamedata',$headers($backfillData['request_id']),[],$backfillData);
+$backfillSource=$db->prepare("SELECT event_kind FROM source_events WHERE source_event_id=:source");
+$backfillSource->execute(['source'=>$backfillData['request_id']]);
+$assert($backfillStatus===202&&$backfillSource->fetchColumn()==='gamedata.actor_profile',
+    'automatic profile observation was not persisted as immutable game data');
+$insertBackfillTurn=$db->prepare("INSERT INTO turns(turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,"
+    ."speaker,target,audience,context,state,accepted_at,completed_at,response_id,response_payload,response_created_at) VALUES "
+    ."(:turn,:request,:message,:session,7,'text','en',:input,CAST(:speaker AS jsonb),CAST(:target AS jsonb),'[]'::jsonb,'{}'::jsonb,"
+    ."'complete',:now,:now,:response,CAST(:response_payload AS jsonb),:now)");
+for($index=0;$index<10;$index++)$insertBackfillTurn->execute(['turn'=>$newUuid(6110+$index*4),
+    'request'=>$newUuid(6111+$index*4),'message'=>$newUuid(6112+$index*4),'response'=>$newUuid(6113+$index*4),
+    'session'=>$sessionId,'input'=>'Observed exchange '.($index+1),'speaker'=>json_encode($playerProfile['actor_identity'],JSON_THROW_ON_ERROR),
+    'target'=>json_encode($backfillTarget,JSON_THROW_ON_ERROR),'response_payload'=>json_encode(['lines'=>[[
+        'action'=>'say','speaker_identity'=>$backfillTarget,'text'=>'Observed NPC reply '.($index+1)]]],JSON_THROW_ON_ERROR),
+    'now'=>$now]);
+$backfillFromTurn=$products->maybeEnqueueAutomaticProfileBackfillForTurn(['installation_id'=>$installationId,
+    'playthrough_id'=>$session['playthrough_id'],'payload'=>['target'=>$backfillTarget]]);
+$assert($backfillFromTurn['queued']===true&&$backfillFromTurn['observed']===10,
+    'completed actor turn did not resolve its bound profile for automatic backfill');
+$backfillJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='npc_profile_backfill'");
+$backfillJob->execute(['profile'=>$backfillProfile['profile_id']]);$backfillJobRow=$backfillJob->fetch();
+$backfillPayload=$backfillJobRow?json_decode((string)$backfillJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert($backfillJobRow&&$backfillJobRow['state']==='queued'
+    &&count($backfillPayload['source_turn_ids']??[])===10&&count($backfillPayload['recent_events']??[])===10,
+    'automatic profile backfill did not freeze bounded actor history or persist its source observation: '.json_encode([
+        'status'=>$backfillStatus,'job'=>$backfillJobRow,'payload'=>$backfillPayload],JSON_UNESCAPED_SLASHES));
+$backfillHandlerPayload=$backfillPayload;unset($backfillHandlerPayload['provider_configuration_id'],$backfillHandlerPayload['provider_revision']);
+$backfillHandlerPayload['_job']=['job_id'=>$backfillJobRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($backfillHandlerPayload,'profile-backfill-test',static fn():bool=>true);
+$generatedBackfill=$products->getRevisioned('profile',$backfillProfile['profile_id']);
+$assert((int)$generatedBackfill['current_revision']===(int)$backfillPayload['base_revision']+1
+    &&str_contains((string)($generatedBackfill['content']['notes']??''),'backfill from 10 recent events'),
+    'automatic profile backfill worker did not use the frozen actor history');
+
+$dynamicContent=$generatedBackfill['content'];$dynamicContent['dynamic_profile']=true;
+$dynamicContent['dynamic_profile_fields']=['personality'];$dynamicContent['personality']='Baseline personality to evolve.';
+$dynamicContent['speech_style']='Speech style must remain unchanged.';
+$dynamicContent['goals']='Goals must remain unchanged.';
+$dynamicProfile=$products->revise('profile',$backfillProfile['profile_id'],$dynamicContent,'enable dynamic profile fixture',$now);
+$db->prepare("UPDATE sessions SET created_at=clock_timestamp()-interval '21 minutes' WHERE session_id=:session")
+    ->execute(['session'=>$sessionId]);
+$dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
+$dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=$dynamicJob->fetch();
+$dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
+    &&($dynamicPayload['dynamic_fields']??null)===['personality']
+    &&count($dynamicPayload['source_turn_ids']??[])===10&&count($dynamicPayload['recent_events']??[])===10,
+    'dynamic NPC profile evolution did not freeze its selected fields and witnessed history');
+$dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
+$dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($dynamicHandlerPayload,'profile-evolution-test',static fn():bool=>true);
+$evolvedProfile=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
+$dynamicAgain=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_revision']+1
+    &&($evolvedProfile['content']['personality']??'')!==($dynamicContent['personality']??'')
+    &&($evolvedProfile['content']['speech_style']??null)==='Speech style must remain unchanged.'
+    &&($evolvedProfile['content']['goals']??null)==='Goals must remain unchanged.'
+    &&$dynamicAgain['queued']===false&&$dynamicAgain['reason']==='interval',
+    'dynamic NPC evolution changed unselected fields or bypassed its 20-minute fence');
+
+$narratorDynamicContent=$narratorProfile['content'];$narratorDynamicContent['dynamic_profile']=true;
+$narratorDynamicContent['dynamic_profile_fields']=['goals'];$narratorDynamicContent['personality']='Narrator personality must remain unchanged.';
+$narratorDynamic=$products->revise('profile',$narratorProfile['profile_id'],$narratorDynamicContent,'enable narrator evolution fixture',$now);
+$narratorEvolution=$products->maybeEnqueueDynamicProfileEvolution($narratorDynamic['profile_id'],$session['playthrough_id'],$sessionId);
+$narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
+$narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
+$narratorEvolutionPayload=$narratorEvolutionRow?json_decode((string)$narratorEvolutionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
+    &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
+    &&count($narratorEvolutionPayload['recent_events']??[])===10,
+    'dynamic narrator evolution did not freeze the shared witnessed history');
+$narratorEvolutionHandler=$narratorEvolutionPayload;unset($narratorEvolutionHandler['provider_configuration_id'],$narratorEvolutionHandler['provider_revision']);
+$narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($narratorEvolutionHandler,'narrator-evolution-test',static fn():bool=>true);
+$evolvedNarrator=$products->getRevisioned('profile',$narratorDynamic['profile_id']);
+$assert(($evolvedNarrator['content']['personality']??null)==='Narrator personality must remain unchanged.'
+    &&($evolvedNarrator['content']['goals']??'')!==($narratorDynamicContent['goals']??''),
+    'dynamic narrator evolution changed an unselected field or failed to evolve its selected field');
+
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
     'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
         'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',
@@ -652,6 +765,18 @@ $assert($creatureStatus===202&&$creatureControlsStatus===200&&is_array($creature
     &&($creatureProfile['content']['biography']??null)==='Exact creature template biography.'
     &&($creatureProfile['content']['personality']??null)==='Offended by an Argonian Nerevarine.',
     'auto-activated creature did not materialize its exact profile template');
+
+$automaticDiary=$fixture('gamedata-automatic-diary');
+$automaticDiary['installation_id']=$installationId;$automaticDiary['playthrough_id']=$session['playthrough_id'];
+$automaticDiary['session_id']=$sessionId;$automaticDiary['generation']=7;$automaticDiary['runtime_generation']=7;
+$automaticDiary['request_id']=$newUuid(858);$automaticDiary['payload']['actors']=[];
+[$automaticDiaryStatus,$automaticDiaryAccepted]=$call($router,'POST',$base.'/gamedata',
+    $headers($automaticDiary['request_id']),[],$automaticDiary);
+$automaticDiarySource=$db->prepare('SELECT event_kind FROM source_events WHERE source_event_id=:source');
+$automaticDiarySource->execute(['source'=>$automaticDiary['request_id']]);
+$assert($automaticDiaryStatus===202&&($automaticDiaryAccepted['type']??null)==='automatic_diary'
+    &&$automaticDiarySource->fetchColumn()==='gamedata.automatic_diary',
+    'typed automatic diary candidate was not accepted and recorded through the HTTP router');
 
 $turnMoodTemplates=\LorkhanServer\Application\PlayerMoodPolicy::defaultTemplates();
 $turnMoodTemplates['playful']='({PLAYER_NAME} answers in a {MOOD} voice.)';
@@ -2228,7 +2353,9 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
     'boredom'=>true,'boredom_delay_seconds'=>240,'combat_barks'=>true,'combat_bark_period_seconds'=>30],
     'memory'=>['recent_turn_limit'=>24,'knowledge_limit'=>6],
     'narrator'=>['enabled'=>true,'name'=>'The Temple Chronicler','context_visibility'=>true,'inline_mode'=>'Narrator',
-        'welcome_events'=>true,'random_events'=>false,'quest_events'=>true,'book_events'=>true],
+        'welcome_events'=>true,'welcome_cooldown_minutes'=>10,'random_events'=>false,'random_chance_percent'=>15,
+        'random_cooldown_rounds'=>2,'bored_events'=>false,'bored_chance_percent'=>25,'quest_events'=>true,
+        'quest_chance_percent'=>10,'quest_cooldown_minutes'=>3,'book_events'=>true],
     'presentation'=>['show_status_hud'=>true,'transcript_rows'=>10,'tts_volume_boost'=>4],
     'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>true]];
 $settingsGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();

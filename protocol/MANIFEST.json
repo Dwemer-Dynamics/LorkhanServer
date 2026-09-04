@@ -157,9 +157,9 @@
       "sha256": "4bf0e835869d16419d29938de539800e0c5a3a9bb9251eb967f2cc93132e9336"
     },
     {
-      "bytes": 3928,
+      "bytes": 4126,
       "path": "lorkhan/fixtures/v1/valid/controls.json",
-      "sha256": "7f503bf4f2543384f8c869e2dc05b59308308704a99dd87e3faacf08e258a7b4"
+      "sha256": "4ac42de257604360351f49c393bd934fbaf28a2c1134afb928532209d678a190"
     },
     {
       "bytes": 654,
@@ -217,6 +217,11 @@
       "sha256": "cf27356a6dcaadc76bfa1ab7bb9b400685cfe944e4a446e7d11d74fa453027f4"
     },
     {
+      "bytes": 905,
+      "path": "lorkhan/fixtures/v1/valid/gamedata-automatic-diary.json",
+      "sha256": "138ed195ea59e1c5a490e72175b9a0b2b7b334644e03aea90445f4d04a31f9f1"
+    },
+    {
       "bytes": 1230,
       "path": "lorkhan/fixtures/v1/valid/gamedata-captured-dialogue.json",
       "sha256": "a0d8de9e40c22fafa8fd44cec06e580444f0f7e86ee50f33d8cc107145a1ccfb"
@@ -247,14 +252,24 @@
       "sha256": "7f8192a739030f383e6881863a18f173d16ff0078a7625285130be9579f1d33c"
     },
     {
+      "bytes": 504,
+      "path": "lorkhan/fixtures/v1/valid/player-autochat-ready.json",
+      "sha256": "4db7a7a53892c25dc6a6b3d9f6ba8a4ea05e638d6bf6675717ceaf1de9d7fb6e"
+    },
+    {
+      "bytes": 1081,
+      "path": "lorkhan/fixtures/v1/valid/player-autochat.json",
+      "sha256": "a811c6dd288e2269146179eb5ba8f1c3c4473854033f020e92e0ff7f72369f5d"
+    },
+    {
       "bytes": 3995,
       "path": "lorkhan/fixtures/v1/valid/response-utf8-and-action.json",
       "sha256": "a6979a77be088efd4bdaf17c9c1e9f2442d8cc285f1d9d81305a6e4f62ef9c2f"
     },
     {
-      "bytes": 1429,
+      "bytes": 1627,
       "path": "lorkhan/fixtures/v1/valid/session-accepted.json",
-      "sha256": "a3a3fba055e611fa050aeee3ddd64ef76f53b2ada3bf52d06bb455403a795ea7"
+      "sha256": "40627f8d9e49869f38f0e867a97bbe7f628b5df80e55785262ea0f713bc58b06"
     },
     {
       "bytes": 333,
@@ -302,9 +317,9 @@
       "sha256": "ddd14e7160f168148a6dd5388e4322a1c72e9042d5526404ad305cedbc016b2d"
     },
     {
-      "bytes": 3511,
+      "bytes": 4231,
       "path": "lorkhan/schemas/v1/client-settings.schema.json",
-      "sha256": "2b2645546a887ab89b9cfe8047b7845ed8d79c7dd5779cf84d35023ed46829bb"
+      "sha256": "bbf0464cf9bef4ba8c67cce004c8aa35f9fdc6656b146b0a0f6ab3e8c94aba2b"
     },
     {
       "bytes": 4501,
@@ -322,9 +337,9 @@
       "sha256": "9eca1ee4cd929fa6d51727a7d93739c92f283bf64c8086a4b02e097c7805684b"
     },
     {
-      "bytes": 11091,
+      "bytes": 12035,
       "path": "lorkhan/schemas/v1/controls.schema.json",
-      "sha256": "89bd4111aff6a0427c17c03a2e193ab76ddad2ebe6478836b8c79981ec594846"
+      "sha256": "2b4f10952dfb57220b0c95faedcc058f616c767fab651f83ff59562849d3149f"
     },
     {
       "bytes": 771,
@@ -372,14 +387,14 @@
       "sha256": "1a1595f30804edfd65c2967b3ef22fcd4cb0048dc01e19ff9649330802f0239b"
     },
     {
-      "bytes": 774,
+      "bytes": 793,
       "path": "lorkhan/schemas/v1/gamedata-accepted.schema.json",
-      "sha256": "04ed434a4e381ed8dc2542a556e6e7b19b17f33b01fe65293e748d608b11f8c2"
+      "sha256": "1bf8356368b5d1d6ad5e7be27ae1f399b3a0dd6dae00fce62a00a0ecad090196"
     },
     {
-      "bytes": 7809,
+      "bytes": 8421,
       "path": "lorkhan/schemas/v1/gamedata.schema.json",
-      "sha256": "748ed0a9119e49ec101e9a3d8ba16b7ccbe3ee5bb63231210f2c46215344e4ae"
+      "sha256": "1ddef66d1d610f13b606ac1270680e6c46f0a7366b16beda6bd73a3fcb79e876"
     },
     {
       "bytes": 295,
@@ -415,6 +430,16 @@
       "bytes": 1063,
       "path": "lorkhan/schemas/v1/menu-dialogue-tts.schema.json",
       "sha256": "168ed1b8dc12d492cebfa4e09f597a94c004a19d6b17a480d18fd85adcccae7f"
+    },
+    {
+      "bytes": 850,
+      "path": "lorkhan/schemas/v1/player-autochat-ready.schema.json",
+      "sha256": "115d8597b5e7922e681d8ce384d3d4c3077e305bc759848d585d223c682cea6e"
+    },
+    {
+      "bytes": 1172,
+      "path": "lorkhan/schemas/v1/player-autochat.schema.json",
+      "sha256": "08b4080325e153fd198ad0f66bf986d2dd4a3198da4b89a66f22abd4c79cfe9b"
     },
     {
       "bytes": 3688,

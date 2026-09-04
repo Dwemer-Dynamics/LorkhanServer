@@ -11,7 +11,7 @@ use LorkhanServer\Infrastructure\Uuid;
 use InvalidArgumentException;
 use Throwable;
 
-/** Generate one explicitly requested diary from frozen profile, context, and provider revisions. */
+/** Generate one manual or automatic diary from frozen profile, context, and provider revisions. */
 final class DiaryGenerateJobHandler implements JobHandler
 {
     public const TYPE='narrative.generate';
@@ -34,6 +34,11 @@ final class DiaryGenerateJobHandler implements JobHandler
             throw new InvalidArgumentException('invalid_diary_generation_job');
         foreach($payload['source_turn_ids']as$sourceTurnId)
             if(!is_string($sourceTurnId)||!Uuid::isValid($sourceTurnId))throw new InvalidArgumentException('invalid_diary_generation_job');
+        $automatic=array_key_exists('automatic_trigger',$payload);
+        if($automatic&&(!in_array($payload['automatic_trigger']??null,['timer','sleep','wait'],true)
+            ||!is_string($payload['automatic_source_request_id']??null)||!Uuid::isValid($payload['automatic_source_request_id'])
+            ||!is_numeric($payload['trigger_game_time']??null)||$payload['trigger_game_time']<0))
+            throw new InvalidArgumentException('invalid_diary_generation_job');
         $input=$payload['input']??null;
         if(!is_array($input)||array_is_list($input)||($input['generation_mode']??null)!=='diary_generation'
             ||!is_string($input['name']??null)||trim($input['name'])===''||!is_array($input['actor_identity']??null)
@@ -66,9 +71,13 @@ final class DiaryGenerateJobHandler implements JobHandler
             $this->narratives->upsertNarrative($payload['narrative_id'],[
                 'installation_id'=>$payload['installation_id'],'profile_id'=>$payload['profile_id'],
                 'playthrough_id'=>$payload['playthrough_id'],'kind'=>'diary','title'=>$output['title'],'content'=>$output['content'],
-                'provenance'=>['source'=>'manual-diary-generation','request_id'=>$payload['request_id'],
+                'provenance'=>array_filter(['source'=>$automatic?'automatic-diary-generation':'manual-diary-generation',
+                    'request_id'=>$payload['request_id'],'trigger'=>$automatic?$payload['automatic_trigger']:null,
+                    'source_request_id'=>$automatic?$payload['automatic_source_request_id']:null,
+                    'trigger_game_time'=>$automatic?(float)$payload['trigger_game_time']:null,
                     'profile_revision'=>$payload['profile_revision'],'provider_configuration_id'=>$payload['provider_configuration_id'],
                     'provider_revision'=>$payload['provider_revision'],'source_turn_ids'=>$payload['source_turn_ids']??[]],
+                    static fn(mixed$value):bool=>$value!==null),
             ],gmdate('Y-m-d\TH:i:s\Z'));
             $this->attempts->finish($attempt,'succeeded',strlen(json_encode($output,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE)));
         }catch(OperationCancelled $error){$this->attempts->finish($attempt,'cancelled',errorCode:'operation_cancelled');throw$error;

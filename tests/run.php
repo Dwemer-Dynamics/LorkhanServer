@@ -155,16 +155,22 @@ $check($conversionMock===['relationships'=>[]]
     &&in_array('relationship.convert',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'relationship text conversion is not registered as a bounded first-party job');
 $diaryDefaults=\LorkhanServer\Application\DiaryGenerationPolicy::defaults();
-$diaryOverrides=['enabled'=>true,'include_in_context'=>false,'context_turn_limit'=>12,'prompt'=>'Remember only what was witnessed.'];
+$diaryOverrides=['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabled'=>false,
+    'automatic_interval_seconds'=>120,'include_in_context'=>false,'context_turn_limit'=>12,
+    'prompt'=>'Remember only what was witnessed.'];
 $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
-$check($diaryDefaults['enabled']===false&&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
+$check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
+    &&$diaryDefaults['automatic_wait_enabled']===false&&$diaryDefaults['automatic_interval_seconds']===120
+    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
-    'manual diary generation is opt-in, bounded, deterministic under the mock provider, and registered as durable work');
+    'manual and automatic diary generation are opt-in, bounded, deterministic under the mock provider, and registered as durable work');
 foreach([
-    ['enabled'=>'true'],['include_in_context'=>1],['context_turn_limit'=>0],['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
+    ['enabled'=>'true'],['automatic_enabled'=>1],['automatic_wait_enabled'=>'true'],['automatic_interval_seconds'=>29],
+    ['automatic_interval_seconds'=>86401],['include_in_context'=>1],['context_turn_limit'=>0],
+    ['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
 ]as$invalidDiary){
     try{\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
     catch(InvalidArgumentException){$check(true,'invalid diary settings rejected');}
@@ -355,11 +361,13 @@ foreach ([
     'session-init.json' => 'lorkhan.session.init.v1',
     'turn.json' => 'lorkhan.turn.v1',
     'gamedata-captured-dialogue.json' => 'lorkhan.gamedata.v1',
+    'gamedata-automatic-diary.json' => 'lorkhan.gamedata.v1',
     'interrupt.json' => 'lorkhan.interrupt.v1',
     'controls-query.json' => 'lorkhan.controls.query.v1',
     'controls-select.json' => 'lorkhan.controls.select.v1',
     'debug-command-query.json' => 'lorkhan.debug-command.query.v1',
     'debug-command-result.json' => 'lorkhan.debug-command-result.v1',
+    'player-autochat.json' => 'lorkhan.player-autochat.v1',
 ] as $fixture => $schema) {
     $document = json_decode((string) file_get_contents($fixtureRoot . '/' . $fixture), true, 64, JSON_THROW_ON_ERROR);
     $validator->validate($document['instance'], $schema);
@@ -393,6 +401,15 @@ try {
     $check(false, 'empty menu dialogue TTS request rejected');
 } catch (ValidationException $exception) {
     $check($exception->getMessage() === 'invalid_schema', 'empty menu dialogue TTS request rejected');
+}
+$playerAutochatRequest=json_decode((string)file_get_contents($fixtureRoot.'/player-autochat.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
+$validator->validate($playerAutochatRequest,'lorkhan.player-autochat.v1');
+$check(true,'bounded player Auto Chat request validates');
+try{
+    $validator->validate(array_replace($playerAutochatRequest,['intent'=>'']),'lorkhan.player-autochat.v1');
+    $check(false,'empty player Auto Chat intent rejected');
+}catch(ValidationException $exception){
+    $check($exception->getMessage()==='invalid_schema','empty player Auto Chat intent rejected');
 }
 $directActionTurn=json_decode((string)file_get_contents($fixtureRoot.'/turn.json'),true,64,JSON_THROW_ON_ERROR)['instance'];
 $secondaryTarget=$directActionTurn['payload']['target'];$secondaryTarget['record_id']='mudcrab';
@@ -464,6 +481,15 @@ $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&strpos((string)$systemMessage['content'],'## Output Contract')<strpos((string)$systemMessage['content'],'## NPC Context')
     &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
+$automaticCues=['lorkhan_auto_greeting'=>'Automatic greeting for Fargoth',
+    'lorkhan_auto_boredom'=>'Automatic idle remark for Fargoth',
+    'lorkhan_auto_combat_bark'=>'Automatic combat bark for Fargoth'];
+foreach($automaticCues as$source=>$expectedCue){$automaticTurn=$promptTurn;$automaticTurn['payload']['ui_source']=$source;
+    $automaticTurn['payload']['input']['text']='[Autonomy:test]';
+    $automaticMessages=$assembler->assemble($automaticTurn,$promptSelection)['provider_input']['_messages'];
+    $automaticFinal=$automaticMessages[array_key_last($automaticMessages)]['content']??'';
+    $check(str_contains((string)$automaticFinal,$expectedCue)&&!str_contains((string)$automaticFinal,'RANGROO: [Autonomy:test]'),
+        $source.' uses a server-owned action-free prompt cue');}
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),
@@ -1142,8 +1168,26 @@ unlink($stateFile);
 rmdir($temporary);
 
 $globalSettings=SettingsCatalog::globalDefaults();
+$check($globalSettings['profile_management']===['auto_lock_profile'=>true,
+        'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],
+    'automatic profile backfill defaults on after forty completed actor turns');
+$legacyGlobalSettings=$globalSettings;
+unset($legacyGlobalSettings['profile_management']['autofill_custom_profiles'],
+    $legacyGlobalSettings['profile_management']['autofill_custom_profiles_trigger']);
+$normalizedLegacyGlobal=EffectiveSettingsResolver::validateGlobalSettings($legacyGlobalSettings);
+$check($normalizedLegacyGlobal['profile_management']['autofill_custom_profiles']===true
+    &&$normalizedLegacyGlobal['profile_management']['autofill_custom_profiles_trigger']===40,
+    'early v2 Global Settings normalize automatic profile backfill defaults');
+try{
+    $invalidBackfillSettings=$globalSettings;
+    $invalidBackfillSettings['profile_management']['autofill_custom_profiles_trigger']=9;
+    EffectiveSettingsResolver::validateGlobalSettings($invalidBackfillSettings);
+    $check(false,'automatic profile backfill trigger below ten rejected');
+}catch(InvalidArgumentException){$check(true,'automatic profile backfill trigger below ten rejected');}
 $globalSettings['client']['behavior']['rechat']=true;
 $globalSettings['client']['behavior']['auto_greeting']=true;
+$globalSettings['client']['behavior']['boredom']=true;
+$globalSettings['client']['behavior']['combat_barks']=true;
 $globalSettings['client']['narrator']['welcome_events']=true;
 $globalSettings['oghma']['topic_count']=2;
 $globalSettings['oghma']['racial_context_enabled']=false;
@@ -1181,13 +1225,30 @@ $check($effective['settings']['oghma']['topic_count']===2
 $check($effective['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur'
     &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='npc',
     'non-empty NPC knowledge tags remain character classification instead of a behavior override');
-$check($effective['settings']['behavior']['auto_greeting']===false
+$check($effective['settings']['behavior']['auto_greeting']===true
+    && $effective['settings']['behavior']['boredom']===true
     && $effective['settings']['behavior']['rechat_allow_actions']===true
-    && $effective['settings']['behavior']['combat_barks']===false
+    && $effective['settings']['behavior']['combat_barks']===true
     && $effective['settings']['narrator']['welcome_events']===false
-    && ($effective['sources']['settings.behavior.rechat_allow_actions']??null)==='core_profile'
-    && ($effective['sources']['settings.behavior.combat_barks']??null)==='excluded',
-    'Rechat actions inherit from the Core Profile while excluded automation remains inert');
+    && ($effective['sources']['settings.behavior.combat_barks']??null)==='global',
+    'automatic dialogue and Rechat actions retain their effective settings');
+$narratorEffective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,[
+    'name'=>'The Temple Chronicler','enabled'=>true,'context_visibility'=>false,'inline_narration_mode'=>'Narrator',
+    'welcome_events'=>true,'welcome_cooldown_minutes'=>45,'random_events'=>true,
+    'random_chance_percent'=>35,'random_cooldown_rounds'=>4,'bored_events'=>true,
+    'bored_chance_percent'=>60,'quest_events'=>true,'quest_chance_percent'=>25,
+    'quest_cooldown_minutes'=>8,'book_events'=>true,
+]);
+$check($narratorEffective['settings']['narrator']['name']==='The Temple Chronicler'
+    &&$narratorEffective['settings']['narrator']['welcome_cooldown_minutes']===45
+    &&$narratorEffective['settings']['narrator']['bored_events']===true
+    &&$narratorEffective['settings']['narrator']['quest_chance_percent']===25
+    &&($narratorEffective['sources']['settings.narrator.quest_chance_percent']??null)==='narrator_profile'
+    &&(EffectiveSettingsResolver::controlsProjection($narratorEffective)['source_map']['settings.narrator.bored_events']??null)==='narrator_profile',
+    'Narrator profile exclusively owns projected event chances, cooldowns, and bored routing');
+try{(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,['random_chance_percent'=>101]);
+    $check(false,'Narrator profile event chance above one hundred rejected');}
+catch(InvalidArgumentException){$check(true,'Narrator profile event chance above one hundred rejected');}
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false
@@ -1233,9 +1294,9 @@ $check(!isset($projection['settings']['memory']['oghma_knowledge_tags'])
     &&!array_key_exists('settings.memory.oghma_knowledge_tags',$projection['source_map'])
     &&!in_array('excluded',$projection['source_map'],true)
     &&$effective['routing']['oghma_configuration_id']==='00000000-0000-4000-8000-000000000222'
-    &&$projection['settings']['behavior']['auto_greeting']===false
+    &&$projection['settings']['behavior']['auto_greeting']===true
     &&$projection['settings']['behavior']['rechat_allow_actions']===false,
-    'controls omit server-only settings and provenance without altering internal resolution or enabling automation');
+    'controls omit server-only settings and provenance while retaining automatic dialogue settings');
 try{
     EffectiveSettingsResolver::validateSettingsOverrides(['behavior'=>['unknown_setting'=>true]]);
     $check(false,'unknown layered setting rejected');

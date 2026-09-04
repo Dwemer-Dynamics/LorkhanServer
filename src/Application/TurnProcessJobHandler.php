@@ -92,6 +92,10 @@ final class TurnProcessJobHandler implements JobHandler
             $queueSpeech = $this->mediaStore !== null
                 && in_array('speech.say', $message['_negotiated_capabilities'], true);
             $this->repository->completeTurn($message,$result,null,$fence,$queueSpeech,$streamedDialogues);
+            if($this->products!==null){
+                try{$this->products->maybeEnqueueAutomaticProfileBackfillForTurn($message);}
+                catch(Throwable $error){error_log('[LORKHAN] automatic profile backfill scheduling failed: '.$error::class);}
+            }
         } catch (OperationCancelled) {
             if (!$this->repository->isTurnCancellationRequested($sessionId, $turnId, $generation)) {
                 $this->repository->failTurn($message, 'provider_timeout', $fence);
