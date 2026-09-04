@@ -684,6 +684,56 @@ $assert((int)$generatedBackfill['current_revision']===(int)$backfillPayload['bas
     &&str_contains((string)($generatedBackfill['content']['notes']??''),'backfill from 10 recent events'),
     'automatic profile backfill worker did not use the frozen actor history');
 
+$dynamicContent=$generatedBackfill['content'];$dynamicContent['dynamic_profile']=true;
+$dynamicContent['dynamic_profile_fields']=['personality'];$dynamicContent['personality']='Baseline personality to evolve.';
+$dynamicContent['speech_style']='Speech style must remain unchanged.';
+$dynamicContent['goals']='Goals must remain unchanged.';
+$dynamicProfile=$products->revise('profile',$backfillProfile['profile_id'],$dynamicContent,'enable dynamic profile fixture',$now);
+$db->prepare("UPDATE sessions SET created_at=clock_timestamp()-interval '21 minutes' WHERE session_id=:session")
+    ->execute(['session'=>$sessionId]);
+$dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
+$dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=$dynamicJob->fetch();
+$dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
+    &&($dynamicPayload['dynamic_fields']??null)===['personality']
+    &&count($dynamicPayload['source_turn_ids']??[])===10&&count($dynamicPayload['recent_events']??[])===10,
+    'dynamic NPC profile evolution did not freeze its selected fields and witnessed history');
+$dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
+$dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($dynamicHandlerPayload,'profile-evolution-test',static fn():bool=>true);
+$evolvedProfile=$products->getRevisioned('profile',$dynamicProfile['profile_id']);
+$dynamicAgain=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
+$assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_revision']+1
+    &&($evolvedProfile['content']['personality']??'')!==($dynamicContent['personality']??'')
+    &&($evolvedProfile['content']['speech_style']??null)==='Speech style must remain unchanged.'
+    &&($evolvedProfile['content']['goals']??null)==='Goals must remain unchanged.'
+    &&$dynamicAgain['queued']===false&&$dynamicAgain['reason']==='interval',
+    'dynamic NPC evolution changed unselected fields or bypassed its 20-minute fence');
+
+$narratorDynamicContent=$narratorProfile['content'];$narratorDynamicContent['dynamic_profile']=true;
+$narratorDynamicContent['dynamic_profile_fields']=['goals'];$narratorDynamicContent['personality']='Narrator personality must remain unchanged.';
+$narratorDynamic=$products->revise('profile',$narratorProfile['profile_id'],$narratorDynamicContent,'enable narrator evolution fixture',$now);
+$narratorEvolution=$products->maybeEnqueueDynamicProfileEvolution($narratorDynamic['profile_id'],$session['playthrough_id'],$sessionId);
+$narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
+    ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
+$narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
+$narratorEvolutionPayload=$narratorEvolutionRow?json_decode((string)$narratorEvolutionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
+    &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
+    &&count($narratorEvolutionPayload['recent_events']??[])===10,
+    'dynamic narrator evolution did not freeze the shared witnessed history');
+$narratorEvolutionHandler=$narratorEvolutionPayload;unset($narratorEvolutionHandler['provider_configuration_id'],$narratorEvolutionHandler['provider_revision']);
+$narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];
+(new \LorkhanServer\Application\ProfileGenerateJobHandler($products,
+    new \LorkhanServer\Application\MockProfileGenerationProvider()))->handle($narratorEvolutionHandler,'narrator-evolution-test',static fn():bool=>true);
+$evolvedNarrator=$products->getRevisioned('profile',$narratorDynamic['profile_id']);
+$assert(($evolvedNarrator['content']['personality']??null)==='Narrator personality must remain unchanged.'
+    &&($evolvedNarrator['content']['goals']??'')!==($narratorDynamicContent['goals']??''),
+    'dynamic narrator evolution changed an unselected field or failed to evolve its selected field');
+
 $creatureTemplate=$products->createRevisioned('profile',['installation_id'=>$installationId,
     'name'=>'Dagoth creature template','actor_identity'=>['kind'=>'template','record_id'=>'dagoth_creature_sentinel',
         'content_file'=>'Morrowind.esm'],'content'=>['biography'=>'Exact creature template biography.',

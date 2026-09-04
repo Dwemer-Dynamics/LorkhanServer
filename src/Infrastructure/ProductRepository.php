@@ -494,6 +494,53 @@ final class ProductRepository
         });
     }
 
+    /** Queue one CHIM-cadence evolution from bounded witnessed history for an opted-in unlocked profile. */
+    public function maybeEnqueueDynamicProfileEvolution(string $profileId,string $playthroughId,string $sessionId):array
+    {
+        return$this->transaction(function()use($profileId,$playthroughId,$sessionId):array{
+            $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity,r.content,s.created_at AS session_created_at '
+                .'FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision '
+                .'JOIN sessions s ON s.session_id=:session AND s.installation_id=p.installation_id AND s.playthrough_id=:playthrough '
+                .'WHERE p.profile_id=:profile AND p.deleted_at IS NULL FOR UPDATE OF p');
+            $select->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'session'=>$sessionId]);$row=$select->fetch();
+            if(!$row)throw new RuntimeException('not_found');
+            $sessionStarted=strtotime((string)$row['session_created_at']);
+            if($sessionStarted===false||time()-$sessionStarted<1200)return['queued'=>false,'reason'=>'interval','observed'=>0];
+            $content=$this->json($row['content']);$management=is_array($content['management']??null)?$content['management']:[];
+            if(($management['locked']??false)===true)return['queued'=>false,'reason'=>'profile_locked','observed'=>0];
+            if(($content['dynamic_profile']??false)!==true)return['queued'=>false,'reason'=>'disabled','observed'=>0];
+            $fields=is_array($content['dynamic_profile_fields']??null)?array_values($content['dynamic_profile_fields']):[];
+            $fields=array_values(array_unique(array_filter($fields,static fn(mixed$field):bool=>is_string($field)
+                &&in_array($field,['personality','speech_style','goals'],true))));
+            if($fields===[])$fields=['personality','speech_style','goals'];
+            $identity=$this->json($row['actor_identity']);$narrator=($identity['kind']??null)==='narrator';
+            if(!$narrator&&in_array($identity['kind']??'actor',['player','template'],true))
+                return['queued'=>false,'reason'=>'profile_not_generatable','observed'=>0];
+            $mode=$narrator?'narrator_profile_evolution':'profile_evolution';
+            $pending=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='profile.generate' "
+                ."AND payload->>'profile_id'=:profile AND payload->>'playthrough_id'=:playthrough "
+                ."AND payload->>'mode'=:mode AND created_at>clock_timestamp()-interval '20 minutes' LIMIT 1");
+            $pending->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'mode'=>$mode]);
+            if($pending->fetchColumn())return['queued'=>false,'reason'=>'interval','observed'=>0];
+            $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,50)
+                :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,50);
+            $observed=count($history['source_turn_ids']);
+            if($observed===0)return['queued'=>false,'reason'=>'history_unavailable','observed'=>0];
+            $revision=(int)$row['current_revision'];$bucket=(int)floor(time()/1200);
+            $key='profile-evolution:'.$profileId.':'.$playthroughId.':'.$bucket;
+            $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,$mode)+[
+                'playthrough_id'=>$playthroughId,'source_turn_ids'=>$history['source_turn_ids'],
+                'recent_events'=>$history['recent_events'],'dynamic_fields'=>$fields];
+            $jobId=Uuid::v4();$insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,45) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
+            $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
+            if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");
+                $existing->execute(['key'=>$key]);$job=$existing->fetch();}
+            if(!$job)throw new RuntimeException('profile_generation_queue_failed');
+            return$job+['queued'=>true,'profile_id'=>$profileId,'base_revision'=>$revision,'mode'=>$mode,
+                'observed'=>$observed,'dynamic_fields'=>$fields];
+        });
+    }
+
     /** Queue a revision-safe AI regeneration only for the installation narrator profile. */
     public function enqueueNarratorProfileGeneration(string $profileId):array
     {
@@ -562,6 +609,27 @@ final class ProductRepository
             $event=['turn_id'=>(string)$row['turn_id'],'player_input'=>(string)$row['input_text'],'npc_responses'=>$replies];
             $eventBytes=strlen($this->encode($event));if($bytes+$eventBytes>65_536)continue;
             $events[]=$event;$bytes+=$eventBytes;}
+        return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
+    }
+
+    /** Freeze recent completed dialogue for narrator evolution without treating one NPC as the owner. */
+    private function narratorEvolutionHistory(string $installationId,string $playthroughId,int $limit):array
+    {
+        $statement=$this->db->prepare('SELECT t.turn_id,t.input_text,t.response_payload FROM turns t '
+            .'JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation '
+            .'AND s.playthrough_id=:playthrough AND t.state=\'complete\' ORDER BY t.completed_at DESC,t.turn_id DESC LIMIT :limit');
+        $statement->bindValue(':installation',$installationId);$statement->bindValue(':playthrough',$playthroughId);
+        $statement->bindValue(':limit',$limit,PDO::PARAM_INT);$statement->execute();$rows=$statement->fetchAll();
+        $turnIds=[];$events=[];$bytes=0;
+        foreach(array_reverse($rows)as$row){$response=$this->json($row['response_payload']);$lines=[];
+            foreach(($response['lines']??[])as$line)if(is_array($line)&&($line['action']??null)==='say'){
+                $speaker=is_array($line['speaker_identity']??null)?$line['speaker_identity']:[];
+                $name=trim((string)($speaker['display_name']??$line['speaker']??'NPC'))?:'NPC';
+                $text=trim((string)($line['text']??''));if($text!=='')$lines[]=$name.': '.$text;}
+            if($lines===[])continue;$turnId=(string)$row['turn_id'];
+            $event=['turn_id'=>$turnId,'player_input'=>(string)$row['input_text'],'npc_responses'=>$lines];
+            $eventBytes=strlen($this->encode($event));if($bytes+$eventBytes>65_536)continue;
+            $turnIds[]=$turnId;$events[]=$event;$bytes+=$eventBytes;}
         return['source_turn_ids'=>$turnIds,'recent_events'=>$events];
     }
 

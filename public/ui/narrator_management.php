@@ -211,9 +211,12 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <h2>Character Description</h2>
                     <div class="narrator-dynamic-profile-card">
                         <div class="narrator-heading-with-badge"><h3>&#x267B;&#xFE0F; Dynamic Profile Updates</h3><?php echo lorkhan_ui_feature_badge('config.narrator.dynamic-profile', true); ?></div>
-                        <?php lorkhan_narrator_placeholder_toggle('Enable Dynamic Profile', 'config.narrator.dynamic-profile', 'Automatic narrator profile evolution is not connected to OpenMW yet.'); ?>
+                        <?php $dynamicProfileFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals']; ?>
+                        <input type="hidden" name="dynamic_profile_fields_present" value="1">
+                        <label class="narrator-toggle-row"><input type="checkbox" name="dynamic_profile" value="1"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span>Enable Dynamic Profile</span></label>
+                        <span class="narrator-hint">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
                         <span class="narrator-hint">Field Selection (choose 1-3)</span>
-                        <div class="narrator-field-chips"><span class="narrator-field-chip">Personality</span><span class="narrator-field-chip">Speech Style</span><span class="narrator-field-chip">Goals</span></div>
+                        <div class="narrator-field-chips"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <?php echo lorkhan_ui_h($label); ?></label><?php endforeach; ?></div>
                     </div>
 
                     <label for="narrator-core">Core Summary</label>

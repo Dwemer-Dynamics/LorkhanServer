@@ -226,6 +226,14 @@ final class Router
                         $this->repository->acceptGameData($message);
                         if($profileId!==null)$this->products?->maybeEnqueueAutomaticProfileBackfill(
                             $profileId,(string)$message['playthrough_id']);
+                        if($profileId!==null){
+                            $this->products?->maybeEnqueueDynamicProfileEvolution($profileId,
+                                (string)$message['playthrough_id'],(string)$message['session_id']);
+                            $narrator=$this->products?->narratorProfileForInstallation((string)$message['installation_id']);
+                            if(is_array($narrator)&&is_string($narrator['profile_id']??null))
+                                $this->products?->maybeEnqueueDynamicProfileEvolution((string)$narrator['profile_id'],
+                                    (string)$message['playthrough_id'],(string)$message['session_id']);
+                        }
                         return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
                             'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                             'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];

@@ -1637,6 +1637,14 @@ final class ManagementRouter
         if(isset($content['oghma_knowledge_tags']))$content['oghma_knowledge_tags']=$this->npcKnowledgeTags($content['oghma_knowledge_tags']);
         if(array_key_exists('management_fields',$values))$content['management']=[
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
+        if(array_key_exists('dynamic_profile_fields_present',$values)){
+            $requested=$values['dynamic_profile_fields']??[];if(!is_array($requested))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            foreach(['personality','speech_style','goals']as$field)if(isset($values['dynamic_profile_'.$field]))$requested[]=$field;
+            $fields=[];foreach(['personality','speech_style','goals']as$field)if(in_array($field,$requested,true))$fields[]=$field;
+            if(isset($values['dynamic_profile'])&&$fields===[])throw new InvalidArgumentException('invalid_dynamic_profile_fields');
+            $content['dynamic_profile']=isset($values['dynamic_profile']);
+            $content['dynamic_profile_fields']=$fields===[]?['personality','speech_style','goals']:$fields;
+        }
         return$content;
     }
 

@@ -566,6 +566,8 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         $isTemplate=($identity['kind']??'actor')==='template';
         $management=is_array($content['management']??null)?$content['management']:[];
         $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
+        $dynamicProfile=($content['dynamic_profile']??false)===true;
+        $dynamicFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals'];
         $portrait=is_array($content['portrait']??null)?$content['portrait']:[];
         $portraitEndpoint=preg_replace('#/manage$#','/ui/core/profile_portrait.php',$managementBasePath)?:'/LorkhanServer/ui/core/profile_portrait.php';
         $coreProfileOptions=[''=>'Use installation default'];
@@ -591,7 +593,7 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
         echo '<details class="profile-primary-editor"'.($editorOpen?' open':'').'><summary>Edit roleplay and voice</summary>';
         lorkhan_ui_management_form([
             'route'=>'profile-revise','id'=>'profile-' . $profileId,'legend'=>'Save NPC profile revision',
-            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1'],
+            'hidden'=>['profile_id'=>$profileId,'base_content_json'=>json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE),'management_fields'=>'1','dynamic_profile_fields_present'=>'1'],
             'fields'=>[
                 ['prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],false],
                 ['core','Core identity and boundaries','textarea',(string)($content['core']??''),[],false],
@@ -610,6 +612,10 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['voice_id','TTS voice ID (type or choose a stored sample)','datalist',(string)($voice['id']??''),$voiceOptions,false],
                 ['voice_language','Voice language','text',(string)($voice['language']??'en')],
                 ['locked','Lock against automatic AI profile generation','checkbox','1',[],false,$locked],
+                ['dynamic_profile','Enable Dynamic Profile','checkbox','1',[],false,$dynamicProfile],
+                ['dynamic_profile_personality','Evolve personality','checkbox','1',[],false,in_array('personality',$dynamicFields,true)],
+                ['dynamic_profile_speech_style','Evolve speech style','checkbox','1',[],false,in_array('speech_style',$dynamicFields,true)],
+                ['dynamic_profile_goals','Evolve goals','checkbox','1',[],false,in_array('goals',$dynamicFields,true)],
                 ['favorite','Favorite NPC','checkbox','1',[],false,$favorite],
                 ['notes','Notes','textarea',(string)($content['notes']??''),[],false],
                 ['change_reason','Change reason','text','management edit'],
@@ -644,6 +650,8 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $management=is_array($content['management']??null)?$content['management']:[];$voice=$content['voice']??[];
     if(is_string($voice))$voice=['id'=>$voice];if(!is_array($voice))$voice=[];
     $locked=($management['locked']??false)===true;$favorite=($management['favorite']??false)===true;
+    $dynamicProfile=($content['dynamic_profile']??false)===true;
+    $dynamicFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals'];
     $coreProfileOptions=[''=>'Use installation default'];foreach($coreProfileRows as$coreProfileRow){
         if((string)($coreProfileRow['installation_id']??'')!==$installationId)continue;$id=(string)($coreProfileRow['core_profile_id']??'');
         if($id!=='')$coreProfileOptions[$id]=(string)($coreProfileRow['label']??$id);
@@ -673,6 +681,10 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     if($creating){$field('installation_id','Installation','select',$installationId,$installationOptions, 'span-2');$field('name','NPC Name','text','',[],'span-2');}
     else$disabled('NPC Name','config.npc.identity',(string)($row['name']??''),'span-2');
     $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock against automatic AI profile generation',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
+    $checkbox('dynamic_profile','Enable Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
+    echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><div class="form-item npc-editor-check"><span>Dynamic Profile Fields</span>';
+    foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
+    echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></div>';
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
     else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
