@@ -1215,6 +1215,23 @@ $check($effective['settings']['behavior']['auto_greeting']===true
     && $effective['settings']['narrator']['welcome_events']===false
     && ($effective['sources']['settings.behavior.combat_barks']??null)==='global',
     'automatic dialogue uses global settings while excluded narrator automation stays off');
+$narratorEffective=(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,[
+    'name'=>'The Temple Chronicler','enabled'=>true,'context_visibility'=>false,'inline_narration_mode'=>'Narrator',
+    'welcome_events'=>true,'welcome_cooldown_minutes'=>45,'random_events'=>true,
+    'random_chance_percent'=>35,'random_cooldown_rounds'=>4,'bored_events'=>true,
+    'bored_chance_percent'=>60,'quest_events'=>true,'quest_chance_percent'=>25,
+    'quest_cooldown_minutes'=>8,'book_events'=>true,
+]);
+$check($narratorEffective['settings']['narrator']['name']==='The Temple Chronicler'
+    &&$narratorEffective['settings']['narrator']['welcome_cooldown_minutes']===45
+    &&$narratorEffective['settings']['narrator']['bored_events']===true
+    &&$narratorEffective['settings']['narrator']['quest_chance_percent']===25
+    &&($narratorEffective['sources']['settings.narrator.quest_chance_percent']??null)==='narrator_profile'
+    &&(EffectiveSettingsResolver::controlsProjection($narratorEffective)['source_map']['settings.narrator.bored_events']??null)==='narrator_profile',
+    'Narrator profile exclusively owns projected event chances, cooldowns, and bored routing');
+try{(new EffectiveSettingsResolver())->resolve($globalSettings,$coreLayer,$npcLayer,[],false,['random_chance_percent'=>101]);
+    $check(false,'Narrator profile event chance above one hundred rejected');}
+catch(InvalidArgumentException){$check(true,'Narrator profile event chance above one hundred rejected');}
 $check(($effective['sources']['settings.behavior.rechat']??null)==='core_profile'
     &&($effective['sources']['routing.llm_configuration_id']??null)==='core_profile'
     &&$effective['context']['sections']['nearby_items']===false

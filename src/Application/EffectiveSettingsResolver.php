@@ -41,7 +41,7 @@ final class EffectiveSettingsResolver
             foreach ($fields as $field) {
                 $path = 'settings.' . $section . '.' . $field;
                 $source = $resolved['sources'][$path] ?? null;
-                if (in_array($source, ['default', 'global', 'core_profile', 'npc'], true)) $sources[$path] = $source;
+                if (in_array($source, ['default', 'global', 'core_profile', 'npc', 'narrator_profile'], true)) $sources[$path] = $source;
             }
         }
         foreach ($routing as $field => $_) {
@@ -58,13 +58,17 @@ final class EffectiveSettingsResolver
      * @param array<string,mixed> $npcProfileContent
      * @return array{document:array<string,mixed>,settings:array<string,mixed>,routing:array<string,mixed>,sources:array<string,string>,sha256:string}
      */
-    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = [], bool $allowProfileTtsRouting = false): array
+    public function resolve(array $globalSettings, array $coreProfileContent, array $npcProfileContent, array $oghmaGlobal = [], bool $allowProfileTtsRouting = false, array $narratorProfileContent = []): array
     {
         $global = $globalSettings === [] ? SettingsCatalog::globalDefaults() : self::validateGlobalSettings($globalSettings);
         $settings = $global['client'];
+        // Narrator automation belongs to the installation Narrator profile. Ignore the
+        // legacy copy retained in Global Settings before applying that profile below.
+        $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
         $sources = [];
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
+        $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
 
         $oghmaDocument = is_array($global['oghma'] ?? null) ? $global['oghma'] : [];
@@ -142,13 +146,35 @@ final class EffectiveSettingsResolver
             $sources['settings.memory.oghma_knowledge_tags'] = 'npc';
         }
 
+        if (!is_array($narratorProfileContent) || ($narratorProfileContent !== [] && array_is_list($narratorProfileContent))) {
+            throw new InvalidArgumentException('invalid_settings_layer');
+        }
+        $narratorMap = [
+            'name'=>'name','enabled'=>'enabled','context_visibility'=>'context_visibility','inline_narration_mode'=>'inline_mode',
+            'welcome_events'=>'welcome_events','welcome_cooldown_minutes'=>'welcome_cooldown_minutes',
+            'random_events'=>'random_events','random_chance_percent'=>'random_chance_percent',
+            'random_cooldown_rounds'=>'random_cooldown_rounds','bored_events'=>'bored_events',
+            'bored_chance_percent'=>'bored_chance_percent','quest_events'=>'quest_events',
+            'quest_chance_percent'=>'quest_chance_percent','quest_cooldown_minutes'=>'quest_cooldown_minutes',
+            'book_events'=>'book_events',
+        ];
+        foreach ($narratorMap as $profileField => $settingsField) {
+            if (!array_key_exists($profileField, $narratorProfileContent)) continue;
+            $value=$narratorProfileContent[$profileField];$default=SettingsCatalog::clientDefaults()['narrator'][$settingsField];
+            if(gettype($value)!==gettype($default))throw new InvalidArgumentException('invalid_settings_layer');
+            if($settingsField==='name'&&(trim($value)===''||strlen($value)>256||!mb_check_encoding($value,'UTF-8')))
+                throw new InvalidArgumentException('invalid_settings_layer');
+            $path='narrator.'.$settingsField;$range=SettingsCatalog::ranges()[$path]??null;
+            if($range!==null&&($value<$range[0]||$value>$range[1]))throw new InvalidArgumentException('invalid_settings_layer');
+            if($settingsField==='inline_mode'&&!in_array($value,SettingsCatalog::enums()['narrator.inline_mode'],true))
+                throw new InvalidArgumentException('invalid_settings_layer');
+            $settings['narrator'][$settingsField] = $value;
+            $sources['settings.narrator.' . $settingsField] = 'narrator_profile';
+        }
+
         // Compatibility fields remain in the v1 document until their runtime slices are implemented.
         foreach ([
             ['behavior', 'rechat_allow_actions'],
-            ['narrator', 'welcome_events'],
-            ['narrator', 'random_events'],
-            ['narrator', 'quest_events'],
-            ['narrator', 'book_events'],
         ] as [$section, $field]) {
             $settings[$section][$field] = false;
             $sources['settings.' . $section . '.' . $field] = 'excluded';
@@ -198,6 +224,8 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
             && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
             $content['profile_management'] += $expected['profile_management'];
+            if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
+                $content['client']['narrator'] += $expected['client']['narrator'];
         }
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
@@ -409,7 +437,7 @@ final class EffectiveSettingsResolver
         if (isset(SettingsCatalog::enums()[$path]) && !in_array($value, SettingsCatalog::enums()[$path], true)) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
-        if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 128 || !mb_check_encoding($value, 'UTF-8'))) {
+        if ($path === 'narrator.name' && (trim($value) === '' || strlen($value) > 256 || !mb_check_encoding($value, 'UTF-8'))) {
             throw new InvalidArgumentException($partial ? 'invalid_settings_overrides' : 'invalid_global_settings');
         }
         if ($path === 'memory.oghma_knowledge_tags' && (strlen($value) > 4096 || !mb_check_encoding($value, 'UTF-8'))) {

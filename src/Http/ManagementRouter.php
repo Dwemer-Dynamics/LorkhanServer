@@ -924,7 +924,7 @@ final class ManagementRouter
         if(!is_array($identity)||array_is_list($identity))throw new RuntimeException('not_found');
         if(($identity['kind']??null)!==$kind)throw new RuntimeException('not_found');
         $settings=$this->portableSpecialProfileSettings(is_array($row['content']??null)?$row['content']:[],$kind);
-        $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v1';
+        $schema=$kind==='player'?'lorkhan.player-profile-settings.v2':'lorkhan.narrator-profile-settings.v2';
         $document=['schema'=>$schema,'exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'settings'=>$settings];
         if($this->containsSecretKey($document))throw new RuntimeException($kind.'_profile_settings_export_rejected');
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
@@ -940,13 +940,14 @@ final class ManagementRouter
         $schema=$document['schema']??null;
         $validSchema=$kind==='player'
             ?in_array($schema,['lorkhan.player-profile-settings.v1','lorkhan.player-profile-settings.v2'],true)
-            :$schema==='lorkhan.narrator-profile-settings.v1';
+            :in_array($schema,['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'],true);
         if($keys!==['exported_at','schema','settings']
             ||!$validSchema
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException($error);
-        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,$schema==='lorkhan.player-profile-settings.v2');
+        $settings=$this->validatePortableSpecialProfileSettings($document['settings'],$kind,$error,
+            $schema==='lorkhan.player-profile-settings.v2'||$schema==='lorkhan.narrator-profile-settings.v2');
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $profile=$kind==='player'?$this->repository->playerProfileForInstallation($installation):$this->repository->narratorProfileForInstallation($installation);
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
@@ -968,33 +969,52 @@ final class ManagementRouter
         }else{
             $settings=[];foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
                 $settings[$field]=($content[$field]??false)===true;
+            $settings['welcome_cooldown_minutes']=(int)($content['welcome_cooldown_minutes']??10);
+            $settings['random_chance_percent']=(int)($content['random_chance_percent']??15);
+            $settings['random_cooldown_rounds']=(int)($content['random_cooldown_rounds']??2);
+            $settings['bored_events']=($content['bored_events']??false)===true;
+            $settings['bored_chance_percent']=(int)($content['bored_chance_percent']??25);
+            $settings['quest_chance_percent']=(int)($content['quest_chance_percent']??10);
+            $settings['quest_cooldown_minutes']=(int)($content['quest_cooldown_minutes']??3);
             $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $voice=is_array($content['voice']??null)?$content['voice']:[];
             $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
         }
-        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export',$kind==='player');
+        return$this->validatePortableSpecialProfileSettings($settings,$kind,'invalid_'.$kind.'_profile_settings_export',true);
     }
 
     /** Enforce the exact Player or Narrator preset keys and bounded scalar values. */
-    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error,bool $includePlayerVisibility=false):array
+    private function validatePortableSpecialProfileSettings(array $settings,string $kind,string $error,bool $includeV2Fields=false):array
     {
         $textFields=$kind==='player'
             ?['appearance','biography','personality','speech_style','goals','notes']
             :['prompt_head','core','biography','personality','speech_style','goals','notes'];
         $expected=$textFields;
-        if($kind==='player'&&$includePlayerVisibility)$expected[]='biography_known_by_all';
+        if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
+        $narratorV2=$kind==='narrator'&&$includeV2Fields;
         if($kind==='narrator')$expected=array_merge($expected,
-            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice']);
+            ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice'],
+            $narratorV2?['welcome_cooldown_minutes','random_chance_percent','random_cooldown_rounds',
+                'bored_events','bored_chance_percent','quest_chance_percent','quest_cooldown_minutes']:[]);
         $keys=array_keys($settings);sort($keys);sort($expected);if($keys!==$expected)throw new InvalidArgumentException($error);
         foreach($textFields as$field){$value=$settings[$field];
             if(!is_string($value)||strlen($value)>65_536||!mb_check_encoding($value,'UTF-8'))throw new InvalidArgumentException($error);}
         if($kind==='player'){
-            if($includePlayerVisibility&&!is_bool($settings['biography_known_by_all']))throw new InvalidArgumentException($error);
+            if($includeV2Fields&&!is_bool($settings['biography_known_by_all']))throw new InvalidArgumentException($error);
             return$settings;
         }
         foreach(['enabled','context_visibility','welcome_events','random_events','quest_events','book_events']as$field)
             if(!is_bool($settings[$field]))throw new InvalidArgumentException($error);
+        if(!$narratorV2){$settings+=['welcome_cooldown_minutes'=>10,'random_chance_percent'=>15,
+            'random_cooldown_rounds'=>2,'bored_events'=>false,'bored_chance_percent'=>25,
+            'quest_chance_percent'=>10,'quest_cooldown_minutes'=>3];}
+        if(!is_bool($settings['bored_events']))throw new InvalidArgumentException($error);
+        foreach(['welcome_cooldown_minutes'=>[1,1440],'random_chance_percent'=>[1,100],
+            'random_cooldown_rounds'=>[0,10],'bored_chance_percent'=>[1,100],
+            'quest_chance_percent'=>[1,100],'quest_cooldown_minutes'=>[1,60]]as$field=>$range)
+            if(!is_int($settings[$field])||$settings[$field]<$range[0]||$settings[$field]>$range[1])
+                throw new InvalidArgumentException($error);
         if(!is_string($settings['inline_narration_mode'])
             ||!in_array($settings['inline_narration_mode'],['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException($error);
         $voice=$settings['voice'];$voiceKeys=is_array($voice)?array_keys($voice):[];sort($voiceKeys);
@@ -1411,7 +1431,19 @@ final class ManagementRouter
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
         $content['context_visibility']=isset($values['context_visibility']);
         $content['welcome_events']=isset($values['welcome_events']);$content['random_events']=isset($values['random_events']);
+        $integer=static function(array$input,string$key,int$default,int$minimum,int$maximum):int{
+            $value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
+            if($value===false||$value<$minimum||$value>$maximum)throw new InvalidArgumentException('invalid_'.$key);
+            return(int)$value;
+        };
+        $content['welcome_cooldown_minutes']=$integer($values,'welcome_cooldown_minutes',10,1,1440);
+        $content['random_chance_percent']=$integer($values,'random_chance_percent',15,1,100);
+        $content['random_cooldown_rounds']=$integer($values,'random_cooldown_rounds',2,0,10);
+        $content['bored_events']=isset($values['bored_events']);
+        $content['bored_chance_percent']=$integer($values,'bored_chance_percent',25,1,100);
         $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
+        $content['quest_chance_percent']=$integer($values,'quest_chance_percent',10,1,100);
+        $content['quest_cooldown_minutes']=$integer($values,'quest_cooldown_minutes',3,1,60);
         return$content;
     }
 

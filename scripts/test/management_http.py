@@ -1140,7 +1140,7 @@ narrator_id=generate_narrator['fields']['profile_id']
 narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
 narrator_preset=json.loads(narrator_preset_response.read().decode())
 assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v1' and sorted(narrator_preset['settings'])==['biography','book_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_events','random_events','speech_style','voice','welcome_events']
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','notes','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()

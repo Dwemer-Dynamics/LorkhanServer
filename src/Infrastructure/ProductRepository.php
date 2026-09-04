@@ -1008,6 +1008,10 @@ final class ProductRepository
         }
         if(!$core)$core=$this->defaultCoreProfileForInstallation($installationId);
         $installationOghma=$this->oghmaSettings($installationId);
+        $narratorProfile=$this->narratorProfileForInstallation($installationId);
+        $narratorContent=is_array($narratorProfile['content']??null)?$narratorProfile['content']:[];
+        if(is_string($narratorProfile['name']??null)&&trim($narratorProfile['name'])!=='')
+            $narratorContent['name']=(string)$narratorProfile['name'];
         $profileKind=is_array($profile['actor_identity']??null)?($profile['actor_identity']['kind']??'actor'):'actor';
         $resolved=(new EffectiveSettingsResolver())->resolve(
             is_array($global['content']??null)?$global['content']:[],
@@ -1023,6 +1027,7 @@ final class ProductRepository
                 'extractor_timeout_ms'=>$installationOghma['extractor_timeout_ms'],
             ],
             in_array($profileKind,['player','narrator'],true),
+            $narratorContent,
         );
         return$resolved+['global_settings'=>$global,'core_profile'=>$core,'npc_profile'=>$profile];
     }
@@ -2162,7 +2167,9 @@ SQL);
     public function promptContext(array $turn,string $now,array $oghmaExtraction=[],array $semanticMemory=[]): array
     {
         $scope = ['installation_id'=>$turn['installation_id'],'profile_id'=>$turn['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
-        $selectedProfileId=$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
+        $selectedProfileId=($turn['payload']['target']['kind']??null)==='narrator'
+            ?($this->narratorProfileForInstallation((string)$turn['installation_id'])['profile_id']??null)
+            :$this->selectedActorProfileId($turn['installation_id'],$turn['playthrough_id'],$turn['payload']['target']);
         $activeProfileId=$selectedProfileId??$turn['profile_id'];
         $profile = $this->getRevisioned('profile', $activeProfileId);
         $effective=$this->effectiveSettingsForProfile((string)$turn['installation_id'],$activeProfileId);

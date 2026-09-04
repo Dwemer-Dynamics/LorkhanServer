@@ -873,6 +873,11 @@ final class PromptAssembler
             'lorkhan_auto_greeting' => "Automatic greeting for {$actorName}. Address {$playerName} with one brief, natural greeting that fits your character and the current situation.",
             'lorkhan_auto_boredom' => "Automatic idle remark for {$actorName}. Make one brief, spontaneous in-character observation about the current situation. Address {$playerName} only when it feels natural.",
             'lorkhan_auto_combat_bark' => "Automatic combat bark for {$actorName}. Deliver one short, urgent in-character combat line. Do not narrate actions or produce dialogue for anyone else.",
+            'lorkhan_narrator_welcome' => "Welcome {$playerName} after loading the game. Give a concise recap grounded only in the supplied history, journal, and current scene. Do not invent events or speak as another character.",
+            'lorkhan_narrator_random' => "Add a concise visual description of the current scene using only supplied context. Focus on visible people, environment, lighting, and atmosphere. Do not advance the plot or invent actions.",
+            'lorkhan_narrator_boredom' => "Make one concise narrator observation about the current scene after a quiet period. Use only supplied context; do not invent events or dialogue for world actors.",
+            'lorkhan_narrator_quest' => "Comment concisely on the newest supplied journal update. Preserve uncertainty and do not invent quest outcomes, objectives, or events.",
+            'lorkhan_narrator_book' => "Summarize or react concisely to the newest supplied opened book. Use only its supplied title and text; do not invent contents.",
             default => null,
         };
         if ($automaticCue !== null) return $automaticCue;
@@ -932,6 +937,7 @@ final class PromptAssembler
         $normalized = mb_strtolower(ltrim($text), 'UTF-8');
         return str_starts_with($normalized, 'automated lorkhan smoke test')
             || str_starts_with($normalized, '[autonomy:')
+            || str_starts_with($normalized, '[narrator:')
             || str_starts_with($normalized, '[fallback]');
     }
 

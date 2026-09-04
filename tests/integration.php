@@ -2319,7 +2319,9 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
     'boredom'=>true,'boredom_delay_seconds'=>240,'combat_barks'=>true,'combat_bark_period_seconds'=>30],
     'memory'=>['recent_turn_limit'=>24,'knowledge_limit'=>6],
     'narrator'=>['enabled'=>true,'name'=>'The Temple Chronicler','context_visibility'=>true,'inline_mode'=>'Narrator',
-        'welcome_events'=>true,'random_events'=>false,'quest_events'=>true,'book_events'=>true],
+        'welcome_events'=>true,'welcome_cooldown_minutes'=>10,'random_events'=>false,'random_chance_percent'=>15,
+        'random_cooldown_rounds'=>2,'bored_events'=>false,'bored_chance_percent'=>25,'quest_events'=>true,
+        'quest_chance_percent'=>10,'quest_cooldown_minutes'=>3,'book_events'=>true],
     'presentation'=>['show_status_hud'=>true,'transcript_rows'=>10,'tts_volume_boost'=>4],
     'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>true]];
 $settingsGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();

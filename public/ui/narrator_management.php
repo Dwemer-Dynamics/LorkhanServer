@@ -45,10 +45,10 @@ function lorkhan_narrator_placeholder_toggle(string $label, string $featureId, s
     echo '<label class="narrator-toggle-row is-placeholder"><span class="narrator-toggle-switch"><input type="checkbox" disabled aria-disabled="true"><span class="narrator-toggle-slider"></span></span><span class="narrator-toggle-label">' . lorkhan_ui_h($label) . '</span>' . lorkhan_ui_feature_badge($featureId, true) . '</label><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
-/** Render one inert numeric control using the same field rhythm as Herika. */
-function lorkhan_narrator_placeholder_number(string $label, string $featureId, string $value, string $hint): void
+/** Render one live bounded narrator event setting in the Herika field layout. */
+function lorkhan_narrator_number(string $name, string $label, int $value, int $minimum, int $maximum, string $hint): void
 {
-    echo '<div class="narrator-placeholder-field"><label>' . lorkhan_ui_h($label) . lorkhan_ui_feature_badge($featureId, true) . '</label><input type="number" value="' . lorkhan_ui_h($value) . '" disabled aria-disabled="true"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span></div>';
+    echo '<label for="narrator-' . lorkhan_ui_h($name) . '">' . lorkhan_ui_h($label) . '</label><input id="narrator-' . lorkhan_ui_h($name) . '" name="' . lorkhan_ui_h($name) . '" type="number" value="' . $value . '" min="' . $minimum . '" max="' . $maximum . '"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
 $additionalStylesheets = ['herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css')];
@@ -130,7 +130,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Welcome Message</h2>
                         <?php
                         lorkhan_narrator_toggle('welcome_events', 'Enable Welcome Message on Load', ($content['welcome_events'] ?? false) === true, 'Allow a narrator welcome event after a supported OpenMW session load.');
-                        lorkhan_narrator_placeholder_number('Welcome Message Cooldown (minutes)', 'config.narrator.event-tuning', '10', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('welcome_cooldown_minutes', 'Welcome Message Cooldown (minutes)', (int) ($content['welcome_cooldown_minutes'] ?? 10), 1, 1440, 'Minimum in-game minutes between welcome messages. Default: 10.');
                         ?>
                     </section>
 
@@ -138,16 +138,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Random Narration</h2>
                         <?php
                         lorkhan_narrator_toggle('random_events', 'Enable Random Narration', ($content['random_events'] ?? false) === true, 'Allow supported random events to route through the narrator.');
-                        lorkhan_narrator_placeholder_number('Random Narration Chance (%)', 'config.narrator.event-tuning', '15', 'Per-event probability tuning is planned.');
-                        lorkhan_narrator_placeholder_number('Random Narration Cooldown', 'config.narrator.event-tuning', '2', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('random_chance_percent', 'Random Narration Chance (%)', (int) ($content['random_chance_percent'] ?? 15), 1, 100, 'Chance after an eligible completed conversation round. Default: 15%.');
+                        lorkhan_narrator_number('random_cooldown_rounds', 'Random Narration Cooldown', (int) ($content['random_cooldown_rounds'] ?? 2), 0, 10, 'Minimum completed non-narrator rounds between interjections. Default: 2.');
                         ?>
                     </section>
 
                     <section class="narrator-content-section">
                         <h2>Bored Events</h2>
                         <?php
-                        lorkhan_narrator_placeholder_toggle('Allow Narrator Bored Events', 'config.narrator.bored-events', 'Bored-event narrator routing is not connected yet.');
-                        lorkhan_narrator_placeholder_number('Narrator Bored Event Chance (%)', 'config.narrator.bored-events', '25', 'Bored-event probability tuning is not connected yet.');
+                        lorkhan_narrator_toggle('bored_events', 'Allow Narrator Bored Events', ($content['bored_events'] ?? false) === true, 'Route some eligible bored events through the narrator instead of the selected NPC.');
+                        lorkhan_narrator_number('bored_chance_percent', 'Narrator Bored Event Chance (%)', (int) ($content['bored_chance_percent'] ?? 25), 1, 100, 'Chance that an eligible bored event uses the narrator. Default: 25%.');
                         ?>
                     </section>
 
@@ -155,8 +155,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <h2>Quest Comments</h2>
                         <?php
                         lorkhan_narrator_toggle('quest_events', 'Enable Quest Comments', ($content['quest_events'] ?? false) === true, 'Allow the narrator to comment on supported OpenMW quest events.');
-                        lorkhan_narrator_placeholder_number('Quest Comment Chance (%)', 'config.narrator.event-tuning', '10', 'Per-event probability tuning is planned.');
-                        lorkhan_narrator_placeholder_number('Quest Comment Cooldown (minutes)', 'config.narrator.event-tuning', '3', 'Per-event cooldown tuning is planned.');
+                        lorkhan_narrator_number('quest_chance_percent', 'Quest Comment Chance (%)', (int) ($content['quest_chance_percent'] ?? 10), 1, 100, 'Chance that a newly observed journal update receives narrator commentary. Default: 10%.');
+                        lorkhan_narrator_number('quest_cooldown_minutes', 'Quest Comment Cooldown (minutes)', (int) ($content['quest_cooldown_minutes'] ?? 3), 1, 60, 'Minimum in-game minutes between quest comments. Default: 3.');
                         ?>
                     </section>
                 </div>
@@ -272,7 +272,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                                 <label for="narrator-preset-json">Preset JSON</label>
                                 <textarea id="narrator-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="narrator-portability-scope narrator-portability-help"></textarea>
                             </div>
-                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, or the excluded event tuning, bored event, dynamic profile, and diary controls.</p>
+                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary controls.</p>
                             <div class="narrator-portability-actions">
                                 <button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
                             </div>
