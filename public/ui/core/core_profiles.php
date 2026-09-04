@@ -146,7 +146,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <?php else: ?>
                                     <button class="btn-danger feature-placeholder-control" type="button" disabled aria-disabled="true" title="The default or assigned Core Profile cannot be deleted.">Delete <?php echo lorkhan_ui_feature_badge('config.profiles.delete-protected', true); ?></button>
                                 <?php endif; ?>
-                                <?php echo lorkhan_ui_placeholder_control('Clone', 'config.profiles.clone'); ?>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-clone"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($profile['core_profile_id']); ?>"><button class="btn-primary" type="submit">Clone</button></form>
                             </div>
                         </article>
                     <?php endforeach; ?>

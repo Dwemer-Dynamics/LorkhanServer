@@ -17,7 +17,29 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
     try {
         if (!hash_equals($csrf, (string) ($_POST['_csrf'] ?? ''))) throw new RuntimeException('unauthorized');
         $action = (string) ($_POST['action'] ?? '');
-        if (isset($_POST['save_all'])) {
+        if (isset($_POST['test_key'])) {
+            $variable=(string)$_POST['test_key'];
+            $url=match($variable){'LORKHAN_LLM_API_KEY'=>'https://openrouter.ai/api/v1/auth/key',
+                'LORKHAN_TTS_OPENAI_API_KEY','LORKHAN_LLM_OPENAI_API_KEY'=>'https://api.openai.com/v1/models',
+                default=>throw new InvalidArgumentException('invalid_credential_variable')};
+            $key=trim((string)($_POST['credentials'][$variable]??''));if($key==='')$key=$store->resolve($variable);
+            if($key===''||strlen($key)>8192||preg_match('/[\x00-\x1f\x7f]/',$key))throw new InvalidArgumentException('Enter an API key first.');
+            $handle=curl_init($url);if($handle===false)throw new RuntimeException('credential_test_failed');
+            curl_setopt_array($handle,[CURLOPT_HTTPHEADER=>['Authorization: Bearer '.$key,'Accept: application/json'],
+                CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT_MS=>2000,CURLOPT_TIMEOUT_MS=>8000,
+                CURLOPT_WRITEFUNCTION=>static fn($handle,string $chunk):int=>strlen($chunk)]);
+            try{$ok=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);}finally{curl_close($handle);}
+            if($ok!==false&&$status>=200&&$status<300)$notice='API key accepted. Test does not save an unsaved key.';
+            else $error='API key test failed (HTTP '.$status.'). Check the key, permissions, and connection.';
+        } elseif (isset($_POST['add_custom'])) {
+            $name=strtoupper(trim((string)($_POST['custom_name']??'')));
+            if(preg_match('/^[A-Z][A-Z0-9_]{0,39}$/D',$name)!==1)throw new InvalidArgumentException('Use a key name containing letters, digits, or underscores.');
+            $store->set('LORKHAN_CUSTOM_'.$name.'_API_KEY',(string)($_POST['custom_credential']??''));
+            $notice='Custom key saved. Select it in an LLM connector.';
+        } elseif (isset($_POST['delete_custom'])) {
+            $variable=(string)$_POST['delete_custom'];if(!str_starts_with($variable,'LORKHAN_CUSTOM_'))throw new InvalidArgumentException('invalid_credential_variable');
+            $store->delete($variable);$notice='Custom key removed.';
+        } elseif (isset($_POST['save_all'])) {
             $credentials = $_POST['credentials'] ?? [];
             if (!is_array($credentials)) throw new InvalidArgumentException('invalid_credentials');
             $saved = 0;
@@ -61,8 +83,9 @@ $providers = [
     'cartesia' => ['Cartesia', 'https://play.cartesia.ai/console', 'LORKHAN_TTS_CARTESIA_API_KEY', ['TTS'], 'config.keys'],
     'inworld' => ['Inworld', 'https://studio.inworld.ai/', 'LORKHAN_TTS_INWORLD_API_KEY', ['TTS'], 'config.keys'],
     'google-stt' => ['Google Gemini STT', 'https://aistudio.google.com/apikey', 'LORKHAN_STT_GEMINI_API_KEY', ['STT'], 'config.keys'],
-    'groq' => ['Groq', 'https://console.groq.com/keys', null, ['LLM'], 'config.keys.groq'],
-    'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', null, ['LLM'], 'config.keys.nano-gpt'],
+    'groq' => ['Groq', 'https://console.groq.com/keys', 'LORKHAN_LLM_GROQ_API_KEY', ['LLM'], 'config.keys'],
+    'nano-gpt' => ['Nano-GPT', 'https://nano-gpt.com/', 'LORKHAN_LLM_NANOGPT_API_KEY', ['LLM'], 'config.keys'],
+    'google-llm' => ['Google LLM', 'https://aistudio.google.com/apikey', 'LORKHAN_LLM_GOOGLE_API_KEY', ['LLM'], 'config.keys'],
     'deepl' => ['DeepL', 'https://www.deepl.com/en/pro-api', 'LORKHAN_DEEPL_API_KEY', ['Translation'], 'config.keys.deepl'],
 ];
 
@@ -84,7 +107,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <div class="content-grid">
             <section class="content-section full-width-section">
                 <div class="section-header">
-                    <h2>Preset Keys (Saves Automatically)</h2>
+                    <h2>Preset Keys</h2>
                     <button type="submit" name="save_all" value="1" class="button btn-save">Save Keys</button>
                 </div>
                 <div class="provider-grid">
@@ -107,7 +130,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <div class="provider-body">
                             <?php $inputId = 'credential-' . $slug; ?><label class="visually-hidden" for="<?php echo lorkhan_ui_h($inputId); ?>"><?php echo lorkhan_ui_h($label); ?> API key</label><input id="<?php echo lorkhan_ui_h($inputId); ?>" type="password"<?php echo $variable !== null ? ' name="credentials[' . lorkhan_ui_h($variable) . ']"' : ''; ?> placeholder="<?php echo lorkhan_ui_h($placeholder); ?>" autocomplete="new-password" maxlength="8192"<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>
                             <button type="button" class="button" data-key-visibility<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>Show</button>
-                            <?php if (in_array($slug, ['openrouter', 'openai'], true)): ?><span class="status-control"><button type="button" class="btn-save" disabled aria-disabled="true">Test</button><?php echo lorkhan_ui_feature_badge('config.keys.test', true); ?></span><?php endif; ?>
+                            <?php if (in_array($slug, ['openrouter', 'openai','openai-llm'], true)): ?><button type="submit" class="btn-save" name="test_key" value="<?php echo lorkhan_ui_h($variable); ?>">Test</button><?php endif; ?>
                         </div>
                         <div class="provider-subtext"><p class="desc">This key can be used for: <?php echo lorkhan_ui_h(implode(', ', $uses)); ?></p></div>
                     </article>
@@ -116,9 +139,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </section>
 
             <section class="content-section full-width-section">
-                <div class="section-header"><h2>Custom Keys</h2><?php echo lorkhan_ui_feature_badge('config.keys.custom'); ?></div>
-                <div id="custom-keys"></div>
-                <span class="status-control add-custom-control"><button type="button" class="action-button add-new" disabled aria-disabled="true">Add Custom Key</button><?php echo lorkhan_ui_feature_badge('config.keys.custom', true); ?></span>
+                <div class="section-header"><h2>Custom Keys</h2></div>
+                <div id="custom-keys" class="provider-grid"><?php foreach($statuses as $variable=>$status): if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$variable,$match)!==1)continue; ?>
+                    <article class="provider-card"><header class="provider-header"><h3><?php echo lorkhan_ui_h($match[1]); ?></h3><span><?php echo lorkhan_ui_h($status['source']); ?></span></header><div class="provider-body">
+                        <label class="visually-hidden" for="custom-<?php echo lorkhan_ui_h($match[1]); ?>">Replacement key</label><input id="custom-<?php echo lorkhan_ui_h($match[1]); ?>" type="password" name="credentials[<?php echo lorkhan_ui_h($variable); ?>]" placeholder="Leave blank to keep saved key" autocomplete="new-password" maxlength="8192">
+                        <button type="button" data-key-visibility>Show</button><button type="submit" name="delete_custom" value="<?php echo lorkhan_ui_h($variable); ?>">Delete</button></div></article>
+                <?php endforeach; ?></div>
+                <div class="provider-body"><label for="custom-name">Name</label><input id="custom-name" name="custom_name" maxlength="40" placeholder="MY_PROVIDER"><label for="custom-value">API key</label><input id="custom-value" type="password" name="custom_credential" autocomplete="new-password" maxlength="8192"><button type="submit" name="add_custom" value="1" class="action-button add-new">Add Custom Key</button></div>
             </section>
         </div>
     </form>

@@ -44,13 +44,19 @@ const LORKHAN_LLM_DRIVERS = [
 ];
 
 /** Server-held credential references a direct connector may point at; key values never reach this page. */
-const LORKHAN_LLM_CREDENTIALS = [
+$llmCredentials = [
     'none' => 'No API key',
     'default' => 'Default LLM key',
     'openai' => 'OpenAI LLM key',
     'openrouter' => 'OpenRouter LLM key',
     'custom' => 'Custom LLM key',
+    'groq'=>'Groq key','nanogpt'=>'NanoGPT key','google'=>'Google LLM key',
 ];
+
+foreach ((new \LorkhanServer\Application\CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
+    if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$status['variable'],$match)===1)
+        $llmCredentials['custom:'.$match[1]]=$match[1];
+}
 
 /** Numeric override fields: name, label, type, minimum, maximum, step, help. */
 const LORKHAN_LLM_GENERATION_FIELDS = [
@@ -151,7 +157,7 @@ function lorkhan_llm_legacy_row(string $label, string $featureId): void
     <?php
 }
 
-/** Keep Herika's provider service strip visible as a clearly inert legacy surface. */
+/** Apply provider connection presets without changing the selected model or sampling controls. */
 function lorkhan_llm_service_picker(string $webRoot): void
 {
     $services = [
@@ -160,11 +166,11 @@ function lorkhan_llm_service_picker(string $webRoot): void
     ];
     ?>
     <div class="llm-legacy-row llm-service-block">
-        <p class="llm-legacy-name"><span>Service preset icons</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></p>
-        <p class="llm-help"><?php echo lorkhan_ui_h(lorkhan_ui_feature('config.llm.service')['description']); ?></p>
-        <div class="llm-service-icons" role="presentation">
+        <p class="llm-legacy-name"><span>Service</span></p>
+        <p class="llm-help">Fill in the endpoint and API key reference. Choose a model below.</p>
+        <div class="llm-service-icons" role="group" aria-label="Service presets">
             <?php foreach ($services as $file => $label): ?>
-            <img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="" aria-hidden="true">
+            <button type="button" data-llm-service="<?php echo lorkhan_ui_h($file); ?>" title="<?php echo lorkhan_ui_h($label); ?>"><img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="<?php echo lorkhan_ui_h($label); ?>"></button>
             <?php endforeach; ?>
         </div>
     </div>
@@ -258,7 +264,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $driver = (string) ($content['driver'] ?? 'configured');
                 if (!isset(LORKHAN_LLM_DRIVERS[$driver])) $driver = 'configured';
                 $credential = (string) ($content['credential'] ?? 'none');
-                if (!isset(LORKHAN_LLM_CREDENTIALS[$credential])) $credential = 'none';
+                if (!isset($llmCredentials[$credential])) $credential = 'none';
                 $storedTimeout = $content['timeout_ms'] ?? null;
                 $timeout = is_int($storedTimeout) ? (string) $storedTimeout : (is_string($storedTimeout) ? $storedTimeout : '');
                 $isDirect = $driver === 'openai-compatible';
@@ -285,6 +291,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                     </div>
 
+                    <?php lorkhan_llm_service_picker($webRoot); ?>
                     <div class="two-col-llm">
                         <div class="llm-column">
                             <label for="llm_name">Name<?php if (!$creating) echo ' ' . lorkhan_ui_feature_badge('config.llm.identity', true); ?></label>
@@ -327,7 +334,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                                 <label for="llm_credential">API key <?php echo lorkhan_ui_feature_badge('config.llm.api-key', true); ?></label>
                                 <select id="llm_credential" name="credential" aria-describedby="llm_credential-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                    <?php foreach (LORKHAN_LLM_CREDENTIALS as $credentialId => $credentialLabel): ?>
+                                    <?php foreach ($llmCredentials as $credentialId => $credentialLabel): ?>
                                     <option value="<?php echo lorkhan_ui_h($credentialId); ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($credentialLabel); ?></option>
                                     <?php endforeach; ?>
                                 </select>
@@ -372,14 +379,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <p class="llm-help">Mock connectors never contact a provider. Switching modes keeps unsaved field values, but Save stores only fields for the selected mode. Earlier saved settings remain in revision history.</p>
                             </section>
 
-                            <details class="llm-legacy-panel">
-                                <summary>Herika controls LORKHAN does not implement <?php echo lorkhan_ui_feature_badge('config.llm.legacy-controls', true); ?></summary>
-                                <p class="llm-help">These controls exist in the Herika editor this page was copied from. They are listed so nothing looks silently missing. None of them is wired up, and none is a hidden default.</p>
-                                <?php lorkhan_llm_legacy_row('JSON Schema and Prefill JSON', 'config.llm.json-schema'); ?>
-                                <?php lorkhan_llm_legacy_row('Remove Action Prompt', 'config.llm.action-prompt'); ?>
-                                <?php lorkhan_llm_legacy_row('Include Body Parameters (YAML)', 'config.llm.body-parameters'); ?>
-                                <?php lorkhan_llm_service_picker($webRoot); ?>
-                            </details>
+
                         </div>
                     </div>
 

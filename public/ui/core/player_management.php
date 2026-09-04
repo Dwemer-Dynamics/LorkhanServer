@@ -26,6 +26,10 @@ $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
+$effectivePlayer=$installationId===''?[]:$productRepository->effectiveSettingsForProfile($installationId,$profile['profile_id']??null);
+$diaryConnectorId=(string)($effectivePlayer['routing']['diary_generation_configuration_id']??'');
+$diaryConnectorName=$diaryConnectorId===''?'Not configured':$diaryConnectorId;
+foreach($providerRows as$providerRow)if(($providerRow['configuration_id']??'')===$diaryConnectorId)$diaryConnectorName=(string)$providerRow['name'];
 $biographyKnownByAll = ($content['biography_known_by_all'] ?? true) !== false;
 
 /** Normalize PostgreSQL JSON values used by the latest typed OpenMW context. */
@@ -203,7 +207,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                     <section class="content-section">
                         <h2>&#x1F4D9; Player Diary</h2>
-                        <div class="status-field"><span class="status-field-label">Player Diary Connector</span><div class="status-field-value">Typed LORKHAN narrative pipeline</div><div class="status-field-source">A separate player diary connector is not configured.</div></div>
+                        <div class="status-field"><span class="status-field-label">Player Diary Connector</span><div class="status-field-value"><?php echo lorkhan_ui_h($diaryConnectorName); ?></div><div class="status-field-source">Inherited from the assigned Core Profile's Diary LLM.</div></div>
                         <?php
                         lorkhan_player_toggle('diary_enabled', 'player-diary-enabled', 'Enable Player Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the player.');
                         lorkhan_player_toggle('auto_diary_enabled', 'player-auto-diary-enabled', 'Player Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a player diary on the configured timer and after sleeping.');

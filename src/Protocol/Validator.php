@@ -40,6 +40,7 @@ final class Validator
             'lorkhan.stt.request.v1' => $this->stt($message),
             'lorkhan.dialogue-delivery-result.v1' => $this->delivery($message),
             'lorkhan.menu-dialogue-tts.v1' => $this->menuDialogueTts($message),
+            'lorkhan.book.read-aloud.v1' => $this->bookReadAloud($message),
             'lorkhan.player-autochat.v1' => $this->playerAutochat($message),
             'lorkhan.controls.query.v1' => $this->controlsQuery($message),
             'lorkhan.controls.select.v1' => $this->controlsSelect($message),
@@ -141,7 +142,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -150,6 +151,16 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='rpg_event'){
+            $this->keys($payload,['kind','player','game_time','text']);$this->identity($payload['player']??null);
+            if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait'],true)
+                ||($payload['player']['kind']??null)!=='player'
+                ||(!is_int($payload['game_time']??null)&&!is_float($payload['game_time']??null))
+                ||$payload['game_time']<0||$payload['game_time']>9_007_199_254_740_991
+                ||!is_string($payload['text']??null)||trim($payload['text'])===''||!mb_check_encoding($payload['text'],'UTF-8')
+                ||mb_strlen($payload['text'],'UTF-8')>1024)throw new ValidationException('invalid_schema');
+            return;
+        }
         if($type==='automatic_diary'){
             $this->keys($payload,['trigger','game_time','actors']);
             if(!in_array($payload['trigger']??null,['timer','sleep','wait'],true)
@@ -257,6 +268,20 @@ final class Validator
         $this->timestamp($message['created_at']);$this->identity($message['actor']);
     }
 
+    /** Accept one book chunk; the server owns the Narrator identity and voice route. */
+    private function bookReadAloud(array $message): void
+    {
+        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','book_id','title','text']);
+        if($message['schema']!=='lorkhan.book.read-aloud.v1'||!is_int($message['generation'])||$message['generation']<0
+            ||$message['generation']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
+        foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]);
+        $this->timestamp($message['created_at']);
+        foreach(['book_id'=>512,'title'=>512,'text'=>4096]as$field=>$max){
+            $value=$message[$field];if(!is_string($value)||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0")
+                ||mb_strlen($value,'UTF-8')>$max||($field!=='title'&&trim($value)===''))throw new ValidationException('invalid_schema');
+        }
+    }
+
     /** @param array<string, mixed> $message */
     private function playerAutochat(array $message): void
     {
@@ -273,7 +298,9 @@ final class Validator
 
     private function controlsQuery(array $message): void
     {
-        $this->keys($message,['schema','message_id','request_id','session_id','generation','target']);
+        $keys=['schema','message_id','request_id','session_id','generation','target'];
+        if(array_key_exists('include_settings_editor',$message)){if(!is_bool($message['include_settings_editor']))throw new ValidationException('invalid_schema');$keys[]='include_settings_editor';}
+        $this->keys($message,$keys);
         if(($message['schema']??null)!=='lorkhan.controls.query.v1'||!is_int($message['generation'])
             ||$message['generation']<0||$message['generation']>9_007_199_254_740_991)throw new ValidationException('invalid_schema');
         foreach(['message_id','request_id','session_id']as$field)$this->uuid($message[$field]??null);
@@ -282,11 +309,22 @@ final class Validator
 
     private function controlsSelect(array $message): void
     {
-        $this->keys($message,['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','selection_key','target']);
+        $keys=['schema','message_id','request_id','session_id','generation','created_at','kind','selection_id','selection_key','target'];
+        if(array_key_exists('include_settings_editor',$message)){if(!is_bool($message['include_settings_editor']))throw new ValidationException('invalid_schema');$keys[]='include_settings_editor';}
+        if(($message['kind']??null)==='setting'){
+            $keys[]='setting';$setting=$message['setting']??null;
+            if(!is_array($setting)||array_is_list($setting)||($message['selection_id']??null)!==null)throw new ValidationException('invalid_schema');
+            $this->keys($setting,['scope','key','value','change_token']);
+            if(!in_array($setting['scope'],['global','core_profile','npc'],true)
+                ||!is_string($setting['key'])||preg_match('/^[a-z0-9_.]{1,128}$/D',$setting['key'])!==1
+                ||!is_string($setting['value'])||!mb_check_encoding($setting['value'],'UTF-8')||mb_strlen($setting['value'],'UTF-8')>512||str_contains($setting['value'],"\0")
+                ||!is_string($setting['change_token'])||preg_match('/^[0-9a-f]{64}$/D',$setting['change_token'])!==1)throw new ValidationException('invalid_schema');
+        }
+        $this->keys($message,$keys);
         $modelSlot=($message['kind']??null)==='model_slot';
         if(($message['schema']??null)!=='lorkhan.controls.select.v1'||!is_int($message['generation'])
             ||$message['generation']<0||$message['generation']>9_007_199_254_740_991
-            ||!in_array($message['kind']??null,['actor_profile','model_slot','profile_generate','narrator_profile_generate'],true)
+            ||!in_array($message['kind']??null,['actor_profile','model_slot','profile_generate','narrator_profile_generate','setting'],true)
             ||($modelSlot&&(($message['selection_id']??null)!==null
                 ||!in_array($message['selection_key']??null,['standard','fast','powerful','experimental'],true)))
             ||(!$modelSlot&&($message['selection_key']??null)!==null)

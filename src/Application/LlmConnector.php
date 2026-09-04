@@ -15,6 +15,9 @@ final class LlmConnector
         'openai' => 'LORKHAN_LLM_OPENAI_API_KEY',
         'openrouter' => 'LORKHAN_LLM_OPENROUTER_API_KEY',
         'custom' => 'LORKHAN_LLM_CUSTOM_API_KEY',
+        'groq' => 'LORKHAN_LLM_GROQ_API_KEY',
+        'nanogpt' => 'LORKHAN_LLM_NANOGPT_API_KEY',
+        'google' => 'LORKHAN_LLM_GOOGLE_API_KEY',
     ];
 
     public const OPTION_RULES = [
@@ -80,12 +83,20 @@ final class LlmConnector
             $loopback = $host === 'localhost' || (filter_var($host, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4) !== false && str_starts_with($host, '127.'));
             if ($parts['scheme'] === 'http' && !$loopback) throw new InvalidArgumentException('invalid_provider_endpoint');
             $credential = $content['credential'] ?? 'none';
-            if (!is_string($credential) || !array_key_exists($credential, self::CREDENTIALS)) {
+            if (!is_string($credential) || self::credentialVariable($credential) === null) {
                 throw new InvalidArgumentException('invalid_provider_credential');
             }
             $result += ['endpoint' => $endpoint, 'credential' => $credential, 'timeout_ms' => 30000];
         }
         return $result;
+    }
+
+    /** Resolve a public credential reference without exposing secret material. */
+    public static function credentialVariable(string $reference): ?string
+    {
+        if(array_key_exists($reference,self::CREDENTIALS))return self::CREDENTIALS[$reference];
+        if(preg_match('/^custom:([A-Z][A-Z0-9_]{0,39})$/D',$reference,$match)===1)return 'LORKHAN_CUSTOM_'.$match[1].'_API_KEY';
+        return null;
     }
 
     /** Reject unknown transport keys and retain explicit zero/false overrides. */

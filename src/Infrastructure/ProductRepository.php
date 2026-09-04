@@ -176,6 +176,18 @@ final class ProductRepository
         $statement->execute(['profile'=>$profileId,'core'=>$coreProfileId]);if($statement->rowCount()!==1)throw new \InvalidArgumentException('core_profile_scope_mismatch');
     }
 
+    /** Keep persona text and its same-installation Core Profile assignment atomic. */
+    public function revisePersona(string $profileId,array $content,string $reason,string $coreProfileId,string $now):array
+    {
+        return$this->transaction(function()use($profileId,$content,$reason,$coreProfileId,$now):array{
+            $profile=$this->getRevisioned('profile',$profileId);
+            $identity=is_array($profile['actor_identity'])?$profile['actor_identity']:$this->json($profile['actor_identity']);
+            if(!in_array($identity['kind']??'actor',['narrator','player'],true))throw new \InvalidArgumentException('profile_not_persona');
+            if($coreProfileId!=='')$this->assignCoreProfile($profileId,$coreProfileId);
+            return$this->revise('profile',$profileId,$content,$reason,$now);
+        });
+    }
+
     /** Materialize the installation-scoped player profile before the first game turn needs it. */
     public function ensurePlayerProfile(string $installationId,string $now):array
     {
@@ -1124,7 +1136,7 @@ final class ProductRepository
     /** Return a newest-first bounded sample of typed or transcribed player turns for style analysis. */
     public function recentPlayerInputs(string $installationId,int $limit=200):array
     {
-        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
+        $limit=max(1,min(200,$limit));$statement=$this->db->prepare("SELECT t.input_text FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=:installation AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'' AND NOT EXISTS (SELECT 1 FROM source_events e WHERE e.turn_id=t.turn_id AND (e.payload#>>'{payload,ui_source}' IN ('lorkhan_rpg_event','lorkhan_rechat','lorkhan_action_followup') OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_auto_%' OR e.payload#>>'{payload,ui_source}' LIKE 'lorkhan_narrator_%')) ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
         $statement->bindValue(':installation',$installationId);$statement->bindValue(':limit',$limit,\PDO::PARAM_INT);$statement->execute();
         return array_map(static fn(array$row):string=>(string)$row['input_text'],$statement->fetchAll());
     }
@@ -1142,14 +1154,21 @@ final class ProductRepository
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
         $result=[];$id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
+        if($id!==''&&in_array($connector['content']['driver']??'',['cartesia','inworld'],true)){
+            $lookup=$this->db->prepare('SELECT voice_id FROM speech_connector_voices WHERE configuration_id=:configuration AND (voice_id=:voice OR lower(display_name)=lower(:voice)) ORDER BY (voice_id=:voice) DESC LIMIT 2');
+            $lookup->execute(['configuration'=>$connector['configuration_id'],'voice'=>$id]);$matches=$lookup->fetchAll(PDO::FETCH_COLUMN);
+            if(count($matches)===1||($matches[0]??null)===$id)$id=(string)$matches[0];
+        }
         if($id!==''&&str_starts_with((string)($voice['source']??''),'morrowind_')){
             $configurationId=trim((string)($connector['configuration_id']??''));
             if($configurationId===''||!$this->connectorHasVoice($configurationId,$id))$id='';
         }
-        if($id===''){$gender=strtolower(trim((string)($content['gender']??'')));$connectorContent=$connector['content']??null;
+        if($id===''){$gender=strtolower(trim((string)($content['gender']??$identity['gender']??'')));$connectorContent=$connector['content']??null;
             $options=is_array($connectorContent)&&is_array($connectorContent['options']??null)&&!array_is_list($connectorContent['options'])?$connectorContent['options']:[];
+            $race=str_replace([' ','-'],'_',strtolower(trim((string)($content['race']??$identity['race']??''))));
+            $id=trim((string)($options['race_fallbacks'][$race][$gender]??''));
             $fallbackField=match($gender){'male'=>'fallback_male','female'=>'fallback_female',default=>null};
-            if($fallbackField!==null)$id=trim((string)($options[$fallbackField]??''));
+            if($id===''&&$fallbackField!==null)$id=trim((string)($options[$fallbackField]??''));
         }
         if($id!==''&&strlen($id)<=512)$result['voice']=$id;if($language!==''&&strlen($language)<=35)$result['language']=$language;
         return$result;
@@ -1913,7 +1932,56 @@ SQL);
             'narrator_profile_id'=>$narrator===null?null:(string)$narrator['profile_id'],
             'selected_profile_id'=>$this->selectedActorProfileId((string)$session['installation_id'],
                 (string)$session['playthrough_id'],$target),
-            'effective_settings'=>$effectiveSettings];
+            'effective_settings'=>$effectiveSettings,
+            'settings_editor'=>$this->inGameSettingsState($session,$target,$effective)['editor']];
+    }
+
+    /** Share only editable fields with the client, retaining full documents on the server for fenced edits. */
+    private function inGameSettingsState(array $session,array $target,?array $effective=null):array
+    {
+        $effective??=$this->effectiveSettingsForActor((string)$session['installation_id'],(string)$session['playthrough_id'],$target);
+        $global=$this->globalSettingsForInstallation((string)$session['installation_id']);
+        $documents=['global'=>$global??['content'=>\LorkhanServer\Application\SettingsCatalog::globalDefaults()]];
+        if(is_array($effective['core_profile']??null))$documents['core_profile']=$effective['core_profile'];
+        if(is_array($effective['npc_profile']??null))$documents['npc']=$effective['npc_profile'];
+        $sections=[];
+        foreach($documents as$scope=>$document){
+            $content=$document['content'];
+            if($scope==='global')$content=EffectiveSettingsResolver::validateGlobalSettings($content);
+            $documents[$scope]['content']=$content;
+            $displayContent=$content;
+            if($scope==='core_profile'){
+                $coreEffective=(new EffectiveSettingsResolver())->resolve($documents['global']['content'],$content,[]);
+                $displayContent['settings_overrides']=$coreEffective['settings'];
+            }
+            $fields=\LorkhanServer\Application\InGameSettings::fields($scope,$displayContent);
+            foreach($fields as&$field)unset($field['_path']);unset($field);
+            $sections[]=['scope'=>$scope,'label'=>match($scope){'global'=>'Global Settings','core_profile'=>'Core Profile',default=>'NPC Settings'},'fields'=>$fields];
+        }
+        $token=hash('sha256',$this->encodeCanonical([$session['session_id']??'',$session['generation'],$target,$documents]));
+        return ['documents'=>$documents,'editor'=>['change_token'=>$token,'sections'=>$sections]];
+    }
+
+    /** Apply a user-selected setting to the same session, target and revision that supplied the menu. */
+    public function selectInGameSetting(array $session,array $target,array $selection,string $now):void
+    {
+        $this->transaction(function()use($session,$target,$selection,$now):void{
+            $lock=$this->db->prepare("SELECT generation FROM sessions WHERE session_id=:session AND state='active' FOR UPDATE");
+            $lock->execute(['session'=>$session['session_id']]);
+            if((int)$lock->fetchColumn()!==(int)$session['generation'])throw new \DomainException('stale_generation');
+            $state=$this->inGameSettingsState($session,$target);
+            if(!hash_equals($state['editor']['change_token'],(string)($selection['change_token']??'')))throw new \DomainException('revision_conflict');
+            $scope=(string)($selection['scope']??'');$document=$state['documents'][$scope]??null;
+            if($document===null)throw new \InvalidArgumentException('invalid_settings_scope');
+            $content=\LorkhanServer\Application\InGameSettings::apply($scope,$document['content'],
+                (string)($selection['key']??''),(string)($selection['value']??''));
+            $kind=match($scope){'global'=>'global_settings','core_profile'=>'core_profile','npc'=>'profile'};
+            $id=(string)($document['configuration_id']??$document['core_profile_id']??$document['profile_id']??'');
+            if($id==='')$this->createRevisioned($kind,['installation_id'=>$session['installation_id'],'name'=>'Global Settings','content'=>$content],$now);
+            else $this->revise($kind,$id,$content,'In-game Interact settings',$now,(int)($document['current_revision']??$document['revision']));
+            if($scope==='global'&&($selection['key']??'')==='profile_management.auto_lock_profile')
+                $this->setProfileAutoLock((string)$session['installation_id'],(bool)$content['profile_management']['auto_lock_profile'],$now);
+        });
     }
 
     /** Build a secret-free snapshot of revisioned installation configuration. */
@@ -2994,7 +3062,7 @@ SQL);
                 'description'=>$description,'configuration'=>$configurationId,'revision'=>$revision,'now'=>$now]);
     }
     private function revisionMeta(string $kind):array{return match($kind){'profile'=>['profiles','profile_id','profile_revisions'],'core_profile'=>['core_profiles','core_profile_id','core_profile_revisions'],'playthrough'=>['playthroughs','playthrough_id','playthrough_revisions'],'prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'=>['configuration_sets','configuration_id','configuration_revisions'],default=>throw new RuntimeException('invalid_resource_kind')};}
-    private function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
+    public function transaction(callable $callback):mixed{$owns=!$this->db->inTransaction();if($owns)$this->db->beginTransaction();try{$v=$callback();if($owns)$this->db->commit();return$v;}catch(Throwable $e){if($owns&&$this->db->inTransaction())$this->db->rollBack();throw$e;}}
     private function deterministicUuid(string $value):string{$h=md5($value);return substr($h,0,8).'-'.substr($h,8,4).'-4'.substr($h,13,3).'-8'.substr($h,17,3).'-'.substr($h,20,12);}
     private function selectedActorProfileId(string $installation,string $playthrough,array $identity):?string{$s=$this->db->prepare('SELECT b.profile_id FROM actor_profile_bindings b JOIN profiles p ON p.profile_id=b.profile_id AND p.installation_id=b.installation_id AND p.deleted_at IS NULL WHERE b.installation_id=:installation AND b.playthrough_id=:playthrough AND b.actor_key=:key');$s->execute(['installation'=>$installation,'playthrough'=>$playthrough,'key'=>$this->actorKey($identity)]);$value=$s->fetchColumn();return$value===false?null:(string)$value;}
     public function actorKey(array $identity):string{return hash('sha256',$this->encodeCanonical(['kind'=>$identity['kind']??null,'record_id'=>$identity['record_id']??null,'content_file'=>$identity['content_file']??null,'refnum'=>$identity['refnum']??null]));}

@@ -82,6 +82,11 @@ final class PromptAssembler
         $history = $enabled['conversation_history'] ? $this->limitedSelection($selection, 'history') : [];
         $memory = array_slice($this->selectedList($selection, array_key_exists('memory_candidates', $selection) ? 'memory_candidates' : 'memory'), 0, 500);
         if (!$enabled['memories']) $memory = [];
+        $memoryFlags = $coreProfile['content']['settings_overrides']['memory'] ?? [];
+        $memory = array_values(array_filter($memory, static function (array $row) use ($memoryFlags): bool {
+            $flag = match ($row['tier'] ?? '') { 'recent' => 'short_term_enabled', 'mid' => 'mid_term_enabled', 'long' => 'long_term_enabled', default => '' };
+            return $flag === '' || ($memoryFlags[$flag] ?? true) === true;
+        }));
         $relationships = $enabled['relationships'] ? $this->limitedSelection($selection, 'relationship') : [];
         $knowledge = $enabled['oghma'] ? $this->limitedSelection($selection, 'knowledge') : [];
         $narrative = $enabled['narratives'] ? $this->limitedSelection($selection, 'narrative') : [];
@@ -870,6 +875,7 @@ final class PromptAssembler
     private function currentTurnMessage(array $turn, string $actorName, string $playerName, mixed $moodTemplates): string
     {
         $automaticCue = match ($turn['payload']['ui_source'] ?? null) {
+            'lorkhan_rpg_event' => 'Make one brief in-character comment about this observed game event: '.(string)($turn['payload']['input']['text']??'').'. This is scene context, not spoken player dialogue. Do not invent additional events.',
             'lorkhan_auto_greeting' => "Automatic greeting for {$actorName}. Address {$playerName} with one brief, natural greeting that fits your character and the current situation.",
             'lorkhan_auto_boredom' => "Automatic idle remark for {$actorName}. Make one brief, spontaneous in-character observation about the current situation. Address {$playerName} only when it feels natural.",
             'lorkhan_auto_combat_bark' => "Automatic combat bark for {$actorName}. Deliver one short, urgent in-character combat line. Do not narrate actions or produce dialogue for anyone else.",

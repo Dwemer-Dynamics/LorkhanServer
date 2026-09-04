@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 use LorkhanServer\Application\ConnectorCatalog;
 use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\CloudVoiceLibrary;
+use LorkhanServer\Application\CredentialStore;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\TtsPronunciationRepository;
 use LorkhanServer\Security\OutboundUrlPolicy;
@@ -28,8 +30,9 @@ $defaultTab=match($defaultDriver){'pockettts'=>'pockettts','omnivoice'=>'omnivoi
 $studioTab=$requestedStudioTab!==''?$requestedStudioTab:$defaultTab;
 $activeTab=in_array($studioTab,['xtts','chatterbox','pockettts','omnivoice','cartesia','inworld','fallbacks','pronunciations'],true)?$studioTab:$defaultTab;
 $voiceReferenceIndex=$products->voiceReferenceIndex();
-$sampleUploadDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
-$voiceDiscoveryDrivers=ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS;
+$sampleUploadDrivers=array_merge(ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,['cartesia','inworld']);
+$voiceDiscoveryDrivers=$sampleUploadDrivers;
+$cloudLibrary=new CloudVoiceLibrary(new CredentialStore((string)$config['credential_storage_path']));
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
 $pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationNotice='';$pronunciationError='';
 // The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
@@ -70,6 +73,7 @@ function lorkhan_voice_language(string $language):string
 function lorkhan_voice_can_sync(array $preset):bool
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
+    if(in_array($driver,['cartesia','inworld'],true))return true;
     if(!in_array($driver,ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,true))return false;
     $endpoint=strtolower(rtrim((string)($content['endpoint']??''),'/'));
     return$driver!=='pockettts'||(!str_contains($endpoint,':8086')&&!str_ends_with($endpoint,'/v1/audio/speech'));
@@ -116,11 +120,13 @@ function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLangua
 }
 
 /** Query only CHIM-compatible local speaker-list endpoints after an explicit browser action. */
-function lorkhan_voice_discover(array $preset,string $language):array
+function lorkhan_voice_discover(array $preset,string $language,?CloudVoiceLibrary $cloud=null):array
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
     if(!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
     $language=lorkhan_voice_language($language);
+    if(in_array($driver,['cartesia','inworld'],true))return lorkhan_voice_normalize_discovery(
+        ($cloud??throw new RuntimeException('voice_sync_unavailable'))->discover($driver),$language);
     $path=$driver==='omnivoice'?'/speakers_list_extended?language='.rawurlencode($language):'/speakers_list';
     return lorkhan_voice_normalize_discovery(lorkhan_voice_fetch_json((string)($content['endpoint']??''),$path),$language);
 }
@@ -191,7 +197,23 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
     try{
         if(!hash_equals($csrf,(string)($_POST['_csrf']??'')))throw new RuntimeException('unauthorized');
         $action=$postedAction;$voice=(string)($_POST['voice_name']??'');
-        if($action==='pronunciation_save'){
+        if($action==='fallback_save'){
+            $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
+            if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
+            $fallbacks=[];
+            foreach(['argonian','breton','dark_elf','high_elf','imperial','khajiit','nord','orc','redguard','wood_elf']as$race){
+                foreach(['male','female']as$gender){$id=trim((string)($_POST['fallbacks'][$race][$gender]??''));
+                    if(strlen($id)>512||!mb_check_encoding($id,'UTF-8')||str_contains($id,"\0"))throw new InvalidArgumentException('invalid_voice_name');
+                    if($id!=='')$fallbacks[$race][$gender]=$id;
+                }
+            }
+            $content=$preset['content'];$content['options']['race_fallbacks']=$fallbacks;
+            (new \LorkhanServer\Application\ProductService($products,new \LorkhanServer\Application\DeterministicClock()))
+                ->revise('tts_provider',$configurationId,$content,'Update race and gender fallback voices');
+            $ttsPresetsById[$configurationId]['content']=$content;
+            foreach($ttsPresets as &$row)if($row['configuration_id']===$configurationId)$row['content']=$content;unset($row);
+            $requestedPreset=$ttsPresetsById[$configurationId];$notice='Fallback voices saved.';
+        }elseif($action==='pronunciation_save'){
             $idValue=trim((string)($_POST['id']??''));
             if($idValue!==''&&(!ctype_digit($idValue)||(int)$idValue<1))throw new InvalidArgumentException('invalid_pronunciation');
             $pronunciations->saveCustom($idValue===''?null:(int)$idValue,(string)($_POST['source_text']??''),
@@ -210,7 +232,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
             $discoverLanguage=strtolower(trim((string)($_POST['language']??'en'))?:'en');
-            $discoveredVoices=lorkhan_voice_discover($preset,$discoverLanguage);$discoveredPreset=$preset;$selectedDiscoveryId=$configurationId;$catalogLoaded=true;
+            $discoveredVoices=lorkhan_voice_discover($preset,$discoverLanguage,$cloudLibrary);$discoveredPreset=$preset;$selectedDiscoveryId=$configurationId;$catalogLoaded=true;
             $products->replaceConnectorVoiceCatalog($configurationId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
             $notice=count($discoveredVoices).' provider voices discovered.';
         }elseif($action==='upload'){
@@ -224,8 +246,36 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!is_file($path))throw new InvalidArgumentException('voice_sample_not_found');
-            lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),trim((string)($_POST['language']??'en'))?:'en');
+            $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
+            if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
+                if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
+                $catalog=$products->connectorVoiceCatalog($configurationId);
+                $catalog[]=$cloudLibrary->clone($preset['content']['driver'],$path,pathinfo($filename,PATHINFO_FILENAME),$language);
+                $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
+            }else lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),$language);
             $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
+        }elseif($action==='batch_sync'){
+            $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
+            if(!is_array($preset)||!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
+            if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
+            $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
+            $catalog=lorkhan_voice_discover($preset,$language,$cloudLibrary);
+            $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
+            $known=[];foreach($catalog as$row){$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
+            $count=0;$failed=0;$pending=0;
+            // Bounded batches resume from the cached provider catalog; a failed sample cannot erase successes.
+            foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){
+                $name=pathinfo($path,PATHINFO_FILENAME);if(isset($known[strtolower($name)]))continue;$pending++;if($count+$failed>=1)continue;
+                try{lorkhan_voice_validate_wav($path);
+                    if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
+                        $catalog[]=$cloudLibrary->clone($preset['content']['driver'],$path,$name,$language);
+                        $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
+                    }else lorkhan_voice_sync_connector($preset,$path,$name,$language);
+                    $count++;
+                }catch(Throwable){$failed++;}
+            }
+            $notice=$count.' voices uploaded; '.$failed.' failed. Run again for remaining voices.';
+            if(($_POST['_batch_ajax']??'')==='1'){header('Content-Type: application/json');echo json_encode(['uploaded'=>$count,'failed'=>$failed,'remaining'=>max(0,$pending-$count)],JSON_THROW_ON_ERROR);exit;}
         }elseif($action==='delete'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
@@ -241,7 +291,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','unauthorized'],true)?$exception->getMessage():'voice_action_failed';}
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 

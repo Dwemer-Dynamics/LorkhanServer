@@ -117,6 +117,7 @@ final class TurnProcessJobHandler implements JobHandler
             ||$policy['content']['translate_text']||$policy['content']['translate_audio'])return false;
         $mode=(string)($message['_narrator_profile']['content']['inline_narration_mode']??'Disabled');
         if($mode!=='Disabled')return false;
+        if(($message['_narrator_profile']['content']['narration_filters']['remove_npc_output_asterisks']??false)===true)return false;
         $planner=new DialoguePlanner();$identities=[];
         try{
             foreach(array_merge([$message['payload']['target']],$message['payload']['audience'])as$identity)
@@ -215,7 +216,8 @@ final class TurnProcessJobHandler implements JobHandler
     {
         $planned=(new DialoguePlanner())->plan($message,$result);$clean=[];
         foreach($planned as$utterance)$clean[]=['speaker'=>$utterance['speaker'],'addressee'=>$utterance['addressee'],
-            'text'=>$utterance['text'],'speech_enabled'=>$utterance['speech_enabled']];
+            'text'=>$utterance['text'],'speech_enabled'=>$utterance['speech_enabled'],
+            '_history_text'=>$utterance['_history_text'],'_subtitle'=>$utterance['_subtitle'],'_tts_text'=>$utterance['_tts_text']];
         $content=$policy['content'];$enabled=$content['translate_text']||$content['translate_audio'];
         if(!$enabled)return['utterances'=>$clean,'action'=>$result['action']??null];
 
@@ -236,9 +238,9 @@ final class TurnProcessJobHandler implements JobHandler
                     throw new DomainException('provider_invalid_output');
             $outputBytes=array_sum(array_map('strlen',$translated));$this->attempts?->finish($attemptId,'succeeded',$outputBytes);
             foreach($clean as$index=>&$utterance){$translation=$translated[$index];
-                $utterance['_history_text']=$content['save_translated_text']?$translation:$utterance['text'];
-                $utterance['_subtitle']=$content['translate_text']?$translation:$utterance['text'];
-                $utterance['_tts_text']=$content['translate_audio']?$translation:$utterance['text'];
+                $utterance['_history_text']=$content['save_translated_text']?$translation:$utterance['_history_text'];
+                $utterance['_subtitle']=$content['translate_text']?$translation:$utterance['_subtitle'];
+                $utterance['_tts_text']=$content['translate_audio']?$translation:$utterance['_tts_text'];
             }unset($utterance);
         }catch(OperationCancelled$error){
             try{$this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');}catch(Throwable){}
@@ -271,10 +273,13 @@ final class TurnProcessJobHandler implements JobHandler
                     ?$provider->completeStreaming($message,$token,$onDialogueDelta)
                     :$provider->complete($message,$token);
                 $bytes=strlen(json_encode($result,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)?:'');
+                if($provider instanceof OpenAiCompatibleProvider)$this->attempts?->recordUsage($attemptId,$provider->reportedUsage());
                 $this->attempts?->finish($attemptId,'succeeded',$bytes);return$result;
             }catch(OperationCancelled$error){
+                if($provider instanceof OpenAiCompatibleProvider)$this->attempts?->recordUsage($attemptId,$provider->reportedUsage());
                 $this->attempts?->finish($attemptId,'cancelled',errorCode:'operation_cancelled');throw$error;
             }catch(Throwable$error){
+                if($provider instanceof OpenAiCompatibleProvider)$this->attempts?->recordUsage($attemptId,$provider->reportedUsage());
                 try{$this->attempts?->finish($attemptId,'failed',errorCode:$this->providerFailureCode($error));}catch(Throwable){}
                 $lastError=$error;
             }

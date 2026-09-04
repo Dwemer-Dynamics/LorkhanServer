@@ -60,6 +60,16 @@ final class ProductService
         return$this->repository->reviseCoreProfile($id,$label,$defaultNpc,$slot,$content,$reason,$this->clock->iso());
     }
 
+    /** Save a persona and its Core Profile together so a failed edit cannot change routing. */
+    public function revisePersona(string $id,array $content,string $reason,string $coreProfileId=''):array
+    {
+        $this->uuid($id);if($coreProfileId!=='')$this->uuid($coreProfileId);
+        if($this->repository->resourceKind($id)!=='profile')throw new InvalidArgumentException('resource_kind_mismatch');
+        if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
+        $this->assertNoSecrets($content);$content=$this->validateConfiguration('profile',$content);
+        return$this->repository->revisePersona($id,$content,$reason,$coreProfileId,$this->clock->iso());
+    }
+
     public function rollback(string $kind, string $id, int $revision, string $reason): array
     {
         if ($revision < 1) throw new InvalidArgumentException('invalid_revision');
@@ -436,6 +446,7 @@ final class ProductService
     /** Validate the editable CHIM-lineage NPC fields while preserving a compact OpenMW profile document. */
     private function validateProfile(array $content):array
     {
+        if(array_key_exists('narration_filters',$content))$content['narration_filters']=NarrationTextPolicy::validate($content['narration_filters']);
         if(strlen(json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>131_072)throw new InvalidArgumentException('invalid_profile_content');
         if(array_key_exists('management',$content)){
             $management=$content['management'];

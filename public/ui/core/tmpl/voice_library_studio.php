@@ -25,7 +25,7 @@ $presetsForTab = static function (string $tab) use ($studioTabs, $ttsPresets): a
 include $uiRootDir . '/tmpl/head.html';
 if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 ?>
-<main class="tts-studio-page<?php echo $embedded ? ' embedded' : ''; ?>">
+<main class="tts-studio-page<?php echo $embedded ? ' embedded' : ''; ?>" data-voice-preview-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/tts-previews">
     <div class="page-header">
         <h1>Voice Management</h1>
         <p class="page-subtitle">Manage voice samples, global NPC fallback voices, and pronunciations across all TTS providers.</p>
@@ -346,20 +346,25 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 
     <?php elseif ($activeTab === 'fallbacks'):
         $morrowindRaces = ['argonian' => 'Argonian', 'breton' => 'Breton', 'dark_elf' => 'Dark Elf', 'high_elf' => 'High Elf', 'imperial' => 'Imperial', 'khajiit' => 'Khajiit', 'nord' => 'Nord', 'orc' => 'Orc', 'redguard' => 'Redguard', 'wood_elf' => 'Wood Elf'];
+        $fallbackPreset = $requestedPreset ?? $ttsPresets[0] ?? null;
+        $fallbackVoices = $fallbackPreset['content']['options']['race_fallbacks'] ?? [];
     ?>
         <section class="content-section">
-            <h1>Fallback Voices <?php echo lorkhan_ui_feature_badge('config.tts-studio.fallbacks', true); ?></h1>
-            <p>Choose the voice used when an NPC has no explicit voice assigned. These settings apply to every TTS connector.</p>
-            <p><strong>LORKHAN resolution:</strong> explicit NPC voice, provider actor voice, then the selected connector's male or female fallback.</p>
+            <h1>Fallback Voices</h1>
+            <p>Choose race and gender fallbacks for the selected connector. Explicit NPC voices take priority.</p>
+            <form method="get"><input type="hidden" name="tab" value="fallbacks"><label for="fallback-connector">TTS Connector</label><select id="fallback-connector" name="configuration_id" onchange="this.form.submit()">
+                <?php foreach ($ttsPresets as $preset): ?><option value="<?php echo lorkhan_ui_h($preset['configuration_id']); ?>"<?php echo $preset['configuration_id']===($fallbackPreset['configuration_id']??'')?' selected':''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option><?php endforeach; ?>
+            </select><noscript><button type="submit">Select</button></noscript></form>
+            <form method="post"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="fallback_save"><input type="hidden" name="studio_tab" value="fallbacks"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($fallbackPreset['configuration_id']??''); ?>">
             <div class="fallback-voice-grid" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts-studio.fallbacks')['description']); ?>">
                 <?php foreach ($morrowindRaces as $raceId => $raceLabel): ?>
                     <section class="fallback-race-card">
                         <h2><?php echo lorkhan_ui_h($raceLabel); ?></h2><div class="fallback-race-key"><?php echo lorkhan_ui_h($raceId); ?></div>
-                        <div class="fallback-gender-grid"><div><label>Male</label><input type="text" disabled aria-disabled="true"></div><div><label>Female</label><input type="text" disabled aria-disabled="true"></div></div>
+                        <div class="fallback-gender-grid"><?php foreach (['male'=>'Male','female'=>'Female'] as $gender=>$genderLabel): ?><div><label for="fallback-<?php echo $raceId.'-'.$gender; ?>"><?php echo $genderLabel; ?></label><input id="fallback-<?php echo $raceId.'-'.$gender; ?>" name="fallbacks[<?php echo $raceId; ?>][<?php echo $gender; ?>]" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($fallbackVoices[$raceId][$gender]??''); ?>" placeholder="Use connector fallback"></div><?php endforeach; ?></div>
                     </section>
                 <?php endforeach; ?>
             </div>
-            <div class="button-group"><span class="feature-control"><button type="button" class="btn-primary feature-placeholder-control" disabled aria-disabled="true">Save Fallback Voices</button><?php echo lorkhan_ui_feature_badge('config.tts-studio.fallbacks', true); ?></span></div>
+            <div class="button-group"><button type="submit" class="btn-primary"<?php echo $fallbackPreset===null?' disabled':''; ?>>Save Fallback Voices</button></div></form>
         </section>
     <?php else:
         $tab = $studioTabs[$activeTab];
@@ -373,6 +378,8 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $canBrowse = is_array($selectedProvider) && in_array($selectedProviderDriver, $voiceDiscoveryDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $canSync = is_array($selectedProvider) && in_array($selectedProviderDriver, $sampleUploadDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $cloudClone = in_array($activeTab, ['cartesia', 'inworld'], true);
+        $syncedSamples=[];$syncedSampleIds=[];
+        if($selectedProviderId!=='')foreach($products->connectorVoiceCatalog($selectedProviderId)as$knownVoice){$syncedSamples[mb_strtolower($knownVoice['id'])]=true;$syncedSamples[mb_strtolower($knownVoice['display'])]=true;$syncedSampleIds[mb_strtolower($knownVoice['display'])]=$knownVoice['id'];}
         $catalogMatchesTab = is_array($discoveredPreset) && in_array((string) ($discoveredPreset['content']['driver'] ?? ''), $tab['drivers'], true);
     ?>
         <section class="content-section">
@@ -399,7 +406,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                     <div class="button-group"><button class="btn-primary" type="submit">Refresh <?php echo lorkhan_ui_h($providerLabel); ?> Server Voices</button></div>
                 </form>
             <?php elseif ($cloudClone): ?>
-                <p>This cloud provider can be configured as a typed TTS connector, but browser voice-clone generation is not connected yet.</p><div class="button-group"><span class="feature-control"><button type="button" class="btn-primary feature-placeholder-control" disabled aria-disabled="true">Discover voices</button><?php echo lorkhan_ui_feature_badge('config.tts-studio.cloud-cloning', true); ?></span></div>
+                <p>Choose or configure a connector to discover voices and upload samples.</p><div class="button-group"><span class="feature-control"><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a><?php echo lorkhan_ui_feature_badge('config.tts-studio.cloud-cloning', true); ?></span></div>
             <?php else: ?>
                 <p>No compatible <?php echo lorkhan_ui_h($providerLabel); ?> connector is configured.</p><div class="button-group"><button type="button" class="btn-primary feature-placeholder-control" disabled aria-disabled="true">Refresh <?php echo lorkhan_ui_h($providerLabel); ?> Server Voices</button></div>
             <?php endif; ?>
@@ -414,29 +421,30 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <span class="visually-hidden">Voice Library</span>
             <p>Manage persistent local samples and explicitly sync or test them with this provider.</p>
             <?php if ($samples === []): ?><p>No voice files found in LORKHAN's persistent voice library. Upload voice samples above first.</p><?php else: ?><div class="voice-status-grid">
-                <?php foreach ($samples as $sample): $references = lorkhan_voice_references($sample['name'], $voiceReferenceIndex); ?>
-                    <article class="voice-status-item"><span class="voice-name" title="<?php echo lorkhan_ui_h($sample['name']); ?>"><?php echo lorkhan_ui_h($sample['name']); ?></span><span class="status-icon <?php echo $canSync ? 'unsynced' : 'synced'; ?>"><?php echo $canSync ? '✗' : '✓'; ?></span><div class="voice-actions">
-                        <?php if ($canSync): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><button class="btn-primary" type="submit" title="Sync this voice">↻</button></form><?php endif; ?>
-                        <?php if (is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><button type="submit" title="Test voice">▶</button></form><?php endif; ?>
+                <?php foreach ($samples as $sample): $references = lorkhan_voice_references($sample['name'], $voiceReferenceIndex); $isSynced=isset($syncedSamples[mb_strtolower($sample['name'])]); ?>
+                    <article class="voice-status-item"><span class="voice-name" title="<?php echo lorkhan_ui_h($sample['name']); ?>"><?php echo lorkhan_ui_h($sample['name']); ?></span><span class="status-icon <?php echo $isSynced ? 'synced' : 'unsynced'; ?>"><?php echo $canSync ? '✗' : '✓'; ?></span><div class="voice-actions">
+                        <?php if ($canSync): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><?php if($cloudClone): ?><label title="Upload this sample to the cloud provider"><input type="checkbox" name="consent" value="1" required> Upload</label><?php endif; ?><button class="btn-primary" type="submit" title="<?php echo $cloudClone?'Clone this voice':'Sync this voice'; ?>">↻</button></form><?php endif; ?>
+                        <?php if (is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($syncedSampleIds[mb_strtolower($sample['name'])]??$sample['name']); ?>"><button type="submit" title="Test voice">▶</button></form><?php endif; ?>
                         <?php if ($references === []): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-confirm="Delete this local voice sample?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><button class="btn-danger" type="submit" title="Delete local sample">×</button></form><?php endif; ?>
                     </div></article>
                 <?php endforeach; ?>
             </div><?php endif; ?>
         </section>
 
+        <?php if($canSync): ?>
         <section class="content-section">
-            <h1>Batch Process Missing Voices <?php echo lorkhan_ui_feature_badge('config.tts-studio.batch-sync', true); ?></h1>
-            <p>Upload missing local voices to the <?php echo lorkhan_ui_h($providerLabel); ?> server.</p>
-            <div class="button-group"><span class="feature-control"><button type="button" class="btn-primary feature-placeholder-control" disabled aria-disabled="true">Batch Upload Missing Voices (<?php echo count($samples); ?>)</button><?php echo lorkhan_ui_feature_badge('config.tts-studio.batch-sync', true); ?></span></div>
+            <h1>Batch Process Missing Voices</h1>
+            <p>Upload missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
+            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch>
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="batch_sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>">
+                <label><input type="checkbox" name="consent" value="1" required> Upload these samples to the selected provider<?php echo $cloudClone?' and create cloud voices (provider charges may apply)':''; ?>.</label>
+                <div class="button-group"><button class="btn-primary" type="submit">Batch Upload Missing Voices</button><button type="button" data-voice-batch-stop hidden>Stop after current voice</button></div><p role="status" data-voice-batch-status></p>
+            </form>
         </section>
-
-        <section class="content-section">
-            <h1>Cloud <?php echo lorkhan_ui_h($providerLabel); ?> Sync</h1>
-            <p><strong>Only required for online provider instances.</strong> LORKHAN keeps provider writes explicit and auditable.</p>
-            <div class="button-group"><span class="feature-control"><button type="button" class="btn-primary feature-placeholder-control" disabled aria-disabled="true">Sync Voice Cache</button><?php echo lorkhan_ui_feature_badge('config.tts-studio.batch-sync', true); ?></span></div>
-        </section>
+        <?php endif; ?>
     <?php endif; ?>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/lorkhan-management.js" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-batch.js" defer></script>
 <?php if ($activeTab === 'pronunciations'): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/pronunciation-preview.js?v=<?php echo (int) @filemtime($uiRootDir . '/js/pronunciation-preview.js'); ?>" defer></script><?php endif; ?>
-<?php include $uiRootDir . '/tmpl/footer.html'; ?>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-preview.js?v=<?php echo (int)filemtime($uiRootDir.'/js/voice-preview.js'); ?>"></script><?php include $uiRootDir . '/tmpl/footer.html'; ?>

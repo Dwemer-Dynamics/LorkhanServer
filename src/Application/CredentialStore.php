@@ -38,7 +38,7 @@ final class CredentialStore
     public function statuses(): array
     {
         $stored=$this->read();$rows=[];
-        foreach(self::allowedVariables()as$variable){$environment=getenv($variable);
+        foreach(array_unique(array_merge(self::allowedVariables(),array_keys($stored)))as$variable){$environment=getenv($variable);
             $source=is_string($environment)&&$environment!==''?'environment':(isset($stored[$variable])?'managed store':'not configured');
             $rows[]=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source];}
         return$rows;
@@ -58,9 +58,15 @@ final class CredentialStore
         $this->variable($variable);$values=$this->read();unset($values[$variable]);$this->write($values);
     }
 
+    public static function isAllowed(string $variable): bool
+    {
+        return in_array($variable,self::allowedVariables(),true)
+            || preg_match('/^LORKHAN_CUSTOM_[A-Z][A-Z0-9_]{0,39}_API_KEY$/D',$variable)===1;
+    }
+
     private function variable(string $variable): void
     {
-        if(!in_array($variable,self::allowedVariables(),true))throw new InvalidArgumentException('invalid_credential_variable');
+        if(!self::isAllowed($variable))throw new InvalidArgumentException('invalid_credential_variable');
     }
 
     private function read(): array
@@ -70,8 +76,8 @@ final class CredentialStore
         $bytes=file_get_contents($this->path);if(!is_string($bytes)||strlen($bytes)>262144)throw new RuntimeException('credential_store_unavailable');
         try{$values=json_decode($bytes,true,16,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('credential_store_invalid');}
         if(!is_array($values)||($values!==[]&&array_is_list($values)))throw new RuntimeException('credential_store_invalid');
-        $allowed=array_flip(self::allowedVariables());$result=[];
-        foreach($values as$variable=>$value){if(!isset($allowed[$variable])||!is_string($value)||$value===''||strlen($value)>8192)throw new RuntimeException('credential_store_invalid');$result[$variable]=$value;}
+        $result=[];
+        foreach($values as$variable=>$value){if(!self::isAllowed($variable)||!is_string($value)||$value===''||strlen($value)>8192)throw new RuntimeException('credential_store_invalid');$result[$variable]=$value;}
         return$result;
     }
 

@@ -88,6 +88,7 @@ final class Router
             if ($request->method === 'POST' && $path === '/stt') return $this->stt($request);
             if ($request->method === 'POST' && $path === '/dialogue-delivery-results') return $this->deliveryResult($request);
             if ($request->method === 'POST' && $path === '/menu-dialogue-tts') return $this->menuDialogueTts($request);
+            if ($request->method === 'POST' && $path === '/book/read-aloud') return $this->menuDialogueTts($request,true);
             if ($request->method === 'POST' && $path === '/player-autochat') return $this->playerAutochat($request);
             throw new ApiException(404, 'not_found', 'Route not found.');
         } catch (ApiException $error) {
@@ -178,7 +179,7 @@ final class Router
                 $rechatActions=$source==='lorkhan_rechat'
                     &&($m['payload']['context']['rechat']['allow_actions']??false)===true;
                 $providerInput['_allowed_action_definitions'] = ($source==='lorkhan_rechat'&&!$rechatActions)
-                    ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark'],true)
+                    ||in_array($source,['lorkhan_auto_greeting','lorkhan_auto_boredom','lorkhan_auto_combat_bark','lorkhan_rpg_event'],true)
                     ||str_starts_with((string)$source,'lorkhan_narrator_')
                     ||($source==='lorkhan_action_followup'&&!($m['_action_continuation']['allow_action']??false))
                     ?[]:$this->repository->allowedPromptActions($m['session_id'],$m['generation']);
@@ -240,7 +241,14 @@ final class Router
                                 $this->products?->maybeEnqueueDynamicProfileEvolution((string)$narrator['profile_id'],
                                     (string)$message['playthrough_id'],(string)$message['session_id']);
                         }
-                        return [202, ['schema'=>'lorkhan.gamedata.accepted.v1',
+                        $extra=[];
+                        if($message['type']==='rpg_event'){
+                            $global=$this->products?->globalSettingsForInstallation((string)$message['installation_id'])['content']??[];
+                            $policy=$global['rpg_comments']??SettingsCatalog::globalDefaults()['rpg_comments'];
+                            $roll=hexdec(substr(hash('sha256',(string)$message['request_id']),0,6))%100;
+                            $extra['comment_requested']=in_array($message['payload']['kind'],$policy['events'],true)&&$roll<$policy['chance_percent'];
+                        }
+                        return [202, $extra+['schema'=>'lorkhan.gamedata.accepted.v1',
                             'request_id'=>$message['request_id'],'session_id'=>$message['session_id'],
                             'generation'=>$message['generation'],'type'=>$message['type'],'duplicate'=>false]];
                     });
@@ -379,7 +387,10 @@ final class Router
         return $this->repository->serializedIdempotency((string)$session['installation_id'],$m['message_id'],'/controls/select',function()use($m,$session):Response{
             $hash=$this->semanticHash($m);$cached=$this->repository->idempotent((string)$session['installation_id'],$m['message_id'],'/controls/select',$hash);
             if($cached!==null)return Response::json($cached['status'],$cached['body']);
-            if($m['kind']==='model_slot'){
+            if($m['kind']==='setting'){
+                if($m['selection_id']!==null||$m['selection_key']!==null||!is_array($m['setting']??null))throw new ApiException(422,'invalid_schema','The selected setting is invalid.');
+                $this->products->selectInGameSetting($session,$m['target'],$m['setting'],$m['created_at']);
+            }elseif($m['kind']==='model_slot'){
                 if($m['selection_id']!==null||!is_string($m['selection_key']))throw new ApiException(422,'invalid_schema','The selected model slot is invalid.');
                 $this->products->selectModelSlot($session,$m['selection_key'],$m['created_at']);
             }elseif($m['selection_key']!==null)throw new ApiException(422,'invalid_schema','The selected control is invalid.');
@@ -400,6 +411,7 @@ final class Router
     {
         $controls=$this->products?->sessionControls($session,$request['target']);
         if($controls===null)throw new ApiException(503,'provider_unavailable','Controls unavailable.',true);
+        if(($request['include_settings_editor']??false)!==true&&($request['kind']??'')!=='setting')unset($controls['settings_editor']);
         return ['schema'=>'lorkhan.controls.v1','message_id'=>$request['message_id'],'request_id'=>$request['request_id'],
             'session_id'=>$request['session_id'],'generation'=>$request['generation'],'target'=>$request['target']]+$controls;
     }
@@ -471,22 +483,25 @@ final class Router
     }
 
     /** Synthesize one regular Morrowind dialogue response through the actor's normal voice route. */
-    private function menuDialogueTts(Request $request): Response
+    private function menuDialogueTts(Request $request,bool $book=false): Response
     {
         if($this->mediaStore===null)throw new ApiException(503,'provider_unavailable','Menu dialogue TTS unavailable.',true,1000);
-        $message=$this->json($request,'lorkhan.menu-dialogue-tts.v1');
+        $message=$this->json($request,$book?'lorkhan.book.read-aloud.v1':'lorkhan.menu-dialogue-tts.v1');
+        $route=$book?'/book/read-aloud':'/menu-dialogue-tts';
         $session=$this->repository->session((string)$message['session_id'],(int)$message['generation']);
         $installation=(string)$session['installation_id'];$this->assertPrincipal($installation);
         $this->requireIdempotency($request,$message['message_id']);
         if(!in_array('speech.say',(array)$session['capabilities'],true))
             throw new ApiException(503,'provider_unavailable','Speech is unavailable.',true,1000);
-        return $this->repository->serializedIdempotency($installation,$message['message_id'],'/menu-dialogue-tts',
-            function()use($installation,$message,$session):Response{
-                return $this->idempotent($installation,$message['message_id'],'/menu-dialogue-tts',$message,
-                    function()use($installation,$message,$session):array{
-                        $actor=(array)$message['actor'];
+        return $this->repository->serializedIdempotency($installation,$message['message_id'],$route,
+            function()use($installation,$message,$session,$book,$route):Response{
+                return $this->idempotent($installation,$message['message_id'],$route,$message,
+                    function()use($installation,$message,$session,$book):array{
+                        $actor=$book?($this->products?->narratorProfileForInstallation($installation)['actor_identity']??null):$message['actor'];
+                        if(!is_array($actor))throw new ApiException(409,'not_found','Configure the Narrator profile before reading aloud.',false);
+                        $message['actor']=$actor;
                         $resolvedVoice=$this->morrowindVoices?->resolve($actor);
-                        if(($actor['kind']??null)!=='player'&&$resolvedVoice!==null&&$this->products!==null){
+                        if(($actor['kind']??null)==='npc'&&$resolvedVoice!==null&&$this->products!==null){
                             $resolvedVoice=$this->products->preferExactProviderActorVoice($installation,$actor,$resolvedVoice);
                             $this->products->ensureMorrowindActorProfile([
                                 'installation_id'=>$installation,'profile_id'=>$session['profile_id'],
@@ -504,6 +519,10 @@ final class Router
                         $pronunciationContext=$this->products?->ttsPronunciationContext($installation,
                             (string)$session['playthrough_id'],$actor)??[];
                         $ttsText=$this->products?->applyTtsPronunciation((string)$message['text'],$pronunciationContext)??(string)$message['text'];
+                        if(($actor['kind']??'')==='player'&&($this->products?->narratorProfileForInstallation($installation)['content']['narration_filters']['remove_player_input_asterisks']??false)){
+                            $ttsText=\LorkhanServer\Application\NarrationTextPolicy::spoken($ttsText);
+                            if($ttsText==='')throw new ApiException(422,'invalid_schema','No spoken text remains after narration filtering.',false);
+                        }
                         $providerName=match(true){$provider instanceof \LorkhanServer\Application\PocketTtsSpeechProvider=>'pockettts',
                             $provider instanceof \LorkhanServer\Application\XttsCompatibleSpeechProvider=>'xtts-compatible',
                             $provider instanceof \LorkhanServer\Application\CloudSpeechConnectorProvider=>'cloud-speech',
@@ -511,7 +530,7 @@ final class Router
                         $attemptId=Uuid::v4();$mediaId=null;
                         $this->providerAttempts?->start($attemptId,'tts',$providerName,'synthesize',1,
                             (string)$message['request_id'],null,inputBytes:strlen($ttsText),
-                            metadata:['mode'=>'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
+                            metadata:['mode'=>$book?'book_read_aloud':'menu_dialogue','configuration_id'=>$preset['configuration_id']??null,
                                 'configuration_revision'=>$preset['revision']??null,'profile_voice'=>isset($context['voice'])]);
                         try{
                             $generated=$provider->synthesize($ttsText,new NeverCancelledToken(),$context);
@@ -568,6 +587,8 @@ final class Router
                             $provider=ProviderFactory::profileGenerationForSlot($this->providerConfig,$slot);
                             $generated=$provider->generate($input,new NeverCancelledToken());
                             $text=trim((string)($generated['text']??''));
+                            if(($this->products?->narratorProfileForInstallation($installation)['content']['narration_filters']['remove_player_autochat_asterisks']??false))
+                                $text=\LorkhanServer\Application\NarrationTextPolicy::spoken($text);
                             if($text===''||strlen($text)>16_384||mb_strlen($text,'UTF-8')>4096
                                 ||!mb_check_encoding($text,'UTF-8')||preg_match('/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/',$text)===1)
                                 throw new DomainException('provider_invalid_output');
@@ -753,7 +774,7 @@ final class Router
 
     private function publicCode(string $code):string
     {
-        $aliases=['dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
+        $aliases=['revision_conflict'=>'request_mismatch','dialogue_result_mismatch'=>'request_mismatch','dialogue_result_time_invalid'=>'invalid_schema','unknown_dialogue'=>'not_found'];if(isset($aliases[$code]))return$aliases[$code];
         $allowed=['action_disabled','action_parameters_invalid','action_result_expired','action_result_mismatch','invalid_audio',
             'action_target_invalid','action_tier_mismatch','cursor_expired','duplicate_conflict','invalid_idempotency_key',
             'invalid_schema','media_unavailable','not_found','provider_action_not_allowed','provider_invalid_action',

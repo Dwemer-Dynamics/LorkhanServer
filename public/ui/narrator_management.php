@@ -10,6 +10,8 @@ require __DIR__ . '/ui_bootstrap.php';
 $installations = $uiRepository->rows('installations');
 $rows = $uiRepository->rows('narrator');
 $ttsRows = $uiRepository->rows('tts');
+$coreRows = $uiRepository->rows('core_profiles');
+$llmRows = $uiRepository->rows('llm');
 $byInstallation = [];
 foreach ($rows as $row) $byInstallation[(string) $row['installation_id']] = $row;
 
@@ -24,6 +26,16 @@ $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
+$coreRouting = [];
+foreach ($coreRows as $core) {
+    if ((string)$core['installation_id'] !== $installationId) continue;
+    if ((string)$core['core_profile_id'] === (string)($profile['core_profile_id'] ?? '')) {
+        $coreRouting = $core['content']['routing'] ?? [];
+        break;
+    }
+}
+$connectorLabels = array_column(array_filter($llmRows, static fn(array $row): bool =>
+    (string)$row['installation_id'] === $installationId), 'name', 'configuration_id');
 
 $selectedTtsLabel = 'Use installation default';
 foreach ($ttsRows as $tts) {
@@ -101,7 +113,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <span class="narrator-hint">Changes how the narrator is identified in prompts, context, subtitles, and history displays.</span>
                         <?php
                         lorkhan_narrator_toggle('enabled', 'Enable Narrator', ($content['enabled'] ?? false) === true, 'Enable or disable the narrator system entirely.');
-                        lorkhan_narrator_placeholder_toggle('Only the Narrator can Summarize Books', 'config.narrator.event-tuning', 'Exclusive book-summary routing is not connected to OpenMW yet.');
+                        echo '<span class="narrator-hint">Book event summaries and Read Aloud use the Narrator profile. Read Aloud is enabled separately in the in-game Sound settings.</span>';
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
                         lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
@@ -121,10 +133,13 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         </select>
                         <span class="narrator-hint">Controls leading *narration* blocks. Narrator uses the narrator voice, NPC speaks the full line, Text Only displays narration without speech, and Disabled turns off special routing.</span>
                         <?php
-                        lorkhan_narrator_placeholder_toggle('Remove Player Input Asterisks From TTS', 'config.narrator.asterisks', 'Per-source player TTS filtering is not configurable yet.');
-                        lorkhan_narrator_placeholder_toggle('Remove NPC Output Asterisks', 'config.narrator.asterisks', 'Per-source NPC output filtering is not configurable yet.');
-                        lorkhan_narrator_placeholder_toggle('Remove Player Autochat Asterisk', 'config.narrator.asterisks', 'Autochat-specific filtering is not configurable yet.');
-                        lorkhan_narrator_placeholder_toggle('Keep NPC Narration Description in Context History', 'config.narrator.asterisks', 'Context-history preservation is handled by the typed response pipeline.');
+                        echo '<input type="hidden" name="narration_filters_present" value="1">';
+                        foreach (['remove_player_input_asterisks'=>['Remove Player Input Asterisks From TTS','Keep player subtitles unchanged; omit asterisked stage directions from player speech.'],
+                            'remove_npc_output_asterisks'=>['Remove NPC Output Asterisks','Omit asterisked directions from NPC speech and subtitles when inline narration routing is Disabled.'],
+                            'remove_player_autochat_asterisks'=>['Remove Player Autochat Asterisks','Keep rewritten player dialogue spoken-only.'],
+                            'keep_npc_narration_in_history'=>['Keep NPC Narration Description in Context History','Retain the original NPC narration in saved context when output filtering is enabled.']] as $field=>[$label,$hint]) {
+                            lorkhan_narrator_toggle($field,$label,($content['narration_filters'][$field]??\LorkhanServer\Application\NarrationTextPolicy::defaults()[$field])===true,$hint);
+                        }
                         ?>
                     </section>
 
@@ -167,10 +182,14 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <section class="narrator-content-section">
                         <h2>Profile &amp; Voice</h2>
                         <span class="narrator-hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
-                        <div class="narrator-placeholder-field">
-                            <label>Profile <?php echo lorkhan_ui_feature_badge('config.narrator.profile-connectors', true); ?></label>
-                            <select disabled aria-disabled="true"><option>LORKHAN narrator profile</option></select>
-                            <span class="narrator-hint">LORKHAN stores the narrator as its own versioned typed profile.</span>
+                        <div>
+                            <label for="narrator-core-profile">Profile</label>
+                            <select id="narrator-core-profile" name="core_profile_id">
+                            <?php foreach ($coreRows as $core): if (($core['installation_id'] ?? '') !== $installationId) continue; ?>
+                                <option value="<?php echo lorkhan_ui_h($core['core_profile_id']); ?>"<?php echo ($profile['core_profile_id'] ?? '') === $core['core_profile_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($core['label']); ?></option>
+                            <?php endforeach; ?>
+                            </select>
+                            <span class="narrator-hint">Use this profile's response models, prompt, and diary settings. The voice below can override its TTS connector.</span>
                         </div>
                         <label for="narrator-tts">TTS Connector</label>
                         <select id="narrator-tts" name="tts_configuration_id">
@@ -191,12 +210,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <div class="narrator-heading-with-badge"><h2>Selected Profile Connectors</h2><?php echo lorkhan_ui_feature_badge('config.narrator.profile-connectors', true); ?></div>
                         <dl class="narrator-connector-summary">
                             <dt>&#x1F50A; TTS:</dt><dd><?php echo lorkhan_ui_h($selectedTtsLabel); ?></dd>
-                            <dt>&#x1F579;&#xFE0F; Standard:</dt><dd>Inherited LORKHAN model route</dd>
-                            <dt>&#x1F3C3; Fast:</dt><dd>Inherited LORKHAN model route</dd>
-                            <dt>&#x1F4AA; Power:</dt><dd>Inherited LORKHAN model route</dd>
-                            <dt>&#x1F9EA; Experimental:</dt><dd>Inherited LORKHAN model route</dd>
-                            <dt>&#x1F4D3; Diary:</dt><dd>Replaced</dd>
-                            <dt>&#x1F9FE; Formatter:</dt><dd>Replaced</dd>
+                            <?php foreach (['llm_configuration_id'=>'Standard','llm_fast_configuration_id'=>'Fast',
+                                'llm_powerful_configuration_id'=>'Powerful','llm_experimental_configuration_id'=>'Experimental',
+                                'diary_generation_configuration_id'=>'Diary'] as $key=>$label): ?>
+                            <dt><?php echo lorkhan_ui_h($label); ?>:</dt><dd><?php echo lorkhan_ui_h($connectorLabels[$coreRouting[$key]??'']??($key==='llm_configuration_id'?'Server default':'Use Standard')); ?></dd>
+                            <?php endforeach; ?>
                         </dl>
                         <span class="narrator-hint">LORKHAN keeps explicit narrator speech routing while model selection follows the typed inherited settings pipeline.</span>
                     </section>
@@ -245,7 +263,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     ] as $featureId => [$label, $control]): ?>
                         <details class="narrator-advanced-wrap">
                             <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">&#x25B6;</span><span><?php echo lorkhan_ui_h($label); ?></span></span><?php echo lorkhan_ui_feature_badge($featureId, true); ?></summary>
-                            <div class="narrator-advanced-panel"><div class="narrator-advanced-placeholder"><p><?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?></p><button type="button" disabled aria-disabled="true"><?php echo lorkhan_ui_h($control); ?></button></div></div>
+                            <div class="narrator-advanced-panel"><div class="narrator-advanced-placeholder"><p><?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?></p><a class="btn-base" target="_top" href="<?php echo lorkhan_ui_h($webRoot.($featureId==='config.narrator.actions'?'/ui/core/config_hub.php?tab=actions-page':'/ui/core/config_hub.php?tab=prompts-page')); ?>"><?php echo lorkhan_ui_h($control); ?></a></div></div>
                         </details>
                     <?php endforeach; ?>
                 </section>

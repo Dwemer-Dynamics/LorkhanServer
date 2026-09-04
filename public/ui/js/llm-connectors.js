@@ -27,6 +27,28 @@
 
     driver.addEventListener('change', apply);
     apply();
+    const services = {
+        openrouter: ['https://openrouter.ai/api/v1/chat/completions', 'openrouter'],
+        openai: ['https://api.openai.com/v1/chat/completions', 'openai'],
+        google: ['https://generativelanguage.googleapis.com/v1beta/openai/chat/completions', 'google'],
+        groq: ['https://api.groq.com/openai/v1/chat/completions', 'groq'],
+        nanogpt: ['https://nano-gpt.com/api/v1/chat/completions', 'nanogpt'],
+        player2: ['http://127.0.0.1:4315/v1/chat/completions', 'none'],
+        custom: ['', 'custom'],
+    };
+    document.querySelectorAll('[data-llm-service]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const preset = services[button.dataset.llmService];
+            if (!preset) return;
+            driver.value = 'openai-compatible';
+            apply();
+            const endpoint = document.getElementById('llm_endpoint');
+            const credential = document.getElementById('llm_credential');
+            if (endpoint) { endpoint.value = preset[0]; endpoint.dispatchEvent(new Event('input', {bubbles: true})); }
+            if (credential) { credential.value = preset[1]; credential.dispatchEvent(new Event('change', {bubbles: true})); }
+            document.querySelector('[name="model"]')?.focus();
+        });
+    });
 
     // The server rejects both token limits at once, so say so before the round trip rather than after.
     const maxTokens = document.getElementById('llm_option_max_tokens');

@@ -11,7 +11,11 @@ final class MemorySummaryPolicy
 {
     public static function validate(array $content): array
     {
-        $keys = array_keys($content); sort($keys);
+        $extra=array_intersect_key($content,array_flip(['summary_interval','minimum_events']));
+        foreach($extra as$key=>$value){$minimum=$key==='summary_interval'?0:2;
+            if(!is_int($value)||$value<$minimum||$value>($key==='summary_interval'?100:16))throw new InvalidArgumentException('invalid_memory_'.$key);
+        }
+        $keys = array_keys(array_diff_key($content,$extra)); sort($keys);
         if ($keys !== ['enabled', 'provider_configuration_id', 'schema']
             || ($content['schema'] ?? null) !== 'lorkhan.memory-policy.v1'
             || !is_bool($content['enabled'] ?? null)

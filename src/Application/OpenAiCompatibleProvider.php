@@ -10,6 +10,10 @@ use RuntimeException;
 /** OpenAI-compatible chat-completions adapter with a strict JSON response contract. */
 final class OpenAiCompatibleProvider implements StreamingProvider
 {
+    private array $reportedUsage = [];
+
+    /** Expose numeric provider accounting only, never prompts, keys, or the raw response. */
+    public function reportedUsage(): array { return $this->reportedUsage; }
     /** @param list<string> $allowedHosts */
     public function __construct(
         private readonly string $endpoint,
@@ -37,6 +41,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
     public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array
     {
         $cancellation->throwIfCancellationRequested();
+        $this->reportedUsage=[];
         $messages = $this->promptMessages($turn);
         $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning) + [
             'model' => $this->model,
@@ -44,6 +49,10 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             'messages' => $messages,
         ];
         $body = json_encode($request, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        if(($request['stream']??false)===true&&in_array(strtolower((string)parse_url($this->endpoint,PHP_URL_HOST)),['api.openai.com','openrouter.ai'],true)){
+            $request['stream_options']=['include_usage'=>true];
+            $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+        }
         $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -53,6 +62,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $responseBody = '';
         $content = '';
         $streamed = false;
+        $usage=[];
         $visible = new StreamingDialogueText();
         curl_setopt_array($handle, $networkOptions + [
             CURLOPT_POST => true,
@@ -82,7 +92,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         ]);
         // Run dialogue callbacks only after libcurl yields so they may start first-sentence TTS safely.
         $drainStream = static function () use (
-            &$networkBuffer, &$content, &$streamed, $visible, $onDialogueDelta, $cancellation
+            &$networkBuffer, &$content, &$streamed, &$usage, $visible, $onDialogueDelta, $cancellation
         ): void {
             while (($newline = strpos($networkBuffer, "\n")) !== false) {
                 if ($cancellation->isCancellationRequested()) throw new OperationCancelled('operation_cancelled');
@@ -98,6 +108,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                     throw new RuntimeException('provider_unavailable');
                 }
                 $delta = $event['choices'][0]['delta']['content'] ?? '';
+                if(is_array($event['usage']??null))$usage=$event['usage'];
                 if (!is_string($delta)) throw new RuntimeException('provider_unavailable');
                 $content .= $delta;
                 foreach ($visible->push($delta) as $text) $onDialogueDelta($text);
@@ -146,6 +157,14 @@ final class OpenAiCompatibleProvider implements StreamingProvider
                 throw new RuntimeException('provider_invalid_output');
             }
             $content = $decoded['choices'][0]['message']['content'] ?? null;
+            if(is_array($decoded['usage']??null))$usage=$decoded['usage'];
+        }
+        foreach(['prompt_tokens','completion_tokens','total_tokens']as$key){
+            if(is_int($usage[$key]??null)&&$usage[$key]>=0&&$usage[$key]<=100_000_000)$this->reportedUsage[$key]=$usage[$key];
+        }
+        if(strtolower((string)parse_url($this->endpoint,PHP_URL_HOST))==='openrouter.ai'
+            &&is_numeric($usage['cost']??null)&&(float)$usage['cost']>=0&&(float)$usage['cost']<=1_000_000){
+            $this->reportedUsage['cost_usd']=(float)$usage['cost'];
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
         foreach ($visible->push('', true) as $text) $onDialogueDelta($text);

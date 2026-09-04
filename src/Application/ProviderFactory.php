@@ -217,8 +217,7 @@ final class ProviderFactory
     {
         if(array_key_exists('credential',$provider)){
             $reference=$provider['credential'];
-            if(!is_string($reference)||!array_key_exists($reference,LlmConnector::CREDENTIALS))throw new RuntimeException('Invalid LLM credential reference.');
-            $variable=LlmConnector::CREDENTIALS[$reference];
+            if(!is_string($reference)||($variable=LlmConnector::credentialVariable($reference))===null)throw new RuntimeException('Invalid LLM credential reference.');
             return$variable===''?'':self::environment($variable,$config);
         }
         $variable = (string) ($provider['api_key_env'] ?? $defaultVariable);
@@ -240,6 +239,6 @@ final class ProviderFactory
         if($variable===''||preg_match('/^[A-Z_][A-Z0-9_]*$/D',$variable)!==1)throw new RuntimeException('Connector credential environment is invalid.');
         $value=getenv($variable);if(is_string($value)&&$value!=='')return$value;
         $path=(string)($config['credential_storage_path']??'');
-        return$path===''||!in_array($variable,CredentialStore::allowedVariables(),true)?'':(new CredentialStore($path))->resolve($variable);
+        return$path===''||!CredentialStore::isAllowed($variable)?'':(new CredentialStore($path))->resolve($variable);
     }
 }

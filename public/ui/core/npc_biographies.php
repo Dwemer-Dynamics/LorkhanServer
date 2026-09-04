@@ -110,16 +110,26 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </details>
         <?php endif; ?>
 
-        <div class="button-group">
-            <button type="button" class="btn-danger" disabled aria-disabled="true">Factory Reset NPC Override Table <?php echo lorkhan_ui_feature_badge('config.biographies.reset', true); ?></button>
-        </div>
-        <p>LORKHAN does not expose a destructive biography-table reset. Every biography change remains revisioned.</p>
     </section>
 
+    <details class="content-section" id="create-biography">
+        <summary>Add New Entry</summary>
+        <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/biography-template-create">
+            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+            <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+            <input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
+            <?php foreach(['content_file'=>'Content file (for example Morrowind.esm)','record_id'=>'NPC record ID','name'=>'NPC name','core'=>'Core biography','biography'=>'Extended biography','oghma_tags'=>'Oghma tags']as$field=>$label): ?>
+            <div class="biography-field"><label for="new-bio-<?php echo $field; ?>"><?php echo lorkhan_ui_h($label); ?></label>
+            <?php if(in_array($field,['core','biography'],true)): ?><textarea id="new-bio-<?php echo $field; ?>" name="<?php echo $field; ?>" maxlength="16384" <?php echo $field==='core'?'required':''; ?>></textarea>
+            <?php else: ?><input id="new-bio-<?php echo $field; ?>" name="<?php echo $field; ?>" maxlength="<?php echo $field==='oghma_tags'?4096:256; ?>" <?php echo $field!=='oghma_tags'?'required':''; ?>><?php endif; ?></div>
+            <?php endforeach; ?>
+            <button class="action-button" type="submit">Save Entry</button>
+        </form>
+    </details>
     <section class="database-section" id="table">
         <h1>NPC Bio Templates Database</h1>
         <div class="action-container">
-            <button type="button" class="action-button add-new" disabled aria-disabled="true">Add New Entry <?php echo lorkhan_ui_feature_badge('config.biographies.create', true); ?></button>
+            <a class="action-button add-new" href="#create-biography">Add New Entry</a>
             <div class="search-container">
                 <label class="visually-hidden" for="biography-search">Search NPC names</label>
                 <input type="text" id="biography-search" placeholder="Search NPC names...">
@@ -163,7 +173,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <td><?php if ($tags !== []): foreach ($tags as $tag): ?><span class="oghma-tag"><?php echo lorkhan_ui_h($tag); ?></span><?php endforeach; else: ?><span class="automatic">None</span><?php endif; ?></td>
                         <td><div class="row-actions">
                             <button type="button" class="action-button edit" data-biography-edit data-template-name="<?php echo lorkhan_ui_h($row['name']); ?>">Edit</button>
-                            <button type="button" class="action-button" disabled aria-disabled="true">Oghma</button>
+                            <a class="action-button" href="<?php echo lorkhan_ui_h($webRoot.'/ui/worldknowledge_upload.php?'.http_build_query(['installation_id'=>$installationId,'search'=>$tags[0]??$row['name']])); ?>">Oghma</a>
                             <span class="profile-details"><?php echo $source === 'custom' ? 'Custom template' : 'Factory template'; ?></span>
                         </div></td>
                     </tr>

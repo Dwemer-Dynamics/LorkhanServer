@@ -9,6 +9,7 @@ $topNavSection = 'roleplay';
 $BODY_CLASS = 'hub-page';
 require __DIR__ . '/ui_bootstrap.php';
 require __DIR__ . '/tmpl/memory_policy.php';
+require __DIR__ . '/tmpl/roleplay_reader.php';
 $roleplay = $uiRepository->roleplay();
 $eventLogRepository = new EventLogRepository($database);
 $eventLogState = $eventLogRepository->page([
@@ -28,6 +29,20 @@ $memoryConnectors=$uiRepository->rows('llm');
 $installationOptions=[];foreach($uiRepository->rows('installations')as$row){$id=(string)($row['installation_id']??'');if($id!=='')$installationOptions[$id]=(string)($row['display_name']??$id);}
 $profileOptions=[];foreach(array_merge($uiRepository->rows('profiles'),$uiRepository->rows('player'))as$row){$id=(string)($row['profile_id']??'');if($id!=='')$profileOptions[$id]=(string)($row['name']??$id);}
 $playthroughOptions=[];foreach($uiRepository->rows('playthroughs')as$row){$id=(string)($row['playthrough_id']??'');if($id!=='')$playthroughOptions[$id]=(string)($row['playthrough']??$id);}
+$readerState = null; $readerPreview = [];
+if (in_array($activeTab, ['adventure', 'diaries', 'books', 'journal', 'responselog'], true)) {
+    $readerState = lorkhan_roleplay_reader_state($database, $installationOptions, $activeTab);
+    $readerInstallation = $readerState['installation'];
+    if ($readerInstallation !== '') {
+        $readerNarrator = $productRepository->narratorProfileForInstallation($readerInstallation);
+        $readerPreview = \LorkhanServer\Application\SpeechPreviewCatalog::options(
+            $productRepository->listRevisioned('tts_provider', $readerInstallation), $productRepository->connectorVoiceCatalog(),
+            (string) ($config['voice_storage_path'] ?? ''),
+            (string) ($productRepository->connectorForInstallation($readerInstallation, 'tts_provider')['configuration_id'] ?? ''),
+            \LorkhanServer\Application\SpeechPreviewCatalog::narratorVoice($readerNarrator),
+            \LorkhanServer\Application\SpeechPreviewCatalog::narratorConnector($readerNarrator));
+    }
+}
 
 /** Render one labelled scope selector shared by the memory and relationship managers. */
 function lorkhan_roleplay_scope_select(string $name,string $label,array $options,string $selected=''):void
@@ -184,6 +199,7 @@ function lorkhan_eventlog_table(array $rows):void
     echo'</tbody></table>';
 }
 $additionalStylesheets=['lorkhan-pages.css?v='.(string)filemtime(__DIR__.'/css/lorkhan-pages.css'),'herika-roleplay.css?v='.(string)filemtime(__DIR__.'/css/herika-roleplay.css')];
+$additionalStylesheets[] = 'roleplay-reader.css?v='.(string)filemtime(__DIR__.'/css/roleplay-reader.css');
 $includeManagementStyles=false;
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
@@ -205,9 +221,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         $panels = [
             'eventlog' => ['Events', $roleplay['events'], 'No source events have been recorded yet.'],
             'responselog' => ['AI Responses', $roleplay['responses'], 'No AI dialogue has been recorded yet.'],
-            'adventure' => ['Adventure Log', $roleplay['narratives'], 'No adventure narratives are available yet.'],
+            'adventure' => ['Adventure Log', [], 'No adventure narratives are available yet.'],
             'memory' => ['Memories', $roleplay['memories'], 'No memories are available yet.'],
-            'diaries' => ['LORKHAN Diaries', $roleplay['narratives'], 'No diary narratives are available yet.'],
+            'diaries' => ['LORKHAN Diaries', [], 'No diary narratives are available yet.'],
             'books' => ['Books', $roleplay['books'], 'No books have been observed during an LORKHAN session yet.'],
             'journal' => ['Morrowind Journal', $roleplay['journal'], 'No Morrowind journal entries have been received from OpenMW yet.'],
         ];
@@ -223,12 +239,14 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             ];
         ?>
             <section id="<?php echo lorkhan_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
-                <?php if($tabId==='eventlog'){lorkhan_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{
+                <?php if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true)){
+                    if($tabId===$activeTab && $readerState!==null)lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);
+                }elseif($tabId==='eventlog'){lorkhan_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');}else{
                     // Static tabs expose one bounded snapshot; do not imply that the UI can page it.
                     $recordCount=count($rows);
                     $countLabel='Showing '.$recordCount.' bounded record'.($recordCount===1?'':'s');
                 ?><div class="tab-panel-inner roleplay-panel" data-roleplay-panel data-roleplay-total="<?php echo $recordCount; ?>"><h2 class="visually-hidden"><?php echo lorkhan_ui_h($heading); ?></h2><div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong><?php echo lorkhan_ui_h($heading); ?>:</strong> <?php echo lorkhan_ui_h($descriptions[$tabId]); ?></div><div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Browser tables show persisted typed records. Only bounded, relevant records are added to AI context.</div><div class="roleplay-toolbar"><button type="button" class="roleplay-button active" data-roleplay-refresh>Auto Refresh</button><div class="delete-controls"><select disabled aria-label="Delete records"><option>Delete...</option><option>Delete Latest 20</option><option>Delete Latest 50</option><option>Delete Latest 100</option><option>Delete ALL</option></select><button type="button" class="roleplay-button danger" disabled>Delete</button><?php echo lorkhan_ui_feature_badge('roleplay.destructive', true); ?></div></div><div class="roleplay-list-controls"><p class="roleplay-result-count" role="status" data-roleplay-count><?php echo lorkhan_ui_h($countLabel); ?></p><label>Filter:<input type="search" placeholder="Search <?php echo lorkhan_ui_h(strtolower($heading)); ?>..." data-roleplay-search></label></div><?php
-                    if(in_array($tabId,['adventure','diaries'],true))echo'<p class="roleplay-actions"><a class="roleplay-button roleplay-button-link" href="'.lorkhan_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';
+                    if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true))echo'<p class="roleplay-actions"><a class="roleplay-button roleplay-button-link" href="'.lorkhan_ui_h($webRoot.'/ui/narrative_manager.php').'">Manage narratives</a></p>';
                 ?><div class="roleplay-data" data-roleplay-data><?php
                     if($tabId==='memory')lorkhan_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf,$memoryPolicies,$memoryConnectors,$webRoot,$memoryEmbeddingPolicy??null);
                     else lorkhan_ui_table($rows,$emptyMessage);
@@ -238,4 +256,5 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     </div>
 </main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/roleplay.js?v=<?php echo lorkhan_ui_h((string)filemtime(__DIR__.'/js/roleplay.js')); ?>"></script>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/roleplay-reader.js?v=<?= (int) filemtime(__DIR__.'/js/roleplay-reader.js') ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

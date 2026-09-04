@@ -101,6 +101,10 @@ final class FirstPartyJobRepository
     public function consolidateMemories(array $scope, string $sourceTier, string $sourceMemoryId, string $now): ?array
     {
         $targetTier = $sourceTier === 'recent' ? 'mid' : 'long';
+        $policy = (new MemorySummaryRepository($this->db))->policy($scope['installation_id'])['content'] ?? [];
+        $minimum = $sourceTier === 'recent' ? (int)($policy['minimum_events'] ?? 4) : 4;
+        $interval = $sourceTier === 'recent' ? (int)($policy['summary_interval'] ?? 0) * 864 : 0;
+        $limit = $interval > 0 ? 16 : $minimum;
         $eligible = $sourceTier === 'recent'
             ? "m.source_event_id IS NOT NULL AND se.installation_id=m.installation_id "
                 . "AND source_session.profile_id=m.profile_id AND source_session.playthrough_id=m.playthrough_id "
@@ -110,9 +114,11 @@ final class FirstPartyJobRepository
                 . "AND m.provenance->>'provider'='first-party' "
                 . "AND m.provenance->>'model'='deterministic-extractive-v1' "
                 . "AND m.provenance->>'source_tier'='recent'";
-        $sql = "WITH eligible AS (SELECT m.memory_id,m.content,m.source_event_id,m.provenance,m.occurred_at "
+        $sql = "WITH eligible AS (SELECT m.memory_id,m.content,m.source_event_id,m.provenance,m.occurred_at,"
+            . "CASE WHEN jsonb_typeof(source_turn.context#>'{world,game_time}')='number' THEN (source_turn.context#>>'{world,game_time}')::numeric END AS game_time "
             . "FROM memory_records m LEFT JOIN source_events se ON se.source_event_id=m.source_event_id "
             . "LEFT JOIN sessions source_session ON source_session.session_id=se.session_id "
+            . "LEFT JOIN turns source_turn ON source_turn.turn_id=se.turn_id "
             . "LEFT JOIN dialogue_delivery_results delivery ON delivery.source_event_id=se.source_event_id "
             . "WHERE m.installation_id=:installation AND m.profile_id=:profile AND m.playthrough_id=:playthrough "
             . "AND m.tier=:source_tier AND m.deleted_at IS NULL AND {$eligible}), "
@@ -120,8 +126,9 @@ final class FirstPartyJobRepository
             . "CROSS JOIN LATERAL jsonb_array_elements_text(COALESCE(derived.provenance->'source_memory_ids','[]'::jsonb)) used(memory_id) "
             . "WHERE derived.installation_id=:installation AND derived.profile_id=:profile "
             . "AND derived.playthrough_id=:playthrough AND derived.tier=:target_tier AND derived.deleted_at IS NULL "
-            . "AND used.memory_id=e.memory_id::text) ORDER BY e.occurred_at,e.memory_id LIMIT 4) "
-            . "SELECT * FROM unused WHERE EXISTS (SELECT 1 FROM unused WHERE memory_id=:source_memory) "
+            . "AND used.memory_id=e.memory_id::text) ORDER BY e.occurred_at,e.memory_id LIMIT {$limit}) "
+            . "SELECT unused.*,(SELECT max(game_time) FROM eligible) AS latest_game_time FROM unused "
+            . "WHERE EXISTS (SELECT 1 FROM eligible WHERE memory_id=:source_memory) "
             . "ORDER BY occurred_at,memory_id";
         $statement = $this->db->prepare($sql);
         $statement->execute($this->scope($scope) + [
@@ -130,8 +137,16 @@ final class FirstPartyJobRepository
             'source_memory' => $sourceMemoryId,
         ]);
         $rows = $statement->fetchAll();
-        if (count($rows) < 4) {
+        if (count($rows) < $minimum) {
             return null;
+        }
+        if ($interval > 0 && $rows[0]['game_time'] !== null) {
+            $end = (float)$rows[0]['game_time'] + $interval;
+            // Only authoritative game time closes a bucket; a bounded full bucket can flush early.
+            if ((float)$rows[0]['latest_game_time'] < $end && count($rows) < $limit) return null;
+            $bucket = array_values(array_filter($rows, static fn(array $row): bool =>
+                $row['game_time'] === null || (float)$row['game_time'] < $end));
+            $rows = count($bucket) >= $minimum ? $bucket : array_slice($rows, 0, $minimum);
         }
 
         $sourceMemoryIds = [];

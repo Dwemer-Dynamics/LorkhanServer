@@ -22,7 +22,7 @@ $controlSections = [
     ]],
     'data-tools' => ['label' => 'Data & Tools', 'tabs' => [
         'game-debug' => ['Game Debug', '&#x1F6E0;&#xFE0F;', 'control.game-debug', $webRoot . '/ui/game_debug.php?embed=1'],
-        'cache' => ['Audio & Image Cache', '&#x1F3BC;', 'control.cache', $webRoot . '/ui/cache_browser.php?embed=1'],
+        'cache' => ['Audio Cache', '&#x1F3BC;', 'control.cache', $webRoot . '/ui/cache_browser.php?embed=1'],
         'playthrough' => ['Playthrough Manager', '&#x1F3AE;', 'control.playthroughs', $webRoot . '/ui/playthrough_manager.php?embed=1'],
         'dbmgr' => ['Database Manager', '&#x1F5C4;&#xFE0F;', 'control.database', $webRoot . '/ui/database_manager.php?embed=1'],
     ]],

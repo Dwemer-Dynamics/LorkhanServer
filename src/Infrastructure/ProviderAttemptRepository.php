@@ -65,6 +65,19 @@ final class ProviderAttemptRepository
         return $statement->rowCount() === 1;
     }
 
+    /** Store only measured token counts and explicit USD cost supplied by the provider adapter. */
+    public function recordUsage(string $attemptId,array $usage):void
+    {
+        $safe=[];
+        foreach(['prompt_tokens','completion_tokens','total_tokens']as$key)
+            if(is_int($usage[$key]??null)&&$usage[$key]>=0&&$usage[$key]<=100_000_000)$safe[$key]=$usage[$key];
+        if((is_float($usage['cost_usd']??null)||is_int($usage['cost_usd']??null))&&is_finite((float)$usage['cost_usd'])
+            &&$usage['cost_usd']>=0&&$usage['cost_usd']<=1_000_000)$safe['cost_usd']=$usage['cost_usd'];
+        if($safe===[])return;
+        $this->db->prepare("UPDATE provider_attempts SET metadata=jsonb_set(metadata,'{usage}',CAST(:usage AS jsonb)) WHERE provider_attempt_id=:id")
+            ->execute(['id'=>$attemptId,'usage'=>$this->encodeObject($safe)]);
+    }
+
     private function encodeObject(array $value): string
     {
         if (array_is_list($value) && $value !== []) {

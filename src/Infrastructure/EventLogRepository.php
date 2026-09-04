@@ -407,6 +407,15 @@ final class EventLogRepository
             'location'=>$kind === 'gamedata.captured_dialogue'
                 ? $this->identityLocation($speaker) : $this->location($context),'sess'=>$sessionId,
             'people'=>$this->people($speaker,$target,$audience)];
+        if ($kind === 'gamedata.rpg_event') {
+            $player=$this->object($body['player']??[]);$text=trim((string)($body['text']??''));
+            if($text==='')return;
+            $this->insert(array_merge($common,['speaker'=>$player,'type'=>'infoaction','data'=>$text,
+                'gamets'=>max(0,(int)floor((float)($body['game_time']??0))),
+                'location'=>$this->identityLocation($player),'projection_kind'=>'world',
+                'projection_key'=>'rpg:'.$sourceId,'delivery_state'=>null,'utterance_id'=>null]));
+            return;
+        }
         if ($kind === 'gamedata.captured_dialogue') {
             $text = trim((string) ($body['text'] ?? ''));
             if ($text === '') return;
@@ -422,6 +431,8 @@ final class EventLogRepository
         }
         if ($kind === 'turn.requested' || $kind === 'rechat') {
             $this->projectContext($sourceId, $common, $context);
+            // The observed event already has its own immutable projection; a comment is not player speech.
+            if(($body['ui_source']??'')==='lorkhan_rpg_event')return;
             $input = $this->object($body['input'] ?? []);
             $text = is_string($input['text'] ?? null) ? trim($input['text']) : '';
             if ($text === '') return;

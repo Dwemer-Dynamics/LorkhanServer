@@ -274,6 +274,11 @@ final class ManagementRouter
             $saved=$this->service->importItemDescriptions($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->descriptionCsvRows($r));
             return$this->redirect($this->descriptionPageLocation($scope['installation_id'],'imported',count($saved)));
         }
+        if($domain==='biography-template-create'){
+            $row=[];foreach(self::BIOGRAPHY_CSV_HEADER as$field)$row[$field]=trim((string)($v[$field]??''));
+            $saved=$this->service->importBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),[$row]);
+            return$this->redirect($this->biographyPageLocation($v,'imported',count($saved)));
+        }
         if($domain==='biography-import'){
             $saved=$this->service->importBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->biographyCsvRows($r));
             return$this->redirect($this->biographyPageLocation($v,'imported',count($saved)));
@@ -300,6 +305,7 @@ final class ManagementRouter
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
             'profile-clone'=>$this->cloneProfile($v),
             'core-profile-create'=>$this->createCoreProfile($v,$scope),
+            'core-profile-clone'=>$this->cloneCoreProfile($v),
             'core-profile-settings-import'=>$this->importCoreProfileSettings($v,$scope),
             'core-profile-save'=>$this->saveCoreProfile($v),
             'core-profile-revise'=>$this->service->revise('core_profile',$this->need($v,'core_profile_id'),$this->coreProfileContent($v),$this->need($v,'change_reason')),
@@ -312,8 +318,9 @@ final class ManagementRouter
             'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
             'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id')),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
-                'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]),
-            'narrator-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason')),
+                'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]
+                +(trim((string)($v['core_profile_id']??''))===''?[]:['core_profile_id'=>$v['core_profile_id']])),
+            'narrator-profile-revise'=>$this->service->revisePersona($this->need($v,'profile_id'),$this->narratorContent($v),$this->need($v,'change_reason'),trim((string)($v['core_profile_id']??''))),
             'narrator-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'narrator'),
             'narrator-profile-generate'=>$this->repository->enqueueNarratorProfileGeneration($this->need($v,'profile_id')),
             'global-settings-save'=>$this->saveGlobalSettings($v,$scope),
@@ -396,7 +403,8 @@ final class ManagementRouter
         }
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
-        if($domain==='core-profile-save')return$this->redirect($this->uiPath('profiles').'?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='core-profile-save')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='core-profile-clone')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>(string)$result['core_profile_id'],'status'=>'cloned']));
         if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
             'installation_id'=>$scope['installation_id'],'edit'=>(string)$result['core_profile_id'],'status'=>'imported']));
         if($domain==='player-profile-settings-import')return$this->redirect($this->uiPath('player').'?'.http_build_query([
@@ -865,6 +873,19 @@ final class ManagementRouter
             'name'=>$name,'actor_identity'=>$identity,'core_profile_id'=>(string)$row['core_profile_id'],'content'=>$content]);
     }
 
+    /** Duplicate one Core Profile without changing slots, defaults, or existing NPC assignments. */
+    private function cloneCoreProfile(array $values):array
+    {
+        $id=$this->need($values,'core_profile_id');$this->persistentUuid($id,'core_profile_id');
+        $profile=$this->repository->getRevisioned('core_profile',$id);
+        $name=trim((string)($values['name']??(mb_strcut((string)$profile['name'],0,123,'UTF-8').' copy')));
+        if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_name');
+        return$this->service->createRevisioned('core_profile',[
+            'installation_id'=>(string)$profile['installation_id'],'name'=>$name,'slot'=>null,'default_npc'=>false,
+            'content'=>EffectiveSettingsResolver::validateCoreProfile($profile['content']),
+        ]);
+    }
+
     /** Download only the validated settings overrides from one Core Profile. */
     private function exportCoreProfileSettings(string $coreProfileId):Response
     {
@@ -906,7 +927,7 @@ final class ManagementRouter
         return['behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50)],
-            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)],
+            'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
                 'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
@@ -979,6 +1000,7 @@ final class ManagementRouter
             $settings['bored_chance_percent']=(int)($content['bored_chance_percent']??25);
             $settings['quest_chance_percent']=(int)($content['quest_chance_percent']??10);
             $settings['quest_cooldown_minutes']=(int)($content['quest_cooldown_minutes']??3);
+            $settings['narration_filters']=\LorkhanServer\Application\NarrationTextPolicy::validate($content['narration_filters']??[]);
             $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $voice=is_array($content['voice']??null)?$content['voice']:[];
@@ -996,6 +1018,9 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2&&array_key_exists('narration_filters',$settings)){
+            $settings['narration_filters']=\LorkhanServer\Application\NarrationTextPolicy::validate($settings['narration_filters']);$expected[]='narration_filters';
+        }
         if($kind==='narrator')$expected=array_merge($expected,
             ['enabled','inline_narration_mode','context_visibility','welcome_events','random_events','quest_events','book_events','voice'],
             $narratorV2?['welcome_cooldown_minutes','random_chance_percent','random_cooldown_rounds',
@@ -1447,6 +1472,9 @@ final class ManagementRouter
         $content['quest_events']=isset($values['quest_events']);$content['book_events']=isset($values['book_events']);
         $content['quest_chance_percent']=$integer($values,'quest_chance_percent',10,1,100);
         $content['quest_cooldown_minutes']=$integer($values,'quest_cooldown_minutes',3,1,60);
+        if(isset($values['narration_filters_present'])){
+            foreach(\LorkhanServer\Application\NarrationTextPolicy::defaults()as$field=>$_)$content['narration_filters'][$field]=isset($values[$field]);
+        }
         if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
         return$content;
     }
@@ -1467,7 +1495,12 @@ final class ManagementRouter
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $content=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['enabled']),
             'provider_configuration_id'=>trim((string)($values['provider_configuration_id']??''))];
+        foreach(['summary_interval','minimum_events']as$field)if(array_key_exists($field,$values)){
+            $value=filter_var($values[$field],FILTER_VALIDATE_INT);
+            if($value===false)throw new InvalidArgumentException('invalid_memory_'.$field);$content[$field]=$value;
+        }
         $existing=$this->repository->memorySummaryPolicyForInstallation($installation);
+        foreach(['summary_interval','minimum_events']as$field)if(!array_key_exists($field,$content)&&isset($existing['content'][$field]))$content[$field]=$existing['content'][$field];
         if($existing===null)return$this->service->createRevisioned('memory_policy',
             ['installation_id'=>$installation,'name'=>'Model memory','content'=>$content]);
         if($existing['content']===$content)return$existing;
@@ -1506,12 +1539,29 @@ final class ManagementRouter
     /** Create or revise the one typed global-settings document owned by an installation. */
     private function saveGlobalSettings(array $values,array $scope):array
     {
+        return $this->repository->transaction(function() use($values,$scope):array {
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
         $content=$this->globalSettingsContent($values);
+        if(isset($values['memory_settings_present'])){
+            $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
+                'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
+                'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
+                'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+            \LorkhanServer\Application\MemorySummaryPolicy::validate($summary);
+            $embedding=\LorkhanServer\Application\MemoryEmbeddingPolicy::validate([
+                'schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
+                'enabled'=>isset($values['memory_embedding_enabled']),
+                'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
+                'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)]);
+            $summaryValues=$summary;unset($summaryValues['enabled']);if($summary['enabled'])$summaryValues['enabled']='1';
+            $embeddingValues=$embedding;unset($embeddingValues['enabled']);if($embedding['enabled'])$embeddingValues['enabled']='1';
+            $this->saveMemoryPolicy($summaryValues,$scope);$this->saveMemoryEmbeddingPolicy($embeddingValues,$scope);
+        }
         $this->syncGlobalSettingsSidecars($content,$installation,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
         $existing=$this->repository->globalSettingsForInstallation($installation);
         if($existing===null)return$this->service->createRevisioned('global_settings',['installation_id'=>$installation,'name'=>'Global Settings','content'=>$content]);
         return$this->service->revise('global_settings',(string)$existing['configuration_id'],$content,trim((string)($values['change_reason']??'management global settings'))?:'management global settings');
+        });
     }
 
     /** Save the server-only translation sidecar without placing provider details in client settings. */
@@ -1600,7 +1650,12 @@ final class ManagementRouter
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
                 'rechat_allow_actions'=>isset($values['setting_behavior_rechat_allow_actions'])],
-            'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)],
+            'memory'=>['recent_turn_limit'=>$number($values,'setting_memory_recent_turn_limit',20)]
+                + (isset($values['memory_switches_present']) ? [
+                    'short_term_enabled'=>isset($values['setting_memory_short_term_enabled']),
+                    'mid_term_enabled'=>isset($values['setting_memory_mid_term_enabled']),
+                    'long_term_enabled'=>isset($values['setting_memory_long_term_enabled']),
+                ] : []),
             'diary'=>['enabled'=>isset($values['setting_diary_enabled']),
                 'automatic_enabled'=>isset($values['setting_diary_automatic_enabled']),
                 'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
@@ -1619,6 +1674,8 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        $events=$values['rpg_events']??[];if(!is_array($events))throw new InvalidArgumentException('invalid_rpg_comments');
+        $content['rpg_comments']=['events'=>array_values($events),'chance_percent'=>$integer($values,'rpg_chance',50)];
         $client['behavior']['auto_greeting']=isset($values['auto_greeting']);
         $client['behavior']['boredom']=isset($values['boredom']);
         $client['behavior']['boredom_delay_seconds']=$integer($values,'boredom_delay_seconds',$client['behavior']['boredom_delay_seconds']);

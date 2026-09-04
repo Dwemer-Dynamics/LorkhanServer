@@ -104,8 +104,8 @@ final class EffectiveSettingsResolver
         foreach (['rechat', 'rechat_max_depth', 'rechat_probability_percent', 'rechat_allow_actions'] as $field) {
             if (array_key_exists($field, $coreOverrides['behavior'] ?? [])) $allowedOverrides['behavior'][$field] = $coreOverrides['behavior'][$field];
         }
-        if (array_key_exists('recent_turn_limit', $coreOverrides['memory'] ?? [])) {
-            $allowedOverrides['memory']['recent_turn_limit'] = $coreOverrides['memory']['recent_turn_limit'];
+        foreach (['recent_turn_limit', 'short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {
+            if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
@@ -222,6 +222,7 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
             && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
             $content['profile_management'] += $expected['profile_management'];
+            $content += ['rpg_comments'=>$expected['rpg_comments']];
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
@@ -236,6 +237,12 @@ final class EffectiveSettingsResolver
             || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
+        self::assertExactKeys($content['rpg_comments'], $expected['rpg_comments'], 'invalid_rpg_comments');
+        $rpg=$content['rpg_comments'];
+        if(is_array($rpg['events']))foreach($rpg['events']as$event)if(!is_string($event))throw new InvalidArgumentException('invalid_rpg_comments');
+        if(!is_array($rpg['events'])||!array_is_list($rpg['events'])||count($rpg['events'])!==count(array_unique($rpg['events'],SORT_REGULAR))
+            ||array_diff($rpg['events'],['levelup','combat_end','sleep','wait'])!==[]
+            ||!is_int($rpg['chance_percent'])||$rpg['chance_percent']<0||$rpg['chance_percent']>100)throw new InvalidArgumentException('invalid_rpg_comments');
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
         $content['context'] = self::validateContextPolicy($content['context']);
@@ -271,6 +278,13 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        // Retrieval switches are server-owned and do not enlarge the client controls contract.
+        foreach (['short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {
+            if (!array_key_exists($field, $validation['memory'] ?? [])) continue;
+            if (!is_bool($validation['memory'][$field])) throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['memory'][$field]);
+        }
+        if (($validation['memory'] ?? null) === []) unset($validation['memory']);
         if(array_key_exists('relationship',$validation)){
             self::validateSettingsShape(['relationship'=>$validation['relationship']],
                 ['relationship'=>['update_chance_percent'=>0,'locked'=>false]],true);

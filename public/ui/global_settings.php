@@ -19,6 +19,8 @@ foreach ($installations as $row) if ($requested !== '' && hash_equals((string) $
 if ($installationId === '' && isset($installations[0])) $installationId = (string) $installations[0]['installation_id'];
 $stored = $installationId === '' ? null : $productRepository->globalSettingsForInstallation($installationId);
 $storedContent = is_array($stored['content'] ?? null) ? $stored['content'] : [];
+$memorySummary = $installationId === '' ? [] : ($productRepository->memorySummaryPolicyForInstallation($installationId)['content'] ?? []);
+$memoryEmbedding = $installationId === '' ? [] : ($productRepository->memoryEmbeddingPolicyForInstallation($installationId)['content'] ?? []);
 $autoLockProfile = $installationId === '' || $productRepository->profileAutoLockEnabled($installationId);
 $oghmaSettings = $installationId === ''
     ? ['enabled'=>true,'knowledge_tags'=>'','racial_context_enabled'=>true,'location_context_enabled'=>true,'topic_count'=>1,'result_limit'=>3,'extractor_enabled'=>false,'extractor_timeout_ms'=>1500]
@@ -69,7 +71,7 @@ $earlierRevisions = array_values(array_filter(
     $revisionHistory,
     static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
 ));
-$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
+$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory service policies are saved separately and are not included. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
 $statusMessages = [
     'saved' => 'Global settings saved to the database.',
     'imported' => 'Preset imported as a new Global Settings revision.',
@@ -87,6 +89,10 @@ $sections = [
             ['relationship_enabled', 'Relationship Evaluation', '&#x1F91D;', 'boolean', $relationshipSettings['enabled'], 'Allow eligible completed conversations to update the saved relationship.', []],
             ['relationship_update_chance_percent', 'Relationship Update Chance', '&#x1F3B2;', 'integer', $relationshipSettings['update_chance_percent'], 'Chance from 0 to 100 that an eligible completed conversation is evaluated.', ['min' => 0, 'max' => 100]],
         ],
+        'RPG Comments' => [
+            ['rpg_events','Comment Events','&#x1F4AC;','multiselect',$globalDocument['rpg_comments']['events'],'Nearby NPCs may comment on these observed game events while dialogue is idle.',['values'=>['levelup'=>'Level Up','combat_end'=>'Combat End','sleep'=>'Sleep','wait'=>'Wait']]],
+            ['rpg_chance','Comment Chance','&#x1F3B2;','integer',$globalDocument['rpg_comments']['chance_percent'],'Percentage of eligible events that may request a comment.',['min'=>0,'max'=>100]],
+        ],
         'Automatic Dialogue' => [
             ['auto_greeting', 'Automatic Greetings', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allow a newly activated nearby NPC to greet the player once when the dialogue lane is idle.', []],
             ['boredom', 'Boredom Events', '&#x1F4AC;', 'boolean', $settings['behavior']['boredom'], 'Allow an active nearby NPC to make a brief spontaneous remark after the dialogue lane has been idle.', []],
@@ -96,6 +102,15 @@ $sections = [
         ],
     ],
     'ai-memory' => [
+        'Memory' => [
+            ['memory_embedding_enabled', 'Memory Embedding', '&#x1F9E0;', 'boolean', $memoryEmbedding['enabled'] ?? false, 'Use semantic memory retrieval. Existing lexical retrieval remains available if the service cannot be reached.', []],
+            ['memory_embedding_endpoint', 'MiniMe / TXT2VEC URL', '&#x1F517;', 'url', $memoryEmbedding['endpoint'] ?? '', 'Address of your memory embedding service. Use a loopback HTTP address or an HTTPS endpoint.', []],
+            ['memory_embedding_timeout', 'Memory Query Timeout', '&#x23F1;', 'integer', $memoryEmbedding['timeout_ms'] ?? 1500, 'Maximum wait for one semantic query, in milliseconds.', ['min'=>250,'max'=>5000]],
+            ['memory_summary_enabled', 'Automatic Memory Summaries', '&#x1F4DD;', 'boolean', $memorySummary['enabled'] ?? false, 'Summarize new consolidated memories with the selected LLM. Original memories are retained.', []],
+            ['memory_summary_connector', 'Memory Summary LLM', '&#x1F50C;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Required when model summaries are enabled.', ['values'=>$llmOptions]],
+            ['memory_summary_interval', 'Summary Interval', '&#x23F3;', 'integer', $memorySummary['summary_interval'] ?? 0, 'Each point represents 0.24 in-game hours. 10 = 2.4 hours; 50 = 12 hours. Zero uses event-count grouping.', ['min'=>0,'max'=>100]],
+            ['memory_summary_minimum_events', 'Minimum Summary Events', '&#x1F4AC;', 'integer', $memorySummary['minimum_events'] ?? 4, 'Minimum eligible memories before a summary group is created.', ['min'=>2,'max'=>16]],
+        ],
         'Memory & Others' => [
             ['auto_lock_profile', 'Auto Lock Profile', '&#x1F512;', 'boolean', $autoLockProfile, 'When enabled, saving an NPC profile automatically locks it to prevent automatic updates from overwriting manual edits.', []],
             ['autofill_custom_profiles', 'Automatic Profile Backfill', '&#x2728;', 'boolean', $autofillCustomProfiles, 'Fill an unlocked NPC profile with AI after it has enough completed dialogue history.', []],
@@ -261,6 +276,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 
     <?php if ($installations === []): ?><section class="content-section">Connect OpenMW once before configuring installation settings.</section><?php else: ?>
     <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-save" id="gs_form">
+        <input type="hidden" name="memory_settings_present" value="1">
         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
         <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
         <input type="hidden" name="change_reason" value="Management global settings">
