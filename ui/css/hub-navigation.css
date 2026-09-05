@@ -42,6 +42,9 @@ body.hub-page .config-navigation {
  * .tab-buttons on embedded pages keep their own styling.
  */
 .config-navigation {
+    /* Semantic nav elements otherwise inherit the legacy 20px navigation rule. */
+    font-size: 15px;
+    font-weight: normal;
     margin: 6px 0;
     padding: 5px;
     border: 1px solid var(--chim-border, #404040);

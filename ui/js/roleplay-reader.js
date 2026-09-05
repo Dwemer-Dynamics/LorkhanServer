@@ -62,6 +62,10 @@
     root.querySelectorAll('[data-reader-play]').forEach((button) => button.addEventListener('click', async () => {
         stop('');
         const entry = button.closest('[data-reader-entry]');
+        // Dialog content is modal: keep playback and cancellation inside the active entry.
+        if (entry.closest('dialog')) {
+            entry.querySelector('.reader-entry-actions').append(stopButton, status, audio);
+        }
         const chunks = sentences(entry.querySelector('[data-reader-text]').innerText);
         if (!chunks.length) { announce('This entry has no text to read.'); return; }
         const run = { entry, controller: new AbortController() };
@@ -92,6 +96,9 @@
             if (active === run) stop(error.name === 'AbortError' ? 'Reading stopped.' : error.message);
         }
     }));
+    root.querySelectorAll('[data-calendar-open]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.calendarOpen)?.showModal()));
+    root.querySelectorAll('[data-calendar-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+    root.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => stop('')));
     stopButton.addEventListener('click', () => stop());
     window.addEventListener('pagehide', () => stop(''));
     document.addEventListener('visibilitychange', () => { if (document.hidden && active) stop(); });

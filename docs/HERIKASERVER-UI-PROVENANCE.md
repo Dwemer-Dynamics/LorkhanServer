@@ -13,6 +13,12 @@ headers, Action Editor, dashboard and log reader geometry. See
 The original import below is retained as historical provenance; no Herika runtime
 code was imported by the follow-up. Existing source license notices remain.
 
+The all-pages follow-up also adapts `ui/ai-response.php` prompt/table presentation,
+`ui/css/diary_adventure.css` calendar and paper reader presentation, and the Memories
+and Books tables in `ui/events-memories.php`. `ui/images/paper.jpg` and
+`ui/css/font/SkyrimBooks_Handwritten_Bold-Regular.ttf` are copied unchanged from
+the same pinned snapshot. Data access and form handlers remain Lorkhan-owned.
+
 - Repository: `https://github.com/abeiro/HerikaServer.git`
 - Ref inspected: `origin/unstable`
 - Presentation import commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`

@@ -1,0 +1,60 @@
+<?php
+declare(strict_types=1);
+
+/** Render CHIM's log-table hierarchy using scoped records and escaped prompt messages. */
+function lorkhan_roleplay_log_table(array $state, array $installations, string $tab, string $webRoot): void
+{
+    $responses = $tab === 'responselog';
+    $link = static fn(array $changes): string => $webRoot.'/ui/events-memories.php?'.http_build_query(array_merge([
+        'tab'=>$tab,'installation_id'=>$state['installation'],'playthrough_id'=>$state['playthrough'],
+        'reader_page'=>$state['page'],'q'=>$state['query'],'person'=>$state['person'],'date'=>$state['date'],
+    ], $changes));
+    ?>
+    <div class="roleplay-log-page" data-log-page>
+        <div class="roleplay-description"><span aria-hidden="true"><?= $responses ? '💬' : '📚' ?></span> <strong><?= $responses ? 'AI Responses' : 'Books' ?>:</strong>
+            <?= $responses ? 'Complete log of AI responses and the full context sent to the model. Inspect prompts, Oghma topics and request details when debugging.' : 'Books observed during your Morrowind playthrough.' ?>
+        </div>
+        <details class="log-scope"><summary>Filters and playthrough</summary><form method="get" class="reader-filters">
+            <input type="hidden" name="tab" value="<?= lorkhan_ui_h($tab) ?>">
+            <label>Installation<select name="installation_id"><?php foreach($installations as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['installation']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
+            <label>Playthrough<select name="playthrough_id"><?php foreach($state['playthroughs'] as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['playthrough']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
+            <label>Search<input type="search" name="q" value="<?= lorkhan_ui_h($state['query']) ?>" maxlength="200"></label>
+            <button type="submit" class="roleplay-button">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['q'=>'','person'=>'','date'=>'','reader_page'=>1])) ?>">Reset</a>
+        </form></details>
+        <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> of <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
+            <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
+            <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
+        </nav><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $responses?'Response':'Book' ?> Log</a></div>
+        <div class="log-table-container" tabindex="0" role="region" aria-label="<?= $responses?'AI response':'Book' ?> log">
+            <table class="<?= $responses?'ai-response-table':'books-table' ?>" data-log-table>
+                <thead><tr><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:['Title','Content','Time (UTC)','rowid'] as $column): ?><th scope="col"><?= lorkhan_ui_h($column) ?></th><?php endforeach; ?></tr></thead>
+                <tbody><?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
+                    <tr><?php if($responses): ?>
+                        <td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
+                        <td class="log-response-text"><?= lorkhan_ui_h($row['content']) ?></td>
+                        <td><?= lorkhan_ui_h(implode(', ',$row['topics']) ?: 'None') ?></td>
+                        <td><button class="roleplay-button" type="button" data-log-open="<?= $id ?>">View Prompt</button></td>
+                        <td class="log-request-text"><span><?= lorkhan_ui_h($row['input_kind'].': '.$row['input_text']) ?></span><small><?= lorkhan_ui_h($row['request_id']) ?><br><?= lorkhan_ui_h($row['kind']) ?><?php if($row['turn_seconds']!==null): ?> · Turn <?= number_format((float)$row['turn_seconds'],2) ?>s<?php endif; ?></small></td>
+                    <?php else: ?>
+                        <td><?= lorkhan_ui_h($row['title']) ?></td><td><button class="log-content-link" type="button" data-log-open="<?= $id ?>"><?= lorkhan_ui_h(mb_substr($row['content'],0,300)) ?><?= mb_strlen($row['content'])>300?'…':'' ?></button></td>
+                        <td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
+                    <?php endif; ?><td><?= (int)$row['narrative_id'] ?></td></tr>
+                <?php endforeach; ?>
+                <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:4 ?>" class="log-empty">No <?= $responses?'AI responses':'books' ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
+            </table>
+        </div>
+        <p class="log-footer">Page <?= $state['page'] ?> of <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
+        <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
+            <dialog id="<?= $id ?>" class="log-content-modal" aria-labelledby="<?= $id ?>-title">
+                <header><h2 id="<?= $id ?>-title"><?= $responses?'Prompt':lorkhan_ui_h($row['title']) ?></h2><div><button type="button" class="roleplay-button" data-log-copy>Copy</button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
+                <div class="log-modal-body" data-log-copy-text>
+                    <?php if($responses): ?>
+                        <?php foreach($row['prompt_messages'] as $index=>$message): ?><section class="prompt-modal-message prompt-role-<?= lorkhan_ui_h($message['role']) ?>"><header><strong><?= lorkhan_ui_h(strtoupper($message['role'])) ?></strong><span>#<?= $index ?></span></header><div class="prompt-modal-message-body"><?= lorkhan_ui_h($message['content']) ?></div></section><?php endforeach; ?>
+                        <?php if($row['prompt_messages']===[]): ?><p>No frozen prompt messages were recorded for this response.</p><?php endif; ?>
+                    <?php else: ?><div class="log-response-text"><?= lorkhan_ui_h($row['content']) ?></div><?php endif; ?>
+                </div><p role="status" data-log-status></p>
+            </dialog>
+        <?php endforeach; ?>
+    </div>
+    <?php
+}

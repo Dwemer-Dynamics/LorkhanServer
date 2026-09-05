@@ -1,0 +1,78 @@
+/* Log table and prompt reader geometry follows HerikaServer ui/ai-response.php. */
+.roleplay-log-page{padding:20px;min-width:0}
+.roleplay-log-page .roleplay-description{margin-bottom:16px}
+.log-scope{margin:0 0 12px;color:#b7b7b7;font-size:13px}
+.log-scope summary{cursor:pointer}
+.log-scope .reader-filters{margin-top:10px}
+.log-pagination,.log-pagination nav{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.log-pagination{justify-content:space-between;margin:14px 0;font-size:13px}
+.log-pagination nav{font-size:14px;font-weight:normal}
+.log-request-text small{display:block;color:#aaa;margin-top:8px;font-size:11px}
+.roleplay-log-page .log-export{background:#bc9d5a!important;color:#171717!important;border-color:#9d8045!important}
+.log-table-container{max-height:calc(100vh - 430px);min-height:160px;overflow:auto;padding:12px;background:rgba(20,20,20,.25);border:1px solid #444;border-radius:10px}
+.log-table-container table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:13px;margin:0}
+.log-table-container th{position:sticky;top:-12px;background:#262626;color:#bc9d5a;font-weight:700;border-bottom:2px solid rgba(188,157,90,.3);z-index:1;padding:12px;text-align:left}
+.log-table-container td{padding:10px;vertical-align:top;border-bottom:1px solid #3b3b3b;overflow-wrap:anywhere}
+.log-table-container tr:hover td{background:rgba(188,157,90,.05)}
+.ai-response-table th:nth-child(1){width:11%}.ai-response-table th:nth-child(2){width:29%}.ai-response-table th:nth-child(3){width:16%}.ai-response-table th:nth-child(4){width:12%}.ai-response-table th:nth-child(5){width:20%}.ai-response-table th:nth-child(6){width:7%}
+.log-response-text,.log-request-text{white-space:pre-wrap;overflow-wrap:anywhere}
+.log-empty{text-align:center;color:#aaa;padding:25px!important}
+.log-footer{font-size:13px;color:#aaa;margin:14px 0 0}
+.books-table th:first-child{width:20%}.books-table th:nth-child(2){width:55%}
+.log-content-link{background:none!important;border:0!important;color:#bc9d5a!important;text-align:left!important;padding:0!important;font:inherit;cursor:pointer;white-space:pre-wrap}
+.log-content-modal{width:min(1100px,92vw);max-height:85vh;padding:0;border:1px solid #555;border-radius:10px;background:#202020;color:#eee;box-shadow:0 12px 45px #0008}
+.log-content-modal::backdrop{background:#000b}
+.log-content-modal>header{padding:16px 20px;border-bottom:1px solid #444;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.log-content-modal h2{margin:0;font-size:20px;color:#bc9d5a}.log-content-modal>header>div{display:flex;gap:8px}
+.log-modal-body{padding:20px;max-height:calc(85vh - 115px);overflow:auto}
+.log-content-modal>[role=status]{margin:0 20px 12px}
+.prompt-modal-message{border:1px solid #444;border-radius:7px;margin-bottom:14px;overflow:hidden;background:#181818}
+.prompt-modal-message>header{display:flex;justify-content:space-between;padding:9px 12px;background:#303030;color:#bc9d5a;font-size:12px}
+.prompt-modal-message-body{padding:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
+.prompt-role-user>header{color:#8bbce8}.prompt-role-assistant>header{color:#91c89b}
+@media(max-width:700px){.roleplay-log-page{padding:12px}.log-table-container{max-height:65vh}.ai-response-table{min-width:880px}.books-table{min-width:650px}.log-content-modal{width:94vw}.log-modal-body{padding:12px}}
+
+/* Diary and Adventure Log calendar geometry follows Herika's diary_adventure.css. */
+.calendar-log-page .reader-heading{display:block;background:#252525;border-radius:8px;text-align:center;padding:12px;margin-bottom:20px}
+.calendar-log-page .reader-heading h1{font-size:24px;margin:0}.calendar-log-page .reader-heading p{display:none}
+.calendar-downloads,.calendar-mode-toggle,.calendar-people{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin:20px 0}
+.calendar-downloads .roleplay-button{background:#28a745!important;border-color:#218838!important;color:#fff!important}
+.calendar-navigation{display:flex;justify-content:center;align-items:center;margin:20px 0;gap:10px;font-size:15px;font-weight:normal}
+.calendar-navigation span{padding:0 15px;font-size:1.5em;min-width:200px;width:300px;text-align:center}
+.calendar-navigation a{min-width:150px;text-align:center;padding:8px 15px;border-radius:5px;background:#bc9d5a;border:2px solid #9d8045;color:#141414!important;text-decoration:none}
+.calendar-scroll,.calendar-event-scroll{overflow:auto;max-width:100%}
+.calendar{width:100%;border-collapse:collapse;margin:20px 0;table-layout:fixed}
+.calendar th,.calendar td{border:1px solid #555;padding:10px;text-align:center;width:14.28%;vertical-align:middle}
+.calendar th{background:#3a3a3a;color:#f8f9fa;overflow:hidden;text-overflow:ellipsis}.calendar td{height:100px}
+.calendar td a{color:inherit;text-decoration:none;display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%;height:100%;box-sizing:border-box}
+.calendar td.has-event a{background:#bc9d5a;color:#141414!important;border:2px solid #9d8045;border-radius:5px}
+.calendar td a small{font-size:11px}.calendar td.selected-date a{outline:2px solid #fff;outline-offset:2px}
+.calendar td.current-date a{background:#28a745;color:#fff!important;border:2px solid #1e7e34;border-radius:5px}
+.calendar-event-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}
+.calendar-event-table th{background:#3a3a3a;color:#bc9d5a;padding:12px;text-align:left}.calendar-event-table td{border:1px solid #444;padding:12px;vertical-align:top;overflow-wrap:anywhere}
+.calendar-event-table th:first-child{width:18%}.calendar-event-table th:nth-child(2){width:47%}
+#adventure-tab .calendar-event-table th:first-child{width:45%}#adventure-tab .calendar-event-table th:nth-child(2){width:20%}
+.calendar-event-kind{display:block;color:#bc9d5a;font-size:12px;margin-bottom:5px}
+.diary-entry-modal{padding:14px;width:98%;max-width:1600px;height:calc(100vh - 220px);min-height:320px}.diary-entry-modal .reader-entry{border:0;margin:0;padding:15px 0}.diary-close{float:right}
+@font-face{font-family:SkyrimBooks_Handwritten_Bold;src:url('font/SkyrimBooks_Handwritten_Bold-Regular.ttf') format('truetype');font-display:swap}
+.diary-entry-modal .reader-prose{background:url('../images/paper.jpg') center/cover;padding:40px;border-radius:6px;box-shadow:0 4px 8px #0008;color:#000!important;font-family:SkyrimBooks_Handwritten_Bold,Arial,sans-serif!important;font-size:18px;max-width:none;min-height:180px;line-height:1.6}
+.diary-entry-modal .reader-entry-actions{background:#202024;border:1px solid #bc9d5a80;padding:10px 14px;border-radius:0 0 6px 6px}
+.diary-entry-modal>.diary-close{position:sticky;top:0;z-index:3}
+body .roleplay-reader .roleplay-button.danger{background:#8b3038!important;border-color:#b44b56!important;color:#fff!important}
+.reader-audio-help{font-size:13px;color:#aaa;margin:10px 0}.reader-audio-help summary{cursor:pointer}
+@media(max-width:650px){.calendar-navigation{gap:6px}.calendar-navigation span{font-size:16px;min-width:0;width:auto;padding:0 6px}.calendar-navigation a{min-width:0;padding:8px}.calendar th{font-size:10px;padding:6px 1px}.calendar td{padding:3px;height:65px}.calendar td a small{font-size:9px}.calendar-event-table{min-width:670px}}
+
+.memory-overview{background:#252525;border:1px solid #444;border-radius:8px;padding:16px;margin-bottom:16px}
+.memory-overview>summary{font-size:17px;color:#bc9d5a;cursor:pointer}.memory-overview .memory-policy-columns{margin-top:15px}
+.memory-log-scroll{overflow:auto;border:1px solid #444;border-radius:8px;margin:16px 0}
+.memory-log-table{width:100%;table-layout:fixed;border-collapse:collapse;font-size:13px}
+.memory-log-table th{padding:12px;background:#292929;color:#bc9d5a;text-align:left}.memory-log-table td{vertical-align:top;padding:12px;border-bottom:1px solid #444;overflow-wrap:anywhere}
+.memory-log-table th:nth-child(1){width:9%}.memory-log-table th:nth-child(2),.memory-log-table th:nth-child(3){width:12%}.memory-log-table th:nth-child(4){width:15%}.memory-log-table th:nth-child(5){width:52%}
+.memory-summary-text{white-space:pre-wrap;border-bottom:1px solid #444;padding-bottom:8px;margin-bottom:8px}.memory-details{margin:8px 0}.memory-details summary{cursor:pointer;color:#bbb}.memory-details textarea{width:100%;box-sizing:border-box}
+@media(max-width:750px){.memory-log-table{min-width:760px}}
+
+.memory-overview{border-left:4px solid #bc9d5a;padding:10px 14px}.memory-overview h3{font-size:17px;margin:0 0 6px}.memory-overview p{font-size:14px;margin:0 0 8px}
+.memory-status-bar{display:flex;gap:8px;flex-wrap:wrap;font-size:13px}.memory-status-bar>span{background:#303030;padding:5px 8px;border:1px solid #444;border-radius:4px;color:#bc9d5a}
+.memory-status-bar b{display:inline-block;margin-left:6px;padding:1px 6px;border-radius:10px}.memory-status-bar .is-on{background:#244a33;color:#8fd4a1}.memory-status-bar .is-off{background:#4b3030;color:#e7a8a8}
+.memory-config-toggle{cursor:pointer;display:inline-block;padding:5px 10px;background:#66512a;border:1px solid #9d8045;border-radius:4px;margin-top:8px;font-size:13px;color:#fff}
+.memory-log-scroll{max-height:calc(100vh - 360px);min-height:200px}.memory-log-table th{position:sticky;top:0;z-index:1}

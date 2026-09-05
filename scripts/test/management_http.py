@@ -146,7 +146,8 @@ for removed_tab in ['backgroundlife','questgen','quests','soulgaze']:
     removed_page,removed_text=parse(request('/LorkhanServer/ui/events-memories.php?tab='+removed_tab))
     assert removed_page.current==1 and 'id="eventlog-app"' in removed_text and 'id="journal-tab" class="tab-content active"' not in removed_text,removed_tab
 journal,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
-books,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=books-tab')); assert books.current==1 and '>Books</h1>' in text and 'id="books-tab" class="tab-content active"' in text
+books,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=books-tab')); assert books.current==1 and 'class="books-table"' in text and 'id="books-tab" class="tab-content active"' in text
+responses,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=responses-tab')); assert responses.current==1 and 'class="ai-response-table"' in text and 'Oghma Topic' in text and 'HTTP Request' in text and 'data-reader-play' not in text
 memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
 embedding_policy=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-policy'))
 assert embedding_policy['fields'].get('timeout_ms')=='1500' and embedding_policy['fields'].get('endpoint')=='' and 'enabled' not in embedding_policy['fields'],embedding_policy
@@ -157,7 +158,8 @@ memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memory'))
 r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],_csrf=csrf,limit='100')); body=r.read().decode()
 assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
 relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal</h1>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
-narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Create / Generate Entry' in text
+narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Regular Calendar' in text and 'calendar-event-table' in text and 'Create / Generate Entry' not in text
+diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
 narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
 cache,text=parse(request('/LorkhanServer/ui/cache_browser.php')); assert cache.current==1 and '<h1>Audio Cache</h1>' in text and 'Expired and deleted entries' in text
 queue,text=parse(request('/LorkhanServer/ui/response_queue.php')); assert queue.current==1 and '<h1>Response Queue</h1>' in text and 'actual playback state' in text
@@ -531,6 +533,18 @@ values=dict(create_narrative['fields'],_csrf=csrf,installation_id=valid['install
 r=request(create_narrative['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/narrative_manager.php?status=saved') and narrative_title in body,(r.status,r.geturl(),body)
 narrative_match=re.search(re.escape(narrative_title)+r'.*?name="narrative_id" value="([0-9a-f-]{36})"',body,re.S); assert narrative_match,body
 narrative_id=narrative_match.group(1); narratives,_=parse(request('/LorkhanServer/ui/narrative_manager.php'))
+# A real diary must appear in the calendar and escaped modal, and stay playthrough-scoped.
+diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
+diary_page,diary_html=parse(request(diary_url))
+assert narrative_text in diary_html and 'id="entry-'+narrative_id+'"' in diary_html and 'has-event' in diary_html and 'data-reader-form' in diary_html
+_,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
+assert narrative_text not in empty_diary_html and 'No entries match this date' in empty_diary_html
+_,person_diary_html=parse(request(diary_url+'&view=people&person='+profile_id))
+assert narrative_text in person_diary_html and 'calendar-people' in person_diary_html
+diary_export=request(diary_url+'&export=1')
+assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
+empty_export=request(diary_url+'&export=1&date=1900-01-01')
+assert narrative_text not in empty_export.read().decode()
 revise_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narrative-revise') and f['fields'].get('narrative_id')==narrative_id)
 revised_title=narrative_title+' revised'; revised_text='Reached Balmora and found Caius.'
 r=request(revise_narrative['action'],'POST',dict(revise_narrative['fields'],_csrf=csrf,kind='summary',title=revised_title,content=revised_text,provenance='management-http edit')); body=r.read().decode()
