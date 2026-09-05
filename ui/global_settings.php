@@ -219,6 +219,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <?php if ($installations !== []): ?>
                 <button type="button" class="btn-settings-transfer" data-gs-portability-toggle="import" aria-controls="gs-portability-panel" aria-expanded="false">&#128229; Import Settings</button>
                 <?php endif; ?>
+                <?php if ($installationId !== ''): ?><button type="button" class="btn-action-blue" data-profile-test-open aria-haspopup="dialog">Test Global Connectors</button><?php endif; ?>
                 <button type="submit" class="btn-save-green" name="save_all" value="1" form="gs_form">Save All</button>
             </div>
         </div>
@@ -395,7 +396,33 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <div class="preset-dialog-actions"><button type="button" class="btn-settings-transfer" id="gs-preset-cancel">Cancel</button><button type="submit" class="btn-save-green" id="gs-preset-confirm">Confirm</button></div>
         </form>
     </dialog>
+    <?php if ($installationId !== ''): ?>
+    <div class="global-test-modal" data-profile-test-overlay hidden>
+        <div class="global-test-shell" role="dialog" aria-modal="true" aria-labelledby="global-test-title" aria-describedby="global-test-warning"
+            data-profile-test-dialog data-profile-test-mode="global" data-profile-test-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/global-connector-tests"
+            data-profile-test-csrf="<?php echo lorkhan_ui_h($csrf); ?>" data-profile-test-installation="<?php echo lorkhan_ui_h($installationId); ?>">
+            <div class="global-test-head">
+                <div><div id="global-test-title" class="global-test-title">Test Global Connectors</div><div class="global-test-subtitle">Test enabled global connector slots once, then share each result across matching slots.</div></div>
+                <button type="button" class="global-test-close" data-profile-test-close>Close</button>
+            </div>
+            <div class="global-test-body">
+                <p class="global-test-warning" id="global-test-warning">Tests use saved settings and may incur provider charges. <strong>No requests are sent until you click Run tests.</strong></p>
+                <div class="global-test-summary" data-profile-test-counts role="group" aria-label="Connector test result totals"></div>
+                <div class="global-test-progress" data-profile-test-progress role="progressbar" aria-label="Connector tests completed" aria-valuemin="0" aria-valuemax="0" aria-valuenow="0" hidden><div data-profile-test-progress-fill></div></div>
+                <p class="global-test-scope" data-profile-test-scope></p>
+                <p class="global-test-status" data-profile-test-status role="status" aria-live="polite">Loading the connector test plan.</p>
+                <div data-profile-test-plan></div>
+            </div>
+            <div class="global-test-actions">
+                <button type="button" class="btn-save-green" data-profile-test-run disabled>Run tests</button>
+                <button type="button" class="global-test-close" data-profile-test-stop hidden>Stop queued tests</button>
+                <button type="button" class="global-test-close" data-profile-test-reload hidden>Reload plan</button>
+            </div>
+        </div>
+    </div>
+    <?php endif; ?>
 </main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/global-settings.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/global-settings.js')); ?>"></script>
+<?php if ($installationId !== ''): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/profile-connector-tests.js')); ?>"></script><?php endif; ?>
 <?php if ($installations !== []): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

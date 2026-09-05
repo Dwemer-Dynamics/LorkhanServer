@@ -1,4 +1,4 @@
-/* Bulk Core Profile connector tests: plan first, explicit confirmation, shared per-connector results. */
+/* Shared Core Profile / Global connector tests: plan first, explicit confirmation, deduplicated results. */
 (() => {
     const overlay = document.querySelector('[data-profile-test-overlay]');
     if (!overlay) return;
@@ -19,13 +19,15 @@
     const endpoint = dialog.getAttribute('data-profile-test-endpoint') || '';
     const csrf = dialog.getAttribute('data-profile-test-csrf') || '';
     const installationId = dialog.getAttribute('data-profile-test-installation') || '';
+    const globalMode = dialog.getAttribute('data-profile-test-mode') === 'global';
     const MAX_CONCURRENT_TESTS = 2;
 
     const STATUS_LABELS = {
-        pass: 'Passed',
-        fail: 'Failed',
+        pass: globalMode ? 'Pass' : 'Passed',
+        fail: globalMode ? 'Fail' : 'Failed',
+        warn: 'Warn',
         skipped: 'Skipped',
-        pending: 'Not run',
+        pending: globalMode ? 'Pending' : 'Not run',
         running: 'Testing',
     };
     const KIND_LABELS = { provider: 'Text model connector', tts_provider: 'Voice connector' };
@@ -67,12 +69,14 @@
 
     const renderCounts = () => {
         countsHost.textContent = '';
-        const tally = { pass: 0, fail: 0, skipped: 0, pending: 0 };
+        const tally = { pass: 0, warn: 0, fail: 0, skipped: 0, pending: 0 };
         slotNodes.forEach((entry) => {
             const state = slotStatus(entry.slot);
             tally[state.status === 'running' ? 'pending' : bucketFor(state.status)] += 1;
         });
-        [['pass', 'Passed'], ['fail', 'Failed'], ['skipped', 'Skipped'], ['pending', 'Not run']].forEach((pair) => {
+        const counters = globalMode ? [['pass', 'Passed'], ['warn', 'Warnings'], ['fail', 'Failed'], ['skipped', 'Skipped'], ['pending', 'Pending']]
+            : [['pass', 'Passed'], ['fail', 'Failed'], ['skipped', 'Skipped'], ['pending', 'Not run']];
+        counters.forEach((pair) => {
             const pill = document.createElement('span');
             pill.className = 'profile-test-count profile-test-count-' + pair[0];
             const value = document.createElement('strong');
@@ -110,11 +114,11 @@
     const renderPlan = () => {
         planHost.textContent = '';
         slotNodes = [];
-        const profiles = plan && Array.isArray(plan.profiles) ? plan.profiles : [];
+        const profiles = plan && Array.isArray(globalMode ? plan.groups : plan.profiles) ? (globalMode ? plan.groups : plan.profiles) : [];
         if (profiles.length === 0) {
             const empty = document.createElement('p');
             empty.className = 'profile-test-empty';
-            empty.textContent = 'No Core Profiles are set up for this installation yet.';
+            empty.textContent = globalMode ? 'No global connectors found.' : 'No Core Profiles are set up for this installation yet.';
             planHost.append(empty);
             renderCounts();
             return;
@@ -155,11 +159,12 @@
                     connector.className = 'profile-test-slot-connector';
                     const connectorName = document.createElement('span');
                     connectorName.className = 'profile-test-slot-name';
-                    connectorName.textContent = labels.get(text(slot.job_key)) || 'No connector selected';
+                    connectorName.textContent = text(slot.connector_label) || labels.get(text(slot.job_key)) || 'No connector selected';
                     const kind = document.createElement('span');
                     kind.className = 'profile-test-slot-kind';
                     kind.textContent = KIND_LABELS[text(slot.kind)] || 'Connector';
-                    connector.append(connectorName, kind);
+                    connector.append(connectorName);
+                    if (!globalMode) connector.append(kind);
                     const pill = document.createElement('span');
                     pill.className = 'profile-test-pill';
                     const detail = document.createElement('span');
@@ -179,7 +184,9 @@
     const describeScope = () => {
         const jobs = runnableJobs().length;
         const slots = slotNodes.filter((entry) => text(entry.slot.job_key) !== '').length;
-        scopeLine.textContent = jobs === 0
+        scopeLine.textContent = globalMode
+            ? (jobs === 0 ? 'No enabled global connector is available to test.' : jobs + ' unique connector' + (jobs === 1 ? ' covers ' : 's cover ') + slots + ' enabled global slot' + (slots === 1 ? '' : 's') + '.')
+            : jobs === 0
             ? 'No connector is routed by these Core Profiles, so there is nothing to test.'
             : jobs + ' connector' + (jobs === 1 ? '' : 's') + ' would be tested once each, covering '
                 + slots + ' profile slot' + (slots === 1 ? '' : 's') + '.';
@@ -190,7 +197,7 @@
         runButton.textContent = completedJobs > 0 && !running ? 'Run tests again' : 'Run tests';
         runButton.hidden = loadFailed;
         stopButton.hidden = !running || stopRequested;
-        reloadButton.hidden = !loadFailed;
+        reloadButton.hidden = !loadFailed && !(globalMode && !loading && !running);
     };
 
     const loadPlan = async () => {
@@ -211,9 +218,9 @@
             jobStates = new Map();
             renderPlan();
             describeScope();
-            setProgress(0, 0);
+            setProgress(0, globalMode ? runnableJobs().length : 0);
             announce(runnableJobs().length === 0
-                ? 'Nothing to test. These Core Profiles do not route a connector of their own.'
+                ? (globalMode ? 'Nothing to test. Enable and save a global connector first.' : 'Nothing to test. These Core Profiles do not route a connector of their own.')
                 : 'Test plan ready. Nothing has been sent to any provider yet. Press Run tests to start.');
         } catch (_error) {
             plan = null;
@@ -245,6 +252,7 @@
                     installation_id: installationId,
                     kind: text(job.kind),
                     configuration_id: text(job.configuration_id),
+                    ...(globalMode ? {confirm: 'Run tests'} : {}),
                 }),
             });
             let payload = null;
@@ -352,7 +360,7 @@
         document.addEventListener('keydown', onKeydown, true);
         const closeControl = overlay.querySelector('[data-profile-test-close]');
         if (closeControl) closeControl.focus();
-        if (plan === null && !loading) loadPlan();
+        if ((plan === null || globalMode) && !loading && !running) loadPlan();
         else syncControls();
     };
 

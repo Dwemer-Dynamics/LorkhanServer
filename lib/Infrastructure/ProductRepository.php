@@ -299,6 +299,40 @@ final class ProductRepository
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
     }
 
+    /** Describe saved, enabled global LLM routes without returning configuration payloads or calling providers. */
+    public function globalConnectorTestPlan(string $installationId):array
+    {
+        if(!Uuid::isValid($installationId))throw new InvalidArgumentException('invalid_installation_id');
+        $exists=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation');
+        $exists->execute(['installation'=>$installationId]);if(!$exists->fetchColumn())throw new RuntimeException('not_found');
+        $stored=$this->globalSettingsForInstallation($installationId);
+        $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[], $this->oghmaSettings($installationId),
+            $this->translationPolicyForInstallation($installationId)['content'],$this->profileAutoLockEnabled($installationId));
+        $summary=$this->memorySummaryPolicyForInstallation($installationId)['content']??[];
+        $routing=$settings['system_routing'];
+        $definitions=[
+            ['memory_summary_connector','Summaries',(string)($summary['provider_configuration_id']??''),($summary['enabled']??false)===true],
+            ['profile_generation_configuration_id','Profile Tasks',$routing['profile_generation_configuration_id'],true],
+            ['oghma_configuration_id','Custom Oghma LLM',$routing['oghma_configuration_id'],$settings['oghma']['enabled']&&$settings['oghma']['extractor_enabled']],
+            ['relationship_configuration_id','Relationship Management',$routing['relationship_configuration_id'],
+                $settings['relationship']['enabled']&&$settings['relationship']['update_chance_percent']>0],
+        ];
+        $query=$this->db->prepare("SELECT configuration_id,name FROM configuration_sets WHERE installation_id=:installation AND kind='provider' AND deleted_at IS NULL");
+        $query->execute(['installation'=>$installationId]);$labels=$query->fetchAll(PDO::FETCH_KEY_PAIR);
+        $jobs=[];$slots=[];
+        foreach($definitions as[$field,$label,$id,$enabled]){
+            $status='pending';$message='Waiting to test';$jobKey=null;
+            if(!$enabled){$status='skipped';$message='Task disabled in saved settings';}
+            elseif($id===''){$status='skipped';$message='No connector selected';}
+            elseif(!isset($labels[$id])){$status='warn';$message='Selected connector is unavailable';}
+            else{$jobKey='provider:'.$id;$jobs[$jobKey]=['job_key'=>$jobKey,'kind'=>'provider','configuration_id'=>$id,'label'=>$labels[$id]];}
+            $slots[]=['field'=>$field,'label'=>$label,'kind'=>'provider','configuration_id'=>$id?:null,
+                'connector_label'=>$id===''?'No connector selected':($labels[$id]??'Unavailable connector'),
+                'job_key'=>$jobKey,'status'=>$status,'message'=>$message];
+        }
+        return['groups'=>[['label'=>'Global Connectors','slots'=>$slots]],'jobs'=>array_values($jobs)];
+    }
+
     /** Build the deduplicated, read-only connector test plan shown by the Core Profiles UI. */
     public function coreProfileConnectorTestPlan(string $installationId):array
     {

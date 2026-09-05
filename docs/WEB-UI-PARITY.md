@@ -60,8 +60,8 @@ do not use an exception to excuse a generic substitute layout.
   production records and speech providers were not used as test data.
 - Global Settings includes Prompt Head / Emote Moods with saved global defaults,
   NPC overrides, portable export/import and a persistent named-preset toolbar.
-  The Local LLM built-in, Herika's preset effects on NPC profiles and connector-test
-  controls remain pending, not accepted product exceptions.
+  The Local LLM built-in and Herika's preset effects on NPC profiles remain pending,
+  not accepted product exceptions. The Global Connector test dialog is implemented.
 
 ## Complete page matrix
 
@@ -70,7 +70,7 @@ do not use an exception to excuse a generic substitute layout.
 | `home.php` | `home.php` | Pending structural and populated-state comparison |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma and connector cards aligned; blacklist browsers, connector tests and profile-affecting built-ins pending |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards and test dialog aligned; blacklist browsers and profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | Pending structural and populated-state comparison |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
@@ -283,3 +283,32 @@ an existing profile/installation identity when testing its direct route.
 - Existing HTTP tests verify all 33 fields occur exactly once, paired controls are
   unique and unchecked context options persist. 323 server checks, 98 protocol files,
   HTTP forms, integration, migrations and durable jobs passed. Schema hash is unchanged.
+
+### Global connector test dialog
+
+- Added the missing header action and Herika-style modal: summary counters, progress,
+  grouped slot results, status badges and a scrollable body. The existing Core Profile
+  test controller is reused, including its two-request concurrency cap and Stop queued
+  tests behavior. Opening/reopening loads the saved plan, not provider output.
+- Global plans expose only saved, enabled installation-owned LLM routes. Disabled
+  slots stay visible as skipped; unavailable selections warn without being called.
+  Shared connectors produce one job and propagate its result to all matching slots.
+- A separate Run tests confirmation prevents opening the dialog from starting paid
+  requests. POST rechecks current enabled assignments and rejects stale or unassigned
+  connectors. No API keys, endpoints or provider replies are returned in the plan.
+- Existing HTTP tests cover read-only plans, deduplication, missing CSRF, confirmation,
+  unknown installations, unassigned connectors, disabled/stale plans and a mock test.
+  323 server checks, 98 protocol files, HTTP forms, integration, migrations and durable
+  jobs passed. No schema change was required.
+- Compared the dialog with an isolated rendering of the pinned Herika modal markup
+  and CSS, avoiding Herika's automatic live test calls. In the Lorkhan mock fixture,
+  three enabled slots made exactly two requests: one pass populated two slots, one
+  failure populated the third, and the disabled slot remained skipped. Opening made
+  zero requests. Closing restored focus to the opener.
+- The deployed plan shows one unique enabled connector and three skipped slots. At
+  390px the body scrolls while Close and Run controls remain accessible, with no
+  horizontal overflow. Core Profile Test still loads its original ten-slot plan.
+  No live test was started, settings saved, game launched or paid provider called.
+- Deployment matches all 676 runtime files, with no extras or old paths. Existing
+  configuration, credential and voice contents were preserved; private files remain
+  403 and unauthenticated native session creation remains 401.

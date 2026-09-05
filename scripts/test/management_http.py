@@ -1010,6 +1010,32 @@ global_route_form=next(f for f in global_route_page.forms if f['action'].endswit
 global_route_values=dict(global_route_form['fields'],_csrf=csrf,profile_generation_configuration_id=slot_id,
     relationship_configuration_id=slot_id,change_reason='HTTP global connector ownership')
 r=request(global_route_form['action'],'POST',global_route_values); assert r.status==200,(r.status,r.read().decode())
+# Global tests read saved, enabled routes; shared connectors are tested only once.
+global_test_path='/LorkhanServer/manage/api/v1/global-connector-tests'
+global_test_values=dict(global_route_values,relationship_enabled='1',relationship_update_chance_percent='50',
+    oghma_enabled='1',oghma_extractor_enabled='1',oghma_configuration_id=slot_id)
+global_test_values.pop('memory_summary_enabled',None)
+assert request(global_route_form['action'],'POST',global_test_values).status==200
+before_global_test_calls=len(VoiceProvider.llm_requests)
+r=json_request(global_test_path+'?installation_id='+valid['installation_id']); global_test_plan=json.loads(r.read())
+assert r.status==200 and len(global_test_plan['jobs'])==1 and global_test_plan['jobs'][0]['configuration_id']==slot_id,global_test_plan
+global_slots=global_test_plan['groups'][0]['slots']
+assert len(global_slots)==4 and sum(slot['status']=='pending' for slot in global_slots)==3 and global_slots[0]['status']=='skipped',global_slots
+assert len(VoiceProvider.llm_requests)==before_global_test_calls and not any(key in json.dumps(global_test_plan).lower() for key in ['api_key','credential','endpoint','content'])
+global_test_request={'installation_id':valid['installation_id'],'configuration_id':slot_id,'kind':'provider','confirm':'Run tests'}
+r=json_request(global_test_path,'POST',global_test_request); assert r.status==401,r.status
+r=json_request(global_test_path,'POST',dict(global_test_request,confirm=''),csrf); assert r.status==422,r.status
+r=json_request(global_test_path,'POST',dict(global_test_request,configuration_id=str(uuid.uuid4())),csrf); assert r.status==422,r.status
+r=json_request(global_test_path+'?installation_id='+str(uuid.uuid4())); assert r.status==404,r.status
+r=json_request(global_test_path,'POST',global_test_request,csrf); result=json.loads(r.read()); assert r.status==200 and result['result']['status']=='pass',(r.status,result)
+assert len(VoiceProvider.llm_requests)==before_global_test_calls
+disabled_test_values=dict(global_test_values,profile_generation_configuration_id='')
+disabled_test_values.pop('relationship_enabled',None); disabled_test_values.pop('oghma_extractor_enabled',None)
+assert request(global_route_form['action'],'POST',disabled_test_values).status==200
+r=json_request(global_test_path+'?installation_id='+valid['installation_id']); disabled_test_plan=json.loads(r.read())
+assert disabled_test_plan['jobs']==[] and all(slot['status']=='skipped' for slot in disabled_test_plan['groups'][0]['slots'])
+r=json_request(global_test_path,'POST',global_test_request,csrf); result=json.loads(r.read()); assert r.status==422 and result['error']=='connector_test_plan_changed',result
+assert request(global_route_form['action'],'POST',global_route_values).status==200
 llm_page,body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected='+slot_id))
 assert 'Connector is in use.' in body,body
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()

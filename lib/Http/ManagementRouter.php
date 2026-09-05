@@ -184,6 +184,18 @@ final class ManagementRouter
                 if(!is_string($name)||!is_array($parameters)||($parameters!==[]&&array_is_list($parameters)))throw new InvalidArgumentException('invalid_debug_command');
                 return Response::json(201,['command'=>$this->repository->queueDebugCommand($session,$name,$parameters)]);}
         }
+        if($path==='/api/v1/global-connector-tests'){
+            if($r->method==='GET')return Response::json(200,$this->repository->globalConnectorTestPlan($this->queryUuid($r,'installation_id')));
+            if($r->method==='POST'){
+                $values=$this->json($r);
+                if(($values['confirm']??'')!=='Run tests')throw new InvalidArgumentException('confirmation_mismatch');
+                $plan=$this->repository->globalConnectorTestPlan($this->need($values,'installation_id'));
+                $allowed=false;
+                foreach($plan['jobs']as$job)if(($values['kind']??null)===$job['kind']&&($values['configuration_id']??null)===$job['configuration_id'])$allowed=true;
+                if(!$allowed)throw new InvalidArgumentException('connector_test_plan_changed');
+                return Response::json(200,['result'=>$this->runProfileConnectorTest($values)]);
+            }
+        }
         if($path==='/api/v1/profile-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);

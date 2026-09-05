@@ -1,4 +1,37 @@
 /* Global Settings presentation copied from the pinned HerikaServer global_settings.php baseline. */
+body.global-settings-page-shell.profile-test-open { overflow:hidden; }
+.global-settings-page .global-test-modal { display:flex; position:fixed; inset:0; z-index:1300; background:rgba(0,0,0,.74); align-items:center; justify-content:center; padding:24px; }
+.global-settings-page .global-test-modal[hidden],.global-settings-page .global-test-modal [hidden] { display:none !important; }
+.global-settings-page .global-test-shell { width:min(960px,96vw); max-height:90vh; overflow:hidden; display:flex; flex-direction:column; background:#1e1e1e; border:1px solid #4a4a4a; border-radius:14px; color:#e9efff; box-shadow:0 18px 48px rgba(0,0,0,.45); }
+.global-settings-page .global-test-head { display:flex; align-items:flex-start; justify-content:space-between; gap:16px; padding:18px 20px; border-bottom:1px solid #343434; }
+.global-settings-page .global-test-title { font-size:18px; font-weight:800; color:#bc9d5a; }
+.global-settings-page .global-test-subtitle { color:#9fb1c9; font-size:13px; margin-top:4px; }
+.global-settings-page .global-test-body { min-height:0; overflow:auto; padding:16px 20px 20px; }
+.global-settings-page .global-test-warning,.global-settings-page .global-test-scope,.global-settings-page .global-test-status { margin:0 0 12px; font-size:13px; line-height:1.45; color:#b7c2d2; }
+.global-settings-page .global-test-summary { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:8px; margin-bottom:12px; }
+.global-settings-page .global-test-summary .profile-test-count { display:flex; flex-direction:column; background:#262626; border:1px solid #393939; border-radius:10px; padding:10px; }
+.global-settings-page .global-test-summary strong { font-size:20px; font-weight:800; color:#fff; }
+.global-settings-page .global-test-summary .profile-test-count>span { color:#9fb1c9; font-size:12px; margin-top:2px; }
+.global-settings-page .global-test-progress { height:8px; background:#2e2e2e; border-radius:99px; overflow:hidden; border:1px solid #3c3c3c; margin-bottom:14px; }
+.global-settings-page .global-test-progress>div { height:100%; width:0; background:linear-gradient(90deg,#bc9d5a,#e8d8af); transition:width .2s ease; }
+.global-settings-page .global-test-modal .profile-test-profile { border:1px solid #383838; border-radius:10px; background:#242424; overflow:hidden; }
+.global-settings-page .global-test-modal .profile-test-profile-head { padding:10px 12px; background:#2a2a2a; border-bottom:1px solid #383838; }
+.global-settings-page .global-test-modal .profile-test-profile-head h3 { margin:0; font:700 15px/1.5 "Futura CondensedLight",Arial,sans-serif; color:#e9efff; }
+.global-settings-page .global-test-modal .profile-test-slots { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; padding:10px; margin:0; list-style:none; }
+.global-settings-page .global-test-modal .profile-test-slot { display:grid; grid-template-columns:150px 78px minmax(0,1fr); grid-template-areas:"name status detail" "name status connector"; gap:4px 8px; align-items:start; border:1px solid #363636; background:#202020; border-radius:8px; padding:8px; font-size:12px; }
+.global-settings-page .global-test-modal .profile-test-slot-label { grid-area:name; color:#f0f4ff; font-weight:700; overflow-wrap:anywhere; }
+.global-settings-page .global-test-modal .profile-test-slot-connector { grid-area:connector; color:#8390a6; overflow-wrap:anywhere; }
+.global-settings-page .global-test-modal .profile-test-slot-detail { grid-area:detail; color:#cfd9ea; overflow-wrap:anywhere; }
+.global-settings-page .global-test-modal .profile-test-pill { grid-area:status; display:inline-flex; justify-content:center; align-items:center; border-radius:999px; padding:2px 8px; font-size:11px; font-weight:800; text-transform:uppercase; border:1px solid #626262; color:#d7dfef; background:#333; }
+.global-settings-page .global-test-modal .profile-test-pill-pass { color:#bdf4cb; border-color:#2f8050; background:#16351f; }
+.global-settings-page .global-test-modal .profile-test-pill-warn { color:#ffe2a3; border-color:#9c6a18; background:#3f2c0d; }
+.global-settings-page .global-test-modal .profile-test-pill-fail { color:#ffb6b6; border-color:#923232; background:#421616; }
+.global-settings-page .global-test-modal .profile-test-pill-skipped { color:#9fb1c9; border-color:#465164; background:#252b35; }
+.global-settings-page .global-test-close { background:#303030; color:#e9efff; border:1px solid #555; border-radius:8px; padding:8px 12px; cursor:pointer; }
+.global-settings-page .global-test-actions { display:flex; flex-wrap:wrap; gap:8px; padding:12px 20px; border-top:1px solid #343434; }
+.global-settings-page .global-test-shell :focus-visible { outline:2px solid #bc9d5a; outline-offset:3px; }
+@media(max-width:900px) { .global-settings-page .global-test-modal .profile-test-slots { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:520px) { .global-settings-page .global-test-modal { padding:12px; } .global-settings-page .global-test-head,.global-settings-page .global-test-body { padding:12px; } .global-settings-page .global-test-summary { grid-template-columns:repeat(3,minmax(0,1fr)); } .global-settings-page .global-test-modal .profile-test-slot { grid-template-columns:minmax(0,1fr) auto; grid-template-areas:"name status" "detail detail" "connector connector"; } }
 .global-settings-page .prompt-context-wrap { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
 .global-settings-page .prompt-context-group { min-width:0; margin:0; border:1px solid #3a3a3a; border-radius:8px; background:linear-gradient(135deg,rgba(28,28,28,.92),rgba(22,22,22,.95)); padding:12px; }
 .global-settings-page .prompt-context-group h3,.global-settings-page .prompt-context-group legend { margin:0 0 10px; padding:0; color:#f5f1e8; font:400 15px/1.2 "Futura CondensedLight",Arial,sans-serif; }
