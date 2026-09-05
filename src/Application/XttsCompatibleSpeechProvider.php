@@ -25,6 +25,7 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
         private readonly array $options = [],
         private readonly string $apiKey = '',
         private readonly int $timeoutMs = 30_000,
+        private readonly ?LocalVoiceResolver $voiceResolver = null,
     ) {
         $parts=parse_url($endpoint);$host=is_array($parts)?strtolower((string)($parts['host']??'')):'';
         if($host==='')throw new \InvalidArgumentException('invalid_speech_endpoint');
@@ -45,7 +46,8 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
         $voice=trim((string)($context['voice']??$this->voice));
         $language=trim((string)($context['language']??$this->language));
         if($voice===''||strlen($voice)>512||$language===''||strlen($language)>35)throw new RuntimeException('provider_invalid_input');
-        $body=['text'=>$text,'speaker_wav'=>$voice,'language'=>$language];
+        $voicePayload=$this->voiceResolver?->resolve($voice,$language,$cancellation)??['speaker_wav'=>$voice];
+        $body=['text'=>$text,'language'=>$language]+$voicePayload;
         foreach(self::OPTION_FIELDS as$field)if(array_key_exists($field,$this->options)){
             $value=$this->options[$field];if(!is_int($value)&&!is_float($value))throw new RuntimeException('provider_invalid_input');$body[$field]=$value;
         }
@@ -61,6 +63,13 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
             if($cancellation->isCancellationRequested())throw new OperationCancelled('operation_cancelled');
             if(!is_string($bytes)||$status<200||$status>=300||strlen($bytes)>33_554_432)throw new RuntimeException('provider_unavailable');
         }finally{curl_close($handle);}
+        // The legacy streaming server writes an empty WAV header before appending PCM chunks.
+        if($this->driver==='xtts'&&strlen($bytes)>44&&substr($bytes,0,4)==='RIFF'
+            &&substr($bytes,8,8)==='WAVEfmt '&&unpack('V',substr($bytes,16,4))[1]===16
+            &&substr($bytes,36,4)==='data'&&unpack('V',substr($bytes,40,4))[1]===0){
+            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-8),4,4);
+            $bytes=substr_replace($bytes,pack('V',strlen($bytes)-44),40,4);
+        }
         return['bytes'=>$bytes,'codec'=>'wav','mime_type'=>'audio/wav','duration_ms'=>OpenAiCompatibleSpeechProvider::wavDurationMs($bytes)];
     }
 }

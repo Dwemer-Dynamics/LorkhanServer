@@ -51,6 +51,12 @@ final class ConnectorCatalog
      */
     public const SAMPLE_LIBRARY_TTS_DRIVERS = ['pockettts', 'omnivoice', 'chatterbox', 'xtts-fastapi', 'xtts'];
 
+    /** Keep Morrowind voice names only for adapters that can consume or register their samples. */
+    public static function usesLocalVoiceSamples(string $driver):bool
+    {
+        return in_array($driver,array_merge(self::SAMPLE_LIBRARY_TTS_DRIVERS,['inworld','cartesia','zonos_gradio']),true);
+    }
+
     private const TTS_OPTIONS = [
         'pockettts'=>[['speed','Speed','number',0.25,4.0],['temperature','Temperature','number',0.0,5.0]],
         'omnivoice'=>[['speed','Speed','number',0.25,4.0]],

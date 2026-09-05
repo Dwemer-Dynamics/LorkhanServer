@@ -173,3 +173,41 @@ Morrowind WAV in 4.33 seconds, then synthesized a short phrase in 0.71 seconds
 (80,306-byte WAV, 1,820 ms). The connector catalog records the returned workspace
 voice ID; Dagoth Ur and player voice entries were preserved. In-game playback
 remains a separate confirmation.
+
+
+## Automatic voice handling across connectors (2026-09-05)
+
+Reference: HerikaServer `f1b039d62e943b9abfdfe09209df287b9deac24e`,
+`tts/tts-cartesia.php`, `tts/tts-inworld.php`, `vsx.php` and the individual TTS
+adapters. Lorkhan independently adapts these protocols; no reference repository
+was changed. Dialectic uses the same cloud get-or-create pattern; Stobe has its
+own PocketTTS sample preparation. Neither sibling needs this Lorkhan routing fix.
+
+| Connector | Automatic voice handling |
+| --- | --- |
+| Inworld, Cartesia | Exact-name lookup, clone a missing local WAV, cache the provider ID by credential; explicit provider IDs remain unchanged. |
+| PocketTTS Python, OmniVoice, Chatterbox, XTTS FastAPI | Discover the selected service's speakers and register the local WAV if absent. OmniVoice receives the matching Morrowind transcription. No forced replacement. |
+| PocketTTS audio.cpp, Zonos Gradio | Preserve the assigned sample name for the existing direct-reference or Gradio-upload adapter. |
+| Legacy XTTS | Extract and cache conditioning tensors through `clone_speaker`, then send tensors to `tts_stream`. Repair the empty streaming WAV header after collection. |
+| ElevenLabs, Azure, Convai, Coqui AI, Deepgram, Google, OpenAI, Kokoro, KoboldCpp, MeloTTS, Mimic3, Piper, xVASynth | Keep the existing provider voice/model and race/sex/default fallback flow; these Herika adapters do not automatically clone local WAVs. |
+| StyleTTS2 | Keep the existing configured-session flow, matching Herika's active code; its sample/session upload block is commented out upstream. |
+
+`LocalVoiceResolver` prepares the effective endpoint, including PocketTTS fallback
+endpoints. Live speaker discovery avoids stale registration after provider resets.
+Legacy conditioning caches include endpoint, credential, language and sample hash.
+Cache permissions work for both the HTTP and worker users. Requests are bounded,
+cancellable, pinned to the configured host, and never follow redirects.
+
+No cloning opt-in, provider switch, API-key change, schema migration, or game
+restart is introduced. Provider services still need to be running and configured;
+this does not add cloning capabilities that their Herika adapters do not expose.
+
+The existing unit suite covers cloud clone/reuse and local registration, reset,
+custom voices, cancellation and path rejection. The existing database suite checks
+voice routing for all 22 drivers. The existing HTTP fixture now uses a nonempty
+PCM WAV and checks automatic registration before preview synthesis. A disposable
+HTTP provider probe exercises real multipart requests and WAV responses through
+all five XTTS-family factory routes plus PocketTTS audio.cpp. These probes do not
+prove GPU inference or in-game playback on every service.
+
+Legacy protocol reference: [Coqui XTTS streaming server](https://github.com/coqui-ai/xtts-streaming-server/blob/main/server/main.py).

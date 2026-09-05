@@ -152,7 +152,8 @@ final class ProviderFactory
             is_dir($voiceReferenceRoot)?$voiceReferenceRoot:null);
         if(in_array($driver,['omnivoice','chatterbox','xtts-fastapi','xtts'],true)){
             return new XttsCompatibleSpeechProvider($endpoint,$driver,(string)$content['voice'],(string)$content['language'],
-                (array)$content['options'],$apiKey,(int)$content['timeout_ms']);
+                (array)$content['options'],$apiKey,(int)$content['timeout_ms'],
+                new LocalVoiceResolver($endpoint,$driver,$voiceReferenceRoot,$apiKey,(int)$content['timeout_ms']));
         }
         if(in_array($driver,['openai','kokoro','koboldcpp'],true)){
             $url=rtrim($endpoint,'/');
@@ -165,9 +166,9 @@ final class ProviderFactory
         }
         if(in_array($driver,['11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inworld'],true)){
             $resolveVoice=null;
-            if($driver==='inworld'){
+            if(in_array($driver,['inworld','cartesia'],true)){
                 $credentials=new CredentialStore((string)($config['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
-                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot);
+                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot,$driver);
                 $resolveVoice=$resolver->resolve(...);
             }
             return new CloudSpeechConnectorProvider($endpoint,$driver,(string)$content['model'],

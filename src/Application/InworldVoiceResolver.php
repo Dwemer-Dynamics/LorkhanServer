@@ -6,26 +6,30 @@ namespace LorkhanServer\Application;
 
 use RuntimeException;
 
-/** Herika-style get-or-create resolution for server-held voice samples, scoped to the active credential. */
+/** Herika-style Inworld/Cartesia get-or-create resolution, sharing credential-scoped sample caching. */
 final class InworldVoiceResolver
 {
     public function __construct(
         private readonly CloudVoiceLibrary $library,
         private readonly CredentialStore $credentials,
         private readonly string $voiceRoot,
-    ) {}
+        private readonly string $driver = 'inworld',
+    ) {
+        if(!in_array($driver,['inworld','cartesia'],true))throw new \InvalidArgumentException('voice_sync_unsupported');
+    }
 
     public function resolve(string $name,string $language,CancellationToken $cancellation):string
     {
         $cancellation->throwIfCancellationRequested();
         if(preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$name)!==1)throw new RuntimeException('invalid_voice_name');
         // Explicit provider IDs (including existing Dagoth Ur/player clones) are already resolved.
-        if(str_contains($name,'__'))return $name;
-        $key=$this->credentials->resolve('LORKHAN_TTS_INWORLD_API_KEY');
+        if(($this->driver==='inworld'&&str_contains($name,'__'))
+            ||($this->driver==='cartesia'&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$name)===1))return $name;
+        $key=$this->credentials->resolve($this->driver==='inworld'?'LORKHAN_TTS_INWORLD_API_KEY':'LORKHAN_TTS_CARTESIA_API_KEY');
         if($key==='')throw new RuntimeException('voice_credential_missing');
         $root=realpath($this->voiceRoot);
         if($root===false||!is_dir($root))throw new RuntimeException('voice_storage_unavailable');
-        $cache=$root.'/.inworld-cache';
+        $cache=$root.'/.'.$this->driver.'-cache';
         if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
         if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
         $cacheId=hash_hmac('sha256',strtolower($name),$key);
@@ -43,7 +47,7 @@ final class InworldVoiceResolver
                 if(is_string($id)&&preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$id)===1)return $id;
             }
             $matches=[];
-            foreach($this->library->discover('inworld',$cancellation)as$voice){
+            foreach($this->library->discover($this->driver,$cancellation)as$voice){
                 if(strcasecmp($voice['voice_id'],$name)===0||strcasecmp($voice['display_name'],$name)===0)
                     $matches[$voice['voice_id']]=true;
             }
@@ -60,10 +64,10 @@ final class InworldVoiceResolver
                 foreach(MorrowindVoiceCatalog::bundled()->voices()as$voice){
                     if($voice['voice_id']===$name){$reference=(string)$voice['reference_text'];break;}
                 }
-                $voice=$this->library->clone('inworld',$sample,$name,$language,$reference,$cancellation);
+                $voice=$this->library->clone($this->driver,$sample,$name,$language,$reference,$cancellation);
                 $id=$voice['id'];
             }
-            if(preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$id)!==1)throw new RuntimeException('invalid_inworld_voice_id');
+            if(preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$id)!==1)throw new RuntimeException('invalid_provider_voice_id');
             $temporary=tempnam($cache,'.voice-');
             if($temporary===false)throw new RuntimeException('voice_cache_unavailable');
             try{

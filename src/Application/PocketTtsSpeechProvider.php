@@ -78,7 +78,8 @@ final class PocketTtsSpeechProvider implements SpeechProvider
                 $this->apiKey, $this->timeoutMs, $this->allowLoopbackHttp, $this->voiceReferenceRoot, $this->language);
         }
         if ($mode === 'standard') return new XttsCompatibleSpeechProvider($endpoint, 'pockettts', $this->voice,
-            $this->language, $this->options, $this->apiKey, $this->timeoutMs);
+            $this->language, $this->options, $this->apiKey, $this->timeoutMs,
+            $this->voiceReferenceRoot===null?null:new LocalVoiceResolver($endpoint,'pockettts',$this->voiceReferenceRoot,$this->apiKey,$this->timeoutMs));
         throw new \InvalidArgumentException('invalid_pockettts_mode');
     }
 

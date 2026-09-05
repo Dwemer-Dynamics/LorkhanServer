@@ -1123,6 +1123,66 @@ try{$inworldResolver->resolve('../escape','en',new NeverCancelledToken());$check
 catch(RuntimeException $e){$check($e->getMessage()==='invalid_voice_name'&&count($inworldCalls)===$beforeCalls,'Inworld sample path traversal rejected');}
 try{$inworldResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'Inworld cancellation precedes registration');}
 catch(\LorkhanServer\Application\OperationCancelled){$check(count($inworldCalls)===$beforeCalls,'Inworld cancellation precedes registration');}
+$cartesiaCalls=[];$cartesiaId='12345678-1234-1234-1234-123456789abc';
+$inworldCredentials->set('LORKHAN_TTS_CARTESIA_API_KEY','cartesia-account');
+$cartesiaLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+    static function(string $driver,string $path,array|string|null $body)use(&$cartesiaCalls,$cartesiaId):array{
+        $cartesiaCalls[]=['driver'=>$driver,'path'=>$path,'body'=>$body];
+        return $body===null?['data'=>[]]:['id'=>$cartesiaId];
+    });
+$cartesiaResolver=new \LorkhanServer\Application\InworldVoiceResolver($cartesiaLibrary,$inworldCredentials,$inworldRoot,'cartesia');
+$check($cartesiaResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===$cartesiaId
+    &&$cartesiaCalls[1]['path']==='/voices/clone'&&$cartesiaCalls[1]['body']['mode']==='similarity'
+    &&$cartesiaCalls[1]['body']['clip']->getFilename()===$inworldRoot.'/mw_dark_elf_male.wav',
+    'Cartesia automatically clones the selected Morrowind sample with the existing multipart contract');
+$check($cartesiaResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===$cartesiaId
+    &&$cartesiaResolver->resolve($cartesiaId,'en',new NeverCancelledToken())===$cartesiaId&&count($cartesiaCalls)===2,
+    'Cartesia reuses cached clones and preserves explicit provider IDs without additional API calls');
+$inworldCredentials->set('LORKHAN_TTS_CARTESIA_API_KEY','cartesia-other-account');
+$cartesiaResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+$check(count($cartesiaCalls)===4,'Cartesia clone cache is isolated by credential and from Inworld');
+foreach(['pockettts','omnivoice','chatterbox','xtts-fastapi']as$driver){
+    $localCalls=[];$registered=false;
+    $localResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/prefix/tts_to_audio/',$driver,$inworldRoot,'',30000,
+        static function(string $url,?array $fields)use(&$localCalls,&$registered):array{
+            $localCalls[]=['url'=>$url,'fields'=>$fields];
+            if($fields===null)return $registered?['mw_dark_elf_male']:[];
+            $registered=true;return ['import_status'=>'runtime_ready'];
+        });
+    $localVoice=$localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check($localVoice===['speaker_wav'=>'mw_dark_elf_male']&&count($localCalls)===2
+        &&$localCalls[1]['url']==='http://127.0.0.1:8999/prefix/upload_sample'
+        &&$localCalls[1]['fields']['wavFile']->getPostFilename()==='mw_dark_elf_male.wav',
+        $driver.' registers the local sample at the configured service before synthesis');
+    if($driver==='omnivoice')$check(str_contains($localCalls[1]['fields']['reference_text'],'outlander')
+        &&$localCalls[1]['fields']['force']==='false','OmniVoice includes catalog transcription and never forces replacement');
+    $localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check(count($localCalls)===3,$driver.' discovers and preserves an existing remote voice without reuploading');
+    $registered=false;$localResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check(count($localCalls)===5,$driver.' re-registers automatically after the remote voice library is reset');
+    $check($localResolver->resolve('provider_stock_voice','en',new NeverCancelledToken())===['speaker_wav'=>'provider_stock_voice']
+        &&count($localCalls)===5,$driver.' passes provider-owned voices through without sample uploads');
+    try{$localResolver->resolve('../escape','en',new NeverCancelledToken());$check(false,'local sample traversal rejected');}
+    catch(RuntimeException $e){$check($e->getMessage()==='invalid_voice_name','local sample traversal rejected');}
+    try{$localResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'local cancellation before upload');}
+    catch(\LorkhanServer\Application\OperationCancelled){$check(count($localCalls)===5,'local cancellation prevents discovery and upload');}
+}
+$legacyCalls=[];$legacyLatents=['speaker_embedding'=>[0.1,0.2],'gpt_cond_latent'=>[[0.3,0.4]]];
+$legacyResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/tts_stream','xtts',$inworldRoot,'',30000,
+    static function(string $url,?array $fields)use(&$legacyCalls,$legacyLatents):array{
+        $legacyCalls[]=['url'=>$url,'fields'=>$fields];return $legacyLatents;
+    });
+$check($legacyResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===$legacyLatents
+    &&$legacyCalls[0]['url']==='http://127.0.0.1:8999/clone_speaker'
+    &&isset($legacyCalls[0]['fields']['wav_file']),
+    'legacy XTTS extracts speaker tensors through clone_speaker instead of the FastAPI upload contract');
+$check($legacyResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===$legacyLatents&&count($legacyCalls)===1,
+    'legacy XTTS reuses cached conditioning tensors for subsequent sentences');
+$notReadyResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999','omnivoice',$inworldRoot,'',30000,
+    static fn(string $url,?array $fields):array=>$fields===null?[]:['import_status'=>'needs_reference_text']);
+try{$notReadyResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());$check(false,'incomplete voice registration rejected');}
+catch(RuntimeException $e){$check($e->getMessage()==='voice_registration_not_ready','incomplete OmniVoice registration is not reported as usable');}
+foreach(['.cartesia-cache','.local-voice-cache']as$directory){foreach(glob($inworldRoot.'/'.$directory.'/*')?:[]as$file)unlink($file);rmdir($inworldRoot.'/'.$directory);}
 foreach(glob($inworldRoot.'/.inworld-cache/*')?:[]as$file)unlink($file);
 rmdir($inworldRoot.'/.inworld-cache');unlink($inworldRoot.'/keys.json');unlink($inworldRoot.'/mw_dark_elf_male.wav');rmdir($inworldRoot);
 

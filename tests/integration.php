@@ -346,10 +346,14 @@ $assert(($automaticProfile['content']['voice']['id']??null)==='mw_wood_elf_male'
     &&($automaticProfile['content']['oghma_locality']['source']??null)==='current_cell_fallback'
     &&($automaticProfile['core_profile_id']??null)===$ruleCoreHigh['core_profile_id'],
     'first-seen NPC profile did not retain its voice, biography template, and deterministic home locality');
-$inworldContext=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,
-    ['configuration_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'content'=>['driver'=>'inworld','options'=>['fallback_male'=>'wrong_fallback']]]);
-$assert(($inworldContext['voice']??'')==='mw_wood_elf_male',
-    'Inworld must preserve the Morrowind race voice name for automatic clone resolution');
+foreach(['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi','xtts','zonos_gradio',
+    'openai','11labs','azure','convai','coqui-ai','deepgram','gcp','kokoro','koboldcpp','melotts','mimic3','piper-tts','stylettsv2','xvasynth']as$voiceDriver){
+    $sampleDriver=in_array($voiceDriver,['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi','xtts','zonos_gradio'],true);
+    $voiceContext=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,
+        ['configuration_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'content'=>['driver'=>$voiceDriver,'options'=>['fallback_male'=>'provider_male']]]);
+    $assert(($voiceContext['voice']??'')===($sampleDriver?'mw_wood_elf_male':'provider_male'),
+        $voiceDriver.' must preserve sample voices only when the adapter can consume them');
+}
 $products->saveProfileAssignmentRule(['installation_id'=>$installationId,'rule_id'=>$highRule['rule_id'],
     'description'=>'Exact OpenMW actor data retargeted','core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>20,'enabled'=>true,
     'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
