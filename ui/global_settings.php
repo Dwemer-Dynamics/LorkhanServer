@@ -42,6 +42,7 @@ if (($storedContent['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA && $in
     }
 }
 $settings = $globalDocument['client'];
+$namedPresets = $installationId === '' ? [] : $managementRepository->globalSettingsPresets($installationId);
 $autoLockProfile = $globalDocument['profile_management']['auto_lock_profile'];
 $autofillCustomProfiles = $globalDocument['profile_management']['autofill_custom_profiles'];
 $autofillCustomProfilesTrigger = $globalDocument['profile_management']['autofill_custom_profiles_trigger'];
@@ -73,6 +74,7 @@ $earlierRevisions = array_values(array_filter(
 ));
 $portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory summary scheduling, its connector reference, and MiniMe settings are included. Older presets preserve these local settings. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
 $statusMessages = [
+    'preset-applied' => 'Settings preset applied as a new revision.',
     'saved' => 'Global settings saved to the database.',
     'imported' => 'Preset imported as a new Global Settings revision.',
     'rolled-back' => 'Earlier revision restored as a new Global Settings revision.',
@@ -188,17 +190,20 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </div>
         </div>
         <?php if ($installations !== []): ?>
-        <div class="gs-portability-row">
-            <?php if ($hasStoredSettings): ?>
-            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo lorkhan_ui_h($settingsSavedAt); ?><?php endif; ?></span>
-            <?php else: ?>
-            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
-            <?php endif; ?>
-            <button type="button" class="btn-settings-transfer preset-btn-compact" data-gs-portability-toggle="history" aria-controls="gs-portability-panel" aria-expanded="false">Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></button>
-            <details class="gs-scope-details">
-                <summary id="gs-portability-scope">What portable settings include</summary>
-                <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
-            </details>
+        <div class="preset-row" data-preset-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/global-settings-preset">
+            <label class="preset-label" for="gs-named-preset">Settings Preset</label>
+            <select class="preset-select" id="gs-named-preset">
+                <optgroup label="Built-in"><option value="default">Default</option></optgroup>
+                <optgroup label="Custom" id="gs-custom-presets"><?php foreach ($namedPresets as $preset): ?>
+                    <option value="<?php echo lorkhan_ui_h($preset['preset_id']); ?>" data-revision="<?php echo (int)$preset['revision']; ?>"<?php echo ($preset['preset_id'] === ($_GET['preset_id'] ?? null)) ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option>
+                <?php endforeach; ?></optgroup>
+            </select>
+            <div class="preset-actions">
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="apply">Apply</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="save_new">Save as new…</button>
+                <button type="button" class="btn-settings-transfer preset-btn-compact" data-preset-operation="overwrite" disabled>Overwrite…</button>
+            </div>
+            <span id="gs-preset-status" role="status" aria-live="polite"></span>
         </div>
         <?php endif; ?>
     </header>
@@ -310,6 +315,29 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         </div>
     </form>
     <?php endif; ?>
+    <?php if ($installations !== []): ?>
+        <div class="gs-portability-row">
+            <?php if ($hasStoredSettings): ?>
+            <span class="gs-revision-chip">Revision <?php echo $settingsRevision; ?><?php if ($settingsSavedAt !== ''): ?> &middot; saved <?php echo lorkhan_ui_h($settingsSavedAt); ?><?php endif; ?></span>
+            <?php else: ?>
+            <span class="gs-revision-chip is-empty">No saved revision &middot; showing built-in defaults</span>
+            <?php endif; ?>
+            <button type="button" class="btn-settings-transfer preset-btn-compact" data-gs-portability-toggle="history" aria-controls="gs-portability-panel" aria-expanded="false">Revision history<?php if ($revisionHistory !== []): ?> (<?php echo count($revisionHistory); ?>)<?php endif; ?></button>
+            <details class="gs-scope-details">
+                <summary id="gs-portability-scope">What portable settings include</summary>
+                <p class="gs-portability-note"><?php echo lorkhan_ui_h($portableScopeNote); ?></p>
+            </details>
+        </div>
+    <?php endif; ?>
+    <dialog id="gs-preset-dialog" class="preset-dialog" aria-labelledby="gs-preset-title" aria-describedby="gs-preset-description">
+        <form method="dialog" id="gs-preset-dialog-form">
+            <h2 id="gs-preset-title"></h2>
+            <p id="gs-preset-description"></p>
+            <div class="preset-dialog-field" id="gs-preset-name-field"><label for="gs-preset-name">Preset name</label><input id="gs-preset-name" maxlength="128" autocomplete="off"></div>
+            <p class="result-error" id="gs-preset-error" role="alert" hidden></p>
+            <div class="preset-dialog-actions"><button type="button" class="btn-settings-transfer" id="gs-preset-cancel">Cancel</button><button type="submit" class="btn-save-green" id="gs-preset-confirm">Confirm</button></div>
+        </form>
+    </dialog>
 </main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/global-settings.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/global-settings.js')); ?>"></script>
 <?php if ($installations !== []): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>

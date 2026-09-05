@@ -45,6 +45,79 @@ document.addEventListener('DOMContentLoaded', () => {
         const panel = event.target.closest('[data-settings-panel]');
         if (panel) activate(panel.dataset.settingsPanel);
     }, true);
+    const presetRow = document.querySelector('[data-preset-endpoint]');
+    const presetDialog = document.getElementById('gs-preset-dialog');
+    if (presetRow && presetDialog) {
+        const settingsForm = document.getElementById('gs_form');
+        const select = document.getElementById('gs-named-preset');
+        const name = document.getElementById('gs-preset-name');
+        const error = document.getElementById('gs-preset-error');
+        const status = document.getElementById('gs-preset-status');
+        const confirm = document.getElementById('gs-preset-confirm');
+        const cancel = document.getElementById('gs-preset-cancel');
+        const buttons = Array.from(presetRow.querySelectorAll('[data-preset-operation]'));
+        let operation = '', opener = null, busy = false;
+        const updateButtons = () => {
+            select.disabled = busy;
+            buttons.forEach((button) => { button.disabled = busy || (button.dataset.presetOperation === 'overwrite' && select.value === 'default'); });
+        };
+        select.addEventListener('change', updateButtons);
+        updateButtons();
+        buttons.forEach((button) => button.addEventListener('click', () => {
+            operation = button.dataset.presetOperation;
+            if (operation !== 'apply' && !settingsForm.reportValidity()) return;
+            opener = button;
+            const title = select.selectedOptions[0].textContent;
+            document.getElementById('gs-preset-title').textContent = operation === 'save_new' ? 'Save current setup as a preset' : `${operation === 'apply' ? 'Apply' : 'Overwrite'} ${title}?`;
+            document.getElementById('gs-preset-description').textContent = operation === 'apply'
+                ? 'This saves the included Global Settings and memory scheduling immediately. Unsaved edits will be lost. Connector choices, service URLs and NPC profiles stay unchanged.'
+                : operation === 'overwrite' ? 'Replace this preset with the Global Settings currently on screen, including unsaved edits? This cannot be undone. Connector choices, service URLs and NPC profiles stay unchanged.'
+                : 'Name this preset. It stores Global Settings currently on screen, including unsaved edits. Connector choices, service URLs and NPC profiles stay unchanged.';
+            document.getElementById('gs-preset-name-field').hidden = operation !== 'save_new';
+            name.required = operation === 'save_new';
+            name.value = operation === 'save_new' ? '' : title;
+            error.hidden = true;
+            confirm.textContent = operation === 'save_new' ? 'Save preset' : operation === 'apply' ? 'Apply' : 'Overwrite';
+            presetDialog.showModal();
+            (operation === 'save_new' ? name : cancel).focus();
+        }));
+        cancel.addEventListener('click', () => { if (!busy) presetDialog.close(); });
+        presetDialog.addEventListener('cancel', (event) => { if (busy) event.preventDefault(); });
+        presetDialog.addEventListener('close', () => opener?.focus());
+        document.getElementById('gs-preset-dialog-form').addEventListener('submit', async (event) => {
+            event.preventDefault();
+            if (busy) return;
+            const body = new URLSearchParams(new FormData(settingsForm));
+            body.set('operation', operation);
+            body.set('preset_id', select.value);
+            body.set('preset_name', name.value.trim());
+            body.set('preset_revision', select.selectedOptions[0].dataset.revision || '0');
+            body.set('confirm', operation === 'apply' ? 'Apply' : 'Overwrite');
+            busy = true; updateButtons(); confirm.disabled = true; cancel.disabled = true; error.hidden = true;
+            try {
+                const response = await fetch(presetRow.dataset.presetEndpoint, {method: 'POST', credentials: 'same-origin', headers: {Accept: 'application/json'}, body});
+                const result = await response.json();
+                if (!response.ok) throw new Error(result.error || 'Could not save preset.');
+                if (result.applied) {
+                    const url = new URL(location.href); url.searchParams.set('status', 'preset-applied'); url.searchParams.set('preset_id', select.value); location.assign(url); return;
+                }
+                const custom = document.getElementById('gs-custom-presets');
+                custom.replaceChildren(...result.presets.map((preset) => {
+                    const option = new Option(preset.name, preset.preset_id);
+                    option.dataset.revision = preset.revision;
+                    return option;
+                }));
+                select.value = result.preset_id;
+                status.textContent = 'Preset saved. Active settings are unchanged.';
+                presetDialog.close();
+            } catch (failure) {
+                const messages = {revision_conflict: 'This preset changed in another tab. Reload before overwriting it.',
+                    preset_name_exists: 'A preset with that name already exists.', invalid_preset_name: 'Use a unique name of up to 128 bytes. Built-in names are reserved.'};
+                error.textContent = messages[failure.message] || `Preset was not applied: ${failure.message.replaceAll('_', ' ')}. Check connector requirements if enabling memory or translation.`;
+                error.hidden = false;
+            } finally { busy = false; updateButtons(); confirm.disabled = false; cancel.disabled = false; }
+        });
+    }
     document.querySelector('[data-installation-select]')?.addEventListener('change', (event) => {
         const url = new URL(window.location.href);
         url.searchParams.set('installation_id', event.target.value);

@@ -1459,6 +1459,26 @@ foreach (['deploy-local-wsl.sh', 'deploy-wsl.sh'] as $scriptName) {
         $scriptName . ' preserves shared media write access');
 }
 
+$presetCurrent = \LorkhanServer\Application\SettingsCatalog::globalDefaults();
+$presetCurrent['context']['location_blacklist'] = ['Balmora', 'Vivec'];
+$presetCurrent['system_routing']['relationship_configuration_id'] = '00000000-0000-4000-8000-000000000098';
+$presetCurrent['client']['presentation']['transcript_rows'] = 12;
+$presetSummary = ['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>'00000000-0000-4000-8000-000000000098'];
+$presetEmbedding = \LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
+$presetEmbedding['endpoint'] = 'http://127.0.0.1:8181';
+$namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
+$presetApplied = \LorkhanServer\Application\GlobalSettingsPreset::apply($namedDefault, $presetCurrent, $presetSummary, $presetEmbedding);
+$check($presetApplied['settings']['context']['location_blacklist'] === []
+    && $presetApplied['settings']['system_routing'] === $presetCurrent['system_routing']
+    && $presetApplied['settings']['client']['presentation'] === $presetCurrent['client']['presentation']
+    && $presetApplied['summary']['provider_configuration_id'] === $presetSummary['provider_configuration_id']
+    && $presetApplied['embedding']['endpoint'] === $presetEmbedding['endpoint'], 'named preset replaces lists but preserves routing and hidden settings');
+$namedDefault['settings']['system_routing'] = ['relationship_configuration_id'=>''];
+try {
+    \LorkhanServer\Application\GlobalSettingsPreset::apply($namedDefault, $presetCurrent, $presetSummary, $presetEmbedding);
+    $check(false, 'named preset rejects connector fields');
+} catch (InvalidArgumentException) { $check(true, 'named preset rejects connector fields'); }
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

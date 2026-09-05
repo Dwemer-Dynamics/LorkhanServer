@@ -1,0 +1,1 @@
+DROP TABLE lorkhan_internal.global_settings_presets;

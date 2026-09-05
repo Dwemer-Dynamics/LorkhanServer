@@ -76,9 +76,11 @@ class Page(html.parser.HTMLParser):
         if tag=='select': self.select_name=None
         if tag=='form': self.form=None
 
-def request(path,method='GET',data=None,follow=True):
+def request(path,method='GET',data=None,follow=True,accept=None):
     body=None if data is None else urllib.parse.urlencode(data,doseq=True).encode()
-    req=urllib.request.Request(base+path,data=body,method=method,headers={'Content-Type':'application/x-www-form-urlencoded'} if body else {})
+    headers={'Content-Type':'application/x-www-form-urlencoded'} if body else {}
+    if accept: headers['Accept']=accept
+    req=urllib.request.Request(base+path,data=body,method=method,headers=headers)
     try: return opener.open(req,timeout=5)
     except urllib.error.HTTPError as e: return e
 
@@ -622,6 +624,36 @@ assert 'Earlier revision restored as a new Global Settings revision.' in rolled_
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf,configuration_id=str(uuid.uuid4()))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.status,invalid_body)
 memories,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab'))
+# Named presets save unsaved controls without changing the active revision or connector assignments.
+preset_path='/LorkhanServer/manage/forms/global-settings-preset'
+preset_request=lambda data: request(preset_path,'POST',data,accept='application/json')
+preset_form=next(f for f in rolled_page.forms if f['action'].endswith('/forms/global-settings-save'))
+preset_values=dict(preset_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],operation='save_new',
+    preset_name='HTTP <named> preset',prompt_head='Unsaved preset prompt',context_location_blacklist='')
+r=preset_request(dict(preset_values,_csrf='wrong')); assert r.status==401,r.status
+r=preset_request(preset_values); result=json.loads(r.read()); assert r.status==200,(r.status,result)
+named_id=result['preset_id']; assert any(p['preset_id']==named_id and p['revision']==1 for p in result['presets'])
+unchanged=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read())
+assert unchanged['settings']==rolled_export['settings'] and unchanged['memory_policies']==rolled_export['memory_policies']
+_,preset_html=parse(request('/LorkhanServer/ui/core/global_settings.php'))
+assert 'HTTP &lt;named&gt; preset' in preset_html and 'data-preset-operation="overwrite"' in preset_html
+r=preset_request(preset_values); assert r.status==422,r.status
+overwrite=dict(preset_values,operation='overwrite',preset_id=named_id,preset_revision='1',confirm='Overwrite',emote_moods='alert')
+r=preset_request(overwrite); result=json.loads(r.read()); assert r.status==200,(r.status,result)
+r=preset_request(overwrite); assert r.status==409,r.status
+r=preset_request(dict(overwrite,preset_id='default')); assert r.status==422,r.status
+apply_values={'_csrf':csrf,'installation_id':valid['installation_id'],'operation':'apply','preset_id':named_id}
+r=preset_request(apply_values); assert r.status==422,r.status
+r=preset_request(dict(apply_values,confirm='Apply')); result=json.loads(r.read()); assert r.status==200 and result['applied'],(r.status,result)
+applied=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read())
+assert applied['settings']['prompt']=={'prompt_head':'Unsaved preset prompt','emote_moods':'alert'}
+assert applied['settings']['context']['location_blacklist']==[]
+assert applied['settings']['system_routing']==unchanged['settings']['system_routing']
+assert applied['settings']['translation']['endpoint']==unchanged['settings']['translation']['endpoint']
+assert applied['memory_policies']['summary']['provider_configuration_id']==unchanged['memory_policies']['summary']['provider_configuration_id']
+r=preset_request(dict(apply_values,confirm='Apply',preset_id='default')); assert r.status==200,(r.status,r.read())
+# Restore the surrounding test's active settings; no real provider is invoked by saving or applying presets.
+r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(rolled_export))); assert r.status==200,(r.status,r.read())
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex
 memory_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'memory','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})

@@ -58,9 +58,10 @@ do not use an exception to excuse a generic substitute layout.
   turns. Entries with no recorded calendar keep an explicit unknown date.
 - Populated diary/book states were checked in isolated presentation fixtures;
   production records and speech providers were not used as test data.
-- Global Settings now includes Prompt Head / Emote Moods with saved global
-  defaults, NPC overrides and portable export/import. Its named preset toolbar
-  and connector-test controls remain pending, not accepted product exceptions.
+- Global Settings includes Prompt Head / Emote Moods with saved global defaults,
+  NPC overrides, portable export/import and a persistent named-preset toolbar.
+  The Local LLM built-in, Herika's preset effects on NPC profiles and connector-test
+  controls remain pending, not accepted product exceptions.
 
 ## Complete page matrix
 
@@ -69,7 +70,7 @@ do not use an exception to excuse a generic substitute layout.
 | `home.php` | `home.php` | Pending structural and populated-state comparison |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
-| `global_settings.php` | Same path | Pending structural and populated-state comparison |
+| `global_settings.php` | Same path | Prompt rows and named preset toolbar aligned; other tabs, connector tests and profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | Pending structural and populated-state comparison |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
@@ -225,3 +226,31 @@ an existing profile/installation identity when testing its direct route.
   header and expanded advanced tools fit at 390px (375px content with scrollbar).
 - Deployment preserved config, credential and voice hashes and matched all 673
   runtime files. No game was launched or paid provider invoked for these checks.
+
+### Global Settings named preset checkpoint
+
+- Added the counterpart Settings Preset selector, Apply, Save as new and Overwrite
+  controls. Revision history remains available below the editor without adding a
+  permanent header row. Selection alone does not change settings.
+- Custom presets persist per installation in migration 087, with unique names,
+  a 64-preset limit and optimistic revisions for overwrite conflicts. Save/overwrite
+  capture unsaved form controls without changing the active configuration.
+- Confirmed Apply creates a settings revision. A typed allowlist excludes connector
+  bindings, service addresses, hidden client controls and NPC/Core Profile overrides.
+  Lists replace completely rather than retaining trailing blacklist entries.
+- Default currently resets this global-only scope to Lorkhan defaults. Herika's
+  profile-affecting Default/Local LLM presets are still pending; no placeholder Local
+  LLM option or silent mass profile change was introduced.
+- Existing tests cover unsaved capture, duplicate names, stale overwrite, confirmation,
+  CSRF, built-in overwrite rejection, default application, list replacement and retained
+  routing. 323 server checks, 98 protocol files, HTTP forms, integration, migrations
+  and durable jobs passed. Inventory: 166 relations, hash
+  `abe1e3ea8e0667336b77280dbc19baa610b4eb76472d145b922278ff012ec296`.
+- Paired desktop screenshots confirmed toolbar geometry and the top-aligned preset
+  dialog. At 390px, the toolbar and dialogs fit the 375px content width. Cancel restores
+  focus; Apply initially focuses Cancel. No live preset was saved/applied, provider
+  invoked or game launched. Remaining Global Settings tabs and connector tests are
+  still part of the active goal.
+- Local deployment matches all 676 runtime files, with no extra files or old paths.
+  Configuration, credential and voice hashes were preserved; private files remain
+  forbidden and unauthenticated native session creation returns 401.

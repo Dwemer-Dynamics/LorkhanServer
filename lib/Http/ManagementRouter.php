@@ -227,6 +227,7 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);
+        if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
         if($domain==='relationship-history-build'){
@@ -1590,6 +1591,46 @@ final class ManagementRouter
             $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$limit);
     }
 
+    /** Named presets capture unsaved controls; only confirmed Apply mutates active settings. */
+    private function namedGlobalSettingsPreset(array $values,array $scope):Response
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $operation=$this->need($values,'operation');
+        $id=trim((string)($values['preset_id']??''));
+        if($operation==='apply'){
+            if(($values['confirm']??'')!=='Apply')throw new InvalidArgumentException('confirmation_mismatch');
+            $this->repository->transaction(function()use($installation,$scope,$id):void{
+                $preset=$id==='default'?\LorkhanServer\Application\GlobalSettingsPreset::defaults():$this->management->globalSettingsPreset($installation,$id);
+                $stored=$this->repository->globalSettingsForInstallation($installation);
+                $settings=EffectiveSettingsResolver::globalDocument($stored['content']??[],
+                    $this->repository->oghmaSettings($installation),$this->repository->translationPolicyForInstallation($installation)['content'],
+                    $this->repository->profileAutoLockEnabled($installation));
+                $summary=$this->repository->memorySummaryPolicyForInstallation($installation)['content']
+                    ??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''];
+                $embedding=$this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']
+                    ??\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults();
+                $applied=\LorkhanServer\Application\GlobalSettingsPreset::apply($preset,$settings,$summary,$embedding);
+                $document=['schema'=>'lorkhan.global-settings-preset.v3','exported_at'=>gmdate('c'),'name'=>'Named preset',
+                    'settings'=>$applied['settings'],'memory_policies'=>['summary'=>$applied['summary'],'embedding'=>$applied['embedding']]];
+                $this->importGlobalSettings(['preset_json'=>json_encode($document,JSON_THROW_ON_ERROR)],$scope);
+            });
+            return Response::json(200,['applied'=>true]);
+        }
+        if(!in_array($operation,['save_new','overwrite'],true))throw new InvalidArgumentException('invalid_preset_operation');
+        if($operation==='overwrite'&&($values['confirm']??'')!=='Overwrite')throw new InvalidArgumentException('confirmation_mismatch');
+        $summary=['schema'=>'lorkhan.memory-policy.v1','enabled'=>isset($values['memory_summary_enabled']),
+            'provider_configuration_id'=>trim((string)($values['memory_summary_connector']??'')),
+            'summary_interval'=>filter_var($values['memory_summary_interval']??0,FILTER_VALIDATE_INT),
+            'minimum_events'=>filter_var($values['memory_summary_minimum_events']??4,FILTER_VALIDATE_INT)];
+        $embedding=['schema'=>\LorkhanServer\Application\MemoryEmbeddingPolicy::SCHEMA,
+            'enabled'=>isset($values['memory_embedding_enabled']),'endpoint'=>trim((string)($values['memory_embedding_endpoint']??'')),
+            'timeout_ms'=>filter_var($values['memory_embedding_timeout']??1500,FILTER_VALIDATE_INT)];
+        $payload=\LorkhanServer\Application\GlobalSettingsPreset::capture($this->globalSettingsContent($values),$summary,$embedding);
+        $id=$this->management->saveGlobalSettingsPreset($installation,$this->need($values,'preset_name'),$payload,
+            $operation==='overwrite'?$id:null,(int)($values['preset_revision']??0));
+        return Response::json(200,['preset_id'=>$id,'presets'=>$this->management->globalSettingsPresets($installation)]);
+    }
+
     /** Create or revise the one typed global-settings document owned by an installation. */
     private function saveGlobalSettings(array $values,array $scope):array
     {
@@ -2182,7 +2223,8 @@ final class ManagementRouter
     private function webRoot():string{return preg_replace('#/manage$#','',$this->basePath)?:'/LorkhanServer';}
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
-    private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/');}
+    private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/global-settings-preset')&&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>
 :root{--bg:#100f12;--surface:#19171c;--surface-2:#211e24;--line:#3a3237;--line-hot:#856c36;--text:#e8e2d8;--muted:#9e978f;--accent:#bc9d5a;--accent-soft:rgba(188,157,90,.15);--good:#79bf87;--bad:#df7777;color-scheme:dark}
 *{box-sizing:border-box}html{background:var(--bg)}body{margin:0;background:radial-gradient(circle at 50% -10%,rgba(107,87,44,.16),transparent 36rem),var(--bg);color:var(--text);font:14px/1.5 "Segoe UI",Arial,sans-serif;min-height:100vh}a{color:#cdb684}a:hover{color:#e4d8bd}button,input,textarea,select{font:inherit}button{cursor:pointer}.skip{position:fixed;left:-9999px;top:1rem;z-index:100}.skip:focus{left:1rem;background:#fff;color:#000;padding:.65rem 1rem}.app-header{position:sticky;top:0;z-index:20;display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:1.25rem;align-items:center;padding:.75rem 1.25rem;background:rgba(16,15,18,.96);border-bottom:1px solid var(--line);box-shadow:0 10px 28px rgba(0,0,0,.35);backdrop-filter:blur(12px)}.brand{display:flex;align-items:center;gap:.65rem;min-width:max-content}.brand strong{display:block;color:#fff4e6;font-size:1.1rem;letter-spacing:.16em}.brand small{display:block;color:var(--muted);font-size:.69rem;letter-spacing:.04em}.brand-mark{display:grid;place-items:center;width:2.45rem;height:2.45rem;border:1px solid var(--line-hot);border-radius:50%;background:linear-gradient(145deg,#2a211c,#171417);color:var(--accent);font:700 1.35rem Georgia,serif;box-shadow:inset 0 0 0 3px #171417,0 0 18px rgba(188,157,90,.12)}nav{display:flex;gap:.25rem;align-items:center;overflow-x:auto;padding:.15rem}nav a{flex:0 0 auto;padding:.48rem .62rem;border:1px solid transparent;border-radius:4px;color:#aaa3a0;text-decoration:none;font-size:.76rem;font-weight:650;letter-spacing:.025em}nav a:hover{background:#242127;color:#f5eee6;border-color:#373139}nav a[aria-current=page]{background:var(--accent-soft);border-color:rgba(188,157,90,.45);color:#d5c299}.logout{margin:0;padding:0;border:0;display:block}.quiet{padding:.45rem .7rem;background:#252228;border:1px solid var(--line);border-radius:4px;color:#bdb6b0}.quiet:hover{border-color:var(--line-hot);color:white}main{width:min(1180px,calc(100% - 2rem));margin:0 auto;padding:2.2rem 0 4rem}.page-heading{margin:0 0 1.35rem}.page-heading h1{margin:.15rem 0 0;color:#f4eee6;font:400 clamp(1.7rem,4vw,2.65rem)/1.1 Georgia,serif}.eyebrow{margin:0;color:var(--accent);font-size:.7rem;font-weight:750;letter-spacing:.16em;text-transform:uppercase}section,form{margin:0 0 1rem;padding:1.15rem;border:1px solid var(--line);border-radius:6px;background:linear-gradient(145deg,rgba(31,28,33,.96),rgba(22,20,24,.96));box-shadow:0 10px 28px rgba(0,0,0,.18)}section h2,legend{color:#efe8df;font:400 1.15rem Georgia,serif}section h2{margin:0 0 .75rem}section p{color:#b4ada6}.hero{display:flex;justify-content:space-between;gap:2rem;align-items:flex-start;padding:1.55rem;border-color:#4a382e;background:linear-gradient(120deg,rgba(63,51,26,.42),rgba(28,25,30,.97) 55%)}.hero h2{margin:.25rem 0 .55rem;font-size:1.55rem}.hero p{max-width:52rem;margin:.35rem 0}.status-pill{flex:0 0 auto;display:inline-flex;align-items:center;gap:.45rem;padding:.45rem .7rem;border:1px solid rgba(121,191,135,.35);border-radius:999px;background:rgba(121,191,135,.08);color:#a5ddb0;font-size:.75rem;font-weight:700}.status-pill i{width:.48rem;height:.48rem;border-radius:50%;background:var(--good);box-shadow:0 0 10px var(--good)}.stat-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.7rem;padding:0;border:0;background:none;box-shadow:none}.stat-grid article{padding:1rem;border:1px solid var(--line);border-radius:6px;background:var(--surface)}.stat-grid span,.stat-grid small{display:block;color:var(--muted);font-size:.72rem}.stat-grid strong{display:block;margin:.25rem 0;color:#f5eee8;font-size:1.35rem}.steps{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.7rem;list-style:none;counter-reset:step;margin:.9rem 0 0;padding:0}.steps li{counter-increment:step;display:grid;grid-template-columns:2rem 1fr;gap:.1rem .65rem;padding:.85rem;border:1px solid #373139;border-radius:5px;background:#171519}.steps li:before{content:counter(step);grid-row:1/3;display:grid;place-items:center;width:1.8rem;height:1.8rem;border-radius:50%;background:var(--accent-soft);color:var(--accent);font-weight:800}.steps strong{font-size:.82rem}.steps span{color:var(--muted);font-size:.75rem}form{display:grid;gap:.6rem;max-width:54rem}fieldset{display:grid;gap:.55rem;padding:0;border:0}legend{margin-bottom:.45rem}label{color:#c8c0b7;font-size:.77rem;font-weight:700}input,textarea,select{width:100%;padding:.62rem .7rem;border:1px solid #494149;border-radius:4px;background:#121114;color:var(--text)}input:focus,textarea:focus,select:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-color:var(--accent)}textarea{min-height:8.5rem;resize:vertical}button{justify-self:start;padding:.62rem .9rem;border:1px solid #8d733a;border-radius:4px;background:#655229;color:#fff7ef;font-weight:750}button:hover{background:#776131}form p{margin:.2rem 0;color:var(--muted);font-size:.76rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.4rem 1rem}dt{color:var(--muted)}dd{margin:0;color:#eee}div[role=alert]{padding:.7rem;border:1px solid rgba(223,119,119,.5);border-radius:4px;background:rgba(223,119,119,.09);color:#ffc0c0}p[role=status]{padding:.7rem;border-left:3px solid var(--good);background:rgba(121,191,135,.08);color:#b9e4c2}footer{padding:1rem;border-top:1px solid #29252b;color:#746e69;text-align:center;font-size:.7rem}.login{display:grid;place-items:center}.login main{display:grid;place-items:center;min-height:100vh;padding:1rem}.login-card{width:min(28rem,100%);padding:2rem;text-align:center;border-color:#4a382e}.login-card .brand-mark{margin:0 auto 1rem}.login-card h1{margin:.2rem 0;font:400 2.4rem Georgia,serif;letter-spacing:.16em}.login-card form{text-align:left;margin:1.4rem 0 0;padding:0;border:0;background:none;box-shadow:none}.login-card button{justify-self:stretch}body.login footer{display:none}
