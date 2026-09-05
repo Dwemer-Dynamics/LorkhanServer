@@ -66,6 +66,7 @@ final class EffectiveSettingsResolver
         // legacy copy retained in Global Settings before applying that profile below.
         $settings['narrator'] = SettingsCatalog::clientDefaults()['narrator'];
         $settings['diary'] = DiaryGenerationPolicy::defaults();
+        $settings['response'] = ['max_words' => 0];
         $sources = [];
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
@@ -108,6 +109,7 @@ final class EffectiveSettingsResolver
             if (array_key_exists($field, $coreOverrides['memory'] ?? [])) $allowedOverrides['memory'][$field] = $coreOverrides['memory'][$field];
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
+        if (isset($coreOverrides['response'])) $allowedOverrides['response'] = $coreOverrides['response'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
 
         $coreRouting = self::validateRouting($coreProfileContent['routing'] ?? []);
@@ -289,6 +291,14 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        // Response length is a server prompt instruction, not an OpenMW client control.
+        if (array_key_exists('response', $validation)) {
+            $response = $validation['response'];
+            if (!is_array($response) || array_keys($response) !== ['max_words']
+                || !is_int($response['max_words']) || $response['max_words'] < 0 || $response['max_words'] > 10000)
+                throw new InvalidArgumentException('invalid_settings_overrides');
+            unset($validation['response']);
+        }
         // Retrieval switches are server-owned and do not enlarge the client controls contract.
         foreach (['short_term_enabled', 'mid_term_enabled', 'long_term_enabled'] as $field) {
             if (!array_key_exists($field, $validation['memory'] ?? [])) continue;

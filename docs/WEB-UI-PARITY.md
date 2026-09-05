@@ -71,7 +71,7 @@ do not use an exception to excuse a generic substitute layout.
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
-| `core/core_profiles.php` | Same path | Pending structural and populated-state comparison |
+| `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls and visible sticky toolbar; presets, bulk controls and additional profile fields remain |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
@@ -345,3 +345,53 @@ an existing profile/installation identity when testing its direct route.
 - Deployed 677 matching runtime files with no extras or old paths. Configuration,
   credentials and voice contents were preserved; private files remain 403 and native
   unauthenticated session creation remains 401. The game was not launched or controlled.
+
+### Core Profile editor: response limits and field layout
+
+- The pinned Herika preset source (`lib/core/settings_presets.php`) shows that both
+  built-ins and custom Global Settings presets include Core Profile settings. The
+  existing Lorkhan named preset implementation is global-only. Completing that parity
+  depends on the missing profile controls below; the Global Settings row remains open.
+- Added the typed server-only `response.max_words` override (0..10,000) and the
+  Max Words Limit field. It is included in effective settings/source tracing and Core
+  Profile settings export/import, but not projected into the OpenMW v1 controls schema.
+  Positive values add a combined-utterance word request to the compact Markdown output
+  contract. Zero/absent values add no limit. This is a model instruction, not guaranteed
+  hard truncation, and no speech buffering or stream splitting was changed.
+- Fixed settings preset export/import dropping the existing Rechat Actions setting.
+  Connector assignments, profile prompts, slots and NPC assignments remain excluded
+  from this existing settings-only export format.
+- Moved memory switches into Profile Core's Profiles & Memories group. Matched
+  stacked field rows, equal-height setting cards and linked slider/number pairs for
+  Rechat, context and diary controls. Matched reference field typography (12px help,
+  14px numeric inputs) and corrected the sticky Save All toolbar's offset beneath the
+  64px standalone navbar. Embedded editors retain a zero offset.
+- Live Herika and Lorkhan populated editors were compared at 1280px. Both directions
+  of range synchronization were checked (number 7 -> slider 7; slider click -> both 11),
+  then the draft was restored to its original value 2. No live profile was saved;
+  the existing dirty-form navigation guard correctly prevented an unconfirmed reload.
+  At 390px all five range pairs fit their 283px control width with no page overflow.
+- A fresh deployed embedded editor confirmed the reference's exact numeric/help/label
+  typography, zero toolbar offset, no navbar, and unchanged saved values (rounds 2,
+  word limit 0). Standalone toolbar offset was verified at 64px. Existing unit checks
+  cover prompt inclusion/absence, strict bounds, source tracing and unchanged client
+  projection. HTTP tests cover save, invalid-limit rejection, export/import and the
+  preserved Rechat Actions flag. PHP lint, 328 server checks, 98 protocol files, HTTP
+  forms, integration, migration/durable-job checks and JavaScript syntax passed.
+  Schema remains 166 relations with the same inventory hash.
+
+Remaining Core Profile requirements identified from the pinned source and live editor:
+
+- Profile Preset toolbar, Default / Local LLM / Follower / Passive built-ins, custom
+  save/overwrite and confirmed application, plus Global preset profile snapshots.
+- Per-setting Copy to all with exact-field updates and confirmation.
+- Context History, Diary and Dynamic Profile event-count controls, including the
+  reference zero/fallback behavior and ranges; do not relabel a turn count as an event
+  count without changing the actual selection path.
+- Profile-scoped dynamic evolution fields, short-term summary count, RPG comments,
+  language options, Bored Event, Combat and Quest controls and their runtime mappings.
+- Physical diary support and latest-entry context behavior need a real implementation
+  before their reference controls can be presented as working.
+- Full connector-role/import-export, assignment Rules, Test, default replacement/delete,
+  list/create/clone and embedded-editor state comparisons remain open. The word-limit
+  and layout checkpoint is not a whole-page completion claim.

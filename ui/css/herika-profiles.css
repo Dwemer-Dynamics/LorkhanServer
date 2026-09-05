@@ -383,6 +383,9 @@ body.profiles-page-shell > main.profiles-page {
     text-transform: uppercase;
 }
 
+/* Standalone pages have the fixed 64px navigation; embedded editors do not. */
+body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px; }
+
 .profiles-page .profile-editor-toolbar-name {
     margin-top: 2px;
     color: #f3f5fa;
@@ -711,11 +714,23 @@ body.profiles-page-shell > main.profiles-page {
 }
 
 .profiles-page .profile-settings-group {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
 }
 
+.profiles-page .profile-settings-group > .provider-card { flex: 1 1 auto; height: auto; }
+.profiles-page .profile-settings-columns .setting-row { grid-template-columns: 1fr; gap: 7px; }
+.profiles-page .profile-settings-columns .setting-control { max-width: none; justify-self: stretch; margin-top: 0; }
+.profiles-page .profile-settings-columns .setting-desc { font-size:12px; line-height:1.35; }
+.profiles-page .profile-settings-columns input[type="number"],
+.profiles-page .profile-settings-columns textarea { font-size:14px; line-height:1.5; }
+.profiles-page .range-pair { display:grid; grid-template-columns:minmax(0,1fr) 86px; align-items:center; gap:8px; }
+.profiles-page .range-pair input[type="range"] { width:100%; min-width:0; padding:0; border:0; accent-color:#bc9d5a; }
+.profiles-page .range-pair input[type="number"] { width:100%; min-width:0; text-align:right; }
+
 .profiles-page .profile-settings-heading {
-    margin: 10px 0 6px;
+    margin: 0 0 6px;
     font-size: 1.05em;
     line-height: 1.25;
     word-spacing: 5px;

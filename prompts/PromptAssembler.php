@@ -279,6 +279,10 @@ final class PromptAssembler
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
             . 'and "text" must be a non-empty string. Never return utterances as strings. "action" is null or a supported name and parameters object. '
             . 'Do not add prose outside JSON.';
+        $maxWords = $coreProfile['content']['settings_overrides']['response']['max_words'] ?? 0;
+        if (is_int($maxWords) && $maxWords > 0 && $maxWords <= 10000) {
+            $outputContract .= ' Keep the combined spoken dialogue across all utterances within ' . $maxWords . ' words.';
+        }
         $roleplay = 'You are ' . $actorName . ', a character in the universe of Morrowind. '
             . 'This world is your reality. Remain ' . $actorName . ' and never speak, decide, or narrate dialogue for ' . $playerName . '.';
         $general = "Write {$actorName}'s next dialogue line. Address {$playerName} or the most recent speaker, review the conversation, and avoid repeating prior dialogue.";

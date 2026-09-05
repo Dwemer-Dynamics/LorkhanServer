@@ -488,6 +488,19 @@ $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
 $globalPromptSelection=$promptSelection;
+$wordSelection=$promptSelection;
+$wordSelection['core_profile']=['core_profile_id'=>'word-profile','revision'=>1,'content'=>['prompt'=>'','settings_overrides'=>['response'=>['max_words'=>60]]]];
+$wordPrompt=$assembler->assemble($promptTurn,$wordSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($wordPrompt,'Keep the combined spoken dialogue across all utterances within 60 words.')
+    &&!str_contains($assembled['provider_input']['_assembled_prompt'],'combined spoken dialogue'),'profile word limit reaches compact prompt while absent limits preserve the prompt');
+$wordResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['response'=>['max_words'=>60]]],[]);
+$check($wordResolved['settings']['response']['max_words']===60
+    &&$wordResolved['sources']['settings.response.max_words']==='core_profile'
+    &&!isset(EffectiveSettingsResolver::controlsProjection($wordResolved)['settings']['response']),'response limits are traced but do not change the client controls schema');
+foreach([-1,10001,'60']as$invalidWords){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['response'=>['max_words'=>$invalidWords]]);$check(false,'invalid word limit rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid word limit rejected');}
+}
 $globalPromptSelection['effective_settings']['prompt']=['prompt_head'=>'Global roleplay sentinel.', 'emote_moods'=>'curious, guarded'];
 $globalPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
 $check(str_contains($globalPromptText,'Global roleplay sentinel.')&&str_contains($globalPromptText,'curious, guarded'),

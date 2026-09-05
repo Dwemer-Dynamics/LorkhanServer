@@ -1,6 +1,20 @@
 (() => {
     const dirtyForms = new Set();
 
+    // Keep profile sliders and their submitted numeric fields synchronized without duplicate form values.
+    document.querySelectorAll('[data-range-for]').forEach((slider) => {
+        const number = document.getElementById(slider.dataset.rangeFor);
+        if (!number || number.type !== 'number') return;
+        slider.addEventListener('input', () => {
+            number.value = slider.value;
+            number.dispatchEvent(new Event('input', {bubbles: true}));
+        });
+        number.addEventListener('input', () => {
+            if (number.value !== '' && Number.isFinite(number.valueAsNumber)) slider.value = number.value;
+        });
+        number.form?.addEventListener('reset', () => window.setTimeout(() => { slider.value = number.value; }, 0));
+    });
+
     /** Mark explicitly opted-in editors dirty without applying the guard to action or upload forms. */
     document.querySelectorAll('form[data-track-dirty]').forEach((form) => {
         const setDirty = () => {

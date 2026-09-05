@@ -965,9 +965,11 @@ final class ManagementRouter
     private function portableCoreProfileOverrides(array $overrides):array
     {
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
-        return['behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
+        return['response'=>['max_words'=>(int)($overrides['response']['max_words']??0)],
+            'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
-            'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50)],
+            'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
+            'rechat_allow_actions'=>($overrides['behavior']['rechat_allow_actions']??false)===true],
             'memory'=>['recent_turn_limit'=>(int)($overrides['memory']['recent_turn_limit']??20)]+array_intersect_key($overrides['memory']??[],array_flip(['short_term_enabled','mid_term_enabled','long_term_enabled'])),
             'diary'=>['enabled'=>($overrides['diary']['enabled']??false)===true,
                 'automatic_enabled'=>($overrides['diary']['automatic_enabled']??false)===true,
@@ -1754,6 +1756,7 @@ final class ManagementRouter
         $number=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);
             if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $overrides=[
+            'response'=>['max_words'=>$number($values,'setting_response_max_words',0)],
             'behavior'=>['rechat'=>isset($values['setting_behavior_rechat']),
                 'rechat_max_depth'=>$number($values,'setting_behavior_rechat_max_depth',2),
                 'rechat_probability_percent'=>$number($values,'setting_behavior_rechat_probability_percent',50),
