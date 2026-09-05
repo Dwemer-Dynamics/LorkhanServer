@@ -5,6 +5,8 @@ declare(strict_types=1);
 function lorkhan_roleplay_log_table(array $state, array $installations, string $tab, string $webRoot, string $base, string $csrf): void
 {
     $responses = $tab === 'responselog';
+    $journal = $tab === 'journal';
+    $recordLabel = $responses ? 'Response' : ($journal ? 'Journal' : 'Book');
     $link = static fn(array $changes): string => $webRoot.'/ui/events-memories.php?'.http_build_query(array_merge([
         'tab'=>$tab,'installation_id'=>$state['installation'],'playthrough_id'=>$state['playthrough'],
         'reader_page'=>$state['page'],'q'=>$state['query'],'person'=>$state['person'],'date'=>$state['date'],
@@ -13,7 +15,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
     <div class="roleplay-log-page<?= $responses?'':' book-log-page' ?>" data-log-page>
         <?php if($responses): ?><div class="roleplay-description"><span aria-hidden="true"><?= $responses ? '💬' : '📚' ?></span> <strong><?= $responses ? 'AI Responses' : 'Books' ?>:</strong>
             <?= $responses ? 'Complete log of AI responses and the full context sent to the model. Inspect prompts, Oghma topics and request details when debugging.' : 'Books observed during your Morrowind playthrough.' ?>
-        </div><?php else: ?><p class="book-log-intro">Books observed during your Morrowind playthrough.</p><?php endif; ?>
+        </div><?php else: ?><p class="book-log-intro"><?= $journal?'<strong>Morrowind Journal:</strong> Entries captured from your in-game journal.':'Books observed during your Morrowind playthrough.' ?></p><?php endif; ?>
         <details class="log-scope"><summary>Filters and playthrough</summary><form method="get" class="reader-filters">
             <input type="hidden" name="tab" value="<?= lorkhan_ui_h($tab) ?>">
             <label>Installation<select name="installation_id"><?php foreach($installations as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['installation']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
@@ -24,11 +26,11 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
         <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> of <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
             <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
-        </nav><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $responses?'Response':'Book' ?> Log</a></div></div>
+        </nav><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $recordLabel ?> Log</a></div></div>
         <p role="status" data-roleplay-maintenance-status></p>
-        <div class="log-table-container" tabindex="0" role="region" aria-label="<?= $responses?'AI response':'Book' ?> log">
+        <div class="log-table-container" tabindex="0" role="region" aria-label="<?= $responses?'AI response':$recordLabel ?> log">
             <table class="<?= $responses?'ai-response-table':'books-table' ?>" data-log-table>
-                <thead><tr><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:['Title','Content','Tamrielic Time','Time (UTC)','TS'] as $column): ?><th scope="col"><?= lorkhan_ui_h($column) ?></th><?php endforeach; ?></tr></thead>
+                <thead><tr><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:[$journal?'Journal ID':'Title','Content','Tamrielic Time','Time (UTC)','TS'] as $column): ?><th scope="col"><?= lorkhan_ui_h($column) ?></th><?php endforeach; ?></tr></thead>
                 <tbody><?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
                     <tr><?php if($responses): ?>
                         <td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
@@ -41,7 +43,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
                         <td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
                     <?php endif; ?><td><?= lorkhan_ui_h((string)($responses?$row['narrative_id']:$row['ts'])) ?></td></tr>
                 <?php endforeach; ?>
-                <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty">No <?= $responses?'AI responses':'books' ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
+                <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty">No <?= $responses?'AI responses':($journal?'journal entries':'books') ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
             </table>
         </div>
         <p class="log-footer">Page <?= $state['page'] ?> of <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>

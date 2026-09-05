@@ -81,7 +81,9 @@ $statusMessages = [
 $sections = [
     'prompt-rechat' => [
         'Prompt & Rechat' => [
-            ['rechat_mode', 'Rechat Mode', '&#x1F501;', 'select', $settings['behavior']['rechat_mode'], 'Tight uses the listener, Conversational prefers the current partner, Group rotates nearby NPCs, and Random selects one mode per chain.', ['values' => ['tight', 'conversational', 'group', 'random']]],
+            ['prompt_head', 'Prompt Head', '&#x1F52E;', 'textarea', $globalDocument['prompt']['prompt_head'], 'System prompt defining the roleplay. Used when an NPC has no Prompt Head override. Leave blank to retain the built-in Morrowind roleplay instructions.', ['maxlength'=>8192]],
+            ['emote_moods', 'Emote Moods', '&#x1F3AD;', 'textarea', $globalDocument['prompt']['emote_moods'], 'Default comma-separated moods passed to the model. Can be overridden per NPC. Leave blank to keep the existing NPC moods.', ['maxlength'=>4096]],
+            ['rechat_mode', 'Rechat Mode', '&#x1F501;', 'select', $settings['behavior']['rechat_mode'], 'Tight uses the listener, Conversational prefers the current partner, Group rotates nearby NPCs, and Random selects one mode per chain.', ['values' => ['tight'=>'Tight', 'conversational'=>'Conversational', 'group'=>'Group', 'random'=>'Random (Recommended)']]],
             ['rechat_strict_targeting', 'Strict Rechat Targeting', '&#x1F3AF;', 'boolean', $settings['behavior']['rechat_strict_targeting'], 'Requires the selected responder to address the previous speaker directly.', []],
             ['open_rechat', 'Open Rechat', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['behavior']['open_rechat'], 'Allows nearby scene participants to become the next responder when the selected mode permits it.', []],
             ['rechat_allow_actions', 'Allow Actions During Rechat', '&#x2699;&#xFE0F;', 'boolean', $settings['behavior']['rechat_allow_actions'], 'Lets NPCs request the same policy-checked actions during Rechat as they can during player-started dialogue.', []],

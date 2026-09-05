@@ -2400,10 +2400,15 @@ $settingsDocument=['schema'=>'lorkhan.client-settings.v1','behavior'=>[
     'safety'=>['actions_enabled'=>true,'allow_hostile'=>false,'allow_creatures'=>true]];
 $settingsGlobal=\LorkhanServer\Application\SettingsCatalog::globalDefaults();
 $settingsGlobal['client']=$settingsDocument;
+$settingsGlobal['prompt']=['prompt_head'=>'Installation prompt sentinel.','emote_moods'=>'thoughtful, calm'];
 $existingGlobal=$products->globalSettingsForInstallation($installationId);
 $configuredGlobal=$products->revise('global_settings',$existingGlobal['configuration_id'],$settingsGlobal,
     'integration session settings',$now);
 $configuredRevision='global-settings-r'.$configuredGlobal['current_revision'];
+$globalPromptContext=$products->promptContext($turn,gmdate(DATE_ATOM));
+$assert(($globalPromptContext['effective_settings']['prompt']['prompt_head']??null)===$settingsGlobal['prompt']['prompt_head']
+    &&($globalPromptContext['effective_settings']['prompt']['emote_moods']??null)===$settingsGlobal['prompt']['emote_moods'],
+    'global prompt defaults were not included in the frozen turn selection');
 $configuredSession=$session;$configuredSession['message_id']=$newUuid(304);$configuredSession['generation']=8;
 $db->prepare('UPDATE profiles SET deleted_at=clock_timestamp() WHERE profile_id=:profile')
     ->execute(['profile'=>$configuredSession['profile_id']]);

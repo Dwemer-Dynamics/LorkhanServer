@@ -157,7 +157,7 @@ assert r.status==200 and 'status=embedding-saved' in r.geturl() and 'Use MiniMe 
 memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memory')); embedding_backfill=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-backfill'))
 r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],_csrf=csrf,limit='100')); body=r.read().decode()
 assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
-relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal</h1>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
+relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '<strong>Morrowind Journal:</strong>' in text and '<th scope="col">Journal ID</th>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Regular Calendar' in text and 'calendar-event-table' in text and 'Create / Generate Entry' not in text
 diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
 narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
@@ -570,10 +570,10 @@ settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms
 values=dict(settings_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],rechat_mode='group',
     rechat_allow_actions='1',relationship_enabled='1',relationship_update_chance_percent='75',context_location_blacklist='Balmora',
     auto_lock_profile='1',autofill_custom_profiles='1',autofill_custom_profiles_trigger='25',
-    change_reason='HTTP layered global settings')
+    prompt_head='Global roleplay <&> sentinel.',emote_moods='curious, guarded',change_reason='HTTP layered global settings')
 r=request(settings_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=globals-page' in r.geturl(),(r.status,r.geturl(),body)
 globals_page,body=parse(request('/LorkhanServer/ui/core/global_settings.php'))
-assert '<option value="group" selected>group</option>' in body and 'name="rechat_allow_actions" value="1" checked' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body and 'name="autofill_custom_profiles" value="1" checked' in body and 'name="autofill_custom_profiles_trigger" value="25"' in body
+assert '<option value="group" selected>Group</option>' in body and 'name="rechat_allow_actions" value="1" checked' in body and 'name="recent_turn_limit"' not in body and 'name="knowledge_limit"' not in body and 'name="relationship_enabled" value="1" checked' in body and 'name="relationship_update_chance_percent" value="75"' in body and 'name="auto_lock_profile" value="1" checked' in body and 'name="autofill_custom_profiles" value="1" checked' in body and 'name="autofill_custom_profiles_trigger" value="25"' in body
 assert all('<h2>'+section+'</h2>' in body for section in ['Prompt &amp; Rechat','Memory','Memory &amp; Others','Translation','Oghma Infinium','Context Sections','Context Details','Context Filters','Global Connectors']) and all(name in body for name in ['auto_lock_profile','autofill_custom_profiles','autofill_custom_profiles_trigger','oghma_enabled','translation_provider','context_location_blacklist','profile_generation_configuration_id','memory_embedding_enabled','memory_summary_enabled','memory_summary_interval']) and not any(name in body for name in ['player_worst_memory_game_days','chim_ai_quest_progression','Background Life Trigger Time'])
 assert all(re.search(r'<(?:input|select)[^>]*name="'+re.escape(name)+r'"[^>]*data-translation-control=',body) for name in ['translation_provider','translation_text','translation_audio','translation_save_text','translation_source_language','translation_target_language','translation_endpoint_url'])
 assert '<option value="none" selected>None</option>' in body and '<option value="deepl">DeepL</option>' in body and 'name="translation_provider" data-translation-control="provider" aria-label="Provider"' in body
@@ -595,6 +595,7 @@ global_preset_response=request('/LorkhanServer/manage/exports/global-settings/'+
 global_preset=json.loads(global_preset_response.read().decode())
 assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','memory_policies','name','schema','settings']
 assert global_preset['schema']=='lorkhan.global-settings-preset.v3' and global_preset['settings']['schema']=='lorkhan.global-settings.v2'
+assert global_preset['settings']['prompt']=={'prompt_head':'Global roleplay <&> sentinel.','emote_moods':'curious, guarded'}
 assert global_preset['settings']['client']['behavior']['rechat_mode']=='group' and global_preset['settings']['client']['behavior']['rechat_allow_actions'] is True and global_preset['settings']['context']['location_blacklist']==['Balmora'] and global_preset['settings']['profile_management']=={'auto_lock_profile':True,'autofill_custom_profiles':True,'autofill_custom_profiles_trigger':25} and global_preset['settings']['relationship']=={'enabled':True,'update_chance_percent':75}
 assert not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','npc_assignments'])
 invalid_global_preset=dict(global_preset,unexpected='rejected')
@@ -611,6 +612,7 @@ imported_export=json.loads(request('/LorkhanServer/manage/exports/global-setting
 assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit"' not in imported_body and imported_export['settings']['context']['location_blacklist']==['Balmora','Seyda Neen'],(r.status,r.geturl(),imported_export)
 assert 'name="auto_lock_profile" value="1" checked' in imported_body and 'name="oghma_result_limit" value="3"' in imported_body
 assert imported_export['memory_policies']==global_preset['memory_policies']
+assert imported_export['settings']['prompt']==global_preset['settings']['prompt'] and 'Global roleplay &lt;&amp;&gt; sentinel.' in imported_body
 global_rollback=next(f for f in imported_page.forms if f['action'].endswith('/forms/global-settings-rollback'))
 assert global_rollback['fields']['configuration_id']==global_configuration_id and int(global_rollback['fields']['revision'])>=1
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf)); rolled_page,rolled_body=parse(r)

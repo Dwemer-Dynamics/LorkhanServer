@@ -241,7 +241,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <section id="<?php echo lorkhan_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
                 <?php if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true)){
                     if($tabId===$activeTab && $readerState!==null){
-                        if(in_array($tabId,['responselog','books'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
+                        if(in_array($tabId,['responselog','books','journal'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
                         else lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);
                     }
                 }elseif($tabId==='memory'){

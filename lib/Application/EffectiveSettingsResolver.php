@@ -179,12 +179,14 @@ final class EffectiveSettingsResolver
 
 
         $context = $global['context'];
-        $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context];
+        $this->markLeaves($global['prompt'], $globalSettings === [] ? 'default' : 'global', 'prompt', $sources);
+        $document = ['schema' => 'lorkhan.effective-settings.v2', 'settings' => $settings, 'routing' => $routing, 'context' => $context, 'prompt'=>$global['prompt']];
         return [
             'document' => $document,
             'settings' => $settings,
             'routing' => $routing,
             'context' => $context,
+            'prompt' => $global['prompt'],
             'sources' => $sources,
             'sha256' => hash('sha256', self::canonical($document)),
         ];
@@ -226,13 +228,18 @@ final class EffectiveSettingsResolver
         if (($content['schema'] ?? null) === SettingsCatalog::GLOBAL_SCHEMA
             && is_array($content['profile_management'] ?? null) && !array_is_list($content['profile_management'])) {
             $content['profile_management'] += $expected['profile_management'];
-            $content += ['rpg_comments'=>$expected['rpg_comments']];
+            $content += ['rpg_comments'=>$expected['rpg_comments'], 'prompt'=>$expected['prompt']];
             if(is_array($content['client']['narrator']??null)&&!array_is_list($content['client']['narrator']))
                 $content['client']['narrator'] += $expected['client']['narrator'];
         }
         self::assertExactKeys($content, $expected, 'invalid_global_settings');
         if (($content['schema'] ?? null) !== SettingsCatalog::GLOBAL_SCHEMA) throw new InvalidArgumentException('invalid_global_settings');
         self::validateSettingsShape($content['client'], SettingsCatalog::clientDefaults(), false);
+        self::assertExactKeys($content['prompt'], $expected['prompt'], 'invalid_global_settings');
+        foreach (['prompt_head'=>8192, 'emote_moods'=>4096] as $field=>$limit) {
+            if (!is_string($content['prompt'][$field]) || strlen($content['prompt'][$field])>$limit
+                || !mb_check_encoding($content['prompt'][$field], 'UTF-8')) throw new InvalidArgumentException('invalid_global_settings');
+        }
         self::assertExactKeys($content['profile_management'], $expected['profile_management'], 'invalid_global_settings');
         if (!is_bool($content['profile_management']['auto_lock_profile'])
             || !is_bool($content['profile_management']['autofill_custom_profiles'])

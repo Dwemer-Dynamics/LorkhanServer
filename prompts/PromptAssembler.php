@@ -127,6 +127,7 @@ final class PromptAssembler
             $playerName,
             $systemBudget,
             $contextPolicy,
+            $selection['effective_settings']['prompt'] ?? SettingsCatalog::globalDefaults()['prompt'],
         );
 
         $system = $built['system'];
@@ -272,6 +273,7 @@ final class PromptAssembler
         string $playerName,
         int $budget,
         array $contextPolicy,
+        array $promptDefaults,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
@@ -282,12 +284,19 @@ final class PromptAssembler
         $general = "Write {$actorName}'s next dialogue line. Address {$playerName} or the most recent speaker, review the conversation, and avoid repeating prior dialogue.";
 
         $npc = $this->xmlTag('roleplay_instructions', $roleplay);
-        $promptHead = $this->fieldText($profile['content'] ?? [], ['prompt_head']);
+        // Global roleplay defaults fill absent NPC fields without changing the saved profile.
+        $roleplayProfile = $profile;
+        foreach (['prompt_head','emote_moods'] as $field) {
+            if ($this->fieldText($roleplayProfile['content'] ?? [], [$field]) === '') {
+                $roleplayProfile['content'][$field] = (string)($promptDefaults[$field] ?? '');
+            }
+        }
+        $promptHead = $this->fieldText($roleplayProfile['content'] ?? [], ['prompt_head']);
         if ($promptHead !== '') $npc .= $this->xmlTag('npc_prompt_head', $promptHead);
         $details = $contextPolicy['details'];
         $itemBlacklist = $this->blacklistSet($contextPolicy['item_blacklist']);
         $magicBlacklist = $this->blacklistSet($contextPolicy['magic_effects_blacklist']);
-        $npc .= $this->characterXml($turn, $profile, $actorName, $details, $itemBlacklist, $magicBlacklist);
+        $npc .= $this->characterXml($turn, $roleplayProfile, $actorName, $details, $itemBlacklist, $magicBlacklist);
         $core = $coreProfile === null ? '' : $this->fieldText($coreProfile['content'] ?? [], ['prompt']);
         if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);

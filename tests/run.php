@@ -487,6 +487,17 @@ $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&strpos((string)$systemMessage['content'],'## Output Contract')<strpos((string)$systemMessage['content'],'## NPC Context')
     &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
+$globalPromptSelection=$promptSelection;
+$globalPromptSelection['effective_settings']['prompt']=['prompt_head'=>'Global roleplay sentinel.', 'emote_moods'=>'curious, guarded'];
+$globalPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($globalPromptText,'Global roleplay sentinel.')&&str_contains($globalPromptText,'curious, guarded'),
+    'Global Prompt Head and Emote Moods fill absent NPC fields');
+$globalPromptSelection['profile']['content']['prompt_head']='NPC roleplay sentinel.';
+$globalPromptSelection['profile']['content']['emote_moods']='defiant';
+$npcPromptText=$assembler->assemble($promptTurn,$globalPromptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($npcPromptText,'NPC roleplay sentinel.')&&str_contains($npcPromptText,'defiant')
+    &&!str_contains($npcPromptText,'Global roleplay sentinel.')&&!str_contains($npcPromptText,'curious, guarded'),
+    'NPC Prompt Head and Emote Moods take precedence over global defaults');
 $automaticCues=['lorkhan_auto_greeting'=>'Automatic greeting for Fargoth',
     'lorkhan_auto_boredom'=>'Automatic idle remark for Fargoth',
     'lorkhan_auto_combat_bark'=>'Automatic combat bark for Fargoth'];
@@ -1279,10 +1290,12 @@ $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
         'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],
     'automatic profile backfill defaults on after forty completed actor turns');
 $legacyGlobalSettings=$globalSettings;
+unset($legacyGlobalSettings['prompt']);
 unset($legacyGlobalSettings['profile_management']['autofill_custom_profiles'],
     $legacyGlobalSettings['profile_management']['autofill_custom_profiles_trigger']);
 $normalizedLegacyGlobal=EffectiveSettingsResolver::validateGlobalSettings($legacyGlobalSettings);
-$check($normalizedLegacyGlobal['profile_management']['autofill_custom_profiles']===true
+$check($normalizedLegacyGlobal['prompt']===['prompt_head'=>'','emote_moods'=>'']
+    &&$normalizedLegacyGlobal['profile_management']['autofill_custom_profiles']===true
     &&$normalizedLegacyGlobal['profile_management']['autofill_custom_profiles_trigger']===40,
     'early v2 Global Settings normalize automatic profile backfill defaults');
 try{

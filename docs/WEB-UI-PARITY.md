@@ -49,7 +49,7 @@ do not use an exception to excuse a generic substitute layout.
 
 ### Explicit remaining Roleplay work
 
-- Finish the Memories configuration/status hierarchy and Journal structure.
+- Finish the Memories configuration/status hierarchy.
 - The completed response-log maintenance preserves active responses, prompt traces,
   source events and conversation history. Diary bulk deletion uses soft deletion.
   Both use confirmed, scoped, CSRF-protected POST, never destructive GET.
@@ -57,9 +57,9 @@ do not use an exception to excuse a generic substitute layout.
   turns. Entries with no recorded calendar keep an explicit unknown date.
 - Populated diary/book states were checked in isolated presentation fixtures;
   production records and speech providers were not used as test data.
-- Continue the Global Settings structural comparison: the current live page still
-  lacks Herika's Prompt Head / Emote Moods rows and its preset toolbar. These are
-  pending mappings, not accepted product exceptions.
+- Global Settings now includes Prompt Head / Emote Moods with saved global
+  defaults, NPC overrides and portable export/import. Its named preset toolbar
+  and connector-test controls remain pending, not accepted product exceptions.
 
 ## Complete page matrix
 
@@ -90,7 +90,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, paper entry editor, export and bulk delete implemented; populated/empty fixture and existing HTTP checks passed |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated fixture and focus restoration checked |
 | Roleplay `adventure` tab | Herika Adventure Log | Recorded game events, UTC/Tamrielic calendars and export implemented; live Tamrielic date selection verified against 21 matching events |
-| Roleplay `journal` tab | Morrowind-only Journal | Pending structural and populated-state comparison |
+| Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `request_logs.php` | Same path | Pending structural and populated-state comparison |
 | `response_queue.php` | Herika response log composition | Pending structural and populated-state comparison |
@@ -182,3 +182,17 @@ an existing profile/installation identity when testing its direct route.
   the counterpart columns. Live Adventure date selection resolved 21 entries for
   17 Last Seed, 3E 427. AI cleanup controls and the Books empty state were inspected;
   no production cleanup action was executed.
+
+### Global prompt defaults and Journal checkpoint
+
+- Prompt Head and Emote Moods now use the counterpart form rows. Values persist
+  through save/export/import, enter the effective-settings hash and frozen turn
+  context, and fill absent NPC overrides. Blank defaults preserve current behavior.
+- Matched 1280px screenshots confirmed the first two rows' columns and dimensions.
+  At 390px the fields stack without horizontal page overflow. The preset toolbar
+  and connector-test controls remain outstanding; this page is not complete.
+- Journal now uses the shared full-content record table rather than cards. Three
+  existing records and the content reader were inspected locally; closing restored
+  focus. Its Morrowind-specific data does not restore the excluded quest manager.
+- 321 server checks, 98 protocol files, management HTTP, integration, migrations
+  and durable-job tests passed. The database inventory hash is unchanged.

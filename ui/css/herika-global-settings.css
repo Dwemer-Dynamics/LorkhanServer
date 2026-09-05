@@ -71,8 +71,9 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,9
 
 /* Keep the product-specific portability explanation available without making the editor permanently tall. */
 .global-settings-page .gs-scope-details {
-    flex: 1 1 100%;
+    flex: 0 1 auto;
     margin-top: 0;
+    margin-left: auto;
     border-left: 3px solid rgba(188, 157, 90, .65);
     background: rgba(26, 26, 26, .35);
 }
@@ -137,3 +138,5 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,9
         align-items: flex-start;
     }
 }
+
+.global-settings-page .gs-scope-details[open]{flex:1 1 100%;margin-left:0}

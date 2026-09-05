@@ -189,6 +189,7 @@ final class SettingsCatalog
     {
         return [
             'schema' => self::GLOBAL_SCHEMA,
+            'prompt' => ['prompt_head'=>'', 'emote_moods'=>''],
             'client' => self::CLIENT_DEFAULTS,
             'profile_management' => [
                 'auto_lock_profile' => true,

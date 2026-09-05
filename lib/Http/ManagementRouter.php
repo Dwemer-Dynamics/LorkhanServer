@@ -1714,6 +1714,7 @@ final class ManagementRouter
     {
         $integer=static function(array$input,string$key,int$default):int{$value=filter_var($input[$key]??$default,FILTER_VALIDATE_INT);if($value===false)throw new InvalidArgumentException('invalid_'.$key);return(int)$value;};
         $content=SettingsCatalog::globalDefaults();$client=&$content['client'];
+        foreach(['prompt_head','emote_moods'] as $field)$content['prompt'][$field]=trim((string)($values[$field]??''));
         $events=$values['rpg_events']??[];if(!is_array($events))throw new InvalidArgumentException('invalid_rpg_comments');
         $content['rpg_comments']=['events'=>array_values($events),'chance_percent'=>$integer($values,'rpg_chance',50)];
         $client['behavior']['auto_greeting']=isset($values['auto_greeting']);
