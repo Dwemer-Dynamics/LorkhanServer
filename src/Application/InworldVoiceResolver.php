@@ -27,11 +27,12 @@ final class InworldVoiceResolver
         if($root===false||!is_dir($root))throw new RuntimeException('voice_storage_unavailable');
         $cache=$root.'/.inworld-cache';
         if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
-        chmod($cache,02770);
+        if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
         $cacheId=hash_hmac('sha256',strtolower($name),$key);
         $path=$cache.'/'.$cacheId.'.json';
         $lock=fopen($cache.'/'.$cacheId.'.lock','c');
-        if($lock!==false)chmod($cache.'/'.$cacheId.'.lock',0660);
+        if($lock!==false&&(fileperms($cache.'/'.$cacheId.'.lock')&0777)!==0660
+            &&!chmod($cache.'/'.$cacheId.'.lock',0660)){fclose($lock);throw new RuntimeException('voice_cache_unavailable');}
         if($lock===false)throw new RuntimeException('voice_cache_unavailable');
         try{
             // Never wait behind another upload on the dialogue thread; the durable speech job retries.
