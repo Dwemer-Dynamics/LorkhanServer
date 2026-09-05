@@ -77,7 +77,7 @@ do not use an exception to excuse a generic substitute layout.
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
-| `core/tts_connectors.php` | Same path | Pending structural and populated-state comparison |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Pending structural and populated-state comparison |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
@@ -464,3 +464,52 @@ Remaining Core Profile requirements identified from the pinned source and live e
   or declared a product exception by this checkpoint.
 - Local deployment preserves configuration, credentials and voice contents. Runtime
   hash and access checks cover all 678 shipped files. No game was launched or controlled.
+
+### TTS connector test reader and provider controls
+
+- Compared the pinned `ui/core/tts_connectors.php` and `ui/tests/tts-test.php` with
+  the live Herika Inworld editor and its open test window. No reference synthesis
+  was requested. The Lorkhan list/editor already shared the main card/column layout;
+  the meaningful missing operation was a playable test, not another theme overlay.
+- Test now opens a native dialog with the reference reader structure: connector and
+  provider header, Text To Synthesize, VoiceId, Run Test, Status/player and Request
+  Preview. Its 1100px/820px maximum dimensions, card spacing, type hierarchy and
+  narrow scrolling follow the reference. Lorkhan gold branding is retained.
+- `ui/core/tmpl/tts_connector_test.php`, `ui/js/tts-connector-test.js` and the test-reader
+  additions to `ui/css/herika-tts.css` derive their presentation from those pinned
+  Herika files. The existing protected `/api/v1/tts-previews` implementation supplies
+  audio; no additional provider path, schema, queue or persisted test record was added.
+- Opening the dialog reads only the selected connector's saved voice catalog. It
+  defaults to the narrator voice when offered, then the connector default/first valid
+  voice. Run Test is explicit and warns about provider charges. The existing 240-character
+  limit, installation/connector/voice checks, CSRF, rate limit and opaque provider errors
+  remain in force. Request Preview shows only the submitted test text and voice.
+- Closing stops the audio, releases its object URL and aborts the browser request.
+  A late response cannot populate a closed or reopened dialog. This is browser playback
+  cancellation, not a claim that a remote provider stops an already received request.
+  Failures and autoplay blocking leave useful status and controls for retry/playback.
+- The service picker uses Herika's Recommended/Others groups. Provider option IDs now
+  include the owning driver: all 46 are unique. Inactive providers no longer start with
+  another provider's saved values. Switching updates the settings heading and preserves
+  each provider's unsaved option values. Raw JSON remains available in a collapsed
+  Advanced connector options section. Disabled toolbar buttons no longer carry badges.
+- Isolated actual-template/script fixtures verified a valid synthetic WAV (readyState 4,
+  2-second duration), safe request preview, failure recovery, close cleanup/focus,
+  pending-request close/reopen with no late audio, and no-voice disabled controls.
+  The 390px reader remains within the viewport. An isolated populated editor checked
+  unique IDs, the active label's focus target, provider groups, independent draft values
+  and the advanced JSON expander. All fixture writes to real management routes were blocked.
+- Live Inworld open/close confirmed three offered voices and focus restoration without
+  Run Test or Save. Existing HTTP tests verify opening never synthesizes, the shared
+  preview route/catalog is rendered, and option IDs are unique; the same suite exercises
+  actual mock-provider preview bytes, invalid voices/text, CSRF and rate limits.
+- PHP lint, 328 server checks, 98 protocol files, management HTTP, integration, migrations,
+  durable jobs, JavaScript syntax and whitespace checks passed. The schema inventory
+  remains 166 relations. All 680 deployed files match source, with private-file 403 and
+  unauthenticated-session 401 protections intact. Configuration, credentials and voice
+  contents were preserved. No game or live paid speech service was used.
+- Remaining TTS parity: functional API Badge selection, editable connector names,
+  provider-specific field placement/types/coverage (including Inworld workspace),
+  URL visibility and complete import/create/clone/delete state comparison. Free-form
+  test voice IDs and longer test text are not implemented by this catalog-backed
+  preview; this checkpoint does not declare the whole page complete.

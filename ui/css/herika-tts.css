@@ -125,8 +125,10 @@ body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-c
 .tts-page .settings-empty-note { padding: 10px 12px; border: 1px dashed rgba(138, 155, 182, .25); border-radius: 8px; background: #0c0f14; color: #97a6ba; font-size: 12px; }
 .tts-page .boolean-field { display: flex !important; align-items: center; gap: 8px; min-height: 40px; padding: 0 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .82); }
 .tts-page .advanced-json { margin-top: 12px; }
+.tts-page .advanced-json > summary { cursor: pointer; color: #e9efff; font-weight: 600; margin-bottom: 12px; }
+.tts-page .advanced-json > summary:focus-visible { outline: 2px solid #bc9d5a; outline-offset: 3px; }
 .tts-page .toolbar-disabled { position: relative; display: inline-flex; flex: 0 0 auto; }
-.tts-page .toolbar-disabled > button { width: auto !important; min-width: 84px; }
+.tts-page .toolbar-disabled > button { width: auto !important; min-width: 0; }
 .tts-page .toolbar-disabled .feature-state-badge { position: absolute; top: -7px; right: -7px; z-index: 1; white-space: nowrap; transform: scale(.78); transform-origin: top right; }
 .tts-page .feature-placeholder-control { cursor: not-allowed; opacity: .72; }
 .tts-page .secondary-actions { display: flex; align-items: center; gap: 8px; margin-top: 16px; padding-top: 12px; border-top: 1px solid #3a3a3a; }
@@ -141,4 +143,41 @@ body.tts-page-shell .tts-page .editor-toolbar form button.btn-primary { border-c
     .tts-page .list-wrap { max-height: 420px; }
     .tts-page .editor-grid,
     .tts-page .inline-two { grid-template-columns: 1fr; }
+}
+
+/* Herika's TTS test reader, hosted in a native focus-contained dialog rather than an iframe. */
+.tts-test-dialog {
+    width: min(1100px, 94vw); height: min(820px, 92vh); max-width: none; max-height: none;
+    box-sizing: border-box; padding: 0; border: 1px solid #3a3a3a; border-radius: 10px;
+    background: #171717; color: #eef3ff; overflow: hidden;
+    font: 15px/1.5 "Futura CondensedLight", Arial, sans-serif;
+}
+.tts-test-dialog::backdrop { background: rgba(0, 0, 0, .66); }
+body:has(.tts-test-dialog[open]) { overflow: hidden; }
+.tts-test-toolbar { position: absolute; top: 10px; right: 10px; z-index: 2; }
+.tts-test-toolbar button { margin: 0; }
+.tts-test-content { height: 100%; overflow-y: auto; padding: 20px 10px 30px; box-sizing: border-box; }
+.tts-test-card {
+    display: block; margin: 0 0 16px; padding: 16px; border: 1px solid #3a3a3a; border-radius: 10px;
+    background: linear-gradient(180deg, rgba(42,42,42,.95), rgba(34,34,34,.98));
+}
+.tts-test-card[hidden] { display: none; }
+.tts-test-card h1, .tts-test-card h2 { margin: 0 0 16px; font-family: MagicCards, serif; font-weight: 400; }
+.tts-test-card h1 { padding-right: 60px; font-size: 32px; }
+.tts-test-card h2 { font-size: 24px; }
+.tts-test-card .field { margin-bottom: 12px; }
+.tts-test-card .field label { display: block; margin-bottom: 6px; color: #bc9d5a; font-weight: 600; }
+.tts-test-card textarea, .tts-test-card select {
+    width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #3a3a3a; border-radius: 6px;
+    background: rgba(26,26,26,.82); color: #eef3ff; font: 14px/21px "Futura CondensedLight", Arial, sans-serif;
+}
+.tts-test-card textarea { min-height: 120px; resize: vertical; }
+.tts-test-card .field-help { margin: 4px 0 0; color: #8fa0bb; font-size: 12px; line-height: 1.45; }
+.tts-test-card pre { white-space: pre-wrap; overflow-wrap: anywhere; background: #121212; border: 1px solid #2f2f2f; border-radius: 8px; padding: 12px; color: #d7dfef; }
+.tts-test-card audio { width: 100%; margin-top: 10px; }
+.tts-test-card button[type="submit"] { width: 100%; margin: 0; }
+.tts-test-card :is(textarea, select, button):focus-visible { outline: 2px solid #bc9d5a; outline-offset: 2px; }
+@media (max-width: 480px) {
+    .tts-test-card { padding: 12px; }
+    .tts-test-card h1 { font-size: 24px; }
 }

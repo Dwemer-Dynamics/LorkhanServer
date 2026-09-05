@@ -215,6 +215,13 @@ assert pron.current==1 and 'id="pron-preview"' in text and 'data-pron-endpoint="
 assert 'Written vs Spoken Preview' not in text and 'Preview is unavailable' not in text and 'id="pron-preview-audio"' in text
 assert text.count('data-pron-play="1"')>=4 and 'data-pron-input="pron-add-source"' in text and 'data-pron-input="pron-add-spoken"' in text
 assert '>Play Original</span>' in text and '>Play Spoken version</span>' in text and '<option value="'+batch_voice+'"' in text
+# Opening the connector test only renders the shared, scoped voice catalog; it never synthesizes.
+connector_test_page=request('/LorkhanServer/ui/core/tts_connectors.php?edit='+sync_tts_id).read().decode()
+assert 'id="tts-test-open"' in connector_test_page and 'id="tts-test-dialog"' in connector_test_page and 'id="tts-test-audio"' in connector_test_page,connector_test_page
+assert 'data-endpoint="/LorkhanServer/manage/api/v1/tts-previews"' in connector_test_page and 'value="'+batch_voice+'"' in connector_test_page,connector_test_page
+assert 'action="/LorkhanServer/manage/forms/connector-test"' not in connector_test_page and not VoiceProvider.speech_requests,VoiceProvider.speech_requests
+option_ids=re.findall(r'id="(tts-option-[^"]+)"',connector_test_page)
+assert len(option_ids)==len(set(option_ids)),option_ids
 tts_installation=create_sync_tts['fields']['installation_id']
 def preview(payload,token=csrf): return json_request('/LorkhanServer/manage/api/v1/tts-previews','POST',payload,token)
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
