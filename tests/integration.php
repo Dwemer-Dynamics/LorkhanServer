@@ -2465,6 +2465,38 @@ $activeLog = $db->prepare('SELECT count(*) FROM public.log l JOIN lorkhan_intern
 $activeLog->execute(['turn'=>$responseScope['turn_id']]);
 $assert((int)$activeLog->fetchColumn()===1, 'clean response log removed an active response');
 $assert($maintenance->clearRoleplayLog($scopeParams['installation'], $scopeParams['playthrough'], 'responses')===0, 'repeated clean response log was not idempotent');
+// Bulk summary actions remain playthrough-scoped, idempotent and asynchronous.
+$bulkModel=$memoryService->createRevisioned('provider',['installation_id'=>$installationId,'name'=>'Bulk summary mock',
+    'content'=>['driver'=>'mock','model'=>'bulk-summary-v1']]);
+$bulkPolicyContent=['schema'=>'lorkhan.memory-policy.v1','enabled'=>true,'provider_configuration_id'=>$bulkModel['configuration_id']];
+$bulkPolicy=$products->memorySummaryPolicyForInstallation($installationId);
+if ($bulkPolicy===null) $memoryService->createRevisioned('memory_policy',['installation_id'=>$installationId,'name'=>'Bulk summary policy','content'=>$bulkPolicyContent]);
+else $memoryService->revise('memory_policy',$bulkPolicy['configuration_id'],$bulkPolicyContent,'bulk summary fixture');
+$syncMemory=$memoryService->createMemory(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],
+    'playthrough_id'=>$turn['playthrough_id'],'tier'=>'mid','content'=>'Bulk summary input sentinel.',
+    'provenance'=>['source'=>'memory.consolidate','provider'=>'first-party','model'=>'deterministic-extractive-v1']]);
+$db->prepare('UPDATE memory_records SET derivation_key=:key WHERE memory_id=:memory')
+    ->execute(['key'=>'bulk-summary-fixture','memory'=>$syncMemory['memory_id']]);
+$syncResult=$maintenance->syncMemorySummaries($installationId,$turn['playthrough_id']);
+$assert($syncResult['queued']>=1 && $syncResult['has_more']===false,'bulk summary did not queue eligible memory');
+$syncJobs=$db->prepare("SELECT count(*) FROM durable_jobs WHERE job_type='memory.summarize' AND payload->>'memory_id'=:memory");
+$syncJobs->execute(['memory'=>$syncMemory['memory_id']]);
+$assert((int)$syncJobs->fetchColumn()===1 && $maintenance->syncMemorySummaries($installationId,$turn['playthrough_id'])['queued']===0,
+    'repeated bulk summary duplicated paid work');
+$outsideMemories=$db->prepare('SELECT count(*) FROM memory_records WHERE deleted_at IS NULL AND (installation_id<>:installation OR playthrough_id<>:playthrough)');
+$memoryScope=['installation'=>$installationId,'playthrough'=>$turn['playthrough_id']];
+$outsideMemories->execute($memoryScope);$outsideMemoryCount=(int)$outsideMemories->fetchColumn();
+$memoryHistoryBefore=$historyCounts();
+$recentCount=(int)$db->query("SELECT count(*) FROM memory_records WHERE tier='recent' AND deleted_at IS NULL")->fetchColumn();
+$assert($maintenance->clearRoleplayLog($installationId,$turn['playthrough_id'],'memories')>=1,'bulk memory delete did not clear its scope');
+$outsideMemories->execute($memoryScope);
+$assert((int)$outsideMemories->fetchColumn()===$outsideMemoryCount && $historyCounts()===$memoryHistoryBefore
+    &&(int)$db->query("SELECT count(*) FROM memory_records WHERE tier='recent' AND deleted_at IS NULL")->fetchColumn()===$recentCount,
+    'bulk memory delete changed another playthrough or immutable history');
+$syncDeleted=$db->prepare('SELECT content,deleted_at IS NOT NULL AS deleted FROM memory_records WHERE memory_id=:memory');
+$syncDeleted->execute(['memory'=>$syncMemory['memory_id']]);$deletedMemory=$syncDeleted->fetch();
+$assert($deletedMemory['content']==='Bulk summary input sentinel.' && filter_var($deletedMemory['deleted'],FILTER_VALIDATE_BOOL)
+    &&$maintenance->clearRoleplayLog($installationId,$turn['playthrough_id'],'memories')===0,'bulk memory delete lost originals or was not idempotent');
 // Diary date filtering follows recorded OpenMW context and survives ordinary text edits.
 require dirname(__DIR__).'/ui/tmpl/roleplay_reader.php';
 $db->beginTransaction();

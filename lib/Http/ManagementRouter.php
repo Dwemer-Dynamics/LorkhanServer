@@ -122,6 +122,14 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if ($r->method==='POST' && $path==='/api/v1/roleplay/sync-memories') {
+            $body=$this->json($r);
+            if (($body['confirm']??'')!=='Sync') throw new InvalidArgumentException('confirmation_mismatch');
+            foreach (['installation_id','playthrough_id'] as $field) {
+                if (!is_string($body[$field]??null)) throw new InvalidArgumentException('invalid_memory_scope');
+            }
+            return Response::json(202,$this->management->syncMemorySummaries($body['installation_id'],$body['playthrough_id']));
+        }
         if ($r->method === 'POST' && $path === '/api/v1/roleplay/clear') {
             $body = $this->json($r);
             if (($body['confirm'] ?? '') !== 'Clear') throw new InvalidArgumentException('confirmation_mismatch');
@@ -304,6 +312,8 @@ final class ManagementRouter
             if(($v['embed']??'')==='1')$query['embed']='1';
             return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query($query));
         }
+        $memoryReturnScope=in_array($domain,['memory-revise','memory-delete'],true)
+            ?$this->repository->memory($this->need($v,'memory_id')):$scope;
         $result=match($domain){
             'profiles'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$content]),
             'profile-create'=>$this->createNpcProfile($v,$scope),
@@ -397,6 +407,10 @@ final class ManagementRouter
             'configuration-restore'=>$this->restoreConfigurationBackup($v,$scope),
             'retention'=>$this->repository->prune((int)($v['days']??30),gmdate('Y-m-d\TH:i:s\Z')),
             default=>throw new RuntimeException('not_found')};
+        if(in_array($domain,['memory','memory-revise','memory-delete','memory-rebuild'],true)) {
+            return$this->redirect($this->uiPath('memory').'&'.http_build_query(['status'=>'saved',
+                'installation_id'=>$memoryReturnScope['installation_id'],'playthrough_id'=>$memoryReturnScope['playthrough_id']]));
+        }
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
         if(in_array($domain,['global-settings-import','global-settings-rollback'],true))return$this->redirect(
             $this->globalSettingsPageLocation($v,$domain==='global-settings-import'?'imported':'rolled-back'));

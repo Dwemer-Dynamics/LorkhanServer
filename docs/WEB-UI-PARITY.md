@@ -49,7 +49,8 @@ do not use an exception to excuse a generic substitute layout.
 
 ### Explicit remaining Roleplay work
 
-- Finish the Memories configuration/status hierarchy.
+- Memories now has the counterpart status strip, settings link, summary actions,
+  game dates and compact edit/delete controls. Its advanced Lorkhan tools stay collapsed.
 - The completed response-log maintenance preserves active responses, prompt traces,
   source events and conversation history. Diary bulk deletion uses soft deletion.
   Both use confirmed, scoped, CSRF-protected POST, never destructive GET.
@@ -85,7 +86,7 @@ do not use an exception to excuse a generic substitute layout.
 | `description_manager.php` | `description_upload.php` | Pending structural and populated-state comparison |
 | `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
-| Roleplay `memory` tab | Herika Memories | In progress: summary table replaces cards; configuration and revisioned forms preserved; populated comparison pending |
+| Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, paper entry editor, export and bulk delete implemented; populated/empty fixture and existing HTTP checks passed |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated fixture and focus restoration checked |
@@ -196,3 +197,31 @@ an existing profile/installation identity when testing its direct route.
   focus. Its Morrowind-specific data does not restore the excluded quest manager.
 - 321 server checks, 98 protocol files, management HTTP, integration, migrations
   and durable-job tests passed. The database inventory hash is unchanged.
+
+### Memories controls and data parity
+
+- The table now shows mid/long summaries, matching Herika's summary reader rather
+  than mixing in raw recent memories. Generated text is displayed and edited first;
+  original text and revisions remain inspectable. Individual ownership is explicit.
+- Game dates resolve from direct events or the summary's scoped source-event
+  provenance. All 67 summaries in the local playthrough have recorded dates.
+  Unknown dates remain labelled instead of inferred from wall-clock time.
+- The overview matches the compact title/actions/status arrangement. Configure
+  Settings opens the selected installation; the embedding address omits credentials
+  and query strings. Model-summary status is labelled accurately because disabling
+  model summaries does not disable Lorkhan's deterministic memory retrieval.
+- Sync queues missing eligible summaries in 100-record requests through the existing
+  worker. A scope lock and existing job identities prevent duplicate provider work.
+  Existing failed jobs remain in Jobs for review. No separate session/IP rate limiter
+  was introduced; requests require browser authentication, CSRF and confirmation.
+- Bulk deletion soft-deletes summary tiers only. Recent memories, immutable events,
+  outside-scope records and revisions are preserved. No live sync/delete was run.
+- Existing HTTP tests cover confirmation, CSRF, invalid scope, disabled policy,
+  editing and deletion. Integration checks cover queued work, repeat requests,
+  retained originals, recent memories and other playthroughs. 321 server checks,
+  protocol verification, HTTP, integration, migrations and jobs passed.
+- Browser checks compared the live summary page, a synthetic generated summary and
+  an empty table. Cancel resets unsaved text and restores focus to Edit. The live
+  header and expanded advanced tools fit at 390px (375px content with scrollbar).
+- Deployment preserved config, credential and voice hashes and matched all 673
+  runtime files. No game was launched or paid provider invoked for these checks.

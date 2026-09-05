@@ -33,7 +33,7 @@ final class ManagementRepository
     public function clearRoleplayLog(string $installation, string $playthrough, string $kind): int
     {
         if (!Uuid::isValid($installation) || !Uuid::isValid($playthrough)
-            || !in_array($kind, ['responses', 'diaries'], true)) {
+            || !in_array($kind, ['responses', 'diaries', 'memories'], true)) {
             throw new \InvalidArgumentException('invalid_roleplay_log_scope');
         }
         $this->db->beginTransaction();
@@ -48,6 +48,9 @@ final class ManagementRepository
                         AND s.installation_id=:installation AND s.playthrough_id=:playthrough
                         AND t.state IN ('complete','failed','cancelled') RETURNING m.rowid
                     ) DELETE FROM public.log l USING removed WHERE l.rowid=removed.rowid");
+            } elseif ($kind === 'memories') {
+                $statement = $this->db->prepare("UPDATE memory_records SET deleted_at=clock_timestamp(),updated_at=clock_timestamp()
+                    WHERE installation_id=:installation AND playthrough_id=:playthrough AND tier IN ('mid','long') AND deleted_at IS NULL");
             } else {
                 $statement = $this->db->prepare("UPDATE narrative_records SET deleted_at=clock_timestamp(),updated_at=clock_timestamp()
                     WHERE installation_id=:installation AND playthrough_id=:playthrough AND kind='diary' AND deleted_at IS NULL");
@@ -57,6 +60,43 @@ final class ManagementRepository
             $this->audit('roleplay', 'clear_'.$kind, ['installation_id'=>$installation, 'playthrough_id'=>$playthrough], ['count'=>$count]);
             $this->db->commit();
             return $count;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
+    /** Queue a bounded page of missing summaries; existing jobs and source memories are never duplicated. */
+    public function syncMemorySummaries(string $installation, string $playthrough): array
+    {
+        if (!Uuid::isValid($installation) || !Uuid::isValid($playthrough)) throw new \InvalidArgumentException('invalid_memory_scope');
+        $this->db->beginTransaction();
+        try {
+            $scope=$this->db->prepare('SELECT 1 FROM playthroughs WHERE installation_id=:installation AND playthrough_id=:playthrough AND deleted_at IS NULL FOR SHARE');
+            $scope->execute(['installation'=>$installation,'playthrough'=>$playthrough]);
+            if (!$scope->fetchColumn()) throw new \InvalidArgumentException('invalid_memory_scope');
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtext(:scope))')->execute(['scope'=>'memory-sync:'.$installation.':'.$playthrough]);
+            $summaries=new MemorySummaryRepository($this->db);
+            $policy=$summaries->policy($installation);
+            if (($policy['content']['enabled']??false)!==true) throw new \InvalidArgumentException('memory_summary_policy_disabled');
+            $summaries->assertProvider($installation,$policy['content']);
+            $query=$this->db->prepare("SELECT m.memory_id,m.current_revision FROM memory_records m
+                WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.deleted_at IS NULL
+                    AND (m.expires_at IS NULL OR m.expires_at>clock_timestamp())
+                    AND m.derivation_key IS NOT NULL AND m.tier IN ('mid','long')
+                    AND m.provenance->>'source'='memory.consolidate' AND m.provenance->>'provider'='first-party'
+                    AND m.provenance->>'model'='deterministic-extractive-v1'
+                    AND NOT EXISTS(SELECT 1 FROM memory_model_summaries s WHERE s.memory_id=m.memory_id AND s.memory_revision=m.current_revision)
+                    AND NOT EXISTS(SELECT 1 FROM durable_jobs j WHERE j.job_type='memory.summarize'
+                        AND j.payload->>'memory_id'=m.memory_id::text AND j.payload->>'memory_revision'=m.current_revision::text)
+                ORDER BY m.memory_id LIMIT 101");
+            $query->execute(['installation'=>$installation,'playthrough'=>$playthrough]);$rows=$query->fetchAll();$queued=0;
+            foreach (array_slice($rows,0,100) as $row) {
+                if ($summaries->enqueue($installation,$row['memory_id'],(int)$row['current_revision'])!==null) ++$queued;
+            }
+            $this->audit('roleplay','sync_memories',['installation_id'=>$installation,'playthrough_id'=>$playthrough],['queued'=>$queued]);
+            $this->db->commit();
+            return ['queued'=>$queued,'has_more'=>count($rows)>100];
         } catch (\Throwable $error) {
             if ($this->db->inTransaction()) $this->db->rollBack();
             throw $error;

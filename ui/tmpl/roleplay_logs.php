@@ -67,5 +67,5 @@ function lorkhan_roleplay_clear_button(array $state, string $kind, string $base,
 {
     ?><button type="button" class="roleplay-button btn-danger log-clear" data-roleplay-clear="<?= lorkhan_ui_h($kind) ?>"
         data-endpoint="<?= lorkhan_ui_h($base.'/api/v1/roleplay/clear') ?>" data-csrf="<?= lorkhan_ui_h($csrf) ?>"
-        data-installation="<?= lorkhan_ui_h($state['installation']) ?>" data-playthrough="<?= lorkhan_ui_h($state['playthrough']) ?>"<?= $state['playthrough']===''?' disabled':'' ?>><?= $kind==='diaries'?'Delete All Diary Entries':'Clean Response Log' ?></button><?php
+        data-installation="<?= lorkhan_ui_h($state['installation']) ?>" data-playthrough="<?= lorkhan_ui_h($state['playthrough']) ?>"<?= $state['playthrough']===''?' disabled':'' ?>><?= match($kind){'diaries'=>'Delete All Diary Entries','memories'=>'Delete All Memory Summaries',default=>'Clean Response Log'} ?></button><?php
 }

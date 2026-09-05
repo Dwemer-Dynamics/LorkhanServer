@@ -13,13 +13,13 @@ require __DIR__ . '/tmpl/roleplay_memory_table.php';
 require __DIR__ . '/tmpl/control_reader.php';
 require __DIR__ . '/tmpl/roleplay_reader.php';
 require __DIR__ . '/tmpl/roleplay_logs.php';
-$roleplay = $uiRepository->roleplay();
 $eventLogRepository = new EventLogRepository($database);
 $eventLogState = $eventLogRepository->page([
-    'installation_id'=>$_GET['installation_id']??null,'playthrough_id'=>$_GET['playthrough_id']??null,
+    'installation_id'=>$_GET['installation_id']??$_GET['policy_installation_id']??null,'playthrough_id'=>$_GET['playthrough_id']??null,
     'page'=>$_GET['page']??1,'limit'=>$_GET['limit']??100,'event_type'=>$_GET['event_type']??'',
 ]);
 $allowedTabs = ['eventlog', 'responselog', 'adventure', 'memory', 'diaries', 'books', 'journal'];
+$roleplay = $uiRepository->roleplay($eventLogState['scope']??[]);
 $tabAliases = ['eventlog-tab'=>'eventlog','responses-tab'=>'responselog','memories-tab'=>'memory',
     'relationships-tab'=>'journal','relationships'=>'journal','narratives-tab'=>'adventure',
     'journal-tab'=>'journal','books-tab'=>'books'];
@@ -113,26 +113,41 @@ function lorkhan_roleplay_memory_embedding_policy(mixed $policy,array $installat
 
 /** Render the editable CHIM-style memory manager while preserving LORKHAN retrieval provenance. */
 function lorkhan_roleplay_memory_manager(array $rows,array $installations,array $profiles,array $playthroughs,string $base,string $csrf,
-    array $memoryPolicies,array $memoryConnectors,string $webRoot,mixed $memoryEmbeddingPolicy=null):void
+    array $memoryPolicies,array $memoryConnectors,string $webRoot,mixed $memoryEmbeddingPolicy=null,array $scope=[]):void
 {
-    $selected=is_string($_GET['policy_installation_id']??null)?$_GET['policy_installation_id']:'';
+    $selected=(string)($scope['installation_id']??'');
     if(!isset($installations[$selected]))$selected=(string)(array_key_first($installations)??'');
+    $playthrough=(string)($scope['playthrough_id']??'');
+    $rows=array_values(array_filter($rows,static fn(array $row):bool=>($row['installation_id']??'')===$selected && ($row['playthrough_id']??'')===$playthrough));
     $policy=[];foreach($memoryPolicies as$item)if(($item['installation_id']??'')===$selected){$policy=$item;break;}
     $connectors=[];foreach($memoryConnectors as$item)if(($item['installation_id']??'')===$selected)$connectors[(string)$item['configuration_id']]=(string)$item['name'];
     $embedding=[];foreach(is_array($memoryEmbeddingPolicy)?$memoryEmbeddingPolicy:[] as $item)if(($item['installation_id']??'')===$selected){$embedding=$item;break;}
     $summariesOn=filter_var($policy['content']['enabled']??false,FILTER_VALIDATE_BOOL);
     $embeddingsOn=filter_var(lorkhan_memory_embedding_field($embedding,'enabled',false),FILTER_VALIDATE_BOOL);
-    echo '<section class="memory-overview"><h3>Memory System Configuration</h3><p><strong>🧠 Memories:</strong> Memory summaries with scope, participants and period coverage. Review long-term context and edit summaries below.</p><div class="memory-status-bar"><span>Model Summaries <b class="'.($summariesOn?'is-on':'is-off').'">'.($summariesOn?'Enabled':'Disabled').'</b></span><span>TXT2VEC (Embeddings) <b class="'.($embeddingsOn?'is-on':'is-off').'">'.($embeddingsOn?'Enabled':'Disabled').'</b></span></div><details><summary class="memory-config-toggle">Configure Settings</summary><div class="memory-policy-columns">';
+    // Show the service address without credentials or query-string secrets.
+    $embeddingUrl=parse_url((string)lorkhan_memory_embedding_field($embedding,'endpoint',''));
+    $embeddingAddress=is_array($embeddingUrl)&&isset($embeddingUrl['host'])
+        ?($embeddingUrl['scheme']??'http').'://'.$embeddingUrl['host'].(isset($embeddingUrl['port'])?':'.$embeddingUrl['port']:'').($embeddingUrl['path']??''):'Not configured';
+    echo '<section class="memory-overview" aria-labelledby="memory-overview-title"><div class="memory-overview-head"><div class="memory-overview-main"><h3 id="memory-overview-title">Memory System Configuration</h3><p><strong>🧠 Memories:</strong> Memory summaries with scope, participants and period coverage. Review long-term context and edit summaries below.</p></div><div class="memory-actions">';
+    echo '<button type="button" class="roleplay-button memory-sync" data-memory-sync data-endpoint="'.lorkhan_ui_h($base.'/api/v1/roleplay/sync-memories').'" data-installation="'.lorkhan_ui_h($selected).'" data-playthrough="'.lorkhan_ui_h($playthrough).'" data-csrf="'.lorkhan_ui_h($csrf).'"'.(!$summariesOn||$playthrough===''?' disabled':'').'>Sync Memory Summaries Now</button>';
+    lorkhan_roleplay_clear_button(['installation'=>$selected,'playthrough'=>$playthrough],'memories',$base,$csrf);
+    echo '</div></div><div class="memory-status-bar"><span>Model Summaries <b class="'.($summariesOn?'is-on':'is-off').'">'.($summariesOn?'Enabled':'Disabled').'</b></span><span>TXT2VEC (Embeddings) <b class="'.($embeddingsOn?'is-on':'is-off').'">'.($embeddingsOn?'Enabled':'Disabled').'</b> <span class="memory-status-url">URL: '.lorkhan_ui_h($embeddingAddress).'</span></span><a class="roleplay-button memory-config-link" href="'.lorkhan_ui_h($webRoot.'/ui/global_settings.php?installation_id='.$selected).'">Configure Settings</a></div>';
+    if (!$embeddingsOn) echo '<p class="memory-status-warning"><strong>Warning:</strong> TXT2VEC is disabled. Vector search is unavailable; lexical memory retrieval remains active.</p>';
+    echo '<p role="status" data-roleplay-maintenance-status></p></section><details class="memory-scope"><summary>Current playthrough</summary><form method="get" class="reader-filters"><input type="hidden" name="tab" value="memory">';
+    lorkhan_roleplay_scope_select('installation_id','Installation',$installations,$selected);
+    lorkhan_roleplay_scope_select('playthrough_id','Playthrough',$playthroughs,$playthrough);
+    echo '<button type="submit" class="roleplay-button">Show</button></form></details><details class="memory-advanced-settings"><summary>Advanced memory tools</summary><div class="memory-policy-columns">';
     lorkhan_roleplay_memory_policy($policy,$installations,$selected,$connectors,$base,$csrf,$webRoot);
     lorkhan_roleplay_memory_embedding_policy($memoryEmbeddingPolicy,$installations,$selected,$base,$csrf);
-    echo'</div></details></section>';
+    echo'</div>';
     echo'<details class="management-section"><summary>Add or rebuild memories</summary><div class="profile-grid"><form class="management-form" method="post" action="'.lorkhan_ui_h($base.'/forms/memory').'"><fieldset><legend>Add memory</legend>';
     lorkhan_roleplay_scope_select('installation_id','Installation',$installations);lorkhan_roleplay_scope_select('profile_id','Profile',$profiles);lorkhan_roleplay_scope_select('playthrough_id','Playthrough',$playthroughs);
-    echo'<label for="memory-tier">Tier</label><select id="memory-tier" name="tier"><option value="recent">Recent</option><option value="mid">Middle term</option><option value="long">Long term</option></select>';
+    echo'<label for="memory-tier">Tier</label><select id="memory-tier" name="tier"><option value="recent">Recent (source memory)</option><option value="mid" selected>Middle term</option><option value="long">Long term</option></select>';
     echo'<label for="memory-content">Memory content</label><textarea id="memory-content" name="content" required></textarea><label for="memory-provenance">Provenance</label><input id="memory-provenance" name="provenance" value="management" required><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><button class="btn-base btn-primary" type="submit">Add memory</button></fieldset></form>';
     echo'<form class="management-form" method="post" action="'.lorkhan_ui_h($base.'/forms/memory-rebuild').'"><fieldset><legend>Rebuild retrieval index</legend>';
     lorkhan_roleplay_scope_select('installation_id','Installation',$installations);lorkhan_roleplay_scope_select('profile_id','Profile',$profiles);lorkhan_roleplay_scope_select('playthrough_id','Playthrough',$playthroughs);
     echo'<p>Recalculate deterministic lexical and vector fields for the selected playthrough without changing memory text.</p><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'"><button class="btn-base" type="submit">Rebuild memories</button></fieldset></form></div></details>';
+    echo '</details>';
     lorkhan_roleplay_memory_table($rows,$profiles,$playthroughs,$base,$csrf);
 }
 
@@ -246,7 +261,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     }
                 }elseif($tabId==='memory'){
                     if($tabId===$activeTab){echo '<div class="tab-panel-inner roleplay-panel"><h2 class="visually-hidden">Memories</h2>';
-                        lorkhan_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf,$memoryPolicies,$memoryConnectors,$webRoot,$memoryEmbeddingPolicy??null);
+                        lorkhan_roleplay_memory_manager($rows,$installationOptions,$profileOptions,$playthroughOptions,$managementBasePath,$csrf,$memoryPolicies,$memoryConnectors,$webRoot,$memoryEmbeddingPolicy??null,$eventLogState['scope']??[]);
                         echo '</div>';}
                 }elseif($tabId==='eventlog'){lorkhan_roleplay_eventlog($eventLogState,$managementBasePath.'/api/v1/eventlog',$csrf,isset($_GET['autorefresh'])&&$_GET['autorefresh']==='true');} ?>
             </section>

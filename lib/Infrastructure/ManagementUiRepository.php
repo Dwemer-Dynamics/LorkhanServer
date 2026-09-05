@@ -204,12 +204,12 @@ SQL);
     }
 
     /** Load the inspection tabs rendered directly inside the Roleplay PHP page. */
-    public function roleplay(): array
+    public function roleplay(array $memoryScope=[]): array
     {
         return [
             'events' => $this->rows('events'),
             'responses' => $this->rows('responses'),
-            'memories' => $this->rows('memories'),
+            'memories' => $this->rows('memories',null,$memoryScope),
             'relationships' => $this->rows('relationships'),
             'narratives' => $this->rows('narratives'),
             'knowledge' => $this->rows('knowledge'),
@@ -219,10 +219,11 @@ SQL);
     }
 
     /** Return one of the allowlisted bounded datasets used by embedded management pages. */
-    public function rows(string $view,?string $relationshipInstallationId=null): array
+    public function rows(string $view,?string $relationshipInstallationId=null,array $memoryScope=[]): array
     {
         $relationshipScoped=in_array($view,['relationships','relationship_logs','relationship_profiles'],true)&&$relationshipInstallationId!==null;
         $relationshipFilter=$relationshipScoped?' AND r.installation_id=:relationship_installation':'';
+        $memoryScoped=$view==='memories'&&isset($memoryScope['installation_id'],$memoryScope['playthrough_id']);
         $sql = match ($view) {
             'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
             'request_logs' => "SELECT trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.truncated,"
@@ -233,7 +234,7 @@ SQL);
             'memory_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
             'memory_embedding_policy' => "SELECT c.installation_id,c.configuration_id,c.current_revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.kind='memory_embedding_policy' AND c.deleted_at IS NULL ORDER BY c.installation_id LIMIT 100",
             'memories' => "SELECT metadata.memory_id,metadata.installation_id,metadata.profile_id,metadata.playthrough_id,metadata.tier,m.message AS content,"
-                . "generated.content AS summary_content,"
+                . "generated.content AS summary_content,COALESCE(event.payload#>'{context,world,calendar}',memory_turn.context#>'{world,calendar}',summary_calendar.calendar_data) AS calendar_data,"
                 . "(source.derivation_key IS NOT NULL AND source.tier IN ('mid','long') AND source.deleted_at IS NULL "
                 . "AND (source.expires_at IS NULL OR source.expires_at>clock_timestamp()) "
                 . "AND source.provenance->>'source'='memory.consolidate' AND source.provenance->>'provider'='first-party' "
@@ -252,7 +253,19 @@ SQL);
                 . "LEFT JOIN lorkhan_internal.memory_records source ON source.memory_id=metadata.memory_id "
                 . "LEFT JOIN lorkhan_internal.memory_model_summaries generated ON generated.memory_id=source.memory_id AND generated.memory_revision=source.current_revision "
                 . "LEFT JOIN lorkhan_internal.source_events event ON event.source_event_id=source.source_event_id "
+                . "LEFT JOIN lorkhan_internal.turns memory_turn ON memory_turn.turn_id=event.turn_id "
+                . "LEFT JOIN LATERAL (SELECT COALESCE(e.payload#>'{context,world,calendar}',t.context#>'{world,calendar}') AS calendar_data "
+                . "FROM jsonb_array_elements_text(CASE WHEN jsonb_typeof(source.provenance->'source_event_ids')='array' "
+                . "THEN source.provenance->'source_event_ids' ELSE '[]'::jsonb END) refs(id) "
+                . "JOIN lorkhan_internal.source_events e ON e.source_event_id=CASE WHEN refs.id ~ '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$' THEN refs.id::uuid END "
+                . "JOIN lorkhan_internal.sessions calendar_session ON calendar_session.session_id=e.session_id "
+                . "LEFT JOIN lorkhan_internal.turns t ON t.turn_id=e.turn_id "
+                . "WHERE e.installation_id=source.installation_id AND calendar_session.playthrough_id=source.playthrough_id "
+                . "AND COALESCE(e.payload#>'{context,world,calendar}',t.context#>'{world,calendar}') IS NOT NULL "
+                . "ORDER BY e.occurred_at DESC,e.source_event_id LIMIT 1) summary_calendar ON true "
                 . "LEFT JOIN lorkhan_internal.dialogue_delivery_results delivery ON delivery.source_event_id=source.source_event_id "
+                . "WHERE source.tier IN ('mid','long') AND source.deleted_at IS NULL "
+                . ($memoryScoped?'AND metadata.installation_id=:memory_installation AND metadata.playthrough_id=:memory_playthrough ':'')
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
             'relationships' => "SELECT r.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,r.actor_identity,"
                 . "COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown actor') AS actor,"
@@ -354,7 +367,8 @@ SQL);
             if ($view === 'llm') $row['content'] = \LorkhanServer\Application\LlmConnector::validate(
                 json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
             return $this->redactRow($row);
-        }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:[]));
+        }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:($memoryScoped?
+            ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:[])));
     }
 
     /** Return one effective factory-or-custom biography template for on-demand details and editing. */

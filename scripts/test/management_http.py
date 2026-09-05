@@ -624,25 +624,39 @@ assert r.status==422 and 'invalid_global_settings_revision' in invalid_body,(r.s
 memories,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab'))
 create_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory'))
 memory_text='HTTP managed memory '+uuid.uuid4().hex
+memory_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'memory','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
 values=dict(create_memory['fields'],_csrf=csrf,installation_id=valid['installation_id'],profile_id=profile_id,playthrough_id=playthrough_id,tier='mid',content=memory_text,provenance='management-http')
 r=request(create_memory['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'tab=memory' in r.geturl() and memory_text in body,(r.status,r.geturl(),body)
 memory_match=re.search(re.escape(memory_text)+r'.*?name="memory_id" value="([0-9a-f-]{36})"',body,re.S); assert memory_match,body
 memory_id=memory_match.group(1)
-policy_page,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memory'))
+policy_page,_=parse(request(memory_url))
 summary_form=next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))
 assert 'enabled' not in summary_form['fields']
 summary_values=dict(summary_form['fields'],_csrf=csrf,installation_id=valid['installation_id'])
 r=request(summary_form['action'],'POST',dict(summary_values,enabled='1',provider_configuration_id='')); assert r.status==422
 r=request(summary_form['action'],'POST',dict(summary_values,_csrf='wrong')); assert r.status==200 and r.geturl().endswith('/ui/home.php')
-policy_page,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memory'))
+policy_page,_=parse(request(memory_url))
 assert 'enabled' not in next(f for f in policy_page.forms if f['action'].endswith('/forms/memory-policy'))['fields']
 for changes in [{'memory_id':'not-a-uuid'},{'base_revision':'1.5'},{'base_revision':'0'},{}]:
     r=request('/LorkhanServer/manage/forms/memory-summarize','POST',dict({'_csrf':csrf,'installation_id':valid['installation_id'],'memory_id':memory_id,'base_revision':'1'},**changes))
     assert r.status==422,(r.status,r.read().decode()) # Manual memories are never model-summary inputs.
-memories,_=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab'))
+memories,_=parse(request(memory_url))
 revise_memory=next(f for f in memories.forms if f['action'].endswith('/forms/memory-revise') and f['fields'].get('memory_id')==memory_id)
 revised_memory=memory_text+' revised'; r=request(revise_memory['action'],'POST',dict(revise_memory['fields'],_csrf=csrf,content=revised_memory)); body=r.read().decode(); assert r.status==200 and revised_memory in body,(r.status,r.geturl(),body)
 r=request('/LorkhanServer/manage/forms/memory-delete','POST',{'_csrf':csrf,'memory_id':memory_id}); body=r.read().decode(); assert r.status==200 and revised_memory not in body,(r.status,r.geturl())
+assert 'Sync Memory Summaries Now' in body and 'Delete All Memory Summaries' in body and 'memory-config-link' in body
+sync_path='/LorkhanServer/manage/api/v1/roleplay/sync-memories'
+sync_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'confirm':'Sync'}
+assert json_request(sync_path,'POST',sync_values).status==401
+assert json_request(sync_path,'GET',None,csrf).status in (404,405)
+assert json_request(sync_path,'POST',dict(sync_values,confirm=''),csrf).status==422
+assert json_request(sync_path,'POST',dict(sync_values,playthrough_id=str(uuid.uuid4())),csrf).status==422
+assert json_request(sync_path,'POST',sync_values,csrf).status==422 # Disabled summary policy does not enqueue paid work.
+r=request(create_memory['action'],'POST',values); assert r.status==200
+r=json_request(clear_path,'POST',dict(clear_values,kind='memories'),csrf)
+assert r.status==200 and json.loads(r.read())['cleared']>=1
+_,memory_after_clear=parse(request(memory_url))
+assert memory_text not in memory_after_clear
 legacy_relationships,body=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab'))
 assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content active"' in body and '/forms/relationships' not in body,(legacy_relationships.current,body)
 relationship_page,body=parse(request('/LorkhanServer/ui/relationship_logs.php?embed=1&installation_id='+valid['installation_id']))
