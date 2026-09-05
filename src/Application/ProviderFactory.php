@@ -167,8 +167,7 @@ final class ProviderFactory
             $resolveVoice=null;
             if($driver==='inworld'){
                 $credentials=new CredentialStore((string)($config['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
-                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot,
-                    ($config['inworld_auto_clone']??false)===true);
+                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot);
                 $resolveVoice=$resolver->resolve(...);
             }
             return new CloudSpeechConnectorProvider($endpoint,$driver,(string)$content['model'],

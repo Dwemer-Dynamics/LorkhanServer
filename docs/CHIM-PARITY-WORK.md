@@ -155,8 +155,9 @@ adapts that workflow to its bounded provider interface; Herika source is unchang
 - Store only voice IDs in a credential-scoped private `.inworld-cache` under the
   existing persistent voice root; no credentials or sample bytes enter the cache.
   Locks serialize registration of each name, and cancellation reaches HTTP.
-- Automatic uploads require `inworld_auto_clone=true` in private server config,
-  after explicit consent. Default is false. Existing registered voices still work.
+- Selecting Inworld automatically registers missing local samples on first use,
+  matching Herika. There is no additional cloning toggle or runtime consent gate.
+  The owner explicitly authorized this behavior on 2026-09-05.
 - Local samples are not uploaded or published by deployment. Clones are not made
   public. No game launch, save reset, or NPC regeneration is required.
 
@@ -166,5 +167,9 @@ The clone request uses Inworld's current `langCode` and optional sample
 
 Verification uses the existing unit and integration suites with mock discovery and
 cloning: selected sample/transcription, cached reuse, custom IDs, changed credential
-scope, upload consent, path rejection, cancellation and race-voice preservation.
-Live clone/playback proof remains separate from those checks.
+scope, missing samples, path rejection, cancellation and race-voice preservation.
+Live server proof (2026-09-05): registered `mw_dark_elf_male` from the local
+Morrowind WAV in 4.33 seconds, then synthesized a short phrase in 0.71 seconds
+(80,306-byte WAV, 1,820 ms). The connector catalog records the returned workspace
+voice ID; Dagoth Ur and player voice entries were preserved. In-game playback
+remains a separate confirmation.

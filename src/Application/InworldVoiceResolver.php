@@ -13,7 +13,6 @@ final class InworldVoiceResolver
         private readonly CloudVoiceLibrary $library,
         private readonly CredentialStore $credentials,
         private readonly string $voiceRoot,
-        private readonly bool $allowClone = false,
     ) {}
 
     public function resolve(string $name,string $language,CancellationToken $cancellation):string
@@ -50,7 +49,6 @@ final class InworldVoiceResolver
             if(count($matches)>1)throw new RuntimeException('voice_name_ambiguous');
             $id=(string)(array_key_first($matches)??'');
             if($id===''){
-                if(!$this->allowClone)throw new RuntimeException('voice_upload_confirmation_required');
                 $sample=realpath($root.'/'.$name.'.wav');
                 if($sample===false||!str_starts_with($sample,$root.DIRECTORY_SEPARATOR)||!is_file($sample))
                     throw new RuntimeException('voice_sample_not_found');

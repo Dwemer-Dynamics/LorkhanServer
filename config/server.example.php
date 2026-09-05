@@ -58,8 +58,6 @@ return [
     'backup_storage_path' => '/var/lib/lorkhanserver/backups',
     // Browser-managed provider credentials remain outside the web root and are never returned by the UI.
     'credential_storage_path' => '/var/lib/lorkhanserver/credentials/provider-keys.json',
-    // Enable only after consenting to upload selected local WAV samples to the configured Inworld account.
-    'inworld_auto_clone' => false,
     'media_max_bytes' => 32 * 1024 * 1024,
     'media_quota_bytes' => 256 * 1024 * 1024,
     'worker' => [

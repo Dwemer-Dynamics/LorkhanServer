@@ -1097,7 +1097,7 @@ $inworldLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredent
         $request=json_decode($body,true,16,JSON_THROW_ON_ERROR);
         return ['voice'=>['voiceId'=>'workspace__'.$request['displayName']]];
     });
-$inworldResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot,true);
+$inworldResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot);
 $wav=(new MockSpeechProvider())->synthesize('test',new NeverCancelledToken())['bytes'];
 file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav);
 $resolvedVoice=$inworldResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
@@ -1113,10 +1113,10 @@ $check($inworldResolver->resolve('workspace__dagoth_ur','en',new NeverCancelledT
 $inworldCredentials->set('LORKHAN_TTS_INWORLD_API_KEY','test-account-two');
 $inworldResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
 $check(count($inworldCalls)===4,'Inworld cached IDs cannot cross credential scopes');
-$readOnlyResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot);
-try{$readOnlyResolver->resolve('unregistered_voice','en',new NeverCancelledToken());$check(false,'Inworld upload needs consent');}
-catch(RuntimeException $e){$check($e->getMessage()==='voice_upload_confirmation_required','Inworld upload needs consent');}
-$check($readOnlyResolver->resolve('existing_voice','en',new NeverCancelledToken())==='workspace__existing',
+$existingVoiceResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot);
+try{$existingVoiceResolver->resolve('unregistered_voice','en',new NeverCancelledToken());$check(false,'Inworld missing samples fail explicitly');}
+catch(RuntimeException $e){$check($e->getMessage()==='voice_sample_not_found','Inworld missing samples fail explicitly');}
+$check($existingVoiceResolver->resolve('existing_voice','en',new NeverCancelledToken())==='workspace__existing',
     'Inworld discovers an existing exact-name voice without uploading a sample');
 $beforeCalls=count($inworldCalls);
 try{$inworldResolver->resolve('../escape','en',new NeverCancelledToken());$check(false,'Inworld sample path traversal rejected');}
