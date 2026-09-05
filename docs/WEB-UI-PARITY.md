@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
-| `core/llm_connectors.php` | Same path | Pending structural and populated-state comparison |
+| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Pending structural and populated-state comparison |
 | `core/stt_connectors.php` | `stt_connectors.php` | Pending structural and populated-state comparison |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
@@ -428,3 +428,39 @@ Remaining Core Profile requirements identified from the pinned source and live e
   403 and unauthenticated native session creation remains 401. No game was launched,
   controlled or used for validation. Remaining profile and whole-page requirements
   above are still open.
+
+### LLM connector editor structure and sampling controls
+
+- Compared the pinned Herika source and its populated live DeepSeek editor with the
+  same Lorkhan editor at 1280px. Moved Save/Test/Export and service selection into the
+  connection column; moved supported response-format controls below the connection.
+  Sampling now uses the reference's stacked label/slider/number rows and advanced
+  section order: presence, frequency, repetition, Top p, Top k, Min p, Top a.
+- Eight unnamed range companions reuse the existing numeric synchronization code.
+  They do not submit duplicate fields or replace an inherited blank with zero.
+  Explicit zero, false and the two mutually exclusive token-limit parameters retain
+  their existing typed semantics. This pass does not change provider requests.
+- Field help is available on hover/focus and dismissible with Escape. Service logos
+  now occupy the icon buttons instead of being reduced by shared button padding;
+  selected direct services have a gold outline and an accessible pressed state.
+  Configured and mock modes are named honestly rather than guessing their service.
+  Disabled Delete/Test/Export controls no longer inherit a 190px placeholder width.
+- Deployed inputs match the reference 14px/21px font and 43px height. All seven service
+  icons share one desktop row. The 390px layout retains readable stacked columns,
+  wrapping icons and paired sampling controls. Long help stays within the editor.
+- An isolated copy of the actual create page, CSS and scripts blocked every POST.
+  Browser checks covered service selection, numeric zero, range keyboard updates,
+  clearing to inherit, switching to mock and back without losing drafts, disabled
+  inactive controls, token-limit conflict/recovery and Escape/focus behavior.
+  Live connector settings were never saved, and no paid provider test was run.
+- The existing HTTP suite now checks eight unnamed sliders plus blank and explicit
+  zero rendering alongside its actual mock-provider request tests. PHP lint, 328
+  server checks, 98 protocol files, HTTP forms, integration, migrations and durable
+  jobs passed; the 166-relation schema inventory remains unchanged.
+- Remaining LLM work is explicit: model browsing/information, provider preference,
+  editable connector names, additional request-body controls and import/editor
+  interaction parity. Reference JSON schema/prefill/action-prompt controls still need
+  their runtime mapping assessed. None is replaced with a nonfunctional placeholder
+  or declared a product exception by this checkpoint.
+- Local deployment preserves configuration, credentials and voice contents. Runtime
+  hash and access checks cover all 678 shipped files. No game was launched or controlled.

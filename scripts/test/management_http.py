@@ -1082,6 +1082,11 @@ r=request('/LorkhanServer/manage/forms/providers','POST',direct_values); body=r.
 direct_id=connector_editor_id(body,direct_name)
 _,direct_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id))
 assert re.search(r'id="llm_option_max_completion_tokens"[^>]*value="64"',direct_editor),direct_editor
+# Range companions must never duplicate the submitted override or turn blank defaults into zero.
+llm_ranges=re.findall(r'<input type="range"[^>]+>',direct_editor)
+assert len(llm_ranges)==8 and all(' name=' not in tag for tag in llm_ranges),llm_ranges
+assert re.search(r'id="llm_option_presence_penalty"[^>]*value=""',direct_editor),direct_editor
+assert re.search(r'id="llm_option_temperature"[^>]*value="0"',direct_editor),direct_editor
 direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]

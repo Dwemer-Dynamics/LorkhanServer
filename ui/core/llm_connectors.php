@@ -66,13 +66,13 @@ const LORKHAN_LLM_GENERATION_FIELDS = [
 ];
 
 const LORKHAN_LLM_SAMPLING_FIELDS = [
+    ['presence_penalty', 'Presence penalty', 'number', -2, 2, '0.01', 'Discourages topics that already appeared.'],
+    ['frequency_penalty', 'Frequency penalty', 'number', -2, 2, '0.01', 'Discourages tokens that already appeared often.'],
+    ['repetition_penalty', 'Repetition penalty', 'number', 0, 2, '0.01', 'Penalises repeated spans across the whole response.'],
     ['top_p', 'Top p', 'number', 0, 1, '0.01', 'Keeps the smallest set of tokens whose probabilities reach p.'],
     ['top_k', 'Top k', 'integer', 0, 1000, '1', 'Keeps only the k most likely tokens; 0 applies no limit.'],
     ['min_p', 'Min p', 'number', 0, 1, '0.01', 'Drops tokens far below the most likely token.'],
     ['top_a', 'Top a', 'number', 0, 1, '0.01', 'Scales the cutoff with the most likely token probability.'],
-    ['frequency_penalty', 'Frequency penalty', 'number', -2, 2, '0.01', 'Discourages tokens that already appeared often.'],
-    ['presence_penalty', 'Presence penalty', 'number', -2, 2, '0.01', 'Discourages topics that already appeared.'],
-    ['repetition_penalty', 'Repetition penalty', 'number', 0, 2, '0.01', 'Penalises repeated spans across the whole response.'],
 ];
 
 /** Boolean override fields: name, label, inherit-option label, help, optional feature id. */
@@ -112,14 +112,21 @@ function lorkhan_llm_number_field(array $field, array $options, string $formId, 
     $value = is_int($stored) || is_float($stored) ? (string) $stored : (is_string($stored) ? $stored : '');
     $id = 'llm_option_' . $name;
     ?>
-    <div class="llm-option-field">
+    <div class="llm-option-field<?php echo str_contains($name, 'tokens') ? ' llm-token-field' : ' llm-sampling-field'; ?>">
         <label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($label); ?></label>
+        <div class="llm-option-control">
+        <?php if (!str_contains($name, 'tokens')): ?>
+        <input type="range" aria-label="<?php echo lorkhan_ui_h($label); ?> slider" data-range-for="<?php echo lorkhan_ui_h($id); ?>"
+               min="<?php echo lorkhan_ui_h($minimum); ?>" max="<?php echo lorkhan_ui_h($maximum); ?>" step="<?php echo lorkhan_ui_h($step); ?>"
+               value="<?php echo lorkhan_ui_h($value === '' ? ($name === 'temperature' ? 1 : max(0, $minimum)) : $value); ?>"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+        <?php endif; ?>
         <input id="<?php echo lorkhan_ui_h($id); ?>" name="option_<?php echo lorkhan_ui_h($name); ?>" type="number"
                inputmode="<?php echo $type === 'integer' ? 'numeric' : 'decimal'; ?>"
                min="<?php echo lorkhan_ui_h($minimum); ?>" max="<?php echo lorkhan_ui_h($maximum); ?>" step="<?php echo lorkhan_ui_h($step); ?>"
                value="<?php echo lorkhan_ui_h($value); ?>" placeholder="Default"
                aria-describedby="<?php echo lorkhan_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-        <p class="llm-help" id="<?php echo lorkhan_ui_h($id); ?>-help"><?php echo lorkhan_ui_h($help); ?> Range: <?php echo lorkhan_ui_h($minimum); ?> to <?php echo lorkhan_ui_h($maximum); ?>.</p>
+        </div>
+        <p class="llm-help llm-field-tooltip" role="tooltip" id="<?php echo lorkhan_ui_h($id); ?>-help"><?php echo lorkhan_ui_h($help); ?> Range: <?php echo lorkhan_ui_h($minimum); ?> to <?php echo lorkhan_ui_h($maximum); ?>.</p>
     </div>
     <?php
 }
@@ -133,7 +140,7 @@ function lorkhan_llm_boolean_field(array $field, array $options, string $formId,
     $current = $stored === true ? 'true' : ($stored === false ? 'false' : '');
     $id = 'llm_option_' . $name;
     ?>
-    <div class="llm-option-field">
+    <div class="llm-option-field llm-boolean-field">
         <label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($label); ?><?php if ($featureId !== '') echo ' ' . lorkhan_ui_feature_badge($featureId, true); ?></label>
         <select id="<?php echo lorkhan_ui_h($id); ?>" name="option_<?php echo lorkhan_ui_h($name); ?>"
                 aria-describedby="<?php echo lorkhan_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
@@ -141,7 +148,7 @@ function lorkhan_llm_boolean_field(array $field, array $options, string $formId,
             <option value="true"<?php echo $current === 'true' ? ' selected' : ''; ?>>On</option>
             <option value="false"<?php echo $current === 'false' ? ' selected' : ''; ?>>Off</option>
         </select>
-        <p class="llm-help" id="<?php echo lorkhan_ui_h($id); ?>-help"><?php echo lorkhan_ui_h($help); ?></p>
+        <p class="llm-help llm-field-tooltip" role="tooltip" id="<?php echo lorkhan_ui_h($id); ?>-help"><?php echo lorkhan_ui_h($help); ?></p>
     </div>
     <?php
 }
@@ -166,11 +173,10 @@ function lorkhan_llm_service_picker(string $webRoot): void
     ];
     ?>
     <div class="llm-legacy-row llm-service-block">
-        <p class="llm-legacy-name"><span>Service</span></p>
-        <p class="llm-help">Fill in the endpoint and API key reference. Choose a model below.</p>
+        <p class="llm-legacy-name"><span id="llm-service-label">Service</span></p>
         <div class="llm-service-icons" role="group" aria-label="Service presets">
             <?php foreach ($services as $file => $label): ?>
-            <button type="button" data-llm-service="<?php echo lorkhan_ui_h($file); ?>" title="<?php echo lorkhan_ui_h($label); ?>"><img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="<?php echo lorkhan_ui_h($label); ?>"></button>
+            <button type="button" data-llm-service="<?php echo lorkhan_ui_h($file); ?>" aria-pressed="false" title="<?php echo lorkhan_ui_h($label); ?>"><img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="<?php echo lorkhan_ui_h($label); ?>"></button>
             <?php endforeach; ?>
         </div>
     </div>
@@ -226,7 +232,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <button class="btn-danger" type="submit">Delete</button>
                         </form>
                         <?php else: ?>
-                        <button class="btn-danger feature-placeholder-control" type="button" disabled aria-disabled="true" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.llm.delete-protected')['description']); ?>">Delete <?php echo lorkhan_ui_feature_badge('config.llm.delete-protected', true); ?></button>
+                        <button class="btn-danger" type="button" disabled aria-disabled="true" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.llm.delete-protected')['description']); ?>">Delete</button>
                         <?php endif; ?>
                         <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-clone">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($row['configuration_id']); ?>"><input type="hidden" name="name" value="<?php echo lorkhan_ui_h($row['name'] . ' copy'); ?>">
@@ -278,37 +284,45 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <?php if ($creating): ?><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><?php else: ?><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="change_reason" value="Management LLM update"><?php endif; ?>
                     </form>
 
-                    <div class="llm-editor-toolbar">
-                        <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>">Save</button>
-                        <?php if (!$creating): ?>
-                        <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Test</button></form>
-                        <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
-                        <?php else: ?>
-                        <span class="llm-toolbar-placeholder"><button class="btn-primary feature-placeholder-control" type="button" disabled aria-disabled="true">Test</button><?php echo lorkhan_ui_feature_badge('config.llm.saved-only', true); ?></span>
-                        <span class="llm-toolbar-placeholder"><button class="btn-save feature-placeholder-control" type="button" disabled aria-disabled="true">Export</button><?php echo lorkhan_ui_feature_badge('config.llm.saved-only', true); ?></span>
-                        <?php endif; ?>
-                        <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
-                        <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
-                    </div>
-
-                    <?php lorkhan_llm_service_picker($webRoot); ?>
                     <div class="two-col-llm">
                         <div class="llm-column">
-                            <label for="llm_name">Name<?php if (!$creating) echo ' ' . lorkhan_ui_feature_badge('config.llm.identity', true); ?></label>
-                            <input id="llm_name" type="text" aria-describedby="llm_name-help" <?php echo $creating ? 'name="name" required maxlength="128" form="' . lorkhan_ui_h($formId) . '"' : 'value="' . lorkhan_ui_h($selected['name']) . '" readonly'; ?>>
-                            <p class="llm-help" id="llm_name-help"><?php echo $creating ? 'This label appears in profile and player connector pickers.' : 'The name stays fixed while model-slot content changes through immutable revisions.'; ?></p>
+                            <div class="llm-editor-toolbar">
+                                <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>">Save</button>
+                                <?php if (!$creating): ?>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Test</button></form>
+                                <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
+                                <?php else: ?>
+                                <span class="llm-toolbar-placeholder"><button class="btn-primary" type="button" disabled aria-disabled="true" title="Save this connector before testing it.">Test</button></span>
+                                <span class="llm-toolbar-placeholder"><button class="btn-save" type="button" disabled aria-disabled="true" title="Save this connector before exporting it.">Export</button></span>
+                                <?php endif; ?>
+                                <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
+                                <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
+                            </div>
 
-                            <label for="llm_driver">Mode</label>
-                            <select id="llm_driver" name="driver" aria-describedby="llm_driver-help" form="<?php echo lorkhan_ui_h($formId); ?>">
+
+                            <div class="llm-connection-field">
+                                <label for="llm_name">Name</label>
+                                <input id="llm_name" type="text" aria-describedby="llm_name-help" <?php echo $creating ? 'name="name" required maxlength="128" form="' . lorkhan_ui_h($formId) . '"' : 'value="' . lorkhan_ui_h($selected['name']) . '" readonly'; ?>>
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_name-help"><?php echo $creating ? 'This label appears in profile and player connector pickers.' : 'The name stays fixed while model-slot content changes through immutable revisions.'; ?></p>
+                            </div>
+
+                            <?php lorkhan_llm_service_picker($webRoot); ?>
+
+                            <div class="llm-connection-field">
+                                <label for="llm_driver">Mode</label>
+                                <select id="llm_driver" name="driver" aria-describedby="llm_driver-help" form="<?php echo lorkhan_ui_h($formId); ?>">
                                 <?php foreach (LORKHAN_LLM_DRIVERS as $driverId => $driverLabels): ?>
                                 <option value="<?php echo lorkhan_ui_h($driverId); ?>"<?php echo $driver === $driverId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($driverLabels[0]); ?></option>
                                 <?php endforeach; ?>
-                            </select>
-                            <p class="llm-help" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
+                                </select>
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
+                            </div>
 
-                            <label for="llm_model">Model</label>
-                            <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>">
-                            <p class="llm-help" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
+                            <div class="llm-connection-field">
+                                <label for="llm_model">Model</label>
+                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>">
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
+                            </div>
 
                             <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
                                 <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
@@ -317,11 +331,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <section class="llm-mode-panel llm-connection-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
                                 <div class="llm-group-heading"><span>Direct connection</span><?php echo lorkhan_ui_feature_badge('config.llm.endpoint', true); ?></div>
-                                <label for="llm_endpoint">Endpoint URL</label>
-                                <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
-                                       value="<?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
-                                       aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                <p class="llm-help" id="llm_endpoint-help">Paste the complete chat-completions URL. LORKHAN stores it verbatim and never appends or rewrites a path.</p>
+                                <div class="llm-connection-field">
+                                    <label for="llm_endpoint">Endpoint URL</label>
+                                    <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
+                                           value="<?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
+                                           aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_endpoint-help">Paste the complete chat-completions URL. LORKHAN stores it verbatim and never appends or rewrites a path.</p>
+                                </div>
                                 <details class="llm-help-details">
                                     <summary>Endpoint rules</summary>
                                     <ul>
@@ -332,41 +348,48 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     </ul>
                                 </details>
 
-                                <label for="llm_credential">API key <?php echo lorkhan_ui_feature_badge('config.llm.api-key', true); ?></label>
-                                <select id="llm_credential" name="credential" aria-describedby="llm_credential-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                    <?php foreach ($llmCredentials as $credentialId => $credentialLabel): ?>
-                                    <option value="<?php echo lorkhan_ui_h($credentialId); ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($credentialLabel); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                                <p class="llm-help" id="llm_credential-help">Chooses which server-held key this connector sends. Key values live on the API Keys page and never appear in this form, in a revision, or in an export; an export resets this choice to No API key. New connectors start at No API key, which suits a local endpoint.</p>
+                                <div class="llm-connection-field">
+                                    <label for="llm_credential">API Key</label>
+                                    <select id="llm_credential" name="credential" aria-describedby="llm_credential-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <?php foreach ($llmCredentials as $credentialId => $credentialLabel): ?>
+                                        <option value="<?php echo lorkhan_ui_h($credentialId); ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($credentialLabel); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_credential-help">Chooses which server-held key this connector sends. Key values live on the API Keys page and never appear in this form, in a revision, or in an export; an export resets this choice to No API key. New connectors start at No API key, which suits a local endpoint.</p>
+                                </div>
+                            </section>
+
+                            <section class="llm-mode-panel llm-boolean-controls" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                    <?php foreach (LORKHAN_LLM_BOOLEAN_FIELDS as $field) lorkhan_llm_boolean_field($field, $options, $formId, !$isMock); ?>
                             </section>
 
                             <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
-                                <label for="llm_timeout_ms">Request timeout (ms)</label>
-                                <input id="llm_timeout_ms" type="number" name="timeout_ms" min="1000" max="120000" step="1" inputmode="numeric"
-                                       value="<?php echo lorkhan_ui_h($timeout); ?>" placeholder="<?php echo $isDirect ? '30000' : 'Inherit runtime timeout'; ?>"
-                                       aria-describedby="llm_timeout_ms-help"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                <p class="llm-help" id="llm_timeout_ms-help">1000 to 120000 milliseconds. Blank on a configured connector inherits the runtime timeout; blank on a direct connector uses 30000.</p>
+                                <div class="llm-connection-field">
+                                    <label for="llm_timeout_ms">Request timeout (ms)</label>
+                                    <input id="llm_timeout_ms" type="number" name="timeout_ms" min="1000" max="120000" step="1" inputmode="numeric"
+                                           value="<?php echo lorkhan_ui_h($timeout); ?>" placeholder="<?php echo $isDirect ? '30000' : 'Inherit runtime timeout'; ?>"
+                                           aria-describedby="llm_timeout_ms-help"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_timeout_ms-help">1000 to 120000 milliseconds. Blank on a configured connector inherits the runtime timeout; blank on a direct connector uses 30000.</p>
+                                </div>
                             </section>
 
                             <section class="llm-mode-panel" data-llm-modes="mock"<?php echo $isMock ? '' : ' hidden'; ?>>
-                                <label for="llm_mock_prefix">Mock prefix</label>
-                                <input id="llm_mock_prefix" type="text" name="mock_prefix" maxlength="256" value="<?php echo lorkhan_ui_h($content['mock_prefix'] ?? ''); ?>" aria-describedby="llm_mock_prefix-help"<?php echo $unless($isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                <p class="llm-help" id="llm_mock_prefix-help">Prepended to every deterministic mock response, up to 256 characters. Saving in mock mode keeps whatever is written here.</p>
+                                <div class="llm-connection-field">
+                                    <label for="llm_mock_prefix">Mock prefix</label>
+                                    <input id="llm_mock_prefix" type="text" name="mock_prefix" maxlength="256" value="<?php echo lorkhan_ui_h($content['mock_prefix'] ?? ''); ?>" aria-describedby="llm_mock_prefix-help"<?php echo $unless($isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_mock_prefix-help">Prepended to every deterministic mock response, up to 256 characters. Saving in mock mode keeps whatever is written here.</p>
+                                </div>
                             </section>
                         </div>
 
                         <div class="llm-column">
                             <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
-                                <div class="llm-group-heading"><span>Generation Controls</span><?php echo lorkhan_ui_feature_badge('config.llm.generation', true); ?></div>
-                                <p class="llm-help">Blank sampling fields use provider defaults for direct connectors, or inherit server settings for configured connectors. Zero and Off are explicit overrides.</p>
                                 <div class="llm-option-grid">
                                     <?php foreach (LORKHAN_LLM_GENERATION_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
-                                    <?php foreach (LORKHAN_LLM_BOOLEAN_FIELDS as $field) lorkhan_llm_boolean_field($field, $options, $formId, !$isMock); ?>
                                 </div>
 
                                 <section class="llm-advanced-panel">
-                                    <div class="llm-group-heading"><span>Advanced sampling overrides</span><?php echo lorkhan_ui_feature_badge('config.llm.advanced', true); ?></div>
+                                    <div class="llm-group-heading"><span>Advanced LLM Settings Override</span><?php echo lorkhan_ui_feature_badge('config.llm.advanced', true); ?></div>
                                     <p class="llm-help">Leave a field empty to keep the provider or runtime default. Not every provider honours every value.</p>
                                     <div class="llm-option-grid">
                                         <?php foreach (LORKHAN_LLM_SAMPLING_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
