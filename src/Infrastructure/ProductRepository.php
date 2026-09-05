@@ -1159,7 +1159,9 @@ final class ProductRepository
             $lookup->execute(['configuration'=>$connector['configuration_id'],'voice'=>$id]);$matches=$lookup->fetchAll(PDO::FETCH_COLUMN);
             if(count($matches)===1||($matches[0]??null)===$id)$id=(string)$matches[0];
         }
-        if($id!==''&&str_starts_with((string)($voice['source']??''),'morrowind_')){
+        // Inworld resolves or registers the local sample at synthesis time, like Herika.
+        if($id!==''&&($connector['content']['driver']??'')!=='inworld'
+            &&str_starts_with((string)($voice['source']??''),'morrowind_')){
             $configurationId=trim((string)($connector['configuration_id']??''));
             if($configurationId===''||!$this->connectorHasVoice($configurationId,$id))$id='';
         }

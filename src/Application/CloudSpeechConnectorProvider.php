@@ -24,6 +24,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
         private readonly array $options = [],
         private readonly string $apiKey = '',
         private readonly int $timeoutMs = 30_000,
+        private readonly ?\Closure $voiceResolver = null,
     ) {
         $parts = parse_url($endpoint);
         $this->host = is_array($parts) ? strtolower((string) ($parts['host'] ?? '')) : '';
@@ -45,6 +46,8 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
             || $language === '' || strlen($language) > 35 || $this->apiKey === '') {
             throw new RuntimeException('provider_invalid_input');
         }
+        if($this->voiceResolver!==null)$voice=($this->voiceResolver)($voice,$language,$cancellation);
+        $cancellation->throwIfCancellationRequested();
         [$url, $body, $headers] = $this->request($text, $voice, $language);
         $handle = curl_init(OutboundUrlPolicy::validate($url, [$this->host]));
         if ($handle === false) throw new RuntimeException('provider_unavailable');

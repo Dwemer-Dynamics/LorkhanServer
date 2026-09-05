@@ -139,3 +139,32 @@ At pinned HerikaServer `b08ffba7`, `PLAYER_WORST_MEMORY_GAME_DAYS` occurs in
 `ui/global_settings.php`, but has no runtime reader in that tree. It is not an
 implemented source feature to port in this pass. Do not label an inert Lorkhan
 control as implemented memory expiry.
+
+
+## Inworld first-use voice registration (2026-09-05)
+
+Reference: HerikaServer `f1b039d62e943b9abfdfe09209df287b9deac24e`,
+`tts/tts-inworld.php`: getOrCreateInworldVoice, existing-name discovery, local WAV
+cloning and credential-scoped cached IDs. The Lorkhan implementation independently
+adapts that workflow to its bounded provider interface; Herika source is unchanged.
+
+- Keep the assigned Morrowind race/sex catalog key instead of discarding it when
+  an Inworld clone has not yet been registered. Explicit custom voice IDs remain.
+- Discover an existing exact-name voice, otherwise clone its server-held WAV once
+  and reuse the returned ID. Include the Morrowind catalog transcription.
+- Store only voice IDs in a credential-scoped private `.inworld-cache` under the
+  existing persistent voice root; no credentials or sample bytes enter the cache.
+  Locks serialize registration of each name, and cancellation reaches HTTP.
+- Automatic uploads require `inworld_auto_clone=true` in private server config,
+  after explicit consent. Default is false. Existing registered voices still work.
+- Local samples are not uploaded or published by deployment. Clones are not made
+  public. No game launch, save reset, or NPC regeneration is required.
+
+The clone request uses Inworld's current `langCode` and optional sample
+`transcription` fields. The API-key-scoped short endpoint is documented at
+[Inworld clone voice](https://docs.inworld.ai/api-reference/voiceAPI/voiceservice/clone-voice).
+
+Verification uses the existing unit and integration suites with mock discovery and
+cloning: selected sample/transcription, cached reuse, custom IDs, changed credential
+scope, upload consent, path rejection, cancellation and race-voice preservation.
+Live clone/playback proof remains separate from those checks.

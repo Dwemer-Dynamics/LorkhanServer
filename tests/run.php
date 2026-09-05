@@ -1085,6 +1085,47 @@ foreach(['11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inwor
     $check(ProviderFactory::speechForPreset([], $cloudPreset($driver)) instanceof CloudSpeechConnectorProvider,
         $driver . ' selected connector builds a credential-isolated cloud WAV adapter');
 }
+// Inworld follows the local sample name through discovery, cloning and credential-scoped reuse.
+$inworldRoot=sys_get_temp_dir().'/lorkhan-inworld-'.bin2hex(random_bytes(4));mkdir($inworldRoot);
+$inworldCredentials=new CredentialStore($inworldRoot.'/keys.json');
+$inworldCredentials->set('LORKHAN_TTS_INWORLD_API_KEY','test-account-one');
+$inworldCalls=[];
+$inworldLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+    static function(string $driver,string $path,array|string|null $body)use(&$inworldCalls):array{
+        $inworldCalls[]=['path'=>$path,'body'=>$body];
+        if($body===null)return ['voices'=>[['voiceId'=>'workspace__existing','displayName'=>'existing_voice']]];
+        $request=json_decode($body,true,16,JSON_THROW_ON_ERROR);
+        return ['voice'=>['voiceId'=>'workspace__'.$request['displayName']]];
+    });
+$inworldResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot,true);
+$wav=(new MockSpeechProvider())->synthesize('test',new NeverCancelledToken())['bytes'];
+file_put_contents($inworldRoot.'/mw_dark_elf_male.wav',$wav);
+$resolvedVoice=$inworldResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+$cloneRequest=json_decode($inworldCalls[1]['body'],true);
+$check($resolvedVoice==='workspace__mw_dark_elf_male'&&count($inworldCalls)===2
+    &&$cloneRequest['langCode']==='EN_US'&&base64_decode($cloneRequest['voiceSamples'][0]['audioData'])===$wav
+    &&$cloneRequest['voiceSamples'][0]['transcription']==='Are you all right, outlander? You might have a healer tend to those wounds.',
+    'Inworld clones the selected Morrowind WAV with its matching catalog transcription');
+$check($inworldResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())===$resolvedVoice&&count($inworldCalls)===2,
+    'Inworld cached voice resolution makes no further discovery or clone requests');
+$check($inworldResolver->resolve('workspace__dagoth_ur','en',new NeverCancelledToken())==='workspace__dagoth_ur'&&count($inworldCalls)===2,
+    'explicit custom Inworld IDs remain unchanged');
+$inworldCredentials->set('LORKHAN_TTS_INWORLD_API_KEY','test-account-two');
+$inworldResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+$check(count($inworldCalls)===4,'Inworld cached IDs cannot cross credential scopes');
+$readOnlyResolver=new \LorkhanServer\Application\InworldVoiceResolver($inworldLibrary,$inworldCredentials,$inworldRoot);
+try{$readOnlyResolver->resolve('unregistered_voice','en',new NeverCancelledToken());$check(false,'Inworld upload needs consent');}
+catch(RuntimeException $e){$check($e->getMessage()==='voice_upload_confirmation_required','Inworld upload needs consent');}
+$check($readOnlyResolver->resolve('existing_voice','en',new NeverCancelledToken())==='workspace__existing',
+    'Inworld discovers an existing exact-name voice without uploading a sample');
+$beforeCalls=count($inworldCalls);
+try{$inworldResolver->resolve('../escape','en',new NeverCancelledToken());$check(false,'Inworld sample path traversal rejected');}
+catch(RuntimeException $e){$check($e->getMessage()==='invalid_voice_name'&&count($inworldCalls)===$beforeCalls,'Inworld sample path traversal rejected');}
+try{$inworldResolver->resolve('mw_dark_elf_male','en',new \LorkhanServer\Application\CallbackCancellationToken(static fn()=>true));$check(false,'Inworld cancellation precedes registration');}
+catch(\LorkhanServer\Application\OperationCancelled){$check(count($inworldCalls)===$beforeCalls,'Inworld cancellation precedes registration');}
+foreach(glob($inworldRoot.'/.inworld-cache/*')?:[]as$file)unlink($file);
+rmdir($inworldRoot.'/.inworld-cache');unlink($inworldRoot.'/keys.json');unlink($inworldRoot.'/mw_dark_elf_male.wav');rmdir($inworldRoot);
+
 $cloudSttPreset=static fn(string $driver):array=>['kind'=>'stt_provider','content'=>['driver'=>$driver,
     'endpoint'=>'https://example.com','model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
 foreach(['azure','deepgram','gemini','inworld'] as $driver){

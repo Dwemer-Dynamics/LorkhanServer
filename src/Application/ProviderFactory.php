@@ -164,8 +164,15 @@ final class ProviderFactory
                 (string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms']);
         }
         if(in_array($driver,['11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inworld'],true)){
+            $resolveVoice=null;
+            if($driver==='inworld'){
+                $credentials=new CredentialStore((string)($config['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
+                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot,
+                    ($config['inworld_auto_clone']??false)===true);
+                $resolveVoice=$resolver->resolve(...);
+            }
             return new CloudSpeechConnectorProvider($endpoint,$driver,(string)$content['model'],
-                (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms']);
+                (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms'],$resolveVoice);
         }
         if($driver==='zonos_gradio')return new ZonosGradioSpeechProvider($endpoint,(string)$content['voice'],
             (string)$content['language'],(string)$content['model'],(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices'),
