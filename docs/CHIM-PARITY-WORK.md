@@ -211,3 +211,31 @@ all five XTTS-family factory routes plus PocketTTS audio.cpp. These probes do no
 prove GPU inference or in-game playback on every service.
 
 Legacy protocol reference: [Coqui XTTS streaming server](https://github.com/coqui-ai/xtts-streaming-server/blob/main/server/main.py).
+
+
+## Global Morrowind race voice fallbacks (2026-09-05)
+
+Fallback Voices now uses the existing `public.core_tts_fallback` table, matching
+Herika's global race/gender ownership rather than storing maps in TTS connector
+options. Reference: HerikaServer `f1b039d62e943b9abfdfe09209df287b9deac24e`,
+`lib/core/database_schema/core_tts_fallback.sql` and
+`lib/core/tts_connector.class.php::resolveNpcVoiceForConnector`.
+
+Migration 086 inserts twenty ordinary Morrowind sample IDs (ten races, male and
+female), leaving existing global rows untouched. Special Dagoth Ur and Ordinator
+samples are not race defaults. Local pre-deployment inspection found no existing
+global rows or saved connector race maps to migrate. Rollback retains voice choices
+as user data. No new table, API keys or provider configuration is introduced.
+
+The shared form no longer selects or revises a connector. Saves update the twenty
+values atomically; blank deliberately skips one combination. Runtime order is an
+assigned NPC voice, the global race/gender voice, the connector gender fallback,
+then its default. Aliases Dunmer, Altmer and Bosmer normalize to Morrowind races.
+Sample-based providers resolve/clone the global sample through their existing
+adapter; stock-only providers still require usable provider-owned voices.
+Global samples are included in the voice-library deletion reference guard.
+
+Checks extend the existing database and management HTTP suites: all default rows,
+shared selection across eight sample adapters, assigned-voice precedence, race
+aliases, blank skip, invalid-save atomicity, CSRF, connector-independent reload,
+and sample-reference protection. No game launch or save change is required.

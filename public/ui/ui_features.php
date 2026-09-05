@@ -81,7 +81,7 @@ function lorkhan_ui_feature_registry(): array
         'config.tts.saved-only' => ['title' => 'Saved Connector Control', 'state' => 'not-applicable', 'description' => 'This control becomes available after the connector has been saved.'],
         'config.tts-studio' => ['title' => 'TTS Studio', 'state' => 'live', 'description' => 'Voice samples, provider catalogues, and synchronization.'],
         'config.tts-studio.cloud-cloning' => ['title' => 'Cloud Voice Cloning', 'state' => 'live', 'description' => 'Explicit Cartesia and Inworld voice discovery and consent-based sample uploads.'],
-        'config.tts-studio.fallbacks' => ['title' => 'Race and Gender Fallback Matrix', 'state' => 'live', 'description' => 'Per-connector race and gender fallback voices, after an explicit NPC voice.'],
+        'config.tts-studio.fallbacks' => ['title' => 'Race and Gender Fallback Matrix', 'state' => 'live', 'description' => 'Global race and gender fallback voices shared by every TTS connector, after an explicit NPC voice.'],
         'config.tts-studio.batch-sync' => ['title' => 'Batch Provider Sync', 'state' => 'live', 'description' => 'Sequential, resumable sample uploads with explicit consent and stop-after-current control.'],
         'config.tts-studio.provider-delete' => ['title' => 'Provider Copy Deletion', 'state' => 'replaced', 'description' => 'LORKHAN deletes persistent local samples only after checking every typed profile and connector reference.'],
         'config.stt' => ['title' => 'STT', 'state' => 'live', 'description' => 'One installation-global CHIM-compatible speech-to-text connector with typed OpenMW capture and durable transcription.'],

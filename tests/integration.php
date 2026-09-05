@@ -354,6 +354,31 @@ foreach(['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi
     $assert(($voiceContext['voice']??'')===($sampleDriver?'mw_wood_elf_male':'provider_male'),
         $voiceDriver.' must preserve sample voices only when the adapter can consume them');
 }
+$globalFallbacks=new \LorkhanServer\Infrastructure\TtsFallbackRepository($db);
+$defaultFallbacks=$globalFallbacks->matrix();
+$assert(count($defaultFallbacks)===10&&array_sum(array_map('count',$defaultFallbacks))===20
+    &&$globalFallbacks->voice('Dunmer','Male')==='mw_dark_elf_male',
+    'global fallback table must contain all twenty ordinary Morrowind race/gender samples');
+$unprofiledActor=['kind'=>'actor','record_id'=>'fallback_unprofiled','content_file'=>'Morrowind.esm',
+    'refnum'=>['index'=>991234,'content_file'=>0],'race'=>'Bosmer','gender'=>'male'];
+$assert(in_array('Global fallback: dark_elf male',$products->voiceReferenceIndex()['mw_dark_elf_male']??[],true),
+    'global fallback samples must be protected by the voice-library reference guard');
+$customFallbacks=$defaultFallbacks;$customFallbacks['wood_elf']['male']='global_bosmer_voice';
+$globalFallbacks->save($customFallbacks);
+foreach(['inworld','cartesia','pockettts','omnivoice','chatterbox','xtts-fastapi','xtts','zonos_gradio']as$driver){
+    $fallbackConnector=['configuration_id'=>\LorkhanServer\Infrastructure\Uuid::v4(),'content'=>['driver'=>$driver,
+        'options'=>['race_fallbacks'=>['wood_elf'=>['male'=>'obsolete_connector_voice']],'fallback_male'=>'last_resort']]];
+    $fallbackContext=$products->speechContext($installationId,$session['playthrough_id'],$unprofiledActor,$fallbackConnector);
+    $assert(($fallbackContext['voice']??'')==='global_bosmer_voice',$driver.' did not use the shared global fallback');
+    $explicitContext=$products->speechContext($installationId,$session['playthrough_id'],$automaticTarget,$fallbackConnector);
+    $assert(($explicitContext['voice']??'')==='mw_wood_elf_male','global fallback overrode an assigned NPC voice');
+}
+$customFallbacks['wood_elf']['male']='';$globalFallbacks->save($customFallbacks);
+$assert(($products->speechContext($installationId,$session['playthrough_id'],$unprofiledActor,$fallbackConnector)['voice']??'')==='last_resort',
+    'a deliberately blank global fallback must skip the race and gender combination');
+try{$globalFallbacks->save(['wood_elf'=>['male'=>'invalid_partial']]);$assert(false,'partial global matrix accepted');}
+catch(\InvalidArgumentException){$assert($globalFallbacks->matrix()===$customFallbacks,'failed global save partially changed the table');}
+$globalFallbacks->save($defaultFallbacks);
 $products->saveProfileAssignmentRule(['installation_id'=>$installationId,'rule_id'=>$highRule['rule_id'],
     'description'=>'Exact OpenMW actor data retargeted','core_profile_id'=>$ruleCoreLow['core_profile_id'],'priority'=>20,'enabled'=>true,
     'match'=>array_replace($emptyRuleMatch,['races'=>['wood elf'],'classes'=>['COMMONER'],'genders'=>['male'],
@@ -578,8 +603,8 @@ $profileSpeech=$products->connectorForActor($installationId,$session['playthroug
 $assert($status===200&&($profileSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id'],
     'assigned Core Profile did not supply its TTS connector');
 $profileSpeechContext=$products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech);
-$assert($profileSpeechContext===['voice'=>'fallback_female_voice'],
-    'NPC profile gender did not select the connector female fallback voice: '.json_encode($profileSpeechContext));
+$assert($profileSpeechContext===['voice'=>'mw_dark_elf_female'],
+    'NPC profile race and gender did not select the global Morrowind fallback before the connector fallback: '.json_encode($profileSpeechContext));
 $playerContent=$playerProfile['content'];
 $playerContent['routing']['tts_configuration_id']=$profileTtsPreset['configuration_id'];
 $playerContent['routing']['player_autochat_configuration_id']=$profileModelSlot['configuration_id'];

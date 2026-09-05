@@ -56,6 +56,18 @@ final class MorrowindVoiceCatalog
     /** @return list<array<string,mixed>> */
     public function voices():array{return$this->voices;}
 
+    /** Default global race/gender voices use ordinary game samples, never special named NPCs. */
+    public function raceFallbacks():array
+    {
+        $matrix=[];
+        foreach($this->voices as$voice){
+            if(isset($voice['record_id_contains']))continue;
+            $race=str_replace(' ','_',$this->normalizeRace((string)$voice['race']));
+            $matrix[$race][(string)$voice['gender']]=(string)$voice['voice_id'];
+        }
+        return $matrix;
+    }
+
     private function result(array $voice,string $source,string $confidence):array
     {
         return['id'=>(string)$voice['voice_id'],'key'=>(string)$voice['key'],'display_name'=>(string)$voice['display_name'],

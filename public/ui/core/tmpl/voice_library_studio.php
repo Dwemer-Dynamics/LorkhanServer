@@ -346,25 +346,23 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 
     <?php elseif ($activeTab === 'fallbacks'):
         $morrowindRaces = ['argonian' => 'Argonian', 'breton' => 'Breton', 'dark_elf' => 'Dark Elf', 'high_elf' => 'High Elf', 'imperial' => 'Imperial', 'khajiit' => 'Khajiit', 'nord' => 'Nord', 'orc' => 'Orc', 'redguard' => 'Redguard', 'wood_elf' => 'Wood Elf'];
-        $fallbackPreset = $requestedPreset ?? $ttsPresets[0] ?? null;
-        $fallbackVoices = $fallbackPreset['content']['options']['race_fallbacks'] ?? [];
+        // One matrix covers every TTS connector, so it is read from the global fallback store
+        // instead of the selected connector revision.
+        $fallbackVoices = (new \LorkhanServer\Infrastructure\TtsFallbackRepository($database))->matrix();
     ?>
         <section class="content-section">
             <h1>Fallback Voices</h1>
-            <p>Choose race and gender fallbacks for the selected connector. Explicit NPC voices take priority.</p>
-            <form method="get"><input type="hidden" name="tab" value="fallbacks"><label for="fallback-connector">TTS Connector</label><select id="fallback-connector" name="configuration_id" onchange="this.form.submit()">
-                <?php foreach ($ttsPresets as $preset): ?><option value="<?php echo lorkhan_ui_h($preset['configuration_id']); ?>"<?php echo $preset['configuration_id']===($fallbackPreset['configuration_id']??'')?' selected':''; ?>><?php echo lorkhan_ui_h($preset['name']); ?></option><?php endforeach; ?>
-            </select><noscript><button type="submit">Select</button></noscript></form>
-            <form method="post"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="fallback_save"><input type="hidden" name="studio_tab" value="fallbacks"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($fallbackPreset['configuration_id']??''); ?>">
+            <p>These race and gender fallbacks apply to every TTS connector. An explicit NPC voice is used first, then the global race and gender fallback below, then the connector's own fallback voice. Leave a field blank to disable the fallback for that race and gender.</p>
+            <form method="post"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="fallback_save"><input type="hidden" name="studio_tab" value="fallbacks">
             <div class="fallback-voice-grid" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts-studio.fallbacks')['description']); ?>">
                 <?php foreach ($morrowindRaces as $raceId => $raceLabel): ?>
                     <section class="fallback-race-card">
                         <h2><?php echo lorkhan_ui_h($raceLabel); ?></h2><div class="fallback-race-key"><?php echo lorkhan_ui_h($raceId); ?></div>
-                        <div class="fallback-gender-grid"><?php foreach (['male'=>'Male','female'=>'Female'] as $gender=>$genderLabel): ?><div><label for="fallback-<?php echo $raceId.'-'.$gender; ?>"><?php echo $genderLabel; ?></label><input id="fallback-<?php echo $raceId.'-'.$gender; ?>" name="fallbacks[<?php echo $raceId; ?>][<?php echo $gender; ?>]" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($fallbackVoices[$raceId][$gender]??''); ?>" placeholder="Use connector fallback"></div><?php endforeach; ?></div>
+                        <div class="fallback-gender-grid"><?php foreach (['male'=>'Male','female'=>'Female'] as $gender=>$genderLabel): ?><div><label for="fallback-<?php echo $raceId.'-'.$gender; ?>"><?php echo $genderLabel; ?></label><input id="fallback-<?php echo $raceId.'-'.$gender; ?>" name="fallbacks[<?php echo $raceId; ?>][<?php echo $gender; ?>]" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($fallbackVoices[$raceId][$gender] ?? ''); ?>" placeholder="Use connector fallback" aria-label="<?php echo lorkhan_ui_h($raceLabel.' '.strtolower($genderLabel).' fallback voice'); ?>"></div><?php endforeach; ?></div>
                     </section>
                 <?php endforeach; ?>
             </div>
-            <div class="button-group"><button type="submit" class="btn-primary"<?php echo $fallbackPreset===null?' disabled':''; ?>>Save Fallback Voices</button></div></form>
+            <div class="button-group"><button type="submit" class="btn-primary">Save Fallback Voices</button></div></form>
         </section>
     <?php else:
         $tab = $studioTabs[$activeTab];

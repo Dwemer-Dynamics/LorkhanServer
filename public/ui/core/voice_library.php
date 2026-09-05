@@ -198,21 +198,11 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
         if(!hash_equals($csrf,(string)($_POST['_csrf']??'')))throw new RuntimeException('unauthorized');
         $action=$postedAction;$voice=(string)($_POST['voice_name']??'');
         if($action==='fallback_save'){
-            $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
-            if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
-            $fallbacks=[];
-            foreach(['argonian','breton','dark_elf','high_elf','imperial','khajiit','nord','orc','redguard','wood_elf']as$race){
-                foreach(['male','female']as$gender){$id=trim((string)($_POST['fallbacks'][$race][$gender]??''));
-                    if(strlen($id)>512||!mb_check_encoding($id,'UTF-8')||str_contains($id,"\0"))throw new InvalidArgumentException('invalid_voice_name');
-                    if($id!=='')$fallbacks[$race][$gender]=$id;
-                }
-            }
-            $content=$preset['content'];$content['options']['race_fallbacks']=$fallbacks;
-            (new \LorkhanServer\Application\ProductService($products,new \LorkhanServer\Application\DeterministicClock()))
-                ->revise('tts_provider',$configurationId,$content,'Update race and gender fallback voices');
-            $ttsPresetsById[$configurationId]['content']=$content;
-            foreach($ttsPresets as &$row)if($row['configuration_id']===$configurationId)$row['content']=$content;unset($row);
-            $requestedPreset=$ttsPresetsById[$configurationId];$notice='Fallback voices saved.';
+            // One matrix serves every TTS connector, so the save writes the global fallback
+            // store instead of revising a single connector configuration.
+            (new \LorkhanServer\Infrastructure\TtsFallbackRepository($database))
+                ->save(is_array($_POST['fallbacks']??null)?$_POST['fallbacks']:[]);
+            $notice='Global fallback voices saved for every TTS connector.';
         }elseif($action==='pronunciation_save'){
             $idValue=trim((string)($_POST['id']??''));
             if($idValue!==''&&(!ctype_digit($idValue)||(int)$idValue<1))throw new InvalidArgumentException('invalid_pronunciation');
@@ -291,7 +281,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 

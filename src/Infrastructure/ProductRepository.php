@@ -198,13 +198,14 @@ final class ProductRepository
             return$this->getRevisioned('profile',$id);});
     }
 
-    /** Return every live profile/connector reference grouped by normalized local TTS voice ID. */
+    /** Return every live profile, connector and global fallback reference grouped by normalized local TTS voice ID. */
     public function voiceReferenceIndex():array
     {
         $sql="SELECT voice,source,label FROM ("
             ."SELECT CASE WHEN jsonb_typeof(r.content->'voice')='string' THEN r.content->>'voice' ELSE COALESCE(r.content#>>'{voice,id}',r.content#>>'{voice,voice_id}') END AS voice,'Profile' AS source,p.name AS label "
             ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL "
-            ."UNION ALL SELECT r.content->>'voice' AS voice,'Connector' AS source,c.name AS label FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.deleted_at IS NULL AND c.kind='tts_provider') voice_refs WHERE btrim(COALESCE(voice,''))<>'' ORDER BY source,label";
+            ."UNION ALL SELECT r.content->>'voice' AS voice,'Connector' AS source,c.name AS label FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.deleted_at IS NULL AND c.kind='tts_provider' "
+            ."UNION ALL SELECT voiceid AS voice,'Global fallback' AS source,race||' '||gender AS label FROM public.core_tts_fallback) voice_refs WHERE btrim(COALESCE(voice,''))<>'' ORDER BY source,label";
         $rows=$this->db->query($sql)->fetchAll(PDO::FETCH_ASSOC);$result=[];
         foreach($rows as$row){$key=mb_strtolower(trim((string)$row['voice']),'UTF-8');if($key==='')continue;$result[$key][]=(string)$row['source'].': '.(string)$row['label'];}
         foreach($result as$key=>$labels)$result[$key]=array_values(array_unique($labels));
@@ -1149,8 +1150,8 @@ final class ProductRepository
             'narrator'=>$this->narratorProfileForInstallation($installationId)['profile_id']??null,
             default=>$this->selectedActorProfileId($installationId,$playthroughId,$identity),
         };
-        if(!is_string($profileId)||$profileId==='')return[];
-        $profile=$this->getRevisioned('profile',$profileId);$content=$profile['content']??[];$voice=$content['voice']??null;
+        $profile=is_string($profileId)&&$profileId!==''?$this->getRevisioned('profile',$profileId):null;
+        $content=$profile['content']??[];$voice=$content['voice']??null;
         if($voice===null)$voice=[];elseif(is_string($voice))$voice=['id'=>$voice];
         if(!is_array($voice)||($voice!==[]&&array_is_list($voice)))return[];
         $result=[];$id=trim((string)($voice['id']??$voice['voice_id']??''));$language=trim((string)($voice['language']??''));
@@ -1165,10 +1166,16 @@ final class ProductRepository
             $configurationId=trim((string)($connector['configuration_id']??''));
             if($configurationId===''||!$this->connectorHasVoice($configurationId,$id))$id='';
         }
-        if($id===''){$gender=strtolower(trim((string)($content['gender']??$identity['gender']??'')));$connectorContent=$connector['content']??null;
+        if($id===''){$gender=strtolower(trim((string)($content['gender']??'')));
+            if($gender==='')$gender=strtolower(trim((string)($identity['gender']??'')));
+            $connectorContent=$connector['content']??null;
             $options=is_array($connectorContent)&&is_array($connectorContent['options']??null)&&!array_is_list($connectorContent['options'])?$connectorContent['options']:[];
-            $race=str_replace([' ','-'],'_',strtolower(trim((string)($content['race']??$identity['race']??''))));
-            $id=trim((string)($options['race_fallbacks'][$race][$gender]??''));
+            $race=trim((string)($content['race']??''));if($race==='')$race=(string)($identity['race']??'');
+            $id=(new TtsFallbackRepository($this->db))->voice($race,$gender);
+            // Stock-voice services cannot consume the bundled game WAVs; retain their own fallback.
+            if($id!==''&&!\LorkhanServer\Application\ConnectorCatalog::usesLocalVoiceSamples((string)($connectorContent['driver']??''))
+                &&in_array($id,array_column(\LorkhanServer\Application\MorrowindVoiceCatalog::bundled()->voices(),'voice_id'),true)
+                &&((string)($connector['configuration_id']??'')===''||!$this->connectorHasVoice((string)$connector['configuration_id'],$id)))$id='';
             $fallbackField=match($gender){'male'=>'fallback_male','female'=>'fallback_female',default=>null};
             if($id===''&&$fallbackField!==null)$id=trim((string)($options[$fallbackField]??''));
         }

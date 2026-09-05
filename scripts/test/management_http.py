@@ -160,6 +160,23 @@ usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php')); assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded, redacted output' in text
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
+fallback_page,fallback_html=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks'))
+fallback_form=next(f for f in fallback_page.forms if f['fields'].get('action')=='fallback_save')
+fallback_fields=fallback_form['fields']
+assert 'fallback-connector' not in fallback_html and 'configuration_id' not in fallback_fields
+assert sum(k.startswith('fallbacks[') for k in fallback_fields)==20 and fallback_fields['fallbacks[dark_elf][male]']=='mw_dark_elf_male'
+saved_fallback_fields=dict(fallback_fields)
+changed_fallback_fields=dict(fallback_fields,_csrf=csrf)
+changed_fallback_fields['fallbacks[dark_elf][male]']='global_dunmer_test'
+changed_fallback_fields['fallbacks[argonian][female]']=''
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',changed_fallback_fields); body=r.read().decode()
+assert r.status==200 and 'Global fallback voices saved for every TTS connector.' in body,(r.status,body)
+_,reloaded_fallbacks=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks&configuration_id='+str(uuid.uuid4())))
+assert 'value="global_dunmer_test"' in reloaded_fallbacks and 'fallback-connector' not in reloaded_fallbacks
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(changed_fallback_fields,_csrf='invalid')); body=r.read().decode()
+assert 'unauthorized' in body,body
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(saved_fallback_fields,_csrf=csrf)); body=r.read().decode()
+assert 'Global fallback voices saved for every TTS connector.' in body and 'value="mw_dark_elf_male"' in body,body
 batch_voice='HTTPBatch'+uuid.uuid4().hex
 wav=VoiceProvider.silence
 archive=io.BytesIO()
