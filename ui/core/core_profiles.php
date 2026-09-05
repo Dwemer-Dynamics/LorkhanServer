@@ -185,7 +185,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $profileMeta = $selected;
                     $coreProfileMode = 'edit';
                 ?>
-                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-save" data-track-dirty>
+                    <form class="core-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/core-profile-save" data-track-dirty
+                        data-profile-copy-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/core-profile-copy-setting" data-profile-copy-revision="<?php echo (int)$selected['current_revision']; ?>">
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>">
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Save All</button></div></div>
@@ -317,7 +318,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             </div>
         </div>
     <?php endif; ?>
+    <dialog class="profile-copy-dialog" id="profile-copy-dialog" aria-labelledby="profile-copy-title" aria-describedby="profile-copy-description">
+        <h2 id="profile-copy-title">Copy setting to all profiles?</h2>
+        <p id="profile-copy-description"></p>
+        <p id="profile-copy-result" role="status" hidden></p>
+        <div class="profile-copy-actions"><button type="button" class="btn-base" data-profile-copy-cancel>Cancel</button><button type="button" class="btn-save" data-profile-copy-confirm>Copy to all</button></div>
+    </dialog>
 </main>
+<?php if ($selected !== null): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-settings-copy.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-settings-copy.js'); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-assignment-rules.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-assignment-rules.js'); ?>" defer></script><?php endif; ?>

@@ -2550,4 +2550,30 @@ $otherInstallation=$newUuid(998877);$repo->ensureInstallation($otherInstallation
 $assert($products->contextFilterCandidates($otherInstallation,'items')['items']===[],'context candidates crossed installations');
 $db->rollBack();
 
+// Bulk profile writes preserve unrelated content/metadata and never cross installation boundaries.
+$db->beginTransaction();
+$copyContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Preserve these instructions','routing'=>['llm_randomizer_enabled'=>true],
+    'settings_overrides'=>['response'=>['max_words'=>21],'memory'=>['recent_turn_limit'=>17],'behavior'=>['rechat_allow_actions'=>true]]];
+$copySource=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Copy source','content'=>$copyContent],gmdate(DATE_ATOM));
+$copyTarget=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Copy target','content'=>$copyContent],gmdate(DATE_ATOM));
+$copyOtherInstallation=$newUuid(998878);$repo->ensureInstallation($copyOtherInstallation,$tokenHash,$macKey);
+$copyOther=$products->createRevisioned('core_profile',['installation_id'=>$copyOtherInstallation,'name'=>'Other installation','content'=>$copyContent],gmdate(DATE_ATOM));
+$copyRequest=['core_profile_id'=>$copySource['core_profile_id'],'revision'=>1,'setting'=>'response.max_words','value'=>60,'confirm'=>'Copy to all'];
+$copyResult=$products->copyCoreProfileSetting($copyRequest);
+$expectedCopy=$copySource['content'];$expectedCopy['settings_overrides']['response']['max_words']=60;
+foreach([$copySource,$copyTarget]as$original){$updated=$products->getRevisioned('core_profile',$original['core_profile_id']);
+    $assert($updated['content']===$expectedCopy&&$updated['label']===$original['label']&&$updated['slot']===$original['slot']
+        &&$updated['default_npc']===$original['default_npc']&&(int)$updated['current_revision']===2,'bulk copy changed unrelated content or metadata');}
+$assert($products->getRevisioned('core_profile',$copyOther['core_profile_id'])['content']===$copyOther['content'],'bulk copy crossed installations');
+try{$products->copyCoreProfileSetting($copyRequest);$assert(false,'stale bulk copy accepted');}catch(RuntimeException $error){$assert($error->getMessage()==='revision_conflict','wrong stale-copy error');}
+$copyRequest['revision']=$copyResult['revision'];$repeatCopy=$products->copyCoreProfileSetting($copyRequest);
+$assert($repeatCopy['profiles_updated']===0&&$repeatCopy['revision']===$copyResult['revision'],'unchanged bulk copy created revisions');
+$copyRequest['setting']='behavior.rechat_allow_actions';$copyRequest['value']=false;
+$boolCopy=$products->copyCoreProfileSetting($copyRequest);
+$assert($products->getRevisioned('core_profile',$copyTarget['core_profile_id'])['content']['settings_overrides']['behavior']['rechat_allow_actions']===false,'false checkbox value was lost');
+$copyRequest['revision']=$boolCopy['revision'];$copyRequest['setting']='diary.prompt';$copyRequest['value']='Only write witnessed events.';
+$products->copyCoreProfileSetting($copyRequest);
+$assert($products->getRevisioned('core_profile',$copyTarget['core_profile_id'])['content']['settings_overrides']['diary']['prompt']==='Only write witnessed events.','text setting copy failed');
+$db->rollBack();
+
 fwrite(STDOUT, "integration vertical slice passed\n");

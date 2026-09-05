@@ -1341,4 +1341,21 @@ r=request(quickstart_form['action'],'POST',quickstart_values); saved_body=r.read
 assert r.status==200 and 'Connector selections saved.' in saved_body,(r.status,saved_body)
 r=request(quickstart_form['action'],'POST',quickstart_values); stale_body=r.read().decode()
 assert r.status in (409,422) and 'revision' in stale_body,(r.status,stale_body)
+# Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
+copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
+copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))
+assert len(re.findall(r'data-profile-copy-setting="',copy_body))==8
+copy_path='/LorkhanServer/manage/api/v1/core-profile-copy-setting'
+copy_values={'core_profile_id':core_edit.group(1),'revision':copy_revision,'setting':'response.max_words','value':37,'confirm':'Copy to all'}
+assert json_request(copy_path,'POST',copy_values).status==401
+assert json_request(copy_path,'POST',dict(copy_values,confirm=''),csrf).status==422
+assert json_request(copy_path,'POST',dict(copy_values,setting='routing.llm_configuration_id'),csrf).status==422
+assert json_request(copy_path,'POST',dict(copy_values,value='37'),csrf).status==422
+assert json_request(copy_path,'POST',dict(copy_values,core_profile_id=str(uuid.uuid4())),csrf).status==404
+r=json_request(copy_path,'POST',copy_values,csrf); copied=json.loads(r.read())
+assert r.status==200 and copied['profiles_updated']>=1 and copied['profiles_total']>=copied['profiles_updated'],(r.status,copied)
+assert json_request(copy_path,'POST',copy_values,csrf).status==409
+copy_values['revision']=copied['revision']
+r=json_request(copy_path,'POST',copy_values,csrf); repeated=json.loads(r.read())
+assert r.status==200 and repeated['profiles_updated']==0 and repeated['revision']==copied['revision'],repeated
 print('browser-like management HTTP forms passed')

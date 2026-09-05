@@ -266,6 +266,50 @@ final class ProductRepository
         });
     }
 
+    /** Copy one explicitly confirmed draft setting across current Core Profiles, without replacing their other values. */
+    public function copyCoreProfileSetting(array $input): array
+    {
+        $keys = array_keys($input); sort($keys);
+        if ($keys !== ['confirm', 'core_profile_id', 'revision', 'setting', 'value']) throw new InvalidArgumentException('invalid_profile_setting_copy');
+        $id = $input['core_profile_id'] ?? null;
+        $setting = $input['setting'] ?? null;
+        $revision = $input['revision'] ?? null;
+        $allowed = ['response.max_words', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
+            'behavior.rechat_allow_actions', 'memory.recent_turn_limit', 'diary.context_turn_limit',
+            'diary.automatic_interval_seconds', 'diary.prompt'];
+        if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)
+            || !is_int($revision) || $revision < 1 || !array_key_exists('value', $input)) throw new InvalidArgumentException('invalid_profile_setting_copy');
+        if (($input['confirm'] ?? null) !== 'Copy to all') throw new InvalidArgumentException('confirmation_mismatch');
+        [$section, $field] = explode('.', $setting, 2);
+        $value = $input['value'];
+        EffectiveSettingsResolver::validateSettingsOverrides([$section => [$field => $value]]);
+        return $this->transaction(function () use ($id, $setting, $revision, $section, $field, $value): array {
+            $source = $this->getRevisioned('core_profile', $id);
+            // Stable lock order prevents concurrent bulk operations from deadlocking. Never silently copy a partial page.
+            $lock = $this->db->prepare('SELECT core_profile_id,current_revision FROM core_profiles WHERE installation_id=:installation AND deleted_at IS NULL ORDER BY core_profile_id LIMIT 1001 FOR UPDATE');
+            $lock->execute(['installation' => $source['installation_id']]);
+            $profiles = $lock->fetchAll();
+            if (count($profiles) > 1000) throw new InvalidArgumentException('profile_copy_limit_exceeded');
+            $source = $this->getRevisioned('core_profile', $id);
+            if ((int)$source['current_revision'] !== $revision) throw new RuntimeException('revision_conflict');
+            $changed = 0;
+            $sourceRevision = $revision;
+            foreach ($profiles as $profile) {
+                $current = $this->getRevisioned('core_profile', $profile['core_profile_id']);
+                $content = $current['content'];
+                if (array_key_exists($field, $content['settings_overrides'][$section] ?? [])
+                    && $content['settings_overrides'][$section][$field] === $value) continue;
+                $content['settings_overrides'][$section][$field] = $value;
+                EffectiveSettingsResolver::validateCoreProfile($content);
+                $updated = $this->revise('core_profile', $profile['core_profile_id'], $content, 'Copy setting to all: ' . $setting,
+                    gmdate('Y-m-d\TH:i:s\Z'), (int)$current['current_revision']);
+                if ($profile['core_profile_id'] === $id) $sourceRevision = (int)$updated['current_revision'];
+                $changed++;
+            }
+            return ['profiles_updated' => $changed, 'profiles_total' => count($profiles), 'revision' => $sourceRevision];
+        });
+    }
+
     public function rollback(string $kind, string $id, int $revision, string $reason, string $now): array
     {
         [$table,$key,$revisions] = $this->revisionMeta($kind);

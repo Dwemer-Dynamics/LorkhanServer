@@ -197,6 +197,7 @@ final class ManagementRouter
                 return Response::json(200,['result'=>$this->runProfileConnectorTest($values)]);
             }
         }
+        if($r->method==='POST'&&$path==='/api/v1/core-profile-copy-setting')return Response::json(200,$this->repository->copyCoreProfileSetting($this->json($r)));
         if($path==='/api/v1/profile-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);

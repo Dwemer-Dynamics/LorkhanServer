@@ -71,7 +71,7 @@ do not use an exception to excuse a generic substitute layout.
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
-| `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls and visible sticky toolbar; presets, bulk controls and additional profile fields remain |
+| `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
@@ -384,7 +384,7 @@ Remaining Core Profile requirements identified from the pinned source and live e
 
 - Profile Preset toolbar, Default / Local LLM / Follower / Passive built-ins, custom
   save/overwrite and confirmed application, plus Global preset profile snapshots.
-- Per-setting Copy to all with exact-field updates and confirmation.
+- Extend Copy to all to additional reference fields as their runtime mappings are added.
 - Context History, Diary and Dynamic Profile event-count controls, including the
   reference zero/fallback behavior and ranges; do not relabel a turn count as an event
   count without changing the actual selection path.
@@ -395,3 +395,36 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - Full connector-role/import-export, assignment Rules, Test, default replacement/delete,
   list/create/clone and embedded-editor state comparisons remain open. The word-limit
   and layout checkpoint is not a whole-page completion claim.
+
+### Core Profile Copy to all
+
+- Added the reference's compact Copy to all buttons for the eight currently supported
+  copyable settings: word limit, Rechat rounds/probability/actions, conversation history,
+  diary history/cooldown/instruction. Rechat Allow Actions now sits beside the Rechat
+  numeric controls, matching the reference setting placement.
+- The authenticated, CSRF-protected management endpoint accepts only one typed,
+  allowlisted setting and an explicit confirmation. It locks current installation-owned
+  profiles in stable order, rejects stale source revisions, preserves all other content
+  and metadata, and writes immutable revisions only where the value changed. More than
+  1,000 profiles is an explicit error, never a silently partial copy.
+- Confirmation uses a native HTML dialog with Cancel initially focused. The browser
+  submits only that field, not the entire editor draft. Success updates the source
+  revision for subsequent copies without discarding other unsaved inputs. Closing
+  restores focus; errors keep the dialog and draft available. No request starts on open.
+- Existing HTTP tests cover eight rendered actions, CSRF, confirmation, unsupported
+  settings, strict value types, missing/stale sources, success and repeat no-ops.
+  Existing database integration tests verify unchanged unrelated content/metadata,
+  installation isolation, revision accounting, false checkbox values and diary text.
+  PHP lint, 328 server checks, 98 protocol files, HTTP forms, integration, migrations,
+  durable jobs, JavaScript syntax and whitespace checks passed.
+- An isolated fixture using the actual dialog and script verified Cancel made zero
+  requests, successful copying sent only the exact five request properties, a stale
+  revision showed the correct error, and an unrelated draft was preserved. The deployed
+  editor was checked only through open/Cancel for word-limit and diary actions; no live
+  profile was copied or saved. Buttons measure 9px font/18px height, as in the pinned
+  reference CSS. At 390px the 354px confirmation fits with both actions visible.
+- All 678 deployed runtime files match source, with no extras or old paths. Existing
+  configuration, credentials and voice contents were preserved. Private files remain
+  403 and unauthenticated native session creation remains 401. No game was launched,
+  controlled or used for validation. Remaining profile and whole-page requirements
+  above are still open.
