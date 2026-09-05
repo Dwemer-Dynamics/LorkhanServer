@@ -1,4 +1,32 @@
 /* Global Settings presentation copied from the pinned HerikaServer global_settings.php baseline. */
+.global-settings-page .prompt-context-wrap { display:grid; grid-template-columns:minmax(0,1fr); gap:12px; }
+.global-settings-page .prompt-context-group { min-width:0; margin:0; border:1px solid #3a3a3a; border-radius:8px; background:linear-gradient(135deg,rgba(28,28,28,.92),rgba(22,22,22,.95)); padding:12px; }
+.global-settings-page .prompt-context-group h3,.global-settings-page .prompt-context-group legend { margin:0 0 10px; padding:0; color:#f5f1e8; font:400 15px/1.2 "Futura CondensedLight",Arial,sans-serif; }
+.global-settings-page .prompt-context-group legend { float:left; width:100%; color:#f5f1e8 !important; }
+.global-settings-page .gs-section-help { position:relative; float:right; cursor:help; font:400 15px/1.5 Arial,sans-serif; color:#bbb; }
+.global-settings-page .gs-section-help>[role="tooltip"] { display:none; position:absolute; right:0; top:100%; z-index:10; width:min(360px,70vw); padding:10px 12px; border:1px solid #555; border-radius:6px; background:#222; color:#ddd; font:400 13px/1.45 Arial,sans-serif; word-spacing:normal; box-shadow:0 4px 12px #0008; }
+.global-settings-page .gs-section-help:hover>[role="tooltip"],.global-settings-page .gs-section-help:focus>[role="tooltip"] { display:block; }
+.global-settings-page .gs-section-help:focus-visible { outline:2px solid #bc9d5a; outline-offset:3px; }
+.global-settings-page .prompt-context-grid { clear:both; display:grid; grid-template-columns:repeat(auto-fit,minmax(min(290px,100%),1fr)); gap:10px; }
+.global-settings-page .prompt-context-card { display:grid; grid-template-columns:auto minmax(0,1fr); gap:10px 12px; align-items:start; margin:0; background:rgba(36,36,36,.9); border:1px solid #3a3a3a; border-radius:8px; padding:10px 12px; cursor:pointer; }
+.global-settings-page .prompt-context-card input[type="checkbox"] { margin:2px 0 0; accent-color:#176529; transform:scale(1.15); }
+.global-settings-page .prompt-context-label { display:block; color:#e8edf7; font-weight:700; margin-bottom:4px; overflow-wrap:anywhere; }
+.global-settings-page .prompt-context-desc { display:block; color:#b7c2d2; font-size:12px; line-height:1.45; }
+.global-settings-page .prompt-context-card:focus-within { outline:2px solid #bc9d5a; outline-offset:2px; }
+.global-settings-page .connector-section .provider-grid { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.global-settings-page .connector-section .provider-card { grid-template-columns:minmax(0,1fr); align-content:start; align-items:start; }
+.global-settings-page .connector-section .provider-title { flex-wrap:wrap; row-gap:6px; }
+.global-settings-page .connector-section .provider-body { width:100%; }
+.global-settings-page .connector-section .provider-help { margin-top:0; }
+.global-settings-page .connector-availability { display:flex; flex:0 0 auto; align-items:center; gap:8px; margin-left:auto; color:#ccc; font-size:12px; cursor:pointer; }
+.global-settings-page .connector-availability [data-connector-state] { min-width:34px; padding:2px 9px; border:1px solid rgba(23,101,41,.8); border-radius:999px; background:rgba(23,101,41,.28); color:#a5e2b3; font-size:11px; font-weight:700; letter-spacing:.05em; line-height:1.55; text-align:center; text-transform:uppercase; }
+.global-settings-page .connector-availability:has(input:not(:checked)) [data-connector-state] { border-color:#4d4d4d; background:rgba(70,70,70,.35); color:#b8b8b8; }
+.global-settings-page .connector-availability input { accent-color:#176529; transform:scale(1.6); transform-origin:center; margin:0 4px; flex:0 0 auto; cursor:pointer; }
+.global-settings-page .connector-availability input:focus-visible { outline:2px solid #bc9d5a; outline-offset:4px; }
+.global-settings-page .gs-inline-advanced { min-width:0; border:1px solid #3a3a3a; border-radius:8px; padding:10px 12px; background:rgba(26,26,26,.6); }
+.global-settings-page .gs-inline-advanced>summary { cursor:pointer; color:#ccc; font-size:13px; font-weight:700; }
+.global-settings-page .gs-inline-advanced[open]>summary { margin-bottom:10px; }
+@media(max-width:900px) { .global-settings-page .connector-section .provider-grid { grid-template-columns:minmax(0,1fr); } }
 .global-settings-page .preset-row { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:8px; padding-top:8px; border-top:1px solid #3a3a3a; }
 .global-settings-page .preset-label { color:#cfd9ea; font-size:13px; font-weight:700; }
 .global-settings-page .preset-select { flex:0 1 auto; min-width:220px; max-width:340px; height:36px; padding:6px 10px; background:rgba(26,26,26,.8); color:#e9efff; border:1px solid #3a3a3a; border-radius:8px; font-size:13px; }
@@ -39,7 +67,7 @@ body .global-settings-page .settings-tab.is-active { border-color: rgb(188,157,9
 .global-settings-page .provider-title { display: flex; width: 100%; min-width: 0; align-items: center; gap: 10px; color: #e0e0e0; }
 .global-settings-page .provider-icon { display: flex; width: 24px; height: 24px; flex: 0 0 24px; align-items: center; justify-content: center; border-radius: 6px; background: linear-gradient(135deg,rgba(58,58,58,.9),rgba(48,48,48,.9)); font-size: 14px; }
 .global-settings-page .provider-body { display: flex; min-width: 0; align-items: center; gap: 8px; }
-.global-settings-page .provider-body input[type="text"],.global-settings-page .provider-body input[type="number"],.global-settings-page .provider-body select,.global-settings-page .provider-body textarea { width: 100%; flex: 1; padding: 8px 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26,26,26,.8); color: #e9efff; }
+.global-settings-page .provider-body input[type="url"],.global-settings-page .provider-body input[type="text"],.global-settings-page .provider-body input[type="number"],.global-settings-page .provider-body select,.global-settings-page .provider-body textarea { width: 100%; flex: 1; padding: 8px 10px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26,26,26,.8); color: #e9efff; }
 .global-settings-page .provider-body textarea { min-height: 145px; resize: vertical; }
 .global-settings-page .gs-checklist { display: grid; width: 100%; grid-template-columns: repeat(auto-fit,minmax(150px,1fr)); gap: 6px 12px; }
 .global-settings-page .gs-checklist label { display: flex; min-height: 30px; align-items: center; gap: 7px; color: #ddd; }

@@ -44,6 +44,9 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('gs_form')?.addEventListener('invalid', (event) => {
         const panel = event.target.closest('[data-settings-panel]');
         if (panel) activate(panel.dataset.settingsPanel);
+        for (let parent = event.target.parentElement; parent; parent = parent.parentElement) {
+            if (parent.tagName === 'DETAILS') parent.open = true;
+        }
     }, true);
     const presetRow = document.querySelector('[data-preset-endpoint]');
     const presetDialog = document.getElementById('gs-preset-dialog');
@@ -124,6 +127,10 @@ document.addEventListener('DOMContentLoaded', () => {
         window.location.assign(url.toString());
     });
     const translationControls = Array.from(document.querySelectorAll('[data-translation-control]'));
+    document.querySelectorAll('.connector-availability').forEach((control) => {
+        const toggle = control.querySelector('input');
+        toggle.addEventListener('change', () => { control.querySelector('[data-connector-state]').textContent = toggle.checked ? 'On' : 'Off'; });
+    });
     if (translationControls.length > 0) {
         const byRole = (role) => translationControls.filter((control) => control.dataset.translationControl === role);
         const provider = byRole('provider')[0] || null;

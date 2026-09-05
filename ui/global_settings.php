@@ -51,6 +51,51 @@ $translationPolicy = $globalDocument['translation'];
 $contextPolicy = $globalDocument['context'];
 $relationshipSettings = $globalDocument['relationship'];
 $systemRouting = $globalDocument['system_routing'];
+$contextGroups = [
+    'Top-Level Sections' => ['sections', [
+        'player_narrator' => ['Player & Narrator', 'Player profile and narrator context.'],
+        'world' => ['World', 'Recorded location, weather and world state.'],
+        'people_present' => ['People Present', 'People participating in the current scene.'],
+        'nearby_actors' => ['Nearby Actors', 'Details about other nearby characters.'],
+        'nearby_items' => ['Nearby Items', 'Items observed around the speaker.'],
+        'points_of_interest' => ['Points of Interest', 'Nearby doors, containers and activators.'],
+        'record_descriptions' => ['Record Descriptions', 'Saved descriptions for observed items.'],
+        'oghma' => ['Oghma Knowledge', 'Retrieved, authorized world knowledge.'],
+        'relationships' => ['Relationships', 'Saved relationship context.'],
+        'memories' => ['Memories', 'Retrieved memories relevant to the conversation.'],
+        'narratives' => ['Narratives', 'Eligible diary and narrative context.'],
+        'conversation_history' => ['Conversation History', 'Previous dialogue and selected background events.'],
+        'recent_action_results' => ['Recent Action Results', 'Outcomes of recently requested actions.'],
+    ]],
+    'Character Subsections' => ['details', [
+        'npc_summary' => ['Basic Summary', 'Biography and background from the speaker profile.'],
+        'npc_personality' => ['Personality', 'The speaker’s personality traits.'],
+        'npc_appearance' => ['Appearance', 'The speaker’s saved appearance description.'],
+        'npc_occupation' => ['Occupation', 'Occupation or character class.'],
+        'npc_skills' => ['Skills', 'The speaker’s recorded skills.'],
+        'npc_speech_style' => ['Speech Style', 'How the speaker talks.'],
+        'npc_moods_goals' => ['Moods & Goals', 'Allowed moods, emotes and personal goals.'],
+        'npc_relationships_notes' => ['Relationships & Notes', 'Profile relationship text and additional notes.'],
+        'npc_race_gender' => ['Race & Gender', 'The speaker’s race and gender.'],
+    ]],
+    'Appearance / State Subsections' => ['details', [
+        'npc_current_state' => ['Current State', 'Observed activity, disposition and health.'],
+        'npc_equipment_inventory' => ['Equipment & Inventory', 'Equipment and inventory within current state.'],
+        'npc_magic_effects' => ['Magic & Effects', 'Observed spells and active effects within current state.'],
+    ]],
+    'Nearby Actor Details' => ['details', [
+        'nearby_actor_summary' => ['Basic Summary', 'Nearby actors’ profile summaries.'],
+        'nearby_actor_personality' => ['Personality', 'Nearby actors’ personality traits.'],
+        'nearby_actor_appearance' => ['Appearance', 'Nearby actors’ appearance descriptions.'],
+        'nearby_actor_occupation' => ['Occupation', 'Nearby actors’ occupations.'],
+        'nearby_actor_activity' => ['Current Activity', 'What nearby actors are doing.'],
+        'nearby_actor_equipment' => ['Equipment', 'Observed equipment on nearby actors.'],
+    ]],
+    'Nearby Item Details' => ['details', [
+        'group_duplicate_items' => ['Group Duplicate Items', 'Combine matching nearby item entries.'],
+        'item_descriptions' => ['Item Descriptions', 'Include saved item descriptions when Record Descriptions is selected.'],
+    ]],
+];
 $llmOptions = ['' => 'Disabled'];
 foreach ($uiRepository->rows('llm') as $row) {
     $id = (string)($row['configuration_id'] ?? '');
@@ -83,42 +128,39 @@ $statusMessages = [
 $sections = [
     'prompt-rechat' => [
         'Prompt & Rechat' => [
-            ['prompt_head', 'Prompt Head', '&#x1F52E;', 'textarea', $globalDocument['prompt']['prompt_head'], 'System prompt defining the roleplay. Used when an NPC has no Prompt Head override. Leave blank to retain the built-in Morrowind roleplay instructions.', ['maxlength'=>8192]],
+            ['prompt_head', 'Prompt Head', '&#x1F51D;', 'textarea', $globalDocument['prompt']['prompt_head'], 'System prompt defining the roleplay. Used when an NPC has no Prompt Head override. Leave blank to retain the built-in Morrowind roleplay instructions.', ['maxlength'=>8192]],
             ['emote_moods', 'Emote Moods', '&#x1F3AD;', 'textarea', $globalDocument['prompt']['emote_moods'], 'Default comma-separated moods passed to the model. Can be overridden per NPC. Leave blank to keep the existing NPC moods.', ['maxlength'=>4096]],
             ['rechat_mode', 'Rechat Mode', '&#x1F501;', 'select', $settings['behavior']['rechat_mode'], 'Tight uses the listener, Conversational prefers the current partner, Group rotates nearby NPCs, and Random selects one mode per chain.', ['values' => ['tight'=>'Tight', 'conversational'=>'Conversational', 'group'=>'Group', 'random'=>'Random (Recommended)']]],
             ['rechat_strict_targeting', 'Strict Rechat Targeting', '&#x1F3AF;', 'boolean', $settings['behavior']['rechat_strict_targeting'], 'Requires the selected responder to address the previous speaker directly.', []],
-            ['open_rechat', 'Open Rechat', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['behavior']['open_rechat'], 'Allows nearby scene participants to become the next responder when the selected mode permits it.', []],
-            ['rechat_allow_actions', 'Allow Actions During Rechat', '&#x2699;&#xFE0F;', 'boolean', $settings['behavior']['rechat_allow_actions'], 'Lets NPCs request the same policy-checked actions during Rechat as they can during player-started dialogue.', []],
-            ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC remains ineligible for another rechat chain after ending a conversation.', ['min' => 0, 'max' => 300]],
-            ['relationship_enabled', 'Relationship Evaluation', '&#x1F91D;', 'boolean', $relationshipSettings['enabled'], 'Allow eligible completed conversations to update the saved relationship.', []],
             ['relationship_update_chance_percent', 'Relationship Update Chance', '&#x1F3B2;', 'integer', $relationshipSettings['update_chance_percent'], 'Chance from 0 to 100 that an eligible completed conversation is evaluated.', ['min' => 0, 'max' => 100]],
-        ],
-        'RPG Comments' => [
-            ['rpg_events','Comment Events','&#x1F4AC;','multiselect',$globalDocument['rpg_comments']['events'],'Nearby NPCs may comment on these observed game events while dialogue is idle.',['values'=>['levelup'=>'Level Up','combat_end'=>'Combat End','sleep'=>'Sleep','wait'=>'Wait']]],
-            ['rpg_chance','Comment Chance','&#x1F3B2;','integer',$globalDocument['rpg_comments']['chance_percent'],'Percentage of eligible events that may request a comment.',['min'=>0,'max'=>100]],
-        ],
-        'Automatic Dialogue' => [
-            ['auto_greeting', 'Automatic Greetings', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allow a newly activated nearby NPC to greet the player once when the dialogue lane is idle.', []],
-            ['boredom', 'Boredom Events', '&#x1F4AC;', 'boolean', $settings['behavior']['boredom'], 'Allow an active nearby NPC to make a brief spontaneous remark after the dialogue lane has been idle.', []],
-            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Idle seconds before a boredom event can start. Each event restarts this timer.', ['min' => 30, 'max' => 86400]],
-            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allow a managed NPC in combat to deliver a short urgent bark while the dialogue lane is idle.', []],
-            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between automatic combat barks.', ['min' => 5, 'max' => 300]],
         ],
     ],
     'ai-memory' => [
         'Memory' => [
             ['memory_embedding_enabled', 'Memory Embedding', '&#x1F9E0;', 'boolean', $memoryEmbedding['enabled'] ?? false, 'Use semantic memory retrieval. Existing lexical retrieval remains available if the service cannot be reached.', []],
             ['memory_embedding_endpoint', 'MiniMe / TXT2VEC URL', '&#x1F517;', 'url', $memoryEmbedding['endpoint'] ?? '', 'Address of your memory embedding service. Use a loopback HTTP address or an HTTPS endpoint.', []],
-            ['memory_embedding_timeout', 'Memory Query Timeout', '&#x23F1;', 'integer', $memoryEmbedding['timeout_ms'] ?? 1500, 'Maximum wait for one semantic query, in milliseconds.', ['min'=>250,'max'=>5000]],
-            ['memory_summary_enabled', 'Automatic Memory Summaries', '&#x1F4DD;', 'boolean', $memorySummary['enabled'] ?? false, 'Summarize new consolidated memories with the selected LLM. Original memories are retained.', []],
-            ['memory_summary_connector', 'Memory Summary LLM', '&#x1F50C;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Required when model summaries are enabled.', ['values'=>$llmOptions]],
             ['memory_summary_interval', 'Summary Interval', '&#x23F3;', 'integer', $memorySummary['summary_interval'] ?? 0, 'Each point represents 0.24 in-game hours. 10 = 2.4 hours; 50 = 12 hours. Zero uses event-count grouping.', ['min'=>0,'max'=>100]],
-            ['memory_summary_minimum_events', 'Minimum Summary Events', '&#x1F4AC;', 'integer', $memorySummary['minimum_events'] ?? 4, 'Minimum eligible memories before a summary group is created.', ['min'=>2,'max'=>16]],
+            ['memory_embedding_timeout', 'Memory Query Timeout', '&#x23F1;', 'integer', $memoryEmbedding['timeout_ms'] ?? 1500, 'Maximum wait for one semantic query, in milliseconds.', ['min'=>250,'max'=>5000,'advanced'=>true]],
+            ['memory_summary_minimum_events', 'Minimum Summary Events', '&#x1F4AC;', 'integer', $memorySummary['minimum_events'] ?? 4, 'Minimum eligible memories before a summary group is created.', ['min'=>2,'max'=>16,'advanced'=>true]],
         ],
-        'Memory & Others' => [
+        'Misc' => [
             ['auto_lock_profile', 'Auto Lock Profile', '&#x1F512;', 'boolean', $autoLockProfile, 'When enabled, saving an NPC profile automatically locks it to prevent automatic updates from overwriting manual edits.', []],
             ['autofill_custom_profiles', 'Automatic Profile Backfill', '&#x2728;', 'boolean', $autofillCustomProfiles, 'Fill an unlocked NPC profile with AI after it has enough completed dialogue history.', []],
             ['autofill_custom_profiles_trigger', 'Profile Backfill Trigger', '&#x1F4AC;', 'integer', $autofillCustomProfilesTrigger, 'Completed dialogue turns required before an empty unlocked NPC profile is generated.', ['min' => 10, 'max' => 100]],
+            ['end_conversation_cooldown_seconds', 'End Conversation Cooldown', '&#x23F3;', 'integer', $settings['behavior']['end_conversation_cooldown_seconds'], 'Seconds an NPC remains ineligible for another rechat chain after ending a conversation.', ['min' => 0, 'max' => 300]],
+        ],
+        'RPG Comments' => [
+            ['rpg_events','Comment Events','&#x1F4AC;','multiselect',$globalDocument['rpg_comments']['events'],'Nearby NPCs may comment on these observed game events while dialogue is idle.',['values'=>['levelup'=>'Level Up','combat_end'=>'Combat End','sleep'=>'Sleep','wait'=>'Wait']]],
+            ['rpg_chance','Comment Chance','&#x1F3B2;','integer',$globalDocument['rpg_comments']['chance_percent'],'Percentage of eligible events that may request a comment.',['min'=>0,'max'=>100]],
+        ],
+        'Automatic Dialogue' => [
+            ['open_rechat', 'Open Rechat', '&#x1F5E3;&#xFE0F;', 'boolean', $settings['behavior']['open_rechat'], 'Allows nearby scene participants to become the next responder when the selected mode permits it.', []],
+            ['rechat_allow_actions', 'Allow Actions During Rechat', '&#x2699;&#xFE0F;', 'boolean', $settings['behavior']['rechat_allow_actions'], 'Lets NPCs request the same policy-checked actions during Rechat as they can during player-started dialogue.', []],
+            ['auto_greeting', 'Automatic Greetings', '&#x1F44B;', 'boolean', $settings['behavior']['auto_greeting'], 'Allow a newly activated nearby NPC to greet the player once when the dialogue lane is idle.', []],
+            ['boredom', 'Boredom Events', '&#x1F4AC;', 'boolean', $settings['behavior']['boredom'], 'Allow an active nearby NPC to make a brief spontaneous remark after the dialogue lane has been idle.', []],
+            ['boredom_delay_seconds', 'Boredom Delay', '&#x23F3;', 'integer', $settings['behavior']['boredom_delay_seconds'], 'Idle seconds before a boredom event can start. Each event restarts this timer.', ['min' => 30, 'max' => 86400]],
+            ['combat_barks', 'Combat Barks', '&#x2694;&#xFE0F;', 'boolean', $settings['behavior']['combat_barks'], 'Allow a managed NPC in combat to deliver a short urgent bark while the dialogue lane is idle.', []],
+            ['combat_bark_period_seconds', 'Combat Bark Period', '&#x23F1;&#xFE0F;', 'integer', $settings['behavior']['combat_bark_period_seconds'], 'Minimum seconds between automatic combat barks.', ['min' => 5, 'max' => 300]],
         ],
         'Translation' => [
             ['translation_provider', 'Provider', '&#x1F310;', 'select', $translationPolicy['provider'], 'Server-only NPC output translation. None leaves NPC output untranslated; DeepL uses the server-held DeepL key and the account endpoint below.', ['values' => ['none' => 'None', 'deepl' => 'DeepL'], 'feature' => 'config.globals.translation', 'live' => true, 'control' => 'provider']],
@@ -131,24 +173,17 @@ $sections = [
         ],
     ],
     'context-knowledge' => [
-        'Oghma Infinium' => [
+        'Oghma' => [
             ['oghma_enabled', 'Oghma Infinium', '&#x1F4DA;', 'boolean', $oghmaSettings['enabled'], 'Enable deterministic catalog grounding, access checks, and Oghma prompt context.', []],
-            ['oghma_knowledge_tags', 'Oghma Knowledge Tags', '&#x1F4D9;', 'text', $oghmaSettings['knowledge_tags'], 'Installation knowledge classes inherited by Core Profiles and NPCs. Use comma-separated tags such as traveler, dunmer, scholar, or knowall. Leave empty for public basic access only; common is an article-only basic marker, not an NPC tag.', []],
-            ['oghma_topic_count', 'Extracted Topics', '&#x1F4DA;', 'integer', $oghmaSettings['topic_count'], 'Maximum conversational topics extracted and injected for each request.', ['min' => 1, 'max' => 3]],
-            ['oghma_result_limit', 'Knowledge Results', '&#x1F4D1;', 'integer', $oghmaSettings['result_limit'], 'Maximum authorized or structured-denial Oghma articles injected for each request.', ['min' => 1, 'max' => 5]],
-            ['oghma_extractor_timeout_ms', 'Extractor Timeout', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds. Local deterministic retrieval does not use this budget.', ['min' => 250, 'max' => 3000]],
-            ['oghma_racial_context_enabled', 'Racial Knowledge Injection', '&#x1F9DD;', 'boolean', $oghmaSettings['racial_context_enabled'], 'Always consider the target and nearby NPC races as Oghma topics when matching articles exist.', []],
-            ['oghma_location_context_enabled', 'Location Knowledge Injection', '&#x1F5FA;&#xFE0F;', 'boolean', $oghmaSettings['location_context_enabled'], 'Always consider the current cell, region, and named location as Oghma topics when matching articles exist.', []],
+            ['oghma_topic_count', 'Extracted Topics', '&#x1F4DA;', 'select', $oghmaSettings['topic_count'], 'Maximum conversational topics extracted and injected for each request.', ['values' => ['1','2','3']]],
+            ['oghma_racial_context_enabled', 'Force Racial Oghma', '&#x1F9DD;', 'boolean', $oghmaSettings['racial_context_enabled'], 'Always consider the target and nearby NPC races as Oghma topics when matching articles exist.', []],
+            ['oghma_location_context_enabled', 'Force Location Oghma', '&#x1F5FA;&#xFE0F;', 'boolean', $oghmaSettings['location_context_enabled'], 'Always consider the current cell, region, and named location as Oghma topics when matching articles exist.', []],
+            ['oghma_configuration_id', 'Custom Oghma LLM', '&#x1F4DA;', 'select', $systemRouting['oghma_configuration_id'], 'Used as a bounded fallback when deterministic Oghma matching cannot resolve an explicit lore request.', ['values'=>$llmOptions, 'toggle'=>['oghma_extractor_enabled','Oghma Topic Extractor',$oghmaSettings['extractor_enabled']]]],
+            ['oghma_knowledge_tags', 'Oghma Knowledge Tags', '&#x1F4D9;', 'text', $oghmaSettings['knowledge_tags'], 'Installation knowledge classes inherited by Core Profiles and NPCs. Use comma-separated tags such as traveler, dunmer, scholar, or knowall. Leave empty for public basic access only; common is an article-only basic marker, not an NPC tag.', ['advanced'=>true]],
+            ['oghma_result_limit', 'Knowledge Results', '&#x1F4D1;', 'integer', $oghmaSettings['result_limit'], 'Maximum authorized or structured-denial Oghma articles injected for each request.', ['min' => 1, 'max' => 5, 'advanced'=>true]],
+            ['oghma_extractor_timeout_ms', 'Extractor Timeout', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds. Local deterministic retrieval does not use this budget.', ['min' => 250, 'max' => 3000, 'advanced'=>true]],
         ],
-        'Context Sections' => array_map(
-            static fn(string $key, bool $value): array => ['context_section_' . $key, ucwords(str_replace('_', ' ', $key)), '&#x1F4CC;', 'boolean', $value, 'Include this optional context family in NPC prompts.', []],
-            array_keys($contextPolicy['sections']), array_values($contextPolicy['sections'])
-        ),
-        'Context Details' => array_map(
-            static fn(string $key, bool $value): array => ['context_detail_' . $key, ucwords(str_replace('_', ' ', $key)), '&#x1F50E;', 'boolean', $value, 'Include this detail when its parent context section is enabled.', []],
-            array_keys($contextPolicy['details']), array_values($contextPolicy['details'])
-        ),
-        'Context Filters' => [
+        'Context Selections' => [
             ['context_event_types', 'Event Type Filter', '&#x1F4CB;', 'multiselect', $contextPolicy['event_types'], 'Only selected event types enter conversation history.', ['values' => array_combine(SettingsCatalog::eventTypes(), array_map(static fn(string $type): string => ucwords(str_replace('_', ' ', $type)), SettingsCatalog::eventTypes()))]],
             ['context_location_blacklist', 'Location Blacklist', '&#x1F5FA;&#xFE0F;', 'textarea', implode("\n", $contextPolicy['location_blacklist']), 'One exact location or cell name per line. Matching history and world context are excluded.', ['maxlength' => 32768]],
             ['context_item_blacklist', 'Item Blacklist', '&#x1F6AB;', 'textarea', implode("\n", $contextPolicy['item_blacklist']), 'One exact item display name or record ID per line. Matching nearby, equipped, inventory, and description entries are excluded.', ['maxlength' => 32768]],
@@ -157,18 +192,16 @@ $sections = [
     ],
     'global-connectors' => [
         'Global Connectors' => [
-            ['profile_generation_configuration_id', 'Profile Generation LLM', '&#x1F58B;&#xFE0F;', 'select', $systemRouting['profile_generation_configuration_id'], 'Creates requested NPC, player, and narrator profile text. Disabled never calls a provider.', ['values' => $llmOptions]],
-            ['oghma_configuration_id', 'Oghma Extractor LLM', '&#x1F4DA;', 'select', $systemRouting['oghma_configuration_id'], 'Used only when deterministic Oghma matching cannot resolve an explicit lore request.', ['values' => $llmOptions]],
-            ['oghma_extractor_enabled', 'Oghma Topic Extractor', '&#x1F9E0;', 'boolean', $oghmaSettings['extractor_enabled'], 'Allow the selected Oghma connector to run as a bounded fallback.', []],
-            ['relationship_configuration_id', 'Relationship LLM', '&#x1F91D;', 'select', $systemRouting['relationship_configuration_id'], 'Evaluates eligible completed conversations when Relationship Evaluation is enabled.', ['values' => $llmOptions]],
+            ['memory_summary_connector', 'Summaries', '&#x1F4DD;', 'select', $memorySummary['provider_configuration_id'] ?? '', 'Summarize consolidated memories with the selected LLM. Original memories are retained.', ['values'=>$llmOptions, 'toggle'=>['memory_summary_enabled','Automatic Memory Summaries',$memorySummary['enabled'] ?? false]]],
+            ['profile_generation_configuration_id', 'Profile Tasks', '&#x1F58B;&#xFE0F;', 'select', $systemRouting['profile_generation_configuration_id'], 'Creates requested NPC, player, and narrator profile text. Disabled never calls a provider.', ['values' => $llmOptions]],
+            ['relationship_configuration_id', 'Relationship Management', '&#x1F91D;', 'select', $systemRouting['relationship_configuration_id'], 'Evaluates eligible completed conversations using Relationship Update Chance.', ['values'=>$llmOptions, 'toggle'=>['relationship_enabled','Relationship Evaluation',$relationshipSettings['enabled']]]],
         ],
     ],
 ];
 
 $sectionNotes = [
     'Translation' => 'LORKHAN translates NPC subtitles and speech audio. Saving never calls DeepL.',
-    'Context Sections' => 'Response rules, NPC identity, speaker rules, the current turn, and the action contract are always included for safety and cannot be disabled.',
-    'Context Filters' => 'Blacklists use case-insensitive exact matching. They do not accept patterns or regular expressions.',
+    'Context Selections' => 'Select the optional prompt sections and details to include. Response rules, NPC identity, speaker rules, the current turn and the action contract are always included. Blacklists use case-insensitive exact matching, not patterns or regular expressions.',
 ];
 
 $additionalStylesheets = ['herika-global-settings.css?v=' . (string) filemtime(__DIR__ . '/css/herika-global-settings.css')];
@@ -276,7 +309,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php endif; ?>
 
     <div class="settings-tabs" role="tablist" aria-label="Global settings categories">
-        <?php foreach (['prompt-rechat' => '&#x1F501; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'global-connectors' => '&#x1F50C; Global Connectors'] as $tabId => $tabLabel): ?>
+        <?php foreach (['prompt-rechat' => '&#x1F4AC; Prompt & Rechat', 'ai-memory' => '&#x1F9E0; Memory & Others', 'context-knowledge' => '&#x1F4DA; Context & Knowledge', 'global-connectors' => '&#x1F50C; Global Connectors'] as $tabId => $tabLabel): ?>
         <button type="button" class="settings-tab<?php echo $tabId === 'prompt-rechat' ? ' is-active' : ''; ?>" id="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" role="tab" aria-selected="<?php echo $tabId === 'prompt-rechat' ? 'true' : 'false'; ?>" aria-controls="settings-panel-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-tab="<?php echo lorkhan_ui_h($tabId); ?>"><?php echo $tabLabel; ?></button>
         <?php endforeach; ?>
     </div>
@@ -291,13 +324,35 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <?php $seenTabs = []; ?>
             <?php foreach ($sections as $tabId => $tabSections): foreach ($tabSections as $sectionTitle => $fields): ?>
             <?php $isFirstTabPanel = !isset($seenTabs[$tabId]); $seenTabs[$tabId] = true; ?>
-            <section class="content-section"<?php if ($isFirstTabPanel): ?> id="settings-panel-<?php echo lorkhan_ui_h($tabId); ?>"<?php endif; ?> role="tabpanel" aria-labelledby="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-panel="<?php echo lorkhan_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
-                <h2><?php echo lorkhan_ui_h($sectionTitle); ?></h2>
-                <?php if (isset($sectionNotes[$sectionTitle])): ?><p class="gs-help gs-section-note"><?php echo lorkhan_ui_h($sectionNotes[$sectionTitle]); ?></p><?php endif; ?>
+            <section class="content-section<?php echo $sectionTitle === 'Global Connectors' ? ' connector-section' : ''; ?>"<?php if ($isFirstTabPanel): ?> id="settings-panel-<?php echo lorkhan_ui_h($tabId); ?>"<?php endif; ?> role="tabpanel" aria-labelledby="settings-tab-<?php echo lorkhan_ui_h($tabId); ?>" data-settings-panel="<?php echo lorkhan_ui_h($tabId); ?>"<?php echo $tabId === 'prompt-rechat' ? '' : ' hidden'; ?>>
+                <h2><?php echo lorkhan_ui_h($sectionTitle); ?><?php if ($sectionTitle === 'Context Selections'): ?><span class="gs-section-help" tabindex="0" aria-label="Context inclusion rules" aria-describedby="gs-context-rules">&#9432;<span id="gs-context-rules" role="tooltip"><?php echo lorkhan_ui_h($sectionNotes[$sectionTitle]); ?></span></span><?php endif; ?></h2>
+                <?php if (isset($sectionNotes[$sectionTitle]) && $sectionTitle !== 'Context Selections'): ?><p class="gs-help gs-section-note"><?php echo lorkhan_ui_h($sectionNotes[$sectionTitle]); ?></p><?php endif; ?>
                 <div class="provider-grid">
-                    <?php foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $featureId = (string) ($options['feature'] ?? ''); $controlAttr = isset($options['control']) ? ' data-translation-control="' . lorkhan_ui_h((string) $options['control']) . '"' : ''; $describeAttr = $controlAttr === '' ? '' : ' aria-describedby="gs-help-' . lorkhan_ui_h($name) . '"'; ?>
+                    <?php if ($sectionTitle === 'Context Selections'): ?>
+                    <div class="prompt-context-wrap">
+                        <?php foreach ($contextGroups as $groupTitle => [$bucket, $options]): ?>
+                        <fieldset class="prompt-context-group">
+                            <legend><?php echo lorkhan_ui_h($groupTitle); ?></legend>
+                            <div class="prompt-context-grid">
+                                <?php foreach ($options as $key => [$label, $description]): $inputName = 'context_' . ($bucket === 'sections' ? 'section_' : 'detail_') . $key; ?>
+                                <label class="prompt-context-card">
+                                    <input type="checkbox" name="<?php echo lorkhan_ui_h($inputName); ?>" value="1"<?php echo $contextPolicy[$bucket][$key] ? ' checked' : ''; ?>>
+                                    <span><span class="prompt-context-label"><?php echo lorkhan_ui_h($label); ?></span><span class="prompt-context-desc"><?php echo lorkhan_ui_h($description); ?></span></span>
+                                </label>
+                                <?php endforeach; ?>
+                            </div>
+                        </fieldset>
+                        <?php endforeach; ?>
+                        <div class="prompt-context-group"><h3>Context Options</h3><div class="provider-grid">
+                    <?php endif; ?>
+                    <?php $advancedOpen = false; foreach ($fields as $field): [$name, $label, $icon, $type, $value, $help] = $field; $options = $field[6] ?? []; $featureId = (string) ($options['feature'] ?? ''); $controlAttr = isset($options['control']) ? ' data-translation-control="' . lorkhan_ui_h((string) $options['control']) . '"' : ''; $describeAttr = $controlAttr === '' ? '' : ' aria-describedby="gs-help-' . lorkhan_ui_h($name) . '"'; ?>
+                    <?php if (!empty($options['advanced']) && !$advancedOpen): $advancedOpen = true; ?><details class="gs-inline-advanced"><summary>Advanced <?php echo lorkhan_ui_h($sectionTitle); ?> settings</summary><div class="provider-grid"><?php endif; ?>
                     <div class="provider-card"<?php if ($featureId !== ''): ?> title="<?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?>"<?php endif; ?>>
-                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo lorkhan_ui_h($label); ?></span><?php if ($featureId !== '') echo lorkhan_ui_feature_badge($featureId, true); ?><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>" value="1"<?php echo $controlAttr; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>></span><?php endif; ?></div></div>
+                        <div class="provider-head"><div class="provider-title"><span class="provider-icon"><?php echo $icon; ?></span><span><?php echo lorkhan_ui_h($label); ?></span><?php if ($type === 'boolean'): ?><span class="provider-toggle"><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>" value="1"<?php echo $controlAttr; ?><?php echo $value ? ' checked' : ''; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>></span><?php endif; ?>
+                            <?php if (isset($options['toggle'])): [$toggleName, $toggleLabel, $toggleValue] = $options['toggle']; ?>
+                            <label class="<?php echo $sectionTitle === 'Oghma' ? 'provider-toggle' : 'connector-availability'; ?>" title="Turn off to disable this task without changing the selected connector."><?php if ($sectionTitle !== 'Oghma'): ?><span data-connector-state><?php echo $toggleValue ? 'On' : 'Off'; ?></span><?php endif; ?><input type="checkbox" name="<?php echo lorkhan_ui_h($toggleName); ?>" value="1"<?php echo $toggleValue ? ' checked' : ''; ?> aria-label="<?php echo lorkhan_ui_h($toggleLabel); ?>"></label>
+                            <?php endif; ?>
+                        </div></div>
                         <div class="provider-body">
                             <?php if ($type === 'integer'): ?><input type="number" name="<?php echo lorkhan_ui_h($name); ?>" value="<?php echo lorkhan_ui_h($value); ?>" min="<?php echo lorkhan_ui_h($options['min']); ?>" max="<?php echo lorkhan_ui_h($options['max']); ?>" step="1" aria-label="<?php echo lorkhan_ui_h($label); ?>">
                             <?php elseif ($type === 'select'): ?><select name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $controlAttr; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>><?php foreach ($options['values'] as $optionKey => $optionLabel): $option = is_int($optionKey) ? (string) $optionLabel : (string) $optionKey; ?><option value="<?php echo lorkhan_ui_h($option); ?>"<?php echo $option === (string) $value ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($optionLabel); ?></option><?php endforeach; ?></select>
@@ -309,6 +364,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <div class="provider-help"<?php if ($controlAttr !== ''): ?> id="gs-help-<?php echo lorkhan_ui_h($name); ?>"<?php endif; ?>><?php echo lorkhan_ui_h($help); ?></div>
                     </div>
                     <?php endforeach; ?>
+                    <?php if ($advancedOpen): ?></div></details><?php endif; ?>
+                    <?php if ($sectionTitle === 'Context Selections'): ?></div></div></div><?php endif; ?>
                 </div>
             </section>
             <?php endforeach; endforeach; ?>

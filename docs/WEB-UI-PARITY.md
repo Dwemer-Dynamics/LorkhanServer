@@ -70,7 +70,7 @@ do not use an exception to excuse a generic substitute layout.
 | `home.php` | `home.php` | Pending structural and populated-state comparison |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
-| `global_settings.php` | Same path | Prompt rows and named preset toolbar aligned; other tabs, connector tests and profile-affecting built-ins pending |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma and connector cards aligned; blacklist browsers, connector tests and profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | Pending structural and populated-state comparison |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
@@ -254,3 +254,32 @@ an existing profile/installation identity when testing its direct route.
 - Local deployment matches all 676 runtime files, with no extra files or old paths.
   Configuration, credential and voice hashes were preserved; private files remain
   forbidden and unauthenticated native session creation returns 401.
+
+### Global Settings section and control layout
+
+- Replaced 33 full-width context rows with Herika's compact checkbox groups:
+  Top-Level Sections, Character Subsections, Appearance / State Subsections,
+  Nearby Actor Details and Nearby Item Details. All existing field names, values
+  and submission behavior are retained. Required prompt rules remain mandatory;
+  their explanation is available on hover/focus rather than as permanent copy.
+- Context filters now sit under Context Selections / Context Options. The missing
+  blacklist Browse dialogs remain pending; the grouped layout does not imply those
+  controls or all Herika context features have been implemented.
+- Global Connectors uses the counterpart two-column card grid, labels and On/Off
+  controls for existing tasks. Summary and relationship toggles sit with their
+  connectors; Oghma's connector and toggle sit in Oghma. No connector choice is
+  cleared when a task is disabled. No unsupported slot was represented by a fake control.
+- End Conversation Cooldown is in Misc. Lorkhan's existing global RPG/automatic
+  dialogue defaults remain available in Memory & Others. Additional Oghma and memory
+  tuning is collapsed under Advanced settings. URL fields use the same input styling;
+  translation no longer adds non-counterpart Live badges beside every setting.
+- Desktop screenshots compared actual Oghma, Memory, context groups and connector
+  cards. Computed context heading, label and description typography matches the
+  reference. At 390px the groups and connector cards fit the 375px content width.
+- A live unsaved validation probe confirmed that an invalid collapsed Memory Query
+  Timeout opens the correct tab and disclosure without opening or saving a preset.
+  Connector-toggle probes preserved the selected LLM. Reload discarded all test edits;
+  no live settings were saved and no provider request or game launch was performed.
+- Existing HTTP tests verify all 33 fields occur exactly once, paired controls are
+  unique and unchecked context options persist. 323 server checks, 98 protocol files,
+  HTTP forms, integration, migrations and durable jobs passed. Schema hash is unchanged.
