@@ -2376,6 +2376,27 @@ $assert($status===201&&$configuredAccepted['config_revision']===$configuredRevis
 $configuredDeleteKey=$newUuid(305);
 [$status,$configuredEnded]=$call($router,'DELETE',$base.'/sessions/'.$configuredAccepted['session_id'],['Idempotency-Key'=>$configuredDeleteKey]);
 $assert($status===200&&$configuredEnded['ended']===true,'configured integration session did not end cleanly');
+// Persist the pre-event-tuning shapes to exercise the same upgrade path as existing installations.
+$legacyClientSettings=$settingsDocument;
+foreach(['welcome_cooldown_minutes','random_chance_percent','random_cooldown_rounds','bored_events',
+    'bored_chance_percent','quest_chance_percent','quest_cooldown_minutes']as$field)unset($legacyClientSettings['narrator'][$field]);
+$legacyGlobalSettings=$settingsGlobal;$legacyGlobalSettings['client']=$legacyClientSettings;
+foreach([$legacyClientSettings,$legacyGlobalSettings]as$index=>$legacySettings){
+    $legacyRevision=$products->revise('global_settings',$existingGlobal['configuration_id'],$legacySettings,
+        'integration legacy session settings',$now);
+    $legacySession=$session;$legacySession['message_id']=$newUuid(306+$index*2);$legacySession['generation']=9+$index;
+    [$status,$legacyAccepted]=$call($router,'POST',$base.'/sessions',$headers($legacySession['message_id']),[],$legacySession);
+    $unchangedSettings=$products->globalSettingsForInstallation($installationId);
+    $assert($status===201&&$legacyAccepted['client_settings']==$settingsDocument
+        &&$legacyAccepted['config_revision']==='global-settings-r'.$legacyRevision['current_revision']
+        &&$unchangedSettings['content']==$legacySettings,
+        'legacy session settings must gain missing defaults without changing saved values or revisions');
+    [$replayStatus,$legacyReplay]=$call($router,'POST',$base.'/sessions',$headers($legacySession['message_id']),[],$legacySession);
+    $assert($replayStatus===201&&$legacyReplay==$legacyAccepted,'normalized legacy session replay changed');
+    [$status,$legacyEnded]=$call($router,'DELETE',$base.'/sessions/'.$legacyAccepted['session_id'],
+        ['Idempotency-Key'=>$newUuid(307+$index*2)]);
+    $assert($status===200&&$legacyEnded['ended']===true,'legacy integration session did not end cleanly');
+}
 if (is_dir($mediaPath)) {
     foreach (glob($mediaPath . '/*') ?: [] as $file) unlink($file);
     rmdir($mediaPath);

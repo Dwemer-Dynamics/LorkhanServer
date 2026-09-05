@@ -4,6 +4,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Http;
 
 use LorkhanServer\Application\MorrowindVoiceCatalog;
+use LorkhanServer\Application\EffectiveSettingsResolver;
 use LorkhanServer\Application\MemoryEmbeddingPolicy;
 use LorkhanServer\Application\MiniMeEmbeddingProvider;
 use LorkhanServer\Application\NeverCancelledToken;
@@ -133,7 +134,9 @@ final class Router
     private function clientSettings(string $installationId):array
     {
         $saved=$this->products?->globalSettingsForInstallation($installationId);
-        if($saved!==null){$content=is_array($saved['content']['client']??null)?$saved['content']['client']:$saved['content'];
+        if($saved!==null){
+            // Upgrade older saved settings before enforcing the current client handshake contract.
+            $content=EffectiveSettingsResolver::validateGlobalSettings($saved['content'])['client'];
             return['revision'=>'global-settings-r'.(int)$saved['current_revision'],'content'=>$content];}
         return['revision'=>'global-settings-default-v1','content'=>SettingsCatalog::clientDefaults()];
     }

@@ -211,6 +211,10 @@ final class EffectiveSettingsResolver
     public static function validateGlobalSettings(array $content): array
     {
         if (($content['schema'] ?? null) === SettingsCatalog::CLIENT_SCHEMA) {
+            // Early v1 documents predate Narrator event chances and cooldowns, just like early v2.
+            if (is_array($content['narrator'] ?? null) && !array_is_list($content['narrator'])) {
+                $content['narrator'] += SettingsCatalog::clientDefaults()['narrator'];
+            }
             self::validateSettingsShape($content, SettingsCatalog::clientDefaults(), false);
             $migrated = SettingsCatalog::globalDefaults();
             $migrated['client'] = $content;
