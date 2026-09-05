@@ -6,9 +6,18 @@ $pageTitle = 'Home';
 $topNavSection = 'home';
 require __DIR__ . '/ui_bootstrap.php';
 $dashboard = $uiRepository->dashboard();
+// Match the dashboard's readable dates and its UTC column label, regardless of database timezone.
+$dashboardTime = static function (mixed $value): string {
+    if (!is_string($value) || trim($value) === '') return 'Unknown';
+    try {
+        return (new DateTimeImmutable($value))->setTimezone(new DateTimeZone('UTC'))->format('j M Y, H:i');
+    } catch (Throwable) {
+        return 'Unknown';
+    }
+};
 $currentRows = $dashboard['current'] === null ? [] : [
     ['Stats' => 'State', 'Value' => $dashboard['current']['state'] ?? 'unknown'],
-    ['Stats' => 'Last Connected', 'Value' => $dashboard['current']['created_at'] ?? 'unknown'],
+    ['Stats' => 'Last Connected (UTC)', 'Value' => $dashboardTime($dashboard['current']['created_at'] ?? null)],
     ['Stats' => 'OpenMW Version', 'Value' => $dashboard['current']['openmw_version'] ?? 'unknown'],
     ['Stats' => 'Lua API Revision', 'Value' => $dashboard['current']['lua_api_revision'] ?? 'unknown'],
     ['Stats' => 'Client Version', 'Value' => $dashboard['current']['client_version'] ?? 'unknown'],
@@ -18,7 +27,7 @@ $currentRows = $dashboard['current'] === null ? [] : [
 ];
 $dialogueRows = array_map(static fn(array $row): array => [
     'Dialogue' => (string) ($row['speaker'] ?? 'Unknown') . ': ' . (string) ($row['text'] ?? ''),
-    'Time (UTC)' => $row['emitted_at'] ?? '',
+    'Time (UTC)' => $dashboardTime($row['emitted_at'] ?? null),
     'Delivery' => $row['delivery_state'] ?? 'unknown',
 ], $dashboard['dialogue']);
 // Herika ranks its word cloud with a CDN d3 layout. LORKHAN keeps CSP-safe chips and

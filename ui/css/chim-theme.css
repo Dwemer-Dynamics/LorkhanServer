@@ -313,6 +313,8 @@ body .btn.disabled {
 }
 
 .chim-btn-primary,
+body .action-button.primary,
+body .roleplay-button.active,
 body .btn-primary,
 body .btn-action,
 body .primary-button,
@@ -324,6 +326,8 @@ body .btn-snqe-generate {
 }
 
 .chim-btn-success,
+body .action-editor-page [data-save-row],
+body .action-editor-page [data-save-all],
 body .btn-save,
 body .btn-save-green,
 body .save-button,
@@ -335,6 +339,8 @@ body input[type="submit"]:not(.btn-danger) {
 }
 
 .chim-btn-danger,
+body .action-button.danger,
+body .roleplay-button.danger,
 body .btn-danger,
 body .btn-delete,
 body .delete-button,
@@ -1130,7 +1136,7 @@ body .code-block {
    LORKHAN gold instead of Herika orange. Collapses the old stacked "big title
    + centered subtitle" banner; legacy class names stay for JS/selector hooks.
    ========================================================================== */
-body .page-header.lorkhan-page-head {
+body .lorkhan-page-head {
     display: flex;
     flex-wrap: wrap;
     align-items: baseline;
@@ -1140,14 +1146,14 @@ body .page-header.lorkhan-page-head {
     text-align: left;
 }
 
-body .page-header.lorkhan-page-head > * {
+body .lorkhan-page-head > * {
     margin: 0;
 }
 
 /* Titles that carry the explicit role class, plus a bare <h1> child so a
    header that has not been tagged yet still resolves the shared contract. */
-body .page-header.lorkhan-page-head .lorkhan-page-head-title,
-body .page-header.lorkhan-page-head > h1 {
+body .lorkhan-page-head .lorkhan-page-head-title,
+body .lorkhan-page-head > h1 {
     flex: 0 0 auto;
     margin: 0;
     color: var(--chim-accent) !important;
@@ -1160,7 +1166,7 @@ body .page-header.lorkhan-page-head > h1 {
     word-spacing: 8px;
 }
 
-body .page-header.lorkhan-page-head .lorkhan-page-head-note {
+body .lorkhan-page-head .lorkhan-page-head-note {
     flex: 1 1 240px;
     min-width: 0;
     color: var(--chim-text-muted);
@@ -1168,14 +1174,14 @@ body .page-header.lorkhan-page-head .lorkhan-page-head-note {
     line-height: 1.4;
 }
 
-body .page-header.lorkhan-page-head .lorkhan-page-head-note p {
+body .lorkhan-page-head .lorkhan-page-head-note p {
     margin: 0;
     color: inherit;
     font-size: inherit;
     line-height: inherit;
 }
 
-body .page-header.lorkhan-page-head .lorkhan-page-head-actions {
+body .lorkhan-page-head .lorkhan-page-head-actions {
     flex: 0 0 auto;
     display: flex;
     flex-wrap: wrap;
@@ -1185,17 +1191,17 @@ body .page-header.lorkhan-page-head .lorkhan-page-head-actions {
 }
 
 @media (max-width: 760px) {
-    body .page-header.lorkhan-page-head {
+    body .lorkhan-page-head {
         align-items: flex-start;
         flex-direction: column;
     }
 
-    body .page-header.lorkhan-page-head .lorkhan-page-head-note {
+    body .lorkhan-page-head .lorkhan-page-head-note {
         flex-basis: auto;
         width: 100%;
     }
 
-    body .page-header.lorkhan-page-head .lorkhan-page-head-actions {
+    body .lorkhan-page-head .lorkhan-page-head-actions {
         margin-left: 0;
     }
 }

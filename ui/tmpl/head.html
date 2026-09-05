@@ -7,16 +7,16 @@
     <link rel="icon" type="image/x-icon" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/favicon.ico">
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/lib/ui/bootstrap/bootstrap.min.css">
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/style_new.css">
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/chim-theme.css">
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/navbar.css">
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-navbar-layout.css">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/chim-theme.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/chim-theme.css'); ?>">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/navbar.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/navbar.css'); ?>">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-navbar-layout.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/herika-navbar-layout.css'); ?>">
     <?php if (($includeManagementStyles ?? false) === true): ?>
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/management.css">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/management.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/management.css'); ?>">
     <?php endif; ?>
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-resource.css">
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/lorkhan-status.css">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-resource.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/herika-resource.css'); ?>">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/lorkhan-status.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/lorkhan-status.css'); ?>">
     <?php if (($topNavSection ?? '') === 'control'): ?>
-    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-control-pages.css">
+    <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/css/herika-control-pages.css?v=<?php echo (string) filemtime(__DIR__ . '/../css/herika-control-pages.css'); ?>">
     <?php endif; ?>
     <?php foreach (($additionalStylesheets ?? []) as $stylesheet): ?>
     <link rel="stylesheet" href="<?php echo lorkhan_ui_h($webRoot . '/ui/css/' . ltrim((string) $stylesheet, '/')); ?>">

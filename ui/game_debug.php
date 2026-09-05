@@ -13,8 +13,7 @@ include __DIR__.'/tmpl/head.html';
 if(!$embedded)include __DIR__.'/tmpl/navbar.php';
 ?>
 <main class="lorkhan-page control-specialist-page game-debug-page<?php echo $embedded?' embedded':''; ?>">
-    <header class="lorkhan-page-header">
-        <div><h1>Game Debug</h1><p>Run fixed OpenMW diagnostics in the connected game. Commands expire after 30 seconds and are never exposed to AI prompts or actions.</p></div>
+    <header class="lorkhan-page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Game Debug</h1><p class="lorkhan-page-head-note">Run fixed OpenMW diagnostics in the connected game. Commands expire after 30 seconds and are never exposed to AI prompts or actions.</p>
         <span class="lorkhan-state-pill is-neutral" data-debug-connection>Checking game</span>
     </header>
     <div data-game-debug data-api-base="<?php echo lorkhan_ui_h($managementBasePath.'/api/v1'); ?>" data-csrf="<?php echo lorkhan_ui_h($csrf); ?>">

@@ -6,6 +6,13 @@ are not sources for the LORKHAN implementation.
 
 ## Pinned source
 
+The 2026-09-05 presentation follow-up uses Dwemer-Dynamics/HerikaServer
+`529364c4c12b3a8bd4cc12a481f400ce19b3a344` for current hub navigation, compact
+headers, Action Editor, dashboard and log reader geometry. See
+[WEB-UI-PARITY.md](WEB-UI-PARITY.md) for the full page map, adaptations and evidence.
+The original import below is retained as historical provenance; no Herika runtime
+code was imported by the follow-up. Existing source license notices remain.
+
 - Repository: `https://github.com/abeiro/HerikaServer.git`
 - Ref inspected: `origin/unstable`
 - Presentation import commit: `c6ba5921737e0cecbe59ab3f1f15cf06406e0fdf`

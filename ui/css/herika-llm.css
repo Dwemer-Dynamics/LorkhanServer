@@ -379,3 +379,8 @@ body.llm-page-shell > main.llm-page {
     .llm-page .conn-li .actions { flex-wrap: wrap; }
     .llm-page .conn-li .actions button { min-width: 0; max-width: 100%; }
 }
+
+/* Upstream leaves an unselected editor unframed, separate from the editable card. */
+.llm-page .llm-empty-selection { padding: 18px; color: #9fb1c9; }
+.llm-page .llm-empty-selection strong { color: #e9efff; font-weight: 600; }
+.llm-page .llm-empty-selection p { margin: 6px 0 0; }

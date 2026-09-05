@@ -75,7 +75,7 @@ function lorkhan_relationship_type_label(string $type):string
 include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
 ?>
 <main class="lorkhan-page<?php echo $embedded?' embedded':''; ?>">
-    <header class="lorkhan-page-header"><div><h1>Relationship Audit</h1><p>Edit saved relationships and review their change history.</p></div>
+    <header class="lorkhan-page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Relationship Audit</h1><p class="lorkhan-page-head-note">Edit saved relationships and review their change history.</p>
         <a class="btn-base control-jump-link" href="#relationship-history">Recent changes</a></header>
     <?php if($notice!==''&&!str_starts_with($buildStatus,'relationship_build_')): ?><p role="<?php echo $buildStatus==='saved'?'status':'alert'; ?>"><?php echo lorkhan_ui_h($notice); ?></p><?php endif; ?>
     <?php if($installations===[]): ?><p class="empty-state">Connect OpenMW to manage relationships.</p><?php else: ?>

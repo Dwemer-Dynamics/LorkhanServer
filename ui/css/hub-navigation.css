@@ -36,103 +36,123 @@ body.hub-page .config-navigation {
     margin-top: var(--hub-navigation-gap);
 }
 
+/*
+ * Compact hub navigation shared by Config Hub, Roleplay and Control Panel.
+ * Everything below is scoped under .config-navigation so content-level
+ * .tab-buttons on embedded pages keep their own styling.
+ */
 .config-navigation {
-    margin: 8px 0 6px;
-    padding: 8px;
+    margin: 6px 0;
+    padding: 5px;
     border: 1px solid var(--chim-border, #404040);
     border-radius: 10px;
     background: var(--chim-surface-3, #1d1d1d);
     box-shadow: none;
 }
 
-.tab-groups {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 8px;
-    align-items: stretch;
+/* Desktop groups size from their own labels and buttons, then shrink and wrap
+   their buttons together if the row is tighter. They never grow merely to
+   absorb unused space, so any remainder stays at the right edge. */
+.config-navigation .tab-groups {
+    display: flex;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 5px;
+    align-items: flex-start;
 }
 
-.tab-groups.two-groups {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.tab-group {
+.config-navigation .tab-group {
+    flex: 0 1 max-content;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
     min-width: 0;
-    overflow: hidden;
+    padding: 4px 6px;
+    overflow: visible;
     border: 1px solid var(--chim-border, #404040);
     border-radius: 8px;
     background: var(--chim-surface-1, #232323);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
-.tab-group.active {
+.config-navigation .tab-group.active {
     border-color: rgba(188, 157, 90, 0.62);
     box-shadow: inset 0 0 0 1px rgba(188, 157, 90, 0.08);
 }
 
-.tab-group-label {
-    padding: 6px 10px 5px;
-    border-bottom: 1px solid rgba(188, 157, 90, 0.2);
+.config-navigation .tab-group-label {
+    padding: 0 0 3px;
+    border-bottom: 1px solid rgba(188, 157, 90, 0.22);
     color: #c9b07b;
     font-family: 'MagicCards', sans-serif;
-    font-size: 0.86em;
-    letter-spacing: 1.5px;
-    word-spacing: 5px;
+    font-size: 0.68em;
+    letter-spacing: 0.9px;
+    line-height: 1.2;
+    word-spacing: 2px;
     text-transform: uppercase;
 }
 
-.tab-buttons {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+/* Buttons pack by their own width instead of sitting in fixed columns, so a
+   short label no longer reserves a full column. */
+.config-navigation .tab-buttons {
+    display: flex;
+    flex-wrap: wrap;
     align-content: flex-start;
-    gap: 5px;
+    gap: 4px;
+    min-width: 0;
+    max-width: 100%;
     margin: 0;
-    padding: 7px;
+    padding: 0;
     border: 0;
-    word-spacing: 5px;
 }
 
-.tab-button {
-    width: 100%;
+/* border-box keeps the declared height honest: as content-box the old 38px
+   buttons painted 54px once padding and border were added. */
+body .config-navigation .tab-button {
+    box-sizing: border-box;
+    width: auto;
+    max-width: 100%;
     min-width: 0;
-    height: 38px;
+    height: 32px !important;
+    min-height: 32px !important;
     display: inline-flex;
     align-items: center;
-    justify-content: flex-start;
-    gap: 7px;
-    margin: 0;
-    padding: 7px 9px;
+    justify-content: flex-start !important;
+    gap: 6px;
+    margin: 0 !important;
+    padding: 4px 8px !important;
     overflow: hidden;
     border: 1px solid #4a4a4a;
     border-radius: 6px;
     background: #303030;
     color: #f0f0f0;
     cursor: pointer;
-    font-family: 'MagicCards', sans-serif;
-    font-size: 14px;
-    letter-spacing: 1.2px;
+    font-family: 'MagicCards', sans-serif !important;
+    font-size: 0.82em !important;
+    font-weight: normal !important;
+    line-height: 1.2 !important;
+    letter-spacing: 0.6px;
     text-decoration: none;
-    word-spacing: 5px;
+    word-spacing: 1px;
     white-space: nowrap;
     box-shadow: none;
     transition: background-color 0.14s ease, border-color 0.14s ease, color 0.14s ease;
 }
 
-/* Block-level, as Herika leaves it. A flex label sizes itself to its text and
-   text-overflow never engages, so a long name is cut mid-glyph instead of
-   ending in an ellipsis. The full name stays available from the title. */
-.tab-button .tab-label {
-    display: block;
+/* Herika ellipsises the trailing label span. LORKHAN tags the same span
+   .tab-label so the availability variant below can nest it, so both hooks
+   resolve to one rule. */
+.config-navigation .tab-button span:last-child,
+.config-navigation .tab-button .tab-label {
     min-width: 0;
-    max-width: 100%;
     overflow: hidden;
-    white-space: nowrap;
     text-overflow: ellipsis;
 }
 
-/* The availability variant stacks the name over its state badge. The column
-   stretches so the name still measures against the button width. */
-.tab-button > .tab-label-stack {
+/* LORKHAN addition. A tab whose feature is not live stacks the name over a
+   compact state badge. The column stretches so the name still measures against
+   the button width and can still ellipsise. */
+.config-navigation .tab-button > .tab-label-stack {
     display: flex;
     flex: 0 1 auto;
     flex-direction: column;
@@ -143,7 +163,7 @@ body.hub-page .config-navigation {
     line-height: 1;
 }
 
-.tab-label-stack .feature-state-compact {
+.config-navigation .tab-label-stack .feature-state-compact {
     align-self: flex-start;
     max-width: 100%;
     min-height: 12px;
@@ -152,17 +172,19 @@ body.hub-page .config-navigation {
     line-height: 1;
 }
 
-.tab-icon {
+.config-navigation .tab-icon {
     flex: 0 0 auto;
     display: inline-flex;
     align-items: center;
     justify-content: center;
     font-family: "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif;
-    font-size: 1.05em;
+    font-size: 0.95em;
     line-height: 1;
 }
 
-.tab-button:hover {
+/* Hover and active only repaint colours and the inset rule, so neither moves
+   the button or reflows the row. */
+.config-navigation .tab-button:hover {
     border-color: rgba(188, 157, 90, 0.45);
     background: #38332f;
     color: rgb(188, 157, 90);
@@ -170,7 +192,7 @@ body.hub-page .config-navigation {
     box-shadow: none;
 }
 
-.tab-button.active {
+.config-navigation .tab-button.active {
     border-color: rgba(188, 157, 90, 0.75);
     background: #3a2d23;
     color: rgb(188, 157, 90);
@@ -178,53 +200,112 @@ body.hub-page .config-navigation {
     box-shadow: inset 0 -2px rgba(188, 157, 90, 0.65);
 }
 
-.tab-button:focus,
-.tab-button:visited {
+.config-navigation .tab-button:focus,
+.config-navigation .tab-button:visited {
     text-decoration: none;
 }
 
-/* Inset so the ring is never clipped by the .tab-group overflow. */
-.tab-button:focus-visible {
-    outline: 2px solid var(--chim-accent-bright, rgb(212, 184, 122));
-    outline-offset: -2px;
+/* Outline draws outside the box, so the keyboard ring costs no layout. The
+   group is overflow: visible, so the ring is never clipped. */
+.config-navigation .tab-button:focus-visible {
+    outline: 2px solid rgb(188, 157, 90);
+    outline-offset: 2px;
 }
 
-.tab-button[disabled],
-.tab-button[aria-disabled="true"] {
+/* LORKHAN addition. A tab whose feature has no LORKHAN surface keeps its
+   expected slot but is not actionable, so it must not read as hoverable. */
+.config-navigation .tab-button[disabled],
+.config-navigation .tab-button[aria-disabled="true"] {
     cursor: not-allowed;
     opacity: 0.62;
 }
 
-body .tab-button[disabled]:hover:not(.active),
-body .tab-button[aria-disabled="true"]:hover:not(.active) {
+body .config-navigation .tab-button[disabled]:hover:not(.active),
+body .config-navigation .tab-button[aria-disabled="true"]:hover:not(.active) {
     border-color: #4a4a4a !important;
     background: #303030 !important;
     color: #c9c5bd !important;
 }
 
-@media (max-width: 1500px) {
-    .tab-buttons {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Two-group hubs are small enough to keep their labels beside the buttons on
+   ordinary desktops, avoiding a dedicated label row. */
+@media (min-width: 901px) {
+    .config-navigation .tab-groups.two-groups .tab-group {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
+    }
+
+    .config-navigation .tab-groups.two-groups .tab-group-label {
+        flex: 0 0 auto;
+        padding: 0 8px 0 0;
+        border-bottom: 0;
+        border-right: 1px solid rgba(188, 157, 90, 0.22);
+        white-space: nowrap;
     }
 }
 
-@media (max-width: 1000px) {
-    .tab-groups,
-    .tab-groups.two-groups {
-        grid-template-columns: 1fr;
+/* Very wide desktops have room to sit each label beside its buttons, which
+   drops the label row entirely. The breakpoint is deliberately high: an inline
+   label takes width away from the buttons, so below ~1800px the config hubs
+   spend more on an extra button row than the label row ever cost. Under it the
+   label goes back on top and the buttons keep the full group width. */
+@media (min-width: 1800px) {
+    .config-navigation .tab-group {
+        flex-direction: row;
+        align-items: center;
+        gap: 8px;
     }
 
-    .tab-buttons {
-        grid-template-columns: repeat(3, minmax(0, 1fr));
+    .config-navigation .tab-group-label {
+        flex: 0 0 auto;
+        padding: 0 8px 0 0;
+        border-bottom: 0;
+        border-right: 1px solid rgba(188, 157, 90, 0.22);
+        white-space: nowrap;
     }
 }
 
-@media (max-width: 620px) {
-    .tab-buttons {
-        grid-template-columns: repeat(2, minmax(0, 1fr));
+/* Smaller desktops: trimming letter-spacing and padding is usually enough to
+   save a button row without shrinking the text further. */
+@media (max-width: 1200px) {
+    body .config-navigation .tab-button {
+        padding: 4px 7px !important;
+        font-size: 0.78em !important;
+        letter-spacing: 0.4px;
+    }
+}
+
+/* Narrow viewports: one group per row, and buttons stretch to comfortable
+   touch targets rather than shrinking. */
+@media (max-width: 900px) {
+    .config-navigation .tab-groups {
+        flex-wrap: wrap;
     }
 
-    .tab-button {
-        font-size: 0.88em;
+    .config-navigation .tab-groups .tab-group,
+    .config-navigation .tab-groups.two-groups .tab-group {
+        flex: 1 1 100%;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 5px;
+        padding: 5px 8px;
+    }
+
+    .config-navigation .tab-group-label {
+        flex: 0 0 auto;
+        padding: 0 0 5px;
+        border-right: 0;
+        border-bottom: 1px solid rgba(188, 157, 90, 0.22);
+        font-size: 0.72em;
+        white-space: normal;
+    }
+
+    body .config-navigation .tab-button {
+        flex: 1 1 auto;
+        height: 38px !important;
+        min-height: 38px !important;
+        justify-content: center !important;
+        font-size: 0.82em !important;
     }
 }

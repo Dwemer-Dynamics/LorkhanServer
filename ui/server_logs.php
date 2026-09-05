@@ -43,11 +43,7 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <main class="lorkhan-page control-specialist-page<?php echo $embedded ? ' embedded' : ''; ?>">
-    <header class="lorkhan-page-header">
-        <div>
-            <h1>Server Logs</h1>
-            <p>Inspect the latest bounded, redacted output from the LORKHAN worker and local Apache service.</p>
-        </div>
+    <header class="lorkhan-page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Server Logs</h1><p class="lorkhan-page-head-note">Inspect the latest bounded, redacted output from the LORKHAN worker and local Apache service.</p>
         <a class="btn-base control-refresh-link" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/server_logs.php<?php echo $embedded ? '?embed=1' : ''; ?>">Refresh logs</a>
     </header>
     <div class="log-grid">

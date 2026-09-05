@@ -31,10 +31,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
   <div class="action-toast" data-action-toast role="status" aria-live="polite" hidden></div>
 
   <header class="page-header lorkhan-page-head">
-    <div>
-      <h1 class="lorkhan-page-head-title">Action Editor</h1>
-      <p class="lorkhan-page-head-note">Configure available actions exposed to AI prompting and execution</p>
-    </div>
+    <h1 class="lorkhan-page-head-title">Action Editor</h1>
+    <p class="lorkhan-page-head-note">Configure available actions exposed to AI prompting and execution</p>
   </header>
 
   <?php if ($installations === []): ?>

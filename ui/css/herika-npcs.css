@@ -611,3 +611,7 @@ body.view-characters .npc-modal-body {
         max-width: 220px;
     }
 }
+
+/* Match the NPC toolbar checkbox alignment while retaining its autosave handler. */
+body.view-characters .npc-auto-lock-profile label,
+body.view-characters label.npc-auto-lock-profile { flex-direction: row; align-items: center; }

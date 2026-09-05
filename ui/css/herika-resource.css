@@ -24,7 +24,7 @@ body:not(.embedded-page) > main.lorkhan-page {
     padding-bottom: 40px;
 }
 
-body.configuration-resource.embedded-page > main.management-page { padding-top: 30px; }
+body.configuration-resource.embedded-page > main.management-page { padding-top: 10px; }
 
 .lorkhan-page-header,
 .configuration-page-header,
@@ -62,8 +62,7 @@ h1.api-title {
 .lorkhan-card,
 .lorkhan-editor,
 .management-create-panel,
-.connector-card,
-.widget {
+.connector-card {
     background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98));
     border: 1px solid #3a3a3a;
     border-radius: 8px;
@@ -184,7 +183,7 @@ button:disabled,
 .management-create-panel > summary,
 .lorkhan-card > summary,
 .lorkhan-card details > summary { color: rgb(188, 157, 90); cursor: pointer; font-weight: 700; }
-.widget { margin: 16px 0; overflow: hidden; }
+
 .widget-header { padding: 15px; border-bottom: 1px solid #3a3a3a; background: #1a1a1a; }
 .widget-header h3 { margin: 0; color: #f8f9fa; }
 .widget-content { padding: 15px; }

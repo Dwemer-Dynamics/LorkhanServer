@@ -23,6 +23,9 @@
 @media(max-width:600px){.memory-policy-columns{grid-template-columns:minmax(0,1fr)}.memory-embedding-backfill{align-items:stretch;flex-direction:column}.memory-policy-card .memory-embedding-backfill input[type=number]{width:100%}.memory-embedding-backfill button{align-self:flex-start}.memory-embedding-backfill .memory-policy-hint{flex:0 0 auto;width:100%}}
 /* Narrative Autonomy reuses the Roleplay record hierarchy: a titled section with its
    own result count, then kind-led cards whose long Morrowind prose wraps in place. */
+/* The live event renderer needs the same inset as the static Roleplay panels. */
+.events-memories-page #eventlog-app { padding: 10px 12px 12px; }
+body .events-memories-page .eventlog-row-delete { min-height: 24px !important; padding: 3px !important; border: 0 !important; background: transparent !important; color: #e05b68 !important; }
 .narrative-autonomy .narrative-records{margin:0 0 16px}
 .narrative-autonomy .narrative-records-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 12px;margin:0 0 12px}
 .narrative-autonomy .narrative-records-head h2{margin:0}

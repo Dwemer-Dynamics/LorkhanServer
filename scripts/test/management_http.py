@@ -158,14 +158,14 @@ r=request(embedding_backfill['action'],'POST',dict(embedding_backfill['fields'],
 assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No memories needed embedding' in body and VoiceProvider.embedding_requests==[],(r.status,r.geturl(),body,VoiceProvider.embedding_requests)
 relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '>Morrowind Journal</h1>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Create / Generate Entry' in text
-narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>Narratives</h1>' in text and 'Create narrative' in text
+narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
 cache,text=parse(request('/LorkhanServer/ui/cache_browser.php')); assert cache.current==1 and '<h1>Audio Cache</h1>' in text and 'Expired and deleted entries' in text
 queue,text=parse(request('/LorkhanServer/ui/response_queue.php')); assert queue.current==1 and '<h1>Response Queue</h1>' in text and 'actual playback state' in text
 oghma,text=parse(request('/LorkhanServer/ui/oghma_audit.php')); assert oghma.current==1 and '<h1>Oghma Audit</h1>' in text and 'retrieval traces' in text
 assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
 usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.current==1 and '<h1>Cost Breakdown</h1>' in text and 'Missing pricing is shown as unknown' in text
-server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php')); assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded, redacted output' in text
-database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
+server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php')); assert server_logs.current==1 and '<h1 class="lorkhan-page-head-title">Server Logs</h1>' in text and 'bounded, redacted output' in text
+database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1 class="lorkhan-page-head-title">Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 fallback_page,fallback_html=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks'))
 fallback_form=next(f for f in fallback_page.forms if f['fields'].get('action')=='fallback_save')
