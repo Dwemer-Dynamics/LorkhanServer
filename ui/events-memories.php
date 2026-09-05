@@ -157,8 +157,8 @@ function lorkhan_roleplay_eventlog(array $state,string $apiPath,string $csrf,boo
     $installation=(string)($scope['installation_id']??'');$playthrough=(string)($scope['playthrough_id']??'');
     echo'<div id="eventlog-app" data-eventlog-api="'.lorkhan_ui_h($apiPath).'" data-eventlog-csrf="'.lorkhan_ui_h($csrf).'" data-installation-id="'.lorkhan_ui_h($installation).'" data-playthrough-id="'.lorkhan_ui_h($playthrough).'" data-page="'.lorkhan_ui_h($pagination['current_page']??1).'" data-limit="'.lorkhan_ui_h($pagination['limit']??100).'" data-auto-refresh="'.($autoRefresh?'true':'false').'">';
     echo'<div class="roleplay-description"><span class="roleplay-description-icon" aria-hidden="true">&#x1F4DD;</span><strong>Events:</strong> Raw log of in-game events that provide context to the AI. These events are filtered and selectively added to prompts based on relevance.</div>';
-    echo'<div class="roleplay-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Not all events are added to AI context. Hidden and suppressed entries remain available in immutable LORKHAN source traces.</div>';
-    if($scope!==[])echo'<div class="eventlog-scope"><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span></div>';
+    echo'<div class="roleplay-note event-log-note"><span aria-hidden="true">&#x2139;&#xFE0F;</span><strong>Note:</strong> Not all events are added to AI context. Hidden and suppressed entries remain available in immutable LORKHAN source traces.</div>';
+    if($scope!==[])echo'<details class="eventlog-scope"><summary>Current playthrough</summary><strong>'.lorkhan_ui_h($scope['installation_name']??'Installation').'</strong><span>'.lorkhan_ui_h($scope['playthrough_name']??'Playthrough').'</span></details>';
     echo'<div class="roleplay-toolbar eventlog-toolbar"><div class="eventlog-live-controls"><button type="button" class="roleplay-button '.($autoRefresh?'':'active').'" data-eventlog-live>'.($autoRefresh?'&#x23F8;&#xFE0F; Stop Live':'Auto Refresh').'</button><span class="eventlog-live-indicator" data-eventlog-live-indicator'.($autoRefresh?'':' hidden').'>LIVE</span></div><div class="delete-controls"><button type="button" class="roleplay-button danger" data-eventlog-delete-selected hidden>Delete Selected (<span data-eventlog-selected-count>0</span>)</button><select data-eventlog-delete-preset><option value="5">Delete Latest 5</option><option value="10">Delete Latest 10</option><option value="20">Delete Latest 20</option><option value="50">Delete Latest 50</option><option value="100">Delete Latest 100</option><option value="all">Delete ALL</option></select><button type="button" class="roleplay-button danger" data-eventlog-delete>Delete</button></div></div>';
     echo'<div data-eventlog-status role="status"></div>';
     $rows=is_array($state['data']??null)?$state['data']:[];
@@ -201,7 +201,7 @@ function lorkhan_eventlog_pagination(array $pagination):void
 /** Render the exact CHIM event columns with all stored text escaped. */
 function lorkhan_eventlog_table(array $rows):void
 {
-    echo'<table class="eventlog-table"><thead><tr><th><input type="checkbox" data-eventlog-select-all aria-label="Select all events"></th><th>Event</th><th>Events</th><th>People Present</th><th>Tamrielic Time</th><th>Time (UTC)</th><th>ROWID</th></tr></thead><tbody>';
+    echo'<table class="eventlog-table"><thead><tr><th><input type="checkbox" data-eventlog-select-all aria-label="Select all events"></th><th>Event</th><th>Events</th><th>People Present</th><th>Tamrielic Time</th><th>Time (UTC)</th><th>Record</th></tr></thead><tbody>';
     if($rows===[])echo'<tr class="eventlog-empty"><td colspan="7">No roleplay events have been recorded yet.</td></tr>';
     foreach($rows as$row){$id=(int)($row['rowid']??0);$chat=($row['type']??'')==='chat';echo'<tr data-eventlog-row="'.$id.'"><td><input type="checkbox" class="event-checkbox" data-eventlog-rowid="'.$id.'" aria-label="Select event '.$id.'"></td><td'.($chat?' class="eventlog-chat"':'').'>'.lorkhan_ui_h($row['type']??'').'</td><td'.($chat?' class="eventlog-chat"':'').'>'.nl2br(lorkhan_ui_h($row['data']??'')).'</td><td>'.lorkhan_ui_h($row['people']??'').'</td><td>'.lorkhan_ui_h($row['game_time']??'—').'</td><td>'.lorkhan_ui_h($row['time_utc']??'').'</td><td><button type="button" class="eventlog-row-delete" data-eventlog-delete-row="'.$id.'" title="Delete event">'.$id.' &#x1F5D1;&#xFE0F;</button></td></tr>';}
     echo'</tbody></table>';
@@ -241,7 +241,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             <section id="<?php echo lorkhan_ui_h($tabId); ?>-tab" class="tab-content<?php echo $activeTab === $tabId ? ' active' : ''; ?>">
                 <?php if(in_array($tabId,['adventure','diaries','books','journal','responselog'],true)){
                     if($tabId===$activeTab && $readerState!==null){
-                        if(in_array($tabId,['responselog','books'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot);
+                        if(in_array($tabId,['responselog','books'],true))lorkhan_roleplay_log_table($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf);
                         else lorkhan_roleplay_reader($readerState,$installationOptions,$tabId,$webRoot,$managementBasePath,$csrf,$readerPreview);
                     }
                 }elseif($tabId==='memory'){
@@ -256,4 +256,5 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/roleplay.js?v=<?php echo lorkhan_ui_h((string)filemtime(__DIR__.'/js/roleplay.js')); ?>"></script>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/roleplay-reader.js?v=<?= (int) filemtime(__DIR__.'/js/roleplay-reader.js') ?>"></script>
 <script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/roleplay-logs.js?v=<?= (int) filemtime(__DIR__.'/js/roleplay-logs.js') ?>"></script>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/roleplay-maintenance.js?v=<?= (int) filemtime(__DIR__.'/js/roleplay-maintenance.js') ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

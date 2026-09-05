@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace LorkhanServer\Infrastructure;
 
 use LorkhanServer\Application\PlayerMoodPolicy;
+use LorkhanServer\Application\MorrowindCalendar;
 use InvalidArgumentException;
 use PDO;
 use RuntimeException;
@@ -106,8 +107,9 @@ final class EventLogRepository
             $parameters['since_gamets'] = $sinceGamets;
         }
 
-        $baseSql = 'SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state '
-            . 'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE ' . implode(' AND ', $where);
+        $baseSql = 'SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state, '
+            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data "
+            . 'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid LEFT JOIN turns t ON t.turn_id=m.turn_id WHERE ' . implode(' AND ', $where);
         if ($sinceRowId > 0) {
             $sql = 'SELECT * FROM (' . $baseSql . ' ORDER BY e.rowid ASC LIMIT :limit) incremental '
                 . 'ORDER BY gamets DESC,ts DESC,localts DESC,rowid DESC';
@@ -174,9 +176,9 @@ final class EventLogRepository
             $where[] = 'e.type=:selected_type';
             $parameters['selected_type'] = $selectedType;
         }
-        $base = ' FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE ' . implode(' AND ', $where);
+        $base = ' FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid LEFT JOIN turns t ON t.turn_id=m.turn_id WHERE ' . implode(' AND ', $where);
         $statement = $this->db->prepare('SELECT e.type,e.data,e.people,e.gamets,e.localts,e.ts,e.rowid,e.location,e.delivery_state,'
-            . "(m.projection_kind='management_injection') AS deletable" . $base
+            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data,(m.projection_kind='management_injection') AS deletable" . $base
             . ' ORDER BY e.gamets DESC,e.ts DESC,e.localts DESC,e.rowid DESC LIMIT :limit');
         foreach ($parameters as $key => $value) $statement->bindValue(':' . $key, $value);
         $statement->bindValue(':limit', $limit, PDO::PARAM_INT);
@@ -655,7 +657,7 @@ final class EventLogRepository
         $people = trim((string) ($row['people'] ?? ''), '|');
         return ['rowid'=>(int) $row['rowid'],'type'=>(string) $row['type'],'data'=>(string) $row['data'],
             'people'=>$people === '' ? '' : str_replace('|', ', ', $people),'gamets'=>(int) $row['gamets'],
-            'game_time'=>$this->formatGameTime((int) $row['gamets']),
+            'game_time'=>MorrowindCalendar::parse($row['calendar_data']??null)['label']??$this->formatGameTime((int) $row['gamets']),
             'localts'=>(int) $row['localts'],'time_utc'=>gmdate('d-m-Y H:i:s', (int) $row['localts']),
             'ts'=>$row['ts'] === null ? null : (int) $row['ts'],'location'=>$row['location'],
             'delivery_state'=>$row['delivery_state']];

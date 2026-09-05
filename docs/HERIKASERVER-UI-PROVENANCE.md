@@ -18,6 +18,18 @@ The all-pages follow-up also adapts `ui/ai-response.php` prompt/table presentati
 and Books tables in `ui/events-memories.php`. `ui/images/paper.jpg` and
 `ui/css/font/SkyrimBooks_Handwritten_Bold-Regular.ttf` are copied unchanged from
 the same pinned snapshot. Data access and form handlers remain Lorkhan-owned.
+The Books table also follows `lib/misc_ui_functions.php`'s striped datatable;
+its destructive GET helper is not imported.
+
+The Tamrielic calendar uses recorded OpenMW `world.calendar` globals (zero-based
+month) and Morrowind's fixed 365-day year. Date validation and rendering are
+Lorkhan implementations, not imported OpenMW code. Calendar facts were checked
+against OpenMW's [Morrowind calendar configuration](https://raw.githubusercontent.com/OpenMW/openmw/master/files/data-mw/openmw_aux/calendarconfig.lua),
+[calendar calculation](https://raw.githubusercontent.com/OpenMW/openmw/master/files/data/openmw_aux/calendar.lua)
+and [English month/week names](https://raw.githubusercontent.com/OpenMW/openmw/master/files/data-mw/l10n/Calendar/en.yaml).
+Generated diaries resolve the latest dated source turn in their own playthrough;
+unknown dates remain explicit, and manual edits preserve that provenance.
+
 
 - Repository: `https://github.com/abeiro/HerikaServer.git`
 - Ref inspected: `origin/unstable`

@@ -122,6 +122,15 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if ($r->method === 'POST' && $path === '/api/v1/roleplay/clear') {
+            $body = $this->json($r);
+            if (($body['confirm'] ?? '') !== 'Clear') throw new InvalidArgumentException('confirmation_mismatch');
+            foreach (['installation_id','playthrough_id','kind'] as $field) {
+                if (!is_string($body[$field] ?? null)) throw new InvalidArgumentException('invalid_roleplay_log_scope');
+            }
+            return Response::json(200, ['cleared'=>$this->management->clearRoleplayLog(
+                $body['installation_id'], $body['playthrough_id'], $body['kind'])]);
+        }
         if(preg_match('#^/api/v1/profiles/([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})/eventlog(?:/([1-9][0-9]*))?$#D',$path,$m)){
             $events=$this->eventLogRepository??throw new RuntimeException('not_found');
             if($r->method==='GET'&&!isset($m[2]))return Response::json(200,['data'=>$events->profileHistory(

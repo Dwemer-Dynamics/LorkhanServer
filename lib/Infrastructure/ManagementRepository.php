@@ -29,6 +29,40 @@ final class ManagementRepository
 
     public function revoke(string $session):void{$this->db->prepare('UPDATE browser_sessions SET revoked_at=clock_timestamp() WHERE session_hash=:session')->execute(['session'=>BrowserSession::hash($session)]);}
 
+    /** Clear a scoped presentation log without deleting immutable source events or conversation history. */
+    public function clearRoleplayLog(string $installation, string $playthrough, string $kind): int
+    {
+        if (!Uuid::isValid($installation) || !Uuid::isValid($playthrough)
+            || !in_array($kind, ['responses', 'diaries'], true)) {
+            throw new \InvalidArgumentException('invalid_roleplay_log_scope');
+        }
+        $this->db->beginTransaction();
+        try {
+            $scope = $this->db->prepare('SELECT playthrough_id FROM playthroughs WHERE installation_id=:installation AND playthrough_id=:playthrough AND deleted_at IS NULL FOR SHARE');
+            $scope->execute(['installation'=>$installation, 'playthrough'=>$playthrough]);
+            if (!$scope->fetchColumn()) throw new \InvalidArgumentException('invalid_roleplay_log_scope');
+            if ($kind === 'responses') {
+                $statement = $this->db->prepare("WITH removed AS (
+                    DELETE FROM lorkhan_internal.log_metadata m USING public.log l, turns t, sessions s
+                    WHERE m.rowid=l.rowid AND m.turn_id=t.turn_id AND t.session_id=s.session_id
+                        AND s.installation_id=:installation AND s.playthrough_id=:playthrough
+                        AND t.state IN ('complete','failed','cancelled') RETURNING m.rowid
+                    ) DELETE FROM public.log l USING removed WHERE l.rowid=removed.rowid");
+            } else {
+                $statement = $this->db->prepare("UPDATE narrative_records SET deleted_at=clock_timestamp(),updated_at=clock_timestamp()
+                    WHERE installation_id=:installation AND playthrough_id=:playthrough AND kind='diary' AND deleted_at IS NULL");
+            }
+            $statement->execute(['installation'=>$installation, 'playthrough'=>$playthrough]);
+            $count = $statement->rowCount();
+            $this->audit('roleplay', 'clear_'.$kind, ['installation_id'=>$installation, 'playthrough_id'=>$playthrough], ['count'=>$count]);
+            $this->db->commit();
+            return $count;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
     /** Atomically admit at most one bounded number of TTS previews per browser-session window. */
     public function allowTtsPreview(string $session,int $limit=30,int $windowSeconds=60):bool
     {

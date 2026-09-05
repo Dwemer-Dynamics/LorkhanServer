@@ -2437,6 +2437,58 @@ foreach([$legacyClientSettings,$legacyGlobalSettings]as$index=>$legacySettings){
         ['Idempotency-Key'=>$newUuid(307+$index*2)]);
     $assert($status===200&&$legacyEnded['ended']===true,'legacy integration session did not end cleanly');
 }
+// Presentation-log maintenance must never erase immutable history or a response still in flight.
+$maintenance = new \LorkhanServer\Infrastructure\ManagementRepository($db);
+$responseScope = $db->query("SELECT s.installation_id,s.playthrough_id,t.turn_id FROM public.log l
+    JOIN lorkhan_internal.log_metadata m ON m.rowid=l.rowid JOIN turns t ON t.turn_id=m.turn_id
+    JOIN sessions s ON s.session_id=t.session_id WHERE t.state='complete' ORDER BY l.rowid DESC LIMIT 1")->fetch();
+$assert(is_array($responseScope), 'response maintenance needs a populated completed-turn fixture');
+$db->prepare("UPDATE turns SET state='processing' WHERE turn_id=:turn")->execute(['turn'=>$responseScope['turn_id']]);
+$historyCounts = static fn(): array => $db->query('SELECT (SELECT count(*) FROM source_events) AS sources,
+    (SELECT count(*) FROM dialogue_utterances) AS utterances,(SELECT count(*) FROM public.audit_request) AS audit')->fetch();
+$beforeHistory = $historyCounts();
+$outsideCount = $db->prepare('SELECT count(*) FROM public.log l JOIN lorkhan_internal.log_metadata m ON m.rowid=l.rowid
+    JOIN turns t ON t.turn_id=m.turn_id JOIN sessions s ON s.session_id=t.session_id
+    WHERE s.installation_id<>:installation OR s.playthrough_id<>:playthrough');
+$scopeParams = ['installation'=>$responseScope['installation_id'], 'playthrough'=>$responseScope['playthrough_id']];
+$outsideCount->execute($scopeParams); $outsideBefore = (int)$outsideCount->fetchColumn();
+$cleared = $maintenance->clearRoleplayLog($scopeParams['installation'], $scopeParams['playthrough'], 'responses');
+$assert($cleared>0 && $historyCounts()===$beforeHistory, 'clean response log erased immutable history or did not clear completed responses');
+$outsideCount->execute($scopeParams);
+$assert((int)$outsideCount->fetchColumn()===$outsideBefore, 'clean response log crossed its playthrough scope');
+$activeLog = $db->prepare('SELECT count(*) FROM public.log l JOIN lorkhan_internal.log_metadata m ON m.rowid=l.rowid WHERE m.turn_id=:turn');
+$activeLog->execute(['turn'=>$responseScope['turn_id']]);
+$assert((int)$activeLog->fetchColumn()===1, 'clean response log removed an active response');
+$assert($maintenance->clearRoleplayLog($scopeParams['installation'], $scopeParams['playthrough'], 'responses')===0, 'repeated clean response log was not idempotent');
+// Diary date filtering follows recorded OpenMW context and survives ordinary text edits.
+require dirname(__DIR__).'/ui/tmpl/roleplay_reader.php';
+$db->beginTransaction();
+$calendarTurn=$db->prepare('SELECT s.profile_id,s.installation_id,s.playthrough_id FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE t.turn_id=:turn');
+$calendarTurn->execute(['turn'=>$responseScope['turn_id']]); $calendarScope=$calendarTurn->fetch();
+$calendar=['year'=>427,'month'=>7,'day'=>16,'hour'=>9.5];
+$db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',COALESCE(context->'world','{}'::jsonb)||jsonb_build_object('calendar',CAST(:calendar AS jsonb))) WHERE turn_id=:turn")
+    ->execute(['calendar'=>json_encode($calendar),'turn'=>$responseScope['turn_id']]);
+$calendarDiary=$products->createNarrative($calendarScope+['kind'=>'diary','title'=>'Calendar fixture','content'=>'A recorded morning.',
+    'provenance'=>['source_turn_ids'=>[$responseScope['turn_id']]]],gmdate(DATE_ATOM));
+$savedQuery=$_GET;
+$_GET=['installation_id'=>$calendarScope['installation_id'],'playthrough_id'=>$calendarScope['playthrough_id'],
+    'calendar'=>'tamrielic','game_date'=>'0427-08-16'];
+$calendarState=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
+$calendarRows=array_column($calendarState['rows'],null,'narrative_id');
+$datedEvents=(new EventLogRepository($db))->page($calendarScope+['limit'=>500]);
+$assert(in_array('16 Last Seed, 3E 427 · 09:30',array_column($datedEvents['data'],'game_time'),true),
+    'Events did not share the recorded calendar date presentation');
+$assert(isset($calendarRows[$calendarDiary['narrative_id']]) && ($calendarState['calendar']['0427-08-16']??0)>0
+    &&$calendarRows[$calendarDiary['narrative_id']]['game_date_label']==='16 Last Seed, 3E 427 · 09:30',
+    'diary calendar did not resolve its scoped source turn and date filter');
+$editedCalendar=$products->updateNarrative($calendarDiary['narrative_id'],['kind'=>'diary','title'=>'Edited date fixture','content'=>'Still the same morning.',
+    'provenance'=>['source'=>'management edit']],gmdate(DATE_ATOM));
+$assert($editedCalendar['provenance']['source_turn_ids']===[$responseScope['turn_id']], 'diary edit erased source-turn provenance');
+$_GET['game_date']='0427-08-17';
+$otherDate=lorkhan_roleplay_reader_state($db,[$calendarScope['installation_id']=>'Test'],'diaries');
+$assert(!in_array($calendarDiary['narrative_id'],array_column($otherDate['rows'],'narrative_id'),true), 'Tamrielic date filter returned another day');
+$_GET=$savedQuery;
+$db->rollBack();
 if (is_dir($mediaPath)) {
     foreach (glob($mediaPath . '/*') ?: [] as $file) unlink($file);
     rmdir($mediaPath);

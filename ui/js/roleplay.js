@@ -112,7 +112,7 @@ document.addEventListener('DOMContentLoaded', () => {
     selectAll.setAttribute('aria-label', 'Select all events');
     selectHeader.appendChild(selectAll);
     headerRow.appendChild(selectHeader);
-    ['Event', 'Events', 'People Present', 'Tamrielic Time', 'Time (UTC)', 'ROWID'].forEach((label) => {
+    ['Event', 'Events', 'People Present', 'Tamrielic Time', 'Time (UTC)', 'Record'].forEach((label) => {
       const header = document.createElement('th');
       header.textContent = label;
       headerRow.appendChild(header);

@@ -537,6 +537,8 @@ narrative_id=narrative_match.group(1); narratives,_=parse(request('/LorkhanServe
 diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
 diary_page,diary_html=parse(request(diary_url))
 assert narrative_text in diary_html and 'id="entry-'+narrative_id+'"' in diary_html and 'has-event' in diary_html and 'data-reader-form' in diary_html
+_,game_diary_html=parse(request(diary_url+'&calendar=tamrielic&game_year=427&game_month=8'))
+assert 'Last Seed, 3E 427' in game_diary_html and 'Fredas' in game_diary_html and 'Not recorded' in game_diary_html and 'game_month=9' in game_diary_html
 _,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
 assert narrative_text not in empty_diary_html and 'No entries match this date' in empty_diary_html
 _,person_diary_html=parse(request(diary_url+'&view=people&person='+profile_id))
@@ -549,6 +551,19 @@ revise_narrative=next(f for f in narratives.forms if f['action'].endswith('/form
 revised_title=narrative_title+' revised'; revised_text='Reached Balmora and found Caius.'
 r=request(revise_narrative['action'],'POST',dict(revise_narrative['fields'],_csrf=csrf,kind='summary',title=revised_title,content=revised_text,provenance='management-http edit')); body=r.read().decode()
 assert r.status==200 and revised_title in body and revised_text in body,(r.status,r.geturl(),body)
+clear_path='/LorkhanServer/manage/api/v1/roleplay/clear'
+clear_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'kind':'diaries','confirm':'Clear'}
+r=json_request(clear_path,'GET',None,csrf); assert r.status in (404,405)
+r=json_request(clear_path,'POST',clear_values); assert r.status==401
+r=json_request(clear_path,'POST',dict(clear_values,confirm=''),csrf); assert r.status==422
+r=json_request(clear_path,'POST',dict(clear_values,playthrough_id=str(uuid.uuid4())),csrf); assert r.status==422
+r=json_request(clear_path,'POST',dict(clear_values,kind='source_events'),csrf); assert r.status==422
+bulk_diary_title=narrative_title+' bulk test'
+r=request(create_narrative['action'],'POST',dict(values,title=bulk_diary_title)); assert r.status==200
+r=json_request(clear_path,'POST',clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==1
+_,cleared_narratives=parse(request('/LorkhanServer/ui/narrative_manager.php'))
+assert bulk_diary_title not in cleared_narratives and revised_title in cleared_narratives
+r=json_request(clear_path,'POST',clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==0
 r=request('/LorkhanServer/manage/forms/narrative-delete','POST',{'_csrf':csrf,'narrative_id':narrative_id}); body=r.read().decode(); assert r.status==200 and revised_title not in body,(r.status,r.geturl())
 globals_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 settings_form=next(f for f in globals_page.forms if f['action'].endswith('/forms/global-settings-save'))
