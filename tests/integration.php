@@ -32,14 +32,14 @@ use LorkhanServer\Protocol\Validator;
 use LorkhanServer\Security\PairingToken;
 use LorkhanServer\Security\RequestMac;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 $dsn = getenv('LORKHAN_TEST_DSN') ?: '';
 if ($dsn === '') { fwrite(STDERR, "LORKHAN_TEST_DSN is required\n"); exit(2); }
 $db = Connection::open(['database_dsn' => $dsn, 'database_user' => getenv('LORKHAN_TEST_DB_USER') ?: '',
     'database_password' => getenv('LORKHAN_TEST_DB_PASSWORD') ?: '']);
 $repo = new Repository($db, 256, new ActionCatalogRepository($db), new ActionPolicyValidator());
-(new MigrationRunner($db, dirname(__DIR__) . '/database/migrations'))->up();
+(new MigrationRunner($db, dirname(__DIR__) . '/data/migrations'))->up();
 $mediaPath = sys_get_temp_dir() . '/lorkhan-media-' . bin2hex(random_bytes(8));
 $mediaStore = new MediaStore($mediaPath, 33_554_432, 67_108_864);
 $token = PairingToken::generate();
@@ -1057,7 +1057,7 @@ $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1
     &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===1,
     'a retried job reapplied an already committed relationship receipt');
 $db->exec('SAVEPOINT relationship_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/064_relationship_evaluation_results.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/064_relationship_evaluation_results.down.sql'));
     throw new RuntimeException('relationship downgrade discarded receipts');}
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship evaluation'),
     'unexpected relationship downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_downgrade');}
@@ -1163,7 +1163,7 @@ $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_
     ->execute(['id'=>$buildJob['job_id']]);
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'committed history receipt was reapplied on retry');
 $db->exec('SAVEPOINT history_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/065_relationship_build_results.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/065_relationship_build_results.down.sql'));
     throw new RuntimeException('history downgrade discarded receipts');}
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship build'),'unexpected history downgrade error');
     $db->exec('ROLLBACK TO SAVEPOINT history_downgrade');}
@@ -1327,7 +1327,7 @@ $assert($products->relationships($conversionRecordScope)===$beforeConversion
     &&(int)$db->query('SELECT count(*) FROM relationship_conversion_results')->fetchColumn()===$receiptCount,
     'an invented target allowed a partial profile-text conversion');
 $db->exec('SAVEPOINT conversion_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/067_relationship_text_conversion.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/067_relationship_text_conversion.down.sql'));
     throw new RuntimeException('conversion downgrade discarded receipts');}
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove relationship conversion'),
     'unexpected conversion downgrade error');$db->exec('ROLLBACK TO SAVEPOINT conversion_downgrade');}
@@ -1405,7 +1405,7 @@ $historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'
 $assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
     'private relationship text was copied into audit history');
 $db->exec('SAVEPOINT custom_info_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/066_relationship_custom_info.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/066_relationship_custom_info.down.sql'));
     throw new RuntimeException('downgrade discarded deleted relationship notes');}
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove player-authored relationship Custom Info'),
     'unexpected Custom Info downgrade error');$db->exec('ROLLBACK TO SAVEPOINT custom_info_downgrade');}
@@ -1472,7 +1472,7 @@ $assert(count($legacyRows)===1&&$legacyRows[0]['actor_identity']['record_id']===
     &&$legacyRows[0]['custom_info']==='legacy private note'&&$legacyRows[0]['relationship_type']==='neutral',
     'legacy relationship restore was not stable and idempotent');
 $db->exec('SAVEPOINT relationship_type_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/068_relationship_types.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/068_relationship_types.down.sql'));
     throw new RuntimeException('relationship type downgrade discarded custom types');}
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
     'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}

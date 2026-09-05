@@ -14,7 +14,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_CATALOG = ROOT / "resources" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3"
+DEFAULT_CATALOG = ROOT / "data" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3"
 DEFAULT_OUTPUT = ROOT / "build" / "oghma-v4-book-audit"
 DOCUMENT_TITLE = re.compile(
     r"\b(?:contract|deed|directions?|journal|letter|list|log|note|notice|orders?|pass|report|writ)\b",

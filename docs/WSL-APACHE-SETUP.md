@@ -23,37 +23,21 @@ Then use `wsl.exe --shutdown`, reopen and verify. WSL1 is unsupported.
 From Ubuntu/PostgreSQL supported repositories pinned/documented for the selected LTS:
 
 ```text
-apache2
-libapache2-mod-php (or reviewed php-fpm setup)
-php php-cli php-curl php-gd php-mbstring php-pgsql php-xml php-zip
-composer
-postgresql-16 postgresql-client-16 postgresql-16-pgvector
-ffmpeg curl ca-certificates unzip
-```
-
-Enable only required Apache modules, normally `rewrite`, `headers` and the chosen PHP handler. Pin
-Composer/dependency locks. Run `apache2ctl configtest` before every reload.
-
-## Files and identities
-
-```text
-/var/www/LorkhanServer/releases/<version>   immutable source/vendor/built UI
-/var/www/LorkhanServer/current              atomic symlink
-/etc/lorkhanserver/                         restrictive config/secrets
-/var/lib/lorkhanserver/                     media/job/runtime state
+/var/www/html/LorkhanServer/                deployed runtime manifest
+/etc/lorkhanserver/                         restrictive configuration/secrets
+/var/lib/lorkhanserver/                     media/voices/portraits/backups/credentials
 /var/log/lorkhanserver/                     application logs
-/var/backups/lorkhanserver/                 encrypted/policy-controlled backups
+/var/backups/lorkhanserver-code.*/          previous code and Apache route
 ```
 
-Use a dedicated `lorkhanserver` worker/service identity and deliberate Apache read/write groups.
-Only media/runtime/log paths are writable. Config/secrets must reject group/world write and never be
-under the document root. Git checkout is not a writable production release.
+The dedicated `lorkhan` worker and Apache `www-data` identities retain their existing
+permissions. Only persistent runtime paths are writable. Configuration and secrets remain
+outside the document root. The source checkout and deployed code are not runtime storage.
 
-For local Dwemer development, `scripts/deploy-local-wsl.sh` intentionally mirrors the active source
-to `/var/www/html/LorkhanServer`, matching the HerikaServer/DialecticServer workstation layout. It
-keeps the same `/etc`, `/var/lib`, and `/var/log` persistence boundaries and leaves the immutable
-release tree intact. The sibling `LORKHAN/scripts/deploy/full-local.ps1` is the normal two-stage local
-entrypoint. `scripts/deploy-wsl.sh` remains the immutable release/rollback workflow described here.
+Both `scripts/deploy-wsl.sh` (bootstrap) and `scripts/deploy-local-wsl.sh` (updates) install
+`deploy/runtime-files.txt` at the same stable path. The old `/var/www/LorkhanServer/releases`
+tree is left untouched as historical rollback evidence. The sibling
+`LORKHAN/scripts/deploy/full-local.ps1` remains the combined client/server entrypoint.
 
 ## PostgreSQL
 
@@ -69,36 +53,18 @@ generated passwords. Store secrets only in restrictive `/etc/lorkhanserver` file
 
 Provider calls/job publishes never occur inside DB transactions.
 
-## Apache loopback vhost
+## Apache routing and private files
 
-Ship a checked-in template equivalent to:
+`deploy/apache/lorkhanserver.conf` serves `/LorkhanServer` directly from the stable root on
+port 8090; the Windows launcher route remains port 7514. Access is restricted to local
+requests and the detected Windows-to-WSL gateway. Only `ui/`, `index.php`, `api/v1/`, and
+`manage/` are routed publicly. The API and management handlers retain their authentication.
 
-```apache
-Listen 127.0.0.1:8090
-
-<VirtualHost 127.0.0.1:8090>
-    ServerName lorkhanserver.local
-    DocumentRoot /var/www/html
-    Alias /LorkhanServer /var/www/LorkhanServer/current/public
-
-    <Directory /var/www/LorkhanServer/current/public>
-        Options -Indexes -ExecCGI
-        AllowOverride None
-        Require local
-        DirectoryIndex ui/home.php index.php
-    </Directory>
-
-    LimitRequestBody 33554432
-    ErrorLog ${APACHE_LOG_DIR}/lorkhanserver-error.log
-    CustomLog ${APACHE_LOG_DIR}/lorkhanserver-access.log combined
-</VirtualHost>
-```
-
-Application endpoints enforce tighter individual caps. Deny source, config, dotfiles, vendor
-metadata, storage, logs, backups and directory listing. Verify Apache listens only on loopback inside
-WSL and PostgreSQL is not externally reachable. If Windows localhost forwarding is unavailable on the
-recorded WSL version, use Microsoft's documented networking configuration; never bind to LAN as a
-shortcut.
+Install `deploy/apache/lorkhanserver-private.conf` globally as well: other virtual hosts must
+not expose the physical tree, and internal directories are denied even on the Lorkhan host.
+`conf/`, `lib/`, `data/`, `service/`, feature code, and deployment files are never static downloads.
+Run `apache2ctl configtest` before restarting. Check page/assets, API health, authentication,
+private directory denial, and worker status after deployment.
 
 ## Configuration and pairing
 
@@ -115,7 +81,7 @@ flows. The installer provisions one Deepgram STT connector without overwriting a
 
 ## Worker supervision
 
-The independently authored durable worker uses `workers/worker.php` with source-controlled handlers,
+The independently authored durable worker uses `service/worker-runner.php` with source-controlled handlers,
 leases, heartbeats, bounded retries and dead letters. Install the tracked hardened oneshot service and
 timer from `deploy/systemd/` only after configuring `/etc/lorkhanserver/worker.env`; the service is not a
 placeholder and deliberately exits after bounded work/runtime so systemd can supervise restart.
@@ -137,10 +103,15 @@ web process from unavailable derived processing. Game requests never fork unboun
 
 ## Upgrade and rollback
 
-Create a database/config/runtime metadata backup, build/audit a new immutable release, install locked
-dependencies, enter maintenance if schema requires, migrate, atomically switch `current`, reload and
-run smoke tests. Roll back code only when schema is compatible; otherwise restore backup into a new
-database, verify and switch explicitly. Never overwrite the sole backup or the previous release.
+The updater lints staged PHP before stopping the worker, records a unique previous-code and
+Apache-route copy, then installs only the runtime manifest. Persistent database, credentials,
+voice samples and generated data stay outside that mirror. Old source-only folders are removed
+from the deployed code tree, not from persistent storage.
+
+For a failed structural upgrade, stop the worker, restore the recorded code and Apache route,
+and disable the new private-directory Apache include only if restoring the former `public/`
+layout. Validate Apache and restart the worker before checking health. This reorganization adds
+no database migrations; never restore or overwrite live data for a code-only rollback.
 
 ## Primary references
 

@@ -31,7 +31,7 @@ final readonly class Settings
     {
         return new self(
             pairingTokenHash: (string) ($values['pairing_token_hash'] ?? ''),
-            storagePath: (string) ($values['storage_path'] ?? dirname(__DIR__, 2) . '/storage'),
+            storagePath: (string) ($values['storage_path'] ?? '/var/lib/lorkhanserver'),
             maxJsonBytes: (int) ($values['max_json_bytes'] ?? 2_097_152),
             maxContextBytes: (int) ($values['max_context_bytes'] ?? 131_072),
             eventReplayLimit: (int) ($values['event_replay_limit'] ?? 256),

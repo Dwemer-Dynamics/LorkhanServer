@@ -17,7 +17,7 @@ require $uiRootDir.'/ui_bootstrap.php';
 
 $requestedStudioTab=(string)($_GET['tab']??$_POST['studio_tab']??'');
 
-$voiceRoot=(string)($config['voice_storage_path']??(is_dir('/var/lib/lorkhanserver')?'/var/lib/lorkhanserver/voices':($applicationRoot.'/storage/voices')));
+$voiceRoot=(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices');
 if(!is_dir($voiceRoot)&&!mkdir($voiceRoot,0750,true)&&!is_dir($voiceRoot))throw new RuntimeException('Voice storage is unavailable.');
 $products=new ProductRepository($database);$installations=$uiRepository->rows('installations');
 $installationId=(string)($installations[0]['installation_id']??'');

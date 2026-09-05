@@ -4,7 +4,7 @@ Frozen: 2026-08-14
 
 This document defines one semantic vocabulary for LORKHAN and CHIM while leaving their generators,
 runtime code, catalogs, migrations, and validation independent. The byte-identical machine-readable
-source is `resources/oghma/canonical-knowledge-vocabulary-v1.json` in each repository.
+source is `data/oghma/canonical-knowledge-vocabulary-v1.json` in each repository.
 
 ## Meaning of a knowledge tag
 

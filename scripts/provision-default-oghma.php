@@ -6,17 +6,17 @@ declare(strict_types=1);
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\OghmaCatalogImporter;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 try{
     $planOnly=in_array('--plan',$argv??[],true);
-    $base=dirname(__DIR__).'/resources/oghma/morrowind-official';
+    $base=dirname(__DIR__).'/data/oghma/morrowind-official';
     $override=trim((string)getenv('LORKHAN_OGHMA_CATALOG_DIR'));
     $activeVersionFile=$base.'/active-catalog-version.txt';
     $activeVersion=is_file($activeVersionFile)?trim((string)file_get_contents($activeVersionFile)):'';
     $directory=$override!==''?$override:($activeVersion!==''?$base.'/catalogs/'.$activeVersion:$base.'/catalog');
     if(!is_dir($directory)){echo json_encode(['schema'=>'lorkhan.default-oghma.v1','status'=>'skipped','reason'=>'current_dataset_not_bundled'],JSON_THROW_ON_ERROR).PHP_EOL;exit(0);}
-    $configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/config/server.php';if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
+    $configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/conf/server.php';if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     $config=require$configFile;if(!is_array($config))throw new RuntimeException('Server configuration is invalid.');
     $config['database_password']=getenv('LORKHAN_DATABASE_PASSWORD')?:(string)($config['database_password']??'');
     $importer=new OghmaCatalogImporter(Connection::open($config));

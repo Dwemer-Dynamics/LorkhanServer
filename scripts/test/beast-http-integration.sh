@@ -29,7 +29,7 @@ createdb -h 127.0.0.1 -p "$PG_PORT" lorkhan_beast_http
 mkdir "$TMP/control" "$TMP/server-state"
 
 DSN="pgsql:host=127.0.0.1;port=$PG_PORT;dbname=lorkhan_beast_http"
-CONFIG="$ROOT/config/server.test.php"
+CONFIG="$ROOT/conf/server.test.php"
 TOKEN_HASH=0f007385b6f9d4b7eeb2748605afe1a984a0a3bfa3f014d09e2a784ce9e5cd1a
 MAC_KEY=AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA
 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHAN_TEST_PROVIDER_CONTROL="$TMP/control" \
@@ -38,7 +38,7 @@ LORKHAN_TEST_SERVER_STATE="$TMP/server-state" php "$ROOT/scripts/migrate.php" up
 start_http() {
     PHP_CLI_SERVER_WORKERS=4 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" \
     LORKHAN_TEST_PROVIDER_CONTROL="$TMP/control" LORKHAN_TEST_SERVER_STATE="$TMP/server-state" \
-    LORKHAN_PAIRING_TOKEN_HASH="$TOKEN_HASH" LORKHAN_PAIRING_MAC_KEY="$MAC_KEY" php -S "127.0.0.1:$HTTP_PORT" -t "$ROOT/public" "$ROOT/public/index.php" \
+    LORKHAN_PAIRING_TOKEN_HASH="$TOKEN_HASH" LORKHAN_PAIRING_MAC_KEY="$MAC_KEY" php -S "127.0.0.1:$HTTP_PORT" -t "$ROOT" "$ROOT/index.php" \
         >>"$TMP/php.log" 2>&1 &
     PHP_PID=$!
     attempts=0
@@ -70,7 +70,7 @@ elif [ "${CLIENT_BIN##*.}" = exe ]; then
     CONTROL_DIR_ARG=$(wslpath -w "$TMP/control")
 fi
 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHAN_TEST_PROVIDER_CONTROL="$TMP/control" \
- LORKHAN_TEST_SERVER_STATE="$TMP/server-state" php "$ROOT/workers/worker.php" >>"$TMP/worker.log" 2>&1 &
+ LORKHAN_TEST_SERVER_STATE="$TMP/server-state" php "$ROOT/service/worker-runner.php" >>"$TMP/worker.log" 2>&1 &
 WORKER_PID=$!
 "$CLIENT_BIN" --live-url "http://127.0.0.1:$HTTP_PORT/LorkhanServer/api/v1" --control-dir "$CONTROL_DIR_ARG" &
 CLIENT_PID=$!

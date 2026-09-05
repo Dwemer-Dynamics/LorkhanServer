@@ -2,15 +2,15 @@
 Description=LorkhanServer bounded durable job worker
 After=postgresql.service
 Wants=postgresql.service
-ConditionPathExists=/var/www/LorkhanServer/current/workers/worker.php
+ConditionPathExists=/var/www/html/LorkhanServer/service/worker-runner.php
 
 [Service]
 Type=oneshot
 User=lorkhan
 Group=www-data
-WorkingDirectory=/var/www/LorkhanServer/current
+WorkingDirectory=/var/www/html/LorkhanServer
 EnvironmentFile=/etc/lorkhanserver/worker.env
-ExecStart=/usr/bin/php /var/www/LorkhanServer/current/workers/worker.php
+ExecStart=/usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php
 TimeoutStartSec=7min
 Nice=5
 UMask=0077

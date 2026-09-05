@@ -27,7 +27,7 @@ case "${1:-}" in
         rm -f "$pidfile"
         start-stop-daemon --start --quiet --background --make-pidfile \
             --pidfile "$pidfile" --chuid lorkhan:lorkhan \
-            --chdir /var/www/LorkhanServer/current --startas "$daemon" \
+            --chdir /var/www/html/LorkhanServer --startas "$daemon" \
             --output "$logfile"
         ;;
     stop)

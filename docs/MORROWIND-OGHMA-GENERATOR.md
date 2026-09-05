@@ -70,7 +70,7 @@ topic, aliases, topic_desc, knowledge_class, topic_desc_basic,
 knowledge_class_basic, tags, category, mod_source
 ```
 
-Advanced and basic articles are separately authored. Knowledge classes are restricted to `resources/oghma/morrowind-official/ontology.json`; aliases must remain collision-free; category and topic identity are locked before generation.
+Advanced and basic articles are separately authored. Knowledge classes are restricted to `data/oghma/morrowind-official/ontology.json`; aliases must remain collision-free; category and topic identity are locked before generation.
 
 `mod_source` is omitted for the existing base catalog. A mod-only article uses the exact content
 filename that makes it available, such as `TR_Mainland.esm`. The server keeps one combined factory
@@ -131,7 +131,7 @@ python scripts/audit-tamriel-rebuilt-location-catalog.py `
 
 ## Current factory dataset
 
-The reviewed factory dataset lives under `resources/oghma/morrowind-official/catalogs/<catalog-version>/`. `active-catalog-version.txt` identifies the one checked-in dataset used by the server. Synchronization validates it first, then transactionally replaces only factory rows and current integrity metadata. Custom articles are preserved. Git revert plus redeploy is the rollback path.
+The reviewed factory dataset lives under `data/oghma/morrowind-official/catalogs/<catalog-version>/`. `active-catalog-version.txt` identifies the one checked-in dataset used by the server. Synchronization validates it first, then transactionally replaces only factory rows and current integrity metadata. Custom articles are preserved. Git revert plus redeploy is the rollback path.
 
 Preview or operate the bundled catalog against the configured PostgreSQL database:
 
@@ -146,19 +146,19 @@ Build and audit a candidate before copying it into the versioned resource tree:
 
 ```powershell
 python scripts/build-morrowind-oghma-catalog.py `
-  --reviewed resources/oghma/morrowind-official/catalogs/morrowind-official-3e427-v1 `
+  --reviewed data/oghma/morrowind-official/catalogs/morrowind-official-3e427-v1 `
   --reviewed build/oghma-v2-generation-part-1 `
   --reviewed build/oghma-v2-generation-part-2 `
   --reviewed build/oghma-v2-generation-part-3 `
   --reviewed build/oghma-v2-generation-part-4 `
   --output build/oghma-v2-catalog-review `
   --catalog-version morrowind-official-3e427-v2 `
-  --seeds resources/oghma/morrowind-official/topic-seeds.json
+  --seeds data/oghma/morrowind-official/topic-seeds.json
 
 python scripts/audit-morrowind-oghma-catalog.py `
   --catalog build/oghma-v2-catalog-review `
-  --seeds resources/oghma/morrowind-official/topic-seeds.json `
-  --ontology resources/oghma/morrowind-official/ontology.json `
+  --seeds data/oghma/morrowind-official/topic-seeds.json `
+  --ontology data/oghma/morrowind-official/ontology.json `
   --reviewed build/oghma-v2-generation-part-1 `
   --reviewed build/oghma-v2-generation-part-2 `
   --reviewed build/oghma-v2-generation-part-3 `
@@ -166,7 +166,7 @@ python scripts/audit-morrowind-oghma-catalog.py `
   --output-dir build/oghma-v2-review
 ```
 
-Catalog assembly reserves canonical topic keys first and removes ambiguous generated aliases deterministically. Every dropped alias is recorded in the catalog manifest. Review JSON, Markdown, and HTML are bundled under `resources/oghma/morrowind-official/reviews/morrowind-official-3e427-v2/` before activation.
+Catalog assembly reserves canonical topic keys first and removes ambiguous generated aliases deterministically. Every dropped alias is recorded in the catalog manifest. Review JSON, Markdown, and HTML are bundled under `data/oghma/morrowind-official/reviews/morrowind-official-3e427-v2/` before activation.
 
 ## V4 official-book expansion
 

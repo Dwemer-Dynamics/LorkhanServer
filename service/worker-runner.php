@@ -12,10 +12,10 @@ use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\JobRepository;
 use LorkhanServer\Infrastructure\MediaStore;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 try {
-    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/conf/server.php';
     if (!is_file($configFile)) {
         throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     }
@@ -35,7 +35,7 @@ try {
         throw new RuntimeException('Worker job types must be a list.');
     }
     $database = Connection::open($config);
-    $media = new MediaStore((string) ($config['media_storage_path'] ?? dirname(__DIR__) . '/storage/media'),
+    $media = new MediaStore((string) ($config['media_storage_path'] ?? '/var/lib/lorkhanserver/media'),
         (int) ($config['media_max_bytes'] ?? 33_554_432), (int) ($config['media_quota_bytes'] ?? 268_435_456));
     $provider = ProviderFactory::dialogue($config);
     if (isset($config['provider_factory'])) {

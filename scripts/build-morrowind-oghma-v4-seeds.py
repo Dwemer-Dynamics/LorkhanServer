@@ -14,8 +14,8 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3" / "topic-seeds.json"
-DEFAULT_CATALOG = ROOT / "resources" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3"
+DEFAULT_BASE = ROOT / "data" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3" / "topic-seeds.json"
+DEFAULT_CATALOG = ROOT / "data" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v3"
 DEFAULT_OUTPUT = ROOT / "build" / "oghma-v4-seeds"
 
 
@@ -178,7 +178,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--baseline-seeds", type=Path, default=DEFAULT_BASE)
     parser.add_argument("--baseline-catalog", type=Path, default=DEFAULT_CATALOG)
     parser.add_argument("--data-dir", type=Path)
-    parser.add_argument("--ontology", type=Path, default=ROOT / "resources" / "oghma" / "morrowind-official" / "ontology.json")
+    parser.add_argument("--ontology", type=Path, default=ROOT / "data" / "oghma" / "morrowind-official" / "ontology.json")
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     return parser.parse_args()
 

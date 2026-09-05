@@ -23,7 +23,7 @@ non-game stop conditions. Record their final SHAs, tests, source licenses and pr
 1. Read sibling `CLAUDEX-TASK.md` and all documents in both repos.
 2. Create evidence source pins, a file-level provenance/import ledger and a checked semantic map.
 3. Import the final Synthserver in one reviewable provenance commit. Preserve tests before renaming.
-4. Establish green baseline with mock providers; then rename product/config/routes/schema vocabulary
+4. Establish green baseline with mock providers; then rename product/conf/routes/schema vocabulary
    and migrate `game=tes3`, `variant=openmw`, TES3 identities and content fingerprints.
 5. Install strict shared v1 schemas/fixtures and implement pairing auth, sessions, health, turns,
    event long polling, interruptions, STT, action results and authenticated opaque media.
@@ -31,7 +31,7 @@ non-game stop conditions. Record their final SHAs, tests, source licenses and pr
 7. Port all applicable connectors, prompts, profiles, memories, relationships, world knowledge,
    narrator, diary, rechat/bored/greetings, playthroughs, action policy and derived workers.
 8. Complete management UI: setup, providers, profiles, prompts/actions, events/traces, memory,
-   relationships, knowledge, playthroughs, workers/backups, health and redacted diagnostics.
+   relationships, knowledge, playthroughs, service/backups, health and redacted diagnostics.
 9. Add WSL setup/upgrade/rollback, migrations/restore drill, rate/abuse/security tests, frontend build,
    protocol parity, package/provenance/license/secret scans and cross-repo fake E2E.
 10. Later run the exact Windows in-game matrix with sibling LORKHAN; never infer action success from

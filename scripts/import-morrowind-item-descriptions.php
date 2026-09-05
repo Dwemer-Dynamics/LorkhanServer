@@ -6,7 +6,7 @@ declare(strict_types=1);
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\DescriptionCatalogImporter;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 $usage = static function (): never {
     fwrite(STDERR, "Usage:\n"
@@ -24,7 +24,7 @@ try {
         if (preg_match('/^--(csv|manifest|catalog-version)=(.+)$/D', $argument, $match) !== 1) $usage();
         $options[$match[1]] = $match[2];
     }
-    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/conf/server.php';
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');

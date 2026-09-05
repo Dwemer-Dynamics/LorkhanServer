@@ -27,7 +27,7 @@ final class MorrowindVoiceCatalog
 
     public static function bundled():self
     {
-        return new self(dirname(__DIR__,2).'/resources/voices/morrowind-goty-en.json');
+        return new self(dirname(__DIR__,2).'/data/voices/morrowind-goty-en.json');
     }
 
     /** Resolve the most specific bundled voice family from one authoritative OpenMW actor snapshot. */

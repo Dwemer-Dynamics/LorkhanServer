@@ -13,7 +13,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v5.15"
+DEFAULT_BASE = ROOT / "data" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v5.15"
 
 
 def read_json(path: Path) -> Any:

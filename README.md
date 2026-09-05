@@ -23,7 +23,7 @@ the local machine and are not exposed as a public service.
 - browser setup and management UI.
 
 The management interface follows the shared HerikaServer/DialecticServer PHP page format: physical
-`public/ui/*.php` pages include one common head, Bootstrap navbar, and footer; Configuration and
+`ui/*.php` pages include one common head, Bootstrap navbar, and footer; Configuration and
 Control Panel use grouped lazy-loaded iframe tabs. Legacy `/manage/*` page URLs redirect to the
 canonical PHP pages while `/manage/forms/*` and `/manage/api/v1/*` remain the CSRF-protected backend.
 
@@ -73,13 +73,16 @@ Saving routing settings makes no provider call; requesting generation can incur 
 
 ## Local deployment
 
-The normal developer deploy mirrors the active source to `/var/www/html/LorkhanServer`, keeps
+The local deploy stages the runtime file manifest and installs it to `/var/www/html/LorkhanServer`, keeps
 database credentials and pairing secrets under `/etc/lorkhanserver`, and preserves media/log state
 under `/var/lib/lorkhanserver` and `/var/log/lorkhanserver`. Run the sibling client's
 `scripts/deploy/full-local.ps1` for the Herika-style two-stage server plus game-client deployment.
 
-`scripts/deploy-wsl.sh` remains the immutable release/rollback installer described in
-`docs/WSL-APACHE-SETUP.md`; `scripts/deploy-local-wsl.sh` is the stable-path local development sync.
+`scripts/deploy-wsl.sh` bootstraps missing configuration, then uses the same
+`scripts/deploy-local-wsl.sh` deployment as updates. Both install `deploy/runtime-files.txt`
+at the stable web root. Previous code and the Apache route are copied to a unique
+`/var/backups/lorkhanserver-code.*` directory before replacement. See
+`docs/SERVER-FILE-LAYOUT.md` for the Herika-style file mapping and private storage boundaries.
 Both installers idempotently backfill missing CHIM connector defaults without replacing saved routes
 or active TTS selections. STT is installation-global; ITT, Background Life, and timer autonomy are
 not provisioned and their pre-beta compatibility schema has been retired.

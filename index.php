@@ -59,9 +59,9 @@ if (PHP_SAPI === 'cli-server') {
     }
 }
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require __DIR__ . '/lib/Autoload.php';
 
-$configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+$configFile = getenv('LORKHAN_CONFIG') ?: __DIR__ . '/conf/server.php';
 try {
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
     $config = require $configFile;
@@ -103,7 +103,7 @@ try {
         (int) ($config['events_page_size'] ?? 100),
         (int) ($config['rate_limit_requests'] ?? 120),
         (int) ($config['rate_limit_window_seconds'] ?? 60),
-        new MediaStore((string) ($config['media_storage_path'] ?? dirname(__DIR__) . '/storage/media'),
+        new MediaStore((string) ($config['media_storage_path'] ?? '/var/lib/lorkhanserver/media'),
             (int) ($config['media_max_bytes'] ?? 33_554_432), (int) ($config['media_quota_bytes'] ?? 268_435_456)),
         $speechProvider,
         new ProviderAttemptRepository($database),
@@ -130,7 +130,7 @@ try {
             // FastCGI can finish the response before this bounded fallback. Under mod_php the
             // persistent worker owns provider work so the accepted-turn response stays immediate.
             (new Worker(new JobRepository($database),FirstPartyJobHandlerFactory::registry($database,
-                new MediaStore((string)($config['media_storage_path']??dirname(__DIR__).'/storage/media'),
+                new MediaStore((string)($config['media_storage_path']??'/var/lib/lorkhanserver/media'),
                     (int)($config['media_max_bytes']??33_554_432),(int)($config['media_quota_bytes']??268_435_456)),
                 provider:$provider,speechProvider:$speechProvider,providerTimeoutMs:(int)($providerConfig['timeout_ms']??1000),providerConfig:$config),
                 'http-fallback:'.getmypid(),5,1,1,0,10,['turn.process'],static fn(int $microseconds):mixed=>null))->run();

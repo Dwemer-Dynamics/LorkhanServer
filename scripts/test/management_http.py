@@ -47,7 +47,7 @@ atexit.register(voice_provider.server_close)
 atexit.register(voice_provider.shutdown)
 repository_root=pathlib.Path(__file__).resolve().parents[2]
 embedding_probe=subprocess.run(['php','-r',
-    "require $argv[1].'/src/Autoload.php'; $provider=new LorkhanServer\\Application\\MiniMeEmbeddingProvider($argv[2],1250); echo json_encode($provider->embed('Vivec remembers Red Mountain.',new LorkhanServer\\Application\\NeverCancelledToken()));",
+    "require $argv[1].'/lib/Autoload.php'; $provider=new LorkhanServer\\Application\\MiniMeEmbeddingProvider($argv[2],1250); echo json_encode($provider->embed('Vivec remembers Red Mountain.',new LorkhanServer\\Application\\NeverCancelledToken()));",
     str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)],capture_output=True,text=True,timeout=5)
 assert embedding_probe.returncode==0 and json.loads(embedding_probe.stdout)==[1,0,0,0,0,0,0,0] and VoiceProvider.embedding_requests==[{'text':'Vivec remembers Red Mountain.'}],(embedding_probe.returncode,embedding_probe.stdout,embedding_probe.stderr,VoiceProvider.embedding_requests)
 VoiceProvider.embedding_requests.clear()
@@ -116,6 +116,13 @@ def connector_editor_id(text,name):
     match=re.search(r'<a\b[^>]*href="[^"]*[?&](?:edit|selected)=([0-9a-f-]{36})[^"]*"[^>]*>(?:(?!</a>).)*?<span class="title">'+re.escape(name)+r'</span>',text,re.S)
     assert match,text
     return match.group(1)
+
+# Moving the front controller to the server root must not expose internal files.
+for path in ['/LorkhanServer/conf/server.example.php', '/LorkhanServer/lib/Autoload.php',
+             '/LorkhanServer/data/migrations/001_initial.up.sql', '/LorkhanServer/deploy/runtime-files.txt',
+             '/LorkhanServer/composer.json', '/LorkhanServer/tests/run.php']:
+    r=request(path)
+    assert r.status in (403,404), (path,r.status)
 
 r=request('/LorkhanServer/manage/quickstart'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 p,text=parse(r); assert len(p.nav)>=4 and p.current==1 and 'Queued Jobs' in text

@@ -6,14 +6,14 @@ use LorkhanServer\Application\MorrowindVoiceCatalog;
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\ProductRepository;
 
-require dirname(__DIR__).'/src/Autoload.php';
+require dirname(__DIR__).'/lib/Autoload.php';
 
 if(PHP_SAPI!=='cli'||count($argv)!==2){fwrite(STDERR,"Usage: php scripts/import-morrowind-voices.php <Morrowind Data Files>\n");exit(2);}
 $gameRoot=realpath($argv[1]);
 if(!is_string($gameRoot)||!is_file($gameRoot.'/Morrowind.esm')||!is_dir($gameRoot.'/Sound/Vo')){
     fwrite(STDERR,"The supplied directory is not a Morrowind Data Files installation.\n");exit(2);
 }
-$configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/config/server.php';
+$configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/conf/server.php';
 if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
 $config=require$configFile;if(!is_array($config))throw new RuntimeException('Server configuration is invalid.');
 $config['database_password']=getenv('LORKHAN_DATABASE_PASSWORD')?:(string)($config['database_password']??'');

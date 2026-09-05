@@ -2148,7 +2148,7 @@ final class ManagementRouter
     private function syncBundledOghmaCatalog():array
     {
         $importer=$this->oghmaCatalogImporter??throw new RuntimeException('not_found');
-        $base=dirname(__DIR__,2).'/resources/oghma/morrowind-official';$versionFile=$base.'/active-catalog-version.txt';
+        $base=dirname(__DIR__,2).'/data/oghma/morrowind-official';$versionFile=$base.'/active-catalog-version.txt';
         $version=is_file($versionFile)?trim((string)file_get_contents($versionFile)):'';
         if(preg_match('/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/D',$version)!==1)throw new InvalidArgumentException('bundled_oghma_catalog_unavailable');
         $directory=$base.'/catalogs/'.$version;$articles=$directory.'/articles.json';$manifest=$directory.'/manifest.json';

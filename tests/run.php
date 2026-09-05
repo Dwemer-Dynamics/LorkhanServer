@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 require __DIR__ . '/Support/StateStore.php';
 
 use LorkhanServer\Config\Settings;
@@ -88,7 +88,7 @@ $check(RequestMac::verify(new Request('GET',$signed->path,$signed->headers,[],$s
 
 $settings = Settings::fromArray(['pairing_token_hash' => $hash, 'storage_path' => sys_get_temp_dir() . '/lorkhan-test']);
 $check($settings->maxJsonBytes === 2_097_152, 'safe size default');
-$frontController = (string) file_get_contents(dirname(__DIR__) . '/public/index.php');
+$frontController = (string) file_get_contents(dirname(__DIR__) . '/index.php');
 $check(str_contains($frontController, "Provider factory is test-only."), 'custom provider factory is test-only');
 $check(new OpenAiCompatibleProvider('https://api.openai.com/v1/chat/completions', ['api.openai.com'], 'gpt-test', 'test-key') instanceof OpenAiCompatibleProvider, 'OpenAI-compatible provider accepts a vetted HTTPS endpoint');
 try {
@@ -1409,6 +1409,12 @@ $speech = (new MockSpeechProvider())->synthesize('deterministic', new NeverCance
 $check(strlen($speech['bytes']) === 204 && substr($speech['bytes'], 0, 4) === 'RIFF', 'mock TTS emits legal tiny WAV');
 $check(OpenAiCompatibleSpeechProvider::wavDurationMs($speech['bytes']) === 20, 'live TTS validates WAV framing and duration');
 $mediaId = '00000000-0000-4000-8000-000000000099';
+try {
+    (new MediaStore(dirname(__DIR__) . '/ui'))->put($mediaId, $speech['bytes'], $speech['codec'], $speech['mime_type']);
+    $check(false, 'media storage rejects the relocated web root');
+} catch (RuntimeException $error) {
+    $check($error->getMessage() === 'media_storage_unsafe', 'media storage rejects the relocated web root');
+}
 $mediaHash = $media->put($mediaId, $speech['bytes'], $speech['codec'], $speech['mime_type']);
 $check((fileperms($mediaRoot) & 0777) === 0770, 'private media keeps the Apache and worker shared directory writable');
 $check(hash_equals($mediaHash, hash('sha256', $media->read($mediaId, 204, $mediaHash))), 'private media verifies bytes and hash');

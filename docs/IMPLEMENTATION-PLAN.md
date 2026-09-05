@@ -4,7 +4,7 @@
 
 Deliver a clean-installable local backend with the complete applicable Synthserver feature set,
 TES3/OpenMW semantics throughout, strict sibling protocol parity, mock-provider E2E, management UI,
-workers/backups/diagnostics and no unexplained provenance or legacy game leakage.
+service/backups/diagnostics and no unexplained provenance or legacy game leakage.
 
 The direct seed is deliberately the final Synthserver, not today's planning repo. Its final SHA and
 green test manifest are runtime inputs captured after SYNTH's completion gate.
@@ -12,7 +12,7 @@ green test manifest are runtime inputs captured after SYNTH's completion gate.
 ## Workstream 0: controlled source intake
 
 - Verify both SYNTH repos are clean/completed and record exact commits/licenses/tests.
-- Snapshot final Synthserver behavior/routes/schema/providers/UI/workers/tests before editing.
+- Snapshot final Synthserver behavior/routes/schema/providers/UI/service/tests before editing.
 - Produce file-level provenance and a preserve/adapt/replace/exclude semantic map.
 - Import in one recognizable commit, run baseline tests, and preserve a reference migration tag.
 
@@ -21,7 +21,7 @@ unknown provenance; no reference repo changed.
 
 ## Workstream 1: product and schema migration
 
-- Rename product, namespaces/config/routes/database schemas/tables/fixtures/UI copy and package names.
+- Rename product, namespaces/conf/routes/database schemas/tables/fixtures/UI copy and package names.
 - Replace Fallout/Sole Survivor/Commonwealth/FormID/plugin/runtime terms with Morrowind/Nerevarine/
   Tamriel/OpenMW/TES3 content identity where semantically correct.
 - Add installation, content manifest/fingerprint, OpenMW runtime/API and TES3 object identity models.

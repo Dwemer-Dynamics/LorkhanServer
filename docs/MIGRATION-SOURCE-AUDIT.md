@@ -11,7 +11,7 @@ DialecticServer/HerikaServer remain lineage references for provenance and missed
 Record exact commits, remotes, license files, dependency lock hashes, clean status, test commands/
 results and package manifests for SYNTH/Synthserver. Inventory source layout, migrations/schema,
 routes/endpoints, protocol fixtures, provider connectors, event/prompt/media/action pipeline, profiles,
-memories/relationships/world knowledge/playthroughs, workers/backups, management UI and tests.
+memories/relationships/world knowledge/playthroughs, service/backups, management UI and tests.
 
 Create `docs/evidence/import-ledger.csv` with target path, source URL/SHA/path, license, disposition
 (`copied`, `modified`, `concept`, `original`), transformation and reviewer. No unknown row may ship.
@@ -73,7 +73,7 @@ explicit negative tests. Every allowlist entry is path/line-purpose specific.
 - imported baseline and migrated suite are green;
 - fresh database and supported upgrade fixture reach the same schema/data invariants;
 - protocol/identity/action/context fixtures are TES3/OpenMW-native;
-- no misleading Fallout/Skyrim route/config/table/UI alias remains; approved Herika-compatible
+- no misleading Fallout/Skyrim route/conf/table/UI alias remains; approved Herika-compatible
   table/view and presentation contracts are documented and backed by typed LORKHAN sources;
 - secret/user/game-data scan is clean;
 - sibling fake E2E and schema manifest parity pass.

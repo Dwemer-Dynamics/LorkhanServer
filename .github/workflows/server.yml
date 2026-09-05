@@ -32,7 +32,7 @@ jobs:
           php --version
           echo "$(pg_config --bindir)" >> "$GITHUB_PATH"
       - name: Lint PHP
-        run: find src public config tests scripts workers -type f -name '*.php' -exec php -l {} \;
+        run: find lib ui conf tests scripts service processor connector tts stt prompts index.php -type f -name '*.php' -exec php -l {} \;
       - name: Validate local protocol manifest
         run: php scripts/protocol/verify-local.php
       - name: Run unit and provider contract checks

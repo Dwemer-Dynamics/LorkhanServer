@@ -632,7 +632,7 @@ def main() -> int:
     parser.add_argument("--esm", type=Path, required=True)
     parser.add_argument("--catalog", type=Path, required=True)
     parser.add_argument("--ontology", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "oghma" / "morrowind-official" / "ontology.json")
+                        "data" / "oghma" / "morrowind-official" / "ontology.json")
     parser.add_argument("--npc-review", type=Path, required=True)
     parser.add_argument("--npc-profiles", type=Path, required=True)
     parser.add_argument("--output-dir", type=Path, required=True)
@@ -644,19 +644,19 @@ def main() -> int:
     parser.add_argument("--catalog-package-dir", type=Path)
     parser.add_argument("--catalog-version", default="morrowind-official-3e427-v5.21")
     parser.add_argument("--base-catalog-manifest", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "oghma" / "morrowind-official" / "catalogs" /
+                        "data" / "oghma" / "morrowind-official" / "catalogs" /
                         "morrowind-official-3e427-v5.17" / "manifest.json")
     parser.add_argument("--base-topic-seeds", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "oghma" / "morrowind-official" / "catalogs" /
+                        "data" / "oghma" / "morrowind-official" / "catalogs" /
                         "morrowind-official-3e427-v5.17" / "tamriel-rebuilt-topic-seeds.json")
     parser.add_argument("--editorial-decisions", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "oghma" / "morrowind-official" / "editorial-decisions.json")
+                        "data" / "oghma" / "morrowind-official" / "editorial-decisions.json")
     parser.add_argument("--biography-package-dir", type=Path)
     parser.add_argument("--biography-catalog-version", default="morrowind-official-2026-08-biographies-v5")
     parser.add_argument("--base-biographies", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "biographies" / "morrowind-official" / "biographies.json")
+                        "data" / "biographies" / "morrowind-official" / "biographies.json")
     parser.add_argument("--base-biography-manifest", type=Path, default=Path(__file__).resolve().parents[1] /
-                        "resources" / "biographies" / "morrowind-official" / "manifest.json")
+                        "data" / "biographies" / "morrowind-official" / "manifest.json")
     args = parser.parse_args()
 
     review = json.loads(args.npc_review.read_text(encoding="utf-8"))

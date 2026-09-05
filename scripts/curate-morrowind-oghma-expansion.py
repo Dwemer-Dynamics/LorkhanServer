@@ -19,7 +19,7 @@ import requests
 DEFAULT_MODEL = "z-ai/glm-5.1"
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 SCRIPT_DIR = Path(__file__).resolve().parent
-RESOURCE_DIR = SCRIPT_DIR.parent / "resources" / "oghma" / "morrowind-official"
+RESOURCE_DIR = SCRIPT_DIR.parent / "data" / "oghma" / "morrowind-official"
 DEFAULT_AUDIT = SCRIPT_DIR.parent / "build" / "oghma-expansion-audit" / "candidates.json"
 DEFAULT_SEEDS = RESOURCE_DIR / "topic-seeds.json"
 DEFAULT_ONTOLOGY = RESOURCE_DIR / "ontology.json"

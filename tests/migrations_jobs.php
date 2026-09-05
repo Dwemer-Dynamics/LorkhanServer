@@ -25,7 +25,7 @@ use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Infrastructure\ProviderAttemptRepository;
 use LorkhanServer\Infrastructure\Uuid;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 $dsn = getenv('LORKHAN_TEST_DSN') ?: '';
 if ($dsn === '') {
@@ -42,10 +42,10 @@ $check = static function (bool $condition, string $message): void {
         throw new RuntimeException($message);
     }
 };
-$runner = new MigrationRunner($db, dirname(__DIR__) . '/database/migrations');
+$runner = new MigrationRunner($db, dirname(__DIR__) . '/data/migrations');
 $expectedVersions = array_map(
     static fn(string $path): int => (int) substr(basename($path), 0, 3),
-    glob(dirname(__DIR__) . '/database/migrations/*.up.sql') ?: [],
+    glob(dirname(__DIR__) . '/data/migrations/*.up.sql') ?: [],
 );
 sort($expectedVersions, SORT_NUMERIC);
 $latestVersion = $expectedVersions[array_key_last($expectedVersions)] ?? throw new RuntimeException('no source migrations found');
@@ -101,7 +101,7 @@ $check((int)$db->query("SELECT count(*) FROM information_schema.columns WHERE ta
 $check($runner->up() === [], 'up was not idempotent');
 $status = $runner->status();
 $check(count($status) === count($expectedVersions) && !in_array(false, array_column($status, 'applied'), true), 'migration status is incomplete');
-$firstMigrationUp = glob(dirname(__DIR__) . '/database/migrations/001_*.up.sql')[0]
+$firstMigrationUp = glob(dirname(__DIR__) . '/data/migrations/001_*.up.sql')[0]
     ?? throw new RuntimeException('first source migration missing');
 $firstMigrationDown = substr($firstMigrationUp, 0, -7) . '.down.sql';
 $toCrlf = static fn(string $sql): string => str_replace("\n", "\r\n", str_replace(["\r\n", "\r"], "\n", $sql));
@@ -131,8 +131,8 @@ $legacyActionContent=['enabled'=>true,'max_tier'=>3,'actions'=>['ai.follow'=>[
     'confirmation_required'=>true,'followup_enabled'=>true,'allow_followup_action'=>true,'cooldown_seconds'=>9]]];
 $db->prepare("INSERT INTO configuration_revisions(configuration_id,revision,content,change_reason) VALUES(:configuration,1,CAST(:content AS jsonb),'migration fixture')")
     ->execute(['configuration'=>$formatConfiguration,'content'=>json_encode($legacyActionContent,JSON_THROW_ON_ERROR)]);
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.up.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.up.sql'));
 $formatRow=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $check(($formatRow['code_name']??null)==='ai.follow'&&($formatRow['action_name']??null)==='Legacy Follow'
     &&($formatRow['is_activated']??null)===false&&($formatRow['metadata']['custom_config']['followup_enabled']??null)===true
@@ -140,15 +140,15 @@ $check(($formatRow['code_name']??null)==='ai.follow'&&($formatRow['action_name']
     &&($formatRow['metadata']['custom_config']['followup_prompt']??null)==='Respond briefly to the completed action result. Acknowledge the observed outcome without proposing or performing another action.'
     &&($formatRow['metadata']['cooldown_seconds']??null)===9,
     '076 up did not convert a legacy sparse override into the Herika action row contract');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.down.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.down.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.down.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.down.sql'));
 $legacyRoundTrip=json_decode((string)$db->query("SELECT content->'actions'->'ai.follow' FROM configuration_revisions WHERE configuration_id='{$formatConfiguration}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
 $check(($legacyRoundTrip['display_name']??null)==='Legacy Follow'&&($legacyRoundTrip['enabled']??null)===false
     &&($legacyRoundTrip['followup_enabled']??null)===true&&($legacyRoundTrip['allow_followup_action']??null)===true
     &&($legacyRoundTrip['cooldown_seconds']??null)===9,
     '076 down did not preserve the effective legacy override');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/076_herika_action_policy_format.up.sql'));
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/077_action_followup_prompt.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/076_herika_action_policy_format.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/077_action_followup_prompt.up.sql'));
 $db->prepare('DELETE FROM installations WHERE installation_id=:installation')->execute(['installation'=>$formatInstallation]);
 
 // The exact migration from catalog draft #9 must refuse a lossy rollback of a larger catalog.
@@ -159,7 +159,7 @@ $db->exec('SAVEPOINT capacity_guard');
 try{$db->exec("UPDATE lorkhan_internal.biography_catalogs SET row_count=20001 WHERE catalog_version='capacity-guard-fixture'");
     throw new RuntimeException('biography capacity became unbounded');}
 catch(PDOException $error){$check($error->getCode()==='23514','unexpected biography capacity failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/060_biography_catalog_capacity.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/060_biography_catalog_capacity.down.sql'));
     throw new RuntimeException('larger biography catalog was rolled back');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot restore the 10,000-row biography limit'),'unexpected biography rollback failure');$db->exec('ROLLBACK TO SAVEPOINT capacity_guard');}
 $check((int)$db->query("SELECT row_count FROM lorkhan_internal.biography_catalogs WHERE catalog_version='capacity-guard-fixture'")->fetchColumn()===20000,
@@ -179,14 +179,14 @@ $check((int)$db->query("SELECT count(*) FROM profiles WHERE profile_id='{$legacy
 $check((int)$db->query("SELECT count(*) FROM playthroughs WHERE playthrough_id='{$legacyPlaythrough}' AND profile_id='{$legacyProfile}'")->fetchColumn()===1, 'legacy playthrough owner missing');
 // Upgrade relationship data without merging ambiguous identities or losing existing audit entries.
 $db->beginTransaction();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.down.sql'));
 $legacyRelationship=Uuid::v4();$legacyDuplicate=Uuid::v4();
 $legacyInsert=$db->prepare("INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode) "
     ."VALUES(:id,:installation,:profile,:playthrough,'{\"record_id\":\"legacy_duplicate\",\"display_name\":\"Legacy actor\"}',17,-3,'manual')");
 foreach([$legacyRelationship,$legacyDuplicate] as $id)$legacyInsert->execute(['id'=>$id,'installation'=>$legacyInstallation,'profile'=>$legacyProfile,'playthrough'=>$legacyPlaythrough]);
 $db->exec("INSERT INTO relationship_audit(audit_id,relationship_id,mode,after_value,reason) VALUES('".Uuid::v4()."','{$legacyRelationship}','manual','{\"disposition\":17,\"affinity\":-3}','Legacy reason')");
 $legacyRows=$db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.up.sql'));
 $check($db->query('SELECT relationship_id,actor_identity,disposition,affinity FROM relationship_records ORDER BY relationship_id')->fetchAll()===$legacyRows
     &&(int)$db->query('SELECT count(*) FROM relationship_records WHERE revision=1')->fetchColumn()===2
     &&$db->query("SELECT reason FROM relationship_audit WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()==='Legacy reason',
@@ -194,7 +194,7 @@ $check($db->query('SELECT relationship_id,actor_identity,disposition,affinity FR
 $db->exec("UPDATE relationship_records SET disposition=18 WHERE relationship_id='{$legacyRelationship}'");
 $check((int)$db->query("SELECT revision FROM relationship_records WHERE relationship_id='{$legacyRelationship}'")->fetchColumn()===2,'direct relationship writes bypass revision protection');
 $db->exec('SAVEPOINT relationship_rollback_guard');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/063_relationship_record_revisions.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/063_relationship_record_revisions.down.sql'));
     throw new RuntimeException('edited relationship lost revision protection');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove relationship revision protection'),'unexpected relationship rollback failure');$db->exec('ROLLBACK TO SAVEPOINT relationship_rollback_guard');}
 $db->rollBack();
@@ -275,7 +275,7 @@ $check((int)$db->query("SELECT count(*) FROM dialogue_delivery_results WHERE dia
 
 $driftDirectory = sys_get_temp_dir() . '/lorkhan-migrations-' . bin2hex(random_bytes(8));
 mkdir($driftDirectory, 0700, true);
-foreach (glob(dirname(__DIR__) . '/database/migrations/*.sql') ?: [] as $migrationFile) {
+foreach (glob(dirname(__DIR__) . '/data/migrations/*.sql') ?: [] as $migrationFile) {
     copy($migrationFile, $driftDirectory . '/' . basename($migrationFile));
 }
 $driftRunner = new MigrationRunner($db, $driftDirectory);
@@ -438,7 +438,7 @@ $check($biographyRollback['rolled_back']===true&&$biographyRollback['catalog_ver
 $biographyProvisionAfterRollback=$biographyImporter->provision($biographyV2Json,$biographyV2Manifest,'biography-v2');
 $check($biographyProvisionAfterRollback['applied']===false&&$biographyProvisionAfterRollback['state']==='superseded',
     'routine biography provisioning overrode an explicit rollback');
-$factoryBiographyRoot=dirname(__DIR__).'/resources/biographies/morrowind-official';
+$factoryBiographyRoot=dirname(__DIR__).'/data/biographies/morrowind-official';
 $factoryBiographyVersion=trim((string)file_get_contents($factoryBiographyRoot.'/catalog-version.txt'));
 $factoryBiographyPlan=$biographyImporter->plan($factoryBiographyRoot.'/biographies.json',$factoryBiographyRoot.'/manifest.json',$factoryBiographyVersion);
 $check($factoryBiographyPlan['valid']===true&&$factoryBiographyPlan['row_count']===12674&&$factoryBiographyPlan['duplicate_count']===0,
@@ -1417,7 +1417,7 @@ $check($duringStats['succeeded']===1
     &&$products->memory($liveMemory['memory_id'])['content']===$liveMemory['content'],
     'disabling model memory during the call did not discard its output');
 $db->beginTransaction();$db->exec('SAVEPOINT model_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/062_model_memory_summaries.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/062_model_memory_summaries.down.sql'));
     throw new RuntimeException('model summary downgrade discarded data');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove model memory support'),'unexpected model downgrade failure');
     $db->exec('ROLLBACK TO SAVEPOINT model_downgrade');}
@@ -1530,7 +1530,7 @@ $check($queuedRevision===1&&$disabledEmbeddingStats['succeeded']===1&&$embedding
     &&(int)$db->query("SELECT count(*) FROM memory_embeddings WHERE memory_id='{$summaryMemory['memory_id']}' AND memory_revision=2")->fetchColumn()===0,
     'disabling semantic memory did not cancel queued provider work or preserve the deterministic fallback');
 $db->beginTransaction();$db->exec('SAVEPOINT semantic_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/069_semantic_memory_embeddings.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/069_semantic_memory_embeddings.down.sql'));
     throw new RuntimeException('semantic memory downgrade discarded data');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove semantic memory support'),'unexpected semantic downgrade failure');
     $db->exec('ROLLBACK TO SAVEPOINT semantic_downgrade');}
@@ -1543,7 +1543,7 @@ $check(($translationPolicy['current_revision']??null)===1
     &&$products->translationPolicyForInstallation($legacyInstallation)['configuration_id']===$translationPolicy['configuration_id'],
     'revisioned translation policy was not persisted as one installation-scoped document');
 $db->beginTransaction();$db->exec('SAVEPOINT translation_downgrade');
-try{$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/071_translation_policy.down.sql'));
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/071_translation_policy.down.sql'));
     throw new RuntimeException('translation downgrade discarded policy history');}
 catch(PDOException $error){$check(str_contains($error->getMessage(),'Cannot remove translation support'),'unexpected translation downgrade failure');
     $db->exec('ROLLBACK TO SAVEPOINT translation_downgrade');}
@@ -1616,11 +1616,11 @@ $check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_t
     &&$db->query("SELECT reasons->'_context'->>'selection' FROM retrieval_traces WHERE turn_id='{$traceTurn}' AND domain='memory'")->fetchColumn()==='exact-rendered-coverage-v1',
     'coverage source reasons or retrieval metadata were not persisted');
 $db->beginTransaction();
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.down.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/061_memory_prompt_coverage.down.sql'));
 $check((int)$db->query("SELECT count(*) FROM prompt_trace_sources WHERE prompt_trace_id='{$traceId}' AND reason='section_limit'")->fetchColumn()===2
     &&$db->query("SELECT inclusion_reason FROM prompt_trace_sections WHERE prompt_trace_id='{$traceId}'")->fetchColumn()==='empty',
     'coverage migration rollback lost audit rows or left incompatible reasons');
-$db->exec((string)file_get_contents(dirname(__DIR__).'/database/migrations/061_memory_prompt_coverage.up.sql'));
+$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/061_memory_prompt_coverage.up.sql'));
 $db->rollBack();
 $storedTrace=$db->query("SELECT input_sha256,input_bytes FROM prompt_traces WHERE prompt_trace_id='{$traceId}'")->fetch();
 $check($storedTrace['input_sha256']===hash('sha256','secret prompt body') && (int)$storedTrace['input_bytes']===18, 'prompt trace metadata was not persisted');

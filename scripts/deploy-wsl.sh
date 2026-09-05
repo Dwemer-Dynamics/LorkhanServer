@@ -8,7 +8,7 @@ fi
 
 source_root=${1:-}
 http_port=${LORKHAN_HTTP_PORT:-8090}
-if [[ -z ${source_root} || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
+if [[ -z ${source_root} || ! -f ${source_root}/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-wsl.sh <absolute-LorkhanServer-source-path>" >&2
     exit 2
 fi
@@ -35,7 +35,7 @@ if ss -ltn | awk '{print $4}' | grep -Eq "(^|:)${http_port}$"; then
     fi
 fi
 
-install -d -m 0755 /var/www/LorkhanServer/releases /etc/lorkhanserver
+install -d -m 0755 /etc/lorkhanserver
 getent group lorkhan >/dev/null || groupadd --system lorkhan
 if ! id -u lorkhan >/dev/null 2>&1; then
     useradd --system --gid lorkhan --groups www-data --home-dir /nonexistent --shell /usr/sbin/nologin lorkhan
@@ -53,25 +53,6 @@ find /var/lib/lorkhanserver/backups -xdev -type f -name '*.json' -exec chown www
 install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
 find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
-
-release_id="$(date -u +%Y%m%dT%H%M%SZ)-$(git -C "${source_root}" rev-parse --short=12 HEAD 2>/dev/null || echo local)"
-release_dir="/var/www/LorkhanServer/releases/${release_id}"
-if [[ -e ${release_dir} ]]; then
-    echo "Release already exists: ${release_dir}" >&2
-    exit 1
-fi
-install -d -m 0755 "${release_dir}"
-release_committed=false
-cleanup_failed_release() {
-    if [[ ${release_committed} != true && -n ${release_dir:-} && ${release_dir} == /var/www/LorkhanServer/releases/* ]]; then
-        rm -rf -- "${release_dir}"
-    fi
-}
-trap cleanup_failed_release EXIT
-rsync -a --exclude=.git --exclude=.github --exclude=.work --exclude=build --exclude=coverage \
-    --exclude=storage --exclude=vendor "${source_root}/" "${release_dir}/"
-find "${release_dir}" -type d -exec chmod 0755 {} +
-find "${release_dir}" -type f -exec chmod 0644 {} +
 
 if [[ ! -f /etc/lorkhanserver/database-password ]]; then
     openssl rand -hex 32 > /etc/lorkhanserver/database-password
@@ -109,6 +90,7 @@ fi
 runuser -u postgres -- psql --dbname=lorkhan --set=ON_ERROR_STOP=1 \
     --command='CREATE EXTENSION IF NOT EXISTS pg_trgm; CREATE EXTENSION IF NOT EXISTS vector;' >/dev/null
 
+if [[ ! -f /etc/lorkhanserver/server.php ]]; then
 cat > /etc/lorkhanserver/server.php <<'PHP'
 <?php
 declare(strict_types=1);
@@ -164,84 +146,28 @@ return [
     ],
 ];
 PHP
+fi
 printf '%s\n' "${pairing_hash}" > /etc/lorkhanserver/pairing-token-hash
 printf '%s\n' "${management_hash}" > /etc/lorkhanserver/management-secret-hash
+if [[ ! -f /etc/lorkhanserver/apache-env.conf ]]; then
 cat > /etc/lorkhanserver/apache-env.conf <<EOF
 SetEnv LORKHAN_CONFIG /etc/lorkhanserver/server.php
 SetEnv LORKHAN_PAIRING_MAC_KEY ${pairing_key}
 EOF
+fi
 chown root:www-data /etc/lorkhanserver/server.php /etc/lorkhanserver/pairing-token-hash \
     /etc/lorkhanserver/management-secret-hash /etc/lorkhanserver/apache-env.conf
 chmod 0640 /etc/lorkhanserver/server.php /etc/lorkhanserver/pairing-token-hash \
     /etc/lorkhanserver/management-secret-hash /etc/lorkhanserver/apache-env.conf
+if [[ ! -f /etc/lorkhanserver/worker.env ]]; then
 cat > /etc/lorkhanserver/worker.env <<'EOF'
 LORKHAN_CONFIG=/etc/lorkhanserver/server.php
 EOF
+fi
 chown root:lorkhan /etc/lorkhanserver/worker.env
 chmod 0640 /etc/lorkhanserver/worker.env
 
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/migrate.php" up
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-connectors.php"
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-descriptions.php"
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-biographies.php"
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/backfill-morrowind-localities.php"
-LORKHAN_CONFIG=/etc/lorkhanserver/server.php php "${release_dir}/scripts/provision-default-oghma.php"
-
-ln -sfn "${release_dir}" /var/www/LorkhanServer/current.next
-mv -Tf /var/www/LorkhanServer/current.next /var/www/LorkhanServer/current
-release_committed=true
-gateway=$(ip route show default | awk '/^default via / {print $3; exit}')
-if [[ ! ${gateway} =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Could not determine the Windows-to-WSL gateway address." >&2
-    exit 1
+# Both first install and subsequent updates use the same runtime manifest and stable web root.
+if [[ ${LORKHAN_BOOTSTRAP_ONLY:-0} != 1 ]]; then
+    exec bash "${source_root}/scripts/deploy-local-wsl.sh" "${source_root}"
 fi
-sed -e "s/@WSL_GATEWAY@/${gateway}/g" -e "s/@LORKHAN_HTTP_PORT@/${http_port}/g" \
-    "${release_dir}/deploy/apache/lorkhanserver.conf" \
-    > /etc/apache2/sites-available/lorkhanserver.conf
-chmod 0644 /etc/apache2/sites-available/lorkhanserver.conf
-sed -i -E "/^Listen[[:space:]]+(127\\.0\\.0\\.1|0\\.0\\.0\\.0):${http_port}$/d" /etc/apache2/ports.conf
-printf '\nListen 0.0.0.0:%s\n' "${http_port}" >> /etc/apache2/ports.conf
-a2enmod rewrite >/dev/null
-a2ensite lorkhanserver.conf >/dev/null
-apache2ctl configtest
-service apache2 restart
-
-if [[ $(ps -p 1 -o comm=) == systemd ]]; then
-    command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    install -m 0644 "${release_dir}/deploy/systemd/lorkhanserver-worker.service" \
-        /etc/systemd/system/lorkhanserver-worker.service
-    install -m 0644 "${release_dir}/deploy/systemd/lorkhanserver-worker.timer" \
-        /etc/systemd/system/lorkhanserver-worker.time
-    systemctl daemon-reload
-    systemctl enable --now lorkhanserver-worker.timer >/dev/null
-    systemctl reset-failed lorkhanserver-worker.service >/dev/null 2>&1 || true
-    systemctl start --no-block lorkhanserver-worker.service
-    if [[ $(systemctl is-enabled lorkhanserver-worker.timer) != enabled \
-        || $(systemctl is-active lorkhanserver-worker.timer) != active ]]; then
-        echo "LorkhanServer worker timer did not become active." >&2
-        exit 1
-    fi
-else
-    for command in service start-stop-daemon update-rc.d; do
-        command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
-    done
-    install -d -m 0755 /usr/local/libexec
-    install -m 0755 "${release_dir}/deploy/sysv/lorkhanserver-worker-loop" \
-        /usr/local/libexec/lorkhanserver-worker-loop
-    install -m 0755 "${release_dir}/deploy/sysv/lorkhanserver-worker" \
-        /etc/init.d/lorkhanserver-worker
-    update-rc.d lorkhanserver-worker defaults >/dev/null
-    service lorkhanserver-worker restart
-    service lorkhanserver-worker status >/dev/null
-fi
-
-health=$(curl --fail --silent --show-error "http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health")
-if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
-    echo "Unexpected health response." >&2
-    exit 1
-fi
-
-echo "Deployed ${release_dir}"
-echo "Health: http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health"
-echo "Management: http://127.0.0.1:${http_port}/LorkhanServer/manage"
-echo "Local secrets remain in /etc/lorkhanserver and were not printed."

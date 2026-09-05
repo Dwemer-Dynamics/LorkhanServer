@@ -16,7 +16,7 @@ from typing import Any
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official"
+DEFAULT_BASE = ROOT / "data" / "oghma" / "morrowind-official"
 QUEST_LIKE = re.compile(
     r"\b(?:asked to|asks? (?:the adventurer|a traveler|someone) [^.!?]{0,50} to|commissioned to|current assignment|has tasked|"
     r"must (?:find|retrieve|deliver|steal|kill|report)|seeks? to (?:acquire|recover|steal)|"

@@ -55,7 +55,7 @@ if ($view === 'tts' || $view === 'stt') {
     }
 }
 $voiceOptions = [];
-$voiceRoot = (string) ($config['voice_storage_path'] ?? (is_dir('/var/lib/lorkhanserver') ? '/var/lib/lorkhanserver/voices' : ($applicationRoot . '/storage/voices')));
+$voiceRoot = (string) ($config['voice_storage_path'] ?? '/var/lib/lorkhanserver/voices');
 if (is_dir($voiceRoot)) {
     foreach (glob($voiceRoot . DIRECTORY_SEPARATOR . '*.wav') ?: [] as $voicePath) {
         $voiceName = pathinfo($voicePath, PATHINFO_FILENAME);

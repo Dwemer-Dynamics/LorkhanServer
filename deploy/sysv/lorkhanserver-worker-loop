@@ -21,7 +21,7 @@ stop_worker() {
 trap stop_worker TERM INT
 
 while true; do
-    /usr/bin/php /var/www/LorkhanServer/current/workers/worker.php &
+    /usr/bin/php /var/www/html/LorkhanServer/service/worker-runner.php &
     child_pid=$!
     status=0
     wait "${child_pid}" || status=$?

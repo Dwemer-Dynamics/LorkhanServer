@@ -22,34 +22,17 @@ flowchart LR
   M --> A
 ```
 
-## Target source layout
+## Source and deployed layout
 
-```text
-public/                    # game/API front controller and browser-served files
-public/ui/                 # physical PHP management pages, shared templates and vendored assets
-src/Http/                  # routing/controllers/middleware
-src/Application/           # turns, sessions, actions, profiles, memories
-src/Domain/                # typed IDs/entities/policy
-src/Infrastructure/        # DB, provider, media, queue, clock implementations
-config/                    # tracked non-secret defaults/schema
-database/migrations/       # ordered source-controlled migrations
-database/seeds/            # test/development authored data only
-workers/                   # supervised CLI entrypoints
-schemas/ fixtures/         # shared protocol contract
-tests/                     # unit/integration/e2e/security/migration
-scripts/                   # setup/test/audit/backup/restore
-storage/                   # runtime data, ignored and outside public serving
-docs/evidence/
-```
+The physical feature folders match HerikaServer's organization: `ui/`, `lib/`, `processor/`,
+`connector/`, `tts/`, `stt/`, `prompts/`, `service/`, `conf/`, and `data/`. Root `index.php`
+retains the typed game API and management router. PHP namespaces and protocol schemas are
+unchanged; see `SERVER-FILE-LAYOUT.md` for the full mapping and deployment manifest.
 
-Use the final Synthserver's proven framework and conventions instead of forcing this illustrative
-layout if its equivalent is stronger. Preserve separation and ownership, not folder spelling.
-
-The browser surface deliberately follows the maintained Dwemer server page composition. Each
-top-level PHP page loads `public/ui/ui_bootstrap.php`, includes the common head and navbar, renders
-its own page family, and includes the common footer. Embedded pages use the same bootstrap and CSRF
-session but omit the navbar when requested with `embed=1`. Apache aliases `/LorkhanServer` to the
-public directory so source, configuration, storage, and secrets stay outside the served tree.
+Each page loads `ui/ui_bootstrap.php`, the common head/navbar, its page content, and footer.
+Embedded pages keep their existing session and CSRF behavior. Apache serves only the UI and
+front-controller routes; a global private-directory rule protects internal files on every host.
+Persistent configuration, media, voice samples, credentials and logs remain outside the server root.
 
 ## Request lifecycle
 

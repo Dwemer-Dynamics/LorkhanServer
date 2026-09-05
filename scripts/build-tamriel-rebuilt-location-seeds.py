@@ -20,7 +20,7 @@ import requests
 
 ROOT = Path(__file__).resolve().parents[1]
 PREFLIGHT = Path(__file__).with_name("run-morrowind-oghma-preflight.py")
-DEFAULT_BASE_CATALOG = ROOT / "resources" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v5.15" / "articles.json"
+DEFAULT_BASE_CATALOG = ROOT / "data" / "oghma" / "morrowind-official" / "catalogs" / "morrowind-official-3e427-v5.15" / "articles.json"
 UESP_API_URL = "https://en.uesp.net/w/api.php"
 ROOT_CATEGORY = "Category:Tamriel Rebuilt-Places"
 PUBLIC_INDEX_PAGES = {

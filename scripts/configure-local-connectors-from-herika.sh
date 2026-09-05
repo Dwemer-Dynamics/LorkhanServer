@@ -51,7 +51,7 @@ use LorkhanServer\Application\ProviderFactory;
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\ProductRepository;
 
-require __DIR__ . '/src/Autoload.php';
+require __DIR__ . '/lib/Autoload.php';
 $config = require (string) getenv('LORKHAN_CONFIG');
 if (!is_array($config)) throw new RuntimeException('LorkhanServer configuration is invalid.');
 $config['database_password'] = (string) (getenv('LORKHAN_DATABASE_PASSWORD') ?: ($config['database_password'] ?? ''));

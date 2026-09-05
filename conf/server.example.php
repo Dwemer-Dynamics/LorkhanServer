@@ -6,7 +6,7 @@ return [
     'base_path' => '/LorkhanServer/api/v1',
     'database_dsn' => 'pgsql:host=127.0.0.1;port=5432;dbname=lorkhan',
     'database_user' => 'lorkhan_runtime',
-    // public/index.php reads LORKHAN_DATABASE_PASSWORD, LORKHAN_PAIRING_TOKEN_HASH, and
+    // index.php reads LORKHAN_DATABASE_PASSWORD, LORKHAN_PAIRING_TOKEN_HASH, and
     // LORKHAN_MANAGEMENT_SECRET_HASH from a restrictive service EnvironmentFile. Only hashes are accepted.
     'database_password' => '',
     'pairing_token_hash' => '',
@@ -51,7 +51,7 @@ return [
         // 'model' => 'gpt-4o-mini-transcribe',
         // 'api_key_env' => 'LORKHAN_STT_API_KEY',
     ],
-    // Must resolve outside public/. Production default: /var/lib/lorkhanserver/media.
+    // Must resolve outside the server root. Production default: /var/lib/lorkhanserver/media.
     'media_storage_path' => '/var/lib/lorkhanserver/media',
     'voice_storage_path' => '/var/lib/lorkhanserver/voices',
     'portrait_storage_path' => '/var/lib/lorkhanserver/profile-portraits',

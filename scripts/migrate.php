@@ -6,7 +6,7 @@ declare(strict_types=1);
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\MigrationRunner;
 
-require dirname(__DIR__) . '/src/Autoload.php';
+require dirname(__DIR__) . '/lib/Autoload.php';
 
 $usage = static function (): never {
     fwrite(STDERR, "Usage: php scripts/migrate.php <status|up|fresh|rerun|down> [--target=N|--steps=N] [--force]\n");
@@ -28,7 +28,7 @@ try {
             $usage();
         }
     }
-    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: dirname(__DIR__) . '/conf/server.php';
     if (!is_file($configFile)) {
         throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     }
@@ -37,7 +37,7 @@ try {
         throw new RuntimeException('Server configuration is invalid.');
     }
     $config['database_password'] = getenv('LORKHAN_DATABASE_PASSWORD') ?: (string) ($config['database_password'] ?? '');
-    $runner = new MigrationRunner(Connection::open($config), dirname(__DIR__) . '/database/migrations');
+    $runner = new MigrationRunner(Connection::open($config), dirname(__DIR__) . '/data/migrations');
 
     if (in_array($command, ['fresh', 'rerun', 'down'], true) && !array_key_exists('force', $options)) {
         throw new RuntimeException("{$command} is destructive; repeat with --force.");

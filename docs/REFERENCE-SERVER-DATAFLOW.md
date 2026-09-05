@@ -152,7 +152,7 @@ playthrough deletion are explicit and auditable.
 ## Management UI
 
 - Quickstart and health: DB/migrations, pairing fingerprint/rotation, client pin/caps/content, provider
-  tests, workers/media/backup.
+  tests, service/media/backup.
 - Configuration: profiles, prompts, actions/tiers, providers, narrator/diary/rechat and retention;
   excluded autonomy controls remain disabled presentation landmarks only.
 - Inspection: source events, turns, prompt/provider attempts, utterances, speech, action/results,

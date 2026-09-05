@@ -12,16 +12,22 @@
     "ext-pdo_pgsql": "*"
   },
   "autoload": {
-    "psr-4": {
-      "LorkhanServer\\": "src/"
-    }
+    "classmap": [
+      "lib/",
+      "processor/",
+      "connector/",
+      "tts/",
+      "stt/",
+      "prompts/",
+      "service/"
+    ]
   },
   "config": {
     "allow-plugins": {},
     "sort-packages": true
   },
   "scripts": {
-    "lint": "find src public config tests scripts workers -type f -name '*.php' -exec php -l {} \\;",
+    "lint": "find lib ui conf tests scripts service processor connector tts stt prompts index.php -type f -name '*.php' -exec php -l {} \\;",
     "test": [
       "@php tests/run.php"
     ],

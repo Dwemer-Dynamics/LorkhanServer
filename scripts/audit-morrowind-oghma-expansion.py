@@ -15,7 +15,7 @@ from typing import Any, Iterable
 
 DEFAULT_DATA_DIR = Path(r"C:\Program Files (x86)\Steam\steamapps\common\Morrowind\Data Files")
 SCRIPT_DIR = Path(__file__).resolve().parent
-RESOURCE_DIR = SCRIPT_DIR.parent / "resources" / "oghma" / "morrowind-official"
+RESOURCE_DIR = SCRIPT_DIR.parent / "data" / "oghma" / "morrowind-official"
 DEFAULT_SEEDS = RESOURCE_DIR / "topic-seeds.json"
 DEFAULT_CATALOG = RESOURCE_DIR / "catalogs" / "morrowind-official-3e427-v2" / "articles.json"
 CONTENT_FILES = ("Morrowind.esm", "Tribunal.esm", "Bloodmoon.esm")

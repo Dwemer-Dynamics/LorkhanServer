@@ -99,12 +99,12 @@ from processing the same run directory concurrently. Rejected candidates and the
 retained in `rejected.json` for diagnosis.
 After the full review gate, package `combined/preflight-chim.json` as `biographies.json` beside the
 run `manifest.json` and a stable `catalog-version.txt` under
-`resources/biographies/morrowind-official/`. Validate it without changing PostgreSQL:
+`data/biographies/morrowind-official/`. Validate it without changing PostgreSQL:
 
 ```powershell
 php scripts/import-morrowind-biographies.php dry-run `
-  --biographies=resources/biographies/morrowind-official/biographies.json `
-  --manifest=resources/biographies/morrowind-official/manifest.json `
+  --biographies=data/biographies/morrowind-official/biographies.json `
+  --manifest=data/biographies/morrowind-official/manifest.json `
   --catalog-version=morrowind-official-2026-08-biographies-v1
 ```
 

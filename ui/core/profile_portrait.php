@@ -9,7 +9,7 @@ use LorkhanServer\Infrastructure\ProductRepository;
 $uiRootDir=dirname(__DIR__);$pageTitle='NPC Portrait';$topNavSection='configuration';
 require $uiRootDir.'/ui_bootstrap.php';
 
-$portraitRoot=(string)($config['portrait_storage_path']??(is_dir('/var/lib/lorkhanserver')?'/var/lib/lorkhanserver/profile-portraits':($applicationRoot.'/storage/profile-portraits')));
+$portraitRoot=(string)($config['portrait_storage_path']??'/var/lib/lorkhanserver/profile-portraits');
 if(!is_dir($portraitRoot)&&!mkdir($portraitRoot,0750,true)&&!is_dir($portraitRoot))throw new RuntimeException('Portrait storage is unavailable.');
 $products=new ProductRepository($database);$service=new ProductService($products,new DeterministicClock());
 

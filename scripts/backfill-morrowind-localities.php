@@ -6,12 +6,12 @@ declare(strict_types=1);
 use LorkhanServer\Infrastructure\Connection;
 use LorkhanServer\Infrastructure\ProductRepository;
 
-require dirname(__DIR__).'/src/Autoload.php';
+require dirname(__DIR__).'/lib/Autoload.php';
 
 if(PHP_SAPI!=='cli'||count($argv)!==1){fwrite(STDERR,"Usage: php scripts/backfill-morrowind-localities.php\n");exit(2);}
 
 try{
-    $configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/config/server.php';
+    $configFile=getenv('LORKHAN_CONFIG')?:dirname(__DIR__).'/conf/server.php';
     if(!is_file($configFile))throw new RuntimeException('Server configuration is unavailable. Set LORKHAN_CONFIG.');
     $config=require$configFile;
     if(!is_array($config))throw new RuntimeException('Server configuration is invalid.');

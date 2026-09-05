@@ -37,7 +37,7 @@ final class MorrowindGeographyCatalog
 
     public static function bundled():self
     {
-        return new self(dirname(__DIR__,2).'/resources/oghma/morrowind-official/geography-v1.json');
+        return new self(dirname(__DIR__,2).'/data/oghma/morrowind-official/geography-v1.json');
     }
 
     /** Resolve immutable home locality from RefNum first, using the discovery cell only as a fallback. */

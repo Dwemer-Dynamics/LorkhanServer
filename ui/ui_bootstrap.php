@@ -8,8 +8,8 @@ use LorkhanServer\Infrastructure\ManagementUiRepository;
 use LorkhanServer\Infrastructure\ProductRepository;
 use LorkhanServer\Security\BrowserSession;
 
-$applicationRoot = dirname(__DIR__, 2);
-require_once $applicationRoot . '/src/Autoload.php';
+$applicationRoot = dirname(__DIR__);
+require_once $applicationRoot . '/lib/Autoload.php';
 
 $pageTitle = isset($pageTitle) ? (string) $pageTitle : 'LORKHAN';
 $topNavSection = isset($topNavSection) ? (string) $topNavSection : '';
@@ -20,7 +20,7 @@ $uiAssetVersion = (string) max(
 );
 
 try {
-    $configFile = getenv('LORKHAN_CONFIG') ?: $applicationRoot . '/config/server.php';
+    $configFile = getenv('LORKHAN_CONFIG') ?: $applicationRoot . '/conf/server.php';
     if (!is_file($configFile)) throw new RuntimeException('Server configuration is unavailable.');
     $config = require $configFile;
     if (!is_array($config)) throw new RuntimeException('Server configuration is invalid.');

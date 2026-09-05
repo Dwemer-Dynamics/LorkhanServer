@@ -37,8 +37,8 @@ $relationKeys = array_fill_keys(array_map(
 // Scan maintained runtime PHP only; migrations/tests are evidence, not production readers or writers.
 function runtimeReferences(string $root, array $relations, array $relationKeys): array
 {
-    $files = [];
-    foreach (['src', 'public', 'workers'] as $directory) {
+    $files = ['index.php' => (string) file_get_contents($root . '/index.php')];
+    foreach (['lib', 'ui', 'service', 'processor', 'connector', 'tts', 'stt', 'prompts'] as $directory) {
         $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($root . '/' . $directory));
         foreach ($iterator as $file) {
             if ($file->isFile() && strtolower($file->getExtension()) === 'php') {

@@ -21,3 +21,6 @@ storage/backups/*
 *.sql.gz
 secrets/
 scripts/output/
+
+# Optional local configuration fallback must never carry credentials into Git.
+conf/server.php

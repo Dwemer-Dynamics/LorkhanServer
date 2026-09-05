@@ -9,7 +9,7 @@ fi
 source_root=${1:-}
 target_root=/var/www/html/LorkhanServer
 http_port=${LORKHAN_HTTP_PORT:-8090}
-if [[ -z ${source_root} || ${source_root} != /* || ! -f ${source_root}/public/index.php || ! -f ${source_root}/composer.json ]]; then
+if [[ -z ${source_root} || ${source_root} != /* || ! -f ${source_root}/index.php || ! -f ${source_root}/composer.json ]]; then
     echo "Usage: scripts/deploy-local-wsl.sh <absolute-LorkhanServer-source-path>" >&2
     exit 2
 fi
@@ -50,7 +50,7 @@ if ! runuser -u postgres -- psql -Atqc "SELECT 1 FROM pg_database WHERE datname=
     needs_bootstrap=true
 fi
 if [[ ${needs_bootstrap} == true ]]; then
-    LORKHAN_HTTP_PORT=${http_port} bash "${source_root}/scripts/deploy-wsl.sh" "${source_root}"
+    LORKHAN_BOOTSTRAP_ONLY=1 LORKHAN_HTTP_PORT=${http_port} bash "${source_root}/scripts/deploy-wsl.sh" "${source_root}"
 fi
 
 getent group lorkhan >/dev/null || groupadd --system lorkhan
@@ -72,24 +72,38 @@ install -d -o www-data -g www-data -m 0750 /var/lib/lorkhanserver/credentials
 find /var/lib/lorkhanserver/credentials -xdev -type f -name 'provider-keys.json' -exec chown www-data:www-data -- {} + -exec chmod 0640 -- {} +
 install -d -o lorkhan -g www-data -m 0750 /var/log/lorkhanserver
 
-stage_root=$(mktemp -d /var/www/html/.LorkhanServer-stage.XXXXXX)
+stage_root=$(mktemp -d /var/tmp/lorkhanserver-stage.XXXXXX)
 cleanup_stage() {
-    if [[ -n ${stage_root:-} && ${stage_root} == /var/www/html/.LorkhanServer-stage.* ]]; then
+    if [[ -n ${stage_root:-} && ${stage_root} == /var/tmp/lorkhanserver-stage.* ]]; then
         rm -rf -- "${stage_root}"
     fi
 }
 trap cleanup_stage EXIT
 
-rsync -a \
-    --exclude=.git --exclude=.github --exclude=.work --exclude=build --exclude=coverage \
-    --exclude=storage --exclude=vendor "${source_root}/" "${stage_root}/"
+# Ship only maintained runtime files, not the test suite, development notes, or build tools.
+rsync -ar --files-from="${source_root}/deploy/runtime-files.txt" \
+    "${source_root}/" "${stage_root}/"
 
 # Fail before changing the live tree when a staged PHP file is syntactically invalid.
 while IFS= read -r -d '' php_file; do
     php -l "${php_file}" >/dev/null
 done < <(find "${stage_root}" -type f -name '*.php' -print0)
 
-if command -v service >/dev/null && [[ -e /etc/init.d/lorkhanserver-worker ]]; then
+# Keep the previous code and Apache route available for rollback; persistent data is external.
+rollback_root=$(mktemp -d /var/backups/lorkhanserver-code.XXXXXX)
+if [[ -d ${target_root} ]]; then
+    rsync -a "${target_root}/" "${rollback_root}/code/"
+fi
+if [[ -f /etc/apache2/sites-available/lorkhanserver.conf ]]; then
+    cp -p /etc/apache2/sites-available/lorkhanserver.conf "${rollback_root}/apache.conf"
+fi
+if [[ $(ps -p 1 -o comm=) == systemd ]]; then
+    for worker_unit in lorkhanserver-worker.timer lorkhanserver-worker.service; do
+        if systemctl cat "${worker_unit}" >/dev/null 2>&1; then
+            systemctl stop "${worker_unit}"
+        fi
+    done
+elif command -v service >/dev/null && [[ -e /etc/init.d/lorkhanserver-worker ]]; then
     service lorkhanserver-worker stop >/dev/null 2>&1 || true
 fi
 install -d -m 0755 "${target_root}"
@@ -120,12 +134,15 @@ fi
 sed \
     -e "s/@WSL_GATEWAY@/${gateway}/g" \
     -e "s/@LORKHAN_HTTP_PORT@/${http_port}/g" \
-    -e 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
     "${target_root}/deploy/apache/lorkhanserver.conf" \
     > /etc/apache2/sites-available/lorkhanserver.conf
 chmod 0644 /etc/apache2/sites-available/lorkhanserver.conf
 sed -i -E "/^Listen[[:space:]]+(127\\.0\\.0\\.1|0\\.0\\.0\\.0):${http_port}$/d" /etc/apache2/ports.conf
 printf '\nListen 0.0.0.0:%s\n' "${http_port}" >> /etc/apache2/ports.conf
+# A global deny also protects the physical tree through other Apache virtual hosts.
+install -m 0644 "${target_root}/deploy/apache/lorkhanserver-private.conf" \
+    /etc/apache2/conf-available/lorkhanserver-private.conf
+a2enconf lorkhanserver-private >/dev/null
 a2enmod rewrite >/dev/null
 a2ensite lorkhanserver.conf >/dev/null
 apache2ctl configtest
@@ -133,11 +150,10 @@ service apache2 restart
 
 if [[ $(ps -p 1 -o comm=) == systemd ]]; then
     command -v systemctl >/dev/null || { echo "Missing required command: systemctl" >&2; exit 1; }
-    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
-        "${target_root}/deploy/systemd/lorkhanserver-worker.service" \
-        > /etc/systemd/system/lorkhanserver-worker.service
+    install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.service" \
+        /etc/systemd/system/lorkhanserver-worker.service
     install -m 0644 "${target_root}/deploy/systemd/lorkhanserver-worker.timer" \
-        /etc/systemd/system/lorkhanserver-worker.time
+        /etc/systemd/system/lorkhanserver-worker.timer
     systemctl daemon-reload
     systemctl enable --now lorkhanserver-worker.timer >/dev/null
     systemctl reset-failed lorkhanserver-worker.service >/dev/null 2>&1 || true
@@ -149,14 +165,10 @@ else
         command -v "${command}" >/dev/null || { echo "Missing required command: ${command}" >&2; exit 1; }
     done
     install -d -m 0755 /usr/local/libexec
-    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
-        "${target_root}/deploy/sysv/lorkhanserver-worker-loop" \
-        > /usr/local/libexec/lorkhanserver-worker-loop
-    chmod 0755 /usr/local/libexec/lorkhanserver-worker-loop
-    sed 's#/var/www/LorkhanServer/current#/var/www/html/LorkhanServer#g' \
-        "${target_root}/deploy/sysv/lorkhanserver-worker" \
-        > /etc/init.d/lorkhanserver-worker
-    chmod 0755 /etc/init.d/lorkhanserver-worker
+    install -m 0755 "${target_root}/deploy/sysv/lorkhanserver-worker-loop" \
+        /usr/local/libexec/lorkhanserver-worker-loop
+    install -m 0755 "${target_root}/deploy/sysv/lorkhanserver-worker" \
+        /etc/init.d/lorkhanserver-worker
     update-rc.d lorkhanserver-worker defaults >/dev/null
     # SysV restart returns non-zero when the worker has not been started before.
     service lorkhanserver-worker stop >/dev/null 2>&1 || true
@@ -175,6 +187,7 @@ if [[ ${health} != '{"schema":"lorkhan.health.v1"}' ]]; then
 fi
 
 echo "Deployed ${target_root}"
+echo "Rollback code and Apache route: ${rollback_root}"
 echo "Health: http://127.0.0.1:${http_port}/LorkhanServer/api/v1/health"
 echo "Management: http://127.0.0.1:${http_port}/LorkhanServer/manage"
 echo "Persistent database, media, logs, and secrets were preserved."

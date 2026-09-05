@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_BASE = ROOT / "resources" / "oghma" / "morrowind-official"
+DEFAULT_BASE = ROOT / "data" / "oghma" / "morrowind-official"
 
 
 def load_generator() -> Any:
