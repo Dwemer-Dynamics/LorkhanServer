@@ -1011,6 +1011,12 @@ global_route_values=dict(global_route_form['fields'],_csrf=csrf,profile_generati
     relationship_configuration_id=slot_id,change_reason='HTTP global connector ownership')
 r=request(global_route_form['action'],'POST',global_route_values); assert r.status==200,(r.status,r.read().decode())
 # Global tests read saved, enabled routes; shared connectors are tested only once.
+filter_path='/LorkhanServer/manage/api/v1/context-filter-candidates?installation_id='+valid['installation_id']
+for filter_kind in ['locations','items','magic','event_types']:
+    r=json_request(filter_path+'&kind='+filter_kind); candidates=json.loads(r.read())
+    assert r.status==200 and candidates['scan_limit']==5000 and isinstance(candidates['items'],list),(r.status,candidates)
+assert json_request(filter_path+'&kind=unknown').status==422
+assert json_request('/LorkhanServer/manage/api/v1/context-filter-candidates?installation_id='+str(uuid.uuid4())+'&kind=items').status==404
 global_test_path='/LorkhanServer/manage/api/v1/global-connector-tests'
 global_test_values=dict(global_route_values,relationship_enabled='1',relationship_update_chance_percent='50',
     oghma_enabled='1',oghma_extractor_enabled='1',oghma_configuration_id=slot_id)

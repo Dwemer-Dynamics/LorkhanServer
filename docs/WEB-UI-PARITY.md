@@ -70,7 +70,7 @@ do not use an exception to excuse a generic substitute layout.
 | `home.php` | `home.php` | Pending structural and populated-state comparison |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
-| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards and test dialog aligned; blacklist browsers and profile-affecting built-ins pending |
+| `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | Pending structural and populated-state comparison |
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
@@ -312,3 +312,36 @@ an existing profile/installation identity when testing its direct route.
 - Deployment matches all 676 runtime files, with no extras or old paths. Existing
   configuration, credential and voice contents were preserved; private files remain
   403 and unauthenticated native session creation remains 401.
+
+### Global context filter browsers
+
+- Added Herika-derived Select dialogs for locations, items, magic/effects and event
+  types: search, hit badges, selected badges, empty feedback, Cancel and Save Selection.
+  The 900px panel, spacing, list rows and footer use the pinned reference CSS with
+  Lorkhan gold. Native dialog focus containment, Escape and opener focus restoration
+  are retained. Narrow layouts keep the actions visible and the list scrollable.
+- A read-only authenticated management endpoint projects candidate names from at
+  most 5,000 installation-owned turns, groups/counts in PostgreSQL and returns at
+  most 500 names. It accepts raw and bounded-array OpenMW contexts, including player,
+  target and nearby actor equipment. No full prompts, provider data or context samples
+  are sent to the browser. Event types use the supported typed catalog plus counts
+  from the latest 5,000 scoped events, preserving the existing inclusion semantics.
+- Manual newline entries, including commas, remain selectable even when absent from
+  recent observations. Searching does not discard offscreen selections. Save Selection
+  changes only the form draft; Cancel does not change it, and Save All remains the only
+  persistence action. Failed loads disable selection saving rather than clearing data.
+- Existing HTTP tests cover all four routes, unknown kinds and missing installations.
+  The existing integration suite covers raw/wrapped context projection, item hit counts,
+  exclusion of non-item objects and installation isolation. PHP lint, 323 server checks,
+  98 protocol files, HTTP forms, integration, migrations and durable jobs passed;
+  JavaScript syntax and whitespace checks passed. No schema change.
+- Compared the live Herika location dialog and deployed Lorkhan location/item dialogs
+  at 1280px. Live candidate counts were 5 locations, 49 items, 15 magic/effects and
+  11 supported event types. Checked search, empty search, manual comma entries,
+  offscreen preservation, deselection, Cancel, focus restoration and event checkbox
+  synchronization. At 390px the 366px dialog had no horizontal overflow and both footer
+  buttons remained visible. All temporary form edits were discarded by reloading;
+  no live settings were saved or providers called.
+- Deployed 677 matching runtime files with no extras or old paths. Configuration,
+  credentials and voice contents were preserved; private files remain 403 and native
+  unauthenticated session creation remains 401. The game was not launched or controlled.

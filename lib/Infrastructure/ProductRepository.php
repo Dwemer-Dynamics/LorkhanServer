@@ -299,6 +299,50 @@ final class ProductRepository
         return array_map(fn(array $r):array=>$r+['content'=>$this->json($r['content'])],$stmt->fetchAll());
     }
 
+    /** Browse bounded, installation-owned observations without exposing recorded context documents. */
+    public function contextFilterCandidates(string $installationId, string $kind): array
+    {
+        if (!Uuid::isValid($installationId)) throw new InvalidArgumentException('invalid_installation_id');
+        if (!in_array($kind, ['locations', 'items', 'magic', 'event_types'], true)) throw new InvalidArgumentException('invalid_filter_kind');
+        $exists = $this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:installation');
+        $exists->execute(['installation'=>$installationId]);
+        if (!$exists->fetchColumn()) throw new RuntimeException('not_found');
+        if ($kind === 'event_types') {
+            $query = $this->db->prepare('SELECT type,count(*) AS hits FROM (SELECT e.type FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid '
+                . 'WHERE m.installation_id=:installation ORDER BY e.rowid DESC LIMIT 5000) recent GROUP BY type');
+            $query->execute(['installation'=>$installationId]);
+            $counts = $query->fetchAll(PDO::FETCH_KEY_PAIR);
+            return ['items'=>array_map(static fn(string $type): array => ['value'=>$type,'count'=>(int)($counts[$type]??0)], SettingsCatalog::eventTypes()), 'scan_limit'=>5000];
+        }
+        $paths = [];
+        if ($kind === 'locations') $paths = ['strict $.world.cell', 'strict $.world.region', 'strict $.cell', 'strict $.region'];
+        if ($kind === 'items' || $kind === 'magic') {
+            foreach (['playerState', 'targetState'] as $state) {
+                foreach ($kind === 'items' ? ['equipment', 'inventory'] : ['spells', 'activeEffects', 'active_effects'] as $field) {
+                    $paths[] = 'strict $.' . $state . '.' . $field . '[*]';
+                    $paths[] = 'strict $.' . $state . '.' . $field . '.items[*]';
+                }
+            }
+            if ($kind === 'items') {
+                foreach (['strict $.nearbyObjects[*]', 'strict $.nearbyObjects.items[*]'] as $path) $paths[] = $path . ' ? (@.kind == "items")';
+                foreach (['strict $.nearbyActors[*]', 'strict $.nearbyActors.items[*]'] as $path) {
+                    $paths[] = $path . '.equipment[*]';
+                    $paths[] = $path . '.equipment.items[*]';
+                }
+            }
+        }
+        // JSON projection and aggregation stay in PostgreSQL; never transfer thousands of full prompts to PHP.
+        $query = $this->db->prepare("WITH recent AS MATERIALIZED (SELECT t.context FROM turns t JOIN sessions s ON s.session_id=t.session_id "
+            . "WHERE s.installation_id=:installation ORDER BY t.accepted_at DESC LIMIT 5000), names AS ("
+            . "SELECT btrim(CASE jsonb_typeof(v.value) WHEN 'string' THEN v.value#>>'{}' WHEN 'object' THEN COALESCE(v.value->>'display_name',v.value->>'name',v.value->>'record_id') END) AS name "
+            . "FROM recent CROSS JOIN jsonb_array_elements_text(CAST(:paths AS jsonb)) p(path) "
+            . "CROSS JOIN LATERAL jsonb_path_query(recent.context,p.path::jsonpath,'{}',true) v(value)) "
+            . "SELECT min(name) AS value,count(*) AS count FROM names WHERE name<>'' AND octet_length(name)<=256 AND name !~ '[[:cntrl:]]' "
+            . "GROUP BY lower(name) ORDER BY count(*) DESC,lower(name) LIMIT 500");
+        $query->execute(['installation'=>$installationId,'paths'=>json_encode($paths, JSON_THROW_ON_ERROR)]);
+        return ['items'=>array_map(static fn(array $row): array => ['value'=>$row['value'],'count'=>(int)$row['count']], $query->fetchAll()), 'scan_limit'=>5000];
+    }
+
     /** Describe saved, enabled global LLM routes without returning configuration payloads or calling providers. */
     public function globalConnectorTestPlan(string $installationId):array
     {

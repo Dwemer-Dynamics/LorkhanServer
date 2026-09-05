@@ -355,6 +355,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <?php endif; ?>
                         </div></div>
                         <div class="provider-body">
+                            <?php $browseKinds = ['context_event_types'=>'event_types','context_location_blacklist'=>'locations','context_item_blacklist'=>'items','context_magic_effects_blacklist'=>'magic']; if (isset($browseKinds[$name])): ?>
+                            <button type="button" class="filter-modal-close filter-browse-button" data-filter-browse="<?php echo $browseKinds[$name]; ?>" data-filter-field="<?php echo lorkhan_ui_h($name); ?>" aria-label="Select <?php echo lorkhan_ui_h($label); ?>">Select</button>
+                            <?php endif; ?>
                             <?php if ($type === 'integer'): ?><input type="number" name="<?php echo lorkhan_ui_h($name); ?>" value="<?php echo lorkhan_ui_h($value); ?>" min="<?php echo lorkhan_ui_h($options['min']); ?>" max="<?php echo lorkhan_ui_h($options['max']); ?>" step="1" aria-label="<?php echo lorkhan_ui_h($label); ?>">
                             <?php elseif ($type === 'select'): ?><select name="<?php echo lorkhan_ui_h($name); ?>"<?php echo $controlAttr; ?> aria-label="<?php echo lorkhan_ui_h($label); ?>"<?php echo $describeAttr; ?>><?php foreach ($options['values'] as $optionKey => $optionLabel): $option = is_int($optionKey) ? (string) $optionLabel : (string) $optionKey; ?><option value="<?php echo lorkhan_ui_h($option); ?>"<?php echo $option === (string) $value ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($optionLabel); ?></option><?php endforeach; ?></select>
                             <?php elseif ($type === 'multiselect'): ?><div class="gs-checklist" role="group" aria-label="<?php echo lorkhan_ui_h($label); ?>"><?php foreach ($options['values'] as $optionKey => $optionLabel): ?><label><input type="checkbox" name="<?php echo lorkhan_ui_h($name); ?>[]" value="<?php echo lorkhan_ui_h($optionKey); ?>"<?php echo in_array((string)$optionKey, $value, true) ? ' checked' : ''; ?>> <?php echo lorkhan_ui_h($optionLabel); ?></label><?php endforeach; ?></div>
@@ -387,6 +390,16 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </details>
         </div>
     <?php endif; ?>
+    <dialog id="filter-browse-dialog" class="filter-modal-panel" aria-labelledby="filter-browse-title" aria-describedby="filter-browse-hint"
+        data-endpoint="<?php echo lorkhan_ui_h($managementBasePath); ?>/api/v1/context-filter-candidates" data-installation="<?php echo lorkhan_ui_h($installationId); ?>">
+        <div class="filter-modal-head"><h2 id="filter-browse-title">Recent Values</h2><p id="filter-browse-hint" class="filter-modal-hint"></p></div>
+        <div class="filter-modal-body">
+            <div class="filter-modal-toolbar"><input type="search" id="filter-browse-search" placeholder="Search recent values" aria-label="Search recent values"><span id="filter-browse-status" class="filter-modal-status" role="status"></span></div>
+            <p id="filter-browse-feedback" class="filter-modal-loading" role="status"></p>
+            <div id="filter-browse-list" class="filter-modal-list" hidden></div>
+        </div>
+        <div class="filter-modal-foot"><span class="filter-modal-note">Checked values stay in the field. Uncheck a value to remove it. Save Selection updates your draft; Save All persists it.</span><div class="filter-modal-actions"><button type="button" id="filter-browse-cancel" class="filter-modal-close">Cancel</button><button type="button" id="filter-browse-save" class="btn-save-green">Save Selection</button></div></div>
+    </dialog>
     <dialog id="gs-preset-dialog" class="preset-dialog" aria-labelledby="gs-preset-title" aria-describedby="gs-preset-description">
         <form method="dialog" id="gs-preset-dialog-form">
             <h2 id="gs-preset-title"></h2>
@@ -423,6 +436,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/global-settings.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/global-settings.js')); ?>"></script>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/context-filter-browser.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/context-filter-browser.js')); ?>"></script>
 <?php if ($installationId !== ''): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/profile-connector-tests.js')); ?>"></script><?php endif; ?>
 <?php if ($installations !== []): ?><script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script><?php endif; ?>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

@@ -184,6 +184,7 @@ final class ManagementRouter
                 if(!is_string($name)||!is_array($parameters)||($parameters!==[]&&array_is_list($parameters)))throw new InvalidArgumentException('invalid_debug_command');
                 return Response::json(201,['command'=>$this->repository->queueDebugCommand($session,$name,$parameters)]);}
         }
+        if($r->method==='GET'&&$path==='/api/v1/context-filter-candidates')return Response::json(200,$this->repository->contextFilterCandidates($this->queryUuid($r,'installation_id'),(string)($r->query['kind']??'')));
         if($path==='/api/v1/global-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->globalConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST'){

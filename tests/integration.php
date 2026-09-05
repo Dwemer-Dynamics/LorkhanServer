@@ -2531,4 +2531,23 @@ if (is_dir($mediaPath)) {
     rmdir($mediaPath);
 }
 
+// Candidate browsing projects only supported context fields and remains installation scoped.
+$db->beginTransaction();
+$filterContext=['world'=>['cell'=>'Browse Cell','region'=>'Browse Region'],
+    'playerState'=>['inventory'=>['items'=>[['display_name'=>'Browse Robe']]],'spells'=>['Browse Spell']],
+    'targetState'=>['equipment'=>[['record_id'=>'browse_ring']],'activeEffects'=>['items'=>[['name'=>'Browse Effect']]]],
+    'nearbyObjects'=>['items'=>[['kind'=>'items','display_name'=>'Browse Robe'],['kind'=>'doors','display_name'=>'Not An Item']]],
+    'nearbyActors'=>[['equipment'=>['items'=>[['display_name'=>'Browse Sword']]]]], 'private_prompt'=>'Never expose this'];
+$db->prepare('UPDATE turns SET context=CAST(:context AS jsonb) WHERE turn_id=:turn')->execute(['context'=>json_encode($filterContext),'turn'=>$responseScope['turn_id']]);
+$filterInstallation=$responseScope['installation_id'];
+$locations=$products->contextFilterCandidates($filterInstallation,'locations')['items'];
+$items=array_column($products->contextFilterCandidates($filterInstallation,'items')['items'],null,'value');
+$magic=array_column($products->contextFilterCandidates($filterInstallation,'magic')['items'],'value');
+$assert(in_array('Browse Cell',array_column($locations,'value'),true)&&in_array('Browse Region',array_column($locations,'value'),true),'recorded location candidates missing');
+$assert(isset($items['Browse Robe'],$items['browse_ring'],$items['Browse Sword'])&&$items['Browse Robe']['count']===2&&!isset($items['Not An Item']),'item candidate projection or counts incorrect');
+$assert(in_array('Browse Spell',$magic,true)&&in_array('Browse Effect',$magic,true),'raw and wrapped magic candidates missing');
+$otherInstallation=$newUuid(998877);$repo->ensureInstallation($otherInstallation,$tokenHash,$macKey);
+$assert($products->contextFilterCandidates($otherInstallation,'items')['items']===[],'context candidates crossed installations');
+$db->rollBack();
+
 fwrite(STDOUT, "integration vertical slice passed\n");
