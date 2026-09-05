@@ -1,0 +1,11 @@
+.quickstart-page{max-width:1100px;margin:0 auto;padding-bottom:30px;color:#e0e0e0}
+.quickstart-header{text-align:center;margin-bottom:20px}.quickstart-header h1{color:rgb(188,157,90)}
+.quickstart-card{background:#2a2a2a;border:1px solid #444;border-radius:10px;margin:18px 0;padding:22px}
+.quickstart-card h2{font-size:1.3rem;color:rgb(188,157,90);margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #444}
+.quickstart-card p{color:#bbb;font-size:13px;margin:14px 0}.quickstart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:end}
+.quickstart-grid label{display:flex;flex-direction:column;gap:7px;min-width:0;font-weight:600}
+.quickstart-grid select{width:100%;min-width:0;max-width:100%;background:#333;color:#fff;border:1px solid #555;border-radius:5px;padding:10px;font-weight:400}
+.quickstart-links,.quickstart-footer{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.quickstart-footer{justify-content:center}
+.quickstart-notice{border:1px solid rgb(188,157,90);background:#29271f;padding:12px;border-radius:6px}
+.quickstart-page :focus-visible{outline:2px solid rgb(188,157,90);outline-offset:3px}
+@media(max-width:650px){.quickstart-grid{grid-template-columns:1fr}.quickstart-card{padding:16px}.quickstart-page{padding-left:12px;padding-right:12px}}

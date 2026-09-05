@@ -56,6 +56,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <h1>Dwemer Dashboard</h1>
 
     <div class="dashboard-buttons">
+        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">&#9889;</span> Quickstart</a>
         <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php"><span class="btn-icon" aria-hidden="true">⚙️</span> Configuration</a>
         <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/events-memories.php"><span class="btn-icon" aria-hidden="true">📖</span> Roleplay</a>
     </div>

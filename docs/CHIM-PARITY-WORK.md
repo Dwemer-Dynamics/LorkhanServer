@@ -67,7 +67,8 @@ This is supported workflow parity, not literal engine or storage equivalence:
 - No lockpick event is synthesized from generic Unlock observations: OpenMW cannot
   establish player lockpicking versus spell provenance from that hook.
 - Snapshot records are configuration snapshots, not OpenMW saves or full database
-  restores. Custom memory sidecar policies remain outside portable Global exports.
+  restores. Global preset v3 includes memory summary and MiniMe policies; v1/v2
+  imports preserve policies they do not carry.
 - Cost displays use reported provider usage only; missing historical usage stays
   unknown. Cloud discovery/cloning requires explicit user requests and credentials.
 
@@ -97,3 +98,44 @@ Provider API references used for the bounded cloud adapter:
 [Cartesia clone](https://docs.cartesia.ai/api-reference/voices/clone),
 [Inworld clone](https://docs.inworld.ai/api-reference/voiceAPI/voiceservice/clone-voice),
 [Inworld list](https://docs.inworld.ai/api-reference/voiceAPI/voiceservice/list-voices).
+
+## Follow-up completion (2026-09-04)
+
+- [x] Legacy session handshake fixed in `b068ba7`: normalize persisted v1/v2
+  settings before strict client projection. Actual saved revision 1 had seven
+  missing Narrator keys; the normalized response validates without modifying it.
+- [x] Reset NPC now reapplies non-empty matched biography fields as a new revision,
+  with confirmation and an expected-revision check. It uses stable OpenMW identity,
+  preserves voice, routing, actor bindings and history, and follows Auto Lock Profile.
+  A missing template returns an error without changing the NPC. Profile Versions
+  has a separate visible button alongside event history.
+- [x] Quickstart page: select an existing Core Profile's Standard/Fast/Powerful/
+  Experimental models and installation speech connectors in one atomic save.
+  The page links to model, key, TTS, STT and memory setup; it does not contact
+  providers, regenerate characters, switch the active game model, or create saves.
+- [x] Global preset v3 exports/imports memory summary scheduling and MiniMe settings.
+  Import validates all policies and saves them with Global Settings atomically.
+  Older preset formats remain accepted and do not overwrite omitted policies.
+- [x] Feature descriptions corrected where they inaccurately described implemented
+  workflows or reference-only controls. The six user-excluded systems stay removed.
+
+Quickstart is an additional setup destination beyond the original 35-page main
+inventory. Its section order, model roles, card hierarchy and links follow the
+Herika setup workflow while retaining the typed Lorkhan services and key store.
+No new game, game launch, save mutation, profile reset or live provider request is
+part of this continuation. In-game dialogue confirmation is separate and remains
+unverified until the user next talks in their existing save.
+
+Follow-up evidence: 277 unit checks, the existing management HTTP suite and
+PostgreSQL integration/schema checks pass. The HTTP suite exercises preset memory
+round-tripping, Quickstart saving and stale-revision rejection in disposable data.
+Read-only browser inspection covered Quickstart and the NPC editor, including the
+Profile Versions anchor. No real profile was saved or reset during those checks.
+
+### Reference finding: Worst Memory Lifespan
+
+At pinned HerikaServer `b08ffba7`, `PLAYER_WORST_MEMORY_GAME_DAYS` occurs in
+`lib/core/prisma_settings_catalog.php`, `ui/cmd/settings_portability.php`, and
+`ui/global_settings.php`, but has no runtime reader in that tree. It is not an
+implemented source feature to port in this pass. Do not label an inert Lorkhan
+control as implemented memory expiry.

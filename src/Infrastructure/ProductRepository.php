@@ -1310,6 +1310,26 @@ final class ProductRepository
         });
     }
 
+    /** Reapply non-empty biography fields without changing actor identity, voice, routing or history. */
+    public function biographyResetContent(array $profile):array
+    {
+        $identity=is_string($profile['actor_identity'])?$this->json($profile['actor_identity']):$profile['actor_identity'];
+        $content=$profile['content'];
+        if(!in_array($identity['kind']??'',['actor','npc','creature'],true)||trim((string)($identity['record_id']??''))===''
+            ||trim((string)($identity['content_file']??''))==='')throw new \InvalidArgumentException('profile_not_editable');
+        $template=$this->matchingBiographyTemplate((string)$profile['installation_id'],$identity,$content);
+        if($template===null)throw new \InvalidArgumentException('biography_template_not_found');
+        $changed=false;
+        foreach(['core','biography','appearance','personality','occupation','skills','speech_style','goals',
+            'race','gender','oghma_knowledge_tags','relationships']as$field){
+            $value=$template['content'][$field]??null;
+            if(!is_string($value)||trim($value)===''||($field==='relationships'&&trim($value)==='{}'))continue;
+            $content[$field]=$value;$changed=true;
+        }
+        if(!$changed)throw new \InvalidArgumentException('biography_template_empty');
+        return$content;
+    }
+
     /** Choose the most specific reusable biography template for a newly observed NPC. */
     private function matchingBiographyTemplate(string $installation,array $identity,array $voice):?array
     {

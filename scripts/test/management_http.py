@@ -540,8 +540,8 @@ global_export_match=re.search(r'/manage/exports/global-settings/([0-9a-f-]{36})\
 global_configuration_id=global_export_match.group(1)
 global_preset_response=request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json')
 global_preset=json.loads(global_preset_response.read().decode())
-assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','name','schema','settings']
-assert global_preset['schema']=='lorkhan.global-settings-preset.v2' and global_preset['settings']['schema']=='lorkhan.global-settings.v2'
+assert global_preset_response.status==200 and sorted(global_preset)==['exported_at','memory_policies','name','schema','settings']
+assert global_preset['schema']=='lorkhan.global-settings-preset.v3' and global_preset['settings']['schema']=='lorkhan.global-settings.v2'
 assert global_preset['settings']['client']['behavior']['rechat_mode']=='group' and global_preset['settings']['client']['behavior']['rechat_allow_actions'] is True and global_preset['settings']['context']['location_blacklist']==['Balmora'] and global_preset['settings']['profile_management']=={'auto_lock_profile':True,'autofill_custom_profiles':True,'autofill_custom_profiles_trigger':25} and global_preset['settings']['relationship']=={'enabled':True,'update_chance_percent':75}
 assert not any(key in global_preset for key in ['installation_id','configuration_id','revision','revisions','routing','api_keys','npc_assignments'])
 invalid_global_preset=dict(global_preset,unexpected='rejected')
@@ -551,10 +551,13 @@ secret_global_preset=dict(global_preset,settings=dict(global_preset['settings'],
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(secret_global_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_global_settings_preset' in invalid_body,(r.status,invalid_body)
 global_preset['settings']['context']['location_blacklist']=['Balmora','Seyda Neen']
+global_preset['memory_policies']['summary'].update(summary_interval=3,minimum_events=6)
+global_preset['memory_policies']['embedding']['timeout_ms']=1700
 r=request(global_import['action'],'POST',dict(global_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(global_preset))); imported_page,imported_body=parse(r)
 imported_export=json.loads(request('/LorkhanServer/manage/exports/global-settings/'+global_configuration_id+'.json').read().decode())
 assert r.status==200 and 'status=imported' in r.geturl() and 'name="knowledge_limit"' not in imported_body and imported_export['settings']['context']['location_blacklist']==['Balmora','Seyda Neen'],(r.status,r.geturl(),imported_export)
 assert 'name="auto_lock_profile" value="1" checked' in imported_body and 'name="oghma_result_limit" value="3"' in imported_body
+assert imported_export['memory_policies']==global_preset['memory_policies']
 global_rollback=next(f for f in imported_page.forms if f['action'].endswith('/forms/global-settings-rollback'))
 assert global_rollback['fields']['configuration_id']==global_configuration_id and int(global_rollback['fields']['revision'])>=1
 r=request(global_rollback['action'],'POST',dict(global_rollback['fields'],_csrf=csrf)); rolled_page,rolled_body=parse(r)
@@ -1178,4 +1181,17 @@ r=request(global_generation_form['action'],'POST',dict(global_generation_form['f
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); body=r.read().decode()
 assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 r=request('/LorkhanServer/manage/login'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
+# Quickstart uses saved connectors, preserves profiles, and rejects stale submissions atomically.
+quickstart,quickstart_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+quickstart_form=next(f for f in quickstart.forms if f['action'].endswith('/forms/quickstart-save'))
+quickstart_values=dict(quickstart_form['fields'],_csrf=csrf)
+assert quickstart_values.get('core_profile_id'),quickstart_values
+model_choices=re.search(r'<select name="llm_configuration_id"[^>]*>(.*?)</select>',quickstart_body,re.S)
+model_choice=re.search(r'<option value="([0-9a-f-]{36})"',model_choices.group(1)); assert model_choice,quickstart_body
+for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']:
+    quickstart_values[field]=model_choice.group(1)
+r=request(quickstart_form['action'],'POST',quickstart_values); saved_body=r.read().decode()
+assert r.status==200 and 'Connector selections saved.' in saved_body,(r.status,saved_body)
+r=request(quickstart_form['action'],'POST',quickstart_values); stale_body=r.read().decode()
+assert r.status in (409,422) and 'revision' in stale_body,(r.status,stale_body)
 print('browser-like management HTTP forms passed')

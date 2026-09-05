@@ -71,7 +71,7 @@ $earlierRevisions = array_values(array_filter(
     $revisionHistory,
     static fn(mixed $revision): bool => is_array($revision) && (int) ($revision['revision'] ?? 0) > 0 && (int) ($revision['revision'] ?? 0) < $settingsRevision
 ));
-$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory service policies are saved separately and are not included. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
+$portableScopeNote = 'A portable file includes shared prompt context, blacklists, automatic dialogue, Rechat, Oghma, translation, relationship evaluation, Auto Lock Profile, and system connector assignments. Memory summary scheduling, its connector reference, and MiniMe settings are included. Older presets preserve these local settings. It never includes installation identity, revision history, API keys, Core Profile response connectors, NPC profiles, voices, or assignments.';
 $statusMessages = [
     'saved' => 'Global settings saved to the database.',
     'imported' => 'Preset imported as a new Global Settings revision.',

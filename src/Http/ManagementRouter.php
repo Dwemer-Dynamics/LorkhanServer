@@ -300,6 +300,8 @@ final class ManagementRouter
             'profile-create'=>$this->createNpcProfile($v,$scope),
             'profile-template-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'actor_identity'=>$this->templateIdentity($v),'content'=>$this->profileContent($v)]),
             'profile-revise'=>$this->reviseNpcProfile($v),
+            'profile-reset-biography'=>$this->resetNpcBiography($v),
+            'quickstart-save'=>$this->saveQuickstart($v,$scope),
             'profile-toggle-favorite'=>$this->toggleNpcProfileManagement($v,'favorite'),
             'profile-toggle-lock'=>$this->toggleNpcProfileManagement($v,'locked'),
             'profile-import'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id']]+$this->profileImportDocument($v)),
@@ -403,6 +405,8 @@ final class ManagementRouter
         }
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
+        if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if($domain==='profile-reset-biography')return$this->redirect($this->characterPageLocation($v,'saved'));
         if($domain==='core-profile-save')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='core-profile-clone')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>(string)$result['core_profile_id'],'status'=>'cloned']));
         if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
@@ -1067,8 +1071,16 @@ final class ManagementRouter
             $this->repository->profileAutoLockEnabled($installation)
         );
         if($this->containsSecretKey($settings))throw new RuntimeException('global_settings_export_rejected');
-        $document=['schema'=>'lorkhan.global-settings-preset.v2','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
-            'name'=>(string)$row['name'],'settings'=>$settings];
+        $memoryPolicies=[
+            'summary'=>$this->repository->memorySummaryPolicyForInstallation($installation)['content']
+                ??['schema'=>'lorkhan.memory-policy.v1','enabled'=>false,'provider_configuration_id'=>''],
+            'embedding'=>$this->repository->memoryEmbeddingPolicyForInstallation($installation)['content']
+                ??\LorkhanServer\Application\MemoryEmbeddingPolicy::defaults(),
+        ];
+        $memoryPolicies['summary']+=['summary_interval'=>0,'minimum_events'=>4];
+        if($this->containsSecretKey($memoryPolicies))throw new RuntimeException('global_settings_export_rejected');
+        $document=['schema'=>'lorkhan.global-settings-preset.v3','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
+            'name'=>(string)$row['name'],'settings'=>$settings,'memory_policies'=>$memoryPolicies];
         return new Response(200,json_encode($document,JSON_THROW_ON_ERROR|JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)."\n",
             ['Content-Type'=>'application/json; charset=utf-8','Content-Disposition'=>'attachment; filename="lorkhan-global-settings.json"',
                 'X-Content-Type-Options'=>'nosniff']);
@@ -1078,28 +1090,47 @@ final class ManagementRouter
     private function importGlobalSettings(array $values,array $scope):array
     {
         $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
-        if($keys!==['exported_at','name','schema','settings']
-            ||!in_array($document['schema']??null,['lorkhan.global-settings-preset.v1','lorkhan.global-settings-preset.v2'],true)
+        $withMemory=($document['schema']??null)==='lorkhan.global-settings-preset.v3';
+        $expectedKeys=$withMemory?['exported_at','memory_policies','name','schema','settings']:['exported_at','name','schema','settings'];
+        if($keys!==$expectedKeys
+            ||!in_array($document['schema']??null,['lorkhan.global-settings-preset.v1','lorkhan.global-settings-preset.v2','lorkhan.global-settings-preset.v3'],true)
             ||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['settings']??null)||$this->containsSecretKey($document))
             throw new InvalidArgumentException('invalid_global_settings_preset');
         $name=trim((string)($document['name']??''));
         if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_global_settings_preset');
+        if($withMemory){
+            $policies=$document['memory_policies'];
+            if(!$this->objectArray($policies))throw new InvalidArgumentException('invalid_memory_policies');
+            $policyKeys=array_keys($policies);sort($policyKeys);
+            if($policyKeys!==['embedding','summary']||!$this->objectArray($policies['summary'])||!$this->objectArray($policies['embedding']))throw new InvalidArgumentException('invalid_memory_policies');
+            \LorkhanServer\Application\MemorySummaryPolicy::validate($policies['summary']);
+            \LorkhanServer\Application\MemoryEmbeddingPolicy::validate($policies['embedding']);
+        }
         $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
-        $settings=EffectiveSettingsResolver::globalDocument(
-            $document['settings'],
-            $this->repository->oghmaSettings($installation),
-            $this->repository->translationPolicyForInstallation($installation)['content'],
-            $this->repository->profileAutoLockEnabled($installation)
-        );
-        $this->syncGlobalSettingsSidecars($settings,$installation,'imported portable Global Settings');
-        $existing=$this->repository->globalSettingsForInstallation($installation);
-        if($existing===null)return$this->service->createRevisioned('global_settings',[
-            'installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings,
-            'change_reason'=>'imported portable Global Settings',
-        ]);
-        return$this->service->revise('global_settings',(string)$existing['configuration_id'],$settings,
-            'imported portable Global Settings');
+        return$this->repository->transaction(function()use($document,$withMemory,$installation,$scope):array{
+            $settings=EffectiveSettingsResolver::globalDocument(
+                $document['settings'],
+                $this->repository->oghmaSettings($installation),
+                $this->repository->translationPolicyForInstallation($installation)['content'],
+                $this->repository->profileAutoLockEnabled($installation)
+            );
+            if($withMemory){
+                foreach($document['memory_policies']as$kind=>$policy){
+                    $enabled=$policy['enabled'];unset($policy['enabled']);if($enabled)$policy['enabled']='1';
+                    if($kind==='summary')$this->saveMemoryPolicy($policy,$scope);
+                    else $this->saveMemoryEmbeddingPolicy($policy,$scope);
+                }
+            }
+            $this->syncGlobalSettingsSidecars($settings,$installation,'imported portable Global Settings');
+            $existing=$this->repository->globalSettingsForInstallation($installation);
+            if($existing===null)return$this->service->createRevisioned('global_settings',[
+                'installation_id'=>$installation,'name'=>'Global Settings','content'=>$settings,
+                'change_reason'=>'imported portable Global Settings',
+            ]);
+            return$this->service->revise('global_settings',(string)$existing['configuration_id'],$settings,
+                'imported portable Global Settings');
+        });
     }
 
     /** Restore an earlier Global Settings document only inside its owning installation. */
@@ -1797,6 +1828,47 @@ final class ManagementRouter
         $input=['installation_id'=>$installation,'name'=>$this->need($values,'name'),'actor_identity'=>$this->profileIdentity($values),'content'=>$content];
         if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){$this->uuid((string)$values['core_profile_id'],'core_profile_id');$input['core_profile_id']=(string)$values['core_profile_id'];}
         return$this->service->createRevisioned('profile',$input);
+    }
+
+    /** Explicit template reset is a reversible profile revision, never a save-game reset. */
+    private function resetNpcBiography(array $values):array
+    {
+        $id=$this->need($values,'profile_id');$this->uuid($id,'profile_id');
+        $expected=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($expected===false||$expected<1||($values['confirm_reset']??'')!=='1')throw new InvalidArgumentException('invalid_profile_reset');
+        return$this->repository->transaction(function()use($id,$expected):array{
+            $profile=$this->repository->getRevisioned('profile',$id);
+            $content=$this->repository->biographyResetContent($profile);
+            if($this->repository->profileAutoLockEnabled((string)$profile['installation_id']))$content['management']['locked']=true;
+            return$this->service->revise('profile',$id,$content,'Reset biography from template',$expected);
+        });
+    }
+
+    /** Configure the selected Core Profile and installation speech routes in one transaction. */
+    private function saveQuickstart(array $values,array $scope):array
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $id=$this->need($values,'core_profile_id');$this->persistentUuid($id,'core_profile_id');
+        $expected=filter_var($values['base_revision']??null,FILTER_VALIDATE_INT);
+        if($expected===false||$expected<1)throw new InvalidArgumentException('invalid_core_profile_revision');
+        return$this->repository->transaction(function()use($values,$installation,$id,$expected):array{
+            $profile=$this->repository->getRevisioned('core_profile',$id);
+            if($profile['installation_id']!==$installation)throw new InvalidArgumentException('invalid_core_profile');
+            $content=$profile['content'];
+            foreach(['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']as$field){
+                $connector=$this->need($values,$field);$this->uuid($connector,$field);
+                $row=$this->repository->getRevisioned('provider',$connector);
+                if($row['installation_id']!==$installation)throw new InvalidArgumentException('invalid_provider');
+                $content['routing'][$field]=$connector;
+            }
+            foreach(['tts_provider','stt_provider']as$kind){
+                $connector=trim((string)($values[$kind]??''));
+                if($connector==='')continue;
+                $this->service->selectConnector(['installation_id'=>$installation,'kind'=>$kind,'configuration_id'=>$connector]);
+                if($kind==='tts_provider')$content['routing']['tts_configuration_id']=$connector;
+            }
+            return$this->service->revise('core_profile',$id,$content,'Quickstart connector selection',$expected);
+        });
     }
 
     /** Save a manual NPC revision and auto-lock it when that installation preference is enabled. */

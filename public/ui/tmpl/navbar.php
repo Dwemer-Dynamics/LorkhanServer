@@ -20,6 +20,7 @@ $topNavSection=$topNavSection??match(true){
                 <ul class="dropdown-menu brand-menu">
                     <?php foreach([
                         'home'=>['Home',$webRoot.'/ui/home.php'],
+                        'quickstart'=>['Quickstart',$webRoot.'/ui/quickstart.php'],
                         'roleplay'=>['Roleplay',$webRoot.'/ui/events-memories.php'],
                         'configuration'=>['Configuration',$webRoot.'/ui/core/config_hub.php'],
                         'control'=>['Control Panel',$webRoot.'/ui/control_panel.php'],

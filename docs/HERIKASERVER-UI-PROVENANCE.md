@@ -75,3 +75,18 @@ PostgreSQL migrations, OpenMW identities, and the revisioned Global Settings -> 
 resolver. The Herika STT connector page is rewired as a single installation-global LORKHAN connector;
 the ITT page and Soulgaze surface are removed for beta, while remaining Skyrim-only and Background
 Life controls stay excluded.
+
+
+## Quickstart and biography reset parity follow-up
+
+Reference: HerikaServer `b08ffba70178abca08d7023c9304f46d57139045`.
+`public/ui/quickstart.php` and `public/ui/css/quickstart.css` reimplement the
+section/card setup workflow from `ui/quickstart.php`, using Lorkhan's existing
+connectors, Core Profiles, CSRF, and revision services. No Herika configuration
+writer or arbitrary endpoint probe is imported.
+
+The Reset NPC action in `public/ui/tmpl/resource_page.php` follows
+`ui/core/npc_master.php`'s non-empty biography template reset. Lorkhan matches
+stable record/content identities and writes an explicit reversible revision;
+voice, routing and game saves are preserved. This is distinct from CHIM's
+save-time profile history pullback, which remains outside this web workflow.

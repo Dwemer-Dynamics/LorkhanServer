@@ -265,6 +265,13 @@ $portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],tr
 $assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
     &&($portableActorIdentity['kind']??null)==='npc',
     'first-seen OpenMW actor did not inherit the exact imported biography template');
+$resetCandidate=$portableProfile;$resetCandidate['content']['biography']='Manual biography';
+$resetCandidate['content']['voice']=['id'=>'PreservedVoice','language'=>'en'];
+$resetCandidate['content']['notes']='Preserved notes';
+$resetContent=$products->biographyResetContent($resetCandidate);
+$assert($resetContent['biography']==='Portable biography v2.'
+    &&$resetContent['voice']===$resetCandidate['content']['voice']&&$resetContent['notes']==='Preserved notes',
+    'biography reset must reload only filled template fields and preserve voice and unrelated data');
 $products->deleteRevisioned('profile',$portableTemplateId,$now);
 $factoryDirectory=sys_get_temp_dir().'/lorkhan-biography-factory-'.bin2hex(random_bytes(4));
 mkdir($factoryDirectory,0700,true);$factoryBiographies=$factoryDirectory.'/biographies.json';$factoryManifest=$factoryDirectory.'/manifest.json';
