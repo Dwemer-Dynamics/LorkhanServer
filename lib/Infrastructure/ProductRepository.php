@@ -1691,9 +1691,9 @@ final class ProductRepository
         return (new MemoryEmbeddingRepository($this->db))->enqueueBatch($installation,$limit);
     }
 
-    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit):array
+    public function enqueueRelationshipBuild(array $scope,string $requestId,int $limit,string $direction=''):array
     {
-        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit);
+        return (new RelationshipBuildRepository($this->db))->enqueue($scope,$requestId,$limit,$direction);
     }
 
     public function enqueueRelationshipConversion(array $scope,string $requestId,string $mode):array

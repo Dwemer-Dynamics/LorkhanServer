@@ -1133,14 +1133,18 @@ $products->setRelationship($buildScope+['actor_identity'=>$turn['payload']['spea
 $omittedIdentity=$speechTarget;$omittedIdentity['refnum']['index']+=321;
 $products->setRelationship($buildScope+['actor_identity'=>$omittedIdentity,
     'disposition'=>11,'affinity'=>12,'source_mode'=>'manual','custom_info'=>$privateBuildNote],$now);
-$buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest);
-$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
+$buildDirection='Focus on House hierarchy.';
+$buildRequest=$newUuid(5704);$buildJob=$builds->enqueue($buildScope,$buildRequest,100,$buildDirection);
+$assert($builds->enqueue($buildScope,$buildRequest,100,' '.$buildDirection.' ')['job_id']===$buildJob['job_id'],'manual build request was not idempotent');
+try{$builds->enqueue($buildScope,$buildRequest,100,'Different direction');throw new RuntimeException('build direction changed on retry');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_request_conflict','unexpected build direction conflict');}
 try{$builds->enqueue($buildScope,$newUuid(5705));throw new RuntimeException('parallel history build accepted');}
 catch(InvalidArgumentException $error){$assert($error->getMessage()==='relationship_build_pending','unexpected pending-build error');}
 $buildProvider=new class implements \LorkhanServer\Application\ProfileGenerationProvider {
     public int $calls=0;public mixed $during=null;public bool $unknownTarget=false;
     public function generate(array $input,\LorkhanServer\Application\CancellationToken $cancellation):array{
         ++$this->calls;$cancellation->throwIfCancellationRequested();
+        if(($input['user_direction']??null)!=='Focus on House hierarchy.')throw new RuntimeException('player direction did not reach relationship model');
         if(count($input['exchanges'])!==2||count($input['interlocutors'])!==2
             ||!in_array('professional',$input['available_relationship_types']??[],true))throw new RuntimeException('history was reduced to one exchange or target');
         if(str_contains(json_encode($input,JSON_THROW_ON_ERROR),'PLAYER-ONLY CUSTOM INFO'))throw new RuntimeException('private relationship text reached AI');
@@ -1182,7 +1186,7 @@ $assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['relati
 $buildStatus=$builds->recentJobs($buildScope);
 $assert(count($buildStatus)===1&&$buildStatus[0]['outcome']==='succeeded'&&(int)$buildStatus[0]['changed_count']===2
     &&$builds->recentJobs(array_replace($buildScope,['profile_id'=>$newUuid(5706)]))===[], 'history build status escaped its scope');
-$assert($builds->enqueue($buildScope,$buildRequest)['job_id']===$buildJob['job_id']&&$buildWorker()['claimed']===0,
+$assert($builds->enqueue($buildScope,$buildRequest,100,$buildDirection)['job_id']===$buildJob['job_id']&&$buildWorker()['claimed']===0,
     'completed history request was reapplied');
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
     ->execute(['id'=>$buildJob['job_id']]);
@@ -1200,6 +1204,7 @@ $buildProvider->during=static function()use($db,$historyDelivery):void{
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===2
     &&(int)$db->query('SELECT count(*) FROM relationship_build_results')->fetchColumn()===0,
     'history suppressed during provider I/O still changed relationships');
+$assert($builds->recentJobs($buildScope)[0]['outcome']==='stale','cancelled build was reported as an applied success');
 $db->exec('ROLLBACK TO SAVEPOINT history_queued');
 $buildProvider->during=static function()use($products,$buildScope,$speechTarget,$now):void{
     $created=$products->setRelationship($buildScope+['actor_identity'=>$speechTarget,'disposition'=>90,'affinity'=>80,

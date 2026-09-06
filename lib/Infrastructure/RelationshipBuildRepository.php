@@ -17,14 +17,15 @@ final class RelationshipBuildRepository
     }
 
     /** Queue one bounded analysis, never a history scan from page viewing or automatic chance. */
-    public function enqueue(array $scope,string $requestId,int $limit=100):array
+    public function enqueue(array $scope,string $requestId,int $limit=100,string $direction=''):array
     {
         foreach(['installation_id','profile_id','playthrough_id'] as $field)
             if(!is_string($scope[$field]??null)||!Uuid::isValid($scope[$field]))
                 throw new \InvalidArgumentException('invalid_relationship_scope');
         if(!Uuid::isValid($requestId)||$limit<1||$limit>100)throw new \InvalidArgumentException('invalid_relationship_build_request');
+        $direction=RelationshipBuildPolicy::direction($direction);
         $scope=['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id']];
-        return $this->transaction(function()use($scope,$requestId,$limit):array{
+        return $this->transaction(function()use($scope,$requestId,$limit,$direction):array{
             $state=$this->scopeState($scope);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
             $lock->execute(['key'=>'relationship.build:'.implode(':',$scope)]);
@@ -35,7 +36,8 @@ final class RelationshipBuildRepository
                 $payload=json_decode($existing['payload'],true,64,JSON_THROW_ON_ERROR);
                 foreach($scope as $field=>$value)if(($payload[$field]??null)!==$value)
                     throw new \InvalidArgumentException('relationship_build_request_conflict');
-                if($payload['history_limit']!==$limit)throw new \InvalidArgumentException('relationship_build_request_conflict');
+                if($payload['history_limit']!==$limit||($payload['direction']??'')!==$direction)
+                    throw new \InvalidArgumentException('relationship_build_request_conflict');
                 return ['job_id'=>$existing['job_id'],'state'=>$existing['state']];
             }
             $pending=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='relationship.build' AND state IN ('queued','leased')
@@ -58,9 +60,9 @@ final class RelationshipBuildRepository
                 ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT :limit");
             foreach($scope as $field=>$value)$query->bindValue(':'.$field,$value);
             $query->bindValue(':limit',$limit,PDO::PARAM_INT);$query->execute();
-            $snapshot=$this->snapshot($scope,array_reverse($query->fetchAll(PDO::FETCH_COLUMN)),true);
+            $snapshot=$this->snapshot($scope,array_reverse($query->fetchAll(PDO::FETCH_COLUMN)),true,$direction);
             if($snapshot===null)throw new \InvalidArgumentException('relationship_build_no_history');
-            $payload=$scope+$state+$policy+['request_id'=>$requestId,'history_limit'=>$limit,
+            $payload=$scope+$state+$policy+['request_id'=>$requestId,'history_limit'=>$limit,'direction'=>$direction,
                 'provider_revision'=>(int)$providerRevision,'source_ids'=>$snapshot['source_ids'],
                 'source_hashes'=>$snapshot['source_hashes'],'targets'=>$snapshot['targets'],
                 'relationship_types'=>$snapshot['relationship_types'],
@@ -94,7 +96,7 @@ final class RelationshipBuildRepository
     public function input(array $payload):?array
     {
         if(!$this->current($payload))return null;
-        try{$snapshot=$this->snapshot($payload,$payload['source_ids']);}catch(\InvalidArgumentException){return null;}
+        try{$snapshot=$this->snapshot($payload,$payload['source_ids'],false,RelationshipBuildPolicy::direction($payload['direction']??''));}catch(\InvalidArgumentException){return null;}
         if($snapshot===null||$snapshot['source_ids']!==$payload['source_ids']
             ||$snapshot['source_hashes']!=$payload['source_hashes']||$snapshot['targets']!=$payload['targets']
             ||$snapshot['relationship_types']!==($payload['relationship_types']??null)
@@ -175,7 +177,7 @@ final class RelationshipBuildRepository
     }
 
     /** Bound recent source reads and reject ambiguous actors or oversized input instead of silently truncating. */
-    private function snapshot(array $scope,array $ids,bool $skipIneligible=false):?array
+    private function snapshot(array $scope,array $ids,bool $skipIneligible=false,string $direction=''):?array
     {
         if($ids===[]||count($ids)>100)return null;
         $products=new ProductRepository($this->db);$hashes=[];$targets=[];$records=[];$exchanges=[];$owner=null;$ownerKey=null;
@@ -205,6 +207,7 @@ final class RelationshipBuildRepository
         $types=$this->evaluations->typeCatalog($scope);
         $model=['generation_mode'=>'relationship_build','owner'=>$owner,'interlocutors'=>$people,
             'available_relationship_types'=>$types['relationship_types'],'exchanges'=>$exchanges];
+        if($direction!=='')$model['user_direction']=$direction;
         if(strlen(json_encode($model,JSON_THROW_ON_ERROR))>65536)throw new \InvalidArgumentException('relationship_build_too_large');
         return ['source_ids'=>array_keys($hashes),'source_hashes'=>$hashes,'targets'=>$targets,'records'=>$records,'model'=>$model]+$types;
     }

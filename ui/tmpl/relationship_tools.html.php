@@ -24,6 +24,7 @@
             <input type="hidden" name="request_id" value="<?php echo \LorkhanServer\Infrastructure\Uuid::v4(); ?>">
             <input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
             <div class="management-field"><?php lorkhan_relationship_select('history_limit','Recent conversations to check',[10=>'10',25=>'25',50=>'50',100=>'100'],(string)$buildLimit); ?></div>
+            <label class="management-field">Direction (optional):<textarea name="direction" maxlength="2000" rows="3" placeholder="e.g., Focus on House hierarchy, or this NPC's distrust of strangers"></textarea></label>
             <button class="btn-base btn-primary" type="submit">Build relationships</button>
         </form>
         <details><summary>How this works</summary><p>Uses the saved Relationship LLM and honors Relationship Lock. Automatic update chance does not apply, even at 0%. You can build after a session ends.</p>

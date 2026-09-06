@@ -607,6 +607,8 @@
             dialog.addEventListener('keydown', event => {if(event.key==='Escape')event.stopPropagation();});
             dialog.addEventListener('close', () => {
                 dialog.hidden=true;
+                const direction=dialog.querySelector('textarea[name="direction"]');
+                if(direction)direction.value='';
                 const trigger=view.querySelector(`[data-rel-details="${dialog.id}"]`);
                 trigger?.setAttribute('aria-expanded','false');trigger?.focus();
             });

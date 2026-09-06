@@ -5,6 +5,14 @@ namespace LorkhanServer\Application;
 /** Manual history analysis accepts scores only for server-selected interlocutors. */
 final class RelationshipBuildPolicy
 {
+    /** Optional player guidance is bounded independently of witnessed conversation text. */
+    public static function direction(mixed $value):string
+    {
+        if(!is_string($value)||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0")||mb_strlen($value,'UTF-8')>2000)
+            throw new \InvalidArgumentException('invalid_relationship_build_direction');
+        return trim($value);
+    }
+
     public static function output(array $output):array
     {
         if(array_keys($output)!==['relationships']||!is_array($output['relationships'])

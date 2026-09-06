@@ -307,7 +307,8 @@ final class ManagementRouter
             $limit=filter_var($v['history_limit']??null,FILTER_VALIDATE_INT);
             if($limit===false||$limit<1||$limit>100)throw new InvalidArgumentException('invalid_relationship_build_request');
             try{
-                $this->repository->enqueueRelationshipBuild($scope,$request,$limit);
+                $this->repository->enqueueRelationshipBuild($scope,$request,$limit,
+                    \LorkhanServer\Application\RelationshipBuildPolicy::direction($v['direction']??''));
                 $status='relationship_build_requested';
             }catch(InvalidArgumentException $error){
                 $status=$error->getMessage();

@@ -745,3 +745,10 @@ dialog.npc-rel-build::backdrop{background:rgba(0,0,0,.7)}
 .npc-rel-lock small{color:#888;margin-right:8px;font-size:.85em}
 .npc-rel-lock .npc-inherit-button{font-size:.8em!important;min-height:24px!important;padding:3px 7px!important}
 body .npc-relationships .npc-rel-build button.btn-danger[type=submit]{background:#6f3030!important;border-color:#a84b4b!important;color:#fff!important}
+.npc-rel-history-build h3{font-weight:400}.npc-rel-history-build p{font-size:13.5px;line-height:1.45;margin-bottom:12px}
+.npc-rel-history-build .npc-rel-warning{font-size:13.2px;line-height:1.35}
+.npc-rel-build .npc-rel-direction{display:block;flex-basis:100%;color:#ccc;font-size:12.75px;line-height:1.5}
+.npc-rel-build .npc-rel-direction textarea{display:block;width:100%;height:96px!important;min-height:96px!important;margin-top:4px;background:#262626;border:1px solid #4a4a4a;border-radius:4px;color:#e9efff;padding:8px;resize:vertical;font-weight:400}
+.npc-rel-build-buttons{display:flex;flex-basis:100%;gap:8px;justify-content:flex-end;margin-top:8px}
+.npc-rel-build-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:.85em;color:#86efac}
+.npc-rel-build-status span{color:#888}.npc-rel-build-status a{color:var(--chim-accent)}

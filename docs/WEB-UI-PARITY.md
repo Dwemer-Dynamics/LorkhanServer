@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All added; details/save semantics, remaining General/Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; details/save semantics, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -1623,3 +1623,43 @@ Remaining Core Profile requirements identified from the pinned source and live e
   deployed checkbox now sits beside its text. At 390px the deployed document
   client/scroll widths are both 390px. No live form was submitted. Populated
   mutation coverage is isolated; this is not in-game validation or full parity.
+
+### NPC Relationships — Build direction and outcome
+
+- Compared the Build with AI dialog against the pinned Herika component. Added
+  Direction (optional), matched its 96px rendered textarea, compact description,
+  merge warning and right-aligned Cancel/Build controls. Kept the native bounded
+  recent-conversation selector and gold branding. Cancel/Escape clears unsent
+  direction and restores the trigger; opening the dialog never starts a job.
+- Direction reaches the durable build payload and the recorded provider input as
+  user_direction. It is optional, trimmed, UTF-8 text bounded to 2,000 characters;
+  the full model-input byte limit still applies. Retrying an existing request with
+  different direction is rejected. Older jobs without direction still use empty
+  guidance. The model contract distinguishes player guidance from witnessed
+  events and retains the supplied actor/type constraints and private-note guard.
+- The NPC tab now shows the latest scoped build outcome from the existing job and
+  receipt reader. A queued/leased request is not called applied; only a committed
+  receipt shows the updated-record count. A completed job without a receipt is
+  shown as stopped without saving. Reload for status keeps NPC/playthrough and
+  list filters without putting direction text in the URL. The older log-page
+  builder has the same direction input until its remaining tools are relocated.
+- Existing tests: 362 server checks, 98 protocol files, management HTTP, full
+  integration, migrations/durable jobs and syntax checks passed. The mock build
+  worker verifies exact direction delivery, retry conflicts, atomic saves,
+  cancellation outcome and retained private Custom Info. The provider request
+  observer checks the real message construction before any network request.
+- Actual component fixtures cover populated completed status and empty state.
+  Browser review compared source/reference dialogs, tested direction entry,
+  Cancel/Escape and focus restoration. At 390px the source document/client/scroll
+  widths are 375px; the dialog is 337.5px wide and its client/scroll widths are
+  both 336px. Populated build status is synthetic, not a live provider test.
+- Remaining NPC parity includes the complete relationship details dialog,
+  profile-level staged saves, all-record/history access, General/Info and the
+  full editor/list review. The all-pages matrix and goal remain active.
+- Deployed locally with rollback /var/backups/lorkhanserver-code.bQcUBk.
+  All 722 runtime files match source; no extras or old paths remain. Health,
+  private-file protection and unauthorized-session checks pass. Configuration,
+  credentials and voice hashes were preserved. Live Fargoth displays the new
+  direction dialog and Cancel closes it without saving. There are no live build
+  outcomes to display: relationship records/audit/provider-attempt counts remain
+  0/0/0 before and after deployment and read-only browser inspection.

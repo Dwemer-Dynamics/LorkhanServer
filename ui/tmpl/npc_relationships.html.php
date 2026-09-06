@@ -9,6 +9,7 @@ if(!is_array($relData)){
     $relData=['records'=>$relReady?$GLOBALS['uiRepository']->rows('relationships',$installationId,$relScope):[],
         'history'=>$relReady?$GLOBALS['uiRepository']->rows('relationship_logs',$installationId,$relScope):[],
         'actors'=>$creating?[]:$GLOBALS['uiRepository']->rows('relationship_profiles',$installationId),
+        'build_jobs'=>$relReady?(new \LorkhanServer\Infrastructure\RelationshipBuildRepository($GLOBALS['database']))->recentJobs(['installation_id'=>$installationId]+$relScope):[],
         'clear_snapshot'=>$relReady?$GLOBALS['productRepository']->relationshipClearSnapshot(['installation_id'=>$installationId]+$relScope):['count'=>0,'token'=>md5('')]];
 }
 $relRecords=$relData['records'];$relHistory=$relData['history'];$relActors=[];
@@ -23,6 +24,8 @@ $relTypeIcons=array_combine(\LorkhanServer\Application\RelationshipType::BUILT_I
 $relTypeOptions=static function(string$current)use($relTypes,$relTypeIcons):void{foreach($relTypes as$type)echo'<option value="'.lorkhan_ui_h($type).'"'.($type===$current?' selected':'').'>'.($relTypeIcons[$type]??'🏷️').' '.lorkhan_ui_h(ucfirst($type)).'</option>';};
 $relKey='npc-rel-'.substr(hash('sha256',$profileId),0,12);
 $relHidden=['_csrf'=>$csrf,'installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>$relPlaythrough,'relationship_page'=>'npc']+$listState;
+$relReturnQuery=['rel_profile'=>$profileId,'rel_playthrough'=>$relPlaythrough];
+foreach($listState as$key=>$value)if(str_starts_with($key,'ui_'))$relReturnQuery[substr($key,3)]=$value;
 $relHiddenFields=static function(array$values):void{foreach($values as$key=>$value)echo'<input type="hidden" name="'.lorkhan_ui_h($key).'" value="'.lorkhan_ui_h((string)$value).'">';};
 $relDefaults=[];
 foreach($coreProfileRows as$core){
@@ -107,13 +110,26 @@ $relNotice=match($relStatus){
         <label>Type Clear to confirm<input name="confirm_clear" required pattern="Clear" autocomplete="off"></label><button type="button" data-rel-details="<?=$relKey?>-clear">Cancel</button><button type="submit" class="btn-danger">Clear All</button>
     </form></dialog>
     <dialog id="<?=$relKey?>-custom-type" class="npc-rel-build" aria-label="Add Custom Relationship Type" hidden><h3>🏷️ Add Custom Relationship Type</h3><p>Create a type such as client, mentor or servant. Select it on a relationship and save that row to retain it.</p><form data-rel-custom-type><label>Type Name<input name="custom_type" required maxlength="50" pattern="[a-zA-Z][a-zA-Z0-9_-]{0,49}" placeholder="e.g., client"></label><button type="button" data-rel-details="<?=$relKey?>-custom-type">Cancel</button><button type="submit">Add Type</button><span role="status" data-rel-custom-status></span></form></dialog>
-    <dialog id="<?=$relKey?>-build" class="npc-rel-build" aria-label="Build Relationships with AI" hidden><h3>🤖 Build Relationships with AI</h3><p>Analyze recent played conversations involving this NPC.</p><p class="npc-rel-warning">Existing scores for the same actors may be replaced. Custom Info stays unchanged.</p>
+    <dialog id="<?=$relKey?>-build" class="npc-rel-build npc-rel-history-build" aria-label="Build Relationships with AI" hidden><h3>🤖 Build Relationships with AI</h3><p>Uses recent played conversations involving this NPC to infer affinity scores and relationship types.</p><p class="npc-rel-warning"><strong>Merge warning:</strong> Existing scores for the same actors may be replaced. Custom Info stays unchanged.</p>
         <form method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationship-history-build')?>">
             <?php $relHiddenFields($relHidden+['request_id'=>\LorkhanServer\Infrastructure\Uuid::v4()]); ?>
             <label>Recent conversations<select name="history_limit"><?php foreach([10,25,50,100]as$limit): ?><option value="<?=$limit?>"<?=$limit===100?' selected':''?>><?=$limit?></option><?php endforeach; ?></select></label>
-            <button type="button" data-rel-details="<?=$relKey?>-build">Cancel</button><button type="submit">🤖 Build</button>
+            <label class="npc-rel-direction">Direction (optional):<textarea name="direction" maxlength="2000" rows="3" placeholder="e.g., Focus on House hierarchy, or this NPC's distrust of strangers"></textarea></label>
+            <div class="npc-rel-build-buttons"><button type="button" data-rel-details="<?=$relKey?>-build">Cancel</button><button type="submit">🤖 Build</button></div>
         </form>
     </dialog>
+    <?php $relBuildJobs=$relData['build_jobs']??[];if($relBuildJobs!==[]): ?>
+    <div class="npc-rel-build-status" role="status">
+        <?php $job=$relBuildJobs[0];$outcome=match($job['outcome']){
+            'queued'=>'Waiting to start','leased'=>'Analyzing recent event history…',
+            'succeeded'=>'Finished: '.(int)$job['changed_count'].' relationships updated',
+            'stale'=>'Stopped before saving; nothing changed','dead'=>'Did not finish; nothing changed',default=>'Unavailable',
+        }; ?>
+        <strong><?=lorkhan_ui_h($outcome)?></strong>
+        <span><?=(int)$job['source_count']?> conversations · <time datetime="<?=lorkhan_ui_h($job['created_at'])?>"><?=lorkhan_ui_h(gmdate('j M Y, H:i',strtotime($job['created_at'])))?> UTC</time></span>
+        <a href="<?=lorkhan_ui_h($uiRoot.'/ui/core/npc_master.php?'.http_build_query($relReturnQuery))?>">Reload for status</a>
+    </div>
+    <?php endif; ?>
     <small class="npc-rel-save-note">Relationship rows save separately from the NPC profile. Use the row Save button after editing. Use Add Custom Type for another label.</small>
     <section class="npc-relationship-history"><header><h3>Recent Relationship Changes</h3><p>Read-only history for this NPC. The current relationships above remain editable.</p></header>
     <?php if($relHistory===[]): ?><p class="npc-rel-empty">No relationship changes recorded for this NPC yet.</p><?php else: ?><ol><?php foreach(array_slice($relHistory,0,20)as$change): $before=$change['before_value']??[];$after=$change['after_value']??[];$delta=(int)($after['affinity']??0)-(int)($before['affinity']??0); ?>

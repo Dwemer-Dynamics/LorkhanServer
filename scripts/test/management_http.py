@@ -771,6 +771,8 @@ build_page,build_body=parse(request('/LorkhanServer/ui/relationship_logs.php?'+b
 build_form=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))
 build_values=dict(build_form['fields'],_csrf=csrf,history_limit='25')
 assert build_form['fields']['history_limit']=='100' and uuid.UUID(build_values['request_id'])
+assert 'name="direction"' in build_body and 'maxlength="2000"' in build_body
+assert request(build_form['action'],'POST',dict(build_values,direction='x'*2001)).status==422
 r=request(build_form['action'],'POST',build_values); build_page,build_body=parse(r)
 assert r.status==200 and 'relationship_build_no_connector' in r.geturl() and 'role="alert"' in build_body
 build_retry=next(f for f in build_page.forms if f['action'].endswith('/forms/relationship-history-build'))

@@ -22,6 +22,7 @@ final class RelationshipBuildJobHandler implements JobHandler
 
     public function handle(array $payload,string $idempotencyKey,callable $heartbeat):void
     {
+        RelationshipBuildPolicy::direction($payload['direction']??'');
         foreach(['installation_id','profile_id','playthrough_id','request_id','provider_configuration_id'] as $field)
             if(!is_string($payload[$field]??null)||!Uuid::isValid($payload[$field]))
                 throw new \InvalidArgumentException('invalid_relationship_build_job');
