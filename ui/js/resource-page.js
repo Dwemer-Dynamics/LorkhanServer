@@ -1,12 +1,30 @@
 (() => {
     const dirtyForms = new Set();
 
-    // The Player toolbar keeps portable import outside the unsaved profile form.
-    const playerImport = document.getElementById('player-import-dialog');
-    const playerImportButton = document.querySelector('[data-player-import-open]');
-    playerImportButton?.addEventListener('click', () => playerImport.showModal());
-    playerImport?.querySelectorAll('[data-player-import-close]').forEach(button => button.addEventListener('click', () => playerImport.close()));
-    playerImport?.addEventListener('close', () => playerImportButton.focus());
+    // Portable imports stay outside the unsaved Player and Narrator profile forms.
+    ['player','narrator'].forEach(kind => {
+        const dialog = document.getElementById(`${kind}-import-dialog`);
+        const opener = document.querySelector(`[data-${kind}-import-open]`);
+        if (!dialog || !opener) return;
+        opener.addEventListener('click', () => dialog.showModal());
+        dialog.querySelectorAll(`[data-${kind}-import-close]`).forEach(button => button.addEventListener('click', () => dialog.close()));
+        dialog.addEventListener('close', () => opener.focus());
+    });
+    const narratorCore = document.querySelector('[data-narrator-connectors]');
+    if (narratorCore) {
+        let summaries = null;
+        try { summaries = JSON.parse(narratorCore.dataset.narratorConnectors); } catch (_) { /* Keep the server-rendered labels if malformed. */ }
+        const updateNarratorConnectors = () => {
+            if (!summaries || typeof summaries !== 'object') return;
+            const summary = summaries[narratorCore.value] || {};
+            document.querySelectorAll('[data-narrator-connector]').forEach(label => {
+                label.textContent = summary[label.dataset.narratorConnector] || '—';
+            });
+        };
+        narratorCore.addEventListener('change', updateNarratorConnectors);
+        narratorCore.form?.addEventListener('reset', () => window.setTimeout(updateNarratorConnectors, 0));
+        updateNarratorConnectors();
+    }
     const playerTts = document.getElementById('player-tts');
     const playerTtsStatus = document.querySelector('[data-player-tts-status]');
     if (playerTts && playerTtsStatus) {

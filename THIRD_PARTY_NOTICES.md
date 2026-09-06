@@ -37,6 +37,11 @@ derive from that revision's `ui/core/player_management.php` and
 `ui/css/player-narration.css`. Lorkhan keeps scoped player identity, revisioned
 portable settings and typed OpenMW game statistics.
 
+Narrator Management's toolbar, switch/field-chip presentation and selected profile
+connector summary derive from that revision's `ui/core/narrator_management.php`
+and `ui/css/player-narration.css`. Lorkhan preserves its supported narrator routes
+and scoped, revisioned import forms.
+
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under

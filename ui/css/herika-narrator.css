@@ -11,7 +11,7 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-.narrator-page.embedded { padding-top: 20px; }
+.narrator-page.embedded { padding:8px 14px 18px; }
 .narrator-page-container { width: 100%; max-width: 1200px; }
 
 .narrator-page .page-header {
@@ -215,7 +215,10 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 
 .narrator-dynamic-profile-card h3 { margin: 0; color: rgb(188, 157, 90); font-size: 1.15em; font-weight: 600; }
 .narrator-field-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 10px; }
-.narrator-field-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #4a4a4a; border-radius: 8px; background: rgba(42, 42, 42, .8); color: #999; cursor: not-allowed; }
+.narrator-field-chip { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border: 1px solid #4a4a4a; border-radius: 8px; background: rgba(42, 42, 42, .8); color: #cfd8e3; cursor: pointer; transition: background .2s ease, border-color .2s ease; }
+.narrator-field-chip:hover { background: rgba(52,52,52,.9); border-color: #5a5a5a; }
+.narrator-field-chip:has(input:checked) { background: rgba(32,122,74,.25); border-color: rgba(72,187,120,.5); }
+.narrator-field-chip input[type="checkbox"] { accent-color: #176529; transform: scale(1.3); cursor: pointer; }
 
 .narrator-connector-summary { display: grid; grid-template-columns: auto 1fr; gap: 8px; color: #cfd9ea; font-size: 13px; line-height: 1.6; }
 .narrator-connector-summary dt { color: rgb(188, 157, 90); font-weight: 600; }
@@ -240,13 +243,10 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-advanced-placeholder p { margin: 0 0 12px; }
 .narrator-advanced-placeholder button:disabled { padding: 6px 12px; border: 1px solid #555; border-radius: 6px; background: #333; color: #999; cursor: not-allowed; }
 
-/* Portable narrator settings disclosure rendered outside the profile save form. */
-.narrator-portability > .narrator-advanced-summary:focus-visible { outline: 2px solid rgba(188, 157, 90, .6); outline-offset: -2px; }
+/* Portable narrator settings stay outside the profile save form. */
 .narrator-portability .narrator-advanced-panel > .narrator-hint { margin-top: 0; }
 .narrator-portability-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 12px; }
 .narrator-portability-actions .narrator-save-button { margin: 0; }
-.narrator-portable-export { border-color: rgba(120, 170, 235, .35); background: #1b4f8c; text-decoration: none; }
-.narrator-portable-export:hover { background: #2463ab; color: #fff; }
 .narrator-portability-form { margin-top: 16px; padding: 18px; border: 1px solid #3a3a3a; border-radius: 10px; background: linear-gradient(135deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); }
 .narrator-portability-field { margin-bottom: 12px; }
 .narrator-portability-field label { display: block; margin: 0 0 6px; color: rgb(188, 157, 90); font-size: 13px; font-weight: 600; }
@@ -314,11 +314,11 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-content-section input[type="text"],
 .narrator-content-section input[type="number"],
 .narrator-content-section select,
-.narrator-content-section textarea { margin-bottom: 0; padding: 7px 9px; border-radius: 5px; font-size: .88rem; line-height: 1.35; }
+.narrator-content-section textarea { margin-bottom: 4px; padding: 7px 9px; border-radius: 5px; font-size: .88rem; line-height: 1.35; }
 .narrator-content-section textarea { min-height: 82px; }
-.narrator-toggle-row { min-height: 38px; margin: 8px 0 0; padding: 7px 10px; border-radius: 5px; background: #202020; }
+.narrator-toggle-row { min-height: 38px; margin: 8px 0 10px; padding: 7px 10px; border-radius: 5px; background: #202020; }
 .narrator-hint { margin: 4px 0 6px; padding-left: 0; font-size: .76rem; line-height: 1.35; }
-.narrator-toggle-row + .narrator-hint { margin: 3px 0 8px; }
+.narrator-toggle-row + .narrator-hint { margin: 3px 0 12px 62px; padding-left: 2px; }
 .narrator-save-row { flex-wrap: wrap; gap: 8px; margin: 0 0 12px; }
 .narrator-save-button { min-height: 34px; margin: 0; padding: 6px 12px; border-radius: 5px; box-shadow: none; font-size: .86rem; }
 .narrator-save-button:hover { transform: none; box-shadow: none; }
@@ -330,13 +330,29 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-portability-form { padding: 14px; border-radius: 6px; }
 
 @media (max-width: 760px) {
+    .narrator-page,.narrator-page.embedded { padding-left:8px; padding-right:8px; }
     .narrator-page .page-header.lorkhan-page-head { align-items: flex-start; flex-direction: column; }
     .narrator-page .page-header.lorkhan-page-head p { flex-basis: auto; width: 100%; }
 }
+
+/* Herika's top transfer toolbar; Lorkhan retains explicit scoped import confirmation. */
+.narrator-save-row.settings-page-actions { gap:7px; }
+.narrator-transfer-button { display:inline-flex; align-items:center; justify-content:center; min-height:34px; padding:6px 12px; border:1px solid #4a4a4a; border-radius:5px; background:#333; color:#fff; font-size:.86rem; font-weight:600; line-height:1.2; text-decoration:none; cursor:pointer; }
+.narrator-transfer-button:hover { background:#444; color:#fff; }
+.narrator-portability { width:90%; max-width:760px; max-height:90vh; margin:2% auto; padding:0; overflow:hidden; color:#eee; }
+.narrator-portability:not([open]) { display:none; }
+.narrator-portability[open] { display:flex; flex-direction:column; }
+.narrator-portability::backdrop { background:rgba(0,0,0,.8); }
+.narrator-portability .modal-header { padding:14px 16px; }
+.narrator-portability .modal-header h2 { margin:0; font:1.3rem MagicCards,serif; }
+.narrator-portability .narrator-advanced-panel { min-height:0; overflow:auto; padding:16px; }
+.narrator-portability .narrator-portability-form { margin:0; padding:0; border:0; background:none; }
+.narrator-portability :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
 
 @media (max-width: 480px) {
     .narrator-content-section { padding: 11px; }
     .narrator-page .page-header.lorkhan-page-head h1 { font-size: 1.2rem; }
     .narrator-toggle-row { padding: 7px 9px; }
+    .narrator-toggle-row + .narrator-hint { margin-left: 0; }
     .narrator-save-row > * { flex: 1 1 auto; justify-content: center; text-align: center; }
 }

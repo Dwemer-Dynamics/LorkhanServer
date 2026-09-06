@@ -74,7 +74,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; remaining General, Relationships, Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
-| `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
+| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips and live selected-profile connector summary aligned; core semantics and embedded Actions/Prompts still pending |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
@@ -1123,3 +1123,37 @@ Remaining Core Profile requirements identified from the pinned source and live e
   lorkhanserver-code.YKnc8T. Live inventory still falls back to record IDs when
   names were not supplied, and compound skill labels need catalog formatting;
   these data-label gaps remain in the Player follow-up scope.
+
+### Narrator Management: toolbar, switches and profile connector summary
+
+- Compared the pinned reference narrator page including its player-narration.css
+  overrides, rather than treating shared CSS as whole-page acceptance.
+- Matched the embedded 8px/14px shell, top Save/Export/Import toolbar, switch/help
+  spacing, textarea spacing and selected Dynamic Profile field-chip styling.
+  Kept the reference's second Save button at the bottom. Dynamic Profile uses an
+  accessible switch and its working choices no longer look disabled.
+- Import opens a native dialog outside the profile save form. Cancel and Escape
+  return focus to its opener without changing the unsaved profile selection.
+  The existing scoped, CSRF-protected revisioned import/export handlers remain.
+- Selected Profile Connectors now updates on Profile changes. Its six supported
+  connector rows show scoped display labels only, with an em dash for unconfigured
+  slots. Diary no longer falsely claims Use Standard. The speech row describes
+  the selected Core Profile; explicit narrator overrides are explained separately.
+- Browser proof: populated fixture with two different profiles, unset Diary/TTS,
+  import Cancel/Escape, keyboard switches/chips, initial-create/no-installation
+  states, desktop and 390px page/dialog. Synthetic fixtures do not call providers
+  or modify the live database. Native file selection was not exercised.
+- Existing validation passed: 338 server checks, 98 protocol manifest checks,
+  PHP lint, management HTTP forms, integration slice, migrations and durable jobs,
+  JavaScript syntax and diff checks. Schema inventory remains 166 relations with
+  hash 95ef442e3fe13f3f7e1ce7d036a5c240226c7db9dc588bc2dc4d4655cf498819.
+- Deployed locally with 695 runtime files matching source, no extra/old paths,
+  health/auth/private-path checks passing and configuration/credentials/voice files
+  preserved. Rollback: /var/backups/lorkhanserver-code.uquaWK. The live page is in
+  create state (no narrator selected), so live import is unavailable; dialog proof
+  is from fixtures and existing HTTP tests. No narrator was created for testing.
+- Still pending: embedded Actions and Prompts editors, editable display identity,
+  Oghma tags, narrator-only diary access/latest diary context, and exact book/context
+  policy mapping. Existing book-event and profile-context switches are not equivalent
+  to Herika's narrator-only book summary and hide-spoken-lines controls. This is an
+  incremental correction, not completed Narrator or all-page parity.

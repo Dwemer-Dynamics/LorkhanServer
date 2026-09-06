@@ -26,24 +26,30 @@ $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $embedded = ($_GET['embed'] ?? '') === '1';
-$coreRouting = [];
-foreach ($coreRows as $core) {
-    if ((string)$core['installation_id'] !== $installationId) continue;
-    if ((string)$core['core_profile_id'] === (string)($profile['core_profile_id'] ?? '')) {
-        $coreRouting = $core['content']['routing'] ?? [];
-        break;
-    }
-}
+$coreRows = array_values(array_filter($coreRows, static fn(array $row): bool =>
+    (string)$row['installation_id'] === $installationId));
+$selectedCoreId = (string)($profile['core_profile_id'] ?? $coreRows[0]['core_profile_id'] ?? '');
 $connectorLabels = array_column(array_filter($llmRows, static fn(array $row): bool =>
     (string)$row['installation_id'] === $installationId), 'name', 'configuration_id');
-
-$selectedTtsLabel = 'Use installation default';
-foreach ($ttsRows as $tts) {
-    if ((string) ($tts['installation_id'] ?? '') !== $installationId) continue;
-    if ((string) ($routing['tts_configuration_id'] ?? '') === (string) ($tts['configuration_id'] ?? '')) {
-        $selectedTtsLabel = (string) ($tts['name'] ?? 'Configured TTS');
-        break;
+$ttsLabels = array_column(array_filter($ttsRows, static fn(array $row): bool =>
+    (string)$row['installation_id'] === $installationId), 'name', 'configuration_id');
+$connectorFields = [
+    'tts_configuration_id' => '🔊 TTS',
+    'llm_configuration_id' => '🕹️ Standard',
+    'llm_fast_configuration_id' => '🏃 Fast',
+    'llm_powerful_configuration_id' => '💪 Power',
+    'llm_experimental_configuration_id' => '🧪 Experimental',
+    'diary_generation_configuration_id' => '📓 Diary',
+];
+// The browser receives display labels only, never provider configuration or credentials.
+$profileConnectorLabels = [];
+foreach ($coreRows as $core) {
+    $labels = [];
+    foreach ($connectorFields as $key => $label) {
+        $id = (string)($core['content']['routing'][$key] ?? '');
+        $labels[$key] = (string)(($key === 'tts_configuration_id' ? $ttsLabels : $connectorLabels)[$id] ?? '—');
     }
+    $profileConnectorLabels[(string)$core['core_profile_id']] = $labels;
 }
 
 /** Render one Herika-style live switch backed by the typed narrator document. */
@@ -72,8 +78,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 <main class="narrator-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="narrator-page-container">
         <div class="page-header lorkhan-page-head">
-            <h1>&#x1F5E3;&#xFE0F; Narrator Management</h1>
-            <p>Configure narrator behavior and settings</p>
+            <h1 class="lorkhan-page-head-title">&#x1F5E3;&#xFE0F; Narrator Management</h1>
+            <p class="lorkhan-page-head-note">Configure narrator behavior and settings</p>
         </div>
 
         <?php if (isset($_GET['status'])): ?><div class="lorkhan-status" role="status"><?php echo (is_string($_GET['status']) && $_GET['status'] === 'imported') ? 'Portable narrator settings imported as a new narrator profile revision.' : 'Narrator profile saved.'; ?></div><?php endif; ?>
@@ -100,8 +106,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <input type="hidden" name="base_content_json" value="<?php echo lorkhan_ui_h(json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); ?>">
                 <?php endif; ?>
 
-                <div class="narrator-save-row">
+                <div class="narrator-save-row settings-page-actions">
                     <button type="submit" class="narrator-save-button">Save Narration Settings</button>
+                    <?php if($profile!==null): ?><a class="narrator-transfer-button" href="<?php echo lorkhan_ui_h($managementBasePath.'/exports/narrator-profile-settings/'.$profile['profile_id'].'.json'); ?>">📤 Export Narration</a><button type="button" class="narrator-transfer-button" data-narrator-import-open>📥 Import Narration</button><?php endif; ?>
                     <span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span>
                 </div>
 
@@ -184,9 +191,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <span class="narrator-hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
                         <div>
                             <label for="narrator-core-profile">Profile</label>
-                            <select id="narrator-core-profile" name="core_profile_id">
+                            <select id="narrator-core-profile" name="core_profile_id" data-narrator-connectors="<?php echo lorkhan_ui_h(json_encode($profileConnectorLabels,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)); ?>">
                             <?php foreach ($coreRows as $core): if (($core['installation_id'] ?? '') !== $installationId) continue; ?>
-                                <option value="<?php echo lorkhan_ui_h($core['core_profile_id']); ?>"<?php echo ($profile['core_profile_id'] ?? '') === $core['core_profile_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($core['label']); ?></option>
+                                <option value="<?php echo lorkhan_ui_h($core['core_profile_id']); ?>"<?php echo $selectedCoreId === $core['core_profile_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($core['label']); ?></option>
                             <?php endforeach; ?>
                             </select>
                             <span class="narrator-hint">Use this profile's response models, prompt, and diary settings. The voice below can override its TTS connector.</span>
@@ -207,16 +214,13 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     </section>
 
                     <section class="narrator-content-section">
-                        <div class="narrator-heading-with-badge"><h2>Selected Profile Connectors</h2><?php echo lorkhan_ui_feature_badge('config.narrator.profile-connectors', true); ?></div>
+                        <h2>Selected Profile Connectors</h2>
                         <dl class="narrator-connector-summary">
-                            <dt>&#x1F50A; TTS:</dt><dd><?php echo lorkhan_ui_h($selectedTtsLabel); ?></dd>
-                            <?php foreach (['llm_configuration_id'=>'Standard','llm_fast_configuration_id'=>'Fast',
-                                'llm_powerful_configuration_id'=>'Powerful','llm_experimental_configuration_id'=>'Experimental',
-                                'diary_generation_configuration_id'=>'Diary'] as $key=>$label): ?>
-                            <dt><?php echo lorkhan_ui_h($label); ?>:</dt><dd><?php echo lorkhan_ui_h($connectorLabels[$coreRouting[$key]??'']??($key==='llm_configuration_id'?'Server default':'Use Standard')); ?></dd>
+                            <?php foreach ($connectorFields as $key=>$label): ?>
+                            <dt><?php echo lorkhan_ui_h($label); ?>:</dt><dd data-narrator-connector="<?php echo lorkhan_ui_h($key); ?>"><?php echo lorkhan_ui_h($profileConnectorLabels[$selectedCoreId][$key]??'—'); ?></dd>
                             <?php endforeach; ?>
                         </dl>
-                        <span class="narrator-hint">LORKHAN keeps explicit narrator speech routing while model selection follows the typed inherited settings pipeline.</span>
+                        <span class="narrator-hint">Connectors configured in the selected profile. An explicit narrator TTS selection overrides its speech connector.</span>
                     </section>
                 </div>
 
@@ -233,8 +237,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <div class="narrator-heading-with-badge"><h3>&#x267B;&#xFE0F; Dynamic Profile Updates</h3><?php echo lorkhan_ui_feature_badge('config.narrator.dynamic-profile', true); ?></div>
                         <?php $dynamicProfileFields=is_array($content['dynamic_profile_fields']??null)?$content['dynamic_profile_fields']:['personality','speech_style','goals']; ?>
                         <input type="hidden" name="dynamic_profile_fields_present" value="1">
-                        <label class="narrator-toggle-row"><input type="checkbox" name="dynamic_profile" value="1"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span>Enable Dynamic Profile</span></label>
-                        <span class="narrator-hint">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
+                        <label class="narrator-toggle-row"><span class="narrator-toggle-switch"><input type="checkbox" name="dynamic_profile" value="1" aria-describedby="narrator-dynamic-help"<?php echo ($content['dynamic_profile']??false)===true?' checked':''; ?>><span class="narrator-toggle-slider" aria-hidden="true"></span></span><span class="narrator-toggle-label">Enable Dynamic Profile</span></label>
+                        <span class="narrator-hint" id="narrator-dynamic-help">Every 20 minutes, evolve the selected fields from witnessed dialogue. Locked narrator profiles are never changed.</span>
                         <span class="narrator-hint">Field Selection (choose 1-3)</span>
                         <div class="narrator-field-chips"><?php foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label): ?><label class="narrator-field-chip"><input type="checkbox" name="dynamic_profile_fields[]" value="<?php echo lorkhan_ui_h($key); ?>"<?php echo in_array($key,$dynamicProfileFields,true)?' checked':''; ?>> <?php echo lorkhan_ui_h($label); ?></label><?php endforeach; ?></div>
                     </div>
@@ -274,13 +278,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </form>
 
             <?php if ($profile !== null): ?>
-                <details class="narrator-advanced-wrap narrator-portability">
-                    <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">&#x25B6;</span><span>Portable Narrator Settings</span></span></summary>
+                <dialog class="narrator-portability modal-content" id="narrator-import-dialog" aria-labelledby="narrator-import-title">
+                    <header class="modal-header"><h2 id="narrator-import-title">Import Narration Settings</h2><button type="button" class="narrator-transfer-button" data-narrator-import-close aria-label="Close import narration settings">&times;</button></header>
                     <div class="narrator-advanced-panel">
                         <p class="narrator-hint" id="narrator-portability-scope">A narrator preset carries narrator enablement, inline narration mode, narrator context visibility, the welcome, random, quest, and book event switches, the prompt head, core summary, background, personality, speech style, goals, and notes, and the narrator voice id and language. Provider and connector selections are never carried.</p>
-                        <div class="narrator-portability-actions">
-                            <a class="narrator-save-button narrator-portable-export" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/narrator-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.export')['description']); ?>">Export Settings</a>
-                        </div>
                         <form class="narrator-portability-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/narrator-profile-settings-import">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                             <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
@@ -294,11 +295,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             </div>
                             <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary controls.</p>
                             <div class="narrator-portability-actions">
-                                <button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
+                                <button type="button" class="narrator-transfer-button" data-narrator-import-close>Cancel</button><button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
                             </div>
                         </form>
                     </div>
-                </details>
+                </dialog>
             <?php endif; ?>
 
             <?php if ($profile !== null): ?>
