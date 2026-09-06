@@ -1372,7 +1372,8 @@ $bystanderProbe=$memoryProbe;$bystanderProbe['payload']['target']=$bystander;
 $relationshipInput=['installation_id'=>$installationId,'playthrough_id'=>$turn['playthrough_id'],
     'actor_identity'=>$turn['payload']['speaker'],'disposition'=>20,'affinity'=>5,'source_mode'=>'manual'];
 $privateNote="PLAYER PRIVATE RELATIONSHIP NOTE\nKeep verbatim <&> 古";
-$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id'],'custom_info'=>$privateNote]);
+$relationshipDetails=['relation'=>'mentor','note'=>'Shared a drink','best'=>'Saved the traveller','worst'=>'Betrayed a promise'];
+$ownedRelationship=$memoryService->setRelationship($relationshipInput+['profile_id'=>$actorProfile['profile_id'],'custom_info'=>$privateNote,'details'=>$relationshipDetails]);
 $assert($ownedRelationship['relationship_type']==='neutral','older relationship create did not retain the neutral type default');
 $db->exec('SAVEPOINT relationship_edits');
 $relationshipEdit=$relationshipInput+['profile_id'=>$actorProfile['profile_id'],'relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1];
@@ -1389,6 +1390,8 @@ $derivedSaved=$products->setRelationship($derivedEdit,$memoryNow);
 $derivedExport=$products->exportScope($privateScope)['relationships'][0];
 $derivedUi=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->rows('relationships',$installationId);
 $derivedUi=array_values(array_filter($derivedUi,static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']))[0];
+$assert($derivedExport['details']==$relationshipDetails&&$products->relationships($privateScope)[0]['details']==$relationshipDetails,
+    'derived score edit lost AI-visible relationship details');
 $assert($derivedExport['custom_info']===$privateNote&&$derivedExport['relationship_type']==='trusted_companion'
     &&(int)$derivedUi['strongest_positive_delta']===7,'derived writer replaced player text/type or lost its strongest affinity signal');
 $cleared=$memoryService->setRelationship(array_replace($relationshipEdit,['expected_revision'=>$derivedSaved['revision'],'custom_info'=>'']));
@@ -1438,6 +1441,11 @@ $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRel
 $historyRows=array_values(array_filter($relationshipUi->rows('relationship_logs'),static fn(array$row):bool=>$row['relationship_id']===$ownedRelationship['relationship_id']));
 $assert(!str_contains(json_encode($historyRows,JSON_THROW_ON_ERROR),'PLAYER PRIVATE RELATIONSHIP NOTE'),
     'private relationship text was copied into audit history');
+$db->exec('SAVEPOINT relationship_details_downgrade');
+try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/089_relationship_details.down.sql'));
+    throw new RuntimeException('downgrade discarded saved relationship details');}
+catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved relationship details'),
+    'unexpected relationship details downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_details_downgrade');}
 $db->exec('SAVEPOINT custom_info_downgrade');
 try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/066_relationship_custom_info.down.sql'));
     throw new RuntimeException('downgrade discarded deleted relationship notes');}
@@ -1488,17 +1496,22 @@ $privateExport['scope']['playthrough_id']=$restorePlaythrough['playthrough_id'];
 $db->exec('SAVEPOINT custom_info_restore');
 $memoryService->restorePlaythrough($privateExport);$memoryService->restorePlaythrough($privateExport);
 $restoredPrivate=$products->exportScope($privateExport['scope'])['relationships'];
+$assert($restoredPrivate[0]['details']==$relationshipDetails,'explicit restore lost relationship details');
 $assert(count($restoredPrivate)===1&&$restoredPrivate[0]['custom_info']===$privateNote,'explicit restore lost or duplicated Custom Info');
 $restoredMemoryCount=(int)$db->query("SELECT count(*) FROM memory_records WHERE playthrough_id='{$restorePlaythrough['playthrough_id']}'")->fetchColumn();
 $olderPrivateExport=$privateExport;unset($olderPrivateExport['data']['relationships'][0]['custom_info'],
-    $olderPrivateExport['data']['relationships'][0]['relationship_type']);
+    $olderPrivateExport['data']['relationships'][0]['relationship_type'],$olderPrivateExport['data']['relationships'][0]['details']);
 $memoryService->restorePlaythrough($olderPrivateExport);
 $assert($products->exportScope($privateExport['scope'])['relationships'][0]['custom_info']===$privateNote
-    &&$products->exportScope($privateExport['scope'])['relationships'][0]['relationship_type']==='trusted_companion',
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['relationship_type']==='trusted_companion'
+    &&$products->exportScope($privateExport['scope'])['relationships'][0]['details']==$relationshipDetails,
     'older relationship backup cleared newer Custom Info or relationship type');
 $duplicateExport=$privateExport;$duplicateExport['data']['relationships'][]=$duplicateExport['data']['relationships'][0];
 try{$memoryService->restorePlaythrough($duplicateExport);throw new RuntimeException('duplicate relationship restore was accepted');}
 catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','duplicate relationship restore had wrong result');}
+$conflictingDetails=$privateExport;$conflictingDetails['data']['relationships'][0]['details']['note']='Conflicting backup note';
+try{$memoryService->restorePlaythrough($conflictingDetails);throw new RuntimeException('restore overwrote edited details');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','unexpected relationship detail restore conflict');}
 $conflictingExport=$privateExport;$conflictingExport['data']['relationships'][0]['disposition']=-99;
 try{$memoryService->restorePlaythrough($conflictingExport);throw new RuntimeException('relationship restore overwrote local state');}
 catch(RuntimeException$error){$assert($error->getMessage()==='relationship_restore_conflict','unexpected relationship restore conflict');}
@@ -1530,6 +1543,7 @@ try{$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/068_r
 catch(PDOException $error){$assert(str_contains($error->getMessage(),'Cannot remove saved non-neutral relationship types'),
     'unexpected relationship type downgrade error');$db->exec('ROLLBACK TO SAVEPOINT relationship_type_downgrade');}
 $db->exec('ROLLBACK TO SAVEPOINT custom_info_restore');
+$assert(str_contains(json_encode($relationshipPrompt['provider_input'],JSON_THROW_ON_ERROR),'Saved the traveller'), 'relationship detail missing from AI prompt and trace');
 $relationshipSources=array_values(array_filter($relationshipPrompt['trace']['sources'],
     static fn(array$row):bool=>$row['source_kind']==='relationship'));
 $assert(array_column($relationshipSources,'source_id')===[$ownedRelationship['relationship_id']],

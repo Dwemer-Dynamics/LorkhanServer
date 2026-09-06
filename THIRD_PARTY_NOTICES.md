@@ -115,3 +115,10 @@ the exact source page and revision identifiers used for each character. UESP mat
 raw page caches are local build inputs and are not distributed with LorkhanServer.
 
 Source: https://en.uesp.net/wiki/UESPWiki:Copyright_and_Ownership
+
+The NPC relationship Details dialog, field order, relation suggestions and staged
+Save/Cancel interaction in `ui/tmpl/npc_relationships.html.php`,
+`ui/js/resource-page.js` and `ui/css/herika-npcs.css` are adapted from the same
+pinned HerikaServer `ext/relationship_system/relationship_editor.php` under its
+MIT license. Lorkhan's native identity, private notes, revisioned storage and
+OpenMW disposition handling are retained.

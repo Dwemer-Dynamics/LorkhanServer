@@ -591,6 +591,8 @@
                 const fields=Object.fromEntries(new FormData(form));const result={};
                 for(const key of ['relationship_id','actor_profile_id','expected_revision','affinity','disposition','relationship_type','custom_info','reason'])
                     if(Object.hasOwn(fields,key))result[key]=fields[key];
+                result.details={};
+                for(const key of ['relation','note','best','worst'])if(Object.hasOwn(fields,`details[${key}]`))result.details[key]=fields[`details[${key}]`];
                 return result;
             };
             const sync=()=>{
@@ -682,6 +684,35 @@
             });
             sync();
         }
+        const detailsDialog=view.querySelector('[data-rel-detail-dialog]');
+        let detailForm=null;let detailTrigger=null;
+        const detailFields=[...(detailsDialog?.querySelectorAll('[data-rel-detail-field]')||[])];
+        detailsDialog?.querySelector('[data-rel-detail-cancel]').addEventListener('click',()=>detailsDialog.close());
+        detailsDialog?.querySelector('[data-rel-detail-save]').addEventListener('click',()=>{
+            if(!detailForm||detailFields.some(field=>!field.reportValidity()))return;
+            if(detailFields.every(field=>detailForm.elements.namedItem(field.dataset.relDetailField).value===field.value)){detailsDialog.close();return;}
+            for(const field of detailFields)detailForm.elements.namedItem(field.dataset.relDetailField).value=field.value;
+            detailForm.elements.namedItem('custom_info').dispatchEvent(new Event('change',{bubbles:true}));
+            const row=view.querySelector(`[data-rel-form="${detailForm.id}"]`);
+            if(row){
+                const signals=row.querySelector('.npc-rel-signals');const previous=[...signals.children];signals.replaceChildren();
+                for(const [key,label,className] of [['note','Last','npc-rel-last'],['best','Best','npc-rel-positive'],['worst','Worst','npc-rel-negative']]){
+                    const value=detailForm.elements.namedItem(`details[${key}]`).value;
+                    if(value){let line=previous.find(item=>item.className===className&&item.title===value);
+                        if(!line){line=document.createElement('div');line.className=className;line.title=value;line.textContent=`${label}: ${value}`;}signals.append(line);}
+                }
+                if(!signals.childElementCount){const empty=document.createElement('span');empty.className='npc-rel-empty';empty.textContent='No signals';signals.append(empty);}
+            }
+            detailsDialog.close();
+        });
+        const suggestions=detailsDialog?.querySelector('.npc-rel-suggestions');
+        const suggestionsToggle=detailsDialog?.querySelector('[data-rel-suggestions-toggle]');
+        suggestionsToggle?.addEventListener('click',()=>{suggestions.hidden=!suggestions.hidden;suggestionsToggle.setAttribute('aria-expanded',String(!suggestions.hidden));});
+        detailsDialog?.querySelectorAll('[data-rel-suggestion]').forEach(button=>button.addEventListener('click',()=>{
+            const field=detailsDialog.querySelector('[data-rel-detail-field="details[relation]"]');field.value=button.dataset.relSuggestion;
+            suggestions.hidden=true;suggestionsToggle.setAttribute('aria-expanded','false');field.focus();
+        }));
+        detailsDialog?.addEventListener('close',()=>{detailTrigger?.setAttribute('aria-expanded','false');detailTrigger?.focus();detailForm=null;});
         const custom = view.querySelector('[data-rel-custom-type]');
         custom?.addEventListener('submit', event => {
             event.preventDefault();
@@ -703,6 +734,13 @@
             const button=event.target.closest('[data-rel-details]');if(!button||!view.contains(button))return;
             const panel = document.getElementById(button.dataset.relDetails);
             if (!panel) return;
+            if(detailsDialog&&panel.matches('tr')&&button.closest('[data-npc-rel-row]')){
+                detailForm=document.getElementById(button.closest('[data-npc-rel-row]').dataset.relForm);detailTrigger=button;
+                detailsDialog.querySelector('[data-rel-detail-target]').textContent=button.closest('tr').querySelector('.npc-rel-target').textContent;
+                for(const field of detailFields)field.value=detailForm.elements.namedItem(field.dataset.relDetailField).value;
+                suggestions.hidden=true;suggestionsToggle.setAttribute('aria-expanded','false');
+                detailsDialog.hidden=false;button.setAttribute('aria-controls',detailsDialog.id);button.setAttribute('aria-expanded','true');detailsDialog.showModal();return;
+            }
             button.setAttribute('aria-controls', panel.id);
             if (panel instanceof HTMLDialogElement) {
                 if (panel.open) panel.close();
@@ -736,7 +774,7 @@
         if (modal && tabs) { openModal(modal.id);tabActivators.get(tabs)?.('relationships',true); }
     }
     document.addEventListener('keydown', (event) => {
-        if (event.key === 'Tab' && activeModal) {
+        if (event.key === 'Tab' && activeModal && !document.querySelector('dialog[open]')) {
             const focusable = [...activeModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]
                 .filter((element) => element.getClientRects().length > 0);
             if (focusable.length > 0) {

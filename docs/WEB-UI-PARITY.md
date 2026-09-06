@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; full details, AI-result staging, remaining General/Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -1707,3 +1707,50 @@ Remaining Core Profile requirements identified from the pinned source and live e
   The deployed Fargoth Relationships tab shows the NPC-save guidance, empty state
   and disabled Clear All. No live form was submitted; relationship records,
   audit rows and relationship provider attempts remain 0/0/0.
+
+### NPC Relationships — full Details dialog and persisted role/memories
+
+- Replaced the inline edit panel in the enhanced editor with Herika's Details
+  dialog: Relationship Detail, suggestions, Recent Interaction, Best Memory,
+  Worst Memory and Custom Info, in that order. OpenMW disposition remains in
+  a collapsed product-specific control. Typography was compared against the
+  pinned reference: 500px shell, 22px heading, 12.75px bold labels, 13.44px input
+  text, 40px inputs and a 96px textarea. Gold branding remains unchanged.
+- Dialog typing edits a temporary copy. Cancel/Escape discard it and restore
+  focus. Dialog Save updates the local row, signals and NPC dirty state. NPC Save
+  commits the existing atomic/revisioned batch; no individual row request occurs.
+  Explicitly clearing a memory persists an empty string rather than resurrecting
+  the previous audit reason. New rows use the same dialog and save path.
+- Migration 089 adds a bounded JSON object to the internal relationship record,
+  separate from Custom Info. Fields use the reference relation/note/best/worst
+  names; each accepts up to 1024 UTF-8 characters. Existing score-only writers
+  preserve them. Runtime relationships, the dialogue prompt and relationship
+  build/evaluation inputs include these details; Custom Info remains excluded.
+  Older exports preserve existing details, explicit exports/restores retain them,
+  and conflicting restores cannot replace local edits. Downgrade refuses to
+  discard nonempty details, including soft-deleted records.
+- Until details have been edited, the dialog seeds recent/best/worst from existing
+  scoped audit signals. These become editable context on save, while original
+  audit rows remain immutable. Automatic build/evaluation still only produce
+  scores/types; generation of these fields and AI proposal staging remain pending.
+- Browser fixtures verify Cancel leaves the NPC clean, Save marks it dirty,
+  suggestion selection, explicit memory clearing, new-row editing and Escape
+  focus return. Desktop screenshots were compared with the actual pinned Herika
+  component. At 390px viewport the document is 375px wide with no overflow;
+  the dialog is 337.5px wide, with equal 336px client/scroll widths. No live
+  relationship was edited or provider invoked for these checks.
+- Verification: 370 server checks and 98 protocol files passed. Existing
+  browser-like HTTP tests cover the real staged details fields, invalid oversized
+  input and explicit clearing. Integration, migration and durable-job checks pass,
+  including older exports, conflicting restores, private-note exclusion and
+  details in the actual provider input. Schema inventory remains 167 relations
+  with hash c9bac48593dd9036d47da521683e2b0eee958f3114214e06dd217efa267452a8.
+  PHP lint, JavaScript syntax and diff checks pass. A no-op dialog Save leaves the
+  NPC clean and retains recorded delta signals; changing only the role marks it
+  dirty without altering those signals.
+- Deployed locally with rollback /var/backups/lorkhanserver-code.pPEC5X. All 725
+  runtime files match, with no extras or old paths. Health, private-file access
+  and unauthorized-session checks pass. Configuration, credential and voice
+  hashes were preserved. The live empty Fargoth editor contains all five detail
+  labels and the NPC-save guidance. Migration 089 is present; relationship
+  records/audit/provider-attempt counts remain 0/0/0. No live form was submitted.

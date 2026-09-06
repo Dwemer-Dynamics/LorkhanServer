@@ -203,7 +203,8 @@ final class RelationshipBuildRepository
         $people=[];
         foreach($targets as $key=>$target)$people[]=['target_key'=>$key,'identity'=>$target['identity'],
             'disposition'=>(int)($records[$key]['disposition']??0),'affinity'=>(int)($records[$key]['affinity']??0),
-            'relationship_type'=>(string)($records[$key]['relationship_type']??'neutral')];
+            'relationship_type'=>(string)($records[$key]['relationship_type']??'neutral'),
+            'details'=>json_decode($records[$key]['details']??'{}',true,16,JSON_THROW_ON_ERROR)];
         $types=$this->evaluations->typeCatalog($scope);
         $model=['generation_mode'=>'relationship_build','owner'=>$owner,'interlocutors'=>$people,
             'available_relationship_types'=>$types['relationship_types'],'exchanges'=>$exchanges];

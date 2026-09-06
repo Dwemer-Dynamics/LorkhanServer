@@ -752,3 +752,23 @@ body .npc-relationships .npc-rel-build button.btn-danger[type=submit]{background
 .npc-rel-build-buttons{display:flex;flex-basis:100%;gap:8px;justify-content:flex-end;margin-top:8px}
 .npc-rel-build-status{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:.85em;color:#86efac}
 .npc-rel-build-status span{color:#888}.npc-rel-build-status a{color:var(--chim-accent)}
+/* Details use Herika's single-column dialog, with temporary edits until its Save button. */
+dialog.npc-rel-detail-dialog{font-size:15px;max-height:90vh;padding:20px}
+.npc-rel-detail-dialog h3{font-weight:400;margin:0 0 8px;font-size:22px;line-height:1.2}
+.npc-rel-detail-dialog p{font-size:12px;line-height:1.45;margin:0 0 12px}
+.npc-rel-detail-dialog>label{display:block;color:#ccc;font-size:12.75px;line-height:1.5;margin:14px 0 0;font-weight:700}
+.npc-rel-detail-dialog>input,.npc-rel-detail-dialog>textarea,.npc-rel-relation-input input,.npc-rel-disposition input{box-sizing:border-box;width:100%;margin-top:4px;background:#262626;border:1px solid #4a4a4a;border-radius:4px;color:#e9efff;padding:8px;font:inherit;line-height:1.5;min-height:0}
+.npc-rel-detail-dialog>textarea{height:96px!important;min-height:96px!important;resize:vertical}
+.npc-rel-relation-input{display:flex;gap:6px;margin-top:4px}.npc-rel-relation-input input{flex:1;min-width:0;margin:0}
+.npc-rel-detail-dialog .npc-rel-best-label{color:#86efac}.npc-rel-detail-dialog .npc-rel-worst-label{color:#ef4444}
+.npc-rel-suggestions{display:flex;gap:4px;flex-wrap:wrap;margin-top:6px}
+.npc-relationships .npc-rel-detail-dialog .npc-rel-suggestions button{padding:4px 8px;font-size:12px;background:#262626;color:#ccc}
+.npc-relationships .npc-rel-detail-dialog .npc-rel-relation-input button{padding:4px 8px;color:#888}
+.npc-rel-detail-buttons{display:flex;gap:8px;justify-content:flex-end;margin-top:14px}
+.npc-relationships .npc-rel-detail-buttons button{padding:8px 16px;color:#86efac;font-size:13.33px}
+.npc-relationships .npc-rel-detail-buttons [data-rel-detail-cancel]{color:#ef4444}
+.npc-rel-disposition{margin-top:10px;font-size:12.75px;color:#888}.npc-rel-disposition summary{cursor:pointer}.npc-rel-disposition label{margin-top:8px}
+
+body .npc-relationships .npc-rel-detail-dialog input,body .npc-relationships .npc-rel-detail-dialog textarea{background:#181818!important;font-size:13.44px!important;padding:8px!important;line-height:1.45!important}
+body .npc-relationships .npc-rel-detail-dialog input{height:40px;min-height:40px}
+.npc-rel-detail-dialog>label:first-of-type{margin-top:0}

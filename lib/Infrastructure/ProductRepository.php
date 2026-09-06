@@ -1897,6 +1897,7 @@ SQL);
             $input['custom_info']=\LorkhanServer\Application\RelationshipCustomInfo::validate($input['custom_info']);
         if(array_key_exists('relationship_type',$input))
             $input['relationship_type']=\LorkhanServer\Application\RelationshipType::manual($input['relationship_type']);
+        if(array_key_exists('details',$input))$input['details']=\LorkhanServer\Application\RelationshipDetails::validate($input['details']);
         return $this->transaction(function()use($input,$now):array{
             $scope=$this->scopeParams($input);
             $owner=$this->db->prepare('SELECT 1 FROM profiles p JOIN playthroughs t ON t.installation_id=p.installation_id '
@@ -1919,7 +1920,7 @@ SQL);
                     throw new \InvalidArgumentException('relationship_identity_immutable');
                 $id=(string)$before['relationship_id'];
                 $save=$this->db->prepare('UPDATE relationship_records SET disposition=:disposition,affinity=:affinity,relationship_type=:type,source_mode=:mode,'
-                    .'source_event_id=:source,custom_info=:custom,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
+                    .'source_event_id=:source,custom_info=:custom,details=CAST(:details AS jsonb),updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
                 $params=['id'=>$id,'revision'=>$input['expected_revision']];
             }else{
                 $identity=$this->encode($input['actor_identity']);
@@ -1934,17 +1935,19 @@ SQL);
                 if($find->fetchColumn())throw new RuntimeException('relationship_already_exists');
                 $id=Uuid::v4();
                 $save=$this->db->prepare('INSERT INTO relationship_records (relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
-                    .'disposition,affinity,relationship_type,source_mode,source_event_id,custom_info,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
-                    .':disposition,:affinity,:type,:mode,:source,:custom,:now) RETURNING revision');
+                    .'disposition,affinity,relationship_type,source_mode,source_event_id,custom_info,details,updated_at) VALUES (:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+                    .':disposition,:affinity,:type,:mode,:source,:custom,CAST(:details AS jsonb),:now) RETURNING revision');
                 $params=$scope+['id'=>$id,'identity'=>$identity];
             }
             $customInfo=$input['custom_info']??($before['custom_info']??'');
+            $details=$input['details']??$this->json($before['details']??'{}');
             $relationshipType=$input['relationship_type']??($before['relationship_type']??'neutral');
-            $save->execute($params+['custom'=>$customInfo,'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'type'=>$relationshipType,'mode'=>$input['source_mode'],
+            $save->execute($params+['details'=>$this->encode($details),'custom'=>$customInfo,'disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'type'=>$relationshipType,'mode'=>$input['source_mode'],
                 'source'=>$input['source_event_id']??null,'now'=>$now]);
             $revision=$save->fetchColumn();if($revision===false)throw new RuntimeException('relationship_revision_conflict');
             $after=['disposition'=>$input['disposition'],'affinity'=>$input['affinity'],'relationship_type'=>$relationshipType,'revision'=>(int)$revision];
             if($customInfo!==($before['custom_info']??''))$after['custom_info_changed']=true;
+            if($details!=$this->json($before['details']??'{}'))$after['details']=$details;
             $this->db->prepare('INSERT INTO relationship_audit (audit_id,relationship_id,mode,before_value,after_value,reason,source_event_id,created_at) '
                 .'VALUES (:audit,:id,:mode,CAST(:before AS jsonb),CAST(:after AS jsonb),:reason,:source,:now)')->execute([
                     'audit'=>Uuid::v4(),'id'=>$id,'mode'=>$input['source_mode'],
@@ -2003,10 +2006,10 @@ SQL);
     public function relationships(array $scope):array
     {
         $s=$this->db->prepare('SELECT relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,relationship_type,'
-            .'source_mode,source_event_id,updated_at,deleted_at,revision FROM relationship_records WHERE installation_id=:installation '
+            .'details,source_mode,source_event_id,updated_at,deleted_at,revision FROM relationship_records WHERE installation_id=:installation '
             .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC LIMIT 100');
         $s->execute($this->scopeParams($scope));
-        return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);return $r;},$s->fetchAll());
+        return array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);$r['details']=$this->json($r['details']);return $r;},$s->fetchAll());
     }
 
     public function createNarrative(array $input,string $now):array{$id=Uuid::v4();$this->db->prepare('INSERT INTO narrative_records (narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) VALUES (:id,:installation,:profile,:playthrough,:kind,:title,:content,CAST(:provenance AS jsonb),:now,:now)')->execute($this->scopeParams($input)+['id'=>$id,'kind'=>$input['kind'],'title'=>$input['title'],'content'=>$input['content'],'provenance'=>$this->encode($input['provenance']),'now'=>$now]);return ['narrative_id'=>$id]+$input;}
@@ -2022,7 +2025,7 @@ SQL);
             'memories'=>'SELECT memory_id AS id,tier,content,lexical_terms,fake_vector,provenance,source_event_id,occurred_at,expires_at FROM memory_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY occurred_at DESC',
             'relationships'=>'SELECT * FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY updated_at DESC',
             'narratives'=>'SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY created_at DESC'];
-        $result=[];foreach($queries as$name=>$sql){$s=$this->db->prepare($sql);$s->execute($this->scopeParams($scope));$rows=$s->fetchAll();if($name==='memories')$rows=array_map(fn($r)=>$this->decodeMemory($r),$rows);elseif($name==='relationships')$rows=array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);return$r;},$rows);else$rows=array_map(function($r){$r['provenance']=$this->json($r['provenance']);return$r;},$rows);$result[$name]=$rows;}return$result;
+        $result=[];foreach($queries as$name=>$sql){$s=$this->db->prepare($sql);$s->execute($this->scopeParams($scope));$rows=$s->fetchAll();if($name==='memories')$rows=array_map(fn($r)=>$this->decodeMemory($r),$rows);elseif($name==='relationships')$rows=array_map(function($r){$r['actor_identity']=$this->json($r['actor_identity']);$r['details']=$this->json($r['details']);return$r;},$rows);else$rows=array_map(function($r){$r['provenance']=$this->json($r['provenance']);return$r;},$rows);$result[$name]=$rows;}return$result;
     }
     public function restoreScope(array $document,string $now):array
     {
@@ -2053,12 +2056,13 @@ SQL);
             ?\LorkhanServer\Application\RelationshipCustomInfo::validate($row['custom_info']):null;
         $relationshipType=array_key_exists('relationship_type',$row)
             ?\LorkhanServer\Application\RelationshipType::manual($row['relationship_type']):null;
+        $details=array_key_exists('details',$row)?\LorkhanServer\Application\RelationshipDetails::validate($row['details']):null;
         $stable=isset($identity['kind'],$identity['record_id'],$identity['content_file'],$identity['refnum']);
         $existing=[];
         if($stable){
             $id=Uuid::v4();$lockKey='relationship:'.implode(':',$this->scopeParams($scope)).':'.$this->actorKey($identity);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');$lock->execute(['key'=>$lockKey]);
-            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,deleted_at FROM relationship_records '
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,details,deleted_at FROM relationship_records '
                 .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
                 .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
                 .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '
@@ -2069,7 +2073,7 @@ SQL);
             $id=$this->deterministicUuid('restore:relationship:'.implode(':',$this->scopeParams($scope)).':'.$row['relationship_id']);
             $lock=$this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))');
             $lock->execute(['key'=>'restore-relationship:'.$id]);
-            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,deleted_at FROM relationship_records '
+            $query=$this->db->prepare('SELECT relationship_id,disposition,affinity,relationship_type,custom_info,details,deleted_at FROM relationship_records '
                 .'WHERE relationship_id=:id FOR UPDATE');$query->execute(['id'=>$id]);$existing=$query->fetchAll();
         }
         $active=array_values(array_filter($existing,static fn(array$value):bool=>$value['deleted_at']===null));
@@ -2078,14 +2082,15 @@ SQL);
             $saved=$active[0];
             if((int)$saved['disposition']!==(int)$row['disposition']||(int)$saved['affinity']!==(int)$row['affinity']
                 ||($relationshipType!==null&&(string)$saved['relationship_type']!==$relationshipType)
-                ||($custom!==null&&(string)$saved['custom_info']!==$custom))throw new RuntimeException('relationship_restore_conflict');
+                ||($custom!==null&&(string)$saved['custom_info']!==$custom)
+                ||($details!==null&&\LorkhanServer\Application\RelationshipDetails::validate($this->json($saved['details']))!==$details))throw new RuntimeException('relationship_restore_conflict');
             return;
         }
         $this->db->prepare('INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,'
-            .'disposition,affinity,relationship_type,source_mode,custom_info,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
-            .':disposition,:affinity,:type,\'manual\',:custom,:now)')->execute($this->scopeParams($scope)+[
+            .'disposition,affinity,relationship_type,source_mode,custom_info,details,updated_at) VALUES(:id,:installation,:profile,:playthrough,CAST(:identity AS jsonb),'
+            .':disposition,:affinity,:type,\'manual\',:custom,CAST(:details AS jsonb),:now)')->execute($this->scopeParams($scope)+[
                 'id'=>$id,'identity'=>$identityJson,'disposition'=>$row['disposition'],'affinity'=>$row['affinity'],
-                'type'=>$relationshipType??'neutral','custom'=>$custom??'','now'=>$now]);
+                'type'=>$relationshipType??'neutral','custom'=>$custom??'','details'=>$this->encode($details??[]),'now'=>$now]);
         $after=['disposition'=>$row['disposition'],'affinity'=>$row['affinity'],
             'relationship_type'=>$relationshipType??'neutral','revision'=>1];
         if($custom!==null&&$custom!=='')$after['custom_info_changed']=true;

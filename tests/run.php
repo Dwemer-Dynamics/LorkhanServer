@@ -156,6 +156,12 @@ foreach([null,'two words','-enemy',str_repeat('x',51)]as$invalidType){
     catch(InvalidArgumentException){$check(true,'invalid manual relationship type rejected');}
 }
 $buildRow=['target_key'=>str_repeat('a',64),'disposition'=>-100,'affinity'=>100,'reason'=>'A witnessed pattern.'];
+$check(\LorkhanServer\Application\RelationshipDetails::validate(['relation'=>'mentor','best'=>str_repeat('古',1024)])===
+    ['relation'=>'mentor','note'=>'','best'=>str_repeat('古',1024),'worst'=>''],'relationship detail fields normalize without private notes');
+foreach([null,'text',['unknown'=>'x'],['note'=>null],['best'=>str_repeat('x',1025)],['worst'=>"bad\0text"],['relation'=>[]]]as$badDetails){
+    try{\LorkhanServer\Application\RelationshipDetails::validate($badDetails);$check(false,'invalid relationship details accepted');}
+    catch(\InvalidArgumentException $error){$check($error->getMessage()==='invalid_relationship_details','invalid relationship details rejected');}
+}
 $check(\LorkhanServer\Application\RelationshipCustomInfo::validate('')===''
     &&\LorkhanServer\Application\RelationshipCustomInfo::validate(str_repeat('古',2000))===str_repeat('古',2000),
     'private relationship text is optional and Unicode bounded');

@@ -1428,7 +1428,7 @@ final class PromptAssembler
             'access_level'=>(string)($source['access_level']??'authorized'),'article'=>(string)($source['content']??'')];
         if (array_key_exists('content', $source)) return $source['content'];
         return match ($kind) {
-            'relationship' => $this->allow($source, ['actor_identity', 'disposition', 'affinity', 'relationship_type']),
+            'relationship' => $this->allow($source, ['actor_identity', 'disposition', 'affinity', 'relationship_type', 'details']),
             'action_result' => $this->allow($source, ['action_id', 'status', 'reason_code', 'observed', 'completed_at']),
             default => throw new InvalidArgumentException('prompt_source_content_required'),
         };

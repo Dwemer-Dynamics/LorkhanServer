@@ -898,11 +898,14 @@ def staged_npc_form(owner=profile_id):
     return form,dict(form['fields'],**fields.external_fields,_csrf=csrf),{'profile_revision':revision,'playthrough_id':playthrough_id,'updates':[],'additions':[],'deletes':[]},page
 
 stage_form,stage_values,stage_batch,_=staged_npc_form()
-stage_add={'actor_profile_id':stage_target_id,'affinity':15,'disposition':20,'relationship_type':'professional','reason':'Staged addition','custom_info':'Private staged note'}
+stage_add={'actor_profile_id':stage_target_id,'affinity':15,'disposition':20,'relationship_type':'professional','reason':'Staged addition','custom_info':'Private staged note','details':{'relation':'mentor','note':'Shared a drink','best':'Saved the traveller','worst':'Broke a promise'}}
 stage_bad=dict(stage_batch,additions=[stage_add,dict(stage_add,affinity=101)])
 r=request(stage_form['action'],'POST',dict(stage_values,biography='Must roll back with the invalid row',npc_relationship_edits=json.dumps(stage_bad)))
 assert r.status==422 and 'invalid_relationship_value' in r.read().decode() and staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
 assert not any(f['fields'].get('relationship_id') for f in staged_npc_form()[3].forms if f['fields'].get('profile_id')==profile_id)
+stage_bad=dict(stage_batch,additions=[dict(stage_add,details={'best':'x'*1025})])
+assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_bad))).status==422
+assert staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
 stage_batch['additions']=[stage_add]
 r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); stage_saved,stage_body=parse(r)
 assert r.status==200 and 'rel_profile='+profile_id in r.geturl() and 'Private staged note' in stage_body,(r.status,r.geturl(),re.findall(r'role="alert"[^>]*>(.*?)</',stage_body,re.S))
@@ -912,6 +915,9 @@ stage_id=stage_row['fields']['relationship_id']
 stage_form,stage_values,stage_batch,_=staged_npc_form()
 stage_row_fields=Page(external_form=stage_row['id']); stage_row_fields.feed(stage_body)
 stage_update=dict(stage_row['fields'],**stage_row_fields.external_fields)
+stage_update['details']={key:stage_update.pop('details['+key+']') for key in ['relation','note','best','worst']}
+assert stage_update['details']==stage_add['details']
+stage_update['details']['best']=''
 stage_update.update(affinity=30,custom_info='Updated private staged note',reason='Staged update')
 stage_batch['updates']=[dict(stage_update,expected_revision=0)]
 assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==422
@@ -919,6 +925,8 @@ assert staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
 stage_batch['updates']=[stage_update]
 r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); stage_saved,stage_body=parse(r)
 assert r.status==200 and 'Updated private staged note' in stage_body,(r.status,re.findall(r'role="alert"[^>]*>(.*?)</',stage_body,re.S))
+saved_details=Page(external_form=stage_row['id']); saved_details.feed(stage_body)
+assert saved_details.external_fields['details[best]']=='' and saved_details.external_fields['details[relation]']=='mentor'
 stage_form,stage_values,stage_batch,stage_saved=staged_npc_form()
 stage_batch['updates']=[stage_update]
 assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==409

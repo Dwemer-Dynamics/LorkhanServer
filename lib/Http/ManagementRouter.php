@@ -2307,6 +2307,7 @@ final class ManagementRouter
             $input['custom_info']=$values['custom_info'];
             if(is_string($input['custom_info']))$input['custom_info']=str_replace("\r\n","\n",$input['custom_info']);
         }
+        if(array_key_exists('details',$values))$input['details']=$values['details'];
         foreach(['disposition','affinity'] as $field){
             $number=filter_var($values[$field]??null,FILTER_VALIDATE_INT);
             if($number===false)throw new InvalidArgumentException('invalid_relationship_value');

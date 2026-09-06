@@ -64,6 +64,7 @@ final class RelationshipEvaluationRepository
             'input'=>$source['input_text'],'played_reply'=>$source['reply'],
             'disposition'=>(int)($record['disposition']??0),'affinity'=>(int)($record['affinity']??0),
             'relationship_type'=>(string)($record['relationship_type']??'neutral'),
+            'details'=>json_decode($record['details']??'{}',true,16,JSON_THROW_ON_ERROR),
             'available_relationship_types'=>$types['relationship_types'],
         ]];
     }
@@ -188,7 +189,7 @@ final class RelationshipEvaluationRepository
     /** Include deleted rows in the fence so transient manual create/delete cycles cannot be overwritten. */
     public function records(array $source):?array
     {
-        $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity,relationship_type FROM relationship_records '
+        $query=$this->db->prepare('SELECT relationship_id,revision,deleted_at,disposition,affinity,relationship_type,details FROM relationship_records '
             .'WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough '
             .'AND md5(relationship_identity_key(actor_identity)::text)=md5(relationship_identity_key(CAST(:identity AS jsonb))::text) '
             .'AND relationship_identity_key(actor_identity)=relationship_identity_key(CAST(:exact_identity AS jsonb)) '

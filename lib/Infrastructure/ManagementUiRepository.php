@@ -340,7 +340,7 @@ SQL);
                 . "ORDER BY m.localts DESC,m.rowid DESC LIMIT 100",
             'relationships' => "SELECT r.relationship_id,r.installation_id,r.profile_id,r.playthrough_id,r.actor_identity,"
                 . "COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown actor') AS actor,"
-                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.relationship_type,r.custom_info,r.source_mode,r.revision,r.updated_at, "
+                . "p.name AS owner,t.name AS playthrough,r.disposition,r.affinity,r.relationship_type,r.custom_info,r.details,r.source_mode,r.revision,r.updated_at, "
                 . "positive.delta AS strongest_positive_delta,positive.reason AS strongest_positive_reason,positive.created_at AS strongest_positive_at, "
                 . "negative.delta AS strongest_negative_delta,negative.reason AS strongest_negative_reason,negative.created_at AS strongest_negative_at "
                 . "FROM relationship_records r JOIN profiles p ON p.profile_id=r.profile_id JOIN playthroughs t ON t.playthrough_id=r.playthrough_id "

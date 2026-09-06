@@ -63,14 +63,16 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
         <td><span class="npc-rel-tier" style="color:<?=$relTier[2]?>"><?=$relTier[1]?></span></td>
         <td><select class="npc-rel-type" aria-label="Relationship type with <?=lorkhan_ui_h($rel['actor'])?>" name="relationship_type" required form="<?=$relForm?>"><?php $relTypeOptions($rel['relationship_type']); ?></select></td>
         <td class="npc-rel-signals">
-            <?php $latest=null;foreach($relHistory as$item)if($item['relationship_id']===$relId){$latest=$item;break;} ?>
+            <?php $latest=null;foreach($relHistory as$item)if($item['relationship_id']===$relId){$latest=$item;break;}$savedDetails=$rel['details']??[];if(array_key_exists('note',$savedDetails))$latest=$savedDetails['note']!==''?['reason'=>$savedDetails['note']]:null; ?>
             <?php if($latest!==null): ?><div class="npc-rel-last" title="<?=lorkhan_ui_h($latest['reason'])?>">Last: <?=lorkhan_ui_h(mb_strimwidth($latest['reason'],0,56,'…'))?></div><?php endif; ?>
-            <?php foreach(['positive'=>['Best','+'],'negative'=>['Worst','']]as$sign=>[$label,$prefix]): if($rel['strongest_'.$sign.'_delta']===null)continue; ?><div class="npc-rel-<?=$sign?>" title="<?=lorkhan_ui_h($rel['strongest_'.$sign.'_reason'])?>"><?=$label?> <?=$prefix.(int)$rel['strongest_'.$sign.'_delta']?>: <?=lorkhan_ui_h(mb_strimwidth($rel['strongest_'.$sign.'_reason'],0,48,'…'))?></div><?php endforeach; ?>
-            <?php if($latest===null&&$rel['strongest_positive_delta']===null&&$rel['strongest_negative_delta']===null): ?><span class="npc-rel-empty">No signals</span><?php endif; ?>
+            <?php foreach(['positive'=>['Best','+'],'negative'=>['Worst','']]as$sign=>[$label,$prefix]): $memoryKey=$sign==='positive'?'best':'worst';$memoryOverride=array_key_exists($memoryKey,$savedDetails);if($memoryOverride){if($savedDetails[$memoryKey]==='')continue;$rel['strongest_'.$sign.'_reason']=$savedDetails[$memoryKey];}elseif($rel['strongest_'.$sign.'_delta']===null)continue; ?><div class="npc-rel-<?=$sign?>" title="<?=lorkhan_ui_h($rel['strongest_'.$sign.'_reason'])?>"><?=$label?> <?=$memoryOverride?'':$prefix.(int)$rel['strongest_'.$sign.'_delta']?>: <?=lorkhan_ui_h(mb_strimwidth($rel['strongest_'.$sign.'_reason'],0,48,'…'))?></div><?php endforeach; ?>
+            <?php if($latest===null&&($savedDetails['best']??$rel['strongest_positive_reason']??'')===''&&($savedDetails['worst']??$rel['strongest_negative_reason']??'')===''): ?><span class="npc-rel-empty">No signals</span><?php endif; ?>
         </td>
         <td class="npc-rel-actions"><button type="submit" form="<?=$relForm?>" title="Save this relationship" aria-label="Save relationship with <?=lorkhan_ui_h($rel['actor'])?>">💾</button><button type="button" data-rel-details="<?=$relForm?>-details" aria-expanded="false" title="Edit details" aria-label="Edit details for <?=lorkhan_ui_h($rel['actor'])?>">✏️</button><button type="submit" class="npc-rel-delete" form="<?=$relForm?>-delete" title="Remove relationship" aria-label="Remove relationship with <?=lorkhan_ui_h($rel['actor'])?>">×</button></td>
     </tr>
+    <?php $relDetails=$rel['details']??[];$relDetails+=['relation'=>'','note'=>$latest['reason']??'','best'=>$rel['strongest_positive_reason']??'','worst'=>$rel['strongest_negative_reason']??'']; ?>
     <tr id="<?=$relForm?>-details" hidden><td colspan="6"><div class="npc-rel-details">
+        <?php foreach(['relation'=>'Relationship Detail','note'=>'Recent Interaction','best'=>'Best Memory','worst'=>'Worst Memory']as$key=>$label): ?><label><?=$label?><input name="details[<?=$key?>]" maxlength="1024" value="<?=lorkhan_ui_h($relDetails[$key])?>" form="<?=$relForm?>"></label><?php endforeach; ?>
         <label>Disposition<input type="number" name="disposition" min="-100" max="100" required value="<?=(int)$rel['disposition']?>" form="<?=$relForm?>"></label>
         <label>Reason<input name="reason" value="Manual edit" maxlength="1024" required form="<?=$relForm?>"></label>
         <label class="npc-rel-wide">Custom Info<textarea name="custom_info" maxlength="2000" rows="3" form="<?=$relForm?>"><?="\n".lorkhan_ui_h($rel['custom_info']??'')?></textarea><small>Private notes. Never sent to AI or changed by AI builds. Exports include this text.</small></label>
@@ -107,6 +109,19 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
         <form id="__REL_FORM__" method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationships')?>"><?php $relHiddenFields($relHidden+['actor_profile_id'=>'']); ?></form>
         <form id="__REL_FORM__-delete" method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationship-delete')?>"></form>
     </template>
+    <dialog id="<?=$relKey?>-details-dialog" class="npc-rel-build npc-rel-detail-dialog" data-rel-detail-dialog aria-labelledby="<?=$relKey?>-details-title" hidden>
+        <h3 id="<?=$relKey?>-details-title">✏️ Details: <span data-rel-detail-target></span></h3>
+        <p>⚠️ Relationship details and memories are used by the AI. Custom Info is player-only and is never sent to or changed by relationship AI.</p>
+        <label for="<?=$relKey?>-relation">Relationship Detail</label>
+        <div class="npc-rel-relation-input"><input id="<?=$relKey?>-relation" data-rel-detail-field="details[relation]" maxlength="1024" placeholder="son, ex-wife, employer"><button type="button" data-rel-suggestions-toggle aria-expanded="false" aria-controls="<?=$relKey?>-suggestions" title="Common suggestions">+</button></div>
+        <div id="<?=$relKey?>-suggestions" class="npc-rel-suggestions" hidden><?php foreach(['son','daughter','father','mother','brother','sister','spouse','uncle','aunt','cousin','grandparent','in-law','stepchild','employer','employee','apprentice','partner','supplier','client','ex-wife','ex-husband','betrothed','ward','guardian','liege','vassal']as$suggestion): ?><button type="button" data-rel-suggestion="<?=$suggestion?>"><?=$suggestion?></button><?php endforeach; ?></div>
+        <label for="<?=$relKey?>-note">Recent Interaction</label><input id="<?=$relKey?>-note" data-rel-detail-field="details[note]" maxlength="1024" placeholder="shared a drink, had argument">
+        <label for="<?=$relKey?>-best" class="npc-rel-best-label">Best Memory</label><input id="<?=$relKey?>-best" data-rel-detail-field="details[best]" maxlength="1024" placeholder="helped escape captivity, saved life">
+        <label for="<?=$relKey?>-worst" class="npc-rel-worst-label">Worst Memory</label><input id="<?=$relKey?>-worst" data-rel-detail-field="details[worst]" maxlength="1024" placeholder="killed his brother, betrayed trust">
+        <label for="<?=$relKey?>-custom">Custom Info</label><textarea id="<?=$relKey?>-custom" data-rel-detail-field="custom_info" maxlength="2000" rows="3" placeholder="Write any player notes for this relationship"></textarea>
+        <details class="npc-rel-disposition"><summary>OpenMW disposition</summary><label for="<?=$relKey?>-disposition">Disposition</label><input id="<?=$relKey?>-disposition" type="number" min="-100" max="100" required data-rel-detail-field="disposition"></details>
+        <div class="npc-rel-detail-buttons"><button type="button" data-rel-detail-cancel>Cancel</button><button type="button" data-rel-detail-save>Save</button></div>
+    </dialog>
     <form class="npc-rel-add" method="post" action="<?=lorkhan_ui_h($managementBasePath.'/forms/relationships')?>" data-track-dirty>
         <?php $relHiddenFields($relHidden+['disposition'=>'0','reason'=>'Manual relationship']); ?>
         <select name="actor_profile_id" aria-label="New relationship target" required><option value="">Target name</option><?php foreach($relActors as$id=>$name): ?><option value="<?=lorkhan_ui_h($id)?>"><?=lorkhan_ui_h($name)?></option><?php endforeach; ?></select>
