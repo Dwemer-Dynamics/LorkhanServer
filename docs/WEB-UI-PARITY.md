@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, Profile LLMs summary, six-tab geometry and Roleplay fields compared; General, Relationships, Info details, Actions and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; remaining General, Relationships, Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -975,3 +975,43 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - Reviewed the deployed Fargoth editor without saving: the actual five-slot Core
   Profile model summary is populated and all eight Roleplay field dimensions match
   the isolated comparison. Closed the modal without invoking any provider or mutation.
+
+### NPC editor: diary controls and movement-card distinction
+
+- General now exposes Auto Diary and Auto Diary Wait with Herika's paired checkbox
+  layout, label/help typography and 1.8x checkbox size. Each switch retains explicit
+  true/false separately from Core Profile inheritance. Untouched fields do not
+  become overrides during unrelated NPC saves. Changing Core Profile updates only
+  inherited switches; Use Core Profile removes only that switch's override.
+- These controls use existing `content.diary.automatic_enabled` and
+  `automatic_wait_enabled` runtime fields. The existing resolver preserves the
+  Core Profile's generation enable, Diary LLM, interval and other policy leaves.
+  The help reflects Lorkhan's timer/sleep/wait behavior and generation prerequisites;
+  no extra connector, runtime setting or provider request was introduced.
+- Existing HTTP tests cover true/false, inheritance restoration, preserved interval
+  and context flags, invalid values and no provider invocation. A resolver check
+  confirms explicit false and independent leaves. Full lint, 338 server checks,
+  98 protocol checks, management HTTP, integration, migrations and schema passed;
+  the final HTTP rerun and JavaScript syntax also passed.
+- Compared actual extracted Herika diary markup/CSS against the actual Lorkhan
+  template in an isolated fixture. Checked desktop/390px, default/override profile
+  changes, reset and focus restoration. No live NPC diary policy was changed.
+- Corrected the Actions tab's category: Herika offers Visit and Teleport/Return,
+  not AI policy settings. Replaced the unrelated Inherited behavior block with the
+  matching two-card layout, with disabled controls and an explicit unsupported
+  notice. Compared extracted reference cards/styles and desktop/390px rendering.
+- Native capability gap remains open: existing `player.teleport` accepts coordinates;
+  `target.teleport.to_player` affects the game's current target and cannot safely
+  select this arbitrary profile or restore its saved position. No movement command
+  was issued. These disabled cards are presentation progress, not working movement
+  parity or an acceptance of the whole NPC editor.
+- Create-form diary defaults also follow the selected installation. An isolated
+  two-installation check confirmed inherited true/false values switch correctly and
+  explicit NPC overrides remain unchanged. Full create-form Core Profile option and
+  model-summary switching across installations still belongs to the remaining
+  General editor review; it is not claimed complete here.
+- Deployed and inspected Fargoth without saving: both diary switches show inherited
+  disabled defaults, and Visit/Teleport are explicitly disabled. Final runtime sync
+  matches all 694 source files, preserves configuration/credential/voice hashes,
+  and passes private-path 403 and unauthenticated native 401 probes.
+  Final code rollback: lorkhanserver-code.KKo39K.

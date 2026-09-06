@@ -333,7 +333,7 @@ for path in [
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
-profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock against automatic AI profile generation','Favorite NPC','Inherited behavior']
+profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock against automatic AI profile generation','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
@@ -1034,6 +1034,25 @@ saved_routing_content=json.loads(saved_routing['fields']['base_content_json'])
 assert 'routing' not in saved_routing_content and 'settings_overrides' not in saved_routing_content,saved_routing_content
 assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save # Saving character details never calls a provider.
 assert not any(field in saved_routing['fields'] for field in ['profile_generation_configuration_id','relationship_configuration_id','diary_generation_configuration_id','setting_relationship_locked'])
+
+# NPC diary switches preserve inheritance and other diary policy leaves.
+diary_base=dict(saved_routing_content,diary={'automatic_interval_seconds':240,'include_in_context':False})
+diary_values=dict(saved_routing['fields'],_csrf=csrf,change_reason='HTTP NPC diary override',base_content_json=json.dumps(diary_base),
+    npc_diary_automatic_enabled='1',npc_diary_automatic_wait_enabled='0')
+for enabled,waiting in [('1','0'),('0','1'),('inherit','inherit')]:
+    diary_values.update(npc_diary_automatic_enabled=enabled,npc_diary_automatic_wait_enabled=waiting)
+    r=request(saved_routing['action'],'POST',diary_values); diary_body=r.read().decode()
+    assert r.status==200,(r.status,diary_body)
+    diary_page=Page(); diary_page.feed(diary_body)
+    diary_saved=next(f for f in diary_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+    diary_content=json.loads(diary_saved['fields']['base_content_json'])['diary']
+    assert diary_content['automatic_interval_seconds']==240 and diary_content['include_in_context'] is False,diary_content
+    if enabled=='inherit': assert 'automatic_enabled' not in diary_content and 'automatic_wait_enabled' not in diary_content,diary_content
+    else: assert diary_content['automatic_enabled']==(enabled=='1') and diary_content['automatic_wait_enabled']==(waiting=='1'),diary_content
+    diary_values=dict(diary_saved['fields'],_csrf=csrf,change_reason='HTTP NPC diary override')
+r=request(saved_routing['action'],'POST',dict(diary_values,npc_diary_automatic_enabled='invalid'))
+assert r.status==422 and 'invalid_npc_diary_override' in r.read().decode()
+assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save
 
 # System connectors are installation-owned Global Settings, never NPC profile fields.
 global_route_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))

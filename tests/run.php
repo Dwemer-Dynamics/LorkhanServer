@@ -1405,6 +1405,15 @@ $check($diaryResolved['settings']['diary']===$diaryOverrides
     &&$diaryResolved['routing']['diary_generation_configuration_id']==='00000000-0000-4000-8000-000000000555'
     &&$diaryResolved['sources']['settings.diary.enabled']==='core_profile',
     'manual diary policy and dedicated connector route inherit through effective server settings');
+$npcDiaryResolved=(new EffectiveSettingsResolver())->resolve($globalSettings,
+    ['settings_overrides'=>['diary'=>['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabled'=>false,'automatic_interval_seconds'=>240]]],
+    ['diary'=>['automatic_enabled'=>false,'automatic_wait_enabled'=>true]]);
+$check($npcDiaryResolved['settings']['diary']['automatic_enabled']===false
+    &&$npcDiaryResolved['settings']['diary']['automatic_wait_enabled']===true
+    &&$npcDiaryResolved['settings']['diary']['enabled']===true
+    &&$npcDiaryResolved['settings']['diary']['automatic_interval_seconds']===240
+    &&$npcDiaryResolved['sources']['settings.diary.automatic_enabled']==='npc',
+    'NPC diary toggles override their own leaves without replacing inherited generation and interval settings');
 $projectionInput=$effective;
 $projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
 $projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';

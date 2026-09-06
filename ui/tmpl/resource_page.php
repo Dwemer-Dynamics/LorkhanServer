@@ -704,6 +704,21 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
     else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
     $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
+    foreach(['automatic_enabled'=>['📙 Auto Diary','Generate diary entries on the configured timer and sleep events. Requires Diary generation and a Diary LLM in Core Profile.'],
+        'automatic_wait_enabled'=>['⏳ Auto Diary Wait','When Auto Diary is enabled, include wait events as well as sleep events.']]as$key=>[$label,$help]){
+        $defaults=[];foreach($coreProfileRows as$core){
+            $scope=(string)($core['installation_id']??'');$id=(string)$core['core_profile_id'];
+            $defaults[$scope][$id]=($core['content']['settings_overrides']['diary'][$key]??false)===true;
+            if(filter_var($core['default_npc']??false,FILTER_VALIDATE_BOOL))$defaults[$scope]['']=$defaults[$scope][$id];
+        }
+        $own=$content['diary'][$key]??null;$value=is_bool($own)?($own?'1':'0'):'inherit';
+        $checked=is_bool($own)?$own:($defaults[$installationId][$coreProfileId]??false);
+        echo'<div class="form-item npc-editor-check npc-diary-control" data-npc-diary data-profile-form="'.lorkhan_ui_h($formId).'" data-installation-id="'.lorkhan_ui_h($installationId).'" data-core-defaults="'.lorkhan_ui_h(json_encode($defaults)).'">';
+        echo'<label><input type="checkbox" data-npc-diary-toggle'.($checked?' checked':'').'> '.lorkhan_ui_h($label).'</label>';
+        echo'<input type="hidden" name="npc_diary_'.$key.'" form="'.lorkhan_ui_h($formId).'" value="'.$value.'">';
+        echo'<small class="hint">'.lorkhan_ui_h($help).' <strong data-npc-diary-source>'.($value==='inherit'?'(Inherited from profile)':'(NPC override)').'</strong></small>';
+        echo'<button type="button" class="npc-inherit-button" data-npc-diary-reset'.($value==='inherit'?' disabled':'').'>Use Core Profile</button></div>';
+    }
     $field('prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="roleplay" hidden>';
     $field('core','Core','textarea',(string)($content['core']??''),[],'span-2','Core NPC description. 1–2 sentences describing the character.');
@@ -725,7 +740,10 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="actions" hidden>';
-    echo'<div class="npc-editor-placeholder span-2"><h3>Inherited behavior</h3><p>Response models, Rechat, memory limits, diary behavior, context, and system connectors come from the assigned Core Profile and Global Settings. NPC profiles only keep character details and voice.</p><p><a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/core/core_profiles.php').'">Core Profiles</a> <a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/global_settings.php').'">Global Settings</a> <a class="btn-base" href="'.lorkhan_ui_h($uiRoot.'/ui/function_editor.php').'">Action Editor</a></p></div></section>';
+    echo'<p class="npc-editor-action-note">Visit and Teleport require profile-targeted movement support in the OpenMW client. They are not available yet.</p><div class="npc-editor-action-list">';
+    foreach(['Visit'=>"Move the player to this NPC’s current position.",'Teleport'=>"Move this NPC to the player’s current position and save their previous location."]as$label=>$description)
+        echo'<article class="npc-editor-action-card"><div><h3>'.lorkhan_ui_h($label).'</h3><p>'.lorkhan_ui_h($description).'</p></div><button type="button" class="btn-base" disabled title="Profile-targeted movement is not supported by the current OpenMW client.">'.lorkhan_ui_h($label).'</button></article>';
+    echo'</div></section>';
     lorkhan_ui_npc_history_panel($profileId,$creating,is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[],$managementBasePath,$csrf);
     echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
     if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_content_json" value="'.lorkhan_ui_h(json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)).'">';

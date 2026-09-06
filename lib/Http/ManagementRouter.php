@@ -1892,6 +1892,14 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         unset($content['settings_overrides']);
+        // NPC diary switches override only their own leaves; unrelated saves retain inheritance.
+        foreach(['automatic_enabled','automatic_wait_enabled']as$field){
+            $key='npc_diary_'.$field;if(!array_key_exists($key,$values))continue;
+            $value=$values[$key];if(!in_array($value,['inherit','0','1'],true))throw new InvalidArgumentException('invalid_npc_diary_override');
+            $diary=is_array($content['diary']??null)?$content['diary']:[];
+            if($value==='inherit')unset($diary[$field]);else$diary[$field]=$value==='1';
+            if($diary===[])unset($content['diary']);else$content['diary']=DiaryGenerationPolicy::validateOverrides($diary);
+        }
         if($allowSpecialTtsRouting){
             $routing=[];$id=trim((string)($values['tts_configuration_id']??''));
             if($id==='__disabled__')$routing['tts_configuration_id']='';elseif($id!==''){$this->uuid($id,'tts_configuration_id');$routing['tts_configuration_id']=$id;}

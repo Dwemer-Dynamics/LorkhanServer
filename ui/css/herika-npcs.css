@@ -191,6 +191,24 @@ body.view-characters .npc-modal-body {
     grid-template-columns: minmax(0, 1fr);
 }
 
+/* NPC management actions are movement tools, separate from the AI Action Editor. */
+.npc-editor-panel.form-grid[data-npc-editor-panel="actions"] { grid-template-columns: minmax(0, 1fr); }
+.npc-editor-action-note { margin: 0; color: #aaa; font-size: .86rem; }
+.npc-editor-action-list { display: grid; gap: 10px; }
+.npc-editor-action-card {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 14px;
+    padding: 12px;
+    border: 1px solid #444;
+    border-radius: 7px;
+    background: #282828;
+}
+.npc-editor-action-card h3 { margin: 0 0 4px; color: #bc9d5a; font-size: 1rem; }
+.npc-editor-action-card p { margin: 0; color: #aaa; font-size: .82rem; }
+@media (max-width: 850px) { .npc-editor-action-card { grid-template-columns: minmax(0, 1fr); } }
+
 .npc-editor-panel .form-item {
     display: flex;
     flex-direction: column;
@@ -267,6 +285,20 @@ body.view-characters .npc-modal-body {
     color: #aaa;
     font-size: 12px;
 }
+
+.npc-diary-control .hint strong { color: #bc9d5a; }
+.npc-editor-panel .npc-diary-control > label { min-height: 0; gap: 10px; }
+.npc-diary-control input[type="checkbox"] { transform: scale(1.8); transform-origin: center; }
+.npc-diary-control .npc-inherit-button {
+    align-self: flex-start;
+    padding: 4px 9px;
+    border: 1px solid #4a4a4a;
+    border-radius: 5px;
+    background: #242424;
+    color: #cfd9ea;
+    font-size: 11px;
+}
+.npc-diary-control .npc-inherit-button:disabled { display: none; }
 
 .npc-editor-disabled input:disabled {
     opacity: .58;
