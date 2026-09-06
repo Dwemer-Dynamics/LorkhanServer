@@ -1,10 +1,28 @@
 document.addEventListener('DOMContentLoaded', () => {
+  const csvForm = document.querySelector('[data-prompt-csv-form]');
+  csvForm?.querySelector('input[type="file"]').addEventListener('change', event => {
+    const file = event.currentTarget.files[0];
+    csvForm.querySelector('[data-prompt-csv-name]').textContent = file?.name || '';
+    csvForm.querySelector('button[type="submit"]').disabled = !file;
+  });
   const createPanel = document.querySelector('[data-prompt-create-panel]');
   const importPanel = document.querySelector('[data-prompt-import-panel]');
-  document.querySelector('[data-prompt-create]')?.addEventListener('click', () => { createPanel.hidden = false; importPanel.hidden = true; });
-  document.querySelector('[data-prompt-create-close]')?.addEventListener('click', () => { createPanel.hidden = true; });
-  document.querySelector('[data-prompt-import]')?.addEventListener('click', () => { importPanel.hidden = false; createPanel.hidden = true; });
-  document.querySelector('[data-prompt-import-close]')?.addEventListener('click', () => { importPanel.hidden = true; });
+  const documentTools = document.querySelector('.prompt-document-tools');
+  [[createPanel, importPanel, 'create', '[name="name"]'], [importPanel, createPanel, 'import', '[name="prompt_json"]']].forEach(([panel, other, action, field]) => {
+    if (!panel) return;
+    document.querySelector(`[data-prompt-${action}]`)?.addEventListener('click', () => {
+      panel.hidden = false; other.hidden = true; documentTools.open = false;
+      panel.querySelector(field).focus();
+    });
+    const closePanel = () => { panel.hidden = true; documentTools.querySelector('summary').focus(); };
+    panel.querySelector(`[data-prompt-${action}-close]`).addEventListener('click', closePanel);
+    panel.addEventListener('keydown', event => {
+      if (event.key === 'Escape') { event.preventDefault(); closePanel(); }
+    });
+  });
+  documentTools?.addEventListener('keydown', event => {
+    if (event.key === 'Escape') { documentTools.open = false; documentTools.querySelector('summary').focus(); }
+  });
   document.querySelectorAll('[data-prompt-edit], [data-prompt-clear]').forEach((button) => button.addEventListener('click', () => {
     const dialog = document.getElementById(`prompt-editor-${button.dataset.promptEdit || button.dataset.promptClear}`);
     if (!dialog) return;

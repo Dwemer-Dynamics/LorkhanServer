@@ -3,10 +3,13 @@
     <div class="search-heading">
         <label for="prompt-search">Search Prompts</label>
         <p>Filter by prompt key, description, status, or preview text.</p>
-        <input id="prompt-search" type="search" placeholder="Search prompts..." data-prompt-search>
+        <input id="prompt-search" type="search" class="form-control" placeholder="Search prompts..." autocomplete="off" data-prompt-search>
         <p data-prompt-search-empty hidden>No prompts match your current search.</p>
     </div>
-    <div class="prompt-table-wrap"><table><thead><tr><th>Prompt Key</th><th>Description</th><th>Status</th><th>Preview</th><th>Actions</th></tr></thead><tbody>
+    <?php if($rows===[]): ?>
+        <div class="prompt-warning"><h3>⚠️ No Prompts Found</h3><p>Use Prompt documents → Create Prompt to add one.</p></div>
+    <?php else: ?>
+    <div class="prompt-table-wrap table-container"><table class="prompts-table"><thead><tr><th>Prompt Key</th><th>Description</th><th>Status</th><th>Preview</th><th>Actions</th></tr></thead><tbody>
     <?php foreach ($rows as $row):
         $content=$row['content'];$custom=(string)($content['custom_prompt']??'');$isCustom=trim($custom)!=='';
         $description=(string)($content['description']??$row['name']);
@@ -14,17 +17,17 @@
         $id=(string)$row['configuration_id'];
     ?>
         <tr data-prompt-row data-search="<?= lorkhan_ui_h(mb_strtolower($row['prompt_key'].' '.$description.' '.($isCustom?'custom':'default').' '.$preview)) ?>">
-            <td><code><?= lorkhan_ui_h($row['prompt_key']) ?></code></td>
+            <td class="prompt-key-cell"><code><?= lorkhan_ui_h($row['prompt_key']) ?></code></td>
             <td class="prompt-description"><?= lorkhan_ui_h($description) ?></td>
             <td><span class="prompt-status <?= $isCustom?'custom':'default' ?>"><?= $isCustom?'🎨 Custom':'📋 Default' ?></span></td>
-            <td><div class="prompt-preview <?= $isCustom?'custom':'' ?>"><?= lorkhan_ui_h($preview) ?></div></td>
+            <td class="prompt-content-cell"><div class="prompt-preview <?= $isCustom?'custom':'' ?>"><?= lorkhan_ui_h($preview) ?></div></td>
             <td><div class="row-actions"><button type="button" class="prompt-button prompt-edit-button" data-prompt-edit="<?= lorkhan_ui_h($id) ?>">✏️ Edit</button>
                 <?php if($isCustom): ?><button type="button" class="prompt-button prompt-clear-button" data-prompt-clear="<?= lorkhan_ui_h($id) ?>">🔄 Clear</button><?php endif; ?>
             </div></td>
         </tr>
     <?php endforeach; ?>
-    <?php if($rows===[]): ?><tr><td colspan="5" class="empty-prompts">No prompts found. Use Create Prompt to add one.</td></tr><?php endif; ?>
     </tbody></table></div>
+    <?php endif; ?>
 </section>
 <?php foreach($rows as$row):
     $id=(string)$row['configuration_id'];$content=$row['content'];$formId='prompt-form-'.$id;

@@ -28,7 +28,7 @@ NPC Management's mass-profile dialog, Profile LLMs summary, editor tabs, diary
 controls, movement cards and Roleplay fields derive from the same revision's `ui/core/npc_master.php`. Lorkhan
 retains scoped Core Profile identities and excludes unsupported Skyrim features.
 
-Prompts Manager's default/custom table and editor dialog derive from that revision's
+Prompts Manager's header, CSV/search panels, default/custom table and editor dialog derive from that revision's
 `ui/prompts_manager.php`. Lorkhan retains revision checks, installation scope and
 its supported prompt documents and player mood templates.
 

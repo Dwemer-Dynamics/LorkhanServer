@@ -78,17 +78,17 @@ include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 ?>
 <main class="prompts-page">
-    <header class="page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Prompts Manager</h1><p class="lorkhan-page-head-note">Manage system and custom prompts used throughout LORKHAN</p><div class="lorkhan-page-head-actions"><button type="button" class="prompt-button primary" data-prompt-create>Create Prompt</button></div></header>
+    <header class="page-header lorkhan-page-head"><h1 class="lorkhan-page-head-title">Prompts Manager</h1><p class="lorkhan-page-head-note">Manage system and custom prompts used throughout LORKHAN</p><details class="prompt-document-tools"><summary class="prompt-button">Prompt documents</summary><div><button type="button" class="prompt-button" data-prompt-create>Create Prompt</button><button type="button" class="prompt-button" data-prompt-import>Import LORKHAN JSON</button></div></details></header>
     <?php if (isset($_GET['status'])): ?><div class="prompt-notice">Prompt saved.</div><?php endif; ?>
     <?php if($csvNotice!==''): ?><p role="status" class="prompt-notice"><?php echo lorkhan_ui_h($csvNotice); ?></p><?php endif; ?>
     <?php if($csvError!==''): ?><p role="alert" class="prompt-notice"><?php echo lorkhan_ui_h($csvError); ?></p><?php endif; ?>
     <div class="transfer-grid">
-        <section><h2>&#x1F4E4; Export Custom Prompts</h2><p>Download custom overrides in the same two-column CSV format as CHIM.</p><a class="prompt-button" href="?export=csv&amp;installation_id=<?php echo lorkhan_ui_h($installationId); ?>">Export Custom Prompts</a></section>
-        <section><h2>&#x1F4E5; Import Custom Prompts</h2><form method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="action" value="import_csv"><label for="prompts-csv">Choose CSV File</label><input id="prompts-csv" type="file" name="csv_file" accept=".csv,text/csv" required><button class="prompt-button" type="submit">Import Custom Prompts</button><button type="button" class="prompt-button" data-prompt-import>Import LORKHAN JSON</button></form></section>
+        <section><p><strong>📤 Export Custom Prompts</strong></p><p>Download all your custom prompts as a CSV file to share with others.</p><a class="prompt-button btn-export" href="?export=csv&amp;installation_id=<?php echo lorkhan_ui_h($installationId); ?>">⬇️ Export Custom Prompts</a></section>
+        <section><p><strong>📥 Import Custom Prompts</strong></p><p>Upload a CSV file to import custom prompts shared by others.</p><form method="post" enctype="multipart/form-data" data-prompt-csv-form><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="action" value="import_csv"><div class="prompt-file-picker"><input id="prompts-csv" type="file" name="csv_file" accept=".csv,text/csv" required><label for="prompts-csv">📁 Choose CSV File</label><span data-prompt-csv-name role="status"></span></div><br><button class="prompt-button btn-import" type="submit" disabled>⬆️ Import Custom Prompts</button></form></section>
         <aside class="prompt-help">
             <p><strong>Note:</strong> Recommended for advanced users only. Changing prompts can cause unexpected behavior that may worsen the roleplay experience.</p>
-            <p><strong>Default Prompt:</strong> System-maintained baseline that updates with LORKHAN. <strong>Custom Prompt:</strong> Your versioned override that takes precedence for this prompt document. Select the dialogue prompt in Core Profiles.</p>
-            <p>Click <strong>Edit</strong> to view and modify prompts. View earlier saved versions in <strong>Revision history</strong>.</p>
+            <p><strong>Default Prompt:</strong> System-maintained baseline that updates with LORKHAN. <strong>Custom Prompt:</strong> Your versioned override that takes precedence when set.</p>
+            <p>Click <strong>Edit</strong> to view and modify prompts. Click <strong>Clear</strong> to revert to default.</p>
         </aside>
     </div>
 

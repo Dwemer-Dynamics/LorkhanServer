@@ -82,7 +82,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
-| `prompts_manager.php` | Same path | Default/Custom table, description/default/custom dialog, safe Clear, CSV round trip and plain instruction creation implemented; populated/empty, desktop/narrow and reader interactions checked; transfer/header controls still need final counterpart comparison |
+| `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
 | `description_manager.php` | `description_upload.php` | Pending structural and populated-state comparison |
 | `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
@@ -1055,3 +1055,30 @@ Remaining Core Profile requirements identified from the pinned source and live e
   or old source paths remain, private-file probes return 403 and unauthenticated
   native requests return 401. Configuration, credential and voice hashes are
   unchanged. Code rollback: lorkhanserver-code.ZQr7fa.
+
+### Prompts Manager: complete page layout follow-up
+
+- Replaced separate transfer cards with Herika's shared three-column CSV panel and
+  blue guidance inset. Search now has its own framed panel and a 540px field. At
+  1280px the header, transfer and search heights (43.98, 161.28 and 120.69px),
+  positions and widths match the extracted reference. Gold branding is retained.
+- Import starts disabled until a file is selected; its accessible file control
+  displays the selected name. Lorkhan's Create/JSON tools remain available inside
+  a compact Prompt documents disclosure. Opening focuses the appropriate field;
+  Escape/Close returns focus. Existing drafts are retained while switching panels.
+- Empty installations show a separate No Prompts Found notice with an accurate
+  creation instruction. Table framing, typography and centered actions follow the
+  counterpart. Preview markup deliberately does not add Herika's template-indent
+  whitespace to actual prompt text.
+- Compared populated and empty actual-template fixtures at 1280px and 390px,
+  including reader, no-match search/reset, Create/JSON controls and focus behavior.
+  The responsive CSV panel follows the reference's 1100/768px breakpoints. These
+  embedded fixtures use synthetic data; the native operating-system file picker
+  was not automated. Real multipart CSV import/export is covered by the existing
+  management HTTP integration tests, not claimed from a mocked browser submission.
+- Full lint, 338 server checks, 98 protocol checks, HTTP, integration, migrations
+  and schema passed again. JavaScript syntax and diff whitespace checks passed.
+  Local deployment matches all 695 runtime files, without extra/old paths; private
+  access and native authentication probes pass. Configuration, credential and voice
+  hashes are unchanged. Reviewed the deployed row and cancelled its reader without
+  saving. Code rollback: lorkhanserver-code.BEl7XC.
