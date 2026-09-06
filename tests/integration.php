@@ -1422,6 +1422,10 @@ $assert($memoryService->setRelationship($legacyEdit)['revision']===2,'legacy ide
 $memoryService->deleteRelationship($ownedRelationship['relationship_id'],2);
 $relationshipUi=new \LorkhanServer\Infrastructure\ManagementUiRepository($db);
 $currentRelationships=$relationshipUi->rows('relationships');
+$scopedRelationships=$relationshipUi->rows('relationships',$installationId,['profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$turn['playthrough_id']]);
+$assert(in_array($legacyId,array_column($scopedRelationships,'relationship_id'),true)
+    &&count(array_filter($scopedRelationships,static fn(array$row):bool=>$row['profile_id']!==$actorProfile['profile_id']||$row['playthrough_id']!==$turn['playthrough_id']))===0,
+    'NPC relationship editor mixed profile or playthrough scope');
 $assert(!in_array($ownedRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true)
     &&in_array($legacyId,array_column($currentRelationships,'relationship_id'),true)
     &&in_array($otherRelationship['relationship_id'],array_column($currentRelationships,'relationship_id'),true),

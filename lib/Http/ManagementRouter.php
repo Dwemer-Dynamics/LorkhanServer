@@ -2271,6 +2271,11 @@ final class ManagementRouter
     /** Return to the same standalone page or iframe after saving or refreshing a conflict. */
     private function relationshipPageLocation(array $values,string $status):string
     {
+        if(($values['relationship_page']??null)==='npc'){
+            $profile=(string)($values['profile_id']??'');$playthrough=(string)($values['playthrough_id']??'');
+            $this->uuid($profile,'profile_id');$this->uuid($playthrough,'playthrough_id');
+            return $this->characterPageLocation($values,$status).'&'.http_build_query(['rel_profile'=>$profile,'rel_playthrough'=>$playthrough]);
+        }
         $query=['status'=>$status];
         foreach(['installation_id','profile_id','playthrough_id','history_limit'] as $field)
             if(is_string($values[$field]??null))$query[$field]=$values[$field];

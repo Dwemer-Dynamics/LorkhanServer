@@ -22,3 +22,4 @@ scripts/provision-default-biographies.php
 scripts/provision-default-connectors.php
 scripts/provision-default-descriptions.php
 scripts/provision-default-oghma.php
+ui/tmpl/npc_relationships.html.php

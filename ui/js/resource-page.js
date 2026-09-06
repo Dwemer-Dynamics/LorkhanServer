@@ -73,6 +73,10 @@
         };
         form.addEventListener('input', handleChange);
         form.addEventListener('change', handleChange);
+        [...form.elements].filter(control => !form.contains(control)).forEach(control => {
+            control.addEventListener('input', handleChange);
+            control.addEventListener('change', handleChange);
+        });
         form.addEventListener('submit', (event) => { if (!event.defaultPrevented) clearDirty(); });
         form.addEventListener('reset', () => window.setTimeout(clearDirty, 0));
     });
@@ -564,6 +568,58 @@
         if (initial === 'history' || !buttons.some((button) => button.getAttribute('data-npc-editor-tab') === initial)) initial = 'general';
         activate(initial);
     });
+
+    document.querySelectorAll('[data-npc-relationships]').forEach(view => {
+        const tiers = JSON.parse(view.dataset.tiers || '[]');
+        const custom = view.querySelector('[data-rel-custom-type]');
+        custom?.addEventListener('submit', event => {
+            event.preventDefault();
+            if (!custom.reportValidity()) return;
+            const type = custom.elements.custom_type.value.trim().toLowerCase();
+            view.querySelectorAll('select[name="relationship_type"]').forEach(select => {
+                if (![...select.options].some(option => option.value === type)) select.add(new Option(`🏷️ ${type[0].toUpperCase()}${type.slice(1)}`,type));
+            });
+            custom.querySelector('[data-rel-custom-status]').textContent = 'Type available. Select it on a row and save.';
+        });
+        view.querySelectorAll('.npc-rel-aff').forEach(control => control.addEventListener('input', () => {
+            const tier = tiers.find(item => Number(control.value) >= item[0]);
+            const badge = control.closest('[data-npc-rel-row]')?.querySelector('.npc-rel-tier');
+            if (!badge || !tier || !control.validity.valid) return;
+            badge.textContent = tier[1];badge.style.color = tier[2];
+        }));
+        view.querySelectorAll('[data-rel-details]').forEach(button => button.addEventListener('click', () => {
+            const panel = document.getElementById(button.dataset.relDetails);
+            if (!panel) return;
+            button.setAttribute('aria-controls', panel.id);
+            if (panel instanceof HTMLDialogElement) {
+                if (panel.open) panel.close();
+                else {panel.hidden=false;panel.showModal();button.setAttribute('aria-expanded','true');}
+                return;
+            }
+            panel.hidden = !panel.hidden;
+            view.querySelectorAll('[data-rel-details]').forEach(toggle => {
+                if (toggle.dataset.relDetails === panel.id) toggle.setAttribute('aria-expanded', String(!panel.hidden));
+            });
+            if (!panel.hidden) panel.querySelector('input,select,textarea,button')?.focus();
+            else view.querySelector(`[data-rel-details="${panel.id}"]`)?.focus();
+        }));
+        view.querySelectorAll('dialog.npc-rel-build').forEach(dialog => {
+            dialog.addEventListener('keydown', event => {if(event.key==='Escape')event.stopPropagation();});
+            dialog.addEventListener('close', () => {
+                dialog.hidden=true;
+                const trigger=view.querySelector(`[data-rel-details="${dialog.id}"]`);
+                trigger?.setAttribute('aria-expanded','false');trigger?.focus();
+            });
+        });
+    });
+    // Revisioned relationship forms return to the same NPC and category, including conflicts.
+    const relationshipReturn = new URLSearchParams(window.location.search).get('rel_profile');
+    if (relationshipReturn && /^[0-9a-f-]{36}$/.test(relationshipReturn)) {
+        const form = document.getElementById(`management-form-profile-${relationshipReturn}`);
+        const modal = form?.closest('[data-npc-modal]');
+        const tabs = modal?.querySelector('[data-npc-editor-tabs]');
+        if (modal && tabs) { openModal(modal.id);tabActivators.get(tabs)?.('relationships',true); }
+    }
     document.addEventListener('keydown', (event) => {
         if (event.key === 'Tab' && activeModal) {
             const focusable = [...activeModal.querySelectorAll('a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])')]

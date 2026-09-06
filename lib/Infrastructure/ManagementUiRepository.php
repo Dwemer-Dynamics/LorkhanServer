@@ -287,6 +287,13 @@ SQL);
     {
         $relationshipScoped=in_array($view,['relationships','relationship_logs','relationship_profiles'],true)&&$relationshipInstallationId!==null;
         $relationshipFilter=$relationshipScoped?' AND r.installation_id=:relationship_installation':'';
+        $relationshipParams=$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:[];
+        if($relationshipScoped&&in_array($view,['relationships','relationship_logs'],true))foreach(['profile_id','playthrough_id']as$key){
+            if(!isset($memoryScope[$key]))continue;
+            if(!is_string($memoryScope[$key])||!Uuid::isValid($memoryScope[$key]))throw new \InvalidArgumentException('invalid_relationship_scope');
+            $relationshipFilter.=' AND r.'.$key.'=:relationship_'.$key;
+            $relationshipParams['relationship_'.$key]=$memoryScope[$key];
+        }
         $memoryScoped=$view==='memories'&&isset($memoryScope['installation_id'],$memoryScope['playthrough_id']);
         $sql = match ($view) {
             'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
@@ -431,7 +438,7 @@ SQL);
             if ($view === 'llm') $row['content'] = \LorkhanServer\Application\LlmConnector::validate(
                 json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
             return $this->redactRow($row);
-        }, $this->all($sql,$relationshipScoped?['relationship_installation'=>$relationshipInstallationId]:($memoryScoped?
+        }, $this->all($sql,$relationshipScoped?$relationshipParams:($memoryScoped?
             ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:[])));
     }
 

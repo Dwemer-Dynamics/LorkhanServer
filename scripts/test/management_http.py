@@ -834,12 +834,24 @@ try:
     raise AssertionError('stale management API write accepted')
 except urllib.error.HTTPError as error:
     assert error.code==409 and json.loads(error.read())['error']=='relationship_revision_conflict'
+npc_relationship_url='/LorkhanServer/ui/core/npc_master.php?'+urllib.parse.urlencode({'rel_profile':relationship_values['profile_id'],'rel_playthrough':playthrough_id})
+npc_relationship_page,npc_relationship_body=parse(request(npc_relationship_url))
+assert 'npc-rel-table' in npc_relationship_body and 'Recent Relationship Changes' in npc_relationship_body
+assert any(f['fields'].get('relationship_id')==relationship_id and f['fields'].get('relationship_page')=='npc' for f in npc_relationship_page.forms)
+r=request(relationship_edit['action'],'POST',dict(relationship_edit['fields'],_csrf=csrf,relationship_page='npc',ui_q='HTTP',disposition='99',affinity='6'))
+assert r.status==200 and '/ui/core/npc_master.php?' in r.geturl() and 'rel_profile='+relationship_values['profile_id'] in r.geturl() and 'relationship_revision_conflict' in r.geturl()
+npc_row_form=next(f for f in npc_relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationships'))
+r=request(npc_row_form['action'],'POST',dict(npc_row_form['fields'],_csrf=csrf,affinity='17',disposition='20',relationship_type='trusted_companion',reason='NPC table save',custom_info=''))
+npc_saved,npc_saved_body=parse(r)
+assert r.status==200 and '/ui/core/npc_master.php?' in r.geturl() and 'Relationship changes saved.' in npc_saved_body
+relationship_page,body=parse(request('/LorkhanServer/ui/relationship_logs.php?installation_id='+relationship_values['installation_id']))
+assert 'NPC table save' in body
 relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationship-delete'))
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
 assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
 assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body
-assert 'Recent changes' in body and '>6 shown<' in body
+assert 'Recent changes' in body and '>7 shown<' in body
 backup_response=request('/LorkhanServer/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='lorkhan.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))

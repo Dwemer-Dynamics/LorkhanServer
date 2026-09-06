@@ -731,11 +731,8 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''),[],'','How the NPC speaks their dialogue.');
     $field('goals','Goals','textarea',(string)($content['goals']??''),[],'','General motivations and goals used during regular dialogue.');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="relationships" hidden>';
-    $field('relationships','Relationships','textarea',(string)($content['relationships']??''),[],'span-2');
-    echo'<div class="npc-editor-placeholder span-2"><h3>Build with AI</h3><p>Analyze recent played conversations for this NPC. Choose a playthrough on Relationship Audit.</p>';
-    if($creating)echo'<button type="button" class="btn-base" disabled>Save this NPC first</button>';
-    else echo'<a class="btn-base btn-primary" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/relationship_logs.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId).'#relationship-builder').'">Build with AI</a>';
-    echo'</div></section>';
+    include __DIR__.'/npc_relationships.html.php';
+    echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
     $field('emote_moods','Emote Moods Override','textarea',(string)($content['emote_moods']??''),[],'span-2','Allowed mood/emote cues. Leave empty to use the inherited defaults.');
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
@@ -746,7 +743,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         echo'<article class="npc-editor-action-card"><div><h3>'.lorkhan_ui_h($label).'</h3><p>'.lorkhan_ui_h($description).'</p></div><button type="button" class="btn-base" disabled title="Profile-targeted movement is not supported by the current OpenMW client.">'.lorkhan_ui_h($label).'</button></article>';
     echo'</div></section>';
     lorkhan_ui_npc_history_panel($profileId,$creating,is_array($playthroughOptions[$installationId]??null)?$playthroughOptions[$installationId]:[],$managementBasePath,$csrf);
-    echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
+    echo'</div><form id="'.lorkhan_ui_h($formId).'" method="post" data-track-dirty action="'.lorkhan_ui_h($managementBasePath.'/forms/'.($creating?'profile-create':'profile-revise')).'">';
     if(!$creating)echo'<input type="hidden" name="profile_id" value="'.lorkhan_ui_h($profileId).'"><input type="hidden" name="base_content_json" value="'.lorkhan_ui_h(json_encode($content===[]?(object)[]:$content,JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE)).'">';
     echo'<input type="hidden" name="management_fields" value="1"><input type="hidden" name="_csrf" value="'.lorkhan_ui_h($csrf).'">';
     lorkhan_ui_hidden_state($listState);echo'</form>';

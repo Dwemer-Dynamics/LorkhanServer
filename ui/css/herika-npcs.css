@@ -680,3 +680,63 @@ body.view-characters .npc-switch-modal .npc-switch-actions .npc-switch-submit { 
 body.view-characters [data-npc-switch-status] { margin:8px 0 0; font-size:13px; color:#cfd9ea; }
 body.view-characters [data-npc-switch-status]:empty { display:none; }
 @media(max-width:480px) { body.view-characters .npc-switch-profiles { grid-template-columns:1fr; } }
+
+/* Relationship table and history follow Herika's NPC editor, with native revisioned row saves. */
+.npc-relationships{min-width:0}
+.npc-relationships>label{display:block;margin-bottom:12px}
+.npc-rel-scope{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:4px 0 10px;font-size:.85em}
+.npc-rel-scope label{margin:0}.npc-rel-scope select{width:auto;max-width:100%;flex:1}
+.npc-rel-table-region{position:relative;overflow-x:auto;margin-top:12px;max-width:100%}
+.npc-rel-table{width:100%;border-collapse:collapse;font-size:.9em;min-width:650px;table-layout:auto}
+.npc-rel-table th{padding:6px;color:#888;border-bottom:1px solid #4a4a4a;background:transparent;text-align:center;font-weight:700}
+.npc-rel-table th:first-child,.npc-rel-table th:nth-child(5){text-align:left}
+.npc-rel-table td{padding:8px;border-bottom:1px solid #333;text-align:center;background:transparent}
+.npc-rel-table td:first-child,.npc-rel-table .npc-rel-signals{text-align:left}
+.npc-rel-table input,.npc-rel-add input,.npc-rel-add select,.npc-rel-scope select,.npc-rel-details input,.npc-rel-details textarea,.npc-rel-build select{background:#1a1a1a;border:1px solid #4a4a4a;border-radius:4px;color:#e9efff;padding:4px 8px;box-sizing:border-box;font:inherit;min-height:0;margin:0}
+.npc-rel-target{display:block;min-width:120px;max-width:170px;overflow-wrap:anywhere;color:#e9efff}
+.npc-rel-table .npc-rel-aff{width:60px;padding:4px;text-align:center}
+.npc-rel-table .npc-rel-type{width:130px;padding:4px}
+.npc-rel-tier{font-weight:500;white-space:nowrap}
+.npc-rel-signals{min-width:150px}.npc-rel-signals>div{font-size:.82em;margin-bottom:3px;overflow-wrap:anywhere}
+.npc-rel-last{color:#d1d5db}.npc-rel-positive{color:#4ade80}.npc-rel-negative{color:#f87171}
+.npc-rel-empty{color:#666;font-style:italic;margin:12px 0}
+.npc-rel-actions{white-space:nowrap}
+.npc-relationships .npc-rel-actions button{background:transparent;border:0;color:#fde68a;cursor:pointer;font-size:1em;padding:2px;margin:0 3px;min-height:0;box-shadow:none}
+.npc-relationships .npc-rel-actions .npc-rel-delete{color:#ef4444;font-size:1.2em}
+.npc-rel-details{display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left;white-space:normal;padding:8px;background:#1a1a1a}
+.npc-rel-details label{display:grid;gap:4px;font-size:.9em}.npc-rel-wide{grid-column:1/-1}.npc-rel-details small{color:#888}
+.npc-rel-details textarea{width:100%;height:auto!important;min-height:70px!important}
+.npc-rel-add{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border-top:1px solid #333;padding-top:12px;margin-top:12px}
+.npc-rel-add select{flex:1;min-width:150px;padding:6px 10px;width:auto;max-width:100%}
+.npc-rel-add input[type=number]{width:70px;text-align:center;padding:6px}.npc-rel-add input[name=relationship_type]{width:130px;padding:6px}
+.npc-relationships .npc-rel-add button,.npc-relationships .npc-rel-quick-actions button,.npc-relationships .npc-rel-scope button,.npc-relationships .npc-rel-build button{background:#2a2a2a;border:1px solid #4a4a4a;border-radius:4px;color:var(--chim-accent);padding:6px 12px;cursor:pointer;font-weight:500;min-height:0;box-shadow:none;font-family:inherit}
+.npc-rel-quick-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:12px;font-size:.85em}
+.npc-relationships .npc-rel-quick-actions button{color:#86efac}
+.npc-rel-build{background:#1a1a1a;border:1px solid #4a4a4a;border-radius:8px;padding:20px;max-width:500px;margin-top:12px;font-size:.9em}
+.npc-rel-build h3{margin:0 0 12px;color:var(--chim-accent)}.npc-rel-build p{color:#888}
+.npc-rel-build .npc-rel-warning{background:#3a2a0a;border:1px solid #b8860b;border-radius:6px;color:#fde68a;padding:10px 12px}
+.npc-rel-build form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.npc-rel-build label{flex:1;display:grid;gap:4px}
+.npc-rel-save-note{display:block;color:#888;margin-top:10px;font-size:.78em}
+.npc-relationship-history{background:#1b1b1b;border:1px solid #3f3f3f;border-radius:8px;padding:12px;margin-top:16px}
+.npc-relationship-history h3{margin:0;color:var(--chim-accent);font-size:1rem}
+.npc-relationship-history header p{margin:3px 0 10px;color:#aaa;font-size:.82rem}
+.npc-relationship-history ol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.npc-relationship-history li{padding:8px 10px;border:1px solid #333;background:#222;border-radius:5px;font-size:.82rem;overflow-wrap:anywhere}
+.npc-relationship-history time{display:block;color:#888;font-size:.75rem;margin-top:4px}
+.npc-rel-legacy{margin-top:16px;color:#aaa;font-size:.85em}.npc-rel-legacy summary{cursor:pointer}
+.npc-rel-legacy textarea{width:100%;height:auto!important;min-height:80px!important}
+.npc-relationships [hidden]{display:none!important}
+@media(max-width:600px){.npc-rel-add select{flex-basis:100%}.npc-rel-build{padding:12px}.npc-rel-build label{flex-basis:100%}}
+.npc-relationships .npc-rel-table input,.npc-relationships .npc-rel-table select{padding:4px;min-height:36px}
+.npc-relationships .npc-rel-table .npc-rel-aff{width:60px}
+.npc-relationships .npc-rel-table .npc-rel-type{width:100%;min-width:135px}
+.npc-relationships .npc-rel-add select[name=relationship_type]{flex-basis:100%;width:100%}
+.npc-relationships .npc-rel-actions button.npc-rel-delete{color:#ef4444!important}
+.npc-relationships .npc-rel-add input[type=number]{width:70px}
+.npc-relationships .npc-rel-add select[name=actor_profile_id]{flex:1;min-width:150px;width:auto}
+body .npc-relationships .npc-rel-add button[type=submit],body .npc-relationships .npc-rel-scope button[type=submit],body .npc-relationships .npc-rel-build button[type=submit]{background:#383838!important;color:var(--chim-text)!important;border-color:#505050!important}
+body .npc-relationships .npc-rel-actions button[type=submit]{background:#383838!important;color:var(--chim-text)!important;border:1px solid #505050!important}
+.npc-rel-signals>div:last-child{margin-bottom:0}
+.npc-rel-table td,.npc-rel-table th{border-right:1px solid #333}
+dialog.npc-rel-build{margin:auto;width:min(90%,500px);max-height:85vh;overflow:auto;color:var(--chim-text)}
+dialog.npc-rel-build::backdrop{background:rgba(0,0,0,.7)}

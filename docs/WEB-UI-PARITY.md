@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; remaining General, Relationships, Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Lock/Clear All/details/save semantics, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -1530,3 +1530,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   credentials and voice contents were preserved. Relationship attempts, records,
   audit entries and hidden-log counts remain zero before/after deployment.
   No live provider or game call was used for this verification.
+
+### NPC Relationships — affinity table and native editing
+
+- Replaced the Relationships text-box/build-link placeholder with the pinned
+  Herika editor's Target / Affinity / Tier / Type / Signals table, inline score
+  and type controls, best/worst signals, details, Add, Build with AI and custom
+  type dialogs. Legacy biography relationship text is secondary. Added the NPC's
+  Recent Relationship Changes list with recorded UTC dates and accepted deltas;
+  deletion is labelled without inventing a score decrease.
+- Rows/history are filtered by installation, NPC profile and selected playthrough
+  in SQL before the existing100-row bound. Actor names are display labels, not
+  identity keys. Add chooses another bound OpenMW actor; existing targets retain
+  their record identity. Affinity tiers and built-in type ordering/icons match
+  the reference. Custom labels remain supported by existing validation.
+- Existing CSRF-protected save/delete/build handlers are reused. Row saves retain
+  expected_revision; successful saves and conflicts return to the same NPC tab.
+  Relationship rows save separately from profile revisions, with explicit copy.
+  Both row controls and NPC profile edits now participate in the unsaved-edit
+  guard, including controls linked to a form outside their DOM parent.
+- Actual source/reference components were rendered with synthetic populated and
+  empty records. Their affinity fields are60px wide and populated row heights
+  are72.25px. Enter opens details and dialogs; custom labels become selectable,
+  affinity85 shows Devoted, and edits mark the owning form dirty. Escape/Cancel
+  closes native dialogs and restores their trigger. Private-note text and its
+  associated row form were checked in the isolated fixture.
+- At390px the source document/client/scroll widths are375px. The table scrolls
+  inside its own375px region; the build dialog is337.5px wide and remains inside
+  the viewport. Fixed an absolutely positioned hidden table heading escaping
+  its scroll container. No live relationship write or provider request was used
+  for browser checks; populated screenshots are synthetic.
+- This tab remains PARTIAL: move Relationship Lock into its counterpart position,
+  add protected Clear All, complete details/direction field parity, resolve
+  staged versus separate-save behavior and the100-record reader bound, and then
+  remove superseded management tools from Relationship LLM Logs. These are not
+  declared OpenMW exceptions. The rest of the all-pages matrix remains active.
+- Verification:355 server checks,98 protocol files, management HTTP, full
+  integration, migrations/durable jobs and syntax checks passed. The final
+  isolated HTTP run also saved through the new NPC row form, returned to the
+  editor, and verified the persisted audit entry. Its outer shell wrapper had
+  an exit-argument quoting error after the suite's explicit pass marker; the
+  test log independently confirms completion. No new test file was added.
+- Deployed locally with rollback `/var/backups/lorkhanserver-code.B5SRm1`.
+  All722 runtime files match source, with no extras/old paths; health, private
+  file and unauthorized-session checks pass. Worker running. Configuration,
+  credential and voice hashes preserved. Live Fargoth opens on Relationships
+  using rel_profile/rel_playthrough; Escape closes Build without closing the
+  NPC editor and restores the trigger. No form was submitted on the live server.
+  Relationship attempts/records/audit/hidden counts remain zero before and after.
