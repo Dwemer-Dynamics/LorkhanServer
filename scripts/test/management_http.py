@@ -980,6 +980,16 @@ imported_id_match=re.search(r'core_profiles\.php\?[^"\']*edit=([0-9a-f-]{36})[^"
 if imported_id_match is None: imported_id_match=re.search(r'name="core_profile_id" value="([0-9a-f-]{36})"',body)
 assert imported_id_match,body
 imported_core_id=imported_id_match.group(1); imported_page=Page(); imported_page.feed(body)
+# The NPC mass switch selects Core Profiles and keeps the existing authenticated form boundary.
+switch_page,switch_html=parse(request('/LorkhanServer/ui/core/npc_master.php'))
+switch_form=next(f for f in switch_page.forms if f['action'].endswith('/forms/profile-bulk-switch'))
+switch_values=dict(switch_form['fields'],installation_id=valid['installation_id'],source_profile_id=imported_core_id,
+    target_profile_id=core_edit.group(1),include_locked='0',confirm='Switch')
+r=request(switch_form['action'],'POST',dict(switch_values,_csrf='invalid'),accept='application/json'); assert r.status==401
+r=request(switch_form['action'],'POST',dict(switch_values,_csrf=csrf,confirm='wrong'),accept='application/json'); assert r.status==422 and json.loads(r.read())['error']=='confirmation_mismatch'
+r=request(switch_form['action'],'POST',dict(switch_values,_csrf=csrf,target_profile_id=profile_id),accept='application/json'); assert r.status==422 and json.loads(r.read())['error']=='core_profile_scope_mismatch'
+r=request(switch_form['action'],'POST',dict(switch_values,_csrf=csrf),accept='application/json')
+assert r.status==200 and json.loads(r.read())=={'ok':True,'updated':0,'total_matched':0,'skipped_locked':0}
 imported_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/core-profile-save') and f['fields'].get('core_profile_id')==imported_core_id)
 assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
 assert imported_form['fields']['setting_behavior_rechat']=='1' and imported_form['fields']['setting_behavior_rechat_max_depth']=='5'

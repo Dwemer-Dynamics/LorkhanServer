@@ -356,6 +356,7 @@
     let lastTrigger = null;
     const closeModal = (modal) => {
         if (!modal) return;
+        if (modal.querySelector('[data-npc-core-switch][aria-busy="true"]')) return;
         modal.hidden = true;
         document.body.classList.remove('npc-modal-open');
         activeModal = null;
@@ -371,7 +372,61 @@
         activeModal = modal;
         const close = modal.querySelector('[data-npc-modal-close]');
         if (close) close.focus();
+        modal.querySelector('[data-npc-core-switch]')?.dispatchEvent(new Event('npc-switch-open'));
     };
+
+    // Herika's mass switch changes Core Profile assignments, never actor identities.
+    const coreSwitch = document.querySelector('[data-npc-core-switch]');
+    if (coreSwitch) {
+        const source = coreSwitch.elements.source_profile_id;
+        const target = coreSwitch.elements.target_profile_id;
+        const installation = coreSwitch.elements.installation_id;
+        const confirm = coreSwitch.elements.confirm;
+        const submit = coreSwitch.querySelector('button[type="submit"]');
+        const status = coreSwitch.querySelector('[data-npc-switch-status]');
+        const options = Array.from(source.options, option => ({id: option.value, label: option.text, installation: option.dataset.installation}));
+        const validate = () => {
+            submit.disabled = coreSwitch.getAttribute('aria-busy') === 'true' || confirm.value.trim() !== 'Switch'
+                || !source.value || !target.value || source.value === target.value;
+        };
+        const populate = () => {
+            const selected = document.querySelector('#npc_profile_filter')?.value;
+            const available = options.filter(option => option.installation === installation.value);
+            [source,target].forEach(select => select.replaceChildren(...available.map(option => new Option(option.label, option.id))));
+            if (available.some(option => option.id === selected)) source.value = selected;
+            target.value = available.find(option => option.id !== source.value)?.id || source.value;
+            status.textContent = available.length < 2 ? 'Create at least two Core Profiles for this installation before switching.' : '';
+            validate();
+        };
+        coreSwitch.addEventListener('npc-switch-open', () => { confirm.value = '';populate();confirm.focus(); });
+        installation.addEventListener('change', populate);
+        coreSwitch.addEventListener('input', validate);
+        coreSwitch.addEventListener('change', validate);
+        coreSwitch.addEventListener('submit', async event => {
+            event.preventDefault();validate();if (submit.disabled) return;
+            const body = new FormData(coreSwitch);body.set('confirm',confirm.value.trim());
+            const controls = [...coreSwitch.querySelectorAll('input,select,button')];
+            const disabled = controls.map(control => control.disabled);
+            coreSwitch.setAttribute('aria-busy','true');controls.forEach(control => { control.disabled = true; });
+            status.textContent = 'Switching profiles…';
+            const abort = new AbortController();const timer = window.setTimeout(() => abort.abort(),15000);
+            try {
+                const response = await fetch(coreSwitch.action,{method:'POST',body,headers:{Accept:'application/json'},signal:abort.signal});
+                const result = await response.json();
+                if (!response.ok || result.ok !== true) throw new Error(result.error || 'Switch failed.');
+                const url = new URL(window.location.href);
+                url.searchParams.set('status','profiles-switched');
+                url.searchParams.set('updated',String(result.updated));url.searchParams.set('skipped',String(result.skipped_locked));
+                window.location.assign(url.toString());
+            } catch (error) {
+                status.textContent = error.name === 'AbortError' ? 'The request timed out. Reload to check assignments before trying again.' : `Profiles could not be switched: ${error.message}`;
+            } finally {
+                window.clearTimeout(timer);coreSwitch.removeAttribute('aria-busy');
+                controls.forEach((control,index) => { control.disabled = disabled[index]; });validate();
+            }
+        });
+        populate();
+    }
 
     document.addEventListener('click', (event) => {
         const trigger = event.target.closest('[data-npc-modal-target]');

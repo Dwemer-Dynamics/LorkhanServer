@@ -1095,11 +1095,27 @@ $switchTarget=$service->createRevisioned('profile',['installation_id'=>$installa
     'content'=>['biography'=>'Alternate profile','management'=>['locked'=>false,'favorite'=>false]]]);
 $switchActor=['kind'=>'npc','record_id'=>'nalcarya','content_file'=>'Morrowind.esm'];
 $products->bindActorProfile($scope,$switchActor,$scope['profile_id'],$clock->iso());
-$skippedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],false,$clock->iso());
-$check($skippedSwitch===['updated'=>0,'skipped_locked'=>1],'bulk profile switch did not respect the source lock');
-$appliedSwitch=$products->bulkSwitchNpcProfileBindings($installation,$scope['profile_id'],$switchTarget['profile_id'],true,$clock->iso());
+$switchCoreContent=['schema'=>'lorkhan.core-profile.v1','prompt'=>'','settings_overrides'=>[],'routing'=>[]];
+$switchSourceCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Switch source','content'=>$switchCoreContent]);
+$switchTargetCore=$service->createRevisioned('core_profile',['installation_id'=>$installation,'name'=>'Switch target','content'=>$switchCoreContent]);
+$products->assignCoreProfile($scope['profile_id'],$switchSourceCore['core_profile_id']);
+$products->assignCoreProfile($switchTarget['profile_id'],$switchSourceCore['core_profile_id']);
+$switchBefore=$products->getRevisioned('profile',$scope['profile_id']);
+$skippedSwitch=$products->bulkSwitchNpcCoreProfiles($installation,$switchSourceCore['core_profile_id'],$switchTargetCore['core_profile_id'],false);
+$check($skippedSwitch===['updated'=>1,'total_matched'=>2,'skipped_locked'=>1],'mass Core Profile switch did not respect NPC locks');
+$appliedSwitch=$products->bulkSwitchNpcCoreProfiles($installation,$switchSourceCore['core_profile_id'],$switchTargetCore['core_profile_id'],true);
 $boundProfile=$db->query("SELECT profile_id FROM actor_profile_bindings WHERE installation_id='{$installation}' AND playthrough_id='{$playthrough['playthrough_id']}'")->fetchColumn();
-$check($appliedSwitch===['updated'=>1,'skipped_locked'=>0]&&$boundProfile===$switchTarget['profile_id'],'bulk profile switch did not move the actor binding');
+$switchAfter=$products->getRevisioned('profile',$scope['profile_id']);
+$check($appliedSwitch===['updated'=>1,'total_matched'=>1,'skipped_locked'=>0]&&$boundProfile===$scope['profile_id']
+    &&$switchAfter['core_profile_id']===$switchTargetCore['core_profile_id']&&$switchAfter['content']===$switchBefore['content']
+    &&$switchAfter['actor_identity']===$switchBefore['actor_identity']&&$switchAfter['current_revision']===$switchBefore['current_revision'],
+    'mass Core Profile switch changed identity, override history or actor binding');
+$failedSwitch=false;try{$products->bulkSwitchNpcCoreProfiles($installation,$switchSourceCore['core_profile_id'],$scope['profile_id'],false);}catch(InvalidArgumentException){$failedSwitch=true;}
+$check($failedSwitch,'mass Core Profile switch accepted an NPC identity as its target');
+$failedSwitch=false;try{$products->bulkSwitchNpcCoreProfiles($legacyInstallation,$switchSourceCore['core_profile_id'],$switchTargetCore['core_profile_id'],false);}catch(InvalidArgumentException){$failedSwitch=true;}
+$check($failedSwitch,'mass Core Profile switch crossed installations');
+// The following bulk-delete check owns its disposable binding independently of assignment switching.
+$products->bindActorProfile($scope,$switchActor,$switchTarget['profile_id'],$clock->iso());
 $batchGeneration=$products->bulkEnqueueNpcProfileGeneration($installation);
 $batchStats=(new Worker($jobs,$firstPartyRegistry,'profile-bulk-generate-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $batchRevision=(int)$db->query("SELECT current_revision FROM profiles WHERE profile_id='{$switchTarget['profile_id']}'")->fetchColumn();

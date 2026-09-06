@@ -1080,26 +1080,28 @@ final class ProductRepository
         });
     }
 
-    /** Move actor bindings between two same-installation NPC profiles, respecting the source lock by default. */
-    public function bulkSwitchNpcProfileBindings(string $installationId,string $sourceProfileId,string $targetProfileId,bool $includeLocked,string $now):array
+    /** Reassign NPC Core Profiles without moving identities, actor bindings or per-NPC overrides. */
+    public function bulkSwitchNpcCoreProfiles(string $installationId,string $sourceProfileId,string $targetProfileId,bool $includeLocked):array
     {
         if(hash_equals($sourceProfileId,$targetProfileId))throw new \InvalidArgumentException('profiles_must_differ');
-        return$this->transaction(function()use($installationId,$sourceProfileId,$targetProfileId,$includeLocked,$now):array{
-            $select=$this->db->prepare("SELECT p.profile_id,p.actor_identity,r.content FROM profiles p JOIN profile_revisions r "
+        return$this->transaction(function()use($installationId,$sourceProfileId,$targetProfileId,$includeLocked):array{
+            $cores=$this->db->prepare('SELECT core_profile_id FROM core_profiles WHERE installation_id=:installation '
+                .'AND core_profile_id IN(:source,:target) AND deleted_at IS NULL ORDER BY core_profile_id FOR SHARE');
+            $cores->execute(['installation'=>$installationId,'source'=>$sourceProfileId,'target'=>$targetProfileId]);
+            if(count($cores->fetchAll())!==2)throw new \InvalidArgumentException('core_profile_scope_mismatch');
+            $select=$this->db->prepare("SELECT p.profile_id,r.content FROM profiles p JOIN profile_revisions r "
                 ."ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation "
-                ."AND p.profile_id IN(:source,:target) AND p.deleted_at IS NULL FOR UPDATE OF p");
-            $select->execute(['installation'=>$installationId,'source'=>$sourceProfileId,'target'=>$targetProfileId]);$profiles=[];
-            foreach($select->fetchAll()as$row)$profiles[(string)$row['profile_id']]=$row;
-            if(!isset($profiles[$sourceProfileId],$profiles[$targetProfileId]))throw new \InvalidArgumentException('profile_installation_mismatch');
-            foreach([$profiles[$sourceProfileId],$profiles[$targetProfileId]]as$row){$identity=$this->json($row['actor_identity']);
-                if(in_array($identity['kind']??'actor',['player','narrator'],true))throw new \InvalidArgumentException('profile_not_switchable');}
-            $count=$this->db->prepare('SELECT count(*) FROM actor_profile_bindings WHERE installation_id=:installation AND profile_id=:source');
-            $count->execute(['installation'=>$installationId,'source'=>$sourceProfileId]);$matched=(int)$count->fetchColumn();
-            $sourceContent=$this->json($profiles[$sourceProfileId]['content']);$management=is_array($sourceContent['management']??null)?$sourceContent['management']:[];
-            if(($management['locked']??false)===true&&!$includeLocked)return['updated'=>0,'skipped_locked'=>$matched];
-            $update=$this->db->prepare('UPDATE actor_profile_bindings SET profile_id=:target,updated_at=:now WHERE installation_id=:installation AND profile_id=:source');
-            $update->execute(['target'=>$targetProfileId,'now'=>$now,'installation'=>$installationId,'source'=>$sourceProfileId]);
-            return['updated'=>$update->rowCount(),'skipped_locked'=>0];
+                ."AND p.core_profile_id=:source AND p.deleted_at IS NULL "
+                ."AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator','template') "
+                ."ORDER BY p.profile_id FOR UPDATE OF p");
+            $select->execute(['installation'=>$installationId,'source'=>$sourceProfileId]);$rows=$select->fetchAll();
+            $updated=0;$skipped=0;
+            foreach($rows as$row){
+                $content=$this->json($row['content']);
+                if(($content['management']['locked']??false)===true&&!$includeLocked){$skipped++;continue;}
+                $this->assignCoreProfile((string)$row['profile_id'],$targetProfileId);$updated++;
+            }
+            return['updated'=>$updated,'total_matched'=>count($rows),'skipped_locked'=>$skipped];
         });
     }
 

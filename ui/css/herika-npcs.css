@@ -615,3 +615,21 @@ body.view-characters .npc-modal-body {
 /* Match the NPC toolbar checkbox alignment while retaining its autosave handler. */
 body.view-characters .npc-auto-lock-profile label,
 body.view-characters label.npc-auto-lock-profile { flex-direction: row; align-items: center; }
+
+/* Herika's compact mass-assignment dialog, scoped separately from full NPC editors. */
+body.view-characters .npc-modal.npc-switch-modal { width:92%; max-width:560px; padding:16px; background:#2a2a2a; border:1px solid #4a4a4a; border-radius:10px; overflow:auto; }
+body.view-characters .npc-switch-modal h2 { margin:0 0 8px; color:#bc9d5a !important; font:700 14px/1.5 Arial,sans-serif; }
+body.view-characters .npc-switch-modal > p { margin:0 0 12px; color:#cfd9ea; font-size:13px; }
+body.view-characters .npc-switch-modal form { display:block; margin:0; padding:0; border:0; background:none; box-shadow:none; }
+body.view-characters .npc-switch-modal label { display:flex; flex-direction:column; gap:6px; font-size:12px; color:#cfd9ea; }
+body.view-characters .npc-switch-modal input:not([type=checkbox]),
+body.view-characters .npc-switch-modal select { width:100%; padding:8px; border:1px solid #4a4a4a; border-radius:6px; background:#2a2a2a; color:#e9efff; }
+body.view-characters .npc-switch-profiles { display:grid; grid-template-columns:1fr 1fr; gap:10px; margin:0 0 8px; }
+body.view-characters .npc-switch-modal label.npc-switch-lock { flex-direction:row; align-items:center; gap:8px; margin:8px 0 12px; font-size:13px; }
+body.view-characters .npc-switch-lock input { width:auto; }
+body.view-characters .npc-switch-modal label strong { display:contents; color:#ffd166; }
+body.view-characters .npc-switch-actions { display:flex; justify-content:flex-end; gap:8px; margin-top:12px; }
+body.view-characters .npc-switch-modal .npc-switch-actions .npc-switch-submit { background:#3a3a3a !important; border:1px solid #4a4a4a !important; color:#e9efff !important; }
+body.view-characters [data-npc-switch-status] { margin:8px 0 0; font-size:13px; color:#cfd9ea; }
+body.view-characters [data-npc-switch-status]:empty { display:none; }
+@media(max-width:480px) { body.view-characters .npc-switch-profiles { grid-template-columns:1fr; } }

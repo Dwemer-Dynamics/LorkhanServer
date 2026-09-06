@@ -907,3 +907,40 @@ Remaining Core Profile requirements identified from the pinned source and live e
   return 401. Existing configuration, credential and voice hashes are unchanged.
   The live Action Editor populated all 16 actions and its layout was reviewed;
   no live action policy was changed. Rollback: lorkhanserver-code.N2KsyJ.
+
+### NPC Management: Mass Switch Profile
+
+- Found and removed a functional mismatch: this control previously moved OpenMW
+  actor bindings from one NPC identity to another. Herika instead assigns all NPCs
+  on one Core Profile to another Core Profile. The revised path changes only
+  `profiles.core_profile_id`, keeping identities, actor bindings, content/voice
+  overrides and existing profile revisions intact.
+- Source and target must be different, active Core Profiles in one installation.
+  Locked NPCs are skipped by default; Include locked NPCs is explicit. Player,
+  Narrator, template and deleted profiles are excluded. Locks and assignment writes
+  are transactional; no provider or game commands are issued.
+- Replaced the divergent full-width generic form with Herika's compact 560px
+  dialog: From profile / To profile, Include locked NPCs, typed Switch confirmation,
+  Cancel and Switch Profiles. It defaults from the current Core Profile filter,
+  reports updated/skipped counts, bounds requests and retains failed inputs.
+  Multiple installations get an additional scoped selector; a single installation
+  does not get an extra visible field.
+- Compared against isolated markup extracted from pinned Herika
+  `529364c4c12b3a8bd4cc12a481f400ce19b3a344` with its stylesheets. The Lorkhan fixture
+  renders the actual PHP form block and page CSS/JavaScript. Checked desktop and
+  390px layouts, same-profile rejection, installation options, fewer-than-two
+  profiles, and successful mocked submission/counts. No live NPC was switched.
+- Existing regression suites now verify Core Profile switching instead of the
+  incorrect identity-binding behavior, including locks, unchanged identity/content/
+  revisions/bindings, invalid NPC targets and cross-installation rejection.
+  Full lint, 337 server checks, 98 protocol checks, HTTP, integration and migration
+  checks passed. The final HTTP run also exercised CSRF, confirmation, target types
+  and the status-only JSON form response. NPC list/editor/tab comparisons remain
+  open; this does not mark the entire NPC Management page accepted.
+- Derived presentation source: HerikaServer `ui/core/npc_master.php` at the pinned
+  revision above; destinations are `ui/tmpl/resource_page.php`,
+  `ui/css/herika-npcs.css` and `ui/js/resource-page.js`, under the shared MIT notice.
+- Deployed locally and reviewed the live one-Core-Profile state: both selectors show
+  Default and Switch Profiles stays disabled with the missing-second-profile hint.
+  No live assignments were changed. Configuration, credentials and voice content
+  hashes were preserved. Code rollback: lorkhanserver-code.aATWLc.
