@@ -1045,6 +1045,10 @@ $relationshipLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($d
 $assert(count($relationshipLog['rows'])===1&&(int)$relationshipLog['rows'][0]['affinity_delta']===2
     &&$relationshipLog['rows'][0]['context']!==''&&$relationshipLog['rows'][0]['type']==='eval_',
     'relationship log did not map committed evaluation and retained source context');
+$assert(($relationshipLog['rows'][0]['changes'][0]['type']??null)==='neutral'
+    &&(json_decode($relationshipLog['rows'][0]['proposal'],true)['relationship_type']??null)==='romantic'
+    &&$relationshipLog['rows'][0]['request']!==''&&str_contains($relationshipLog['rows'][0]['context_note'],'typed'),
+    'relationship log confused rejected model type with applied state or lost recorded input');
 $assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
     &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
     'played relationship worker did not persist one bounded result under the global policy');
@@ -1078,6 +1082,9 @@ $relationshipProvider->during=static function()use($products,$relationshipGlobal
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===2
     &&(int)$db->query('SELECT count(*) FROM relationship_evaluation_results')->fetchColumn()===0,
     'late relationship output survived a Global Settings policy revision');
+$cancelledLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($db))->page($installationId);
+$assert($cancelledLog['rows'][0]['state']==='cancelled'&&$cancelledLog['rows'][0]['changes']===null,
+    'cancelled relationship proposal was shown as an applied change');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_queued');
 $relationshipProvider->during=static function()use($products,$actorProfile,$installationId,$session,$turn,$now):void{
     $record=$products->setRelationship(['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],
@@ -1156,6 +1163,16 @@ $buildLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($db))->pa
 $assert(count($buildLog['rows'])===1&&(int)$buildLog['rows'][0]['changed_count']===2
     &&$buildLog['rows'][0]['context']!==''&&!str_contains(json_encode($buildLog),$privateBuildNote),
     'relationship build log lost its receipt/context or exposed private Custom Info');
+$assert(count($buildLog['rows'][0]['changes']??[])===2
+    &&count(array_filter($buildLog['rows'][0]['changes'],static fn(array $change):bool=>$change['old_type']==='neutral'&&$change['type']==='professional'))===2,
+    'relationship build log lost per-target committed type transitions');
+$db->exec('SAVEPOINT relationship_log_visibility');
+$db->prepare('UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE projection_key=:key')
+    ->execute(['key'=>'dialogue:'.$historyDelivery['dialogue_message_id']]);
+$hiddenBuildLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($db))->page($installationId,'analyze_');
+$assert($hiddenBuildLog['rows'][0]['request']===''&&$hiddenBuildLog['rows'][0]['context']===''&&$hiddenBuildLog['rows'][0]['proposal']==='',
+    'frozen relationship request resurrected suppressed source conversation');
+$db->exec('ROLLBACK TO SAVEPOINT relationship_log_visibility');
 $assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2], 'history build did not atomically update both known targets');
 $privateRows=$products->exportScope($buildScope)['relationships'];
 $assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2,

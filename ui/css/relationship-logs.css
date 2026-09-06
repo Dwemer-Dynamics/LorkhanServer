@@ -139,3 +139,8 @@ body.hub-page main.relationship-log-page { padding:10px 10px 40px; width:100%; m
 @media(max-width:700px) { .relationship-log-page .cleanup-age { flex-wrap:wrap; } }
 .relationship-log-page .no-data p { margin:0 0 10px; }
 .relationship-log-page .no-data p.rel-source-note { font-size:.9em; }
+.relationship-log-page .rel-type-change { color:#f59e0b; font-weight:bold; margin-left:8px; }
+.relationship-log-page .rel-native-evidence { white-space:normal; margin-top:12px; }
+.relationship-log-page .rel-native-evidence summary { cursor:pointer; }
+.relationship-log-page .rel-native-evidence h4 { margin:10px 0 6px; font:inherit; font-weight:bold; }
+.relationship-log-page .rel-native-evidence pre { white-space:pre-wrap; overflow-wrap:anywhere; font-size:inherit; }

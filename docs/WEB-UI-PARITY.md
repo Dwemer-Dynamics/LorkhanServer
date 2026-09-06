@@ -97,7 +97,7 @@ do not use an exception to excuse a generic substitute layout.
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
-| `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup presentation compared populated and empty; native editing secondary. Recording gaps still pending: exact per-attempt prompt/proposal and per-target build/type-change evidence; see Relationship LLM Logs checkpoint |
+| `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup compared populated and empty; future request/proposal and committed per-target/type-change evidence implemented and checked. Historical missing data stays explicit. Final placement of native management tools remains pending |
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
@@ -1497,3 +1497,36 @@ Remaining Core Profile requirements identified from the pinned source and live e
   table by40px without scrolling the page.
 - Keep the matrix row partial until recording gaps and final placement of the
   existing relationship management tools versus Herika's NPC editor are resolved.
+
+### Relationship LLM Logs — recorded request and committed changes
+
+- New evaluation/build attempts retain only bounded system/user message text and
+  strictly validated proposals. The real provider observer receives messages,
+  never HTTP headers, credentials or connector options. Mock input is labelled
+  separately. Existing historical attempts are not assigned invented prompts.
+- Applied per-target affinity/disposition deltas and accepted type transitions
+  are recorded within the existing fenced save transaction. Rejected type
+  proposals, cancelled work and zero-change builds remain distinguishable.
+- The context reader shows recorded input and an expandable request/proposal
+  reader. Proposals are explicitly not proof of applied changes. If any source
+  exchange or utterance is hidden/removed, frozen request/proposal content is
+  withheld so the reader cannot restore deleted conversation text.
+- Actual reference/source templates were compared with synthetic evaluation,
+  multi-target build, type-change, cancelled and no-change rows. Keyboard opens
+  both context and nested evidence. At 390px the document remains375px wide;
+  the expanded reader's client/scroll widths are both284px inside the existing
+  horizontal table region. These populated fixtures are not live provider proof.
+- Existing checks pass:355 server checks,98 protocol files, management HTTP,
+  integration, migrations/durable jobs and PHP syntax. The existing integration
+  suite verifies rejected versus accepted types, two committed build targets,
+  cancellation without applied evidence and post-capture source suppression.
+  The provider-observer test stops before networking. No new test file or schema
+  migration. Inventory stays167 relations, hash
+  2ae8a2f8027d65103de8e1fd2ca0c1cdaeaa989b8e9045cd5b5b225828864fb4.
+- Relationship tool placement and the remaining page matrix are still pending.
+- Deployed locally with rollback `/var/backups/lorkhanserver-code.f6xIij`.
+  All721 runtime files match source, no extra/old paths, health/auth/private-file
+  probes pass, and the restarted worker reports running. Configuration,
+  credentials and voice contents were preserved. Relationship attempts, records,
+  audit entries and hidden-log counts remain zero before/after deployment.
+  No live provider or game call was used for this verification.

@@ -69,10 +69,10 @@ final class RelationshipEvaluationRepository
     }
 
     /** Apply bounded deltas and their receipt atomically; provider work never runs inside this transaction. */
-    public function save(array $payload,array $output,string $now):bool
+    public function save(array $payload,array $output,string $now,?string $attemptId=null):bool
     {
         $output=RelationshipEvaluationPolicy::output($output);
-        return $this->transaction(function()use($payload,$output,$now):bool{
+        return $this->transaction(function()use($payload,$output,$now,$attemptId):bool{
             $source=$this->source($payload['source_event_id']);if($source===null)return false;
             $this->lockIdentity($source);$input=$this->input($payload);if($input===null)return false;
             $record=$input['record'];$beforeDisposition=(int)($record['disposition']??0);$beforeAffinity=(int)($record['affinity']??0);
@@ -98,6 +98,11 @@ final class RelationshipEvaluationRepository
                 'disposition'=>$disposition-$beforeDisposition,'affinity'=>$affinity-$beforeAffinity,'reason'=>$output['reason'],'now'=>$now,
                 'lease'=>$payload['_job']['lease_token'],'attempt'=>$payload['_job']['attempt']]);
             if($query->rowCount()!==1)throw new \LorkhanServer\Application\OperationCancelled('lease_lost');
+            if($attemptId!==null)(new ProviderAttemptRepository($this->db))->recordRelationshipApplied($attemptId,$payload['_job']['job_id'],[[
+                'target'=>(string)($source['target_identity']['display_name']??$source['target_identity']['record_id']??'Unknown interlocutor'),
+                'affinity_delta'=>$affinity-$beforeAffinity,'disposition_delta'=>$disposition-$beforeDisposition,
+                'old_type'=>$beforeType,'type'=>$relationshipType,'reason'=>$output['reason'],
+            ]]);
             return true;
         });
     }

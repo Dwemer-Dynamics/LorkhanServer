@@ -27,15 +27,18 @@
         <tr><td><div class="rel-time"><?= $time->format('H:i:s') ?></div><div class="rel-date"><?= $time->format('M j') ?></div></td>
         <td><span class="rel-type rel-type-<?= lorkhan_ui_h($kind) ?>"><?= lorkhan_ui_h($kind) ?></span></td>
         <td><?= lorkhan_ui_h($row['npc'].($kind==='npc2npc'?' → '.$row['target']:'')) ?></td><td class="rel-changes">
-            <?php if($row['affinity_delta']!==null): $delta=(int)$row['affinity_delta']; ?>
-                <div class="rel-change-item"><strong><?= lorkhan_ui_h($row['target']) ?></strong>: <span class="rel-delta rel-delta-<?= $delta>0?'pos':($delta<0?'neg':'zero') ?>" title="Applied affinity change"><?= $delta>0?'+':'' ?><?= $delta ?></span>
-                    <?php if((int)$row['disposition_delta']!==0): ?><span class="rel-source-note">Disposition <?= (int)$row['disposition_delta']>0?'+':'' ?><?= (int)$row['disposition_delta'] ?></span><?php endif; ?>
-                    <div class="rel-reason"><?= lorkhan_ui_h($row['reason']??'') ?></div>
+            <?php $changes=is_array($row['changes']??null)?$row['changes']:($row['affinity_delta']!==null?[$row]:null);
+            if($changes!==null): if($changes===[]): ?><span class="rel-source-note">No changes</span><?php endif;
+            foreach($changes as $change): $delta=(int)$change['affinity_delta']; ?>
+                <div class="rel-change-item"><strong><?= lorkhan_ui_h($change['target']) ?></strong>: <span class="rel-delta rel-delta-<?= $delta>0?'pos':($delta<0?'neg':'zero') ?>" title="Applied affinity change"><?= $delta>0?'+':'' ?><?= $delta ?></span>
+                    <?php if((int)$change['disposition_delta']!==0): ?><span class="rel-source-note">Disposition <?= (int)$change['disposition_delta']>0?'+':'' ?><?= (int)$change['disposition_delta'] ?></span><?php endif; ?>
+                    <?php if(isset($change['old_type'],$change['type'])&&$change['old_type']!==$change['type']): ?><span class="rel-type-change">📋 <?= lorkhan_ui_h($change['old_type'].' → '.$change['type']) ?></span><?php endif; ?>
+                    <div class="rel-reason"><?= lorkhan_ui_h($change['reason']??'') ?></div>
                 </div>
-            <?php elseif($row['changed_count']!==null): ?><span class="rel-source-note"><?= (int)$row['changed_count'] ?> relationships updated from <?= (int)$row['source_count'] ?> conversations. Individual changes were not recorded with this build.</span>
+            <?php endforeach; elseif($row['changed_count']!==null): ?><span class="rel-source-note"><?= (int)$row['changed_count'] ?> relationships updated from <?= (int)$row['source_count'] ?> conversations. Individual changes were not recorded with this build.</span>
             <?php elseif($row['state']==='succeeded'): ?><span class="rel-source-note">Applied result not retained.</span>
             <?php else: ?><span class="rel-source-note"><?= lorkhan_ui_h(['started'=>'Pending evaluation','failed'=>'Evaluation failed','cancelled'=>'Cancelled before saving'][$row['state']]??$row['state']) ?></span><?php endif; ?>
-            <?php if($row['context']!==''): ?><div class="rel-context-wrapper"><button class="rel-context-toggle" type="button" aria-expanded="false" aria-controls="<?= $id ?>">📋 Show Context</button><div class="rel-context-content" id="<?= $id ?>" hidden><span class="rel-source-note">Retained source conversation; the exact provider prompt was not recorded.</span><?= "\n\n".lorkhan_ui_h($row['context']) ?></div></div><?php endif; ?>
+            <?php if($row['context']!==''): ?><div class="rel-context-wrapper"><button class="rel-context-toggle" type="button" aria-expanded="false" aria-controls="<?= $id ?>">📋 Show Context</button><div class="rel-context-content" id="<?= $id ?>" hidden><span class="rel-source-note"><?= lorkhan_ui_h($row['context_note']??'Retained source conversation; the exact provider prompt was not recorded.') ?></span><?= "\n\n".lorkhan_ui_h($row['context']) ?><?php if(($row['request']??'')!==''): ?><details class="rel-native-evidence"><summary>Request messages &amp; model proposal</summary><h4>Recorded request messages</h4><pre><?= lorkhan_ui_h($row['request']) ?></pre><?php if(($row['proposal']??'')!==''): ?><h4>Validated model proposal — not proof of applied changes</h4><pre><?= lorkhan_ui_h($row['proposal']) ?></pre><?php endif; ?></details><?php endif; ?></div></div><?php elseif(isset($row['context_note'])&&str_starts_with($row['context_note'],'Recorded request hidden')): ?><div class="rel-source-note"><?= lorkhan_ui_h($row['context_note']) ?></div><?php endif; ?>
         </td></tr>
     <?php endforeach; ?></tbody></table></div>
     <?php endfor; endif; ?>

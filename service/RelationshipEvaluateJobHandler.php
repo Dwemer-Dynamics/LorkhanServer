@@ -59,9 +59,13 @@ final class RelationshipEvaluateJobHandler implements JobHandler
             configRevision:(string)$payload['provider_revision'],inputBytes:strlen(json_encode($input['model'],JSON_THROW_ON_ERROR)),
             metadata:['source_event_id'=>$payload['source_event_id'],'provider_configuration_id'=>$payload['provider_configuration_id']]);
         try{
-            $output=RelationshipEvaluationPolicy::output($provider->generate($input['model'],$token));
+            $this->attempts->recordRelationshipRequest($attempt,[['role'=>'user','content'=>json_encode($input['model'],JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)]],false);
+            $output=RelationshipEvaluationPolicy::output($provider instanceof OpenAiCompatibleProfileGenerationProvider
+                ?$provider->generate($input['model'],$token,fn(array $messages)=>$this->attempts->recordRelationshipRequest($attempt,$messages))
+                :$provider->generate($input['model'],$token));
+            $this->attempts->recordRelationshipProposal($attempt,$output);
             $token->throwIfCancellationRequested();
-            $saved=$this->relationships->save($payload,$output,gmdate('Y-m-d\TH:i:s\Z'));
+            $saved=$this->relationships->save($payload,$output,gmdate('Y-m-d\TH:i:s\Z'),$attempt);
             $this->attempts->finish($attempt,$saved?'succeeded':'cancelled',strlen(json_encode($output,JSON_THROW_ON_ERROR)));
         }catch(OperationCancelled $error){
             $this->attempts->finish($attempt,'cancelled',errorCode:'operation_cancelled');

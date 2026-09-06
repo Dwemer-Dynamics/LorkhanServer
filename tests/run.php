@@ -264,6 +264,15 @@ $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
     &&LlmConnector::requestOptions([],null,false)===['response_format'=>['type'=>'json_object']],
     'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
 $directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
+$auditProvider=new \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider('http://127.0.0.1:9/v1/chat/completions',
+    ['127.0.0.1'],'fixture-model','fixture-secret',allowLoopbackHttp:true,directConnection:true);
+$auditMessages=[];$auditInput=['generation_mode'=>'relationship_evaluation','input'=>'A recorded exchange.'];
+try{$auditProvider->generate($auditInput,new NeverCancelledToken(),static function(array $messages)use(&$auditMessages):void{
+    $auditMessages=$messages;throw new RuntimeException('audit-observed-before-network');
+});$check(false,'request observer must run before network');}
+catch(RuntimeException $error){$check($error->getMessage()==='audit-observed-before-network'
+    &&array_column($auditMessages,'role')===['system','user']&&json_decode($auditMessages[1]['content'],true)===$auditInput
+    &&!str_contains(json_encode($auditMessages),'fixture-secret'),'relationship request observer captures exact messages without credentials or network I/O');}
 $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
     &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor
     &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,

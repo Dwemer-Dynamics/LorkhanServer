@@ -103,17 +103,17 @@ final class RelationshipBuildRepository
     }
 
     /** Score writes and the retry receipt form one transaction; missing output targets remain unchanged. */
-    public function save(array $payload,array $output,string $now):bool
+    public function save(array $payload,array $output,string $now,?string $attemptId=null):bool
     {
         $output=RelationshipBuildPolicy::output($output);
         foreach($output['relationships'] as $row)if(!isset($payload['targets'][$row['target_key']]))
             throw new \InvalidArgumentException('invalid_relationship_build_target');
-        return $this->transaction(function()use($payload,$output,$now):bool{
+        return $this->transaction(function()use($payload,$output,$now,$attemptId):bool{
             if(!$this->current($payload))return false;
             $targets=$payload['targets'];ksort($targets);
             foreach($targets as $target)$this->evaluations->lockIdentity($payload+['target_identity'=>$target['identity']]);
             $input=$this->input($payload);if($input===null)return false;
-            $changed=0;$products=new ProductRepository($this->db);
+            $changed=0;$applied=[];$products=new ProductRepository($this->db);
             foreach($output['relationships'] as $row){
                 $target=$targets[$row['target_key']];$record=$input['records'][$row['target_key']];
                 $beforeType=(string)($record['relationship_type']??'neutral');
@@ -127,6 +127,9 @@ final class RelationshipBuildRepository
                 if($record===null)$write['actor_identity']=$target['identity'];
                 else $write+=['relationship_id'=>$record['relationship_id'],'expected_revision'=>(int)$record['revision']];
                 $products->setRelationship($write,$now);++$changed;
+                $applied[]=['target'=>(string)($target['identity']['display_name']??$target['identity']['record_id']??'Unknown interlocutor'),
+                    'affinity_delta'=>$row['affinity']-(int)($record['affinity']??0),'disposition_delta'=>$row['disposition']-(int)($record['disposition']??0),
+                    'old_type'=>$beforeType,'type'=>$relationshipType,'reason'=>trim($row['reason'])];
             }
             $query=$this->db->prepare("INSERT INTO relationship_build_results(job_id,source_count,target_count,changed_count)
                 SELECT job_id,:sources,:targets,:changed FROM durable_jobs WHERE job_id=:job AND state='leased'
@@ -134,6 +137,7 @@ final class RelationshipBuildRepository
             $query->execute(['sources'=>count($payload['source_ids']),'targets'=>count($targets),'changed'=>$changed,
                 'job'=>$payload['_job']['job_id'],'lease'=>$payload['_job']['lease_token'],'attempt'=>$payload['_job']['attempt']]);
             if($query->rowCount()!==1)throw new OperationCancelled('lease_lost');
+            if($attemptId!==null)(new ProviderAttemptRepository($this->db))->recordRelationshipApplied($attemptId,$payload['_job']['job_id'],$applied);
             return true;
         });
     }

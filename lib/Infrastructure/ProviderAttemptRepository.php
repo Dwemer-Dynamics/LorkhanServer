@@ -78,6 +78,57 @@ final class ProviderAttemptRepository
             ->execute(['id'=>$attemptId,'usage'=>$this->encodeObject($safe)]);
     }
 
+    /** Capture only message role/content; typed mock input is explicitly not an exact provider prompt. */
+    public function recordRelationshipRequest(string $attempt,array $messages,bool $exact=true):void
+    {
+        if(count($messages)<1||count($messages)>2)throw new \InvalidArgumentException('invalid_relationship_log_request');
+        $safe=[];
+        foreach($messages as $message){
+            if(!is_array($message)||!in_array($message['role']??null,['system','user'],true)||!is_string($message['content']??null))
+                throw new \InvalidArgumentException('invalid_relationship_log_request');
+            $safe[]=['role'=>$message['role'],'content'=>$message['content']];
+        }
+        $this->recordRelationshipEvidence($attempt,'relationship_request',['exact'=>$exact,'messages'=>$safe]);
+    }
+
+    /** Retain validated model output separately; it is not proof that any change was saved. */
+    public function recordRelationshipProposal(string $attempt,array $output):void
+    {
+        $output=array_key_exists('relationships',$output)
+            ?\LorkhanServer\Application\RelationshipBuildPolicy::output($output)
+            :\LorkhanServer\Application\RelationshipEvaluationPolicy::output($output);
+        $this->recordRelationshipEvidence($attempt,'relationship_proposal',$output);
+    }
+
+    /** Called inside the fenced relationship-save transaction so the receipt cannot outlive rollback. */
+    public function recordRelationshipApplied(string $attempt,string $job,array $changes):void
+    {
+        if(!$this->db->inTransaction())throw new RuntimeException('relationship_evidence_requires_transaction');
+        if(count($changes)>20)throw new \InvalidArgumentException('invalid_relationship_log_changes');
+        $keys=array_fill_keys(['target','affinity_delta','disposition_delta','old_type','type','reason'],true);
+        foreach($changes as &$change){
+            if(!is_array($change))throw new \InvalidArgumentException('invalid_relationship_log_changes');
+            $change=array_intersect_key($change,$keys);
+            foreach(['target','old_type','type','reason'] as $key)if(!is_string($change[$key]??null)||strlen($change[$key])>4096)
+                throw new \InvalidArgumentException('invalid_relationship_log_changes');
+            foreach(['affinity_delta','disposition_delta'] as $key)if(!is_int($change[$key]??null)||abs($change[$key])>200)
+                throw new \InvalidArgumentException('invalid_relationship_log_changes');
+        }unset($change);
+        $this->recordRelationshipEvidence($attempt,'relationship_applied',$changes,$job);
+    }
+
+    private function recordRelationshipEvidence(string $attempt,string $field,array $value,?string $job=null):void
+    {
+        $json=json_encode($value,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
+        if(strlen($json)>196608)throw new \InvalidArgumentException('relationship_log_too_large');
+        $statement=$this->db->prepare("UPDATE provider_attempts SET metadata=jsonb_set(metadata,ARRAY[CAST(:field AS text)],CAST(:value AS jsonb))
+            WHERE provider_attempt_id=:attempt AND state='started' AND provider_kind='llm'
+            AND operation IN ('evaluate_relationship','build_relationships')".($job===null?'':' AND job_id=:job'));
+        $params=['attempt'=>$attempt,'field'=>$field,'value'=>$json];if($job!==null)$params['job']=$job;
+        $statement->execute($params);
+        if($statement->rowCount()!==1)throw new \LorkhanServer\Application\OperationCancelled('relationship_attempt_not_current');
+    }
+
     private function encodeObject(array $value): string
     {
         if (array_is_list($value) && $value !== []) {

@@ -24,7 +24,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             throw new \InvalidArgumentException('invalid_profile_provider_configuration');
     }
 
-    public function generate(array $profile,CancellationToken $cancellation):array
+    public function generate(array $profile,CancellationToken $cancellation,?callable $observeMessages=null):array
     {
         $cancellation->throwIfCancellationRequested();
         $input=json_encode($profile,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
@@ -56,6 +56,8 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             ['role'=>'system','content'=>$system],
             ['role'=>'user','content'=>$input],
         ]];
+        // Optional audit observers receive the exact messages, never transport options or credentials.
+        if($observeMessages!==null)$observeMessages($request['messages']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
