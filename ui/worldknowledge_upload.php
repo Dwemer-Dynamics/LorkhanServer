@@ -54,7 +54,7 @@ $knowledgeBadges = static function (string $value, bool $basic = false): void {
 $modalFields = static function (string $prefix, array $row = []): void {
     $field = static fn (string $key): string => lorkhan_ui_h((string) ($row[$key] ?? ''));
     ?>
-    <label for="<?php echo $prefix; ?>-topic">Topic:</label>
+    <label for="<?php echo $prefix; ?>-topic">Topic<?php echo $prefix === 'new' ? ' (required)' : ''; ?>:</label>
     <small>Topic name for keyword searching.</small>
     <input type="text" name="topic" id="<?php echo $prefix; ?>-topic" value="<?php echo $field('topic'); ?>" required>
 
@@ -62,9 +62,9 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <small>Alternate names that should find this article. Separate aliases with commas.</small>
     <input type="text" name="aliases" id="<?php echo $prefix; ?>-aliases" value="<?php echo $field('aliases'); ?>">
 
-    <label for="<?php echo $prefix; ?>-content">Topic Description:</label>
+    <label for="<?php echo $prefix; ?>-content">Topic Description<?php echo $prefix === 'new' ? ' (required)' : ''; ?>:</label>
     <small>Advanced knowledge information on the subject.</small>
-    <textarea name="content" id="<?php echo $prefix; ?>-content" rows="8" required><?php echo $field('content'); ?></textarea>
+    <textarea name="content" id="<?php echo $prefix; ?>-content" rows="<?php echo $prefix === 'new' ? 5 : 8; ?>" required><?php echo $field('content'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-knowledge-class">Knowledge Class:</label>
     <small>Who should have access to this advanced knowledge. Separate tags with commas. Do not use common here &mdash; it only marks public basic access.</small>
@@ -72,7 +72,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <label for="<?php echo $prefix; ?>-basic">Topic Description (Basic):</label>
     <small>Basic information available when advanced access is not granted.</small>
-    <textarea name="topic_desc_basic" id="<?php echo $prefix; ?>-basic" rows="8"><?php echo $field('topic_desc_basic'); ?></textarea>
+    <textarea name="topic_desc_basic" id="<?php echo $prefix; ?>-basic" rows="<?php echo $prefix === 'new' ? 5 : 8; ?>"><?php echo $field('topic_desc_basic'); ?></textarea>
 
     <label for="<?php echo $prefix; ?>-basic-class">Knowledge Class (Basic):</label>
     <small>Who should have access to the basic article. Use common to mark this article public basic knowledge for every NPC. Leave empty to allow all NPCs to know this.</small>
@@ -100,7 +100,20 @@ $modalFields = static function (string $prefix, array $row = []): void {
         </h1>
         <div id="header-content">
             <div id="oghma-header-content">
-                <p class="oghma-summary">Oghma matches conversation topics to articles. NPCs receive the most detailed version they are allowed to know; if no version matches, they know nothing about the topic.</p>
+                <p>The <b>Oghma Infinium</b> is a Morrowind encyclopedia that AI NPCs use to help them roleplay.</p>
+                <p>It detects topics during conversations and injects the appropriate information into the AI's prompt.</p>
+                <h3><strong>Ensure all topic titles are lowercase and spaces are replaced with underscores (_).</strong></h3>
+                <h4>Example: "Fishy Stick" becomes "fishy_stick"</h4>
+                <p>Knowledge classes use the NPC's effective Oghma tags from Global Settings, Core Profile and NPC settings.</p>
+                <div class="logic-section">
+                    <h3 class="logic-title">&#x1F50D; Article Search Logic</h3>
+                    <div class="logic-steps">
+                        <div class="logic-step"><div class="step-number">1</div><div class="step-content"><strong>Keyword Search</strong><p>Look for articles matching the most relevant topics in the conversation.</p></div></div>
+                        <div class="logic-step"><div class="step-number">2</div><div class="step-content"><strong>Advanced Access Check</strong><p>Check <code>knowledge_class</code> for access to the advanced article (<code>topic_desc</code>).</p></div></div>
+                        <div class="logic-step"><div class="step-number">3</div><div class="step-content"><strong>Basic Access Check</strong><p>Check <code>knowledge_class_basic</code> for access to the basic article (<code>topic_desc_basic</code>).</p></div></div>
+                        <div class="logic-step"><div class="step-number">4</div><div class="step-content"><strong>Fallback Response</strong><p>If neither version is permitted, the NPC receives <em>no article knowledge about that topic</em>.</p></div></div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -139,7 +152,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                         <a href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/oghma/example.csv" class="action-button download-csv">Download Example CSV</a>
                     </div>
                 </form>
-                <p>Uploaded topics are validated as UTF-8 CHIM-format CSV and scoped to this LORKHAN installation. Existing user topics with the same key are revised safely.</p>
+                <p>Upload CHIM-format UTF-8 CSV. Matching custom topics are revised for this installation.</p>
 
                 <details class="oghma-tips">
                     <summary>Article editing tips</summary>
@@ -153,22 +166,18 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
             <div class="content-section">
                 <h2>Database Management</h2>
-                <p>Verify imports:<br><b>Control Panel &rarr; Database Manager &rarr; knowledge_documents</b></p>
+                <p>Article storage:<br><b>lorkhan_internal &rarr; knowledge_documents</b></p>
                 <p>View conversation usage:<br><b>Control Panel &rarr; Oghma Audit</b></p>
-                <h3 class="factory-sync-heading">Factory Catalog</h3>
-                <p id="factory-sync-help">Oghma ships with a factory catalog of articles that stay read-only here. Syncing checks that shipped catalog and refreshes every factory article across this server in a single step, so the catalog is never left half-updated.</p>
-                <p>Your own articles &mdash; uploaded by CSV or added by hand &mdash; are preserved through a sync and stay editable and deletable. Use this after updating LORKHAN, or if a factory article looks wrong or missing.</p>
+                <div class="button-group database-actions">
                 <form class="factory-sync-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
                     <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                     <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                     <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
-                    <div class="button-group">
                         <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Your custom articles are kept.">Sync Factory Catalog</button>
-                    </div>
                 </form>
-                <div class="button-group destructive-controls">
                     <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo lorkhan_ui_feature_badge('config.oghma.destructive', true); ?></span>
                 </div>
+                <p id="factory-sync-help">Sync refreshes the shipped factory catalog across this server. Your custom articles are kept.</p>
             </div>
         </div>
 
@@ -181,8 +190,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                     <input type="hidden" name="category" value="<?php echo lorkhan_ui_h($filters['category']); ?>">
                     <input type="hidden" name="order" value="<?php echo lorkhan_ui_h($filters['order']); ?>">
-                    <input type="text" name="search" placeholder="Search topics..." value="<?php echo lorkhan_ui_h($filters['search']); ?>">
-                    <button class="action-button edit">Search</button>
+                    <input type="text" name="search" aria-label="Search topics" maxlength="100" placeholder="Search topics..." value="<?php echo lorkhan_ui_h($filters['search']); ?>">
+                    <button type="submit" class="action-button edit">Search</button>
                 </form>
             </div>
 
@@ -205,7 +214,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 </div>
             </div>
 
-            <div class="table-container">
+            <div class="table-container" role="region" tabindex="0" aria-label="Oghma articles">
                 <table>
                     <thead><tr><th>Topic</th><th>Aliases</th><th>Topic Description (Advanced)</th><th>Knowledge Class (Advanced)</th><th>Topic Description (Basic)</th><th>Knowledge Class (Basic)</th><th>Tags</th><th>Category</th><th>Action</th></tr></thead>
                     <tbody>
@@ -233,10 +242,11 @@ $modalFields = static function (string $prefix, array $row = []): void {
                             </td>
                         </tr>
                     <?php endforeach; ?>
-                    <?php if ($rows === []): ?><tr><td colspan="9" class="empty-table">No entries found.</td></tr><?php endif; ?>
                     </tbody>
                 </table>
             </div>
+
+            <?php if ($rows === []): ?><p class="oghma-empty">No entries found.</p><?php endif; ?>
 
             <nav class="oghma-pagination" aria-label="Oghma catalog pagination">
                 <div class="oghma-pagination-summary">
@@ -324,7 +334,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                 <?php $modalFields('new', ['category' => 'lore']); ?>
                 <div class="modal-footer">
-                    <button type="submit" class="btn-save">Add Entry</button>
+                    <button type="submit" class="btn-save">Save</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
             </form>

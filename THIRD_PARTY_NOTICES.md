@@ -177,3 +177,9 @@ catalog rather than truncating it or loading every row into the browser.
 Add/Edit dialog presentation from pinned HerikaServer
 `ui/description_upload.php` under the same MIT license. Lorkhan retains its
 installation-scoped OpenMW record keys and existing description contracts.
+
+The updated `ui/worldknowledge_upload.php`, `ui/css/herika-oghma.css` and
+`ui/js/oghma.js` adapt the encyclopedia header, Article Search Logic panels,
+filters, table badges and regular Add/Edit dialogs from pinned HerikaServer
+`ui/oghma_upload.php` under the same MIT license. OpenMW knowledge scope and
+factory override semantics remain Lorkhan's existing implementation.

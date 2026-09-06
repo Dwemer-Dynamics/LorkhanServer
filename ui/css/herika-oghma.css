@@ -111,7 +111,7 @@ body.oghma-page-shell > main.oghma-page { width:100%; max-width:none; margin:0; 
 .modal-backdrop .modal-body small { display:block; margin-bottom:6px; color:#999; font-size:12px; line-height:1.4; }
 .modal-backdrop .modal-body input[type="text"],.modal-backdrop .modal-body textarea { width:100%; margin-bottom:12px; padding:10px 12px; color:#e9efff; background:rgba(26,26,26,.8); border:1px solid #3a3a3a; border-radius:6px; transition:all .2s ease; }
 .modal-backdrop .modal-body input:focus,.modal-backdrop .modal-body textarea:focus { border-color:rgba(188,157,90,.5); outline:0; box-shadow:0 0 0 3px rgba(188,157,90,.1); }
-.modal-backdrop .modal-footer { position:sticky; bottom:-20px; display:flex; justify-content:flex-end; gap:10px; margin:20px -24px -20px; padding:16px 24px; background:rgba(42,42,42,.98); border-top:1px solid rgba(188,157,90,.2); border-radius:0 0 12px 12px; }
+.modal-backdrop .modal-footer { position:sticky; bottom:0; display:flex; justify-content:flex-end; gap:10px; margin:20px 0 0; padding:16px 24px; background:rgba(42,42,42,.98); border-top:1px solid rgba(188,157,90,.2); border-radius:0 0 12px 12px; }
 .modal-backdrop .btn-danger,.modal-backdrop .btn-save,.modal-backdrop .btn-base { min-height:36px; padding:8px 14px; color:#f8f9fa; border:1px solid #555; border-radius:5px; background:#444; font-weight:600; cursor:pointer; }
 .modal-backdrop .btn-save { background:#28794e; border-color:#339d66; }
 .modal-backdrop .btn-danger { background:#9c3a4c; border-color:#c34d62; }
@@ -194,4 +194,147 @@ body.oghma-modal-open { overflow:hidden; }
     .oghma-page .search-container input {
         width: 100%;
     }
+}
+
+/* Article guidance follows the pinned Oghma page. */
+    /* Logic Section Styling */
+    .oghma-page .logic-section {
+        margin: 25px 0;
+        padding: 22px;
+        background: linear-gradient(135deg, rgba(26, 26, 26, 0.95), rgba(20, 20, 20, 0.98));
+        border-radius: 10px;
+        border: 1px solid rgba(188, 157, 90, 0.3);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3),
+                    inset 0 1px rgba(188, 157, 90, 0.05);
+    }
+
+    .oghma-page .logic-title {
+        text-align: center;
+        color: rgb(188, 157, 90);
+        margin-bottom: 20px;
+        font-size: 1.25em;
+        font-weight: bold;
+        text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
+        font-family: 'MagicCards', serif;
+        word-spacing: 6px;
+    }
+
+    .oghma-page .logic-steps {
+        display: grid;
+        gap: 12px;
+    }
+
+    .oghma-page .logic-step {
+        display: flex;
+        align-items: flex-start;
+        gap: 15px;
+        padding: 16px;
+        background: rgba(42, 42, 42, 0.8);
+        border-radius: 8px;
+        border-left: 4px solid rgb(188, 157, 90);
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .oghma-page .logic-step:hover {
+        transform: translateX(4px);
+        box-shadow: 0 4px 12px rgba(188, 157, 90, 0.25),
+                    0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    .oghma-page .step-number {
+        flex-shrink: 0;
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, rgb(188, 157, 90), rgb(212, 94, 0));
+        color: #000;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        font-size: 15px;
+        box-shadow: 0 2px 6px rgba(188, 157, 90, 0.4),
+                    inset 0 1px rgba(255, 255, 255, 0.3);
+    }
+
+    .oghma-page .step-content {
+        flex: 1;
+    }
+
+    .oghma-page .step-content strong {
+        color: rgb(188, 157, 90);
+        display: block;
+        margin-bottom: 6px;
+        font-size: 1.05em;
+    }
+
+    .oghma-page .step-content p {
+        margin: 0;
+        line-height: 1.5;
+        color: #d0d0d0;
+    }
+
+    .oghma-page .step-content code {
+        background: rgba(74, 74, 74, 0.8);
+        padding: 3px 7px;
+        border-radius: 4px;
+        color: #ffeb3b;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9em;
+        border: 1px solid rgba(255, 235, 59, 0.2);
+    }
+
+    .oghma-page .step-content em {
+        color: #81c784;
+        font-style: italic;
+    }
+
+
+body.oghma-page-shell {font:15px/1.5 "Futura CondensedLight",Arial,sans-serif}
+.oghma-page .page-header h1 {font-size:30px;line-height:1.2}
+.oghma-page .page-header h3 {font-size:1.1em;margin:20px 0 8px;color:#bc9d5a}
+.oghma-page .page-header h4 {font-size:1em;margin-bottom:12px;color:#ccc}
+.oghma-page .page-header .logic-title {font-family:MagicCards,serif;font-size:1.1em;margin:20px 0 8px;word-spacing:6px}
+.oghma-page .database-actions {margin-top:20px;align-items:center}
+.oghma-page .filter-section {display:block}
+.oghma-page .category-filter {margin-bottom:15px}
+.oghma-page .filter-buttons,.oghma-page .sort-buttons {justify-content:flex-start;margin:10px 0 0;gap:4px}
+.oghma-page .oghma-pagination-summary p {font:13px/1.5 "Futura CondensedLight",Arial,sans-serif!important}
+.oghma-page .content-section #csv_file {padding:10px 12px;margin-top:10px}
+.oghma-page input[type=file]::file-selector-button {min-height:36px;padding:8px 12px;border:0;border-radius:4px;background:#6c757d;color:#fff;font:13px Arial,sans-serif}
+.oghma-page .action-button {letter-spacing:.3px}
+body.oghma-page-shell .oghma-page .search-container button[type=submit] {background:#383838!important;color:#fff!important;border-color:#505050!important}
+.oghma-page .search-container input[type=text] {min-width:0;width:300px;padding:8px;border-radius:4px;border-color:#555}
+.oghma-page .table-container {max-height:max(200px,calc(100vh - 450px));margin-bottom:20px}
+.oghma-page .table-container table {min-width:1100px;font-size:13px;line-height:1.5;margin-bottom:20px}
+.oghma-page .table-container th:nth-child(1),.oghma-page .table-container td:nth-child(1) {width:12%}
+.oghma-page .table-container th:nth-child(2),.oghma-page .table-container td:nth-child(2) {width:25%}
+.oghma-page .table-container th:nth-child(3),.oghma-page .table-container td:nth-child(3) {width:12%}
+.oghma-page .table-container th:nth-child(4),.oghma-page .table-container td:nth-child(4) {width:20%}
+.oghma-page .table-container th:nth-child(5),.oghma-page .table-container td:nth-child(5) {width:12%}
+.oghma-page .table-container :is(th,td):nth-child(n+6) {width:8%}
+/* The reference omits a ninth-column width; reserve room for its Edit control. */
+.oghma-page .table-container :is(th,td):last-child {min-width:80px}
+.oghma-page .table-container .knowledge-cell {font-size:1.5em;line-height:1.4}
+.oghma-page .table-container :is(th,td) {border-right:1px solid #343434}
+.oghma-page .table-container :is(th,td):last-child {border-right:0}
+.oghma-page .knowledge-badge {font-size:.85em}
+.oghma-page .empty-value {font-style:normal}
+.oghma-page .oghma-empty {margin:20px 0}
+body.oghma-page-shell .modal-backdrop .modal-container {padding:30px}
+body.oghma-page-shell .modal-backdrop {backdrop-filter:blur(5px)}
+body.oghma-page-shell .modal-backdrop .modal-body {max-height:calc(100vh - 300px);padding:20px 20px 20px 24px}
+body.oghma-page-shell .modal-backdrop .modal-title {font:21px/1.5 MagicCards,serif;word-spacing:6px}
+body.oghma-page-shell .modal-backdrop :is(input,textarea) {font-family:"Futura CondensedLight",Arial,sans-serif}
+body.oghma-page-shell .modal-backdrop :focus-visible {outline:2px solid #bc9d5a;outline-offset:2px}
+@media(max-width:650px){
+    .oghma-page .logic-section {padding:14px}
+    .oghma-page .logic-step {padding:12px;gap:12px}
+    .oghma-page .step-content {min-width:0;overflow-wrap:anywhere}
+    body.oghma-page-shell .modal-backdrop {padding:8px}
+    body.oghma-page-shell .modal-backdrop .modal-container {width:100%!important;margin:20px auto!important;padding:16px}
+    body.oghma-page-shell .modal-backdrop .modal-header {padding:15px}
+    body.oghma-page-shell .modal-backdrop .modal-body {padding:15px;max-height:calc(100dvh - 190px)}
+    body.oghma-page-shell .modal-backdrop .modal-footer {padding:12px;flex-wrap:wrap}
 }

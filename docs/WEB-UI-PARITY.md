@@ -83,7 +83,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles and inline Oghma reader aligned; scoped import/edit wiring and full-catalog search/paging fixed. Factory reset, full custom export and batch-help presentation remain. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
-| `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
+| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Factory/custom states, keyboard and narrow layouts checked. Dynamic Oghma, destructive catalog controls and remaining search/category contract differences still require work. |
 | `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Installation tools retained below the main table. Existing stricter Name/Description validation remains a contract difference. |
 | `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
@@ -2136,3 +2136,44 @@ Remaining Core Profile requirements identified from the pinned source and live e
   returned 54 records in two pages. Opened the existing Blue Glass Pot editor
   (127-character description, read-only Tribunal.esm / misc_de_pot_blue_01) and
   cancelled. No live description data was changed and no game was launched.
+
+## Oghma article page presentation checkpoint
+
+- Replaced the short summary header with the reference encyclopedia introduction,
+  topic-format guidance and four Article Search Logic steps. Retained Morrowind
+  wording and actual NPC knowledge-access behavior. The populated fixture header
+  measured 757.71875px in both products at the same desktop viewport.
+- Corrected the upload panel, accurate internal storage guidance, compact factory
+  sync controls, left-aligned category buttons, table font/borders, knowledge
+  badges and compact pagination. The reference's missing ninth-column width
+  collapses its Action header; Lorkhan reserves space for Edit and keeps the
+  table inside a keyboard-scrollable region instead of copying that defect.
+- Add/Edit dialogs now match the reference 800px width and 554.5px height at
+  1280x720, with the 420px scrolling body. Removed negative footer margins that
+  caused horizontal overflow. Add uses five-row description fields and Save;
+  Edit retains eight-row fields. Kept clear word spacing in modal titles.
+- Compared source-derived populated/empty fixtures against the actual pinned
+  reference. Checked factory protection and Save as Custom Article, custom Edit
+  with all 374 description characters, Add fields, final Category access,
+  Shift+Tab trapping, Escape/Cancel and focus restoration. At 390px the dialog
+  is 374px wide and the page stays within the viewport; the article region
+  accepts keyboard horizontal scrolling. These were synthetic fixtures, with no
+  provider calls or writes to the live catalog.
+- Existing 370 server checks, 98 protocol files, management HTTP, integration,
+  migrations and durable jobs passed. The integration suite already covers
+  factory/custom revision, override deletion and revealing the factory article.
+  Final PHP/JS syntax and diff checks passed; no backend or schema was changed.
+- Outstanding differences are not treated as product exceptions: Dynamic Oghma,
+  Delete All / destructive Factory Reset, optional Category validation and
+  Herika-style substring search still need work. Lorkhan's existing non-destructive
+  factory sync, installation scoping, full-catalog pagination and runtime article
+  tags are preserved. The full all-pages goal remains incomplete.
+- Local deployment verified all 733 runtime files against source, with no extra
+  files or old paths. Protected files returned 403 and unauthenticated session
+  creation returned 401; private configuration, credential and voice hashes were
+  preserved. Rollback: `/var/backups/lorkhanserver-code.HceBjq`.
+- Live catalog proof: 3,741 articles across eight pages. Searching `balmora`
+  returned 47 articles; the Bitter Coast category reduced it to six, and
+  Descending retained the search/category and reversed topic order. Opened the
+  factory `seyda_neen` editor with its 671-character description and cancelled;
+  no horizontal dialog overflow and no live catalog changes.
