@@ -98,7 +98,7 @@ do not use an exception to excuse a generic substitute layout.
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
 | `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
-| `oghma_audit.php` | Same path | Pending structural and populated-state comparison |
+| `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | Herika Cost Breakdown | Pending structural and populated-state comparison |
@@ -1392,3 +1392,47 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - Final redaction review also covers the existing `provider_key` credential spelling;
   all 352 server checks were rerun and deployed hashes rechecked after that addition.
   Final redaction-refresh rollback: /var/backups/lorkhanserver-code.BMeyBk.
+
+### Oghma Audit — metadata and retrieval trace presentation
+
+- Replaced custom summary metrics and collapsed technical cards with pinned
+  HerikaServer 529364c's actual `ui/oghma_audit.php` structure: header, current-page
+  search, Only Matched, 25/50/100 rows, pager, nine metadata pills, and five visible
+  Input / Extracted Topics / Signals Used For Ranking / Ranking Notes / Context
+  Snapshot sections. Gold branding is retained.
+- Populated fixtures use the actual reference template/helpers and two synthetic
+  matched/unmatched records. Desktop source/reference measurements agree: header
+  y20/h113.890625, toolbar y151.890625/h44.21875, pager y210.109375/h36.5,
+  first card y260.609375, metadata pill h58.796875, first trace y459.78125/h42.390625.
+  Native details add 34.5px beneath the five sections. Empty cards were compared
+  visually too. At 390px both stack metadata into one column; source document and
+  scroll widths are 375px. Secondary More filters can wrap the pager to another
+  line on narrow screens; its expanded form stays within the viewport.
+- Exercised current-page matching (Caius only), no-result feedback and keyboard
+  expansion of native decisions. More filters retains installation, server-wide
+  search, matched/unmatched and extractor-status filtering without dominating
+  the reference toolbar. Invalid installation/row-count inputs are normalized;
+  existing HTTP coverage exercises these and reference `matched=1` links.
+- Corrected the reader's native data mapping: PostgreSQL selected UUID arrays now
+  decode as JSON arrays; the original turn text is Input, while the extracted
+  retrieval query stays in details. Recorded target names and input kind come
+  from the same turn. Historical reason/topic names survive removal of a current
+  knowledge article. Scores are actual recorded relevance; elapsed time was never
+  recorded, so the page explicitly says so. No timings or CHIM event types are
+  invented. Full grounded matches, rejections, tags and decisions remain available.
+- Reused the existing server, management HTTP and Oghma integration suites; no new
+  test file or harness. The integration case checks both selected IDs and original
+  recorded input. This is presentation-only: no database migration, provider call,
+  retrieval-policy change, game launch or game command.
+- Final checks: 354 server checks, 98 protocol files, management HTTP, full
+  integration, migrations/durable jobs, PHP/JS syntax and diff checks passed.
+  Schema inventory remains 167 relations, hash
+  a6174bb20347333db434d2118c90590df99ae66a6a4297335762fcfd6a37d59c.
+- Deployed locally with rollback `/var/backups/lorkhanserver-code.2PgXRI`;
+  all 716 runtime files match source, no extra/old paths, health/auth/private-file
+  probes pass. Configuration, credential and voice hashes were preserved.
+- Verified actual 49 historical traces in standalone embedded view and Control
+  Panel. Per-page 25 renders 25 records, Next renders the remaining 24, and Only
+  Matched resets to page 1 while retaining page size. Current-page Llandras search
+  shows six cards. Oghma trace count remains 49 before/after this read-only review.
+  Relationship Logs and the remaining all-pages matrix are still pending.

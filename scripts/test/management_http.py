@@ -192,6 +192,11 @@ r=json_request(queue_remove,'POST',dict(queue_values,confirm=''),csrf); assert r
 r=json_request(queue_remove,'POST',dict(queue_values,rowid='1'),csrf); assert r.status==422
 r=json_request(queue_remove,'POST',dict(queue_values,installation_id=str(uuid.uuid4())),csrf); assert r.status==404
 oghma,text=parse(request('/LorkhanServer/ui/oghma_audit.php')); assert oghma.current==1 and '<h1>Oghma Audit</h1>' in text and 'retrieval traces' in text
+assert all(marker in text for marker in ['Only Matched','Filter current page','Showing 0-0 of 0 rows','More filters','data-oghma-audit']) and 'runtime-metrics' not in text
+oghma_invalid,text=parse(request('/LorkhanServer/ui/oghma_audit.php?installation_id=not-a-uuid&page_size=999'))
+assert oghma_invalid.current==1 and oghma_invalid.forms[0]['fields']['installation_id']=='' and oghma_invalid.forms[0]['fields']['page_size']=='50'
+oghma_matched,text=parse(request('/LorkhanServer/ui/oghma_audit.php?matched=1&page_size=25'))
+assert '(matched only)' in text and oghma_matched.forms[0]['fields']['matched']=='matched' and oghma_matched.forms[0]['fields']['page_size']=='25'
 assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
 usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.current==1 and '<h1>Cost Breakdown</h1>' in text and 'Missing pricing is shown as unknown' in text
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))

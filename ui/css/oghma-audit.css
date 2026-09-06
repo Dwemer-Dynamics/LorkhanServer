@@ -1,0 +1,112 @@
+/* HerikaServer 529364c, ui/oghma_audit.php layout with Lorkhan evidence and branding. */
+
+        body:has(.oghma-audit-page) { background:#1f1f1f; color:#e7e7e7; }
+        body.hub-page main.oghma-audit-page { padding: 20px 12px 32px; }
+        .oghma-audit-page .page-header, .oghma-audit-page .audit-card {
+            background: linear-gradient(180deg, rgba(42,42,42,.96), rgba(30,30,30,.98));
+            border: 1px solid #3b3b3b;
+            border-radius: 10px;
+            box-shadow: 0 2px 8px rgba(0,0,0,.2);
+        }
+        .oghma-audit-page .page-header { padding: 18px; margin-bottom: 18px; text-align: center; }
+        .oghma-audit-page .audit-card { padding: 14px; margin-bottom: 14px; }
+        .oghma-audit-page .meta-grid {
+            display:grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 8px;
+            margin-bottom: 10px;
+        }
+        .oghma-audit-page .meta-pill {
+            background: rgba(255,255,255,.03);
+            border: 1px solid rgba(188,157,90,.22);
+            border-radius: 8px;
+            padding: 8px 10px;
+        }
+        .oghma-audit-page .meta-label { color:#bc9d5a; font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; }
+        .oghma-audit-page .meta-value { font-size:.92rem; word-break: break-word; }
+        .oghma-audit-page .section-label { color:#bc9d5a; font-weight:700; margin-bottom:4px; }
+        .oghma-audit-page .trace-box {
+            background: rgba(0,0,0,.22);
+            border: 1px solid rgba(255,255,255,.06);
+            border-radius: 8px;
+            padding: 10px;
+            white-space: pre-wrap;
+            word-break: break-word;
+            font-family: Consolas, Monaco, monospace;
+            font-size: .85rem;
+        }
+        .oghma-audit-page .toolbar-wrap {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 10px;
+            align-items: center;
+            margin-bottom: 14px;
+        }
+        .oghma-audit-page .search-input {
+            width: 100%; background:#111; color:#f2f2f2; border:1px solid #4a4a4a; border-radius:8px; padding:10px 12px;
+        }
+        .oghma-audit-page .quick-toggle {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(255,255,255,.03);
+            border: 1px solid rgba(188,157,90,.25);
+            border-radius: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+            user-select: none;
+        }
+        .oghma-audit-page .quick-toggle input { accent-color: #bc9d5a; }
+        .oghma-audit-page .pager-wrap {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+        .oghma-audit-page .pager-meta { color: #b8b8b8; font-size: .9rem; }
+        .oghma-audit-page .pager-links {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .oghma-audit-page .pager-link {
+            display: inline-block;
+            color: #efefef;
+            text-decoration: none;
+            border: 1px solid rgba(188,157,90,.28);
+            border-radius: 8px;
+            padding: 6px 10px;
+            background: rgba(255,255,255,.02);
+        }
+        .oghma-audit-page .pager-link[aria-disabled="true"] {
+            opacity: .45;
+            pointer-events: none;
+        }
+        .oghma-audit-page .per-page-select {
+            background:#111; color:#f2f2f2; border:1px solid #4a4a4a; border-radius:8px; padding:6px 8px;
+        }
+        .oghma-audit-page .empty-state { padding: 20px; text-align:center; color:#aaa; }
+        @media (max-width: 850px) {
+            .oghma-audit-page .toolbar-wrap { grid-template-columns: 1fr; }
+        }
+    
+body.hub-page main.oghma-audit-page { width:100%; max-width:none; margin:0; font-family:"Futura CondensedLight",Arial,sans-serif; line-height:1.5; }
+.oghma-audit-page .page-header h1 { font-size:32px; line-height:1.2; margin:0 0 15px; }
+.oghma-audit-page input.search-input { padding:7px 10px; line-height:1.5; }
+.oghma-audit-page .pager-links a.pager-link { font-size:15px; line-height:1.5; margin:0; padding:6px 10px; }
+.oghma-audit-page [hidden] { display:none!important; }
+.oghma-audit-page .per-page-form { margin:0; }
+.oghma-audit-page .per-page-form label { display:inline-flex; align-items:center; gap:8px; margin:0; }
+.oghma-audit-page .per-page-form label>span { font-size:.9rem; color:#b8b8b8; }
+.oghma-audit-page .trace-box+.section-label { margin-top:10px; }
+.oghma-audit-page .native-decisions { margin-top:12px; }
+.oghma-audit-page summary { cursor:pointer; }
+.oghma-audit-page .native-decisions pre { max-height:400px; overflow:auto; margin-top:8px; }
+.oghma-audit-page .audit-tools { display:inline-block; margin-left:12px; position:relative; font-size:.8rem; }
+.oghma-audit-page .audit-tools-body { position:absolute; z-index:5; top:24px; left:0; width:340px; max-width:calc(100vw - 48px); padding:12px; background:#252525; border:1px solid #555; border-radius:8px; box-shadow:0 4px 14px #111; }
+.oghma-audit-page .audit-tools-body label { display:flex; flex-direction:column; gap:4px; margin-bottom:8px; }
+.oghma-audit-page .audit-tools-body :is(input,select) { width:100%; padding:6px 8px; background:#111; color:#eee; border:1px solid #555; border-radius:4px; }
+.oghma-audit-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+@media(max-width:600px) { .oghma-audit-page .audit-tools[open] { display:block; margin:8px 0; } .oghma-audit-page .audit-tools-body { position:static; width:100%; } }

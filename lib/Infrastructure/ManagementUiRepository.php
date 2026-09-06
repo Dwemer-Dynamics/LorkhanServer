@@ -49,12 +49,12 @@ final class ManagementUiRepository
         $page=max(1,(int)($filters['page']??1));$pageSize=max(25,min(100,(int)($filters['page_size']??50)));
         $where=["r.domain='knowledge'"];$params=[];
         if($installation!==''){$where[]='r.installation_id=:installation';$params['installation']=$installation;}
-        if($search!==''){$where[]="(r.query ILIKE '%'||:search||'%' OR COALESCE(p.name,'') ILIKE '%'||:search||'%' OR r.reasons::text ILIKE '%'||:search||'%')";$params['search']=$search;}
+        if($search!==''){$where[]="(r.query ILIKE '%'||:search||'%' OR COALESCE(t.input_text,'') ILIKE '%'||:search||'%' OR COALESCE(t.target->>'display_name',p.name,'') ILIKE '%'||:search||'%' OR r.reasons::text ILIKE '%'||:search||'%')";$params['search']=$search;}
         if($matched==='matched')$where[]='cardinality(r.result_ids)>0';elseif($matched==='unmatched')$where[]='cardinality(r.result_ids)=0';
         if($extractor!=='all'){$where[]="COALESCE(r.reasons->'_context'->>'extractor_status','legacy')=:extractor";$params['extractor']=$extractor;}
-        $from=' FROM retrieval_traces r LEFT JOIN profiles p ON p.profile_id=r.profile_id WHERE '.implode(' AND ',$where);
+        $from=' FROM retrieval_traces r LEFT JOIN profiles p ON p.profile_id=r.profile_id LEFT JOIN turns t ON t.turn_id=r.turn_id WHERE '.implode(' AND ',$where);
         $count=$this->db->prepare('SELECT count(*)'.$from);$count->execute($params);$total=(int)$count->fetchColumn();$pages=max(1,(int)ceil($total/$pageSize));$page=min($page,$pages);
-        $sql="SELECT r.retrieval_trace_id,r.installation_id,r.profile_id,p.name AS profile_name,r.playthrough_id,r.turn_id,r.query,cardinality(r.result_ids) AS result_count,r.result_ids,r.scores,r.reasons,r.algorithm,r.created_at,(SELECT jsonb_agg(jsonb_build_object('id',d.document_id,'topic',d.topic,'category',d.category) ORDER BY d.topic) FROM knowledge_documents d WHERE d.document_id=ANY(r.result_ids)) AS selected_topics".$from.' ORDER BY r.created_at DESC,r.retrieval_trace_id DESC LIMIT :limit OFFSET :offset';
+        $sql="SELECT r.retrieval_trace_id,r.installation_id,r.profile_id,COALESCE(t.target->>'display_name',p.name) AS profile_name,t.input_kind AS input_kind,t.input_text AS input_text,r.playthrough_id,r.turn_id,r.query,cardinality(r.result_ids) AS result_count,to_json(r.result_ids) AS result_ids,r.scores,r.reasons,r.algorithm,r.created_at,(SELECT jsonb_agg(jsonb_build_object('id',d.document_id,'topic',d.topic,'category',d.category) ORDER BY d.topic) FROM knowledge_documents d WHERE d.document_id=ANY(r.result_ids)) AS selected_topics".$from.' ORDER BY r.created_at DESC,r.retrieval_trace_id DESC LIMIT :limit OFFSET :offset';
         $statement=$this->db->prepare($sql);foreach($params as$key=>$value)$statement->bindValue($key,$value);$statement->bindValue('limit',$pageSize,PDO::PARAM_INT);$statement->bindValue('offset',($page-1)*$pageSize,PDO::PARAM_INT);$statement->execute();
         $rows=array_map(fn(array$row):array=>$this->redactRow($row),$statement->fetchAll());
         return['rows'=>$rows,'total'=>$total,'page'=>$page,'pages'=>$pages,'page_size'=>$pageSize,

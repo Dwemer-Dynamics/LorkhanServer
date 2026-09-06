@@ -87,6 +87,16 @@ $logTailFixture=tempnam(sys_get_temp_dir(),'lorkhan-log-tail-');
 file_put_contents($logTailFixture,"oversized first line\nsecond\nthird\n");
 $check(lorkhan_ui_log_tail($logTailFixture,18,1)==='third', 'bounded log tail discards partial first line and respects line limit');
 unlink($logTailFixture);
+require dirname(__DIR__).'/ui/tmpl/oghma_audit_reader.php';
+$auditCard=lorkhan_oghma_audit_card(['result_count'=>1,'result_ids'=>['article-one'],'scores'=>['article-one'=>0.95],
+    'reasons'=>['article-one'=>['topic'=>'Sixth House','signal'=>'House Dagoth','source'=>'grounded','score'=>0.95,'selected'=>true,'reason'=>'exact topic alias'],
+        '_context'=>['extractor_status'=>'grounded','extracted_topics'=>['sixth_house'],'location_signals'=>['Seyda Neen']]],
+    'selected_topics'=>[],'profile_name'=>'Fargoth','input_kind'=>'text','query'=>'Tell me about House Dagoth.']);
+$check($auditCard['metadata']['Selected Topic']==='Sixth House' && $auditCard['metadata']['Rank']==='0.95'
+    && $auditCard['metadata']['Elapsed']==='(not recorded)' && $auditCard['metadata']['Entry ID']==='article-one'
+    && str_contains($auditCard['sections']['Signals Used For Ranking'],'signal=House Dagoth'), 'Oghma audit preserves historical topic evidence and real scores without inventing elapsed time');
+$check(lorkhan_oghma_audit_card(['result_count'=>0])['metadata']['Status']==='No Match'
+    && $auditCard['sections']['Context Snapshot']==='location=Seyda Neen', 'Oghma audit distinguishes unmatched and recorded context');
 $geography=MorrowindGeographyCatalog::bundled();
 $fargoth=['kind'=>'npc','record_id'=>'fargoth','content_file'=>'Morrowind.esm',
     'refnum'=>['index'=>128964,'content_file'=>0],

@@ -11,6 +11,11 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Oghma Audit's header, toolbar, metadata grid and five trace sections derive from
+HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/oghma_audit.php`.
+Lorkhan retains typed retrieval evidence, recorded turn input and secondary native
+filters/details; absent elapsed timings are explicitly marked as not recorded.
+
 Server Logs panel geometry, search/severity controls, toolbar icons and expanded
 reader presentation derive from Dwemer-Dashboard `7c19d3ddb7fa7aaf9cbd71abc41a1cdb4b7f9758`,
 `distro_debugger.php` and `css/distro-debugger.css`, the actual embedded counterpart

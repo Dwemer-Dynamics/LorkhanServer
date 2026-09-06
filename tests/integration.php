@@ -2233,6 +2233,11 @@ $assert($status===202&&$oghmaAccepted['turn_id']===$oghmaTurn['turn_id']&&$preWo
     'grounded Oghma turn did not avoid connector extraction and inject exact ordered catalog articles: '.json_encode([
         'status'=>$status,'attempts'=>$preWorkerAttemptCount,'trace'=>$oghmaTrace,'reasons'=>$oghmaReasons],JSON_UNESCAPED_SLASHES));
 $oghmaWorker=$runTurnWorker(new MockProvider());
+$auditRows=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->oghmaAudit(['search'=>'Tell me about House Dagoth and Vivec.','matched'=>'matched']);
+$auditRow=current(array_filter($auditRows['rows'],static fn(array $row):bool=>$row['turn_id']===$oghmaTurn['turn_id']));
+$assert(is_array($auditRow) && is_array($auditRow['result_ids']) && count($auditRow['result_ids'])===2
+    && $auditRow['input_kind']===$oghmaTurn['payload']['input']['kind']
+    && $auditRow['input_text']===$oghmaTurn['payload']['input']['text'], 'Oghma audit reader lost native selected IDs or recorded input metadata: '.json_encode($auditRow));
 $assert($oghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'grounded Oghma turn did not complete through the normal response pipeline');
 
