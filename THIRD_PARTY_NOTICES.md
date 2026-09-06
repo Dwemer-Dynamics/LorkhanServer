@@ -32,6 +32,11 @@ Prompts Manager's header, CSV/search panels, default/custom table and editor dia
 `ui/prompts_manager.php`. Lorkhan retains revision checks, installation scope and
 its supported prompt documents and player mood templates.
 
+Player Management's toolbar, biography checkbox, TTS status and compact card layout
+derive from that revision's `ui/core/player_management.php` and
+`ui/css/player-narration.css`. Lorkhan keeps scoped player identity, revisioned
+portable settings and typed OpenMW game statistics.
+
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under

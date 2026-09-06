@@ -90,8 +90,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <div class="page-header lorkhan-page-head">
             <h1 class="lorkhan-page-head-title">&#x1F464; Player Management</h1>
             <div class="lorkhan-page-head-note">
-                <p>Manage your character's information and view in game statistics</p>
-                <p>Changes made here will be used by AI NPCs to understand your character better</p>
+                <p>Change Player roleplay settings</p>
             </div>
         </div>
 
@@ -127,7 +126,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <input type="hidden" name="change_reason" value="Management player update">
                 <?php endif; ?>
 
-                <div class="player-save-row"><button type="submit" class="btn-save">Save Player Settings</button><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span></div>
+                <div class="player-save-row settings-page-actions"><button type="submit" class="btn-save"<?php if($profile!==null): ?> title="Revision <?php echo (int)$profile['current_revision']; ?> · <?php echo (int)$profile['input_count']; ?> observed player messages"<?php endif; ?>>Save Player Settings</button>
+                    <?php if($profile!==null): ?><a class="btn-portable" href="<?php echo lorkhan_ui_h($managementBasePath.'/exports/player-profile-settings/'.$profile['profile_id'].'.json'); ?>">📤 Export Player</a><button type="button" class="btn-portable" data-player-import-open>📥 Import Player</button><?php endif; ?>
+                    <span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span>
+                </div>
 
                 <div class="content-grid player-overview-grid">
                     <section class="content-section">
@@ -149,10 +151,11 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <h2>&#x1F4DC; Player Bio</h2>
                         <label for="player-biography">Character Bio</label>
                         <textarea id="player-biography" name="biography" placeholder="Describe your character's background and story..."><?php echo lorkhan_ui_h($content['biography'] ?? ''); ?></textarea>
-                        <span class="hint">Backstory and character context stored in the versioned player profile.</span>
-                        <?php lorkhan_player_toggle('biography_known_by_all', 'player-biography-known-by-all', 'Player Biography Known by All', $biographyKnownByAll, 'On, NPCs and the Narrator may receive this biography. Off, only the Narrator may receive it. This visibility setting is saved with the player profile and carried by portable player settings alongside appearance, biography, personality, speech style, goals, and notes.'); ?>
+                        <span class="hint">Backstory and character context.</span>
+                        <div class="biography-visibility"><input type="hidden" name="biography_known_by_all" value="0"><label for="player-biography-known-by-all"><input id="player-biography-known-by-all" name="biography_known_by_all" type="checkbox" value="1"<?php echo $biographyKnownByAll?' checked':''; ?> aria-describedby="player-biography-visibility-help">Player Biography Known by All</label></div>
+                        <span class="hint" id="player-biography-visibility-help">If enabled, all NPCs know this bio. If disabled, only the Narrator knows it.</span>
                         <details>
-                            <summary>Additional typed player profile</summary>
+                            <summary>Additional player details</summary>
                             <div class="field-block"><label for="player-personality">Personality</label><textarea id="player-personality" name="personality"><?php echo lorkhan_ui_h($content['personality'] ?? ''); ?></textarea></div>
                             <div class="field-block"><label for="player-goals">Goals and motivations</label><textarea id="player-goals" name="goals"><?php echo lorkhan_ui_h($content['goals'] ?? ''); ?></textarea></div>
                             <div class="field-block"><label for="player-notes">Additional roleplay notes</label><textarea id="player-notes" name="notes"><?php echo lorkhan_ui_h($content['notes'] ?? ''); ?></textarea></div>
@@ -160,9 +163,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </section>
 
                     <section class="content-section player-tts-section">
-                        <h2>Player TTS and Speech Style</h2>
+                        <?php $playerTtsEnabled=trim((string)($routing['tts_configuration_id']??''))!==''; ?>
+                        <h2 class="section-title-with-status"><span>Player Autochat and TTS</span><span class="section-status-indicator <?php echo $playerTtsEnabled?'status-enabled':'status-disabled'; ?>" data-player-tts-status><span class="status-dot" aria-hidden="true"></span><span data-player-tts-status-text><?php echo $playerTtsEnabled?'Enabled':'Disabled'; ?></span></span></h2>
                         <div class="field-block">
-                            <label for="player-tts">Player TTS Connector</label>
+                            <label for="player-tts">TTS Connector</label>
                             <select id="player-tts" name="tts_configuration_id" aria-describedby="player-tts-help">
                                 <option value="__disabled__"<?php echo array_key_exists('tts_configuration_id', $routing) && (string) $routing['tts_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
                                 <?php foreach ($ttsRows as $tts): if ((string) ($tts['installation_id'] ?? '') !== $installationId) continue; ?>
@@ -172,16 +176,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <span class="hint" id="player-tts-help">Enables spoken playback of typed player messages through this connector.</span>
                         </div>
                         <div class="field-block">
-                            <label for="player-voice">Voice ID Override</label>
+                            <label for="player-voice">VoiceID</label>
                             <input id="player-voice" name="voice_id" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($voice['id'] ?? ''); ?>" placeholder="MaleArgonian" aria-describedby="player-voice-help">
                             <span class="hint" id="player-voice-help">Overrides the selected connector's default voice for the player.</span>
                         </div>
-                        <div class="field-block">
+                        <details class="player-voice-options"><summary>Voice options</summary><div class="field-block">
                             <label for="player-voice-language">Voice Language</label>
                             <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
-                        </div>
+                        </div></details>
                         <div class="field-block">
-                            <label for="player-autochat">Player Auto Chat Connector</label>
+                            <label for="player-autochat">Player Respeech Connector</label>
                             <select id="player-autochat" name="player_autochat_configuration_id" aria-describedby="player-autochat-help">
                                 <option value="__disabled__"<?php echo array_key_exists('player_autochat_configuration_id', $routing) && (string) $routing['player_autochat_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
                                 <?php foreach ($providerRows as $provider): if ((string) ($provider['installation_id'] ?? '') !== $installationId) continue; ?>
@@ -190,7 +194,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </select>
                             <span class="hint" id="player-autochat-help">Rewrites typed intent as your character's spoken line. Enable Auto Chat from the in-game Interact menu.</span>
                         </div>
-                        <label for="player-speech-style">Speech Style</label>
+                        <label for="player-speech-style">Player Speech Style</label>
                         <textarea id="player-speech-style" name="speech_style" placeholder="Describe how your character speaks and communicates..."><?php echo lorkhan_ui_h($content['speech_style'] ?? ''); ?></textarea>
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>
                         <span class="hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
@@ -219,17 +223,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </section>
                 </div>
 
-                <div class="player-save-row"><button type="submit" class="btn-save">Save Player Settings</button><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><?php if ($profile !== null): ?><span class="revision-meta">Revision <?php echo lorkhan_ui_h($profile['current_revision']); ?> &middot; <?php echo lorkhan_ui_h($profile['input_count']); ?> observed player messages</span><?php endif; ?></div>
             </form>
 
             <?php if ($profile !== null): ?>
-                <details class="player-portability">
-                    <summary class="player-portability-summary"><span class="player-portability-summary-icon">&#x25B6;</span><span>Portable Player Settings</span></summary>
+                <dialog class="player-portability modal-content" id="player-import-dialog" aria-labelledby="player-import-title">
+                    <header class="modal-header"><h2 id="player-import-title">Import Player Settings</h2><button type="button" class="btn-portable" data-player-import-close aria-label="Close import player settings">&times;</button></header>
                     <div class="player-portability-body">
                         <p class="hint" id="player-portability-scope">A player preset carries appearance, biography, the biography visibility setting, personality, speech style, goals, and notes only. TTS connector and voice routing stay with this installation.</p>
-                        <div class="player-portability-actions">
-                            <a class="btn-portable" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/player-profile-settings/' . (string) $profile['profile_id'] . '.json'); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.export')['description']); ?>">Export Settings</a>
-                        </div>
                         <form class="player-portability-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/player-profile-settings-import">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                             <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
@@ -241,13 +241,13 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <label for="player-preset-json">Preset JSON</label>
                                 <textarea id="player-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="player-portability-scope player-portability-help"></textarea>
                             </div>
-                            <p class="hint" id="player-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing player profile. It never creates or selects a player, and it never changes the player name and identity, TTS connector and voice routing, the Profile Generation LLM route, live OpenMW inventory, equipment, statistics, playthrough context, autochat, or diary controls.</p>
+                            <p class="hint" id="player-portability-help">Choose a file or paste its contents above. Import saves a new revision of the existing player. Identity, voices, connectors, autochat, diary controls and game state stay unchanged.</p>
                             <div class="player-portability-actions">
-                                <button type="submit" class="btn-portable" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
+                                <button type="button" class="btn-portable" data-player-import-close>Cancel</button><button type="submit" class="btn-portable" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.player.import')['description']); ?>">Import Preset</button>
                             </div>
                         </form>
                     </div>
-                </details>
+                </dialog>
             <?php endif; ?>
 
             <div class="full-width-section"><h2 class="full-width-title">&#x1F4CA; Player Statistics</h2></div>
@@ -272,7 +272,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     </div><?php else: ?><div class="no-data">No equipment data available. Play the game to sync your equipment.</div><?php endif; ?>
                 </section>
 
-                <section class="content-section">
+                <?php if($playerStats!==[]): ?><section class="content-section">
                     <h2>Character Stats</h2>
                     <div class="stats-grid">
                         <div class="stat-card"><div class="stat-card-title">Level</div><div class="stat-card-value"><?php echo lorkhan_ui_h((int) ($playerStats['level'] ?? 1)); ?></div></div>
@@ -281,7 +281,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <?php endforeach; ?>
                         <div class="stat-card"><div class="stat-card-title">Encumbrance</div><div class="stat-card-value"><?php echo lorkhan_ui_h(round((float) ($playerStats['encumbrance'] ?? 0), 1)); ?> / <?php echo lorkhan_ui_h(round((float) ($playerStats['capacity'] ?? 0), 1)); ?></div></div>
                     </div>
-                </section>
+                </section><?php endif; ?>
             </div>
 
             <?php if ($playerAttributes !== []): ?>
@@ -290,11 +290,11 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 </div></section>
             <?php endif; ?>
 
-            <section class="content-section full-width-section"><h2>&#x2B50; Skills</h2>
-                <?php if ($playerSkills !== []): ?><div class="skills-grid">
+            <?php if ($playerSkills !== []): ?><section class="content-section full-width-section"><h2>&#x2B50; Skills</h2>
+                <div class="skills-grid">
                     <?php foreach ($playerSkills as $name => $value): $entry = lorkhan_player_json_array($value); ?><div class="skill-item"><div class="skill-name"><?php echo lorkhan_ui_h(str_replace('_', ' ', (string) $name)); ?></div><div class="skill-value"><?php echo lorkhan_ui_h($entry['modified'] ?? $entry['base'] ?? $value); ?></div></div><?php endforeach; ?>
-                </div><?php else: ?><div class="no-data">No skill data available. Play the game to sync your skills.</div><?php endif; ?>
-            </section>
+                </div>
+            </section><?php endif; ?>
         <?php endif; ?>
     </div>
 </main>

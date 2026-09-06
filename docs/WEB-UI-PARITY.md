@@ -73,7 +73,7 @@ do not use an exception to excuse a generic substitute layout.
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; remaining General, Relationships, Info and full editor/list review remain |
-| `core/player_management.php` | Same path | Pending structural and populated-state comparison |
+| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
@@ -1082,3 +1082,44 @@ Remaining Core Profile requirements identified from the pinned source and live e
   access and native authentication probes pass. Configuration, credential and voice
   hashes are unchanged. Reviewed the deployed row and cancelled its reader without
   saving. Code rollback: lorkhanserver-code.BEl7XC.
+
+### Player Management: toolbar, biography and speech presentation
+
+- Compared the pinned page together with its actual `player-narration.css`, not
+  just its older inline styles. Embedded padding, compact header, top Save/Export/
+  Import toolbar, card widths, 82px fields and 12px gutters now match. The stats
+  grid uses the reference's equal columns. Gold replaces orange; card headings
+  retain the reference's light text.
+- Moved portable export/import to the top toolbar. Import uses a bounded native
+  dialog with the existing protected JSON form, file/paste controls, Cancel/Escape
+  and focus restoration. Removed the duplicate bottom Save row; revision/message
+  metadata remains on the Save button. Draft tracking and backend forms are kept.
+- Biography visibility uses the reference's inline checkbox with short help rather
+  than a large switch card. Player Autochat and TTS includes the selected connector's
+  Enabled/Disabled draft indicator and matching VoiceID, Respeech and Speech Style
+  labels. Existing language and extra roleplay fields remain in disclosures.
+- No Character Stats or Skills cards are fabricated when those context sections
+  are absent. Populated fixtures retain recorded inventory/equipment, health,
+  magicka, fatigue, encumbrance, Morrowind attributes and skills. Empty installation
+  and first-profile creation states remain explicit and do not call the game.
+- Actual-template browser checks covered populated and empty game-data states,
+  first profile/no installation, desktop/390px layouts, import Cancel/Escape/focus,
+  disabled generation without inputs, selected TTS status and unsaved indication.
+  No provider generation, live settings import/save or operating-system file picker
+  was exercised. Existing real HTTP tests cover player saves, biography visibility,
+  portable import/export and protected field preservation. A stale copy-only smoke
+  assertion now checks that the real create/revise form is present.
+- Full PHP lint, 338 server checks, 98 protocol checks, management HTTP, integration,
+  migrations and schema passed. JavaScript syntax and diff checks passed.
+- Remaining parity is explicit: editable existing-player name, optional AI speech
+  generation guidance, per-player ElevenLabs overrides, and an audit of unset/
+  inherited connector selection versus effective routing. These are not accepted
+  exceptions or represented by nonfunctional controls. Import continues to preserve
+  identity, connector/voice routing, autochat, diaries and live game state.
+- Deployed and reviewed the live Player page and import Cancel without saving.
+  The existing Inworld connector remains selected and the form remains clean.
+  All 695 runtime files match source; configuration, credential and voice hashes,
+  protected-path probes and native authentication checks pass. Code rollback:
+  lorkhanserver-code.YKnc8T. Live inventory still falls back to record IDs when
+  names were not supplied, and compound skill labels need catalog formatting;
+  these data-label gaps remain in the Player follow-up scope.

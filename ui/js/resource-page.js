@@ -1,6 +1,26 @@
 (() => {
     const dirtyForms = new Set();
 
+    // The Player toolbar keeps portable import outside the unsaved profile form.
+    const playerImport = document.getElementById('player-import-dialog');
+    const playerImportButton = document.querySelector('[data-player-import-open]');
+    playerImportButton?.addEventListener('click', () => playerImport.showModal());
+    playerImport?.querySelectorAll('[data-player-import-close]').forEach(button => button.addEventListener('click', () => playerImport.close()));
+    playerImport?.addEventListener('close', () => playerImportButton.focus());
+    const playerTts = document.getElementById('player-tts');
+    const playerTtsStatus = document.querySelector('[data-player-tts-status]');
+    if (playerTts && playerTtsStatus) {
+        const updatePlayerTtsStatus = () => {
+            const enabled = playerTts.value !== '' && playerTts.value !== '__disabled__';
+            playerTtsStatus.classList.toggle('status-enabled', enabled);
+            playerTtsStatus.classList.toggle('status-disabled', !enabled);
+            playerTtsStatus.querySelector('[data-player-tts-status-text]').textContent = enabled ? 'Enabled' : 'Disabled';
+        };
+        playerTts.addEventListener('change', updatePlayerTtsStatus);
+        playerTts.form?.addEventListener('reset', () => window.setTimeout(updatePlayerTtsStatus, 0));
+        updatePlayerTtsStatus();
+    }
+
     // Keep profile sliders and their submitted numeric fields synchronized without duplicate form values.
     document.querySelectorAll('[data-range-for]').forEach((slider) => {
         const number = document.getElementById(slider.dataset.rangeFor);
