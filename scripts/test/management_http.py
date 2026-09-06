@@ -237,6 +237,19 @@ invalid,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&wee
 assert 'Week: 2021-W53' not in text
 usage_period,text=parse(request('/LorkhanServer/ui/provider_usage.php?period=all'))
 assert '<h3>All Time</h3>' in text
+# Operational readers page the complete safe metadata set, including unassigned historical attempts.
+_,attempts=parse(request('/LorkhanServer/ui/provider_attempts.php?embed=1'))
+assert 'Showing 50 of 110 records. Page 1 / 3.' in attempts and 'operational-log-page' in attempts
+_,attempts_last=parse(request('/LorkhanServer/ui/provider_attempts.php?page=3&embed=1'))
+assert 'Showing 10 of 110 records. Page 3 / 3.' in attempts_last and 'embed=1' in attempts_last
+attempt_csv=request('/LorkhanServer/ui/provider_attempts.php?page=3&export=csv')
+attempt_rows=list(csv.DictReader(io.StringIO(attempt_csv.read().decode('utf-8-sig'))))
+assert len(attempt_rows)==10 and set(attempt_rows[0])=={'ID','Time (UTC)','Service','Connector','Model','Operation','Status','Duration (ms)','Error'}
+for filters in ['q=diary','q=%25','state=failed','installation_id=00000000-0000-4000-8000-000000000001','period=24h']:
+    _,filtered=parse(request('/LorkhanServer/ui/provider_attempts.php?'+filters))
+    assert ('Showing 3 of 3 records.' in filtered) if filters=='q=diary' else ('No provider attempts match these filters.' in filtered)
+_,jobs_empty=parse(request('/LorkhanServer/ui/jobs.php?q=unmatched-operational-fixture'))
+assert 'No durable jobs match these filters.' in jobs_empty and 'operational-log-page' in jobs_empty
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
 assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
 assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])

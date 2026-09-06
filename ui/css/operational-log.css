@@ -1,0 +1,9 @@
+/* Native monitoring columns within the shared Herika Request Logs layout. */
+.operational-log-page table { min-width:1100px; }
+.operational-log-page .col-provider_attempt_id, .operational-log-page .col-job_id { width:155px; font-family:Consolas,"Courier New",monospace; }
+.operational-log-page .col-time_utc, .operational-log-page .col-next_run_utc, .operational-log-page .col-updated_utc { width:145px; }
+.operational-log-page .col-state { width:115px; }
+.operational-log-page .col-provider_kind { width:80px; text-transform:uppercase; }
+.operational-log-page .col-error_code, .operational-log-page .col-last_error_code { font-family:Consolas,"Courier New",monospace; }
+.operational-log-page .btn-row a[aria-current="true"] { outline:1px solid #bc9d5a; outline-offset:1px; }
+.operational-log-page .table-container:focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }

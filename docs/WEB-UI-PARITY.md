@@ -102,8 +102,8 @@ do not use an exception to excuse a generic substitute layout.
 | `playthrough_manager.php` | Same path | Header, selected-scope overview, paired panels and bounded list compared populated/empty/narrow; owning-profile export/import and installation selection aligned with actual behavior. Still incomplete: full stored-snapshot creation/switch/delete, automatic rollback snapshots, timeline and access beyond the 100-row list. See Playthrough Manager checkpoint below. |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
-| `provider_attempts.php` | Shared operational style | Pending structural and populated-state comparison |
-| `jobs.php` | Shared operational style | Pending structural and populated-state comparison |
+| `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
+| `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
 | `game_debug.php` | Shared operational style | Pending structural and populated-state comparison |
 | `database_manager.php` | Herika database tooling style | Pending structural and populated-state comparison |
 | `diagnostics.php` | Shared operational style | Pending structural and populated-state comparison |
@@ -2214,3 +2214,32 @@ Remaining Core Profile requirements identified from the pinned source and live e
   description search returned 30 articles (six Advanced, 24 Basic); selecting
   Basic returned exactly 24. Clear restored all access levels and Next opened
   page two with 50 rows. No profile, catalog, provider or game state was changed.
+
+### Provider Attempts and Workers & Jobs — operational presentation checkpoint
+
+- Replaced both generic auto-column tables with the pinned Herika Request Logs
+  header, toolbar, metadata, table and status-pill presentation. No exact CHIM
+  all-provider/durable-job page exists; columns retain Lorkhan's actual metadata.
+- Removed the latest-100 display cap through bounded 50/100/200-row server
+  pagination. Installation, period, literal search and status filters preserve
+  embedded navigation; Refresh preserves filters. CSV exports only the displayed
+  allowlisted metadata page. No payload, raw error, credentials or job mutation
+  controls were introduced. Default visibility remains all installations/time.
+- Actual source-rendered populated and empty fixtures were compared with pinned
+  `ui/request_logs.php`: both had 30px title, 12px table text, 9px/10px header
+  padding and 20px/12px/40px embedded main padding. At 390px the table remained
+  inside its 307px region with 1,124px scroll width; ArrowRight moved it 40px.
+  Queued, running, success, dead-letter, pending, error and cancelled states were
+  visually inspected. No provider calls or live data writes were made.
+- PHP lint, 370 server checks, 98 protocol files, management HTTP forms,
+  integration vertical slice and migration/durable-job checks passed. Extended
+  existing HTTP coverage verified 110 historical/unassigned attempts across three
+  pages, page CSV, literal-percent search and installation/period/status filters.
+- Deployment verified all 735 runtime files without mismatches, extras or old
+  paths. Protected files returned 403 and unauthenticated session creation 401;
+  configuration, credentials and voice hashes were preserved. Rollback:
+  `/var/backups/lorkhanserver-code.yIvZ2n`.
+- Live pages showed 540 provider attempts over 11 pages and 1,105 jobs over 23.
+  Next opened page two on each; failed attempts returned 107 records, dead-letter
+  jobs returned 29, and Refresh retained the selected job filter. This completes
+  these two presentation rows, not the remaining all-page parity goal.

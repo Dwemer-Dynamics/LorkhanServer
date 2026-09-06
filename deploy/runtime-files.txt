@@ -23,3 +23,5 @@ scripts/provision-default-connectors.php
 scripts/provision-default-descriptions.php
 scripts/provision-default-oghma.php
 ui/tmpl/npc_relationships.html.php
+ui/tmpl/operational_log.html.php
+ui/css/operational-log.css

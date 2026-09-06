@@ -189,3 +189,9 @@ three-column knowledge reader, metadata chips, filter controls and typography
 from the pinned HerikaServer `ui/npc_upload.php` Oghma modal under its MIT
 license. Lorkhan retains standalone NPC navigation, scoped pagination and
 runtime knowledge-access decisions.
+
+`ui/tmpl/operational_log.html.php` adapts the pinned HerikaServer
+`ui/request_logs.php` toolbar, metadata, table and status-pill presentation
+under the same MIT license. `ui/provider_attempts.php`, `ui/jobs.php` and
+`ui/css/operational-log.css` retain Lorkhan-specific monitoring data and
+column sizing while reusing the already attributed Request Logs stylesheet.
