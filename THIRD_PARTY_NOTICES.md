@@ -11,6 +11,11 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Audio Cache's heading, panel, file-list columns and inline player sizing derive from
+HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/cache_browser.php`.
+Lorkhan keeps authenticated opaque media access and expiry, omits the excluded
+Soulgaze image panel, and places installation/status filtering in secondary tools.
+
 Response Queue's heading, seven-column striped table and row control presentation
 derive from the same pinned HerikaServer revision's `ui/control_panel.php`,
 `ui/index.php?table=responselog` and `lib/misc_ui_functions.php`. Lorkhan retains

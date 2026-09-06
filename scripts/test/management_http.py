@@ -171,7 +171,18 @@ relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=rela
 narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Regular Calendar' in text and 'calendar-event-table' in text and 'Create / Generate Entry' not in text
 diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
 narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
-cache,text=parse(request('/LorkhanServer/ui/cache_browser.php')); assert cache.current==1 and '<h1>Audio Cache</h1>' in text and 'Expired and deleted entries' in text
+cache,text=parse(request('/LorkhanServer/ui/cache_browser.php'))
+assert cache.current==1 and '<h1 class="cache-title">Audio Cache</h1>' in text and 'class="cache-panel"' in text and 'No cached audio files found.' in text
+assert cache.forms[0]['fields']['state']=='available' and cache.forms[0]['fields']['period']=='all' and 'Expired and deleted entries' in text
+assert '<table' not in text and '/soundcache/' not in text and 'Soulgaze' not in text and 'data-audio-cache' in text
+cache_all,text=parse(request('/LorkhanServer/ui/cache_browser.php?state=&period=all')); assert cache_all.forms[0]['fields']['state']==''
+cache_audio='/LorkhanServer/ui/cache_audio.php?media_id=00000000-0000-4000-8000-000000000099&installation_id='+cache.forms[0]['fields']['installation_id']
+assert request(cache_audio).status==404 and request(cache_audio,'HEAD').status==404 and request(cache_audio,'POST').status==405
+try:
+    urllib.request.urlopen(base+cache_audio,timeout=5)
+    raise AssertionError('Audio was accessible without browser authentication')
+except urllib.error.HTTPError as error:
+    assert error.code==401,error.code
 queue,text=parse(request('/LorkhanServer/ui/response_queue.php')); assert queue.current==1 and '>Response Queue</h1>' in text and 'actual playback state' in text and 'data-response-queue' in text
 queue_remove='/LorkhanServer/manage/api/v1/response-queue/remove'
 queue_values={'installation_id':queue.forms[0]['fields']['installation_id'],'rowid':1,'confirm':'Remove'}

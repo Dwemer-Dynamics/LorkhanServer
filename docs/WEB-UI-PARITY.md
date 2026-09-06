@@ -96,7 +96,7 @@ do not use an exception to excuse a generic substitute layout.
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
-| `cache_browser.php` | Same path | Pending structural and populated-state comparison |
+| `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
 | `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
 | `oghma_audit.php` | Same path | Pending structural and populated-state comparison |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
@@ -1297,3 +1297,44 @@ Remaining Core Profile requirements identified from the pinned source and live e
   wrapping refresh rollback: /var/backups/lorkhanserver-code.3BLvlB.
 - The all-pages goal remains active. Audio Cache and the remaining matrix entries
   still need their own counterpart and populated-state work.
+
+### Audio Cache — compact file list and protected playback
+
+- Replaced the five-column diagnostics table and outer card with the reference
+  cache heading, file-list panel, filename / format-size / date / player grid.
+  At 1280x720, source and reference both use a 35px title line, 41px panel heading,
+  51px first row, 50px last row and 220x32px dark inline players. Fonts and row
+  spacing match; source uses the full width because Soulgaze is excluded.
+- The title remains Audio Cache. No image panel, gallery iframe, private filesystem
+  path or public-folder shortcut is introduced. Lorkhan media is deliberately
+  stored outside the web root and served through its existing authenticated,
+  installation-scoped, expiry/integrity-checked endpoint. Standalone navigation
+  retains its existing body offset without adding a second 80px blank gap.
+- Filters are secondary, with available clips/all time/100 rows as defaults.
+  Paging replaces Herika's hard 300-file scan ceiling. Expired/deleted records
+  remain inspectable without playable elements. Filenames use opaque media IDs;
+  speaker, duration and expiry are available in accessible filename descriptions.
+  Menu dialogue now resolves its recorded actor instead of falling through to
+  Unknown because it has no regular dialogue-utterance foreign key.
+- Compared actual source/reference templates using synthetic populated/empty
+  fixtures and local silent WAV data. Checked 390x844 rows and expanded filters
+  (document width equals scroll width), keyboard Enter/focus on the disclosure,
+  user-started playback, and immediate handoff: first player paused at 0.012765s
+  while the second was playing. A missing-file fixture displays the accessible
+  unavailable/expired status. No generated speech or external provider was used.
+- Existing checks pass: 348 server checks, 98 protocol files, management HTTP,
+  integration, migrations/durable jobs, PHP/JS syntax and diff checks. Existing
+  HTTP tests now cover empty/default/all-state rendering and authenticated missing
+  audio, method rejection and unauthenticated denial. The audio-serving endpoint
+  itself was unchanged; these new HTTP cases do not claim positive range-playback
+  coverage. Schema inventory remains 167 relations, source-reference hash
+  a6174bb20347333db434d2118c90590df99ae66a6a4297335762fcfd6a37d59c.
+- Deployed standalone and Control Panel cache views were inspected. Runtime has
+  385 expired clips, including 129 menu-dialogue clips, and no playable current
+  clips; those counts were unchanged. Live history renders 25 rows / 16 pages
+  with recorded speakers, while the default correctly shows the empty state.
+  All 708 runtime files match source; no extras/old paths, private-file/health/auth
+  checks pass, and config, credentials and voices were preserved.
+- Previous-feature rollback: /var/backups/lorkhanserver-code.1YqZs0. Final standalone
+  spacing refresh rollback: /var/backups/lorkhanserver-code.6a52hM.
+- The all-pages goal remains active; this completes only the Audio Cache row.

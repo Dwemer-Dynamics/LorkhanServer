@@ -1,6 +1,6 @@
 /* Operational audio is user-started and only one cached clip plays at a time. */
 (() => {
-    const root = document.querySelector('.control-reader');
+    const root = document.querySelector('[data-audio-cache]');
     if (!root) return;
     const players = [...root.querySelectorAll('audio')];
     players.forEach((player) => {
