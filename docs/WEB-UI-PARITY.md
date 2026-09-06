@@ -67,8 +67,8 @@ do not use an exception to excuse a generic substitute layout.
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
-| `home.php` | `home.php` | Main widgets and statistics/drilldowns aligned; background-processor status and final whole-page audit pending |
-| `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
+| `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
+| `quickstart.php` | `quickstart.php` | Reference traced; current connector-picker substitute still needs Player, OpenRouter, Setup/Local LLM, MiniMe, speech-service sections, Player2 and connector recap |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
@@ -725,3 +725,37 @@ Remaining Core Profile requirements identified from the pinned source and live e
   player, Standard dialogue mode, selected Fast slot, game date, populated
   product counters, three known locations, fifteen content files and observed
   Vitals/Attributes/Skills. No provider tests or game controls were invoked.
+
+### Home background processor and final review
+
+- Current Playthrough now reports the installed background supervisor's status.
+  Page loads only observe fixed service/PID paths; they never start workers.
+  SysV checks the exact supervisor argument so a stale/reused PID is not reported
+  as running. Systemd observes fixed service/timer units with a bounded 300ms
+  subprocess and reports running, waiting, failed, stopped or unavailable.
+- Nine additions to the existing server suite cover missing/invalid/stale PID,
+  actual supervisor identity and systemd service/timer/error states. All 337 server
+  and 98 protocol checks, HTTP, integration and migrations passed. The live SysV
+  result under Apache's user matches service status: Running. Systemd behavior
+  was fixture-tested; the local runtime does not use systemd.
+- Final live Home review inspected the complete desktop page at 1440px and the
+  header/world table at 390px, including the new worker row. Earlier populated and
+  empty fixtures cover the diary, relationships, cloud and interactive drilldowns.
+  Remaining differences are the recorded OpenMW stat categories, content-file/cell
+  identities, gold branding and local Quickstart guide destination described above.
+- Deployed and hash-verified all 693 runtime files, with no extras or old paths.
+  Private-file 403/native-session 401 checks passed; private configuration,
+  credentials and voice files were preserved. No game or provider was invoked.
+
+### Quickstart implementation boundary
+
+- Pinned Herika uses Player, OpenRouter, Setup, MiniMe, individual speech-service
+  cards, Player2 and a four-slot connector recap followed by Save and Continue.
+  Lorkhan's current three connector selectors/cards are not that structure.
+- Setup's Default/Local LLM choices depend on the same profile-affecting preset
+  semantics still pending in Global Settings. Implement them once for both pages;
+  do not present a radio card that only changes appearance. Preserve current
+  routes, NPC overrides and revision-checked atomic saves.
+- Reuse protected credentials rather than rendering saved API keys into HTML.
+  Provider tests must remain explicit. Do not copy reference model prices or
+  overwrite current model routes merely to reproduce static recap cards.

@@ -25,6 +25,7 @@ $currentRows = $dashboard['current'] === null ? [] : [
     ['Stats' => 'LORKHAN Mode', 'Value' => strtoupper($dashboard['current']['dialogue_mode'] ?? 'Not recorded')],
     ['Stats' => 'LORKHAN Active Model', 'Value' => ucfirst($dashboard['current']['model_slot'] ?? 'standard')],
     ['Stats' => 'Compact Chat', 'Value' => 'ENABLED'],
+    ['Stats' => 'Background Processor', 'Value' => \LorkhanServer\Infrastructure\BackgroundWorkerStatus::read()],
 ];
 $statistics = $dashboard['statistics'];
 $playerCategories = [];

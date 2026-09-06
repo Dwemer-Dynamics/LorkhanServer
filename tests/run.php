@@ -1492,6 +1492,29 @@ try {
     $check(false, 'named preset rejects connector fields');
 } catch (InvalidArgumentException) { $check(true, 'named preset rejects connector fields'); }
 
+// Dashboard worker status must not mistake stale PIDs or an idle systemd timer for a running worker.
+$workerFixture = sys_get_temp_dir().'/lorkhan-worker-status-'.bin2hex(random_bytes(4));
+mkdir($workerFixture); mkdir($workerFixture.'/1'); mkdir($workerFixture.'/123');
+file_put_contents($workerFixture.'/1/comm', "init\n");
+$workerStatus = static fn(?callable $query = null): string => \LorkhanServer\Infrastructure\BackgroundWorkerStatus::read($workerFixture, $workerFixture, $query);
+$check($workerStatus()==='Stopped', 'missing worker PID is stopped');
+file_put_contents($workerFixture.'/lorkhanserver-worker.pid', "123\n");
+file_put_contents($workerFixture.'/123/cmdline', "bash\0/usr/local/libexec/lorkhanserver-worker-loop\0");
+$check($workerStatus()==='Running', 'worker status verifies the exact supervisor process');
+file_put_contents($workerFixture.'/123/cmdline', "bash\0/unrelated-worker\0");
+$check($workerStatus()==='Stopped', 'reused PID cannot report running');
+file_put_contents($workerFixture.'/lorkhanserver-worker.pid', '../123');
+$check($workerStatus()==='Unavailable', 'invalid PID is rejected');
+file_put_contents($workerFixture.'/1/comm', "systemd\n");
+foreach ([['activating','active','Running'],['inactive','active','Waiting (timer active)'],['failed','active','Failed'],['inactive','inactive','Stopped']] as [$serviceState,$timerState,$expected]) {
+    $query=static fn():array=>['lorkhanserver-worker.service'=>['LoadState'=>'loaded','ActiveState'=>$serviceState],
+        'lorkhanserver-worker.timer'=>['LoadState'=>'loaded','ActiveState'=>$timerState]];
+    $check($workerStatus($query)===$expected, 'systemd worker status '.$expected);
+}
+$check($workerStatus(static fn()=>null)==='Unavailable', 'failed systemd observation stays unknown');
+unlink($workerFixture.'/123/cmdline'); unlink($workerFixture.'/1/comm'); unlink($workerFixture.'/lorkhanserver-worker.pid');
+rmdir($workerFixture.'/123'); rmdir($workerFixture.'/1'); rmdir($workerFixture);
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);
