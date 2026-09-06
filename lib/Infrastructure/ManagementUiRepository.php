@@ -161,9 +161,19 @@ SQL);
     {
         $current = $this->one(
             "SELECT s.installation_id,s.playthrough_id,s.state,s.created_at,s.openmw_version,s.lua_api_revision,s.client_version,s.platform,"
-            . "p.name AS profile_name,pt.name AS playthrough_name "
+            . "p.name AS profile_name,pt.name AS playthrough_name,latest.player_name,latest.dialogue_mode,latest.calendar_data,"
+            . "latest.player_stats,latest.player_attributes,latest.player_skills,latest.accepted_at AS observed_at,"
+            . "GREATEST(s.created_at,latest.accepted_at) AS last_played,COALESCE(preference.llm_model_slot,'standard') AS model_slot "
             . "FROM sessions s LEFT JOIN profiles p ON p.profile_id=s.profile_id "
             . "LEFT JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id "
+            . "LEFT JOIN installation_profile_preferences preference ON preference.installation_id=s.installation_id "
+            . "LEFT JOIN LATERAL (SELECT t.accepted_at,COALESCE(t.context#>>'{player,display_name}',"
+            . "CASE WHEN t.speaker->>'kind'='player' THEN t.speaker->>'display_name' END) AS player_name,"
+            . "t.context->>'dialogueMode' AS dialogue_mode,t.context#>'{world,calendar}' AS calendar_data,"
+            . "t.context#>'{playerState,stats}' AS player_stats,t.context#>'{playerState,attributes}' AS player_attributes,"
+            . "t.context#>'{playerState,skills}' AS player_skills FROM turns t JOIN sessions history ON history.session_id=t.session_id "
+            . "WHERE history.installation_id=s.installation_id AND history.playthrough_id=s.playthrough_id "
+            . "ORDER BY t.accepted_at DESC,t.turn_id DESC LIMIT 1) latest ON true "
             . "ORDER BY (s.state='active') DESC,s.created_at DESC LIMIT 1"
         );
 
@@ -200,14 +210,7 @@ SQL);
             'database_version' => (string) $this->db->query('SHOW server_version')->fetchColumn(),
             'current' => $current,
             'dialogue' => $dialogue,
-            'stats' => [
-                'Installations' => $this->count('installations', 'revoked_at IS NULL'),
-                'Sessions' => $this->count('sessions'),
-                'Turns' => $this->count('turns'),
-                'Memories' => $this->count('memory_records', 'deleted_at IS NULL'),
-                'Relationships' => $this->count('relationship_records', 'deleted_at IS NULL'),
-                'Queued Jobs' => $this->count('durable_jobs', "state='queued'"),
-            ],
+            'statistics' => $this->dashboardStatistics($scope),
             'latest_diary' => $this->all(
                 "SELECT n.narrative_id,n.title,n.content,n.created_at,p.name AS author FROM narrative_records n "
                 . "JOIN profiles p ON p.profile_id=n.profile_id AND p.installation_id=n.installation_id "
@@ -222,15 +225,46 @@ SQL);
                 . "ORDER BY a.created_at DESC,a.audit_sequence DESC LIMIT 5", $scope
             ),
             'words' => $words,
-            'runtime' => [
-                'Active Sessions' => $this->count('sessions', "state='active'"),
-                'Pending Dialogue' => $this->count('dialogue_utterances', "delivery_state='pending'"),
-                'Terminal Actions' => $this->count('action_results'),
-                'Dead Jobs' => $this->count('durable_jobs', "state='dead'"),
-                'Knowledge Records' => $this->count('knowledge_documents', 'deleted_at IS NULL'),
-                'Provider Attempts' => $this->count('provider_attempts'),
-            ],
         ];
+    }
+
+    /** Build the reference dashboard counts and drilldowns from scoped product records. */
+    private function dashboardStatistics(array $scope): array
+    {
+        $events = $this->all("SELECT e.type,count(*)::int AS count FROM public.eventlog e "
+            . "JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation "
+            . "AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL GROUP BY e.type ORDER BY count(*) DESC,e.type", $scope);
+        $eventCounts = array_column($events, 'count', 'type');
+        $counts = $this->all("SELECT "
+            . "(SELECT count(*) FROM public.oghma o JOIN lorkhan_internal.oghma_metadata m ON m.topic=o.topic "
+            . "WHERE m.installation_id=:installation AND (m.playthrough_id IS NULL OR m.playthrough_id=:playthrough)) AS knowledge,"
+            . "(SELECT count(*) FROM public.memory_summary summary JOIN lorkhan_internal.memory_summary_metadata m ON m.rowid=summary.rowid "
+            . "JOIN memory_records record ON record.memory_id=m.memory_id WHERE record.installation_id=:installation "
+            . "AND record.playthrough_id=:playthrough AND record.deleted_at IS NULL) AS memories,"
+            . "(SELECT count(*) FROM narrative_records n WHERE n.installation_id=:installation AND n.playthrough_id=:playthrough "
+            . "AND n.kind='diary' AND n.deleted_at IS NULL) AS diaries,"
+            . "(SELECT count(DISTINCT b.title) FROM public.books b JOIN lorkhan_internal.book_metadata m ON m.rowid=b.rowid "
+            . "WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND b.content IS NOT NULL) AS books", $scope)[0];
+        $periods = [];
+        foreach (['24h' => 24, '72h' => 72, '1w' => 168, 'lifetime' => null] as $period => $hours) {
+            // LLM attempts include background jobs, but never count STT/TTS as language requests.
+            $periods[$period] = $this->all("SELECT count(*)::int AS total,count(*) FILTER(WHERE a.state='succeeded')::int AS success "
+                . "FROM provider_attempts a LEFT JOIN turns t ON t.turn_id=a.turn_id LEFT JOIN sessions s ON s.session_id=t.session_id "
+                . "LEFT JOIN durable_jobs j ON j.job_id=a.job_id WHERE a.provider_kind='llm' "
+                . "AND COALESCE(s.installation_id::text,j.payload->>'installation_id')=:installation "
+                . "AND COALESCE(s.playthrough_id::text,j.payload->>'playthrough_id')=:playthrough"
+                . ($hours === null ? '' : " AND a.started_at>=CURRENT_TIMESTAMP-INTERVAL '".$hours." hours'"), $scope)[0];
+        }
+        $locations = $this->all("SELECT l.name,m.cell_key,l.region FROM public.locations l "
+            . "JOIN lorkhan_internal.location_metadata m ON m.formid=l.formid WHERE m.installation_id=:installation "
+            . "ORDER BY lower(l.name),m.cell_key", ['installation' => $scope['installation']]);
+        $mods = $this->all("SELECT content_file,load_order FROM lorkhan_internal.content_manifest_files "
+            . "WHERE installation_id=:installation AND active ORDER BY load_order", ['installation' => $scope['installation']]);
+        return ['counts' => ['Total Events' => array_sum($eventCounts), 'Oghma Entries' => (int) $counts['knowledge'],
+            'Memory Summaries' => (int) $counts['memories'], 'Diary Entries' => (int) $counts['diaries'],
+            'Entity Deaths' => (int) ($eventCounts['death'] ?? 0), 'Items Found' => (int) ($eventCounts['itemfound'] ?? 0),
+            'Books Read' => (int) $counts['books'], 'Player Messages' => (int) ($eventCounts['inputtext'] ?? 0)],
+            'events' => $events, 'llm' => $periods, 'locations' => $locations, 'mods' => $mods];
     }
 
     /** Load the inspection tabs rendered directly inside the Roleplay PHP page. */

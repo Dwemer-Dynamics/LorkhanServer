@@ -135,7 +135,7 @@ for path in ['/LorkhanServer/conf/server.example.php', '/LorkhanServer/lib/Autol
     assert r.status in (403,404), (path,r.status)
 
 r=request('/LorkhanServer/manage/quickstart'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
-p,text=parse(r); assert len(p.nav)>=4 and p.current==1 and 'Queued Jobs' in text
+p,text=parse(r); assert len(p.nav)>=4 and p.current==1 and 'Total Events' in text and 'Queued Jobs' not in text
 assert 'class="chim-navbar-wrapper"' in text and '/LorkhanServer/ui/lib/ui/bootstrap/bootstrap.min.css' in text
 assert '<details' not in text and 'Recent Dialogue' in text and 'Getting Started' not in text
 assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LORKHAN Stats</h3>', text)

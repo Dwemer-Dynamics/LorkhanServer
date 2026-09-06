@@ -90,6 +90,27 @@ body .dashboard-container .stat-card { background: #1a1a1a !important; border: 0
 .stat-card { background: #1a1a1a; padding: 15px; border-radius: 4px; text-align: center; }
 .stat-value { display: block; font-size: 1.5em; font-weight: bold; color: rgba(188, 157, 90, .9); }
 .stat-label { display: block; font-size: .9em; color: #6c757d; margin-top: 5px; }
+.widget-stats .double-width { grid-column: 1 / -1; }
+.home-observed-note { margin: 12px 0 0; font-size: .75em; color: #929292; }
+body .dashboard-container button.stat-card { display: block !important; width: 100%; padding: 15px !important; font-family: inherit !important; font-size: 1em !important; font-weight: 400 !important; cursor: pointer; position: relative; }
+.clickable-card::after { content: '⌕'; position: absolute; right: 8px; top: 4px; color: #bc9d5a; }
+.clickable-card:focus-visible { outline: 2px solid #bc9d5a; outline-offset: 2px; }
+.home-stat-dialog { width: min(80vw, 1100px); max-height: 80vh; padding: 20px; color: #d4d4d4; background: #2d2d2d; border: 1px solid #444; border-radius: 8px; }
+.home-stat-dialog::backdrop { background: #000b; }
+.home-stat-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 15px; }
+.home-stat-dialog h3 { margin: 0; color: #f8f9fa; font-size: 1.2em; }
+body .home-stat-dialog [data-home-close] { border: 0 !important; background: transparent !important; color: #d4d4d4 !important; font-size: 28px !important; line-height: 1; padding: 4px 8px !important; cursor: pointer; }
+.home-stat-dialog p { color: #aaa; font-size: .9em; }
+.home-modal-table { overflow: auto; max-height: 55vh; }
+body .home-modal-table table { width: 100%; border-collapse: collapse; border-radius: 0; }
+body .home-modal-table th, body .home-modal-table td { padding: 10px !important; text-align: left; border-bottom: 1px solid #444; overflow-wrap: anywhere; }
+.home-game-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-top: 15px; }
+.home-stats-category { padding: 10px; background: #2a2a2a; border-radius: 4px; font-size: .9em; }
+.home-stats-category h4 { font-size: 1em; margin-bottom: 8px; padding-bottom: 3px; border-bottom: 1px solid #3a3a3a; }
+.home-stats-category dl { margin: 0; }
+.home-stats-category dl > div { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; font-size: .85em; }
+.home-stats-category dt { color: #929292; font-weight: 400; }
+.home-stats-category dd { margin: 0; color: #bc9d5a; font-weight: 700; font-variant-numeric: tabular-nums; }
 
 .dashboard-buttons {
     display: flex;
@@ -158,6 +179,7 @@ body .diary-audio-controls .dashboard-btn { background: #bc9d5a !important; colo
 .widget-header:has(.relationship-change-link) { flex-wrap: wrap; gap: 10px; }
 
 @media (max-width: 768px) {
+    .home-stat-dialog { width: calc(100vw - 24px); max-width: none; padding: 14px; }
     .dashboard-container { grid-template-columns: 1fr; }
     .widget-wide { grid-column: auto; }
     .dashboard-buttons { gap: 8px; }

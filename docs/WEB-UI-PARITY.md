@@ -67,7 +67,7 @@ do not use an exception to excuse a generic substitute layout.
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
-| `home.php` | `home.php` | Dialogue, diary/audio, relationship changes and D3 cloud aligned; current-playthrough fields, statistics/drilldowns and header destinations pending |
+| `home.php` | `home.php` | Main widgets and statistics/drilldowns aligned; background-processor status and final whole-page audit pending |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
@@ -676,3 +676,52 @@ Remaining Core Profile requirements identified from the pinned source and live e
   and voice contents were preserved. Live Home shows five dialogue rows with
   recorded game dates, the correct empty diary state and a populated SVG cloud.
   No live TTS calls, settings writes or game operations were made.
+
+### Home world information and product statistics
+
+- Current Playthrough now shows the recorded player name, last-played UTC time,
+  recorded game calendar, dialogue mode, selected LLM slot and Compact Chat state.
+  Last context is selected within the current installation/playthrough, including
+  earlier sessions in the same save. The UI explains that observations are not
+  a live poll and NPC routing may resolve a fallback from the selected slot.
+- Replaced installation/session/job counters with Total Events, Oghma Entries,
+  Memory Summaries, Diary Entries, Entity Deaths, Items Found, Books Read and
+  Player Messages, using the real records and existing hidden/deleted policy.
+- Total Events opens the event-type counts; locations and detected mods open
+  their full recorded lists. Native dialogs retain Escape, focus trapping and
+  focus restoration. The LLM card cycles 24h / 72h / 1w / lifetime as in Herika.
+  It counts scoped LLM attempts, including background jobs, success and failure;
+  it excludes TTS/STT rather than mistaking speech for a language request.
+- Knowledge, known locations and active content files are installation catalogs;
+  event, diary, book, memory and LLM statistics use the current playthrough.
+  OpenMW lists cell identities and content-file load order, not fabricated Skyrim
+  FormIDs, ESL prefixes or light-plugin flags.
+- Morrowind Stats uses the reference's category/list structure for recorded
+  vitals, attributes and skills. Client source confirms these are the available
+  observed stats; it does not supply Skyrim lifetime shout, dragon, crafting,
+  property or crime counters. Missing observations remain an empty state, not
+  zeros. Generic server queue statistics no longer masquerade as game statistics.
+- The pinned header has a guide and AI/LLM Tier List. The latter uses the same
+  destination; the guide opens the existing Lorkhan Quickstart, clearly labelled,
+  rather than directing Morrowind users to CHIM's Skyrim wiki. No guessed external
+  Lorkhan wiki URL is introduced. The newer live reference's additional
+  Playthrough Management button is not part of the pinned target.
+- Existing integration checks cover scoped/suppressed totals, diary selection,
+  and synthetic succeeded/failed LLM attempts versus a TTS attempt in all four
+  periods. PHP lint, 328 server checks, 98 protocol checks, management HTTP,
+  integration and migrations/durable jobs passed. Schema relations/columns remain
+  unchanged; the inventory hash changes because it also records runtime readers.
+- Populated and empty browser fixtures verified the three dialogs, Escape/focus
+  return, all four LLM periods including wraparound, 390px layout and matching
+  interactive/noninteractive card typography. Only synthetic data was used.
+- Still pending on Home: a truthful equivalent of the background-processor
+  indicator and final whole-page audit. Herika's page also calls its process-start
+  helper on an unparameterized GET; do not copy that side effect into a Lorkhan
+  presentation-only page. Use a query parameter for future read-only Herika Home
+  comparisons so its automatic startup guard is not invoked.
+- Local deployment verified 692 matching runtime files, no extras/old paths,
+  private-file 403 and native-session 401. Private configuration, credentials and
+  voice file contents were preserved. Live Home correctly shows the recorded
+  player, Standard dialogue mode, selected Fast slot, game date, populated
+  product counters, three known locations, fifteen content files and observed
+  Vitals/Attributes/Skills. No provider tests or game controls were invoked.

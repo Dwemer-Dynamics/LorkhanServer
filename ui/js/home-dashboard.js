@@ -1,5 +1,14 @@
 /* Herika's D3 cloud geometry and frequency sizing, served locally under the existing CSP. */
 (() => {
+    document.querySelectorAll('[data-home-open]').forEach(button => button.addEventListener('click', () => {
+        document.getElementById(button.dataset.homeOpen)?.showModal();
+    }));
+    document.querySelectorAll('[data-home-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
+    document.querySelector('[data-home-llm]')?.addEventListener('click', event => {
+        const periods = [...event.currentTarget.querySelectorAll('[data-home-period]')];
+        const index = periods.findIndex(period => !period.hidden);
+        periods.forEach((period, next) => { period.hidden = next !== (index + 1) % periods.length; });
+    });
     const svg = document.getElementById('word-cloud');
     if (!svg || !window.d3?.layout?.cloud) return;
     const words = JSON.parse(svg.dataset.words || '[]');

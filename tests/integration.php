@@ -2533,6 +2533,20 @@ $assert($homeDashboard['latest_diary']['narrative_id']===$calendarDiary['narrati
 $db->prepare("UPDATE lorkhan_internal.eventlog_metadata SET playthrough_id=NULL WHERE projection_kind='home_fixture'")->execute();
 $otherScopeDashboard=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->dashboard();
 $assert(!in_array('moonstone',array_column($otherScopeDashboard['words'],'text'),true), 'Home vocabulary crossed playthrough scope');
+$assert($homeDashboard['statistics']['counts']['Total Events']-$otherScopeDashboard['statistics']['counts']['Total Events']===6
+    &&$homeDashboard['statistics']['counts']['Diary Entries']>=1
+    &&!isset($homeDashboard['statistics']['counts']['Queued Jobs']), 'Home statistics counted hidden/other-playthrough events or generic jobs');
+foreach([['llm','succeeded'],['llm','failed'],['tts','succeeded']] as $index=>[$kind,$state]) {
+    $id=$newUuid(998800+$index);
+    $attempts->start($id,$kind,'home-fixture','preview',1,turnId:$responseScope['turn_id']);
+    $attempts->finish($id,$state);
+}
+$homeAfterAttempts=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->dashboard();
+foreach(['24h','72h','1w','lifetime'] as $period) {
+    $assert($homeAfterAttempts['statistics']['llm'][$period]['total']-$homeDashboard['statistics']['llm'][$period]['total']===2
+        &&$homeAfterAttempts['statistics']['llm'][$period]['success']-$homeDashboard['statistics']['llm'][$period]['success']===1,
+        'Home LLM period totals included TTS or lost failed attempts');
+}
 $savedQuery=$_GET;
 $_GET=['installation_id'=>$calendarScope['installation_id'],'playthrough_id'=>$calendarScope['playthrough_id'],
     'calendar'=>'tamrielic','game_date'=>'0427-08-16'];

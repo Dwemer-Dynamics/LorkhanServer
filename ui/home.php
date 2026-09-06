@@ -19,15 +19,26 @@ $dashboardTime = static function (mixed $value): string {
     }
 };
 $currentRows = $dashboard['current'] === null ? [] : [
-    ['Stats' => 'State', 'Value' => $dashboard['current']['state'] ?? 'unknown'],
-    ['Stats' => 'Last Connected (UTC)', 'Value' => $dashboardTime($dashboard['current']['created_at'] ?? null)],
-    ['Stats' => 'OpenMW Version', 'Value' => $dashboard['current']['openmw_version'] ?? 'unknown'],
-    ['Stats' => 'Lua API Revision', 'Value' => $dashboard['current']['lua_api_revision'] ?? 'unknown'],
-    ['Stats' => 'Client Version', 'Value' => $dashboard['current']['client_version'] ?? 'unknown'],
-    ['Stats' => 'Platform', 'Value' => $dashboard['current']['platform'] ?? 'unknown'],
-    ['Stats' => 'Profile', 'Value' => $dashboard['current']['profile_name'] ?? 'unbound'],
-    ['Stats' => 'Playthrough', 'Value' => $dashboard['current']['playthrough_name'] ?? 'unbound'],
+    ['Stats' => 'Player Name', 'Value' => $dashboard['current']['player_name'] ?? 'Not recorded'],
+    ['Stats' => 'Last Played (UTC)', 'Value' => $dashboardTime($dashboard['current']['last_played'] ?? null)],
+    ['Stats' => 'Current In-Game Time', 'Value' => MorrowindCalendar::parse($dashboard['current']['calendar_data'] ?? null)['label'] ?? 'Not recorded'],
+    ['Stats' => 'LORKHAN Mode', 'Value' => strtoupper($dashboard['current']['dialogue_mode'] ?? 'Not recorded')],
+    ['Stats' => 'LORKHAN Active Model', 'Value' => ucfirst($dashboard['current']['model_slot'] ?? 'standard')],
+    ['Stats' => 'Compact Chat', 'Value' => 'ENABLED'],
 ];
+$statistics = $dashboard['statistics'];
+$playerCategories = [];
+foreach (['Vitals' => 'player_stats', 'Attributes' => 'player_attributes', 'Skills' => 'player_skills'] as $category => $field) {
+    $values = $dashboard['current'][$field] ?? [];
+    foreach (is_array($values) ? $values : [] as $name => $value) {
+        // Only observed numeric stats are shown; unavailable values are not manufactured as zero.
+        $number = is_array($value) ? ($value['current'] ?? $value['modified'] ?? $value['base'] ?? null) : $value;
+        if (!is_int($number) && !is_float($number)) continue;
+        $label = ['mediumarmor'=>'Medium Armor','heavyarmor'=>'Heavy Armor','lightarmor'=>'Light Armor',
+            'bluntweapon'=>'Blunt Weapon','longblade'=>'Long Blade','shortblade'=>'Short Blade','handtohand'=>'Hand-to-Hand'][$name] ?? ucfirst((string) $name);
+        $playerCategories[$category][$label] = number_format($number, $number == (int) $number ? 0 : 1);
+    }
+}
 $dialogueRows = array_map(static fn(array $row): array => [
     'Dialogue' => (string) ($row['text'] ?? ''),
     'Time (UTC)' => $dashboardTime($row['emitted_at'] ?? null),
@@ -66,9 +77,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
     <h1>Dwemer Dashboard</h1>
 
     <div class="dashboard-buttons">
-        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">&#9889;</span> Quickstart</a>
-        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/config_hub.php"><span class="btn-icon" aria-hidden="true">⚙️</span> Configuration</a>
-        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/events-memories.php"><span class="btn-icon" aria-hidden="true">📖</span> Roleplay</a>
+        <a class="dashboard-btn" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/quickstart.php"><span class="btn-icon" aria-hidden="true">📚</span> LORKHAN Quickstart</a>
+        <a class="dashboard-btn" href="https://docs.google.com/spreadsheets/d/1UtAR_r18wskmTMMsg8IlhVvr1Fn9tHvRJT8drH6RuzY/edit?gid=1257158105#gid=1257158105" target="_blank" rel="noopener noreferrer"><span class="btn-icon" aria-hidden="true">🥇</span> AI/LLM Tier List</a>
     </div>
 
     <section class="dashboard-container" aria-label="LORKHAN dashboard">
@@ -80,6 +90,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <?php else: ?>
                     <h4>World Information</h4>
                     <div class="widget-table"><?php lorkhan_ui_table($currentRows); ?></div>
+                    <p class="home-observed-note">Mode, time and player details reflect the last recorded game context. Model shows the selected slot; NPC routing may use its configured fallback.</p>
                 <?php endif; ?>
             </div>
         </article>
@@ -92,8 +103,17 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <article class="widget">
             <div class="widget-header"><h3>LORKHAN Stats</h3></div>
             <div class="widget-content widget-stats">
-                <?php foreach ($dashboard['stats'] as $label => $value): ?>
-                    <div class="stat-card"><span class="stat-value"><?php echo lorkhan_ui_h($value); ?></span><span class="stat-label"><?php echo lorkhan_ui_h($label); ?></span></div>
+                <?php foreach ($statistics['counts'] as $label => $value): ?>
+                    <?php if ($label === 'Total Events'): ?><button type="button" class="stat-card clickable-card" data-home-open="home-events"><span class="stat-value"><?= number_format($value) ?></span><span class="stat-label"><?= lorkhan_ui_h($label) ?></span></button>
+                    <?php else: ?><div class="stat-card"><span class="stat-value"><?= number_format($value) ?></span><span class="stat-label"><?= lorkhan_ui_h($label) ?></span></div><?php endif; ?>
+                <?php endforeach; ?>
+                <button type="button" class="stat-card double-width clickable-card" data-home-llm title="Click to cycle through 24 hours, 72 hours, one week and lifetime" aria-live="polite">
+                    <?php foreach ($statistics['llm'] as $period => $counts): $total = (int) $counts['total']; $success = (int) $counts['success']; ?>
+                        <span data-home-period<?= $period === '24h' ? '' : ' hidden' ?>><span class="stat-value"><?= $success ?>/<?= $total ?> (<?= $total === 0 ? 0 : round(100 * $success / $total) ?>%)</span><span class="stat-label">LLM Requests Success Rate (<?= lorkhan_ui_h($period) ?>)</span></span>
+                    <?php endforeach; ?>
+                </button>
+                <?php foreach (['locations' => 'Travel To Locations', 'mods' => 'Detected Mods'] as $key => $label): ?>
+                    <button type="button" class="stat-card double-width clickable-card" data-home-open="home-<?= $key ?>"><span class="stat-value"><?= number_format(count($statistics[$key])) ?></span><span class="stat-label"><?= $label ?></span></button>
                 <?php endforeach; ?>
             </div>
         </article>
@@ -156,17 +176,28 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         </article>
 
         <article class="widget widget-wide">
-            <div class="widget-header"><h3>Morrowind Runtime Stats</h3></div>
-            <div class="widget-content widget-stats">
-                <?php foreach ($dashboard['runtime'] as $label => $value): ?>
-                    <div class="stat-card"><span class="stat-value"><?php echo lorkhan_ui_h($value); ?></span><span class="stat-label"><?php echo lorkhan_ui_h($label); ?></span></div>
-                <?php endforeach; ?>
+            <div class="widget-header"><h3>Morrowind Stats</h3></div>
+            <div class="widget-content">
+                <?php if ($playerCategories === []): ?><p class="empty-state">No player statistics have been recorded yet.</p>
+                <?php else: ?><p class="home-observed-note">Last recorded: <?= lorkhan_ui_h($dashboardTime($dashboard['current']['observed_at'])) ?> UTC. These are observed OpenMW values, not Skyrim lifetime counters.</p>
+                    <div class="home-game-stats"><?php foreach ($playerCategories as $category => $values): ?><section class="home-stats-category"><h4><?= lorkhan_ui_h($category) ?></h4><dl><?php foreach ($values as $label => $value): ?><div><dt><?= lorkhan_ui_h($label) ?></dt><dd><?= lorkhan_ui_h($value) ?></dd></div><?php endforeach; ?></dl></section><?php endforeach; ?></div>
+                <?php endif; ?>
             </div>
         </article>
     </section>
 </main>
+<?php foreach (['events' => 'Event Types', 'locations' => 'Available Locations', 'mods' => 'Detected Mods'] as $key => $title): ?>
+<dialog id="home-<?= $key ?>" class="home-stat-dialog" aria-labelledby="home-<?= $key ?>-title">
+    <header><h3 id="home-<?= $key ?>-title"><?= $title ?></h3><button type="button" data-home-close aria-label="Close <?= $title ?>">×</button></header>
+    <?php if ($key === 'locations'): ?><p>Named locations observed by OpenMW. Locations use cell names instead of Skyrim FormIDs.</p><?php elseif ($key === 'mods'): ?><p>Active content files from the latest recorded OpenMW load order.</p><?php endif; ?>
+    <div class="home-modal-table"><table><thead><tr><?php foreach (match ($key) {'events'=>['Event Type','Count'],'locations'=>['Name','Cell','Region'],default=>['Load Order','Plugin Name','Type']} as $label): ?><th scope="col"><?= $label ?></th><?php endforeach; ?></tr></thead><tbody>
+        <?php foreach ($statistics[$key] as $row): ?><tr><?php foreach (match ($key) {'events'=>[$row['type'],number_format((int) $row['count'])],'locations'=>[$row['name'],$row['cell_key'],$row['region']??''],default=>[(string) $row['load_order'],$row['content_file'],'OpenMW content']} as $cell): ?><td><?= lorkhan_ui_h($cell) ?></td><?php endforeach; ?></tr><?php endforeach; ?>
+        <?php if ($statistics[$key] === []): ?><tr><td colspan="<?= $key === 'events' ? 2 : 3 ?>">No <?= strtolower($title) ?> recorded yet.</td></tr><?php endif; ?>
+    </tbody></table></div>
+</dialog>
+<?php endforeach; ?>
 <script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/lib/ui/d3/d3.v7.9.0.min.js"></script>
 <script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/lib/ui/d3/d3.layout.cloud.v1.2.7.js"></script>
-<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/home-dashboard.js"></script>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/home-dashboard.js?v=<?= filemtime(__DIR__.'/js/home-dashboard.js') ?>"></script>
 <script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/roleplay-reader.js?v=<?= filemtime(__DIR__.'/js/roleplay-reader.js') ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>
