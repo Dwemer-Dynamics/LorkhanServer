@@ -171,3 +171,9 @@ controls from pinned `ui/npc_upload.php`, with the article result shape describe
 by HerikaServer `ui/oghma_knowledge.php`. Lorkhan retains its runtime access
 decisions and installation scope, safely renders article text, and pages the
 catalog rather than truncating it or loading every row into the browser.
+
+`ui/description_manager.php`, `ui/css/herika-descriptions.css` and
+`ui/js/descriptions.js` adapt the compact header, paired panels, table and
+Add/Edit dialog presentation from pinned HerikaServer
+`ui/description_upload.php` under the same MIT license. Lorkhan retains its
+installation-scoped OpenMW record keys and existing description contracts.

@@ -84,7 +84,7 @@ do not use an exception to excuse a generic substitute layout.
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
-| `description_manager.php` | `description_upload.php` | Pending structural and populated-state comparison |
+| `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Installation tools retained below the main table. Existing stricter Name/Description validation remains a contract difference. |
 | `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
@@ -2099,3 +2099,40 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Configuration, credentials and voice files retained their hashes. Rollback:
   `/var/backups/lorkhanserver-code.dheiIb`. No game interaction or paid provider
   call was used for verification.
+
+## Description Manager presentation checkpoint
+
+- Adapted the actual pinned `description_upload.php` structure: compact title and
+  subtitle, paired Batch Upload / Database Management panels, five-column table,
+  alphabet/search toolbar, and shared Add/Edit dialog. Removed the divergent
+  inline editors and Source column. Installation summary, source/plugin filters
+  and discovered OpenMW items remain in a secondary details section.
+- Table previews stop at 200 Unicode characters; Edit receives the full escaped
+  description. Plugin and stable record ID are read-only while editing. Factory
+  rows create scoped overrides and do not expose Delete; custom rows retain
+  the existing confirmed Delete action. No backend or schema contract changed.
+- Compared populated and empty fixtures with the actual Herika presentation.
+  Checked Add defaults, factory/custom Edit, a 413-character description,
+  Cancel/Escape, focus restoration and focus trapping. At 390px the main table
+  stays in a 353px scroll region; keyboard ArrowRight moved it 40px without
+  document overflow. The dialog fields and controls remain reachable by scroll.
+  Without an installation, Upload, Add and Reset are disabled.
+- Extended the existing HTTP suite for full Unicode description creation,
+  editing, CSV preservation and deletion. Existing import and reset checks pass
+  using the modal row data rather than the removed inline forms. PHP/JS syntax,
+  370 server checks, 98 protocol files, management HTTP, integration, migrations
+  and durable jobs passed. Schema inventory remains unchanged.
+- Real product differences: OpenMW source plugin/stable record keys replace
+  Skyrim FormIDs; overrides remain installation-scoped. Storage guidance names
+  the actual internal table and does not advertise an unavailable SQL browser.
+  Existing mandatory Name and non-empty Description are still stricter than
+  Herika's optional fields; this is an outstanding contract difference, not a
+  claimed OpenMW requirement. The all-pages goal remains incomplete.
+- Local deployment verified all 733 runtime files against source with no extra
+  files or old paths; protected files returned 403, and unauthenticated session
+  creation returned 401. Configuration, credentials and voice files retained
+  their hashes. Rollback: `/var/backups/lorkhanserver-code.NZr627`.
+- Live Description Manager showed 3,429 records in 69 pages; searching `glass`
+  returned 54 records in two pages. Opened the existing Blue Glass Pot editor
+  (127-character description, read-only Tribunal.esm / misc_de_pot_blue_01) and
+  cancelled. No live description data was changed and no game was launched.

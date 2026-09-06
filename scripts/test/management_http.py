@@ -472,7 +472,26 @@ public_preview=json.loads(request(biography_knowledge_url+'&category=Public').re
 assert public_preview['total']==1 and public_preview['items'][0]['description']=='Visible & readable',public_preview
 assert request(biography_knowledge_url.replace(biography_installation,str(uuid.uuid4()))).status==404
 assert 'data-biography-oghma' in entry_body and 'id="biography-oghma-modal"' in entry_body
-descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
+descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); assert descriptions.current==1 and 'id="title-text">Description Manager</span>' in text and 'Descriptions Database' in text
+description_form=next(form for form in descriptions.forms if form['action'].endswith('/forms/description-save'))
+description_record='ui_description_'+uuid.uuid4().hex
+description_text=('A finely engraved blade with a maker’s mark.\n'*8).strip()
+description_values=dict(description_form['fields'],_csrf=csrf,content_file='HTTP Test.esp',record_id=description_record,display_name='UI Description Fixture',description=description_text)
+description_saved=request(description_form['action'],'POST',description_values)
+assert description_saved.status==200
+description_page=request('/LorkhanServer/ui/description_manager.php?search='+description_record).read().decode()
+description_rows=[json.loads(html.unescape(value)) for value in re.findall(r'data-description-entry="([^"]+)"',description_page)]
+description_entry=next(row for row in description_rows if row['record_id']==description_record)
+assert description_entry['description']==description_text and '<th>Source</th>' not in description_page and 'id="description-editor"' in description_page
+description_export_url='/LorkhanServer/manage/exports/descriptions/custom.csv?installation_id='+description_values['installation_id']
+exported_descriptions=list(csv.DictReader(io.StringIO(request(description_export_url).read().decode('utf-8-sig'))))
+assert next(row for row in exported_descriptions if row['baseid']==description_record)['description']==description_text
+description_values.update(display_name='Edited UI Description Fixture',description='Updated full description.')
+assert request(description_form['action'],'POST',description_values).status==200
+exported_descriptions=list(csv.DictReader(io.StringIO(request(description_export_url).read().decode('utf-8-sig'))))
+assert next(row for row in exported_descriptions if row['baseid']==description_record)['description']=='Updated full description.'
+assert request('/LorkhanServer/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':description_values['installation_id'],'description_id':description_entry['description_id']}).status==200
+assert 'No descriptions found.' in request('/LorkhanServer/ui/description_manager.php?search='+description_record).read().decode()
 oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LorkhanServer/ui/server_plugins.php').status==404
 assert request('/LorkhanServer/manage/server-plugins').status==404
@@ -1169,8 +1188,9 @@ assert 'http_csv_item' in exported and 'HTTP CSV Item' in exported,exported
 record_id='http_record_'+uuid.uuid4().hex
 values=dict(description_form['fields'],_csrf=csrf,content_file='HTTP Test.esp',record_id=record_id,display_name='HTTP Test Item',description='Created through the descriptions manager.')
 r=request(description_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'status=saved' in r.geturl() and record_id in body,(r.status,r.geturl())
-match=re.search(re.escape(record_id)+r'.*?name="description_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
-r=request('/LorkhanServer/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':installation_id,'description_id':match.group(1)}); assert r.status==200 and 'status=saved' in r.geturl()
+description_entries=[json.loads(html.unescape(value)) for value in re.findall(r'data-description-entry="([^"]+)"',body)]
+saved_description=next(entry for entry in description_entries if entry['record_id']==record_id)
+r=request('/LorkhanServer/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':installation_id,'description_id':saved_description['description_id']}); assert r.status==200 and 'status=saved' in r.geturl()
 r=request('/LorkhanServer/manage/forms/description-reset','POST',{'_csrf':csrf,'installation_id':installation_id,'confirm':'Reset'}); body=r.read().decode(); assert r.status==200 and 'status=saved' in r.geturl() and 'http_csv_item' not in body
 llm_page,body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected=runtime'))
 runtime_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-runtime-test'))
