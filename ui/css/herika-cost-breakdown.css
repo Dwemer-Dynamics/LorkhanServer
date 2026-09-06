@@ -1,0 +1,30 @@
+/* Herika audit.php's header/date controls/pie layout, scoped to Cost Breakdown. */
+body.cost-breakdown-shell>main.cost-breakdown{box-sizing:border-box;width:100%;max-width:none;margin:0;padding:20px 5% 40px;color:#f8f9fa}
+.cost-breakdown .page-header{text-align:center;margin-bottom:30px;padding:20px;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:8px}
+.cost-breakdown .page-header h1{font-family:MagicCards,serif;word-spacing:8px;font-size:2.2em;color:#fff;margin-bottom:10px;text-shadow:2px 2px 4px #0008}
+.cost-breakdown .page-header h3{color:#bc9d5a;margin:10px 0;font-size:1.2em}
+.cost-breakdown .filters{margin-bottom:30px;padding:25px;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:8px;box-shadow:0 4px 8px #0005}
+.cost-breakdown .filters form{display:flex;gap:20px;flex-wrap:wrap;justify-content:center;align-items:center}
+.cost-breakdown .filters label,.cost-breakdown .cost-filter-field{display:flex;align-items:center;gap:8px;white-space:nowrap;color:#f8f9fa;font-weight:500}
+.cost-breakdown .filters label{margin:0}.cost-breakdown .filters input[type=radio]{cursor:pointer;accent-color:#bc9d5a}
+body.cost-breakdown-shell .cost-breakdown .filters input:is([type=date],[type=week]){width:auto;max-width:100%;padding:8px 12px;background:#3a3a3a;border:1px solid #4a4a4a;border-radius:4px;color:#f8f9fa;font-size:14px}
+body.cost-breakdown-shell .cost-breakdown button{padding:8px 16px;font-size:14px;font-weight:600;cursor:pointer;border-radius:4px}
+body.cost-breakdown-shell .cost-breakdown button[type=submit]{background:#383838!important;border:1px solid #505050!important;color:#f5f1e8!important;font-family:'Futura CondensedLight',Arial,sans-serif}
+body.cost-breakdown-shell .cost-breakdown button[type=submit]:hover{background:#484848!important;border-color:#686868!important}
+.cost-breakdown .chart-section{background:#2a2a2a;padding:30px;border:1px solid #4a4a4a;border-radius:8px;box-shadow:0 4px 8px #0005}
+.cost-breakdown .chart-container{position:relative;width:100%;max-width:700px;height:700px;margin:0 auto}
+.cost-breakdown canvas{width:100%!important;height:100%!important}
+.cost-breakdown .cost-empty{padding:45px 10px;text-align:center;color:#bbb}
+.cost-breakdown .cost-coverage{font-size:13px;color:#bcbcbc;margin:12px 0 0}
+.cost-breakdown details>summary{cursor:pointer;padding:8px 0;font-weight:600}
+.cost-breakdown .cost-options,.cost-breakdown .cost-details{margin-top:20px;padding:15px 20px;background:#2a2a2a;border:1px solid #4a4a4a;border-radius:8px}
+.cost-breakdown .cost-options form{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap}
+.cost-breakdown .cost-options label{display:flex;flex-direction:column;gap:6px;max-width:100%}.cost-breakdown select{max-width:100%}
+.cost-breakdown .cost-options a{align-self:center;color:#bc9d5a}
+.cost-breakdown .cost-chart-table{margin-top:20px}.cost-breakdown .control-reader-table-wrap{overflow:auto}
+.cost-breakdown .control-reader-table-wrap table{min-width:760px}
+.cost-breakdown table{width:100%;border-collapse:collapse;font-size:13px}.cost-breakdown th,.cost-breakdown td{text-align:left;padding:10px;border-bottom:1px solid #444;overflow-wrap:anywhere}
+.cost-breakdown small{display:block;color:#aaa;font-size:12px}.cost-breakdown p{overflow-wrap:anywhere}
+.cost-breakdown :is(summary,a,input,select,button,[tabindex]):focus-visible{outline:2px solid #bc9d5a;outline-offset:3px}
+/* Preserve a circular pie and reachable controls instead of the reference's narrow-screen stretch/overflow. */
+@media(max-width:768px){body.cost-breakdown-shell>main.cost-breakdown{padding-left:3%;padding-right:3%}.cost-breakdown .page-header h1{font-size:1.6em}.cost-breakdown .chart-container{height:auto;aspect-ratio:1}.cost-breakdown .filters form{flex-direction:column}.cost-breakdown .cost-filter-field{flex-wrap:wrap;justify-content:center;white-space:normal}.cost-breakdown .cost-filter-field label{flex:1 1 100%;justify-content:center}.cost-breakdown .cost-options form{align-items:stretch;flex-direction:column}}

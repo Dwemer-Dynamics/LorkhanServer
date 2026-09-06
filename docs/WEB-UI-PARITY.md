@@ -101,7 +101,7 @@ do not use an exception to excuse a generic substitute layout.
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
-| `provider_usage.php` | Herika Cost Breakdown | Pending structural and populated-state comparison |
+| `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
 | `provider_attempts.php` | Shared operational style | Pending structural and populated-state comparison |
 | `jobs.php` | Shared operational style | Pending structural and populated-state comparison |
 | `game_debug.php` | Shared operational style | Pending structural and populated-state comparison |
@@ -1897,3 +1897,49 @@ Remaining Core Profile requirements identified from the pinned source and live e
   pronunciation rows `46:f94825bbd5072a897c4d999cf84514fc`, fallback rows
   `20:3e9bfc3426d9f96e2edc63235bd28134`. Configuration, credential and voice-file
   hashes are also unchanged. No game was launched or controlled.
+
+## Cost Breakdown: request-type pie and date/week controls
+
+- Replaced the generic metric-card/horizontal-bar dashboard with the pinned
+  Herika `ui/audit.php` hierarchy: centered title, period and total, Today/date/
+  week filters, and a 700px request-type pie with bottom legend and cost tooltips.
+  The chart uses locally vendored Chart.js 4.5.1, with the source/license recorded
+  in `THIRD_PARTY_NOTICES.md`. Lorkhan's first series remains gold.
+- At the same desktop width, both actual template fixtures measured a
+  1138.5 x 154.78125px header at y=20, a 1138.5 x 92px filter panel at
+  y=204.78125, and a 700 x 700px chart at y=357.78125. Apply buttons now use
+  the reference's gray surface rather than save-action green.
+- The primary chart groups all matching attempts by request type. The existing
+  provider/model/token breakdown and CSV remain available under collapsed
+  details; their 100-group limit does not truncate the chart or total. Exact
+  six-decimal costs are available in an accessible request-type table. Missing,
+  negative or nonnumeric pricing remains unknown, with partial-total coverage
+  disclosed. Empty, unknown-cost and explicitly zero-cost states are distinct.
+- Today is the default. Date and ISO-week filters use inclusive UTC starts and
+  exclusive ends, including year-end weeks. Existing period URLs still work.
+  Explicit All Installations now stays unscoped rather than silently selecting
+  the first installation. Forms and export retain the current scope.
+- Compared populated and empty pinned reference/source fixtures and source
+  unknown/zero-cost states, opened both detail sections and checked date/week
+  button URLs. At 390px, Lorkhan keeps 375/375 document client/scroll widths,
+  wraps filter controls and uses a 291px square chart. This intentionally fixes
+  the reference's 405px page overflow and stretched 291 x 500px pie. The dense
+  details table retains readable columns in a keyboard-scrollable region;
+  ArrowRight moved its scroll position to 40px without widening the document.
+- Existing HTTP tests use historical synthetic attempts to prove exact day and
+  ISO-week bounds, invalid-date fallback, installation isolation, unknown prices,
+  a $103 daily total across 105 attempts, a $112 week total and a 100-row CSV
+  without truncating chart totals. No live provider was called. PHP/JavaScript
+  syntax, 370 server checks, 98 protocol files, management HTTP, integration,
+  migrations and durable jobs passed. Schema remains 167 relations at
+  `c9bac48593dd9036d47da521683e2b0eee958f3114214e06dd217efa267452a8`.
+- This completes this page's structural comparison, not the all-pages goal.
+- Deployment verified 730 exact runtime file hashes, no extra/old paths, private
+  files returning 403 on all three checked ports and unauthenticated sessions
+  returning 401. Configuration, credential and voice-file hashes were unchanged.
+  Rollback: `/var/backups/lorkhanserver-code.0uuIh8`.
+- Live browser proof covered the default empty day, all-time populated pie and
+  expanded exact values, Today/date/week submissions, and Control Panel embedding.
+  The live all-time scope had 402 attempts, of which 9 recorded $0.006215 total;
+  the two unpriced TTS operation groups remained Unknown. These were read-only
+  visits. No provider call or game action was issued.

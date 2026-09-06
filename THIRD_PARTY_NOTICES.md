@@ -139,3 +139,15 @@ column geometry and fallback field presentation in the Voice Studio template,
 `ui/js/pronunciation-preview.js` and `ui/css/herika-tts-studio.css` follow the
 same pinned HerikaServer `ui/tmpl/tts_pronunciations.php`,
 `ui/css/tts-pronunciations.css` and `ui/xtts_clone.php` under its MIT license.
+
+The Cost Breakdown template, `ui/css/herika-cost-breakdown.css` and
+`ui/js/cost-breakdown.js` adapt the date/week controls and pie-chart presentation
+from HerikaServer `ui/audit.php` at the same pinned revision under its MIT license.
+Lorkhan retains its measured provider-attempt costs, installation scope and UTC
+date boundaries.
+
+`ui/lib/ui/chartjs/chart.umd.min.js` is Chart.js 4.5.1, distributed under the MIT
+license reproduced in `ui/lib/ui/chartjs/LICENSE.md`. Copyright 2014-2024 Chart.js
+Contributors. Source: https://github.com/chartjs/Chart.js/tree/v4.5.1.
+The npm release archive was verified against its published SHA-512 integrity
+before extracting these files; no package installation scripts were run.

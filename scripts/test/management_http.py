@@ -213,7 +213,30 @@ assert oghma_invalid.current==1 and oghma_invalid.forms[0]['fields']['installati
 oghma_matched,text=parse(request('/LorkhanServer/ui/oghma_audit.php?matched=1&page_size=25'))
 assert '(matched only)' in text and oghma_matched.forms[0]['fields']['matched']=='matched' and oghma_matched.forms[0]['fields']['page_size']=='25'
 assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
-usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.current==1 and '<h1>Cost Breakdown</h1>' in text and 'Missing pricing is shown as unknown' in text
+usage,text=parse(request('/LorkhanServer/ui/provider_usage.php'))
+assert usage.current==1 and '<h1>💰 Cost Distribution by Request Type</h1>' in text and 'Total Cost: $0.00' in text
+assert all(marker in text for marker in ['Apply Date','Apply Week','Cost values by request type','More filters and export','No provider attempts match this date range']) and 'runtime-metrics' not in text
+usage_date,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=date&date=2020-12-31&installation_id='))
+assert 'Date: 2020-12-31' in text and usage_date.forms[0]['fields']['installation_id']=='' and 'Scope: All Installations' in text
+cost_chart=json.loads(re.search(r'id="cost-chart-data">(.*?)</script>',text,re.S).group(1))
+assert cost_chart=={'labels':['dialogue'],'values':[103]} and 'Total Cost: $103.00' in text
+assert '102 of 105 attempts include cost' in text and '<td>unknown</td><td>Unknown</td>' in text
+cost_export=request('/LorkhanServer/ui/provider_usage.php?filter=date&date=2020-12-31&installation_id=&export=1')
+assert len(list(csv.DictReader(io.StringIO(cost_export.read().decode('utf-8-sig')))))==100
+_,cost_scoped=parse(request('/LorkhanServer/ui/provider_usage.php?filter=date&date=2020-12-31'))
+assert 'Total Cost: $0.00' in cost_scoped and 'id="cost-chart-data"' not in cost_scoped
+usage_week,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&week=2020-W53'))
+assert 'Week: 2020-W53' in text
+_,cost_week=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&week=2020-W53&installation_id='))
+assert 'Total Cost: $112.00' in cost_week
+assert json.loads(re.search(r'id="cost-chart-data">(.*?)</script>',cost_week,re.S).group(1))=={'labels':['dialogue','diary'],'values':[103,9]}
+for invalid_date in ['2020-02-30','0000-01-01','2020-01-01%00']:
+    invalid,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=date&date='+invalid_date))
+    assert 'Date: '+invalid_date not in text and invalid.current==1
+invalid,text=parse(request('/LorkhanServer/ui/provider_usage.php?filter=week&week=2021-W53'))
+assert 'Week: 2021-W53' not in text
+usage_period,text=parse(request('/LorkhanServer/ui/provider_usage.php?period=all'))
+assert '<h3>All Time</h3>' in text
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
 assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
 assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
