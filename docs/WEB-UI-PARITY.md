@@ -82,7 +82,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
-| `prompts_manager.php` | Same path | Pending structural and populated-state comparison |
+| `prompts_manager.php` | Same path | Default/Custom table, description/default/custom dialog, safe Clear, CSV round trip and plain instruction creation implemented; populated/empty, desktop/narrow and reader interactions checked; transfer/header controls still need final counterpart comparison |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
 | `description_manager.php` | `description_upload.php` | Pending structural and populated-state comparison |
 | `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
@@ -1015,3 +1015,43 @@ Remaining Core Profile requirements identified from the pinned source and live e
   matches all 694 source files, preserves configuration/credential/voice hashes,
   and passes private-path 403 and unauthenticated native 401 probes.
   Final code rollback: lorkhanserver-code.KKo39K.
+
+### Prompts Manager: default/custom editor and safe Clear
+
+- Removed the inline raw-document editor from each table row. The new 1200px reader
+  follows Herika's Description & File Location, read-only Default Prompt, Custom
+  Prompt, Cancel and Save Custom Prompt arrangement. Compared extracted reference
+  markup and final computed styles: 92px custom field, fonts, padding, default
+  reader, header/footer and dialog widths. Gold remains the accent; headings are white.
+- Rows now use actual Default/Custom status, description, bounded active preview,
+  matching badges and Edit/Clear controls. Search includes status and description
+  and reports no matches. Closed native dialogs are explicitly hidden so Bootstrap
+  cannot accidentally expose their contents or alter page width.
+- Clear restores the stored server baseline; it no longer deletes the document.
+  It opens the editor with an empty custom field for explicit confirmation by Save.
+  Assigned profiles remain assigned. Saving changes only custom instruction/moods,
+  preserves other document fields, ignores submitted baselines and checks revision.
+  Asynchronous saves return JSON, retain failed drafts and report stale revisions.
+- CSV import now writes the same custom/default fields as the editor. It can replace
+  a previously saved override or clear it, instead of leaving stale custom text active.
+  Create uses plain Prompt instructions, with optional extra JSON behind a disclosure.
+  Lorkhan mood fields and revision/clone/export/delete tools remain collapsed; deletion
+  is named separately and remains blocked for assigned prompts.
+- Existing HTTP tests cover assigned-prompt Clear, immutable defaults, preserved mood
+  fields, stale revision, JSON response, CSV replacement/clear, clone/import identity
+  and creation. Full lint, 338 server checks, 98 protocol checks, HTTP, integration,
+  migrations and schema passed. Final JSON/CSV HTTP rerun passed after fixing the
+  route's HTML-versus-JSON response detection; JavaScript syntax passed.
+- Actual-template browser fixtures covered Default/Custom and empty tables, search
+  and reset, successful mocked saves, retained failed drafts, Clear cancellation and
+  restoration, Escape focus and 390px readers. Full markup fixtures also checked the
+  create panel and empty/narrow page. These contain synthetic records only.
+- This is not whole-page acceptance: final header/CSV-transfer counterpart checks
+  remain. Lorkhan's installation-scoped prompt documents, additional document fields
+  and player mood templates are retained; unsupported Skyrim prompt keys are not
+  represented as working Lorkhan runtime instructions. No live prompt was edited.
+- Deployed locally and reviewed the live `roleplay_dialogue` Default row and reader,
+  then cancelled without saving. All 695 runtime files hash-match source, no extras
+  or old source paths remain, private-file probes return 403 and unauthenticated
+  native requests return 401. Configuration, credential and voice hashes are
+  unchanged. Code rollback: lorkhanserver-code.ZQr7fa.

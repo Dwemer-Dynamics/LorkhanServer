@@ -3230,6 +3230,15 @@ SQL);
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
+    /** Read the stored prompt baseline; browser edits cannot replace it with a submitted default. */
+    public function promptText(string $configurationId):array
+    {
+        $query=$this->db->prepare('SELECT default_prompt,custom_prompt,description FROM prompts WHERE source_configuration_id=:id');
+        $query->execute(['id'=>$configurationId]);$row=$query->fetch();
+        if(!$row)throw new RuntimeException('not_found');
+        return$row;
+    }
+
     /** Mirror a revisioned Prompt Manager document into the CHIM-compatible prompt override table. */
     private function syncPrompt(string $configurationId,array $content,int $revision,string $now):void
     {

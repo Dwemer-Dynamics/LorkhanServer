@@ -1168,11 +1168,11 @@ invalid_mood_values=dict(prompt_form['fields'],_csrf=csrf,name=invalid_mood_name
 invalid_mood_values['player_mood_prompt_happy']='two\nlines'
 r=request(prompt_form['action'],'POST',invalid_mood_values); invalid_mood_body=r.read().decode()
 assert r.status==422 and 'invalid_player_mood_prompt_happy' in invalid_mood_body and invalid_mood_name not in invalid_mood_body,(r.status,invalid_mood_body)
-values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,content_json='{"instruction":"Speak like a Morrowind NPC."}')
+values=dict(prompt_form['fields'],_csrf=csrf,name=prompt_name,prompt_instruction='Speak like a Morrowind NPC.',content_json='{}')
 values['player_mood_prompt_playful']='({PLAYER_NAME} sounds {MOOD}.)'; values['player_mood_prompt_custom']='({PLAYER_NAME} speaks {CUSTOM_MOOD}.)'
 r=request(prompt_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and prompt_name in body,(r.status,r.geturl())
-match=re.search(re.escape(prompt_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert match,body
-prompt_id=match.group(1)
+created_prompts=Page(); created_prompts.feed(body)
+prompt_id=next(f['fields']['configuration_id'] for f in created_prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('name')==prompt_name+' copy')
 core_for_prompt=Page(); core_for_prompt.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode())
 profile_prompt=next(f for f in core_for_prompt.forms if f['action'].endswith('/forms/core-profile-save'))
 values=dict(profile_prompt['fields'],_csrf=csrf,prompt_configuration_id=prompt_id,change_reason='Assign explicit dialogue prompt')
@@ -1182,29 +1182,52 @@ r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csr
 page,body=parse(request('/LorkhanServer/ui/prompts_manager.php')); revise=next(f for f in page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
 assert 'prompt_format' not in revise['fields'] and revise['fields'].get('player_mood_prompt_playful')=='({PLAYER_NAME} sounds {MOOD}.)'
 assert '&quot;format&quot;' not in body and '&quot;player_mood_prompts&quot;' not in body,revise['fields']
-values=dict(revise['fields'],_csrf=csrf,kind='prompt',content_json='{"instruction":"Speak briefly in character."}',change_reason='HTTP prompt test')
+values=dict(revise['fields'],_csrf=csrf,kind='prompt',custom_prompt='Speak briefly in character.',change_reason='HTTP prompt test')
 values['player_mood_prompt_playful']='({PLAYER_NAME} answers in a {MOOD} way.)'
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Speak briefly in character.' in body
 prompt_export_response=request('/LorkhanServer/manage/exports/prompts/'+prompt_id+'.json'); prompt_export=json.loads(prompt_export_response.read().decode())
 assert prompt_export_response.status==200 and prompt_export['schema']=='lorkhan.prompt-export.v1' and 'format' not in prompt_export['content']
 assert prompt_export['content']['player_mood_prompts']['playful']=='({PLAYER_NAME} answers in a {MOOD} way.)' and len(prompt_export['content']['player_mood_prompts'])==11
 assert 'installation_id' not in prompt_export and 'api_key' not in json.dumps(prompt_export).lower()
+r=request(revise['action'],'POST',values); assert r.status==409 and 'revision_conflict' in r.read().decode()
+clear_page,_=parse(request('/LorkhanServer/ui/prompts_manager.php'))
+clear_form=next(f for f in clear_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==prompt_id)
+clear_values=dict(clear_form['fields'],_csrf=csrf,custom_prompt='',default_prompt='Cannot replace the server baseline')
+csv_url='/LorkhanServer/ui/prompts_manager.php?export=csv&installation_id='+valid['installation_id']
+exported_prompt_rows=list(csv.reader(io.StringIO(request(csv_url).read().decode('utf-8-sig'))))
+csv_prompt_key=next(row[0] for row in exported_prompt_rows[1:] if row[1]=='Speak briefly in character.')
+r=request(clear_form['action'],'POST',clear_values,accept='application/json'); clear_result=json.loads(r.read().decode())
+assert r.status==200 and clear_result['ok'] is True and clear_result['revision']>int(clear_form['fields']['expected_revision']),clear_result
+clear_body=request('/LorkhanServer/ui/prompts_manager.php').read().decode()
+assert '1 explicit profile assignments' in clear_body and 'Cannot replace the server baseline' not in clear_body
+clear_export=json.loads(request('/LorkhanServer/manage/exports/prompts/'+prompt_id+'.json').read().decode())
+assert clear_export['content']['custom_prompt'] is None and clear_export['content']['instruction']=='Speak like a Morrowind NPC.'
+assert clear_export['content']['player_mood_prompts']==prompt_export['content']['player_mood_prompts']
+assert 'prompt_text_editor' in clear_form['fields'] and 'content_json' not in clear_form['fields']
+for csv_override in ['CSV replacement after an editor save.','']:
+    csv_buffer=io.StringIO(); csv_writer=csv.writer(csv_buffer); csv_writer.writerow(['prompt_key','custom_prompt']); csv_writer.writerow([csv_prompt_key,csv_override])
+    r=multipart_request('/LorkhanServer/ui/prompts_manager.php',{'_csrf':csrf,'action':'import_csv','installation_id':valid['installation_id']},'csv_file','custom_prompts.csv','text/csv',csv_buffer.getvalue().encode())
+    assert r.status==200 and '1 prompts imported.' in r.read().decode()
+    csv_saved=json.loads(request('/LorkhanServer/manage/exports/prompts/'+prompt_id+'.json').read().decode())['content']
+    assert csv_saved['instruction']==(csv_override or 'Speak like a Morrowind NPC.') and csv_saved['custom_prompt']==(csv_override or None),csv_saved
 prompts,_=parse(request('/LorkhanServer/ui/prompts_manager.php'))
 clone_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('configuration_id')==prompt_id)
 clone_name=prompt_name+' clone'; r=request(clone_prompt['action'],'POST',dict(clone_prompt['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
 assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
-clone_match=re.search(re.escape(clone_name)+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert clone_match,body
-r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':clone_match.group(1),'kind':'prompt'}); assert r.status==200
+cloned_prompts=Page(); cloned_prompts.feed(body)
+cloned_prompt_id=next(f['fields']['configuration_id'] for f in cloned_prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('name')==clone_name+' copy')
+r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':cloned_prompt_id,'kind':'prompt'}); assert r.status==200
 prompt_export['name']=prompt_name+' imported'; prompt_export['content']['format']='xml'; prompts,_=parse(request('/LorkhanServer/ui/prompts_manager.php'))
 import_prompt=next(f for f in prompts.forms if f['action'].endswith('/forms/prompt-import'))
 r=request(import_prompt['action'],'POST',dict(import_prompt['fields'],_csrf=csrf,installation_id=valid['installation_id'],prompt_json=json.dumps(prompt_export))); body=r.read().decode()
 assert r.status==200 and prompt_export['name'] in body,(r.status,r.geturl(),body)
-import_match=re.search(re.escape(prompt_export['name'])+r'.*?name="configuration_id" value="([0-9a-f-]{36})"',body,re.S); assert import_match,body
+imported_prompts=Page(); imported_prompts.feed(body)
+imported_prompt_id=next(f['fields']['configuration_id'] for f in imported_prompts.forms if f['action'].endswith('/forms/prompt-clone') and f['fields'].get('name')==prompt_export['name']+' copy')
 imported_page,imported_body=parse(request('/LorkhanServer/ui/prompts_manager.php'))
-imported_prompt_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==import_match.group(1))
+imported_prompt_form=next(f for f in imported_page.forms if f['action'].endswith('/forms/configuration-revise') and f['fields'].get('configuration_id')==imported_prompt_id)
 assert 'prompt_format' not in imported_prompt_form['fields'] and imported_prompt_form['fields'].get('player_mood_prompt_playful')=='({PLAYER_NAME} answers in a {MOOD} way.)'
 assert '&quot;format&quot;' not in imported_body and '&quot;player_mood_prompts&quot;' not in imported_body
-r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':import_match.group(1),'kind':'prompt'}); assert r.status==200
+r=request('/LorkhanServer/manage/forms/configuration-delete','POST',{'_csrf':csrf,'configuration_id':imported_prompt_id,'kind':'prompt'}); assert r.status==200
 core_for_prompt=Page(); core_for_prompt.feed(request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode())
 profile_prompt=next(f for f in core_for_prompt.forms if f['action'].endswith('/forms/core-profile-save'))
 r=request(profile_prompt['action'],'POST',dict(profile_prompt['fields'],_csrf=csrf,prompt_configuration_id='',change_reason='Remove explicit dialogue prompt')); assert r.status==200

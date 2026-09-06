@@ -420,7 +420,7 @@ final class ManagementRouter
             'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
             'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id'),$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id')),
             'description-reset'=>$this->resetDescriptions($v,$scope),
-            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->promptFormContent($v,$content)]),
+            'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->promptFormContent($v,$content,true)]),
             'prompt-clone'=>$this->clonePrompt($v),
             'prompt-import'=>$this->importPrompt($v,$scope),
             'action-policies'=>$this->service->createRevisioned('action_policy',['installation_id'=>$scope['installation_id'],'profile_id'=>$scope['profile_id']??null,'name'=>$this->need($v,'name'),'content'=>$content]),
@@ -453,6 +453,8 @@ final class ManagementRouter
                 'installation_id'=>$memoryReturnScope['installation_id'],'playthrough_id'=>$memoryReturnScope['playthrough_id']]));
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
+        if($domain==='configuration-revise'&&($v['prompt_text_editor']??'')==='1'&&!$this->htmlRequest($r))
+            return Response::json(200,['ok'=>true,'revision'=>(int)$result['current_revision']]);
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
         if(in_array($domain,['global-settings-import','global-settings-rollback'],true))return$this->redirect(
             $this->globalSettingsPageLocation($v,$domain==='global-settings-import'?'imported':'rolled-back'));
@@ -830,14 +832,32 @@ final class ManagementRouter
     private function reviseConfiguration(array $values,array $content):array
     {
         $kind=$this->configurationKind($values);
+        if($kind==='prompt'&&($values['prompt_text_editor']??'')==='1'){
+            $id=$this->need($values,'configuration_id');$current=$this->repository->getRevisioned('prompt',$id);
+            $text=$this->repository->promptText($id);$custom=$values['custom_prompt']??null;
+            $revision=filter_var($values['expected_revision']??null,FILTER_VALIDATE_INT);
+            if($revision===false||$revision<1||!is_string($custom)||strlen($custom)>65536||!mb_check_encoding($custom,'UTF-8'))
+                throw new InvalidArgumentException('invalid_prompt_editor');
+            $content=$current['content'];$content['default_prompt']=(string)$text['default_prompt'];
+            $content['custom_prompt']=trim($custom)===''?null:$custom;
+            $content['instruction']=$content['custom_prompt']??$content['default_prompt'];
+            $content=$this->promptFormContent($values,$content);
+            return$this->service->revise('prompt',$id,$content,'management custom prompt',(int)$revision);
+        }
         if($kind==='prompt')$content=$this->promptFormContent($values,$content);
         return$this->service->revise($kind,$this->need($values,'configuration_id'),$content,$this->need($values,'change_reason'));
     }
 
     /** Store labelled player-mood controls with the revisioned prompt document. */
-    private function promptFormContent(array $values,array $content):array
+    private function promptFormContent(array $values,array $content,bool $creating=false):array
     {
         unset($content['format']);
+        if($creating&&array_key_exists('prompt_instruction',$values)){
+            $instruction=$values['prompt_instruction'];
+            if(!is_string($instruction)||trim($instruction)===''||strlen($instruction)>65536||!mb_check_encoding($instruction,'UTF-8'))
+                throw new InvalidArgumentException('invalid_prompt_instruction');
+            $content['instruction']=$instruction;$content['default_prompt']=$instruction;$content['custom_prompt']=null;
+        }
         $defaults=PlayerMoodPolicy::defaultTemplates();$current=$content['player_mood_prompts']??$defaults;
         if(!is_array($current)||array_is_list($current))$current=$defaults;
         $hasMoodFields=false;$templates=[];
@@ -2321,7 +2341,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
-        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch'))
+        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>
 :root{--bg:#100f12;--surface:#19171c;--surface-2:#211e24;--line:#3a3237;--line-hot:#856c36;--text:#e8e2d8;--muted:#9e978f;--accent:#bc9d5a;--accent-soft:rgba(188,157,90,.15);--good:#79bf87;--bad:#df7777;color-scheme:dark}
