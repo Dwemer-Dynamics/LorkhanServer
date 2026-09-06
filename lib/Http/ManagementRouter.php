@@ -113,6 +113,7 @@ final class ManagementRouter
             if(in_array($e->getMessage(),['relationship_restore_conflict','revision_conflict'],true))
                 return$this->htmlRequest($r)?$this->errorPage($e->getMessage(),409):Response::json(409,['error'=>$e->getMessage()]);
             if(in_array($e->getMessage(),['relationship_revision_conflict','relationship_already_exists'],true)){
+                if($path==='/forms/profile-revise')return$this->errorPage($e->getMessage(),409);
                 if($this->htmlRequest($r))return $this->redirect($this->relationshipPageLocation($this->form($r),$e->getMessage()));
                 return Response::json(409,['error'=>$e->getMessage()]);
             }
@@ -507,6 +508,10 @@ final class ManagementRouter
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='profile-reset-biography')return$this->redirect($this->characterPageLocation($v,'saved'));
+        if($domain==='profile-revise'&&trim((string)($v['npc_relationship_edits']??''))!==''){
+            $batch=$this->jsonField($v,'npc_relationship_edits');
+            return$this->redirect($this->relationshipPageLocation(array_replace($v,['relationship_page'=>'npc','playthrough_id'=>$batch['playthrough_id']]),'npc_relationships_saved'));
+        }
         if($domain==='core-profile-save')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
         if($domain==='core-profile-clone')return$this->redirect($this->webRoot().'/ui/core/core_profiles.php?'.http_build_query(['edit'=>(string)$result['core_profile_id'],'status'=>'cloned']));
         if($domain==='core-profile-settings-import')return$this->redirect($this->uiPath('profiles').'?'.http_build_query([
@@ -2077,17 +2082,57 @@ final class ManagementRouter
     /** Save a manual NPC revision and auto-lock it when that installation preference is enabled. */
     private function reviseNpcProfile(array $values):array
     {
+        return $this->repository->transaction(function()use($values):array{
         $profileId=$this->need($values,'profile_id');$profile=$this->repository->getRevisioned('profile',$profileId);$identity=$profile['actor_identity']??[];
         if(is_string($identity))$identity=json_decode($identity,true,16,JSON_THROW_ON_ERROR);
         if(!is_array($identity)||array_is_list($identity)||in_array($identity['kind']??'actor',['player','narrator'],true))throw new InvalidArgumentException('profile_not_editable');
         $content=$this->profileContent($values);if($this->repository->profileAutoLockEnabled((string)$profile['installation_id'])){
             $management=is_array($content['management']??null)?$content['management']:[];$management['locked']=true;$management['favorite']=($management['favorite']??false)===true;$content['management']=$management;}
-        $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'));
+        $batch=trim((string)($values['npc_relationship_edits']??''))===''?null:$this->jsonField($values,'npc_relationship_edits');
+        if($batch!==null&&(!is_int($batch['profile_revision']??null)||$batch['profile_revision']<1))throw new InvalidArgumentException('invalid_expected_revision');
+        $revised=$this->service->revise('profile',$profileId,$content,$this->need($values,'change_reason'),$batch['profile_revision']??null);
         if(isset($values['core_profile_id'])&&trim((string)$values['core_profile_id'])!==''){
             $this->uuid((string)$values['core_profile_id'],'core_profile_id');$this->repository->assignCoreProfile($profileId,(string)$values['core_profile_id']);
             $revised=$this->repository->getRevisioned('profile',$profileId);
         }
+        if($batch!==null)$this->saveNpcRelationships($batch,['installation_id'=>(string)$profile['installation_id'],'profile_id'=>$profileId]);
         return$revised;
+        });
+    }
+
+    /** Apply a staged editor batch inside the NPC revision transaction; omitted records remain untouched. */
+    private function saveNpcRelationships(array $batch,array $scope):void
+    {
+        if(array_diff(array_keys($batch),['profile_revision','playthrough_id','updates','additions','deletes','clear_snapshot','clear_confirm'])!==[])
+            throw new InvalidArgumentException('invalid_relationship_batch');
+        $playthrough=$this->need($batch,'playthrough_id');$this->uuid($playthrough,'playthrough_id');$scope['playthrough_id']=$playthrough;
+        if($this->repository->getRevisioned('playthrough',$playthrough)['installation_id']!==$scope['installation_id'])
+            throw new InvalidArgumentException('invalid_relationship_scope');
+        $count=0;
+        foreach(['updates','additions','deletes']as$key){
+            if(!is_array($batch[$key]??null)||!array_is_list($batch[$key]))throw new InvalidArgumentException('invalid_relationship_batch');
+            $count+=count($batch[$key]);
+        }
+        if($count>200)throw new InvalidArgumentException('relationship_batch_too_large');
+        if(isset($batch['clear_snapshot'])){
+            if(($batch['clear_confirm']??null)!=='Clear')throw new InvalidArgumentException('confirmation_required');
+            if(!is_string($batch['clear_snapshot'])||$batch['updates']!==[]||$batch['deletes']!==[])throw new InvalidArgumentException('invalid_relationship_batch');
+            $this->repository->clearRelationships($scope,$batch['clear_snapshot'],gmdate('Y-m-d\TH:i:s\Z'));
+        }
+        $seen=[];
+        foreach(['updates','deletes']as$mode)foreach($batch[$mode]as$edit){
+            if(!is_array($edit))throw new InvalidArgumentException('invalid_relationship_batch');
+            $id=$this->need($edit,'relationship_id');$this->uuid($id,'relationship_id');
+            if(isset($seen[$id]))throw new InvalidArgumentException('duplicate_relationship_edit');$seen[$id]=true;
+            if($mode==='updates')$this->saveRelationship($edit,$scope,[]);
+            else$this->repository->deleteRelationship($id,gmdate('Y-m-d\TH:i:s\Z'),$this->relationshipRevision($edit),$scope);
+        }
+        foreach($batch['additions']as$edit){
+            if(!is_array($edit)||isset($edit['relationship_id']))throw new InvalidArgumentException('invalid_relationship_batch');
+            $target=$this->need($edit,'actor_profile_id');
+            if($target===$scope['profile_id'])throw new InvalidArgumentException('invalid_actor_profile');
+            $this->saveRelationship($edit,$scope,[]);
+        }
     }
 
     /** Toggle one card-level management flag without applying the installation edit auto-lock rule. */

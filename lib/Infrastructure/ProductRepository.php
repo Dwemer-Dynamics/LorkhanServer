@@ -1956,11 +1956,12 @@ SQL);
     }
 
     /** Soft-delete exactly the revision shown to the editor, keeping its audit history. */
-    public function deleteRelationship(string $id,string $now,int $expectedRevision):void
+    public function deleteRelationship(string $id,string $now,int $expectedRevision,array $scope=[]):void
     {
-        $this->transaction(function()use($id,$now,$expectedRevision):void{
-            $find=$this->db->prepare('SELECT disposition,affinity,relationship_type,revision FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL FOR UPDATE');
-            $find->execute(['id'=>$id]);$before=$find->fetch();if(!$before)throw new RuntimeException('not_found');
+        $this->transaction(function()use($id,$now,$expectedRevision,$scope):void{
+            $filter=$scope===[]?'':' AND installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough';
+            $find=$this->db->prepare('SELECT disposition,affinity,relationship_type,revision FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NULL'.$filter.' FOR UPDATE');
+            $find->execute(['id'=>$id]+($scope===[]?[]:$this->scopeParams($scope)));$before=$find->fetch();if(!$before)throw new RuntimeException('not_found');
             if((int)$before['revision']!==$expectedRevision)throw new RuntimeException('relationship_revision_conflict');
             $save=$this->db->prepare('UPDATE relationship_records SET deleted_at=:now,updated_at=:now WHERE relationship_id=:id AND revision=:revision RETURNING revision');
             $save->execute(['now'=>$now,'id'=>$id,'revision'=>$expectedRevision]);$revision=$save->fetchColumn();

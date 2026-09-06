@@ -16,7 +16,7 @@ dialogs, lock/clear controls and recent-change presentation derive from HerikaSe
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`,
 `ext/relationship_system/relationship_editor.php`, `lib/relationship_manager.php`
 and `ui/core/npc_master.php`. Lorkhan retains actor identities, playthrough scope,
-revisioned row saves, private notes and authenticated build requests.
+revisioned staged manual saves, private notes and authenticated build requests.
 
 Relationship LLM Logs header/statistics, type controls, cleanup bar, four-column
 table and inline context-reader presentation derive from HerikaServer

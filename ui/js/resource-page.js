@@ -571,6 +571,117 @@
 
     document.querySelectorAll('[data-npc-relationships]').forEach(view => {
         const tiers = JSON.parse(view.dataset.tiers || '[]');
+        const profileForm=document.getElementById(view.dataset.profileForm);
+        const addForm=view.querySelector('.npc-rel-add');
+        if(profileForm&&addForm){
+            const table=view.querySelector('.npc-rel-table');
+            const rows=new Map();let serial=0;let clearSnapshot=null;
+            const draft=document.createElement('input');draft.type='hidden';draft.name='npc_relationship_edits';
+            draft.setAttribute('form',profileForm.id);view.append(draft);
+            const note=view.querySelector('[data-rel-draft-status]');
+            const clearForm=view.querySelector('form[action$="/relationship-clear"]');
+            const clearButton=view.querySelector('[data-rel-details$="-clear"]');
+            clearForm?.closest('dialog').querySelector('p').append(' Removal is staged until you save the NPC.');
+            const customDescription=view.querySelector('[data-rel-custom-type]')?.closest('dialog').querySelector('p');
+            if(customDescription)customDescription.textContent='Create a type such as client, mentor or servant. Select it on a relationship and save the NPC to retain it.';
+            const initialCount=Number(clearForm?.querySelector('[data-rel-clear-count]')?.textContent
+                ||view.querySelector('[data-rel-clear-count]')?.textContent||0);
+            // Only changed rows enter the batch; unopened and undisplayed records retain their revisions.
+            const readRow=form=>{
+                const fields=Object.fromEntries(new FormData(form));const result={};
+                for(const key of ['relationship_id','actor_profile_id','expected_revision','affinity','disposition','relationship_type','custom_info','reason'])
+                    if(Object.hasOwn(fields,key))result[key]=fields[key];
+                return result;
+            };
+            const sync=()=>{
+                const batch={profile_revision:Number(view.dataset.profileRevision),playthrough_id:view.dataset.playthrough,updates:[],additions:[],deletes:[]};
+                let visible=0;
+                for(const row of rows.values()){
+                    if(row.removed){if(!row.added&&clearSnapshot===null)batch.deletes.push({relationship_id:row.initial.relationship_id,expected_revision:row.initial.expected_revision});continue;}
+                    ++visible;const value=readRow(row.form);
+                    if(row.added)batch.additions.push(value);
+                    else if(JSON.stringify(value)!==JSON.stringify(row.initial))batch.updates.push(value);
+                }
+                if(clearSnapshot!==null){batch.clear_snapshot=clearSnapshot;batch.clear_confirm='Clear';}
+                const changed=batch.updates.length+batch.additions.length+batch.deletes.length>0||clearSnapshot!==null;
+                draft.value=changed?JSON.stringify(batch):'';
+                note.textContent=changed?'Unsaved relationship changes. Click Save in the NPC header to keep them.':'Relationship changes are saved with the NPC. Use Add Custom Type for another label.';
+                if(changed){dirtyForms.add(profileForm);profileForm.classList.add('is-dirty');}
+                table.hidden=visible===0;
+                const empty=view.querySelector('[data-rel-empty]');if(empty)empty.hidden=visible!==0;
+                if(clearButton)clearButton.disabled=visible===0&&(clearSnapshot!==null||initialCount===0);
+                const count=view.querySelector('[data-rel-clear-count]');
+                if(count)count.textContent=String(clearSnapshot!==null?visible:initialCount+batch.additions.length-batch.deletes.length);
+            };
+            const removeRow=row=>{
+                row.removed=true;row.element.hidden=true;
+                const details=document.getElementById(row.form.id+'-details');if(details)details.hidden=true;
+                for(const field of row.form.elements)field.disabled=true;
+                dirtyForms.delete(row.form);row.form.classList.remove('is-dirty');
+            };
+            const register=(form,added=false)=>{
+                const element=view.querySelector(`[data-rel-form="${CSS.escape(form.id)}"]`);
+                const row={form,element,added,removed:false,initial:readRow(form)};rows.set(form.id,row);
+                element.querySelector(`button[type="submit"][form="${CSS.escape(form.id)}"]`).hidden=true;
+                for(const field of form.elements){field.addEventListener('input',sync);field.addEventListener('change',sync);}
+                form.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();sync();},{capture:true});
+                const deletion=document.getElementById(form.id+'-delete');
+                deletion.addEventListener('submit',event=>{event.preventDefault();event.stopImmediatePropagation();removeRow(row);sync();},{capture:true});
+            };
+            view.querySelectorAll('form[action$="/relationships"][id]').forEach(form=>register(form));
+            addForm.addEventListener('submit',event=>{
+                event.preventDefault();event.stopImmediatePropagation();if(!addForm.reportValidity())return;
+                const selected=addForm.elements.actor_profile_id;const fields=readRow(addForm);
+                if([...rows.values()].some(row=>!row.removed&&row.added&&readRow(row.form).actor_profile_id===selected.value)){
+                    note.textContent='That target is already in the staged relationships.';selected.focus();return;
+                }
+                const fragment=view.querySelector('[data-rel-row-template]').content.cloneNode(true);
+                const id=`${profileForm.id}-relationship-new-${++serial}`;
+                fragment.querySelectorAll('[id],[form],[data-rel-form],[data-rel-details]').forEach(element=>{
+                    for(const attr of ['id','form','data-rel-form','data-rel-details'])if(element.hasAttribute(attr))
+                        element.setAttribute(attr,element.getAttribute(attr).replace('__REL_FORM__',id));
+                });
+                const name=selected.selectedOptions[0].textContent.split(' — ')[0];
+                fragment.querySelector('.npc-rel-target').textContent=name;
+                fragment.querySelectorAll('[aria-label]').forEach(element=>element.setAttribute('aria-label',element.getAttribute('aria-label').replace('New relationship',name)));
+                const type=fragment.querySelector('.npc-rel-type');type.replaceChildren(...[...addForm.elements.relationship_type.options].map(option=>option.cloneNode(true)));
+                const newRows=[...fragment.querySelectorAll('tbody>tr')];const forms=[...fragment.querySelectorAll('form')];
+                table.tBodies[0].append(...newRows);view.append(...forms);
+                const form=document.getElementById(id);
+                for(const [key,value] of Object.entries(fields))if(form.elements.namedItem(key))form.elements.namedItem(key).value=value;
+                register(form,true);addForm.reset();dirtyForms.delete(addForm);addForm.classList.remove('is-dirty');
+                form.elements.affinity.dispatchEvent(new Event('input',{bubbles:true}));sync();selected.focus();
+            },{capture:true});
+            clearForm?.addEventListener('submit',event=>{
+                event.preventDefault();event.stopImmediatePropagation();if(!clearForm.reportValidity())return;
+                if(initialCount>0)clearSnapshot=clearForm.elements.snapshot_token.value;
+                for(const row of rows.values())removeRow(row);
+                sync();clearForm.closest('dialog').close();addForm.elements.actor_profile_id.focus();
+            },{capture:true});
+            profileForm.addEventListener('submit',async event=>{
+                sync();
+                for(const row of rows.values())if(!row.removed&&!row.form.reportValidity()){event.preventDefault();break;}
+                if(event.defaultPrevented){dirtyForms.add(profileForm);profileForm.classList.add('is-dirty');return;}
+                const saved=()=>{for(const form of [profileForm,addForm,...[...rows.values()].map(row=>row.form)])dirtyForms.delete(form);};
+                if(!draft.value){saved();return;}
+                event.preventDefault();
+                if(profileForm.getAttribute('aria-busy')==='true')return;
+                const body=new URLSearchParams(new FormData(profileForm));
+                const controls=[...(profileForm.closest('[data-npc-modal]')||view).querySelectorAll('input,textarea,select,button')].map(control=>[control,control.disabled]);
+                profileForm.setAttribute('aria-busy','true');controls.forEach(([control])=>{control.disabled=true;});
+                note.textContent='Saving NPC and relationship changes…';dirtyForms.add(profileForm);
+                try{
+                    const response=await fetch(profileForm.getAttribute('action'),{method:'POST',body,credentials:'same-origin'});
+                    const destination=new URL(response.url);
+                    if(!response.ok)throw new Error(response.status===409?'The NPC or a relationship changed. Your draft is still here; review the latest saved values before retrying.':`Save failed (${response.status}). Your draft is still here.`);
+                    if(destination.origin!==location.origin||!destination.pathname.endsWith('/ui/core/npc_master.php')
+                        ||destination.searchParams.get('status')!=='npc_relationships_saved')throw new Error('Save was not confirmed. Your draft is still here; check your management session.');
+                    saved();window.location.assign(destination.href);
+                }catch(error){note.textContent=error instanceof Error?error.message:'Save failed. Your draft is still here.';profileForm.classList.add('is-dirty');}
+                finally{profileForm.removeAttribute('aria-busy');controls.forEach(([control,disabled])=>{control.disabled=disabled;});}
+            });
+            sync();
+        }
         const custom = view.querySelector('[data-rel-custom-type]');
         custom?.addEventListener('submit', event => {
             event.preventDefault();
@@ -579,15 +690,17 @@
             view.querySelectorAll('select[name="relationship_type"]').forEach(select => {
                 if (![...select.options].some(option => option.value === type)) select.add(new Option(`🏷️ ${type[0].toUpperCase()}${type.slice(1)}`,type));
             });
-            custom.querySelector('[data-rel-custom-status]').textContent = 'Type available. Select it on a row and save.';
+            custom.querySelector('[data-rel-custom-status]').textContent = 'Type available. Select it on a row and save the NPC.';
         });
-        view.querySelectorAll('.npc-rel-aff').forEach(control => control.addEventListener('input', () => {
+        view.addEventListener('input', event => {
+            const control=event.target.closest('.npc-rel-aff');if(!control)return;
             const tier = tiers.find(item => Number(control.value) >= item[0]);
             const badge = control.closest('[data-npc-rel-row]')?.querySelector('.npc-rel-tier');
             if (!badge || !tier || !control.validity.valid) return;
             badge.textContent = tier[1];badge.style.color = tier[2];
-        }));
-        view.querySelectorAll('[data-rel-details]').forEach(button => button.addEventListener('click', () => {
+        });
+        view.addEventListener('click', event => {
+            const button=event.target.closest('[data-rel-details]');if(!button||!view.contains(button))return;
             const panel = document.getElementById(button.dataset.relDetails);
             if (!panel) return;
             button.setAttribute('aria-controls', panel.id);
@@ -602,7 +715,7 @@
             });
             if (!panel.hidden) panel.querySelector('input,select,textarea,button')?.focus();
             else view.querySelector(`[data-rel-details="${panel.id}"]`)?.focus();
-        }));
+        });
         view.querySelectorAll('dialog.npc-rel-build').forEach(dialog => {
             dialog.addEventListener('keydown', event => {if(event.key==='Escape')event.stopPropagation();});
             dialog.addEventListener('close', () => {

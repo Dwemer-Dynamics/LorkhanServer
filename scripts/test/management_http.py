@@ -61,10 +61,17 @@ assert embedding_probe.returncode==0 and json.loads(embedding_probe.stdout)==[1,
 VoiceProvider.embedding_requests.clear()
 
 class Page(html.parser.HTMLParser):
-    def __init__(self):
+    def __init__(self,external_form=None):
         super().__init__(); self.labels=set(); self.controls=[]; self.nav=[]; self.current=0; self.forms=[]; self.form=None; self.select_name=None; self.label_depth=0
+        self.external_form=external_form; self.external_fields={}; self.external_select=None; self.external_textarea=None
     def handle_starttag(self,tag,attrs):
         a=dict(attrs)
+        if self.external_form and a.get('form')==self.external_form and a.get('name') and 'disabled' not in a:
+            if tag=='input' and (a.get('type')!='checkbox' or 'checked' in a): self.external_fields[a['name']]=a.get('value','')
+            if tag=='select': self.external_select=a['name']
+            if tag=='textarea': self.external_textarea=a['name']; self.external_fields[a['name']]=''
+        if tag=='option' and self.external_select and (self.external_select not in self.external_fields or 'selected' in a):
+            self.external_fields[self.external_select]=a.get('value','')
         if tag=='label':
             self.label_depth+=1
             if a.get('for'): self.labels.add(a['for'])
@@ -72,7 +79,7 @@ class Page(html.parser.HTMLParser):
         if tag=='a' and a.get('href','').startswith('/LorkhanServer/ui/'):
             self.nav.append(a['href'])
             if 'dropdown-item' in a.get('class','').split(): self.current+=a.get('aria-current')=='page'
-        if tag=='form': self.form={'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
+        if tag=='form': self.form={'id':a.get('id',''),'action':a.get('action',''),'method':a.get('method','get'),'fields':{}}; self.forms.append(self.form)
         if self.form is not None and tag=='input' and a.get('name') and 'disabled' not in a and (a.get('type')!='checkbox' or 'checked' in a): self.form['fields'][a['name']]=a.get('value','')
         if self.form is not None and tag=='input' and a.get('type')=='checkbox' and a.get('name') and 'checked' in a:
             self.form.setdefault('checked',{}).setdefault(a['name'],[]).append(a.get('value',''))
@@ -80,9 +87,14 @@ class Page(html.parser.HTMLParser):
         if self.form is not None and tag=='option' and self.select_name and (self.select_name not in self.form['fields'] or 'selected' in a):
             self.form['fields'][self.select_name]=a.get('value','')
     def handle_endtag(self,tag):
+        if tag=='select': self.external_select=None
+        if tag=='textarea' and self.external_textarea:
+            self.external_fields[self.external_textarea]=self.external_fields[self.external_textarea].removeprefix('\n'); self.external_textarea=None
         if tag=='label': self.label_depth=max(0,self.label_depth-1)
         if tag=='select': self.select_name=None
         if tag=='form': self.form=None
+    def handle_data(self,data):
+        if self.external_textarea: self.external_fields[self.external_textarea]+=data
 
 def request(path,method='GET',data=None,follow=True,accept=None):
     body=None if data is None else urllib.parse.urlencode(data,doseq=True).encode()
@@ -868,6 +880,67 @@ npc_clear_page,_=parse(request(npc_relationship_url))
 npc_clear=next(f for f in npc_clear_page.forms if f['action'].endswith('/forms/relationship-clear') and f['fields'].get('profile_id')==relationship_values['profile_id'])
 r=request(npc_clear['action'],'POST',dict(npc_clear['fields'],_csrf=csrf,confirm_clear='Clear')); clear_body=r.read().decode()
 assert r.status==200 and 'relationships_cleared' in r.geturl() and 'Their change history was kept.' in clear_body
+# The NPC Save transaction owns staged additions, edits, deletions and protected clear-all.
+stage_target_name='HTTP staged target '+uuid.uuid4().hex
+stage_document={'installation_id':valid['installation_id'],'name':stage_target_name,
+    'actor_identity':dict(relationship_identity,record_id='http_staged_target',display_name=stage_target_name,refnum={'index':98766,'content_file':0}),
+    'content':{'biography':'A bounded staging fixture.'}}
+r=json_request('/LorkhanServer/manage/api/v1/profiles','POST',stage_document,csrf)
+assert r.status==201
+stage_target_id=json.loads(r.read())['profile_id']
+
+# Read the actual editor revision and fields rather than assuming a fixture revision.
+def staged_npc_form(owner=profile_id):
+    page,body=parse(request('/LorkhanServer/ui/core/npc_master.php?'+urllib.parse.urlencode({'rel_profile':owner,'rel_playthrough':playthrough_id})))
+    form=next(f for f in page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==owner)
+    revision=int(re.search('data-profile-form="management-form-profile-'+owner+r'" data-profile-revision="(\d+)"',body)[1])
+    fields=Page(external_form='management-form-profile-'+owner); fields.feed(body)
+    return form,dict(form['fields'],**fields.external_fields,_csrf=csrf),{'profile_revision':revision,'playthrough_id':playthrough_id,'updates':[],'additions':[],'deletes':[]},page
+
+stage_form,stage_values,stage_batch,_=staged_npc_form()
+stage_add={'actor_profile_id':stage_target_id,'affinity':15,'disposition':20,'relationship_type':'professional','reason':'Staged addition','custom_info':'Private staged note'}
+stage_bad=dict(stage_batch,additions=[stage_add,dict(stage_add,affinity=101)])
+r=request(stage_form['action'],'POST',dict(stage_values,biography='Must roll back with the invalid row',npc_relationship_edits=json.dumps(stage_bad)))
+assert r.status==422 and 'invalid_relationship_value' in r.read().decode() and staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
+assert not any(f['fields'].get('relationship_id') for f in staged_npc_form()[3].forms if f['fields'].get('profile_id')==profile_id)
+stage_batch['additions']=[stage_add]
+r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); stage_saved,stage_body=parse(r)
+assert r.status==200 and 'rel_profile='+profile_id in r.geturl() and 'Private staged note' in stage_body,(r.status,r.geturl(),re.findall(r'role="alert"[^>]*>(.*?)</',stage_body,re.S))
+assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==409
+stage_row=next(f for f in stage_saved.forms if f['action'].endswith('/forms/relationships') and f['fields'].get('relationship_id') and f['fields'].get('profile_id')==profile_id)
+stage_id=stage_row['fields']['relationship_id']
+stage_form,stage_values,stage_batch,_=staged_npc_form()
+stage_row_fields=Page(external_form=stage_row['id']); stage_row_fields.feed(stage_body)
+stage_update=dict(stage_row['fields'],**stage_row_fields.external_fields)
+stage_update.update(affinity=30,custom_info='Updated private staged note',reason='Staged update')
+stage_batch['updates']=[dict(stage_update,expected_revision=0)]
+assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==422
+assert staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
+stage_batch['updates']=[stage_update]
+r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); stage_saved,stage_body=parse(r)
+assert r.status==200 and 'Updated private staged note' in stage_body,(r.status,re.findall(r'role="alert"[^>]*>(.*?)</',stage_body,re.S))
+stage_form,stage_values,stage_batch,stage_saved=staged_npc_form()
+stage_batch['updates']=[stage_update]
+assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==409
+assert staged_npc_form()[2]['profile_revision']==stage_batch['profile_revision']
+foreign_form,foreign_values,foreign_batch,_=staged_npc_form(stage_target_id)
+foreign_batch['deletes']=[{'relationship_id':stage_id,'expected_revision':2}]
+assert request(foreign_form['action'],'POST',dict(foreign_values,npc_relationship_edits=json.dumps(foreign_batch))).status==404
+assert staged_npc_form(stage_target_id)[2]['profile_revision']==foreign_batch['profile_revision']
+stage_batch.update(updates=[],deletes=foreign_batch['deletes'])
+r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); assert r.status==200
+assert not any(f['fields'].get('relationship_id')==stage_id for f in staged_npc_form()[3].forms)
+stage_form,stage_values,stage_batch,_=staged_npc_form()
+stage_batch['additions']=[stage_add]
+r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); assert r.status==200
+stage_form,stage_values,stage_batch,stage_saved=staged_npc_form()
+stage_clear=next(f for f in stage_saved.forms if f['action'].endswith('/forms/relationship-clear') and f['fields'].get('profile_id')==profile_id)
+stage_batch.update(updates=[],clear_snapshot=stage_clear['fields']['snapshot_token'])
+assert request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))).status==422
+stage_batch['clear_confirm']='Clear'
+r=request(stage_form['action'],'POST',dict(stage_values,npc_relationship_edits=json.dumps(stage_batch))); assert r.status==200
+assert not any(f['fields'].get('relationship_id') for f in staged_npc_form()[3].forms if f['fields'].get('profile_id')==profile_id)
+assert request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':stage_target_id}).status==200
 backup_response=request('/LorkhanServer/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='lorkhan.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))

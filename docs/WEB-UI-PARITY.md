@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; details/save semantics, remaining General/Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; full details, AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -1663,3 +1663,47 @@ Remaining Core Profile requirements identified from the pinned source and live e
   direction dialog and Cancel closes it without saving. There are no live build
   outcomes to display: relationship records/audit/provider-attempt counts remain
   0/0/0 before and after deployment and read-only browser inspection.
+
+### NPC Relationships — staged manual edits and atomic NPC saves
+
+- The enhanced NPC editor no longer exposes per-row Save buttons. Affinity/type
+  changes, current detail fields, additions, removals and confirmed Clear All
+  remain local drafts until the NPC header Save is clicked, following Herika's
+  manual-edit workflow. New drafts reuse the saved-row template, including tier
+  feedback, details and custom types. Clear All includes previously undisplayed
+  records only through the existing confirmed scope snapshot.
+- Only changed rows are submitted. The batch uses authoritative NPC installation
+  scope, an expected profile revision and each edited/deleted row's revision.
+  The NPC content, Core Profile assignment and all relationship writes share one
+  transaction. Stale rows/profiles, invalid later operations and foreign-owner
+  deletions roll back the whole save. A staged clear still requires the exact
+  Clear confirmation and snapshot token; audit history and saved private notes
+  remain retained. There is no schema change or new runtime asset.
+- Submission disables controls while pending. A failed/unconfirmed response keeps
+  the draft rows and dirty state visible; a confirmed save returns to the same
+  NPC and Relationships tab. Ordinary NPC saves without relationship changes,
+  legacy row endpoints and log-page tools remain compatible.
+- Existing HTTP coverage exercises valid add/update/delete/clear batches, stale
+  profile and relationship revisions, a late invalid addition rolling back the
+  NPC revision, and a foreign-owner delete rolling back. The existing page parser
+  gained an optional external-form reader so these tests submit the actual
+  labelled controls, including textarea values, instead of only hidden metadata.
+- Browser component fixtures verify staged affinity/type feedback, removals,
+  adding from empty state, new-row details/private notes, Clear All counts and
+  empty-state controls. A synthetic unconfirmed save response leaves a new row's
+  affinity at 42, editable, with the draft marked unsaved and no navigation.
+  At 390px the document/client/scroll widths are 375px; the 704px table scrolls
+  inside its own 375px region. These are synthetic states, not live-game writes.
+- Remaining: full relationship detail fields/dialog, all-record/history access,
+  and staging AI build proposals before NPC Save. The existing AI history build
+  still applies its fenced result directly; it is not declared a parity exception.
+  General/Info, full NPC-list review and the rest of the all-pages matrix remain.- Verification: 362 server checks, 98 protocol files, browser-like management HTTP
+  forms and integration/migration checks passed. Schema remains 167 relations
+  (hash 2ae8a2f8027d65103de8e1fd2ca0c1cdaeaa989b8e9045cd5b5b225828864fb4).
+  PHP lint, JavaScript syntax and diff checks passed. Local deployment rollback is
+  /var/backups/lorkhanserver-code.Bk109k. All 722 runtime files match, with no
+  extra files or old paths; health, private-file protection and management access
+  checks passed. Configuration, credentials and voice hashes were preserved.
+  The deployed Fargoth Relationships tab shows the NPC-save guidance, empty state
+  and disabled Clear All. No live form was submitted; relationship records,
+  audit rows and relationship provider attempts remain 0/0/0.
