@@ -389,10 +389,11 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <span class="visually-hidden">Add WAV voice samples</span>
             <form method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
-                <div class="voice-upload-field"><label for="voice-sample">Select a .wav file or .zip archive to upload:</label><input id="voice-sample" name="voice_sample" type="file" accept="audio/wav,.wav,application/zip,.zip" required></div><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"></details>
-                <div class="button-group"><button class="btn-primary" type="submit">Upload Voice Sample</button></div>
+                <div class="voice-upload-field"><label for="voice-sample">Select .wav files or .zip archives to upload:</label><input id="voice-sample" name="voice_sample[]" type="file" accept="audio/wav,.wav,application/zip,.zip" multiple required></div><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"><p>Leave this blank when selecting multiple files.</p></details>
+                <input type="hidden" name="upload_count" value="">
+                <div class="button-group"><button class="btn-primary" type="submit">Upload Voice Samples</button></div>
             </form>
-            <div class="requirements"><p><strong>📋 File Requirements:</strong></p><ul><li>PCM-compatible RIFF/WAVE, up to 16 MiB per sample</li><li>Voice names use letters, numbers, spaces, underscores, plus, dot, or hyphen</li><li>A flat ZIP batch may contain up to 64 WAV files and 128 MiB extracted</li><li>Files remain outside profile JSON and browser cookies</li></ul></div>
+            <div class="requirements"><p><strong>📋 File Requirements:</strong></p><ul><li>PCM-compatible RIFF/WAVE, up to 16 MiB per sample</li><li>Voice names use letters, numbers, spaces, underscores, plus, dot, or hyphen</li><li>A flat ZIP batch or multi-file selection may contain up to 64 WAV files and 128 MiB extracted, within the server upload limits</li><li>The whole selection is checked before saving. Existing samples are never overwritten.</li><li>Files remain outside profile JSON and browser cookies</li></ul></div>
         </section>
 
         <section class="content-section">
@@ -439,10 +440,16 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <h1>Batch <?php echo $cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Process'); ?> Missing Voices</h1>
             <p><?php echo $batchVerb; ?> missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
             <?php if($canSync&&$missingCount>0): ?><p class="voice-missing-count">Found <?php echo $missingCount; ?> voice(s) not yet <?php echo $cloudClone?'generated':'synced'; ?> in the cached provider library.</p>
-            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch>
+            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch data-voice-batch-delay="<?php echo $activeTab==='inworld'?3000:($activeTab==='cartesia'?2000:0); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="batch_sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>">
                 <label><input type="checkbox" name="consent" value="1" required> Upload these samples to the selected provider<?php echo $cloudClone?' and create cloud voices (provider charges may apply)':''; ?>.</label>
-                <div class="button-group"><button class="btn-primary" type="submit">Batch <?php echo $batchVerb; ?> Missing Voices (<?php echo $missingCount; ?>)</button><button type="button" data-voice-batch-stop hidden>Stop after current voice</button></div><p role="status" data-voice-batch-status></p>
+                <div class="button-group"><button class="btn-primary" type="submit">Batch <?php echo $batchVerb; ?> Missing Voices (<?php echo $missingCount; ?>)</button><button class="btn-danger" type="button" data-voice-batch-stop hidden title="Stop after the current voice finishes">Cancel</button></div>
+                <div class="voice-batch-progress" data-voice-batch-progress hidden>
+                    <div class="voice-batch-count"><strong>Progress: <span data-voice-batch-current>0</span> / <span data-voice-batch-total>0</span></strong><span data-voice-batch-eta></span></div>
+                    <div class="voice-batch-track" role="progressbar" aria-label="Voice batch progress" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><div data-voice-batch-bar></div></div>
+                    <div class="voice-batch-log" data-voice-batch-log role="log" aria-label="Voice batch results" aria-live="polite"></div>
+                    <p role="status" data-voice-batch-status></p><a href="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch-refresh hidden>Refresh voice cache</a>
+                </div>
             </form>
             <?php elseif($localOnly): ?><p class="voice-ready">✓ Local samples are ready for PocketTTS audio.cpp; no server upload is needed.</p>
             <?php elseif(!$canSync): ?><p>Configure a compatible <?php echo lorkhan_ui_h($providerLabel); ?> connector to upload voices.</p><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a>
@@ -451,6 +458,6 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/lorkhan-management.js" defer></script>
-<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-batch.js" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-batch.js?v=<?php echo (int)filemtime($uiRootDir.'/js/voice-batch.js'); ?>" defer></script>
 <?php if ($activeTab === 'pronunciations'): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/pronunciation-preview.js?v=<?php echo (int) @filemtime($uiRootDir . '/js/pronunciation-preview.js'); ?>" defer></script><?php endif; ?>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/voice-preview.js?v=<?php echo (int)filemtime($uiRootDir.'/js/voice-preview.js'); ?>"></script><?php include $uiRootDir . '/tmpl/footer.html'; ?>

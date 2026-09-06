@@ -79,7 +79,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
-| `core/voice_library.php` | `xtts_clone.php` | Six provider tabs use one primary voice cache, compact name/status/ID/actions and matching batch section hierarchy; Inworld populated desktop/narrow compared. Provider-side clone management, OmniVoice language workflow, multi-file upload and full fallback/pronunciation state comparisons remain |
+| `core/voice_library.php` | `xtts_clone.php` | Six provider tabs use one primary voice cache, compact name/status/ID/actions, multi-file upload and batch count/progress/result panels; Inworld populated desktop/narrow and batch completion/cancel/failure/rate-limit/session states compared. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation and full fallback/pronunciation state comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
@@ -1802,3 +1802,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   and unauthenticated session requests return 401. Configuration, credential and
   voice-file hashes remain unchanged. Rollback:
   `/var/backups/lorkhanserver-code.0k03pa`. No game was launched or controlled.
+
+### Voice Studio — multi-file uploads and batch progress
+
+- The shared provider upload picker accepts multiple WAVs/ZIPs, matching the
+  reference control. All received samples are validated in a private staging
+  directory before publication. Mixed selections retain the existing 64-WAV /
+  128-MiB aggregate and 16-MiB-per-WAV limits, within PHP's upload limits. A
+  client file count detects parser-truncated selections with JavaScript enabled.
+  Existing samples are not overwritten; invalid/duplicate selections roll back.
+  Custom naming is available for one WAV, not a multiple-file selection.
+- Replaced the one-line batch status with the pinned reference's Progress count,
+  30px bar, named success/failure log, ETA and Cancel control. The batch/upload
+  buttons use its compact neutral treatment; the progress fill remains gold.
+  A provider-discovered plan freezes a bounded queue. Named steps process each
+  voice once, even when the provider's speaker list lags behind uploads.
+- Cancelling finishes the active request and starts no further voices. Ordinary
+  failures stay visible while the queue continues; HTTP 429 stops it. Inworld
+  and Cartesia retain the reference's 3-second and 2-second inter-request delays.
+  Missing consent and expired sessions return structured errors before uploads.
+  Unconfirmed responses stop without automatic retry. Batch script URLs are
+  versioned so stale cached JavaScript cannot drive the previous loop.
+- Compared the actual pinned Inworld progress markup and the actual Lorkhan
+  script with synthetic provider responses: complete (two distinct named
+  requests), cancel (one request only), ordinary failure (next voice processed),
+  rate limit (next voice not started), and expired session (plan only). These are
+  UI fixture results, not live provider proof. At a 390px viewport the document
+  client/scroll widths are 375/375 and progress panel widths are 326/326.
+- Extended the existing management HTTP test: mixed WAV/ZIP success, invalid
+  selection rollback, duplicate/existing-sample protection, multipart count
+  mismatch, no upload during planning, consent/session rejection, named success,
+  already-known skip, missing sample, traversal rejection and provider 429.
+  The final HTTP run passed. The existing full check passed 370 server checks,
+  98 protocol files, integration, migrations and durable jobs; schema remains
+  167 relations with summary `c9bac48593dd9036d47da521683e2b0eee958f3114214e06dd217efa267452a8`.
+- Still pending: automatic upload-to-provider sync, automatic successful-batch
+  cache refresh (current results remain visible with a refresh link), managed
+  clone controls/cache visibility, readiness checks, OmniVoice language UI and
+  remaining provider/Fallback/Pronunciation state comparisons. This checkpoint
+  does not finish Voice Studio or the all-pages goal.
+- Final deployment: all 725 runtime files match source, without extra files or
+  old paths; protected files return 403 on the three checked ports, and session
+  creation without authentication returns 401. Configuration, credential and
+  voice-file hashes are preserved. Rollback: `/var/backups/lorkhanserver-code.RfWgYB`.
+  The live Inworld page exposes the multi-file input, hidden-until-start progress
+  panel, 3000ms delay and versioned batch asset. Its batch button matches the
+  reference's `#383838` background, `#505050` border, 13.12px font, 7px/12px padding
+  and 36px height. No live form/provider action was submitted and no game was
+  launched or controlled.

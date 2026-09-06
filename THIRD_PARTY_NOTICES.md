@@ -128,3 +128,8 @@ presentation and compact action styling in `ui/core/tmpl/voice_library_studio.ph
 and `ui/css/herika-tts-studio.css` are adapted from the same pinned HerikaServer
 `ui/xtts_clone.php` under its MIT license. Lorkhan keeps scoped connectors,
 protected persistent samples and explicit cloud-upload authorization.
+
+The multi-file picker and batch progress/count/result-log presentation in the
+Voice Studio template, stylesheet and `ui/js/voice-batch.js` also follow the same
+pinned `ui/xtts_clone.php` under its MIT license. Lorkhan retains authenticated
+POST requests, bounded upload validation and protected sample storage.

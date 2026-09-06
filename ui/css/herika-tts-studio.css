@@ -260,3 +260,14 @@ body.tts-studio-page-shell .voice-status-item .voice-actions button:disabled{opa
 .tts-studio-page .voice-upload-name{margin-bottom:14px;color:#aaa;font-size:.9em}.tts-studio-page .voice-upload-name summary{cursor:pointer}.tts-studio-page .voice-upload-name input{max-width:500px}
 
 .tts-studio-page .voice-warning{padding:16px;margin:20px 0;border:2px solid #f44336;border-radius:8px;background:rgba(244,67,54,.1)}.tts-studio-page .voice-warning strong{color:#f44336}.tts-studio-page .voice-warning p{margin:8px 0 0}
+
+/* Herika's progress/count/log hierarchy, with Lorkhan's accent. */
+.tts-studio-page .voice-batch-progress{margin-top:20px;padding:15px;background:#2c2c2c;border:1px solid #4a4a4a;border-radius:5px}
+.tts-studio-page .voice-batch-count{margin-bottom:10px;display:flex;gap:15px;flex-wrap:wrap}.tts-studio-page [data-voice-batch-eta]{color:#aaa}
+.tts-studio-page .voice-batch-track{background:#1a1a1a;height:30px;border-radius:4px;overflow:hidden;margin-bottom:15px}
+.tts-studio-page [data-voice-batch-bar]{background:#bc9d5a;height:100%;width:0;transition:width .3s}
+.tts-studio-page .voice-batch-log{max-height:300px;overflow-y:auto;overflow-wrap:anywhere}.tts-studio-page .voice-batch-log>div{padding:5px 0}
+.tts-studio-page .voice-batch-processing{color:#4a8ab6}.tts-studio-page .voice-batch-succeeded{color:#4caf50}.tts-studio-page .voice-batch-failed{color:#f44336}
+body.tts-studio-page-shell .tts-studio-page form[enctype="multipart/form-data"] button,body.tts-studio-page-shell .tts-studio-page [data-voice-batch] button{background:#383838!important;border:1px solid #505050!important;border-radius:6px;color:#ddd!important;box-shadow:none!important;padding:7px 12px!important;min-height:36px;font-size:13.12px;line-height:1.1}
+body.tts-studio-page-shell [data-voice-batch] button:hover,body.tts-studio-page-shell [data-voice-batch] button:focus-visible{border-color:#bc9d5a!important}
+@media(prefers-reduced-motion:reduce){.tts-studio-page [data-voice-batch-bar]{transition:none}}

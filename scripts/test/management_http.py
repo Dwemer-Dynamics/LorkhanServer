@@ -8,6 +8,7 @@ opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
 
 class VoiceProvider(http.server.BaseHTTPRequestHandler):
     uploads=[]
+    upload_status=200
     llm_requests=[]
     embedding_requests=[]
     speech_requests=[]
@@ -46,7 +47,7 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
         if self.path!='/upload_sample': self.send_error(404); return
         body=self.rfile.read(int(self.headers.get('Content-Length','0'))); self.uploads.append((dict(self.headers),body))
         payload=b'{"status":"ok"}'
-        self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload)
+        self.send_response(self.upload_status); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload)
     def log_message(self,format,*args): pass
 
 voice_provider=http.server.ThreadingHTTPServer(('0.0.0.0',0),VoiceProvider)
@@ -113,12 +114,14 @@ def json_request(path,method='GET',data=None,csrf_token=None):
     try: return opener.open(req,timeout=5)
     except urllib.error.HTTPError as e: return e
 
-def multipart_request(path,fields,file_field,filename,content_type,payload):
+def multipart_request(path,fields,file_field,filename,content_type,payload,extra_files=()):
     boundary='----lorkhan-'+uuid.uuid4().hex; body=bytearray()
     for name,value in fields.items():
         body.extend(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+name+'"\r\n\r\n'+str(value)+'\r\n').encode())
-    body.extend(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+file_field+'"; filename="'+filename+'"\r\nContent-Type: '+content_type+'\r\n\r\n').encode())
-    body.extend(payload); body.extend(('\r\n--'+boundary+'--\r\n').encode())
+    for field,name,mime,content in [(file_field,filename,content_type,payload),*extra_files]:
+        body.extend(('--'+boundary+'\r\nContent-Disposition: form-data; name="'+field+'"; filename="'+name+'"\r\nContent-Type: '+mime+'\r\n\r\n').encode())
+        body.extend(content); body.extend(b'\r\n')
+    body.extend(('--'+boundary+'--\r\n').encode())
     req=urllib.request.Request(base+path,data=bytes(body),method='POST',headers={'Content-Type':'multipart/form-data; boundary='+boundary})
     try: return opener.open(req,timeout=5)
     except urllib.error.HTTPError as e: return e
@@ -244,6 +247,23 @@ wav=VoiceProvider.silence
 r=multipart_request('/LorkhanServer/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':''},'voice_sample',batch_voice+'.wav','audio/wav',wav); body=r.read().decode()
 assert r.status==200 and 'Voice sample saved.' in body and batch_voice in body
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); assert 'Local voice sample deleted.' in r.read().decode()
+# Multi-file selections are atomic, including mixed WAV/ZIP, invalid files and truncated multipart counts.
+multi_a='HTTPMultiA'+uuid.uuid4().hex; multi_b='HTTPMultiB'+uuid.uuid4().hex
+upload_fields={'_csrf':csrf,'action':'upload','voice_name':'','upload_count':'2'}
+for extra,expected_error in [(('bad.wav','audio/wav',b'not a wav'),'invalid_voice_sample'),((multi_a+'.wav','audio/wav',wav),'voice_sample_exists')]:
+    r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_a+'.wav','audio/wav',wav,[('voice_sample[]',*extra)])
+    text=r.read().decode(); assert expected_error in text and 'data-copy-voice="'+multi_a+'"' not in text
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_a+'.wav','audio/wav',wav)
+assert 'invalid_voice_upload_selection' in r.read().decode()
+multi_archive=io.BytesIO()
+with zipfile.ZipFile(multi_archive,'w',zipfile.ZIP_DEFLATED) as bundle: bundle.writestr(multi_b+'.wav',wav)
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_a+'.wav','audio/wav',wav,[('voice_sample[]','multi.zip','application/zip',multi_archive.getvalue())])
+text=r.read().decode(); assert '2 voice samples imported.' in text and multi_a in text and multi_b in text
+multi_c='HTTPMultiC'+uuid.uuid4().hex
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',upload_fields,'voice_sample[]',multi_c+'.wav','audio/wav',wav,[('voice_sample[]',multi_a+'.wav','audio/wav',wav)])
+text=r.read().decode(); assert 'voice_sample_exists' in text and 'data-copy-voice="'+multi_c+'"' not in text and 'data-copy-voice="'+multi_a+'"' in text
+for name in [multi_a,multi_b]:
+    r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':name}); assert 'Local voice sample deleted.' in r.read().decode()
 archive=io.BytesIO()
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as bundle: bundle.writestr(batch_voice+'.wav',wav)
 r=multipart_request('/LorkhanServer/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':''},'voice_sample','voices.zip','application/zip',archive.getvalue()); body=r.read().decode()
@@ -262,6 +282,24 @@ assert r.status==200 and 'Voice sample synced to '+sync_tts_name+'.' in body,(r.
 assert len(VoiceProvider.uploads)==1 and b'name="wavFile"' in VoiceProvider.uploads[0][1] and b'name="force"' in VoiceProvider.uploads[0][1] and b'\r\n\r\ntrue\r\n' in VoiceProvider.uploads[0][1],VoiceProvider.uploads
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'discover','configuration_id':sync_tts_id,'language':'en'}); body=r.read().decode()
 assert r.status==200 and '1 provider voices discovered.' in body and 'MockProviderVoice' in body,(r.status,r.geturl(),body)
+# Planning does not upload; named steps do not depend on a provider refreshing its speaker list immediately.
+batch_fields={'_csrf':csrf,'action':'batch_sync','_batch_ajax':'1','_batch_phase':'plan','consent':'1','configuration_id':sync_tts_id,'language':'en'}
+before_uploads=len(VoiceProvider.uploads)
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,consent='0')); assert r.status==422
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_csrf='invalid')); assert r.status==401
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',batch_fields); planned=json.load(r)
+assert batch_voice in planned['voices'] and len(VoiceProvider.uploads)==before_uploads
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name=batch_voice)); result=json.load(r)
+assert result['voice']==batch_voice and result['uploaded']==1 and result['failed']==0 and result['skipped']==0 and len(VoiceProvider.uploads)==before_uploads+1
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='MockProviderVoice')); result=json.load(r)
+assert result['skipped']==1 and len(VoiceProvider.uploads)==before_uploads+1
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='Missing'+uuid.uuid4().hex)); result=json.load(r)
+assert result['failed']==1 and result['uploaded']==0 and len(VoiceProvider.uploads)==before_uploads+1
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name='../Escape')); assert r.status==422
+VoiceProvider.upload_status=429
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(batch_fields,_batch_phase='voice',voice_name=batch_voice)); result=json.load(r)
+assert result['failed']==1 and result['rate_limited'] is True
+VoiceProvider.upload_status=200
 profiles_with_provider_voice=request('/LorkhanServer/ui/core/npc_master.php').read().decode()
 assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in profiles_with_provider_voice,profiles_with_provider_voice
 pron,text=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=pronunciations'))
@@ -278,10 +316,11 @@ option_ids=re.findall(r'id="(tts-option-[^"]+)"',connector_test_page)
 assert len(option_ids)==len(set(option_ids)),option_ids
 tts_installation=create_sync_tts['fields']['installation_id']
 def preview(payload,token=csrf): return json_request('/LorkhanServer/manage/api/v1/tts-previews','POST',payload,token)
+before_preview_uploads=len(VoiceProvider.uploads)
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
 assert r.status==200 and r.headers.get('Content-Type')=='audio/wav' and clip.startswith(b'RIFF'),(r.status,r.headers.get('Content-Type'),clip[:160])
 assert VoiceProvider.speech_requests==[{'text':'Vvardenfell','speaker_wav':batch_voice,'language':'en'}],VoiceProvider.speech_requests
-assert len(VoiceProvider.uploads)==2 and b'name="wavFile"' in VoiceProvider.uploads[1][1],VoiceProvider.uploads
+assert len(VoiceProvider.uploads)==before_preview_uploads+1 and b'name="wavFile"' in VoiceProvider.uploads[-1][1],VoiceProvider.uploads
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':'NotInstalled','text':'Vvardenfell'}); body=r.read().decode()
 assert r.status==422 and json.loads(body)=={'error':'invalid_tts_preview_voice'},(r.status,body)
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'V'*241}); body=r.read().decode()

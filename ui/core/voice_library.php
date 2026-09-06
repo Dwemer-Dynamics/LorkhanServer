@@ -49,6 +49,7 @@ function lorkhan_voice_filename(string $name):string
 /** Require a PCM-compatible RIFF/WAVE upload before it enters the persistent voice library. */
 function lorkhan_voice_validate_wav(string $path):void
 {
+    if(!is_file($path))throw new InvalidArgumentException('invalid_voice_sample');
     $size=filesize($path);$header=file_get_contents($path,false,null,0,12);
     if(!is_int($size)||$size<44||$size>16_777_216||$header===false||substr($header,0,4)!=='RIFF'||substr($header,8,4)!=='WAVE')
         throw new InvalidArgumentException('invalid_voice_sample');
@@ -183,6 +184,7 @@ function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,s
         CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT_MS=>3000,CURLOPT_TIMEOUT_MS=>30_000,
         CURLOPT_HTTPHEADER=>['Accept: application/json']]);
     try{$response=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
+        if($status===429)throw new RuntimeException('voice_provider_http_429');
         if(!is_string($response)||strlen($response)>1_048_576)throw new RuntimeException('voice_sync_failed');
         if($driver==='omnivoice'){
             try{$decoded=json_decode($response,true,16,JSON_THROW_ON_ERROR);}catch(JsonException){throw new RuntimeException('voice_sync_failed');}
@@ -190,6 +192,46 @@ function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,s
             if($status<200||$status>=300||!in_array($providerStatus,['runtime_ready','ready','ok'],true))throw new RuntimeException('voice_sync_failed');
         }elseif(!(($status>=200&&$status<300)||($status===400&&stripos($response,'already exists')!==false)))throw new RuntimeException('voice_sync_failed');
     }finally{curl_close($handle);}
+}
+
+/** Validate the whole multi-file selection before publishing any samples; never overwrite existing voices. */
+function lorkhan_voice_import_uploads(array $upload,string $voice,string $voiceRoot):int
+{
+    if(!is_array($upload['name']??null))$upload=array_map(static fn($value):array=>[$value],$upload);
+    $names=$upload['name']??[];$total=count($names);
+    if($total<1||$total>64||($total>1&&trim($voice)!==''))throw new InvalidArgumentException('invalid_voice_upload_selection');
+    $stage=$voiceRoot.DIRECTORY_SEPARATOR.'.voice-selection-'.bin2hex(random_bytes(8));
+    if(!mkdir($stage,0750))throw new RuntimeException('voice_upload_failed');
+    $created=[];
+    try{
+        foreach($names as$index=>$name){
+            $temp=$upload['tmp_name'][$index]??null;
+            if(!is_string($name)||!is_string($temp)||($upload['error'][$index]??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file($temp))throw new InvalidArgumentException('voice_upload_failed');
+            $extension=strtolower(pathinfo($name,PATHINFO_EXTENSION));
+            if($extension==='zip')lorkhan_voice_import_zip($temp,$stage);
+            elseif($extension==='wav'){
+                $filename=lorkhan_voice_filename(trim($voice)!==''?$voice:pathinfo($name,PATHINFO_FILENAME));
+                lorkhan_voice_validate_wav($temp);$path=$stage.DIRECTORY_SEPARATOR.$filename;
+                if(is_file($path))throw new InvalidArgumentException('voice_sample_exists');
+                if(!move_uploaded_file($temp,$path))throw new RuntimeException('voice_upload_failed');
+            }else throw new InvalidArgumentException('invalid_voice_sample');
+            $files=glob($stage.DIRECTORY_SEPARATOR.'*.wav')?:[];$bytes=0;$seen=[];
+            foreach($files as$file){
+                $key=mb_strtolower(basename($file),'UTF-8');
+                if(isset($seen[$key])||file_exists($voiceRoot.DIRECTORY_SEPARATOR.basename($file)))throw new InvalidArgumentException('voice_sample_exists');
+                $seen[$key]=true;$bytes+=(int)filesize($file);
+            }
+            if(count($files)>64||$bytes>134_217_728)throw new InvalidArgumentException('invalid_voice_upload_selection');
+        }
+        foreach($files as$file){
+            $destination=$voiceRoot.DIRECTORY_SEPARATOR.basename($file);
+            // Same-filesystem exclusive links close the check/create race without replacing a voice.
+            if(!chmod($file,0640)||!@link($file,$destination))throw new RuntimeException('voice_upload_failed');
+            $created[]=$destination;
+        }
+        return count($created);
+    }catch(Throwable $error){foreach($created as$file)@unlink($file);throw$error;}
+    finally{foreach(scandir($stage)?:[]as$file)if($file!=='.'&&$file!=='..')@unlink($stage.DIRECTORY_SEPARATOR.$file);@rmdir($stage);}
 }
 
 if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
@@ -226,12 +268,12 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $products->replaceConnectorVoiceCatalog($configurationId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
             $notice=count($discoveredVoices).' provider voices discovered.';
         }elseif($action==='upload'){
-            $upload=$_FILES['voice_sample']??null;if(!is_array($upload)||($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($upload['tmp_name']??'')))throw new InvalidArgumentException('voice_upload_failed');
-            $extension=strtolower(pathinfo((string)($upload['name']??''),PATHINFO_EXTENSION));
-            if($extension==='zip'){$count=lorkhan_voice_import_zip((string)$upload['tmp_name'],$voiceRoot);$notice=$count.' voice samples imported.';}
-            else{$filename=lorkhan_voice_filename(trim($voice)!==''?$voice:pathinfo((string)$upload['name'],PATHINFO_FILENAME));$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;lorkhan_voice_validate_wav((string)$upload['tmp_name']);
-                if(is_file($path))throw new InvalidArgumentException('voice_sample_exists');
-                if(!move_uploaded_file((string)$upload['tmp_name'],$path))throw new RuntimeException('voice_upload_failed');@chmod($path,0640);$notice='Voice sample saved.';}
+            $upload=$_FILES['voice_sample']??null;if(!is_array($upload))throw new InvalidArgumentException('voice_upload_failed');
+            $expected=(string)($_POST['upload_count']??'');$received=is_array($upload['name']??null)?count($upload['name']):1;
+            if($expected!==''&&(!ctype_digit($expected)||(int)$expected!==$received))throw new InvalidArgumentException('invalid_voice_upload_selection');
+            $count=lorkhan_voice_import_uploads($upload,$voice,$voiceRoot);
+            $singleWav=!is_array($upload['name'])&&strtolower(pathinfo($upload['name'],PATHINFO_EXTENSION))==='wav';
+            $notice=$singleWav?'Voice sample saved.':$count.' voice samples imported.';
         }elseif($action==='sync'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
@@ -248,24 +290,36 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
             if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
+            $ajax=($_POST['_batch_ajax']??'')==='1';$phase=(string)($_POST['_batch_phase']??'');
+            if($ajax&&!in_array($phase,['plan','voice'],true))throw new InvalidArgumentException('invalid_voice_action');
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
             $catalog=lorkhan_voice_discover($preset,$language,$cloudLibrary);
             $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             $known=[];foreach($catalog as$row){$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
-            $count=0;$failed=0;$pending=0;
-            // Bounded batches resume from the cached provider catalog; a failed sample cannot erase successes.
+            $pending=[];
             foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){
-                $name=pathinfo($path,PATHINFO_FILENAME);if(isset($known[strtolower($name)]))continue;$pending++;if($count+$failed>=1)continue;
+                $name=pathinfo($path,PATHINFO_FILENAME);if(!isset($known[strtolower($name)]))$pending[]=$name;
+            }
+            if($ajax&&$phase==='plan'){
+                if(count($pending)>512)throw new InvalidArgumentException('invalid_voice_upload_selection');
+                header('Content-Type: application/json');echo json_encode(['voices'=>$pending],JSON_THROW_ON_ERROR);exit;
+            }
+            // The browser freezes one plan and submits each named voice once, even if discovery lags.
+            $requested=$ajax&&$phase==='voice'?pathinfo(lorkhan_voice_filename($voice),PATHINFO_FILENAME):($pending[0]??'');
+            $count=0;$failed=0;$skipped=0;$rateLimited=false;
+            if($requested!==''&&isset($known[strtolower($requested)]))$skipped=1;
+            elseif($requested!==''){
+                $name=$requested;$path=$voiceRoot.DIRECTORY_SEPARATOR.lorkhan_voice_filename($name);
                 try{lorkhan_voice_validate_wav($path);
                     if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
                         $catalog[]=$cloudLibrary->clone($preset['content']['driver'],$path,$name,$language);
                         $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
                     }else lorkhan_voice_sync_connector($preset,$path,$name,$language);
                     $count++;
-                }catch(Throwable){$failed++;}
+                }catch(Throwable $exception){$failed++;$rateLimited=$exception->getMessage()==='voice_provider_http_429';}
             }
             $notice=$count.' voices uploaded; '.$failed.' failed. Run again for remaining voices.';
-            if(($_POST['_batch_ajax']??'')==='1'){header('Content-Type: application/json');echo json_encode(['uploaded'=>$count,'failed'=>$failed,'remaining'=>max(0,$pending-$count)],JSON_THROW_ON_ERROR);exit;}
+            if($ajax){header('Content-Type: application/json');echo json_encode(['voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count)],JSON_THROW_ON_ERROR);exit;}
         }elseif($action==='delete'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
@@ -273,6 +327,11 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             if(!is_file($path)||!unlink($path))throw new RuntimeException('voice_delete_failed');$notice='Local voice sample deleted.';
         }else throw new InvalidArgumentException('invalid_voice_action');
     }catch(Throwable $exception){
+        if($postedAction==='batch_sync'&&($_POST['_batch_ajax']??'')==='1'){
+            $unauthorized=$exception->getMessage()==='unauthorized';
+            http_response_code($unauthorized?401:422);header('Content-Type: application/json');
+            echo json_encode(['error'=>$unauthorized?'Your management session expired. Reload the page.':'Could not check the provider voice library. Refresh the page and verify the connector before retrying.'],JSON_THROW_ON_ERROR);exit;
+        }
         if($pronunciationAction){
             $pronunciationError=match($exception->getMessage()){
                 'invalid_pronunciation'=>'Enter a valid original term and spoken version.',
@@ -281,7 +340,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 
