@@ -14,6 +14,21 @@
     const audio = document.getElementById('pron-preview-audio');
     const statusLine = document.getElementById('pron-preview-status');
     const buttons = Array.from(document.querySelectorAll('[data-pron-play]'));
+    document.querySelectorAll('[data-pron-edit]').forEach(editButton => {
+        const row=editButton.closest('form'),editor=row.querySelector('[data-pron-editor]');
+        const field=editor.querySelector('input'),display=row.querySelector('[data-pron-display]');
+        const action=row.querySelector('[data-pron-action]'),apply=row.querySelector('[data-pron-apply]');
+        editButton.addEventListener('click',()=>{
+            const editing=editButton.getAttribute('aria-expanded')==='true';
+            if(editing)field.value=field.defaultValue;
+            editor.hidden=editing;display.hidden=!editing;
+            action.value=editing?'pronunciation_toggle':'pronunciation_builtin_save';
+            apply.textContent=editing?'Apply':'Save';
+            editButton.textContent=editing?'Edit':'Cancel';
+            editButton.setAttribute('aria-expanded',String(!editing));
+            if(!editing){field.focus();field.select();}
+        });
+    });
     if (buttons.length === 0) return;
 
     /* Each connector speaks only its own voices, so the list is rebuilt rather than shared. */

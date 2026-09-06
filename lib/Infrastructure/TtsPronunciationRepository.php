@@ -56,10 +56,22 @@ final class TtsPronunciationRepository
         $this->invalidate();
     }
 
-    public function deleteCustom(int $id):void
+    /** A shipped entry keeps its term and access scope; users can tune only its spoken text and enabled state. */
+    public function saveBuiltin(int $id,string $spoken,bool $enabled):void
+    {
+        $spoken=trim($spoken);
+        if($id<1||$spoken===''||!mb_check_encoding($spoken,'UTF-8')||mb_strlen($spoken,'UTF-8')>240)
+            throw new InvalidArgumentException('invalid_pronunciation');
+        $statement=$this->db->prepare('UPDATE core_tts_pronunciation SET spoken_text=:spoken,enabled=:enabled,updated_at=CURRENT_TIMESTAMP WHERE id=:id AND is_builtin=true');
+        $statement->execute(['id'=>$id,'spoken'=>$spoken,'enabled'=>$enabled?'true':'false']);
+        if($statement->rowCount()!==1)throw new InvalidArgumentException('pronunciation_not_editable');
+        $this->invalidate();
+    }
+
+    public function deleteEntry(int $id):void
     {
         if($id<1)throw new InvalidArgumentException('invalid_pronunciation');
-        $statement=$this->db->prepare('DELETE FROM core_tts_pronunciation WHERE id=:id AND is_builtin=false');$statement->execute(['id'=>$id]);
+        $statement=$this->db->prepare('DELETE FROM core_tts_pronunciation WHERE id=:id');$statement->execute(['id'=>$id]);
         if($statement->rowCount()!==1)throw new InvalidArgumentException('pronunciation_not_editable');
         $this->invalidate();
     }

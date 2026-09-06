@@ -86,7 +86,15 @@ $assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark
 $pronunciations->setEnabled($customPronunciation,false);
 $assert($pronunciations->apply('TestTerm',['pronunciation_scope'=>['race'=>'Dark Elf','oghma_tags'=>['sixth-house']]])==='TestTerm',
     'disabled pronunciation remained active');
-$pronunciations->deleteCustom($customPronunciation);
+$pronunciations->deleteEntry($customPronunciation);
+$builtinTestId=(int)$db->query("INSERT INTO core_tts_pronunciation(source_text,spoken_text,npc_names,is_builtin) VALUES ('BuiltinTestTerm','Before','Jiub',true) RETURNING id")->fetchColumn();
+$pronunciations->saveBuiltin($builtinTestId,'After',true);
+$assert($pronunciations->apply('BuiltinTestTerm',['pronunciation_scope'=>['npc_name'=>'Jiub']])==='After'
+    &&$pronunciations->apply('BuiltinTestTerm')==='BuiltinTestTerm','edited built-in pronunciation lost its scope');
+$pronunciations->setEnabled($builtinTestId,false);
+$assert($pronunciations->apply('BuiltinTestTerm',['pronunciation_scope'=>['npc_name'=>'Jiub']])==='BuiltinTestTerm','disabled edited built-in remained active');
+$pronunciations->deleteEntry($builtinTestId);
+$assert($db->query('SELECT count(*) FROM core_tts_pronunciation WHERE id='.$builtinTestId)->fetchColumn()===0,'built-in pronunciation was not deleted');
 $defaultInstallationId='00000000-0000-4000-8000-000000000099';
 $defaultVoicePath=sys_get_temp_dir().'/lorkhan-default-voices-'.bin2hex(random_bytes(8));
 mkdir($defaultVoicePath,0700,true);file_put_contents($defaultVoicePath.'/mw_dark_elf_male.wav','test');

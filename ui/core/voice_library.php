@@ -252,6 +252,11 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 (string)($_POST['spoken_text']??''),(string)($_POST['npc_names']??''),(string)($_POST['races']??''),
                 (string)($_POST['oghma_tags']??''),($_POST['enabled']??'')==='1');
             $pronunciationNotice=$idValue===''?'Custom pronunciation added.':'Custom pronunciation saved.';
+        }elseif($action==='pronunciation_builtin_save'){
+            $idValue=(string)($_POST['id']??'');$enabled=(string)($_POST['enabled']??'');
+            if(!ctype_digit($idValue)||!in_array($enabled,['0','1'],true))throw new InvalidArgumentException('invalid_pronunciation');
+            $pronunciations->saveBuiltin((int)$idValue,(string)($_POST['spoken_text']??''),$enabled==='1');
+            $pronunciationNotice='Built-in pronunciation saved.';
         }elseif($action==='pronunciation_toggle'){
             $idValue=(string)($_POST['id']??'');$enabled=(string)($_POST['enabled']??'');
             if(!ctype_digit($idValue)||!in_array($enabled,['0','1'],true))throw new InvalidArgumentException('invalid_pronunciation');
@@ -259,7 +264,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $pronunciationNotice=$enabled==='1'?'Pronunciation enabled.':'Pronunciation disabled.';
         }elseif($action==='pronunciation_delete'){
             $idValue=(string)($_POST['id']??'');if(!ctype_digit($idValue))throw new InvalidArgumentException('invalid_pronunciation');
-            $pronunciations->deleteCustom((int)$idValue);$pronunciationNotice='Custom pronunciation deleted.';
+            $pronunciations->deleteEntry((int)$idValue);$pronunciationNotice='Pronunciation deleted.';
         }elseif($action==='discover'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
@@ -335,7 +340,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
         if($pronunciationAction){
             $pronunciationError=match($exception->getMessage()){
                 'invalid_pronunciation'=>'Enter a valid original term and spoken version.',
-                'pronunciation_not_editable'=>'That built-in pronunciation cannot be edited or deleted.',
+                'pronunciation_not_editable'=>'That pronunciation no longer exists or cannot be changed with this action.',
                 'pronunciation_not_found'=>'That pronunciation no longer exists.',
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',

@@ -229,6 +229,7 @@ fallback_form=next(f for f in fallback_page.forms if f['fields'].get('action')==
 fallback_fields=fallback_form['fields']
 assert 'fallback-connector' not in fallback_html and 'configuration_id' not in fallback_fields
 assert sum(k.startswith('fallbacks[') for k in fallback_fields)==20 and fallback_fields['fallbacks[dark_elf][male]']=='mw_dark_elf_male'
+assert fallback_html.count('list="tts-fallback-voiceids"')==20 and '<datalist id="tts-fallback-voiceids">' in fallback_html and '<strong>Resolution order:</strong>' in fallback_html
 saved_fallback_fields=dict(fallback_fields)
 changed_fallback_fields=dict(fallback_fields,_csrf=csrf)
 changed_fallback_fields['fallbacks[dark_elf][male]']='global_dunmer_test'
@@ -304,6 +305,28 @@ profiles_with_provider_voice=request('/LorkhanServer/ui/core/npc_master.php').re
 assert 'MockProviderVoice' in profiles_with_provider_voice and sync_tts_name in profiles_with_provider_voice,profiles_with_provider_voice
 pron,text=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=pronunciations'))
 assert pron.current==1 and 'id="pron-preview"' in text and 'data-pron-endpoint="/LorkhanServer/manage/api/v1/tts-previews"' in text
+builtin_form=next(f for f in pron.forms if f['fields'].get('action')=='pronunciation_toggle')
+builtin_fields=builtin_form['fields']; builtin_id=builtin_fields['id']; original_spoken=builtin_fields['spoken_text']
+assert 'data-pron-edit' in text and 'data-pron-editor hidden' in text and 'can be disabled or deleted' in text
+builtin_save=dict(builtin_fields,_csrf=csrf,action='pronunciation_builtin_save',spoken_text='EditedBuiltinHTTP',enabled='1',source_text='DoNotChangeTheOriginal',npc_names='DoNotChangeScope')
+r=request(builtin_form['action'],'POST',builtin_save); edited,text=parse(r)
+assert 'Built-in pronunciation saved.' in text and 'DoNotChangeTheOriginal' not in text and 'DoNotChangeScope' not in text
+assert next(f for f in edited.forms if f['fields'].get('id')==builtin_id and f['fields'].get('action')=='pronunciation_toggle')['fields']['spoken_text']=='EditedBuiltinHTTP'
+r=request(builtin_form['action'],'POST',dict(builtin_save,spoken_text='')); assert 'Enter a valid original term and spoken version.' in r.read().decode()
+r=request(builtin_form['action'],'POST',dict(builtin_save,_csrf='invalid')); assert 'Your management session expired.' in r.read().decode()
+r=request(builtin_form['action'],'POST',dict(builtin_save,spoken_text=original_spoken)); assert 'Built-in pronunciation saved.' in r.read().decode()
+r=request(builtin_form['action'],'POST',dict(builtin_save,action='pronunciation_save')); assert 'cannot be changed with this action' in r.read().decode()
+custom_term='HTTPPron'+uuid.uuid4().hex
+r=request(builtin_form['action'],'POST',{'_csrf':csrf,'action':'pronunciation_save','source_text':custom_term,'spoken_text':'CustomSpoken','npc_names':'Jiub','races':'Dark Elf','oghma_tags':'http-tag','enabled':'1'}); custom_page,custom_text=parse(r)
+assert 'Custom pronunciation added.' in custom_text
+custom_form=next(f for f in custom_page.forms if f['fields'].get('source_text')==custom_term)
+filtered=request('/LorkhanServer/ui/core/voice_library.php?tab=pronunciations&oghma_tag=http-tag').read().decode()
+assert '1 custom entry tagged &quot;http-tag&quot;' in filtered and custom_term in filtered and 'Clear filter' in filtered
+r=request(custom_form['action'],'POST',dict(custom_form['fields'],_csrf=csrf,spoken_text='UpdatedSpoken')); assert 'Custom pronunciation saved.' in r.read().decode()
+for entry_id in [custom_form['fields']['id'],builtin_id]:
+    r=request(builtin_form['action'],'POST',{'_csrf':csrf,'action':'pronunciation_delete','id':entry_id}); deleted,deleted_text=parse(r)
+    assert 'Pronunciation deleted.' in deleted_text and not any(f['fields'].get('id')==entry_id for f in deleted.forms)
+# Subsequent preview assertions use the page from before these isolated dictionary mutations.
 assert 'Written vs Spoken Preview' not in text and 'Preview is unavailable' not in text and 'id="pron-preview-audio"' in text
 assert text.count('data-pron-play="1"')>=4 and 'data-pron-input="pron-add-source"' in text and 'data-pron-input="pron-add-spoken"' in text
 assert '>Play Original</span>' in text and '>Play Spoken version</span>' in text and '<option value="'+batch_voice+'"' in text

@@ -119,6 +119,9 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .fallback-race-card h2 { margin: 0 0 4px; color: #f2f2f2; font-size: 16px; }
 .tts-studio-page .fallback-race-key { margin-bottom: 12px; color: #8b98a8; font-size: 11px; }
 .tts-studio-page .fallback-gender-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.tts-studio-page .fallback-gender-grid label{display:block;color:#cfd8e3;font-size:12px;line-height:18px;font-weight:700;margin-bottom:5px;text-transform:uppercase}
+body.tts-studio-page-shell .tts-studio-page .fallback-gender-grid input{font-size:15px;line-height:22.5px;padding:9px 10px;background:#191919;border:1px solid #4a4a4a;border-radius:5px}
+body.tts-studio-page-shell .tts-studio-page .fallback-voice-form button{background:#383838!important;border:1px solid #505050!important;border-radius:6px;box-shadow:none!important;color:#ddd!important;padding:7px 12px!important;min-height:36px;font-size:13.12px}
 .tts-studio-page .page-status, .tts-studio-page .page-error { padding: 10px 12px; border-radius: 8px; }
 .tts-studio-page .page-status { border: 1px solid rgba(76, 175, 80, .35); background: rgba(76, 175, 80, .12); color: #7ee08a; }
 .tts-studio-page .page-error { border: 1px solid rgba(244, 67, 54, .35); background: rgba(244, 67, 54, .12); color: #ff9b92; }
@@ -142,8 +145,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 
 /* Pronunciation dictionary: compact CHIM-style rows kept on the LORKHAN gold/blue palette. */
 .tts-studio-page .pron-section :focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
-.tts-studio-page .pron-intro-list { margin: 10px 0 0; padding-left: 20px; color: #aeb8c4; font-size: .92em; }
-.tts-studio-page .pron-intro-list li { margin-bottom: 4px; }
+.tts-studio-page .pron-intro-list { margin: 10px 0 0; padding-left: 20px; color: #aeb8c4; font-size: 15px; }
+.tts-studio-page .pron-intro-list li { margin-bottom: 6px; }
 .tts-studio-page .pron-intro-list strong { color: #cfd8e3; }
 .tts-studio-page .pron-count { display: block; margin: 4px 0 0; color: #8b98a8 !important; font-size: 12px; }
 .tts-studio-page .pron-label,
@@ -152,7 +155,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .pron-field { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; font-family: inherit; font-size: 14px; }
 .tts-studio-page .pron-field:focus { border-color: rgba(188, 157, 90, .8); }
 
-.tts-studio-page .pron-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 12px 0 0; }
+.tts-studio-page .pron-toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin: 16px 0 12px; }
 .tts-studio-page .pron-toolbar-field { min-width: 220px; }
 .tts-studio-page .pron-clear-filter { padding-bottom: 9px; color: #93c5fd; font-size: 13px; }
 
@@ -167,14 +170,14 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .pron-preview-status { flex: 1 1 100%; min-height: 16px; margin: 0; color: #8b98a8 !important; font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
 .tts-studio-page .pron-preview.is-unavailable .pron-preview-status { color: #f0ad4e !important; }
 
-.tts-studio-page .pron-cols { display: grid; align-items: center; gap: 10px; padding: 10px 12px; grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(200px, 1.6fr) minmax(112px, .8fr) 150px; }
+.tts-studio-page .pron-cols { display: grid; align-items: center; gap: 10px; padding: 10px 12px; grid-template-columns: minmax(120px, 1fr) minmax(130px, 1.15fr) minmax(190px, 1.5fr) 96px 210px; }
 .tts-studio-page .pron-add-row { align-items: start; margin: 0; padding: 0; }
 /* The stacked scope column makes the add row tall, so keep the toggle and submit level with row one. */
 .tts-studio-page .pron-add-row .pron-toggle,
-.tts-studio-page .pron-add-row .pron-actions { margin-top: 22px; }
-.tts-studio-page .pron-grid { margin-top: 4px; border: 1px solid #414141; border-radius: 7px; overflow: hidden; }
+.tts-studio-page .pron-add-row .pron-actions { margin-top: 21px; }
+.tts-studio-page .pron-grid { margin-top: 0; border: 1px solid #414141; border-radius: 7px; overflow: hidden; }
 .tts-studio-page .pron-head { background: #202020; border-bottom: 1px solid #414141; color: #8b98a8; font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.tts-studio-page .pron-row { align-items: start; background: #242424; border-bottom: 1px solid #363636; }
+.tts-studio-page .pron-row { align-items: center; background: #242424; border-bottom: 1px solid #363636; }
 .tts-studio-page .pron-row:last-child { border-bottom: 0; }
 .tts-studio-page .pron-row:hover,
 .tts-studio-page .pron-row:focus-within { background: #2b2b2b; }
@@ -198,7 +201,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .pron-toggle-label { margin: 0; }
 .tts-studio-page .pron-toggle input[type="checkbox"] { flex: 0 0 auto; width: 16px; height: 16px; margin: 0; accent-color: rgb(188, 157, 90); cursor: pointer; }
 .tts-studio-page .pron-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.tts-studio-page .pron-btn { min-height: 32px; margin: 0 !important; padding: 6px 12px !important; font-size: 13px; }
+.tts-studio-page .pron-btn { min-height: 36px; margin: 2px !important; padding: 7px 12px !important; font-size: 13.12px; }
+body.tts-studio-page-shell .tts-studio-page .pron-field{font-size:13.44px;line-height:20.16px;padding:7px 10px}
 /* The play control shares its cell with the text it speaks, so it stays square and small
    enough not to change any row height. */
 .tts-studio-page .pron-input-row,
@@ -206,6 +210,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .pron-input-row .pron-field,
 .tts-studio-page .pron-static-row .pron-static { flex: 1 1 auto; min-width: 0; }
 .tts-studio-page .pron-play { display: grid; flex: 0 0 auto; place-items: center; width: 30px; height: 30px !important; min-height: 30px !important; margin: 0 !important; padding: 0 !important; border: 1px solid #4d4d4d !important; border-radius: 5px !important; background: #2f2f2f !important; }
+.tts-studio-page .pron-built-in-editor[hidden],.tts-studio-page .pron-built-in-display[hidden]{display:none!important}
+.tts-studio-page .fallback-resolution{color:#aeb8c4}
 .tts-studio-page .pron-play:hover:not(:disabled) { border-color: rgba(188, 157, 90, .6) !important; background: #383838 !important; }
 .tts-studio-page .pron-play-icon { display: block; width: 0; height: 0; margin-left: 2px; border-style: solid; border-width: 5px 0 5px 8px; border-color: transparent transparent transparent rgb(188, 157, 90); }
 /* A busy control stays disabled, so opt out of the theme's dimmed disabled look and swap the
@@ -218,6 +224,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 @media (prefers-reduced-motion: reduce) { .tts-studio-page .pron-play.is-busy .pron-play-icon { animation: none; opacity: .75; } }
 /* Column headers already name each grid cell, so per-row labels stay screen-reader only until the grid stacks. */
 .tts-studio-page .pron-grid .pron-label,
+.tts-studio-page .pron-grid .pron-toggle-label,
 .tts-studio-page .pron-grid .pron-static-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; border: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 /* Three inputs share the scope cell, so their labels must stay on screen. */
 .tts-studio-page .pron-grid .pron-access .pron-label { position: static; width: auto; height: auto; margin: 0 0 4px; overflow: visible; clip: auto; white-space: normal; }
@@ -227,6 +234,7 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
     .tts-studio-page .pron-cols { align-items: stretch; grid-template-columns: 1fr; }
     .tts-studio-page .pron-row { padding: 14px 12px; }
     .tts-studio-page .pron-grid .pron-label,
+    .tts-studio-page .pron-grid .pron-toggle-label,
     .tts-studio-page .pron-grid .pron-static-label { position: static; width: auto; height: auto; margin: 0 0 5px; overflow: visible; clip: auto; white-space: normal; }
     .tts-studio-page .pron-add-row .pron-toggle,
     .tts-studio-page .pron-add-row .pron-actions { margin-top: 0; }

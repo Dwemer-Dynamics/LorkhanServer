@@ -79,7 +79,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
-| `core/voice_library.php` | `xtts_clone.php` | Six provider tabs use one primary voice cache, compact name/status/ID/actions, multi-file upload and batch count/progress/result panels; Inworld populated desktop/narrow and batch completion/cancel/failure/rate-limit/session states compared. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation and full fallback/pronunciation state comparisons remain |
+| `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
@@ -1850,3 +1850,50 @@ Remaining Core Profile requirements identified from the pinned source and live e
   reference's `#383838` background, `#505050` border, 13.12px font, 7px/12px padding
   and 36px height. No live form/provider action was submitted and no game was
   launched or controlled.
+
+### Global voice tabs — fallback fields and built-in pronunciation editing
+
+- Fallback Voices now has the reference's separate description/resolution-order
+  paragraphs, uppercase gender labels, field typography and voice-ID suggestions.
+  Suggestions include installed samples, connector-specific preview voices and
+  currently saved fallback values; they do not restrict custom voice IDs. The
+  ten TES3 race cards and global ownership remain unchanged.
+- Pronunciations now exposes built-in Apply, Edit/Cancel, Save and confirmed
+  Delete controls. Editing focuses/selects the spoken-text field; Cancel restores
+  its saved spelling. Preview reads the current draft rather than the old static
+  label. Original terms and access scopes remain server-protected. Custom entries
+  retain their existing editable terms/scopes and per-row Save/Delete forms.
+- The repository updates only spoken text/enabled state for built-ins. Deletion
+  accepts built-in or custom IDs through the existing authenticated CSRF-protected
+  POST. Dictionary cache invalidation makes edits/deletions visible to speech
+  rewriting. There is no migration or deployment-time dictionary rewrite.
+- Corrected actual geometry differences: five pronunciation columns now match
+  the pinned reference at `161.094 / 185.25 / 241.641 / 96 / 210px` in the desktop
+  fixture. The built-in editor row is 107px high; inputs are 36.15625px high with
+  7px/10px padding. Scope and action cells are vertically centered. Repeated grid
+  labels stay accessible but hidden until the rows stack on narrow screens.
+- Fallback cards measure 474 x 147.1875px in both rendered fixtures. Inputs are
+  42.5px high with 15px text; gender labels use 12px uppercase text. The source
+  keeps gold accents and red destructive controls. At a 390px viewport both tabs
+  have 375/375 document client/scroll widths and 326/326 row/card widths.
+- Compared populated source/reference views, built-in edit and Cancel, edited
+  preview request/error feedback, custom tag-filter empty state, fully empty
+  dictionary, unavailable-preview state and blank fallback editing. Missing TTS
+  configuration disables preview but does not block dictionary editing. Browser
+  fixtures used synthetic responses; no paid provider or live voice was tested.
+- Existing HTTP checks now cover built-in save, invalid/unauthorized saves,
+  immutable term/scope, custom add/edit/filter, and deleting either entry type.
+  Integration checks confirm edited built-ins retain scope and disabled/deleted
+  entries stop applying. The full suite passed: 370 server checks, 98 protocol
+  files, HTTP, integration, migrations and durable jobs. PHP/JavaScript syntax and
+  diff checks passed; schema remains 167 relations with no schema changes.
+- Remaining Voice Studio work is still tracked in the matrix. This does not
+  finish the provider-specific workflows or the all-pages parity goal.
+- Deployment proof: 725 runtime files match source, no extra/old paths, protected
+  files return 403 on all checked ports, and unauthenticated sessions return 401.
+  Rollback: `/var/backups/lorkhanserver-code.aEVxiE`. The live page has 46 closed
+  built-in editors, confirmed delete forms, and suggestions on all 20 fallback
+  fields. Visits were read-only. Before/after row fingerprints are unchanged:
+  pronunciation rows `46:f94825bbd5072a897c4d999cf84514fc`, fallback rows
+  `20:3e9bfc3426d9f96e2edc63235bd28134`. Configuration, credential and voice-file
+  hashes are also unchanged. No game was launched or controlled.

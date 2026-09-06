@@ -133,3 +133,9 @@ The multi-file picker and batch progress/count/result-log presentation in the
 Voice Studio template, stylesheet and `ui/js/voice-batch.js` also follow the same
 pinned `ui/xtts_clone.php` under its MIT license. Lorkhan retains authenticated
 POST requests, bounded upload validation and protected sample storage.
+
+The built-in pronunciation Edit/Cancel/Save/Delete interaction, pronunciation
+column geometry and fallback field presentation in the Voice Studio template,
+`ui/js/pronunciation-preview.js` and `ui/css/herika-tts-studio.css` follow the
+same pinned HerikaServer `ui/tmpl/tts_pronunciations.php`,
+`ui/css/tts-pronunciations.css` and `ui/xtts_clone.php` under its MIT license.

@@ -142,7 +142,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                 <li><strong>Blank field:</strong> that filter is not applied. With NPC names, races, and Oghma tags all blank the entry is global and every NPC uses it.</li>
                 <li><strong>Commas inside one field</strong> are alternatives &mdash; <em>Nord, Dark Elf</em> matches either race.</li>
                 <li><strong>Two or more fields filled:</strong> the speaker must match all of them, so <em>Dark Elf</em> plus <em>companion</em> only fires for a Dark Elf carrying that Oghma tag.</li>
-                <li><strong>Built-in entries</strong> cannot be deleted, but any of them can be disabled.</li>
+                <li><strong>Built-in entries</strong> keep their original term, but their spoken version can be edited and they can be disabled or deleted.</li>
             </ul>
 
             <div class="pron-preview<?php echo $pronPreviewReady ? '' : ' is-unavailable'; ?>" id="pron-preview"
@@ -304,7 +304,6 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 
         <section class="content-section pron-section">
             <h1>Built-in Pronunciations</h1>
-            <p>Shipped defaults for common TES3 lore names. They cannot be deleted, but any of them can be disabled and replaced with a custom entry above. The <strong>Applies To</strong> column shows who each default actually reaches.</p>
 
             <div class="pron-grid">
                 <div class="pron-cols pron-head" aria-hidden="true"><span>Original</span><span>Spoken Version</span><span>Applies To</span><span>Enabled</span><span>Actions</span></div>
@@ -321,11 +320,17 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                     ?>
                         <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" class="pron-cols pron-row<?php echo $pronEnabled ? '' : ' is-disabled'; ?>">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                            <input type="hidden" name="action" value="pronunciation_toggle">
+                            <input type="hidden" name="action" value="pronunciation_toggle" data-pron-action>
                             <input type="hidden" name="studio_tab" value="pronunciations">
                             <input type="hidden" name="id" value="<?php echo lorkhan_ui_h((string) ($pronEntry['id'] ?? '')); ?>">
                             <div><span class="pron-static-label">Original</span><div class="pron-static-row"><p class="pron-static"><?php echo lorkhan_ui_h($pronWritten); ?></p><?php echo $pronPlay('Original', null, $pronWritten, $pronWritten); ?></div></div>
-                            <div><span class="pron-static-label">Spoken version</span><div class="pron-static-row"><p class="pron-static"><?php echo lorkhan_ui_h($pronSpoken); ?></p><?php echo $pronPlay('Spoken version', null, $pronSpoken, $pronWritten); ?></div></div>
+                            <div><label class="pron-label" for="pron-spoken-<?php echo lorkhan_ui_h($pronKey); ?>">Spoken version</label>
+                                <div class="pron-static-row pron-built-in-display" data-pron-display><p class="pron-static"><?php echo lorkhan_ui_h($pronSpoken); ?></p><?php echo $pronPlay('Spoken version', null, $pronSpoken, $pronWritten); ?></div>
+                                <div class="pron-input-row pron-built-in-editor" id="pron-editor-<?php echo lorkhan_ui_h($pronKey); ?>" data-pron-editor hidden>
+                                    <input class="pron-field" type="text" id="pron-spoken-<?php echo lorkhan_ui_h($pronKey); ?>" name="spoken_text" value="<?php echo lorkhan_ui_h($pronSpoken); ?>" maxlength="240" required autocomplete="off" spellcheck="false">
+                                    <?php echo $pronPlay('Spoken version', 'pron-spoken-'.$pronKey, null, $pronWritten); ?>
+                                </div>
+                            </div>
                             <div><span class="pron-static-label">Applies To</span>
                                 <?php if ($pronGroups === []): ?><p class="pron-scope"><span class="pron-badge">Global</span></p><?php else: ?>
                                     <?php foreach ($pronGroups as $pronGroup): ?><p class="pron-scope"><span class="pron-scope-label"><?php echo lorkhan_ui_h($pronGroup['label']); ?>:</span> <?php echo lorkhan_ui_h(implode(' or ', $pronGroup['values'])); ?></p><?php endforeach; ?>
@@ -337,7 +342,14 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                                 <input type="checkbox" id="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>" name="enabled" value="1" aria-label="<?php echo lorkhan_ui_h('Enable built-in ' . $pronWritten); ?>"<?php echo $pronEnabled ? ' checked' : ''; ?>>
                                 <label class="pron-toggle-label" for="pron-enabled-<?php echo lorkhan_ui_h($pronKey); ?>">Enabled</label>
                             </div>
-                            <div class="pron-actions"><button class="btn-secondary pron-btn" type="submit" aria-label="<?php echo lorkhan_ui_h('Apply enabled state for built-in ' . $pronWritten); ?>">Apply</button></div>
+                            <div class="pron-actions">
+                                <button class="btn-primary pron-btn" type="submit" data-pron-apply>Apply</button>
+                                <button class="btn-secondary pron-btn" type="button" data-pron-edit aria-expanded="false" aria-controls="pron-editor-<?php echo lorkhan_ui_h($pronKey); ?>">Edit</button>
+                                <button class="btn-danger pron-btn" type="submit" form="pron-delete-form-<?php echo lorkhan_ui_h($pronKey); ?>" aria-label="<?php echo lorkhan_ui_h('Delete built-in '.$pronWritten); ?>">Delete</button>
+                            </div>
+                        </form>
+                        <form method="post" action="<?php echo lorkhan_ui_h($pronUrl); ?>" id="pron-delete-form-<?php echo lorkhan_ui_h($pronKey); ?>" class="pron-hidden-form" data-confirm="<?php echo lorkhan_ui_h('Delete the built-in pronunciation for "'.$pronWritten.'"?'); ?>">
+                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="pronunciation_delete"><input type="hidden" name="studio_tab" value="pronunciations"><input type="hidden" name="id" value="<?php echo (int)$pronEntry['id']; ?>">
                         </form>
                     <?php endforeach; ?>
                 <?php endif; ?>
@@ -349,19 +361,26 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         // One matrix covers every TTS connector, so it is read from the global fallback store
         // instead of the selected connector revision.
         $fallbackVoices = (new \LorkhanServer\Infrastructure\TtsFallbackRepository($database))->matrix();
+        $fallbackVoiceIds=array_column($samples,'name');
+        foreach(($pronunciationPreview['connectors']??[])as$connector)$fallbackVoiceIds=array_merge($fallbackVoiceIds,$connector['voices']??[]);
+        foreach($fallbackVoices as$genders)$fallbackVoiceIds=array_merge($fallbackVoiceIds,array_values($genders));
+        $fallbackVoiceIds=array_values(array_unique(array_filter($fallbackVoiceIds,static fn($voice):bool=>is_string($voice)&&trim($voice)!=='')));
+        natcasesort($fallbackVoiceIds);
     ?>
         <section class="content-section">
             <h1>Fallback Voices</h1>
-            <p>These race and gender fallbacks apply to every TTS connector. An explicit NPC voice is used first, then the global race and gender fallback below, then the connector's own fallback voice. Leave a field blank to disable the fallback for that race and gender.</p>
-            <form method="post"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="fallback_save"><input type="hidden" name="studio_tab" value="fallbacks">
+            <p>Choose the voice used when an NPC has no explicit voice assigned. These settings apply to every TTS connector.</p>
+            <p class="fallback-resolution"><strong>Resolution order:</strong> explicit NPC voice, matching race and gender voice, then the connector's fallback voice. Leave a field blank to skip the race fallback for that combination.</p>
+            <form method="post" class="fallback-voice-form"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="fallback_save"><input type="hidden" name="studio_tab" value="fallbacks">
             <div class="fallback-voice-grid" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts-studio.fallbacks')['description']); ?>">
                 <?php foreach ($morrowindRaces as $raceId => $raceLabel): ?>
                     <section class="fallback-race-card">
                         <h2><?php echo lorkhan_ui_h($raceLabel); ?></h2><div class="fallback-race-key"><?php echo lorkhan_ui_h($raceId); ?></div>
-                        <div class="fallback-gender-grid"><?php foreach (['male'=>'Male','female'=>'Female'] as $gender=>$genderLabel): ?><div><label for="fallback-<?php echo $raceId.'-'.$gender; ?>"><?php echo $genderLabel; ?></label><input id="fallback-<?php echo $raceId.'-'.$gender; ?>" name="fallbacks[<?php echo $raceId; ?>][<?php echo $gender; ?>]" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($fallbackVoices[$raceId][$gender] ?? ''); ?>" placeholder="Use connector fallback" aria-label="<?php echo lorkhan_ui_h($raceLabel.' '.strtolower($genderLabel).' fallback voice'); ?>"></div><?php endforeach; ?></div>
+                        <div class="fallback-gender-grid"><?php foreach (['male'=>'Male','female'=>'Female'] as $gender=>$genderLabel): ?><div><label for="fallback-<?php echo $raceId.'-'.$gender; ?>"><?php echo $genderLabel; ?></label><input id="fallback-<?php echo $raceId.'-'.$gender; ?>" name="fallbacks[<?php echo $raceId; ?>][<?php echo $gender; ?>]" type="text" maxlength="512" value="<?php echo lorkhan_ui_h($fallbackVoices[$raceId][$gender] ?? ''); ?>" list="tts-fallback-voiceids" autocomplete="off" spellcheck="false" placeholder="Use connector fallback" aria-label="<?php echo lorkhan_ui_h($raceLabel.' '.strtolower($genderLabel).' fallback voice'); ?>"></div><?php endforeach; ?></div>
                     </section>
                 <?php endforeach; ?>
             </div>
+            <datalist id="tts-fallback-voiceids"><?php foreach($fallbackVoiceIds as$voiceId): ?><option value="<?php echo lorkhan_ui_h($voiceId); ?>"></option><?php endforeach; ?></datalist>
             <div class="button-group"><button type="submit" class="btn-primary">Save Fallback Voices</button></div></form>
         </section>
     <?php else:
