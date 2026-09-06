@@ -11,6 +11,12 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Server Logs panel geometry, search/severity controls, toolbar icons and expanded
+reader presentation derive from Dwemer-Dashboard `7c19d3ddb7fa7aaf9cbd71abc41a1cdb4b7f9758`,
+`distro_debugger.php` and `css/distro-debugger.css`, the actual embedded counterpart
+used by HerikaServer's Control Panel. Only Lorkhan log sources are read; the
+dashboard's cross-product navigation, MCP chat and credential helpers are not imported.
+
 Audio Cache's heading, panel, file-list columns and inline player sizing derive from
 HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/cache_browser.php`.
 Lorkhan keeps authenticated opaque media access and expiry, omits the excluded

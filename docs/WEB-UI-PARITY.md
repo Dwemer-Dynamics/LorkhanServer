@@ -100,7 +100,7 @@ do not use an exception to excuse a generic substitute layout.
 | `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
 | `oghma_audit.php` | Same path | Pending structural and populated-state comparison |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
-| `server_logs.php` | Herika Server Logs | Pending structural and populated-state comparison |
+| `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | Herika Cost Breakdown | Pending structural and populated-state comparison |
 | `provider_attempts.php` | Shared operational style | Pending structural and populated-state comparison |
 | `jobs.php` | Shared operational style | Pending structural and populated-state comparison |
@@ -1338,3 +1338,57 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - Previous-feature rollback: /var/backups/lorkhanserver-code.1YqZs0. Final standalone
   spacing refresh rollback: /var/backups/lorkhanserver-code.6a52hM.
 - The all-pages goal remains active; this completes only the Audio Cache row.
+
+### Server Logs — actual embedded debugger counterpart
+
+- Traced Herika Control Panel's Server Logs iframe to
+  `/Dwemer-Dashboard/distro_debugger.php?embed=1&tab=chim`, not the older
+  `ui/api/chim_debugger_logs.php`. Reference dashboard source was clean at
+  7c19d3ddb7fa7aaf9cbd71abc41a1cdb4b7f9758; neither reference repository was edited.
+- Replaced three generic preformatted cards with the reference log-panel structure:
+  source label, per-source search, All/None and counted severity checkboxes,
+  newest-first timestamp/level/message rows, expanded searchable readers, refresh,
+  visible-entry text download and persistent UTC/local browser-time selection.
+  Error/warning are selected by default; unclassified/raw lines remain visible.
+- The source/reference populated and empty 1280x720 fixtures share panel y78,
+  x20/438.65625/857.328125, widths approximately402.66 and height620. Compared
+  actual debugger panel/render functions and scoped CSS. Gold branding replaces
+  dashboard accents; semantic severity colors are retained. Shared form rules
+  no longer enlarge the debugger's 30px expand and 24px filter controls.
+- Checked combined search/severity, All (three fixture entries), None (zero),
+  expanded search including initially hidden INFO, Escape/focus restoration,
+  UTC/local timestamps and 390x844 layouts (375px document and scroll width).
+  Downloaded fixture `lorkhan_logs_2026-09-06T16-08-08-966Z.txt` was inspected:
+  the worker section was empty after None; only visible Apache errors and raw
+  request lines were present. No live log export was performed.
+- Real logs retain the existing 256KiB/200-line bound. Partial first lines and
+  invalid UTF-8 are handled, JSON worker output is readable, multiline errors
+  stay together, and timestamps without timezone evidence are not falsely
+  converted to UTC. Credential redaction now handles complete Bearer/Basic,
+  JSON/quoted and URL credentials before rendering or downloading; the previous
+  simple token pattern could leave a Bearer token after hiding only its prefix.
+- Actual Lorkhan sources are worker, Apache/PHP errors and Apache requests.
+  CHIM DLL/service log files do not exist here; recorded LLM prompts/results
+  remain in Request Logs rather than inventing raw provider-log files. This page
+  does not import Distro's cross-product tabs, MCP assistant, credential/config
+  helpers or raw private filesystem paths. Native dialogs retain keyboard focus
+  handling. No server log deletion, arbitrary path selector or provider call exists.
+- Existing checks pass: 352 server checks, 98 protocol files, management HTTP,
+  integration, migrations/durable jobs and syntax/diff checks. Four focused cases
+  extend the existing server suite for redaction, row parsing and bounded tails.
+  Schema inventory remains 167 relations with unchanged source-reference hash
+  a6174bb20347333db434d2118c90590df99ae66a6a4297335762fcfd6a37d59c.
+- Local standalone and Control Panel views render actual logs (200 worker,
+  109 Apache/PHP entries and 200 request lines at the final dense-log check).
+  Live review caught and fixed flex-shrinking headers and narrow unclassified
+  worker rows: headers now remain 30px and unclassified summaries use full width.
+  HTTP refresh was exercised; only ordinary access-log appends are expected.
+- Previous-feature rollback: /var/backups/lorkhanserver-code.hE711f; dense-log
+  fix rollback: /var/backups/lorkhanserver-code.HIG0gO. Final preference refresh
+  rollback: /var/backups/lorkhanserver-code.nGLWtF. All 712 deployed files match
+  source; no extra/old paths, health/auth/private-file checks pass, and configuration,
+  credentials and voices were preserved. Live timezone selection survived Refresh
+  Logs and was restored to UTC after testing. All-pages work remains active.
+- Final redaction review also covers the existing `provider_key` credential spelling;
+  all 352 server checks were rerun and deployed hashes rechecked after that addition.
+  Final redaction-refresh rollback: /var/backups/lorkhanserver-code.BMeyBk.

@@ -1,0 +1,86 @@
+/* Log viewer geometry derived from Dwemer-Dashboard 7c19d3d, embedded by Herika Server Logs. */
+body.hub-page main.server-logs-page { width:100%; max-width:none; margin:0; padding:20px; font-family:"Futura CondensedLight",Arial,sans-serif; line-height:normal; }
+.server-logs-page .title-container { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.server-logs-page .title-container h1 { margin: 0; color: #fff; font-size: 1.85rem; }
+.server-logs-page .title-helper { margin: 6px 0 14px; color: #b5bfce; font-size: 0.92rem; }
+.server-logs-page .title-helper code { color: #bc9d5a; background: rgba(0, 0, 0, 0.32); padding: 1px 5px; border-radius: 4px; }
+.server-logs-page .toolbar-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.server-logs-page .refresh-button { display: inline-flex; align-items: center; gap: 6px; background: linear-gradient(135deg, rgba(42, 42, 42, 0.96), rgba(34, 34, 34, 0.98)); color: #fff; border: 1px solid #3a3a3a; border-radius: 6px; padding: 8px 14px; font-size: 0.88rem; cursor: pointer; text-decoration: none; transition: all 0.2s ease-in-out; }
+.server-logs-page .refresh-button svg { width: 16px; height: 16px; flex: 0 0 auto; }
+.server-logs-page .refresh-button:hover { border-color: rgba(188, 157, 90, 0.5); color: #bc9d5a; }
+.server-logs-page .file-log-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.server-logs-page .log-section { background: #262626; border-radius: 8px; border: 1px solid #3d3d3d; padding: 12px 12px 5px; min-width: 0; height: 620px; display: flex; flex-direction: column; }
+.server-logs-page .log-section > :not(.log-container) { flex-shrink:0; }
+.server-logs-page .log-entry.unclassified-entry { display:block; }
+.server-logs-page .section-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; gap: 10px; }
+.server-logs-page .section-header h2 { margin: 0; font-size: 1.04rem; color: #fff; flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.server-logs-page .expand-button { width: 30px; height: 30px; border: 1px solid #555; background: #2f2f2f; color: #d4d4d4; border-radius: 4px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease-in-out; }
+.server-logs-page .expand-button:hover { background: #3a3a3a; border-color: #7a7a7a; }
+.server-logs-page .expand-button svg { width: 16px; height: 16px; }
+.server-logs-page .source-meta { margin-bottom: 8px; color: #9fa8b3; font-size: 0.78rem; line-height: 1.3; }
+.server-logs-page .source-meta code { color: #d8dce3; background: rgba(0, 0, 0, 0.25); border-radius: 4px; padding: 1px 4px; }
+.server-logs-page .search-container { margin: 10px 0; display: flex; gap: 10px; align-items: center; flex: 0 0 auto; flex-grow: 0; max-width: none; width: 100%; }
+.server-logs-page .search-input,
+.server-logs-page .modal-search-input { width: 100%; background: #1a1a1a; border: 1px solid #555; border-radius: 4px; color: #ddd; padding: 8px 10px; font-size: 0.84rem; }
+.server-logs-page .search-input:focus,
+.server-logs-page .modal-search-input:focus { outline: none; border-color: #bc9d5a; box-shadow: 0 0 0 2px rgba(188, 157, 90, 0.2); }
+.server-logs-page .log-filter-container { margin-bottom: 10px; border: 1px solid #3d3d3d; border-radius: 6px; background: #1f1f1f; padding: 8px; }
+.server-logs-page .filter-header { color: #c5c9cf; font-size: 0.8rem; margin-bottom: 7px; }
+.server-logs-page .filter-controls { display: flex; gap: 7px; margin-bottom: 8px; }
+.server-logs-page .filter-btn { border: 1px solid #4c4c4c; border-radius: 4px; background: #2a2a2a; color: #ddd; padding: 4px 8px; font-size: 0.75rem; cursor: pointer; }
+.server-logs-page .filter-btn:hover { border-color: #6a6a6a; color: #fff; }
+.server-logs-page .filter-checkbox { display: inline-flex; align-items: center; margin-right: 8px; margin-bottom: 6px; font-size: 0.76rem; color: #d4d4d4; }
+.server-logs-page .filter-checkbox input { margin-right: 5px; }
+.server-logs-page .filter-badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 999px; padding: 2px 8px; border: 1px solid transparent; font-size: 0.72rem; }
+.server-logs-page .level-count { font-weight: 700; }
+.server-logs-page .error-badge { background: rgba(196, 55, 55, 0.18); border-color: rgba(196, 55, 55, 0.42); color: #ff8f8f; }
+.server-logs-page .warn-badge { background: rgba(201, 130, 35, 0.18); border-color: rgba(201, 130, 35, 0.42); color: #ffcc7c; }
+.server-logs-page .info-badge { background: rgba(42, 127, 199, 0.18); border-color: rgba(42, 127, 199, 0.42); color: #95d4ff; }
+.server-logs-page .debug-badge { background: rgba(78, 174, 94, 0.18); border-color: rgba(78, 174, 94, 0.42); color: #9de5a8; }
+.server-logs-page .trace-badge { background: rgba(122, 120, 220, 0.18); border-color: rgba(122, 120, 220, 0.42); color: #bcbaff; }
+.server-logs-page .log-container { flex: 1 1 auto; min-height: 0; height: auto; max-height: none; overflow-y: auto; background: #171717; border: 1px solid #444; border-radius: 6px; }
+.server-logs-page .log-entry { border-bottom: 1px solid #2d2d2d; padding: 8px 10px; display: grid; gap: 7px; grid-template-columns: 155px 62px minmax(0, 1fr); align-items: start; word-wrap: break-word; }
+.server-logs-page .log-entry:last-child { border-bottom: none; }
+.server-logs-page .log-entry.raw-entry { display: block; border-left: none; border-bottom: none; padding: 0; }
+.server-logs-page .timestamp { color: #9ca3af; font-size: 0.76rem; font-family: 'Courier New', monospace; }
+.server-logs-page .log-level { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.03em; text-transform: uppercase; color: #d0d0d0; }
+.server-logs-page .log-message { white-space: pre-wrap; word-break: break-word; line-height: 1.32; font-size: 0.8rem; color: #d8d8d8; }
+.server-logs-page .log-message.raw-line { font-family: Consolas, 'Courier New', monospace; font-size: 0.78rem; line-height: 1.36; color: #e0e0e0; padding: 1px 10px; }
+.server-logs-page .log-entry.error-level { border-left: 3px solid #c43a3a; }
+.server-logs-page .log-entry.warn-level { border-left: 3px solid #b47c23; }
+.server-logs-page .log-entry.info-level { border-left: 3px solid #2a7fc7; }
+.server-logs-page .log-entry.debug-level { border-left: 3px solid #4eae5e; }
+.server-logs-page .log-entry.trace-level { border-left: 3px solid #7a78dc; }
+.server-logs-page .info-message,
+.server-logs-page .error-message { padding: 14px; font-size: 0.82rem; line-height: 1.4; }
+.server-logs-page .info-message { color: #b8c2d0; }
+.server-logs-page .error-message { color: #ff9e9e; }
+.server-logs-page .log-modal-content { width: min(1600px, 96vw); margin: 0 auto; background: #252525; border: 1px solid #444; border-radius: 8px; padding: 14px; }
+.server-logs-page .log-modal-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 10px; }
+.server-logs-page .log-modal-title { margin: 0; color: #fff; font-size: 1.15rem; }
+.server-logs-page .close-modal { border: 1px solid #555; background: #2f2f2f; color: #ddd; border-radius: 4px; width: 34px; height: 34px; line-height: 1; font-size: 22px; cursor: pointer; }
+.server-logs-page .close-modal:hover { background: #3a3a3a; }
+.server-logs-page .modal-search-container { margin: 0 0 10px; padding: 10px; background-color: #1e1e1e; border-radius: 4px; border: 1px solid #555; }
+.server-logs-page .log-modal-body .log-container { height: 72vh; max-height: 72vh; }
+.server-logs-page [hidden] { display:none!important; }
+.server-logs-page :is(h1,h2) { line-height:normal; font-weight:400; }
+.server-logs-page .log-feedback { color:#b5bfce; font-size:.82rem; margin:8px 0; }
+.server-logs-page .log-feedback:empty { display:none; }
+.server-logs-page .log-modal-content { max-width:96vw; max-height:calc(100vh - 56px); margin:28px auto; color:#d4d4d4; }
+.server-logs-page .log-modal-content::backdrop { background:rgba(0,0,0,.7); }
+.server-logs-page .log-modal-body .log-container { overflow:auto; }
+.server-logs-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+@media(max-width:1250px) { .server-logs-page .file-log-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+@media(max-width:900px) { body.hub-page main.server-logs-page { padding:14px; } .server-logs-page .file-log-grid,.server-logs-page .log-entry { grid-template-columns:1fr; } .server-logs-page .toolbar-actions { width:100%; } .server-logs-page .refresh-button { width:100%; justify-content:center; } .server-logs-page .log-section { height:auto; min-height:420px; } }
+
+/* Isolate the embedded debugger controls from global configuration-form rules. */
+.server-logs-page .title-container h1 { font-family:Arial,sans-serif; }
+.server-logs-page .section-header { background:transparent!important; border:0!important; min-height:0!important; box-shadow:none!important; }
+.server-logs-page :is(.refresh-button,.expand-button,.filter-btn,.close-modal) { font-family:Arial,sans-serif!important; font-weight:400!important; line-height:normal!important; min-height:0!important; min-width:0!important; margin:0!important; box-shadow:none!important; }
+.server-logs-page .refresh-button { font-size:.88rem!important; font-weight:500!important; padding:8px 14px!important; margin:5px!important; height:34px; background:linear-gradient(135deg,rgba(42,42,42,.96),rgba(34,34,34,.98))!important; }
+.server-logs-page .expand-button { font-size:13.333px!important; padding:1px 6px!important; background:#2f2f2f!important; }
+.server-logs-page .filter-btn { font-size:.75rem!important; padding:4px 8px!important; background:#2a2a2a!important; border-radius:4px!important; }
+.server-logs-page .close-modal { font-size:22px!important; padding:1px 6px!important; background:#2f2f2f!important; }
+.server-logs-page :is(.search-input,.modal-search-input) { font-family:Arial,sans-serif!important; font-weight:400!important; line-height:normal!important; min-height:0!important; padding:8px!important; background:#4a4a4a!important; }
+.server-logs-page .filter-checkbox { font-weight:400!important; }
+.server-logs-page .filter-checkbox input { width:13px!important; height:13px!important; min-width:0!important; min-height:0!important; margin:3px 5px 3px 4px!important; color-scheme:light; }

@@ -194,7 +194,10 @@ r=json_request(queue_remove,'POST',dict(queue_values,installation_id=str(uuid.uu
 oghma,text=parse(request('/LorkhanServer/ui/oghma_audit.php')); assert oghma.current==1 and '<h1>Oghma Audit</h1>' in text and 'retrieval traces' in text
 assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
 usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.current==1 and '<h1>Cost Breakdown</h1>' in text and 'Missing pricing is shown as unknown' in text
-server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php')); assert server_logs.current==1 and '<h1 class="lorkhan-page-head-title">Server Logs</h1>' in text and 'bounded, redacted output' in text
+server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
+assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
+assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
+assert '/var/log/' not in text and 'chim.log' not in text
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1 class="lorkhan-page-head-title">Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 fallback_page,fallback_html=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks'))
