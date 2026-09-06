@@ -85,7 +85,7 @@ do not use an exception to excuse a generic substitute layout.
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Factory/custom states, keyboard and narrow layouts checked. Dynamic Oghma, destructive catalog controls and remaining search/category contract differences still require work. |
 | `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Installation tools retained below the main table. Existing stricter Name/Description validation remains a contract difference. |
-| `oghma_knowledge.php` | NPC knowledge viewer | Pending structural and populated-state comparison |
+| `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
@@ -2177,3 +2177,40 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Descending retained the search/category and reversed topic order. Opened the
   factory `seyda_neen` editor with its 671-character description and cancelled;
   no horizontal dialog overflow and no live catalog changes.
+
+## NPC Oghma knowledge reader checkpoint
+
+- Replaced the divergent metric strip and large article cards with the actual
+  Herika `npc_upload.php` knowledge reader's three-column table: Topic,
+  Knowledge Level and Description. Added matching category/class/tag chips,
+  title typography, search/category controls, gray Apply/Clear actions and empty
+  state. Reference and source tables measured 713px wide; titles used the same
+  26px / 39px Futura/Arial typography at the desktop comparison size.
+- This entry remains an existing standalone NPC page, not a new modal. Its
+  browser navigation and scoped 50-row pagination remain. Access-level filtering,
+  effective tags and Advanced/Basic/Denied counts moved into a compact Knowledge
+  access disclosure rather than being removed. Aliases remain topic metadata.
+- Description search now uses the same effective-text path as the biography
+  reader. Access is resolved before searching; a Basic article cannot match
+  its hidden advanced text and denied articles cannot appear in results.
+- Extended the existing management HTTP suite with the already-seeded knowledge
+  fixture: all 53 permitted basic descriptions were searchable; page two held
+  the remaining three rows. Protected advanced text returned no results, neither
+  protected text marker appeared in the populated HTML, and the wrong
+  installation returned 404. No new test file or fixture database was added.
+- Compared populated and empty states with the real reference renderer using
+  identical synthetic articles. At 390px, the 600px table stayed inside a 307px
+  region without document overflow, ArrowRight moved it 40px, and access controls
+  remained readable. Clear preserves NPC/installation/embed while resetting all
+  filters and pagination. The reader needs no new JavaScript.
+- PHP/diff checks, 370 server checks, 98 protocol files, management HTTP,
+  integration, migrations and durable jobs passed. No schema changes. The
+  broader all-pages goal remains active.
+- Deployment verified all 733 runtime files with no hash mismatches, extras or
+  old paths. Protected files returned 403 and unauthenticated session creation
+  returned 401; configuration, credential and voice hashes were preserved.
+  Rollback: `/var/backups/lorkhanserver-code.Jt9rpu`.
+- Live Fargoth reader showed 3,327 accessible articles over 67 pages. Balmora
+  description search returned 30 articles (six Advanced, 24 Basic); selecting
+  Basic returned exactly 24. Clear restored all access levels and Next opened
+  page two with 50 rows. No profile, catalog, provider or game state was changed.

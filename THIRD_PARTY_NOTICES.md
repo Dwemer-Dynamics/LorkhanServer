@@ -183,3 +183,9 @@ The updated `ui/worldknowledge_upload.php`, `ui/css/herika-oghma.css` and
 filters, table badges and regular Add/Edit dialogs from pinned HerikaServer
 `ui/oghma_upload.php` under the same MIT license. OpenMW knowledge scope and
 factory override semantics remain Lorkhan's existing implementation.
+
+`ui/oghma_knowledge.php` and `ui/css/herika-oghma-runtime.css` adapt the
+three-column knowledge reader, metadata chips, filter controls and typography
+from the pinned HerikaServer `ui/npc_upload.php` Oghma modal under its MIT
+license. Lorkhan retains standalone NPC navigation, scoped pagination and
+runtime knowledge-access decisions.

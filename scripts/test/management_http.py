@@ -472,6 +472,12 @@ public_preview=json.loads(request(biography_knowledge_url+'&category=Public').re
 assert public_preview['total']==1 and public_preview['items'][0]['description']=='Visible & readable',public_preview
 assert request(biography_knowledge_url.replace(biography_installation,str(uuid.uuid4()))).status==404
 assert 'data-biography-oghma' in entry_body and 'id="biography-oghma-modal"' in entry_body
+npc_knowledge_url='/LorkhanServer/ui/oghma_knowledge.php?'+urllib.parse.urlencode({'installation_id':biography_installation,'profile_id':entry_profile})
+npc_knowledge_page=request(npc_knowledge_url+'&search=BiographyNeedle&page=2').read().decode()
+assert 'Topic</th><th>Knowledge Level</th><th>Description</th>' in npc_knowledge_page and '53 articles' in npc_knowledge_page and 'Page 2 of 2' in npc_knowledge_page
+assert npc_knowledge_page.count('class="knowledge-description"')==3 and 'AdvancedOnlyHiddenText' not in npc_knowledge_page and 'DeniedAdvancedText' not in npc_knowledge_page
+assert 'No knowledge articles found matching the current filters.' in request(npc_knowledge_url+'&search=AdvancedOnlyHiddenText').read().decode()
+assert request(npc_knowledge_url.replace(biography_installation,str(uuid.uuid4()))).status==404
 descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); assert descriptions.current==1 and 'id="title-text">Description Manager</span>' in text and 'Descriptions Database' in text
 description_form=next(form for form in descriptions.forms if form['action'].endswith('/forms/description-save'))
 description_record='ui_description_'+uuid.uuid4().hex

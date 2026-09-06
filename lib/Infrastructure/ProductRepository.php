@@ -1887,7 +1887,7 @@ SQL);
         $profileStatement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$profileStatement->fetch();if(!$profile)throw new RuntimeException('not_found');
         $effective=$this->effectiveSettingsForProfile($installationId,$profileId);$tags=$this->knowledgeValues((string)($effective['settings']['memory']['oghma_knowledge_tags']??''));
         $profile['actor_identity']=$this->json($profile['actor_identity']);
-        return ['profile'=>$profile+['profile_id'=>$profileId]]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null],$tags,$filters);
+        return ['profile'=>$profile+['profile_id'=>$profileId]]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null],$tags,$filters,true);
     }
 
     /** Preview a biography's own tags against the installation catalog without activating an NPC. */
