@@ -8,13 +8,17 @@ $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $BODY_CLASS = 'hub-page biography-page-shell' . ($embedded ? ' embedded-page' : '');
 require dirname(__DIR__) . '/ui_bootstrap.php';
 
-if (isset($_GET['template'])) {
+if (isset($_GET['template']) || isset($_GET['oghma'])) {
     $template = trim((string)($_GET['profile_id']??''))!==''
         ? $uiRepository->installationBiographyTemplate((string)$_GET['profile_id'],(string)($_GET['installation_id']??''))
-        : $uiRepository->biographyTemplate((string) $_GET['template']);
+        : $uiRepository->biographyTemplate((string) ($_GET['template']??$_GET['oghma']));
     if ($template === null) {
         http_response_code(404);
         $template = ['error' => 'biography_template_not_found'];
+    }
+    if(isset($_GET['oghma']) && !isset($template['error'])){
+        try{$template=$productRepository->oghmaKnowledgeForBiography((string)($_GET['installation_id']??''),(string)($template['oghma_knowledge_tags']??''),$_GET);}
+        catch(Throwable){http_response_code(404);$template=['error'=>'biography_knowledge_unavailable'];}
     }
     header('Content-Type: application/json; charset=utf-8');
     echo json_encode($template, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
@@ -30,7 +34,8 @@ foreach ($installations as $installation) {
     if ($requestedInstallation !== '' && (string) $installation['installation_id'] === $requestedInstallation) $installationId = $requestedInstallation;
 }
 
-$rows = $uiRepository->biographyRows($installationId);
+$catalog = $uiRepository->biographyCatalog($installationId,$_GET);
+$rows = $catalog['rows'];
 
 /** Normalize typed profile tag values for the copied Oghma Tags column. */
 function lorkhan_biography_tags(array $content): array
@@ -119,20 +124,26 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     </section>
 
     <section class="database-section" id="table">
+        <?php $biographyUrl=static function(int $page=1,?string $letter=null)use($catalog,$installationId,$embedded):string{
+            return '?'.http_build_query(['installation_id'=>$installationId,'search'=>$catalog['search'],'letter'=>$letter??$catalog['letter'],'page'=>$page,'embed'=>$embedded?'1':'0']).'#table';
+        }; ?>
         <h1>NPC Bio Templates Database</h1>
         <div class="action-container">
             <button type="button" class="action-button add-new" data-biography-create<?php echo $installationId===''?' disabled':''; ?>>Add New Entry</button>
-            <div class="search-container">
+            <form class="search-container" method="get" action="#table">
+                <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>">
+                <input type="hidden" name="letter" value="<?php echo lorkhan_ui_h($catalog['letter']); ?>">
                 <label class="visually-hidden" for="biography-search">Search NPC names</label>
-                <input type="text" id="biography-search" placeholder="Search NPC names...">
-                <button type="button" class="action-button edit" id="biography-search-button">Search</button>
-            </div>
+                <input type="text" id="biography-search" name="search" maxlength="100" value="<?php echo lorkhan_ui_h($catalog['search']); ?>" placeholder="Search NPC names...">
+                <button type="submit" class="action-button edit" id="biography-search-button">Search</button>
+            </form>
         </div>
         <h3 class="database-note">Note: Edit templates before an NPC is activated in game. After activation, edit their individual profile in NPC Management.</h3>
 
         <div class="filter-buttons" aria-label="Filter biographies by first letter">
-            <button type="button" class="alphabet-button active" data-biography-letter="">All</button>
-            <?php foreach (range('A', 'Z') as $letter): ?><button type="button" class="alphabet-button" data-biography-letter="<?php echo $letter; ?>"><?php echo $letter; ?></button><?php endforeach; ?>
+            <?php foreach (['All',...range('A','Z')] as $letter): $value=$letter==='All'?'':$letter; ?>
+                <a class="alphabet-button<?php echo $catalog['letter']===$value?' active':''; ?>" href="<?php echo lorkhan_ui_h($biographyUrl(1,$value)); ?>"<?php echo $catalog['letter']===$value?' aria-current="true"':''; ?>><?php echo $letter; ?></a>
+            <?php endforeach; ?>
         </div>
 
         <div class="table-container" id="npc-table-container" role="region" aria-label="NPC biography templates" tabindex="0">
@@ -164,16 +175,23 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <td><?php if ($tags !== []): foreach ($tags as $tag): ?><span class="oghma-tag"><?php echo lorkhan_ui_h($tag); ?></span><?php endforeach; else: ?><span class="automatic">None</span><?php endif; ?></td>
                         <td><div class="row-actions">
                             <button type="button" class="action-button edit" data-biography-edit data-template-name="<?php echo lorkhan_ui_h($row['name']); ?>" data-template-profile="<?php echo lorkhan_ui_h($row['profile_id']??''); ?>">Edit</button>
-                            <a class="action-button" href="<?php echo lorkhan_ui_h($webRoot.'/ui/worldknowledge_upload.php?'.http_build_query(['installation_id'=>$installationId,'search'=>$tags[0]??$row['name']])); ?>">Oghma</a>
+                            <button type="button" class="action-button" data-biography-oghma data-template-name="<?php echo lorkhan_ui_h($row['name']); ?>" data-template-profile="<?php echo lorkhan_ui_h($row['profile_id']??''); ?>"<?php echo $installationId===''?' disabled':''; ?>>Oghma</button>
                             <span class="profile-details"><?php echo $source === 'installation' ? 'Installation template' : ($source === 'custom' ? 'Custom template' : 'Factory template'); ?></span>
                         </div></td>
                     </tr>
                 <?php endforeach; ?>
-                <?php if ($rows === []): ?><tr><td colspan="6"><div class="no-data">No NPC biography templates are installed.</div></td></tr><?php endif; ?>
+                <?php if ($rows === []): ?><tr><td colspan="6"><div class="no-data"><?php echo $catalog['search']!==''||$catalog['letter']!==''?'No NPCs found.':'No NPC biography templates are installed.'; ?></div></td></tr><?php endif; ?>
                 </tbody>
             </table>
         </div>
-        <p class="no-data" id="biography-no-results" hidden>No NPCs found.</p>
+        <nav class="biography-pagination" aria-label="Biography pages">
+            <span><?php echo number_format($catalog['total']); ?> templates &middot; Page <?php echo $catalog['page']; ?> of <?php echo $catalog['pages']; ?></span>
+            <div><?php if($catalog['page']>1): ?><a class="alphabet-button" rel="prev" href="<?php echo lorkhan_ui_h($biographyUrl($catalog['page']-1)); ?>">Previous</a><?php endif; ?>
+            <?php foreach(array_values(array_unique([1,...range(max(1,$catalog['page']-2),min($catalog['pages'],$catalog['page']+2)),$catalog['pages']])) as $page): ?>
+                <a class="alphabet-button<?php echo $page===$catalog['page']?' active':''; ?>" href="<?php echo lorkhan_ui_h($biographyUrl($page)); ?>" aria-label="Page <?php echo $page; ?>"<?php echo $page===$catalog['page']?' aria-current="page"':''; ?>><?php echo $page; ?></a>
+            <?php endforeach; ?>
+            <?php if($catalog['page']<$catalog['pages']): ?><a class="alphabet-button" rel="next" href="<?php echo lorkhan_ui_h($biographyUrl($catalog['page']+1)); ?>">Next</a><?php endif; ?></div>
+        </nav>
     </section>
 </main>
 
@@ -208,6 +226,27 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <?php endforeach; ?>
         </div>
         <div class="modal-footer"><button type="button" class="action-button" data-biography-details-close>Close</button></div></div>
+    </div>
+</div>
+
+<div class="biography-modal" id="biography-oghma-modal" aria-hidden="true">
+    <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="biography-oghma-title">
+        <div class="modal-header"><h2 class="modal-title" id="biography-oghma-title">Oghma Knowledge</h2></div>
+        <div class="modal-body">
+            <p id="biography-oghma-loading" class="oghma-message" role="status" hidden>Loading Oghma knowledge...</p>
+            <p id="biography-oghma-error" class="oghma-message" role="alert" hidden></p>
+            <form id="biography-oghma-filters" class="biography-oghma-filters">
+                <div><label for="biography-oghma-search">Search Topics &amp; Descriptions:</label><input type="search" id="biography-oghma-search" maxlength="100" placeholder="Search knowledge articles..."></div>
+                <div><label for="biography-oghma-category">Category:</label><select id="biography-oghma-category"><option value="">All Categories</option></select></div>
+                <div class="oghma-filter-actions"><button type="submit" class="action-button">Apply Filters</button><button type="button" class="action-button" id="biography-oghma-clear">Clear</button></div>
+            </form>
+            <div class="biography-oghma-table" role="region" aria-label="Accessible Oghma articles" tabindex="0"><table>
+                <thead><tr><th>Topic</th><th>Knowledge Level</th><th>Description</th></tr></thead><tbody id="biography-oghma-items"></tbody>
+            </table></div>
+            <p id="biography-oghma-empty" class="oghma-message" hidden>No accessible knowledge found for this NPC.</p>
+            <nav class="biography-pagination" aria-label="Oghma article pages"><span id="biography-oghma-count" role="status"></span><div><button type="button" class="action-button" id="biography-oghma-previous">Previous</button><button type="button" class="action-button" id="biography-oghma-next">Next</button></div></nav>
+            <div class="modal-footer"><button type="button" class="action-button" data-biography-oghma-close>Close</button></div>
+        </div>
     </div>
 </div>
 

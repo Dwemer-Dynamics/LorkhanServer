@@ -80,7 +80,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
-| `core/npc_biographies.php` | `npc_upload.php` | Header, table summary, Add/Edit and stacked Extended Profiles reader aligned; scoped import/edit wiring fixed. Inline Oghma reader, factory reset, full custom export and large-catalog pagination remain. |
+| `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles and inline Oghma reader aligned; scoped import/edit wiring and full-catalog search/paging fixed. Factory reset, full custom export and batch-help presentation remain. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
@@ -2049,3 +2049,53 @@ Remaining Core Profile requirements identified from the pinned source and live e
   fields. Cancelled without saving. One browser Search click timed out on this
   large DOM; Enter applied the same filter successfully. Large-catalog paging
   and server-side filtering therefore remain a concrete usability priority.
+
+## NPC Biographies: full-catalog browsing and inline Oghma
+
+- Replaced browser filtering of the first 5,000 records with database search and
+  alphabet links over all global and installation-owned templates. Results use
+  stable ordering and 50-row pages; out-of-range pages clamp to the final page.
+  Search treats percent/underscore literally, preserves installation and embedded
+  state, and works without JavaScript. No rows are silently excluded by a cap.
+- Added the actual inline Oghma reader instead of linking away to the catalog.
+  Compared its three-column article table, search/category controls, badges,
+  scrolling body and footer against pinned Herika fixtures. Both desktop dialogs
+  measure 800x521px; the filter block matches the reference's 125.5px height.
+  Gold replaces orange; fixed emoji remain legible instead of copying the
+  reference file's broken encoded symbols. Pagination preserves access to every
+  matching article without an unbounded browser payload.
+- Biography previews use the template's own tags and the selected installation's
+  effective catalog. They do not activate NPCs or include profile/playthrough
+  articles. Shared runtime access decisions resolve advanced/basic/denied access.
+  Corrected the existing NPC viewer's field mapping: the access checker expects
+  `topic_desc`, while repository candidates expose `content`. This had silently
+  downgraded advanced articles. The shared viewer now passes the right field.
+- Basic previews return only the permitted basic description; advanced text is
+  absent from the JSON, and description search cannot reveal that hidden text.
+  Both viewer paths retain the same effective override resolution. Article text
+  and metadata are rendered through DOM text nodes, never provider-supplied HTML.
+- Existing HTTP checks now seed 5,005 catalog records and prove the final record
+  is searchable, alphabet-filtered and reachable on page 101. A separate literal
+  percent/underscore name tests escaping. The same suite covers 53 basic articles,
+  one advanced article and one denied article; description/category filtering,
+  second-page results, hidden-text exclusion and wrong-installation lookup pass.
+- Compared populated views against the actual reference; exercised filtering,
+  no results, a simulated 503, Clear/retry, and closing a delayed request. A late
+  response did not reopen or populate the closed reader. At a 390px viewport the
+  dialog is 374px wide without document overflow; its table supports keyboard
+  horizontal scrolling (ArrowRight moved 40px). No game or provider was invoked.
+- PHP/JavaScript syntax, 370 server checks, 98 protocol files, management HTTP,
+  integration, migrations and durable jobs passed. No schema changes. Remaining
+  biography gaps are factory reset, a complete global custom export/import
+  contract and batch-help presentation; the all-pages goal remains incomplete.
+- Live deployment proof: the complete biography catalog has 12,687 templates,
+  shown in 254 pages. Page 254 contained the final 37 rows, including
+  `zeno_faustus`; searching Fargoth returned both existing case-distinct records.
+  The factory Fargoth preview loaded 3,327 accessible articles in 67 pages;
+  Next reached page 2. A Balmora description search returned 30 articles,
+  comprising six Advanced and 24 Basic results. Closed without editing data.
+- Runtime verification: all 733 files matched source, with no extras or old
+  paths; protected files returned 403 and unauthenticated session creation 401.
+  Configuration, credentials and voice files retained their hashes. Rollback:
+  `/var/backups/lorkhanserver-code.dheiIb`. No game interaction or paid provider
+  call was used for verification.

@@ -20,6 +20,22 @@ LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHAN_TEST_PROVIDER_CONTROL="
 psql -h 127.0.0.1 -p "$PG_PORT" -d lorkhan_management_http -v ON_ERROR_STOP=1 -c "INSERT INTO lorkhan_internal.installations(installation_id,token_fingerprint) VALUES ('00000000-0000-4000-8000-000000000001','$TOKEN_HASH')" >/dev/null
 # Historical, unassigned attempts exercise cost date bounds and chart totals past the 100-group detail limit.
 psql -h 127.0.0.1 -p "$PG_PORT" -d lorkhan_management_http -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+-- Catalog filtering must reach beyond the former 5,000-row UI cutoff.
+INSERT INTO public.bio_templates(npc_name,core)
+SELECT 'ZZZ Pagination Fixture '||lpad(n::text,5,'0'),'Pagination summary'
+FROM generate_series(1,5005) n;
+INSERT INTO public.bio_templates(npc_name,core) VALUES ('ZZZ Literal %_ Name','Literal wildcard summary');
+INSERT INTO lorkhan_internal.knowledge_documents
+    (document_id,installation_id,title,topic,content,content_sha256,lexical_terms,provenance,knowledge_class,topic_desc_basic,knowledge_class_basic,category)
+SELECT md5('biography-knowledge-'||n)::uuid,'00000000-0000-4000-8000-000000000001',
+    'Biography Knowledge Fixture '||n,'Biography Knowledge Fixture '||n,'AdvancedOnlyHiddenText',
+    encode(sha256(convert_to('AdvancedOnlyHiddenText','UTF8')),'hex'),'{}','{}','scholar','BiographyNeedle basic text '||n,'Balmora','Lore'
+FROM generate_series(1,53) n;
+INSERT INTO lorkhan_internal.knowledge_documents
+    (document_id,installation_id,title,topic,content,content_sha256,lexical_terms,provenance,knowledge_class,topic_desc_basic,knowledge_class_basic,category)
+VALUES
+    (md5('biography-public')::uuid,'00000000-0000-4000-8000-000000000001','Public Fixture','Public Fixture','<b>Visible</b> &amp; readable',encode(sha256(convert_to('<b>Visible</b> &amp; readable','UTF8')),'hex'),'{}','{}','','Visible basic summary','', 'Public'),
+    (md5('biography-denied')::uuid,'00000000-0000-4000-8000-000000000001','Denied Fixture','Denied Fixture','DeniedAdvancedText',encode(sha256(convert_to('DeniedAdvancedText','UTF8')),'hex'),'{}','{}','secret','DeniedBasicText','secret','Hidden');
 INSERT INTO lorkhan_internal.provider_attempts
  (provider_attempt_id,provider_kind,provider_name,operation,model,attempt_number,state,started_at,finished_at,metadata)
 SELECT gen_random_uuid(),'llm','fixture','dialogue','model-'||n,1,'succeeded','2020-12-31 00:00:00+00','2020-12-31 00:00:01+00','{"usage":{"cost_usd":1}}'::jsonb

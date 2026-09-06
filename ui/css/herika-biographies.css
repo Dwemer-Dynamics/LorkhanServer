@@ -207,3 +207,33 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 @media(max-width:768px){.biography-page{padding-left:5%;padding-right:5%}.biography-modal{padding:8px}.biography-modal .modal-container{width:100%;margin:20px auto}.biography-modal .modal-body{max-height:calc(100dvh - 200px)}.biography-modal .modal-header,.biography-modal .modal-body,.biography-modal .modal-footer{padding-left:12px;padding-right:12px}}
 
 @media(max-width:480px){.biography-page{padding-left:2%;padding-right:2%}.biography-page .page-header h1{font-size:1.5em}.biography-modal .modal-container{padding:16px}.biography-modal .modal-title{font-size:22px}.biography-modal .modal-body{padding:0 8px 0 0}.biography-modal .modal-header,.biography-modal .modal-footer{padding-left:0;padding-right:0}}
+
+.biography-pagination {display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-top:16px;color:#aaa;font-size:13px}
+.biography-pagination>div {display:flex;flex-wrap:wrap;gap:5px}
+.biography-page .search-container {margin:0}
+
+#biography-oghma-modal .modal-container {max-width:800px}
+.biography-oghma-filters {display:flex;gap:15px;align-items:center;flex-wrap:wrap;background:#2a2a2a;padding:15px;border:1px solid #4a4a4a;border-radius:6px;margin-bottom:15px}
+.biography-oghma-filters>div:first-child {flex:1;min-width:200px}
+.biography-oghma-filters>div:nth-child(2) {min-width:150px}
+.biography-modal .biography-oghma-filters label {margin:15px 0 5px;font-size:.9em}
+.biography-modal .biography-oghma-filters input,.biography-modal .biography-oghma-filters select {width:100%;padding:8px 12px;margin:0;border:1px solid #555;background:#1a1a1a;color:#f8f9fa;border-radius:4px;font-size:.9em}
+.oghma-filter-actions {display:flex;gap:10px;align-items:end}
+.biography-modal .biography-oghma-filters input {margin-bottom:15px}
+#biography-oghma-modal .oghma-filter-actions button {padding:7px 12px!important;border:1px solid #505050!important;border-radius:4px;background:#383838!important;color:#fff!important;font:500 13.12px/1.1 "Futura CondensedLight",Arial,sans-serif;min-height:36px}
+.biography-oghma-table {max-height:50vh;overflow:auto}
+.biography-oghma-table table {width:100%;border-collapse:collapse;table-layout:fixed;min-width:600px}
+.biography-oghma-table thead {position:sticky;top:0;background:#3a3a3a;z-index:1}
+#biography-oghma-modal .biography-oghma-table th {padding:12px 8px;text-align:left;color:#bc9d5a;border-bottom:2px solid #bc9d5a!important}
+.biography-oghma-table th:first-child {width:25%}.biography-oghma-table th:nth-child(2) {width:15%}.biography-oghma-table th:last-child {width:60%}
+.biography-oghma-table td {padding:12px 8px;vertical-align:top;overflow-wrap:anywhere;border:1px solid #343434}
+.biography-oghma-table td:last-child {line-height:1.4;white-space:pre-wrap}
+.oghma-topic-meta {margin-top:8px;font-size:.8em;color:#888}
+.oghma-topic-meta span {padding:2px 6px;border-radius:3px;margin-right:3px}
+.oghma-topic-class {background:#bc9d5a26;color:#bc9d5a;font-size:1.5em}
+.oghma-topic-tag {background:#4a9eff26;color:#4a9eff;font-size:.75em}
+.oghma-level {display:inline-block;padding:4px 8px;border-radius:4px;font-size:.85em;font-weight:500}
+.oghma-level.advanced {background:#bc9d5a33;color:#bc9d5a}.oghma-level.basic {background:#4a9eff33;color:#4a9eff}
+.oghma-message {text-align:center;padding:40px;color:#888}
+#biography-oghma-error {color:#f3a6a6}
+@media(max-width:480px){.biography-oghma-filters>div{min-width:0!important;width:100%}.biography-oghma-filters{padding:10px}.biography-modal .oghma-filter-actions button{padding:8px 12px}.oghma-message{padding:20px}}

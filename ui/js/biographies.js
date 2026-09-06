@@ -1,44 +1,12 @@
 'use strict';
 
 function initializeBiographyPage() {
-    const rows = Array.from(document.querySelectorAll('[data-biography-row]'));
-    const search = document.getElementById('biography-search');
-    const noResults = document.getElementById('biography-no-results');
-    let activeLetter = '';
-
-    function applyFilters() {
-        const term = (search.value || '').trim().toLowerCase();
-        let visible = 0;
-        rows.forEach(function (row) {
-            const name = row.dataset.searchName || '';
-            const show = (!activeLetter || name.startsWith(activeLetter.toLowerCase())) && (!term || name.includes(term));
-            row.hidden = !show;
-            if (show) visible += 1;
-        });
-        noResults.hidden = visible !== 0 || rows.length === 0;
-    }
-
-    document.getElementById('biography-search-button').addEventListener('click', applyFilters);
-    search.addEventListener('keydown', function (event) {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            applyFilters();
-        }
-    });
-    document.querySelectorAll('[data-biography-letter]').forEach(function (button) {
-        button.addEventListener('click', function () {
-            activeLetter = button.dataset.biographyLetter || '';
-            document.querySelectorAll('[data-biography-letter]').forEach(function (item) {
-                item.classList.toggle('active', item === button);
-            });
-            applyFilters();
-        });
-    });
-
     const editModal = document.getElementById('biography-edit-modal');
     const detailsModal = document.getElementById('biography-details-modal');
     const createModal = document.getElementById('biography-create-modal');
-    const modals = [editModal, detailsModal, createModal];
+    const oghmaModal = document.getElementById('biography-oghma-modal');
+    const modals = [editModal, detailsModal, createModal, oghmaModal];
+    let oghmaRequest = null;
     let backgroundOverflow = '';
     const loadError = document.getElementById('biography-load-error');
     const templateCache = new Map();
@@ -51,6 +19,7 @@ function initializeBiographyPage() {
     }
 
     function closeModal(modal) {
+        if (modal === oghmaModal && oghmaRequest) oghmaRequest.abort();
         modal.classList.remove('open');
         modal.setAttribute('aria-hidden', 'true');
         if (!modals.some(item => item.classList.contains('open'))) document.body.style.overflow = backgroundOverflow;
@@ -172,6 +141,89 @@ function initializeBiographyPage() {
     document.querySelectorAll('[data-biography-create-close]').forEach(function (button) {
         button.addEventListener('click', function () { closeModal(createModal); });
     });
+    const oghmaSearch = document.getElementById('biography-oghma-search');
+    const oghmaCategory = document.getElementById('biography-oghma-category');
+    const oghmaLoading = document.getElementById('biography-oghma-loading');
+    const oghmaError = document.getElementById('biography-oghma-error');
+    const oghmaItems = document.getElementById('biography-oghma-items');
+    const oghmaEmpty = document.getElementById('biography-oghma-empty');
+    const oghmaCount = document.getElementById('biography-oghma-count');
+    const oghmaPrevious = document.getElementById('biography-oghma-previous');
+    const oghmaNext = document.getElementById('biography-oghma-next');
+    let oghmaTemplate = null;
+    let oghmaPage = 1;
+
+    // Superseded or closed readers must never display a late response from another NPC/filter.
+    async function loadBiographyOghma(page = 1) {
+        if (oghmaRequest) oghmaRequest.abort();
+        const request = new AbortController();
+        oghmaRequest = request;
+        oghmaLoading.hidden = false;
+        oghmaError.hidden = true;
+        oghmaEmpty.hidden = true;
+        oghmaItems.replaceChildren();
+        oghmaCount.textContent = '';
+        oghmaPrevious.disabled = oghmaNext.disabled = true;
+        const url = new URL(window.location.href);
+        url.search = '';
+        url.searchParams.set('oghma', oghmaTemplate.name);
+        if (oghmaTemplate.profileId) url.searchParams.set('profile_id', oghmaTemplate.profileId);
+        url.searchParams.set('installation_id', document.querySelector('#biography-edit-modal [name=installation_id]').value);
+        url.searchParams.set('search', oghmaSearch.value);
+        url.searchParams.set('category', oghmaCategory.value);
+        url.searchParams.set('page', String(page));
+        try {
+            const response = await fetch(url, {credentials:'same-origin', signal:request.signal, headers:{Accept:'application/json'}});
+            if (!response.ok) throw new Error('Oghma knowledge could not be loaded. Try Apply Filters again.');
+            const data = await response.json();
+            if (request.signal.aborted || oghmaRequest !== request || !oghmaModal.classList.contains('open')) return;
+            if (!Array.isArray(data.items) || !Array.isArray(data.categories)) throw new Error('Oghma returned an invalid response. Try Apply Filters again.');
+            const category = oghmaCategory.value;
+            oghmaCategory.replaceChildren(new Option('All Categories',''), ...data.categories.filter(Boolean).map(value => new Option(value,value)));
+            oghmaCategory.value = category;
+            for (const item of data.items) {
+                const row = document.createElement('tr');
+                const topic = row.insertCell();
+                const title = document.createElement('strong'); title.textContent = item.topic; topic.append(title);
+                const metadata = document.createElement('div'); metadata.className = 'oghma-topic-meta';
+                for (const [field, prefix] of [['category','📁 '],['knowledge_class','🔸 '],['knowledge_class_basic','🔹 '],['tags','🏷 ']]) {
+                    for (const value of String(item[field] || '').split(',').map(value => value.trim()).filter(Boolean)) {
+                        const tag = document.createElement('span'); tag.className = field === 'tags' ? 'oghma-topic-tag' : 'oghma-topic-class';
+                        tag.textContent = prefix + value; metadata.append(tag);
+                    }
+                }
+                topic.append(metadata);
+                const level = document.createElement('span'); level.className = 'oghma-level ' + (item.level === 'Advanced' ? 'advanced' : 'basic'); level.textContent = item.level;
+                row.insertCell().append(level); row.insertCell().textContent = item.description;
+                oghmaItems.append(row);
+            }
+            oghmaPage = data.page;
+            oghmaEmpty.hidden = data.items.length !== 0;
+            oghmaEmpty.textContent = data.total === 0 && (oghmaSearch.value || oghmaCategory.value)
+                ? 'No knowledge articles found matching the current filters. Try adjusting your search terms or category filter.'
+                : 'No accessible knowledge found for this NPC.';
+            oghmaCount.textContent = data.total.toLocaleString() + ' articles · Page ' + data.page + ' of ' + data.pages;
+            oghmaPrevious.disabled = data.page <= 1; oghmaNext.disabled = data.page >= data.pages;
+        } catch (error) {
+            if (request.signal.aborted || oghmaRequest !== request) return;
+            oghmaError.textContent = error instanceof Error ? error.message : 'Oghma knowledge could not be loaded.';
+            oghmaError.hidden = false;
+        } finally {
+            if (oghmaRequest === request) oghmaLoading.hidden = true;
+        }
+    }
+    document.querySelectorAll('[data-biography-oghma]').forEach(button => button.addEventListener('click', function () {
+        oghmaTemplate = {name:button.dataset.templateName || '', profileId:button.dataset.templateProfile || ''};
+        oghmaSearch.value = ''; oghmaCategory.replaceChildren(new Option('All Categories',''));
+        document.getElementById('biography-oghma-title').textContent = 'Oghma Knowledge: ' + displayTemplateName(oghmaTemplate.name);
+        openModal(oghmaModal, button, oghmaSearch);
+        loadBiographyOghma();
+    }));
+    document.getElementById('biography-oghma-filters').addEventListener('submit', event => {event.preventDefault(); loadBiographyOghma();});
+    document.getElementById('biography-oghma-clear').addEventListener('click', () => {oghmaSearch.value = ''; oghmaCategory.value = ''; loadBiographyOghma();});
+    oghmaPrevious.addEventListener('click', () => loadBiographyOghma(oghmaPage - 1));
+    oghmaNext.addEventListener('click', () => loadBiographyOghma(oghmaPage + 1));
+    document.querySelectorAll('[data-biography-oghma-close]').forEach(button => button.addEventListener('click', () => closeModal(oghmaModal)));
     modals.forEach(function (modal) {
         modal.addEventListener('click', function (event) {
             if (event.target === modal) closeModal(modal);

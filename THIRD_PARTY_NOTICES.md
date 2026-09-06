@@ -165,3 +165,9 @@ and stacked Extended Profiles reader from pinned HerikaServer `ui/npc_upload.php
 under the same MIT license. Lorkhan preserves stable OpenMW record identity and
 installation-owned imported templates instead of publishing those records into
 global factory overrides.
+
+The same biography page now adapts the inline Oghma viewer and alphabet/search
+controls from pinned `ui/npc_upload.php`, with the article result shape described
+by HerikaServer `ui/oghma_knowledge.php`. Lorkhan retains its runtime access
+decisions and installation scope, safely renders article text, and pages the
+catalog rather than truncating it or loading every row into the browser.

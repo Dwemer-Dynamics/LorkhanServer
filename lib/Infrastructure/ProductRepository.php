@@ -1886,21 +1886,46 @@ SQL);
         $profileStatement=$this->db->prepare('SELECT p.name,p.actor_identity FROM profiles p WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL');
         $profileStatement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$profileStatement->fetch();if(!$profile)throw new RuntimeException('not_found');
         $effective=$this->effectiveSettingsForProfile($installationId,$profileId);$tags=$this->knowledgeValues((string)($effective['settings']['memory']['oghma_knowledge_tags']??''));
+        $profile['actor_identity']=$this->json($profile['actor_identity']);
+        return ['profile'=>$profile+['profile_id'=>$profileId]]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null],$tags,$filters);
+    }
+
+    /** Preview a biography's own tags against the installation catalog without activating an NPC. */
+    public function oghmaKnowledgeForBiography(string $installationId,string $tags,array $filters=[]):array
+    {
+        if(!Uuid::isValid($installationId))throw new RuntimeException('not_found');
+        $exists=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id');$exists->execute(['id'=>$installationId]);
+        if(!$exists->fetchColumn())throw new RuntimeException('not_found');
+        $result=$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>null,'playthrough_id'=>null],$this->knowledgeValues($tags),$filters,true);
+        // Return only the permitted description; basic previews must not contain the advanced text.
+        $result['items']=array_map(static fn(array $row):array=>[
+            'topic'=>$row['topic'],'level'=>ucfirst($row['access_level']),
+            'description'=>html_entity_decode(strip_tags($row['effective_content']),ENT_QUOTES|ENT_HTML5,'UTF-8'),
+            'category'=>$row['category'],'tags'=>$row['tags'],
+            'knowledge_class'=>$row['access_level']==='advanced'?$row['knowledge_class']:'',
+            'knowledge_class_basic'=>$row['access_level']==='basic'?$row['knowledge_class_basic']:'',
+        ],$result['items']);
+        return $result;
+    }
+
+    /** Share runtime access decisions, override resolution and pagination between NPC and biography viewers. */
+    private function oghmaKnowledgeForTags(array $scope,array $tags,array $filters,bool $searchDescriptions=false):array
+    {
         $search=mb_strtolower(mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8'),'UTF-8');$category=trim((string)($filters['category']??''));
         $accessFilter=strtolower(trim((string)($filters['access']??'all')));if(!in_array($accessFilter,['all','advanced','basic'],true))$accessFilter='all';
         $items=[];$counts=['advanced'=>0,'basic'=>0,'denied'=>0];$categories=[];
-        foreach($this->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null])as$row){
-            $decision=OghmaGroundedRetriever::accessDecision($row,$tags);$access=$decision['level'];if($access==='denied'){$counts['denied']++;continue;}$counts[$access]++;
+        foreach($this->knowledgeCandidates($scope)as$row){
+            $decision=OghmaGroundedRetriever::accessDecision($row+['topic_desc'=>$row['content']],$tags);$access=$decision['level'];if($access==='denied'){$counts['denied']++;continue;}$counts[$access]++;
             $row['access_level']=$access;$row['effective_content']=$access==='advanced'?(string)$row['content']:(string)$row['topic_desc_basic'];
             $categories[(string)$row['category']]=true;if($category!==''&&!hash_equals((string)$row['category'],$category))continue;
             if($accessFilter!=='all'&&$access!==$accessFilter)continue;
-            if($search!==''&&!str_contains(mb_strtolower(implode(' ',[(string)$row['topic'],(string)$row['title'],(string)$row['aliases'],(string)$row['tags']]),'UTF-8'),$search))continue;
+            if($search!==''&&!str_contains(mb_strtolower(implode(' ',[(string)$row['topic'],(string)$row['title'],(string)$row['aliases'],(string)$row['tags'],$searchDescriptions?$row['effective_content']:'']),'UTF-8'),$search))continue;
             $items[]=$row;
         }
         usort($items,static fn(array$a,array$b):int=>strnatcasecmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
         $page=max(1,(int)($filters['page']??1));$pageSize=50;$total=count($items);$pages=max(1,(int)ceil($total/$pageSize));$page=min($page,$pages);
-        $profile['actor_identity']=$this->json($profile['actor_identity']);$categoryList=array_keys($categories);natcasesort($categoryList);
-        return['profile'=>$profile+['profile_id'=>$profileId],'items'=>array_slice($items,($page-1)*$pageSize,$pageSize),'total'=>$total,
+        $categoryList=array_keys($categories);natcasesort($categoryList);
+        return['items'=>array_slice($items,($page-1)*$pageSize,$pageSize),'total'=>$total,
             'page'=>$page,'pages'=>$pages,'counts'=>$counts,'knowledge_tags'=>$tags,'categories'=>array_values($categoryList),
             'filters'=>['search'=>$search,'category'=>$category,'access'=>$accessFilter]];
     }

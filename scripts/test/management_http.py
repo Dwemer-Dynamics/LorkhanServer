@@ -395,6 +395,15 @@ assert '/forms/autonomy' not in text and 'New Schedule' not in text
 excluded_autonomy=request('/LorkhanServer/manage/forms/autonomy','POST',{'_csrf':csrf}); assert excluded_autonomy.status==404,excluded_autonomy.status
 biographies,text=parse(request('/LorkhanServer/ui/core/npc_biographies.php'))
 assert biographies.current==1 and '<h1>NPC Biography Management</h1>' in text,text
+biography_prefix='/LorkhanServer/ui/core/npc_biographies.php?search=ZZZ+Pagination+Fixture'
+first_catalog=request(biography_prefix).read().decode()
+assert first_catalog.count('<tr data-biography-row ')==50 and '5,005 templates' in first_catalog and 'Page 1 of 101' in first_catalog
+last_catalog=request(biography_prefix+'&page=999999').read().decode()
+assert last_catalog.count('<tr data-biography-row ')==5 and 'ZZZ Pagination Fixture 05005</td>' in last_catalog and 'Page 101 of 101' in last_catalog
+assert 'ZZZ Pagination Fixture 05005</td>' in request('/LorkhanServer/ui/core/npc_biographies.php?search=05005&letter=Z').read().decode()
+assert 'No NPCs found.' in request('/LorkhanServer/ui/core/npc_biographies.php?search=05005&letter=A').read().decode()
+literal_catalog=request('/LorkhanServer/ui/core/npc_biographies.php?search=%25_').read().decode()
+assert literal_catalog.count('<tr data-biography-row ')==1 and 'ZZZ Literal %_ Name</td>' in literal_catalog
 assert any(f['action'].endswith('/forms/biography-template-revise') for f in biographies.forms),'factory biography templates are not editable'
 biography_import=next(f for f in biographies.forms if f['action'].endswith('/forms/biography-import'))
 biography_installation=biography_import['fields']['installation_id']
@@ -450,6 +459,19 @@ assert request(entry_url.replace(biography_installation,str(uuid.uuid4()))).stat
 tampered_entry=dict(entry_edit,expected_revision=str(saved_entry['current_revision']),refid='some_other_record')
 assert request('/LorkhanServer/manage/forms/biography-template-revise','POST',tampered_entry).status!=200
 assert json.loads(request(entry_url).read())['current_revision']==saved_entry['current_revision']
+biography_knowledge_url=entry_url.replace('template=','oghma=')
+biography_knowledge_raw=request(biography_knowledge_url).read().decode()
+biography_knowledge=json.loads(biography_knowledge_raw)
+assert biography_knowledge['total']==54 and biography_knowledge['counts']=={'advanced':1,'basic':53,'denied':1},biography_knowledge
+assert len(biography_knowledge['items'])==50 and set(biography_knowledge['categories'])=={'Lore','Public'}
+assert 'AdvancedOnlyHiddenText' not in biography_knowledge_raw and 'DeniedAdvancedText' not in biography_knowledge_raw
+basic_preview=json.loads(request(biography_knowledge_url+'&search=BiographyNeedle&page=2').read())
+assert basic_preview['total']==53 and len(basic_preview['items'])==3 and all(item['level']=='Basic' for item in basic_preview['items'])
+assert json.loads(request(biography_knowledge_url+'&search=AdvancedOnlyHiddenText').read())['total']==0
+public_preview=json.loads(request(biography_knowledge_url+'&category=Public').read())
+assert public_preview['total']==1 and public_preview['items'][0]['description']=='Visible & readable',public_preview
+assert request(biography_knowledge_url.replace(biography_installation,str(uuid.uuid4()))).status==404
+assert 'data-biography-oghma' in entry_body and 'id="biography-oghma-modal"' in entry_body
 descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LorkhanServer/ui/server_plugins.php').status==404

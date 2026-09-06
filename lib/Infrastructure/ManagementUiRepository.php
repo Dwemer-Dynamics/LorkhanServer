@@ -368,11 +368,6 @@ SQL);
             'characters' => "SELECT metadata.source_profile_id AS profile_id,metadata.installation_id,npc.npc_name AS name,metadata.source_revision AS current_revision,metadata.actor_identity,npc.extended_data->'lorkhan_profile' AS content,core_metadata.source_core_profile_id AS core_profile_id,core.label AS core_profile_label,(SELECT count(*)::int FROM lorkhan_internal.actor_profile_bindings binding WHERE binding.installation_id=metadata.installation_id AND binding.profile_id=metadata.source_profile_id) AS binding_count,current_revision.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM lorkhan_internal.profile_revisions history WHERE history.profile_id=metadata.source_profile_id) AS revisions FROM public.core_npc_master npc JOIN lorkhan_internal.npc_metadata metadata ON metadata.npc_id=npc.id LEFT JOIN public.core_profiles core ON core.id=npc.profile_id LEFT JOIN lorkhan_internal.core_profile_metadata core_metadata ON core_metadata.core_profile_id=core.id LEFT JOIN lorkhan_internal.profile_revisions current_revision ON current_revision.profile_id=metadata.source_profile_id AND current_revision.revision=metadata.source_revision ORDER BY npc.npc_name LIMIT 500",
             'core_profiles' => "SELECT metadata.source_core_profile_id AS core_profile_id,metadata.installation_id,profile.label,(profile.default_npc='1') AS default_npc,profile.slot,metadata.source_revision AS current_revision,profile.metadata AS content,current_revision.change_reason,current_revision.created_at,(SELECT count(*)::int FROM public.core_npc_master npc WHERE npc.profile_id=profile.id) AS profile_usage,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM lorkhan_internal.core_profile_revisions history WHERE history.core_profile_id=metadata.source_core_profile_id) AS revisions FROM public.core_profiles profile JOIN lorkhan_internal.core_profile_metadata metadata ON metadata.core_profile_id=profile.id LEFT JOIN lorkhan_internal.core_profile_revisions current_revision ON current_revision.core_profile_id=metadata.source_core_profile_id AND current_revision.revision=metadata.source_revision ORDER BY metadata.installation_id,(profile.default_npc='1') DESC,profile.slot NULLS LAST,lower(profile.label) LIMIT 100",
             'profiles' => "SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,(SELECT count(*)::int FROM actor_profile_bindings b WHERE b.installation_id=p.installation_id AND b.profile_id=p.profile_id) AS binding_count,r.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM profile_revisions history WHERE history.profile_id=p.profile_id) AS revisions FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator') ORDER BY CASE WHEN p.actor_identity->>'kind'='template' THEN 0 ELSE 1 END,p.name LIMIT 500",
-            'npc_biographies' => "SELECT NULL::uuid AS profile_id,NULL::uuid AS installation_id,template.npc_name AS name,NULL::int AS current_revision,"
-                . "jsonb_strip_nulls(jsonb_build_object('kind','template','record_id',COALESCE(NULLIF(template.refid,''),template.npc_name),'display_name',template.npc_name,'gender',template.gender,'race',template.race)) AS actor_identity,"
-                . "jsonb_strip_nulls(jsonb_build_object('core',template.core,'biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
-                . "0::int AS binding_count,NULL::timestamptz AS created_at,NULL::jsonb AS revisions,CASE WHEN custom.npc_name IS NULL THEN 'factory' ELSE 'custom' END AS source "
-                . "FROM public.combined_bio_templates template LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=template.npc_name ORDER BY lower(template.npc_name) LIMIT 5000",
             'player' => "SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,"
                 . "(SELECT count(*)::int FROM turns t JOIN sessions s ON s.session_id=t.session_id WHERE s.installation_id=p.installation_id AND t.speaker->>'kind'='player' AND btrim(t.input_text)<>'') AS input_count,r.created_at "
                 . ",(SELECT jsonb_build_object('accepted_at',latest.accepted_at,'player',latest.context->'player','playerState',latest.context->'playerState','inventory',latest.context->'inventory','equipment',latest.context->'equipment','skills',latest.context->'skills','factions',latest.context->'factions','journal',latest.context->'journal') FROM turns latest JOIN sessions latest_session ON latest_session.session_id=latest.session_id WHERE latest_session.installation_id=p.installation_id ORDER BY latest.accepted_at DESC LIMIT 1) AS latest_context "
@@ -445,18 +440,28 @@ SQL);
             ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:($playthroughScoped?['playthrough_installation'=>$memoryScope['installation_id']]:[]))));
     }
 
-    /** Include installation-scoped imported templates without publishing them into the global factory overrides. */
-    public function biographyRows(string $installationId):array
+    /** Search every global/imported biography before paging, preserving each template's identity and scope. */
+    public function biographyCatalog(string $installationId,array $filters=[]):array
     {
-        $rows=$this->rows('npc_biographies');
-        if($installationId==='')return $rows;
-        $query=$this->db->prepare("SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,'installation' AS source "
+        $search=mb_strcut(trim((string)($filters['search']??'')),0,100,'UTF-8');
+        $letter=strtoupper(trim((string)($filters['letter']??'')));if(!preg_match('/^[A-Z]$/D',$letter))$letter='';
+        $params=[];$conditions=[];$global="SELECT NULL::uuid AS profile_id,NULL::uuid AS installation_id,template.npc_name AS name,NULL::int AS current_revision,"
+                . "jsonb_strip_nulls(jsonb_build_object('kind','template','record_id',COALESCE(NULLIF(template.refid,''),template.npc_name),'display_name',template.npc_name,'gender',template.gender,'race',template.race)) AS actor_identity,"
+                . "jsonb_strip_nulls(jsonb_build_object('core',template.core,'biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
+                . "CASE WHEN custom.npc_name IS NULL THEN 'factory' ELSE 'custom' END AS source "
+                . "FROM public.combined_bio_templates template LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=template.npc_name";
+        $scoped="SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,'installation' AS source "
             ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
-            ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' ORDER BY lower(p.name),p.profile_id LIMIT 5000");
-        $query->execute(['installation'=>$installationId]);
-        foreach($query->fetchAll() as $row)$rows[]=$this->redactRow($row);
-        usort($rows,static fn(array $a,array $b):int=>strcasecmp($a['name'],$b['name']));
-        return $rows;
+            ."WHERE p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND p.installation_id=:installation";
+        $catalog=$global;if($installationId!==''){$catalog.=' UNION ALL '.$scoped;$params['installation']=$installationId;}
+        if($search!==''){$conditions[]='name ILIKE :search';$params['search']='%'.str_replace(['\\','%','_'],['\\\\','\\%','\\_'],$search).'%';}
+        if($letter!==''){$conditions[]='left(lower(name),1)=lower(:letter)';$params['letter']=$letter;}
+        $query='WITH biographies AS ('.$catalog.') ';$where=$conditions===[]?'':' WHERE '.implode(' AND ',$conditions);
+        $count=$this->db->prepare($query.'SELECT count(*) FROM biographies'.$where);$count->execute($params);$total=(int)$count->fetchColumn();
+        $pageSize=50;$pages=max(1,(int)ceil($total/$pageSize));$page=max(1,min($pages,(int)($filters['page']??1)));
+        $rows=$this->db->prepare($query.'SELECT * FROM biographies'.$where." ORDER BY lower(name),name,COALESCE(profile_id::text,'') LIMIT ".$pageSize.' OFFSET '.(($page-1)*$pageSize));
+        $rows->execute($params);
+        return ['rows'=>array_map(fn(array $row):array=>$this->redactRow($row),$rows->fetchAll()),'total'=>$total,'page'=>$page,'pages'=>$pages,'page_size'=>$pageSize,'search'=>$search,'letter'=>$letter];
     }
 
     /** Read an imported template by its stable profile ID and installation, never by display name. */
