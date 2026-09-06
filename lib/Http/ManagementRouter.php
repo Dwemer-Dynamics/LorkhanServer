@@ -890,7 +890,7 @@ final class ManagementRouter
             'expected_revision','installation_id','max_tier','profile_id'];sort($expected);
         $legacyExpected=$expected;$legacyExpected[]='name';sort($legacyExpected);
         if(($keys!==$expected&&$keys!==$legacyExpected)||!is_bool($values['enabled']??null)||!is_int($values['max_tier']??null)
-            ||!is_array($values['actions']??null)||array_is_list($values['actions']))
+            ||!is_array($values['actions']??null)||($values['actions']!==[]&&array_is_list($values['actions'])))
             throw new InvalidArgumentException('invalid_action_policy_editor');
         $installation=(string)$values['installation_id'];$this->uuid($installation,'installation_id');
         $profile=$values['profile_id'];
@@ -898,6 +898,8 @@ final class ManagementRouter
         $configuration=$values['configuration_id'];$revision=$values['expected_revision'];
         if(($configuration===null)!==($revision===null))throw new InvalidArgumentException('invalid_expected_revision');
         $content=['enabled'=>$values['enabled'],'max_tier'=>$values['max_tier'],'actions'=>$values['actions']];
+        // Clearing the last override restores inheritance; the stored policy's action map is optional.
+        if($values['actions']===[])unset($content['actions']);
         $reason=$this->need($values,'change_reason');$name=$profile===null?'Action configuration':'NPC action override';
         if($configuration===null)return$this->service->createRevisioned('action_policy',['installation_id'=>$installation,
             'profile_id'=>$profile,'name'=>$name,'content'=>$content,'change_reason'=>$reason]);

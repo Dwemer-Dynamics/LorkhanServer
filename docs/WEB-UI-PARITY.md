@@ -81,7 +81,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
-| `function_editor.php` | Same path | Pending structural and populated-state comparison |
+| `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Pending structural and populated-state comparison |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
 | `description_manager.php` | `description_upload.php` | Pending structural and populated-state comparison |
@@ -868,3 +868,42 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Its preset controls and empty Custom Keys state were reviewed without entering
   a key or invoking a provider. Custom-label renaming and consolidation of separate
   service key identities remain pending, so this is not whole-page acceptance.
+
+### Action Editor rows, saves and readers
+
+- Compared the pinned and live Herika Action Editor with Lorkhan's actual template,
+  stylesheet and script in an isolated browser fixture. Matched summary typography,
+  count pills, filter sizing, column proportions, description height, code hints,
+  row buttons and the three Behavior controls. Installation/NPC policy selection
+  remains in a collapsed Action scope section rather than an extra permanent toolbar.
+- Advanced Options now follows Response, Behavior, collapsed Parameter Schema and
+  Technical Details, then Save Advanced Options. Its 920px dialog and the 1120px
+  active-actions reader match the reference geometry. Active actions use saved
+  values, scope/name/description columns and inline code IDs, not unsaved drafts.
+  Dialogs have a single content scrollbar and preserve Close/Escape focus.
+- Enable/Disable saves only enabled state; row Save owns name and description;
+  Save Advanced Options owns return message, cooldown and follow-up prompt. Other
+  staged fields survive each save. Save all changes still applies all staged fields,
+  including action scope, as its existing Lorkhan behavior. Failed requests retain
+  edits; requests are bounded and controls are locked during the revision save.
+- Reset Override restores inheritance. Fixed the management endpoint rejecting an
+  empty final override map: the optional stored actions property is omitted when
+  no overrides remain. Existing HTTP tests cover reset, readback and stale revision.
+- Browser fixture checks covered independent toggle/basic/advanced saves, bulk
+  follow-up saves, final override reset, a rejected save, empty search and Reset
+  Filters. Populated list, both reader layouts and 390px cards/dialogs were reviewed;
+  expanded schema/technical disclosures and Escape focus restoration were checked.
+  All fixture mutations were in-memory, with no live policy/provider/game writes.
+- Real product differences remain explicit: 16 shipped OpenMW actions rather than
+  Skyrim/extensions; required confirmation cannot be disabled; client-negotiated
+  parameters/result schema are read-only; cooldown uses the supported OpenMW field
+  rather than a nonfunctional follow-up argument-name input. No unsupported action
+  or editable wire contract was added for cosmetic parity.
+- Full PHP lint, 337 server checks, 98 protocol checks, management HTTP, integration,
+  migration/durable-job and schema checks passed. This is page UI evidence, not
+  in-game execution validation or completion of the whole website matrix.
+- Local deployment hash-matches all 694 runtime files, with no extras or old source
+  paths. Private-file probes return 403 and unauthenticated native-session requests
+  return 401. Existing configuration, credential and voice hashes are unchanged.
+  The live Action Editor populated all 16 actions and its layout was reviewed;
+  no live action policy was changed. Rollback: lorkhanserver-code.N2KsyJ.

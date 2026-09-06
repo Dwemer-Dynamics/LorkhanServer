@@ -1232,6 +1232,15 @@ assert r.status==200 and revised['current_revision']==2 and revised['content']['
 r=json_request(editor_path); editor=json.loads(r.read().decode()); stored=editor['policies']['installation_policy']
 assert stored['configuration_id']==policy_id and stored['revision']==2
 assert stored['content']['actions']['ai.follow']['metadata']['custom_config']['followup_enabled'] is True
+# Resetting the final custom action is an empty override map, not an invalid policy.
+reset_actions=dict(payload,expected_revision=2,actions={},change_reason='HTTP reset final action override')
+r=json_request('/LorkhanServer/manage/api/v1/action-policies/revisions','POST',reset_actions,csrf)
+reset_result=json.loads(r.read()); assert r.status==200 and reset_result['current_revision']==3,reset_result
+assert reset_result['content']=={'enabled':True,'max_tier':0},reset_result
+r=json_request('/LorkhanServer/manage/api/v1/action-policies/revisions','POST',reset_actions,csrf)
+assert r.status==409 and json.loads(r.read())['error']=='revision_conflict'
+r=json_request(editor_path); reset_editor=json.loads(r.read())
+assert reset_editor['policies']['installation_policy']['revision']==3 and 'actions' not in reset_editor['policies']['effective_policy']['content']
 assert stored['content']['actions']['ai.follow']['metadata']['custom_config']['followup_prompt']=='React to the completed OpenMW result.'
 assert stored['content']['actions']['inspect.report']['action_name']=='Inspect Current Target'
 assert set(stored['content']['actions']['inspect.report'])==set([

@@ -17,11 +17,12 @@ document.addEventListener('DOMContentLoaded', () => {
     activeDialog: find('[data-active-dialog]'), activeGroups: find('[data-active-groups]'),
     dialog: find('[data-action-dialog]'), dialogTitle: find('[data-dialog-title]'), dialogWire: find('[data-dialog-wire]'),
     dialogReturn: find('[data-dialog-return]'), dialogPrompt: find('[data-dialog-followup-prompt]'),
-    dialogCooldown: find('[data-dialog-cooldown]'), dialogChain: find('[data-dialog-chain]'),
+    dialogCooldown: find('[data-dialog-cooldown]'), dialogParameters: find('[data-dialog-parameters]'),
     dialogContract: find('[data-dialog-contract]'), dialogReset: find('[data-dialog-reset]'),
+    dialogSave: find('[data-dialog-save]'), dialogStatus: find('[data-dialog-status]'),
   };
   const state = {
-    catalog: [], policies: {}, rows: new Map(), baseline: '', savedDocument: null, loading: false, dialogRow: null,
+    catalog: [], policies: {}, rows: new Map(), baseline: '', savedDocument: null, loading: false, dialogRow: null, dialogResetPending: false,
   };
   const bool = (value) => value === true || value === 1 || value === '1' || value === 't' || value === 'true';
   const escapeHtml = (value) => String(value ?? '').replace(/[&<>'"]/g, (character) => ({
@@ -125,6 +126,7 @@ document.addEventListener('DOMContentLoaded', () => {
     row.querySelector('[data-followup]').checked = value.followup_enabled;
     row.dataset.followupPrompt = value.followup_prompt;
     row.dataset.allowFollowupAction = String(value.allow_followup_action);
+    row.querySelector('[data-followup-actions]').checked = value.allow_followup_action;
     row.dataset.cooldownSeconds = String(value.cooldown_seconds);
   };
   const updateRowPresentation = (row) => {
@@ -141,19 +143,22 @@ document.addEventListener('DOMContentLoaded', () => {
     const toggle = row.querySelector('[data-toggle-enabled]');
     toggle.textContent = value.enabled ? 'Disable' : 'Enable';
     toggle.classList.toggle('danger', value.enabled);
-    row.querySelector('[data-save-row]').disabled = !changed || state.loading;
-    row.querySelector('[data-reset-row]').disabled = !customized;
-    const behavior = [value.confirmation_required ? 'Confirm' : 'No confirmation'];
-    if (value.followup_enabled) behavior.push('Result follow-up');
-    if (value.allow_followup_action) behavior.push('One extra action');
-    if (value.cooldown_seconds > 0) behavior.push(`${value.cooldown_seconds}s cooldown`);
-    row.querySelector('[data-behavior-summary]').innerHTML = behavior
-      .map((item) => `<span>${escapeHtml(item)}</span>`).join('');
+    toggle.classList.toggle('btn-save', !value.enabled);
+    toggle.disabled = state.loading;
+    const baseline = JSON.parse(row.dataset.baseline);
+    row.querySelector('[data-save-row]').disabled = state.loading;
+    row.querySelector('[data-followup-actions]').disabled = !value.followup_enabled || !action.followup_actions_supported;
+    row.querySelectorAll('.behavior-toggles label').forEach((label) => {
+      const key = label.dataset.field;
+      label.classList.toggle('is-dirty', value[key] !== baseline[key]);
+    });
+    row.dataset.search = `${action.name} ${value.display_name} ${value.description} ${action.client_capability}`.toLowerCase();
   };
   const updateSummary = () => {
     const values = Array.from(state.rows.values(), rowValue);
     const enabled = values.filter((value) => value.enabled).length;
     elements.summaryTotal.textContent = String(values.length);
+    find('[data-filter-total]').textContent = String(values.length);
     elements.summaryEnabled.textContent = String(enabled);
     elements.summaryDisabled.textContent = String(values.length - enabled);
   };
@@ -177,15 +182,19 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.noActions.hidden = shown !== 0;
   };
   const updateDirty = () => {
-    let count = 0;
+    let count = 0, actions = 0;
     state.rows.forEach((row) => {
       updateRowPresentation(row);
-      if (row.classList.contains('is-dirty')) count += 1;
+      if (row.classList.contains('is-dirty')) {
+        actions += 1;
+        const value=rowValue(row),baseline=JSON.parse(row.dataset.baseline);
+        count += Object.keys(value).filter(key => value[key] !== baseline[key]).length;
+      }
     });
     const dirty = signature() !== state.baseline;
     if (dirty && count === 0) count = 1;
     elements.dirty.forEach((item) => {
-      item.textContent = dirty ? `${count} unsaved ${count === 1 ? 'change' : 'changes'}` : 'No unsaved changes';
+      item.textContent = dirty ? `${count} unsaved ${count === 1 ? 'change' : 'changes'}${actions ? ` across ${actions} ${actions === 1 ? 'action' : 'actions'}` : ' in action scope'}` : 'No unsaved changes';
     });
     elements.saves.forEach((button) => { button.disabled = !dirty || state.loading; });
     updateSummary();
@@ -216,21 +225,24 @@ document.addEventListener('DOMContentLoaded', () => {
       row.dataset.search = `${action.name} ${value.display_name} ${value.description} ${action.client_capability}`.toLowerCase();
       const confirmationLocked = action.confirmation_mode !== 'optional';
       row.innerHTML = `<td data-label="Name"><div class="action-name-title"><input class="basic-action-input" data-display-name maxlength="128" value="${escapeHtml(value.display_name)}" aria-label="Action name for ${escapeHtml(action.name)}"><span data-row-status></span></div><code class="action-code-hint">${escapeHtml(action.name)}</code></td>
-        <td data-label="Description"><textarea class="basic-action-description" data-description maxlength="2048" rows="2" aria-label="Action description for ${escapeHtml(action.name)}">${escapeHtml(value.description)}</textarea></td>
-        <td data-label="Behavior"><div class="behavior-toggles"><label title="${confirmationLocked ? `OpenMW contract: confirmation is ${action.confirmation_mode}` : 'Require player confirmation'}"><input type="checkbox" data-confirmation${value.confirmation_required ? ' checked' : ''}${confirmationLocked ? ' disabled' : ''}><span>Confirmation</span></label><label><input type="checkbox" data-followup${value.followup_enabled ? ' checked' : ''}${action.continuation_capable ? '' : ' disabled'}><span>Result follow-up</span></label></div><div class="behavior-summary" data-behavior-summary></div><input type="checkbox" data-enabled${value.enabled ? ' checked' : ''} hidden></td>
-        <td data-label="Action"><div class="row-actions"><button type="button" class="action-button secondary" data-save-row>Save</button><button type="button" class="action-button secondary" data-toggle-enabled></button><button type="button" class="action-button secondary" data-advanced>Advanced Options</button><button type="button" class="action-button link-button" data-reset-row>Reset to Base</button></div></td>`;
+        <td data-label="Description"><textarea class="basic-action-description" data-description maxlength="2048" rows="4" aria-label="Action description for ${escapeHtml(action.name)}">${escapeHtml(value.description)}</textarea></td>
+        <td data-label="Behavior"><div class="behavior-toggles"><label data-field="confirmation_required" title="${confirmationLocked ? `OpenMW contract: confirmation is ${action.confirmation_mode}` : 'Require player confirmation'}"><input type="checkbox" data-confirmation${value.confirmation_required ? ' checked' : ''}${confirmationLocked ? ' disabled hidden' : ''}>${confirmationLocked ? '<span aria-hidden="true">–</span>' : ''}<span>${confirmationLocked ? `Confirmation ${action.confirmation_mode === 'required' ? 'required' : 'unavailable'}` : 'Require Confirmation'}</span></label><label data-field="followup_enabled"><input type="checkbox" data-followup${value.followup_enabled ? ' checked' : ''}${action.continuation_capable ? '' : ' disabled'}><span>Follow-up Enabled</span></label><label data-field="allow_followup_action"${action.followup_actions_supported ? '' : ' hidden'} title="Allow one additional safe action after a completed result"><input type="checkbox" data-followup-actions${value.allow_followup_action ? ' checked' : ''}><span>Allow Follow-up Actions</span></label></div><input type="checkbox" data-enabled${value.enabled ? ' checked' : ''} hidden></td>
+        <td data-label="Action"><div class="row-actions"><button type="button" class="btn-save" data-save-row>Save</button><button type="button" class="action-button secondary" data-toggle-enabled></button><button type="button" class="action-button secondary advanced-options-button" data-advanced>Advanced Options</button></div></td>`;
       row.dataset.baseline = JSON.stringify(rowValue(row));
       row.querySelectorAll('input,textarea').forEach((input) => input.addEventListener('input', () => {
-        if (input.matches('[data-followup]') && !input.checked) row.dataset.allowFollowupAction = 'false';
+        if (input.matches('[data-followup]') && !input.checked) {
+          row.dataset.allowFollowupAction = 'false';row.querySelector('[data-followup-actions]').checked = false;
+        }
+        if (input.matches('[data-followup-actions]')) row.dataset.allowFollowupAction = String(input.checked);
         updateDirty();
       }));
       row.querySelector('[data-toggle-enabled]').addEventListener('click', () => {
         const control = row.querySelector('[data-enabled]');
         control.checked = !control.checked;
         updateDirty();
+        save(action.name, ['enabled']);
       });
-      row.querySelector('[data-save-row]').addEventListener('click', () => save(action.name));
-      row.querySelector('[data-reset-row]').addEventListener('click', () => resetRow(row));
+      row.querySelector('[data-save-row]').addEventListener('click', () => save(action.name, ['display_name','description']));
       row.querySelector('[data-advanced]').addEventListener('click', () => openDialog(row, action));
       state.rows.set(action.name, row);
       elements.rows.appendChild(row);
@@ -247,10 +259,9 @@ document.addEventListener('DOMContentLoaded', () => {
     ];
     elements.activeGroups.innerHTML = groups.map((group) => {
       const actions = state.catalog.filter((action) => actionScopes(action).includes(group.key))
-        .filter((action) => elements.enabled.checked && state.rows.has(action.name)
-          && rowValue(state.rows.get(action.name)).enabled);
+        .filter((action) => state.savedDocument?.enabled && state.savedDocument.actions[action.name]?.enabled);
       const body = actions.length ? actions.map((action) => {
-        const value = rowValue(state.rows.get(action.name));
+        const value = state.savedDocument.actions[action.name];
         return `<div class="active-action-row"><div><strong>${escapeHtml(value.display_name)}</strong><code>${escapeHtml(action.name)}</code></div><p>${escapeHtml(value.description)}</p></div>`;
       }).join('') : '<p class="active-scope-empty">No active actions in this scope.</p>';
       return `<section class="active-scope-row"><header><h3>${group.label}</h3><span>${actions.length}</span></header><div>${body}</div></section>`;
@@ -259,31 +270,34 @@ document.addEventListener('DOMContentLoaded', () => {
   };
   const openDialog = (row, action) => {
     state.dialogRow = row;
+    state.dialogActionName = action.name;
+    state.dialogResetPending = false;
+    elements.dialogStatus.textContent = '';
     const value = rowValue(row);
-    elements.dialogTitle.textContent = `${value.display_name} Advanced Options`;
-    elements.dialogWire.textContent = action.name;
+    elements.dialogTitle.textContent = 'Advanced Options';
+    elements.dialogWire.textContent = `${value.display_name} · ${action.name}`;
     elements.dialogReturn.value = value.return_message;
     elements.dialogPrompt.value = value.followup_prompt;
     elements.dialogPrompt.disabled = !value.followup_enabled || !action.continuation_capable;
     elements.dialogCooldown.value = String(value.cooldown_seconds);
-    elements.dialogChain.checked = value.allow_followup_action;
-    elements.dialogChain.disabled = !value.followup_enabled || !action.followup_actions_supported;
     const scopes = actionScopes(action).map((scope) => ({
       npc: 'NPC', followers: 'Followers', narrator: 'Narrator', dynamic: 'Dynamic',
     })[scope] || scope).join(', ');
-    elements.dialogContract.innerHTML = `<dt>Scope</dt><dd>${escapeHtml(scopes)}</dd><dt>Dispatch</dt><dd>${bool(action.game_function) ? 'Game' : 'Server'}</dd><dt>Safety tier</dt><dd>${escapeHtml(action.tier)}</dd><dt>Confirmation</dt><dd>${escapeHtml(action.confirmation_mode)}</dd><dt>Client capability</dt><dd><code>${escapeHtml(action.client_capability)}</code></dd><dt>Parameters</dt><dd><pre>${escapeHtml(JSON.stringify(action.parameter_schema, null, 2))}</pre></dd><dt>Result</dt><dd><pre>${escapeHtml(JSON.stringify(action.result_schema, null, 2))}</pre></dd>`;
+    elements.dialogParameters.innerHTML = `<pre>${escapeHtml(JSON.stringify(action.parameter_schema, null, 2))}</pre>`;
+    elements.dialogContract.innerHTML = `<dt>Scope</dt><dd>${escapeHtml(scopes)}</dd><dt>Dispatch</dt><dd>${bool(action.game_function) ? 'Game' : 'Server'}</dd><dt>Safety tier</dt><dd>${escapeHtml(action.tier)}</dd><dt>Confirmation</dt><dd>${escapeHtml(action.confirmation_mode)}</dd><dt>Client capability</dt><dd><code>${escapeHtml(action.client_capability)}</code></dd><dt>Result</dt><dd><pre>${escapeHtml(JSON.stringify(action.result_schema, null, 2))}</pre></dd>`;
     elements.dialogReset.disabled = row.dataset.source !== 'custom';
+    find('[data-dialog-reset-section]').hidden = row.dataset.source !== 'custom';
+    elements.dialog.querySelectorAll('details').forEach(details => { details.open = false; });
     elements.dialog.showModal();
-    elements.dialogCooldown.focus();
+    elements.dialogReturn.focus();
   };
   const syncDialog = () => {
     const row = state.dialogRow;
-    if (!row) return;
+    if (!row || !row.isConnected) return;
     const seconds = Math.max(0, Math.min(86400, Number(elements.dialogCooldown.value || 0)));
     row.dataset.returnMessage = elements.dialogReturn.value;
     row.dataset.followupPrompt = elements.dialogPrompt.value;
     row.dataset.cooldownSeconds = String(Math.trunc(seconds));
-    row.dataset.allowFollowupAction = String(elements.dialogChain.checked && !elements.dialogChain.disabled);
     updateDirty();
   };
   const sparseActions = (actions) => {
@@ -319,11 +333,16 @@ document.addEventListener('DOMContentLoaded', () => {
     });
     return result;
   };
-  const restoreUnsaved = (document, savedRow) => {
+  const restoreUnsaved = (document, savedRow, savedFields) => {
     elements.enabled.checked = document.enabled;
     elements.maxTier.value = String(document.max_tier);
     state.rows.forEach((row, name) => {
       if (name !== savedRow && document.actions[name]) setRowValue(row, document.actions[name]);
+      else if (name === savedRow && savedFields) {
+        const restored = rowValue(row);
+        Object.keys(restored).forEach(key => { if (!savedFields.includes(key)) restored[key] = document.actions[name][key]; });
+        setRowValue(row, restored);
+      }
     });
     updateDirty();
   };
@@ -333,12 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.saves.forEach((button) => { button.disabled = true; });
     const params = new URLSearchParams({ installation_id: elements.installation.value });
     if (elements.profile.value) params.set('profile_id', elements.profile.value);
+    const controller = new AbortController(), timeout = window.setTimeout(() => controller.abort(), 15000);
     try {
-      const response = await fetch(`${boot.api_base}/action-policies/editor?${params}`, { headers: { Accept: 'application/json' } });
+      const response = await fetch(`${boot.api_base}/action-policies/editor?${params}`, { headers: { Accept: 'application/json' }, signal: controller.signal });
       if (!response.ok) throw new Error(`load failed (${response.status})`);
       const data = await response.json();
       state.catalog = data.catalog || [];
       state.policies = data.policies || {};
+      state.catalog.sort((left,right) => normalizedOverride(left,effectiveContent()).display_name.localeCompare(normalizedOverride(right,effectiveContent()).display_name));
       const policy = currentPolicy();
       const content = effectiveContent();
       elements.enabled.checked = content.enabled !== false;
@@ -349,26 +370,35 @@ document.addEventListener('DOMContentLoaded', () => {
       elements.footerScope.textContent = label;
       elements.revision.textContent = policy ? `Revision ${policy.revision}` : (profile ? 'Inherited · not saved' : 'Not saved yet');
       renderRows();
+      return true;
     } catch (error) {
       showToast(error.message || 'Unable to load action configuration.', true);
+      return false;
     } finally {
+      window.clearTimeout(timeout);
       state.loading = false;
       updateDirty();
     }
   };
-  const save = async (rowName = null) => {
+  // Each row control saves only its owned fields, retaining other staged edits after refresh.
+  const save = async (rowName = null, fields = null) => {
+    if (state.loading) return false;
     const current = documentValue();
     const reason = elements.reason.value.trim();
-    if (!reason) { showToast('Add a revision note before saving.', true); return; }
+    if (!reason) { showToast('Add a revision note in Action scope before saving.', true); return false; }
+    const rowChanges = rowName && fields ? Object.fromEntries(fields.map(key => [key,current.actions[rowName][key]])) : (rowName ? current.actions[rowName] : null);
     const document = rowName && state.savedDocument
-      ? { ...state.savedDocument, actions: { ...state.savedDocument.actions, [rowName]: current.actions[rowName] } }
+      ? { ...state.savedDocument, actions: { ...state.savedDocument.actions, [rowName]: { ...state.savedDocument.actions[rowName], ...rowChanges } } }
       : current;
     for (const action of Object.values(document.actions)) {
-      if (!action.display_name) { showToast('Every action needs a name.', true); return; }
+      if (!action.display_name) { showToast('Every action needs a name.', true); return false; }
     }
     const policy = currentPolicy();
+    const controls = Array.from(root.querySelectorAll('input,textarea,select,button'), control => [control,control.disabled]);
     state.loading = true;
     updateDirty();
+    controls.forEach(([control]) => { control.disabled = true; });
+    const controller = new AbortController(), timeout = window.setTimeout(() => controller.abort(), 15000);
     const payload = {
       configuration_id: policy?.configuration_id || null,
       installation_id: elements.installation.value,
@@ -382,17 +412,22 @@ document.addEventListener('DOMContentLoaded', () => {
     try {
       const response = await fetch(`${boot.api_base}/action-policies/revisions`, {
         method: 'POST', headers: { 'Content-Type': 'application/json', Accept: 'application/json', 'X-CSRF-Token': boot.csrf },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload), signal: controller.signal,
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error === 'revision_conflict'
         ? 'This configuration changed in another tab. Reload before saving.' : (data.error || `save failed (${response.status})`));
       showToast(rowName ? `Saved ${current.actions[rowName].display_name}.` : `Saved action configuration revision ${data.current_revision}.`);
-      await loadScope();
-      if (rowName) restoreUnsaved(current, rowName);
+      if (!await loadScope()) { showToast('Saved, but the editor could not refresh. Reload before editing.', true); return false; }
+      if (rowName) restoreUnsaved(current, rowName, fields);
+      if (rowName && !elements.dialog.open) state.rows.get(rowName)?.querySelector(fields?.includes('enabled') ? '[data-toggle-enabled]' : '[data-save-row]')?.focus();
+      return true;
     } catch (error) {
       showToast(error.message || 'Unable to save the action configuration.', true);
+      return false;
     } finally {
+      window.clearTimeout(timeout);
+      controls.forEach(([control,disabled]) => { if (control.isConnected) control.disabled = disabled; });
       state.loading = false;
       updateDirty();
     }
@@ -411,6 +446,7 @@ document.addEventListener('DOMContentLoaded', () => {
     elements.toast.textContent = message;
     elements.toast.classList.toggle('is-error', error);
     elements.toast.hidden = false;
+    if (elements.dialog.open) elements.dialogStatus.textContent = message;
     window.clearTimeout(showToast.timer);
     showToast.timer = window.setTimeout(() => { elements.toast.hidden = true; }, 5000);
   };
@@ -430,12 +466,23 @@ document.addEventListener('DOMContentLoaded', () => {
   elements.dialogReturn.addEventListener('input', syncDialog);
   elements.dialogPrompt.addEventListener('input', syncDialog);
   elements.dialogCooldown.addEventListener('input', syncDialog);
-  elements.dialogChain.addEventListener('input', syncDialog);
-  elements.dialog.addEventListener('close', () => { syncDialog(); state.dialogRow = null; });
+  elements.dialog.addEventListener('close', () => {
+    syncDialog();state.dialogRow = null;
+    state.rows.get(state.dialogActionName)?.querySelector('[data-advanced]')?.focus();
+  });
+  elements.activeDialog.addEventListener('close', () => elements.viewActive.focus());
+  elements.dialogSave.addEventListener('click', async () => {
+    if (!state.dialogRow || !elements.dialogCooldown.reportValidity()) return;
+    syncDialog();
+    if (await save(state.dialogRow.dataset.name, state.dialogResetPending ? null : ['return_message','followup_prompt','cooldown_seconds'])) {
+      state.dialogRow = null;elements.dialog.close();
+    }
+  });
   elements.dialogReset.addEventListener('click', () => {
     if (!state.dialogRow) return;
-    resetRow(state.dialogRow);
-    elements.dialog.close();
+    const row = state.dialogRow, action = state.catalog.find(item => item.name === row.dataset.name);
+    resetRow(row);openDialog(row,action);state.dialogResetPending = true;
+    elements.dialogStatus.textContent = 'Reset staged. Save Advanced Options to apply it.';
   });
   elements.viewActive.addEventListener('click', activeActions);
   elements.search.addEventListener('input', applyFilters);

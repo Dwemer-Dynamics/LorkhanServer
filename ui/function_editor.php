@@ -56,20 +56,23 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
       </section>
     </div>
 
+    <details class="action-scope-options"><summary>Action scope <span data-footer-scope>Installation defaults</span></summary>
     <section class="editor-controls" aria-label="Action configuration scope">
       <label>Installation<select data-installation><?php foreach ($installations as $row): ?><option value="<?= lorkhan_ui_h($row['installation_id']) ?>"><?= lorkhan_ui_h($row['display_name']) ?></option><?php endforeach; ?></select></label>
       <label>Apply to<select data-profile><option value="">All NPCs</option></select></label>
       <label class="compact-check"><input type="checkbox" data-policy-enabled checked> Actions enabled</label>
       <div class="scope-state"><span data-scope-label>Installation defaults</span><small data-revision-label>Not saved yet</small></div>
       <input type="hidden" data-max-tier value="3">
+      <label class="revision-note">Revision note<input data-change-reason maxlength="512" value="Action Editor update"></label>
     </section>
+    </details>
 
     <section class="editor-toolbar" aria-label="Action filters">
       <div class="filter-toolbar-top">
         <div class="live-search-wrap">
           <label class="sr-only" for="action-live-search">Search actions</label>
           <input id="action-live-search" type="search" data-search placeholder="Search">
-          <div class="filter-summary"><span data-visible-count>0</span> shown</div>
+          <div class="filter-summary"><span data-visible-count>0</span> of <span data-filter-total>0</span> shown</div>
         </div>
         <div class="filter-actions">
           <span class="behavior-dirty-summary" data-dirty-count role="status" aria-live="polite">No unsaved changes</span>
@@ -109,25 +112,25 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <thead><tr><th>Name</th><th>Description</th><th>Behavior</th><th>Action</th></tr></thead>
         <tbody data-action-rows></tbody>
       </table></div>
-      <div class="action-empty-state" data-no-actions hidden>No actions found.</div>
+      <div class="action-empty-state" data-no-actions hidden>No actions match the current filters.</div>
     </section>
 
-    <footer class="editor-footer">
-      <label>Revision note<input data-change-reason maxlength="512" value="Action Editor update"></label>
-      <span data-footer-scope>Installation defaults</span>
-      <button type="button" class="action-button primary" data-save-all disabled>Save all changes</button>
-    </footer>
-
     <dialog class="action-dialog" data-active-dialog aria-labelledby="active-actions-title">
-      <form method="dialog"><header><div><h2 id="active-actions-title">Currently Active Actions</h2><p>Enabled actions grouped by scope.</p></div><button value="close" aria-label="Close active actions">&times;</button></header>
+      <form method="dialog"><header><div><h2 id="active-actions-title">Currently Active Actions</h2><p>Enabled actions grouped by scope. Actions available in multiple scopes appear in each relevant section.</p></div><button value="close" aria-label="Close active actions">&times;</button></header>
       <div class="dialog-body active-actions-body" data-active-groups></div>
-      <footer><button value="close" class="action-button primary">Done</button></footer></form>
+      </form>
     </dialog>
 
     <dialog class="action-dialog" data-action-dialog aria-labelledby="action-dialog-title">
       <form method="dialog"><header><div><h2 id="action-dialog-title" data-dialog-title>Advanced Options</h2><p data-dialog-wire></p></div><button value="close" aria-label="Close advanced options">&times;</button></header>
-      <div class="dialog-body"><section><h3>Response and Behavior</h3><label>Return Message<textarea rows="3" maxlength="2048" data-dialog-return></textarea></label><p class="field-help">The default event text associated with this action.</p><label>Follow-up Prompt<textarea rows="4" maxlength="2048" data-dialog-followup-prompt></textarea></label><p class="field-help">Instruction used when the game reports this action's completed result.</p><label>Cooldown (seconds)<input type="number" min="0" max="86400" step="1" data-dialog-cooldown></label><label class="switch-line"><input type="checkbox" data-dialog-chain> Allow one follow-up action</label><p class="field-help">A follow-up result may select one additional safe action. Every normal OpenMW check is applied again.</p></section><section><h3>OpenMW Contract</h3><dl data-dialog-contract></dl></section></div>
-      <footer><button type="button" class="action-button secondary" data-dialog-reset>Reset to Base</button><button value="close" class="action-button primary">Done</button></footer></form>
+      <div class="dialog-body advanced-options-content">
+        <section class="advanced-section"><h3>Response</h3><label>Return Message<textarea rows="3" maxlength="2048" data-dialog-return></textarea></label><p class="field-help">The default event text returned after this action runs.</p></section>
+        <section class="advanced-section"><h3>Behavior</h3><p class="field-help">Require Confirmation, Follow-up Enabled, and Allow Follow-up Actions are edited in the <strong>Behavior</strong> column of the action table.</p><div class="advanced-field-grid"><label>Cooldown (seconds)<input type="number" min="0" max="86400" step="1" data-dialog-cooldown><span class="field-help">Minimum interval between uses of this action.</span></label><label>Follow-up Prompt<textarea rows="4" maxlength="2048" data-dialog-followup-prompt></textarea><span class="field-help">Instruction used when the game reports this action's completed result.</span></label></div></section>
+        <section class="advanced-section"><details><summary>Parameter Schema</summary><div class="advanced-details-body" data-dialog-parameters></div><p class="field-help">Read-only: these parameters are negotiated with OpenMW. Editing the client contract here could make actions fail.</p></details></section>
+        <section class="advanced-section"><details><summary>Technical Details</summary><div class="advanced-details-body"><dl data-dialog-contract></dl></div></details></section>
+        <div class="advanced-modal-footer"><span data-dialog-status role="status" aria-live="polite"></span><button type="button" class="btn-save" data-dialog-save>Save Advanced Options</button></div>
+        <section class="advanced-section danger-zone" data-dialog-reset-section hidden><div><h3>Reset Override</h3><p>Restore this action to its inherited defaults. Press Save Advanced Options to apply the reset.</p></div><button type="button" class="btn-danger" data-dialog-reset>Reset Override</button></section>
+      </div></form>
     </dialog>
   <?php endif; ?>
 </main>

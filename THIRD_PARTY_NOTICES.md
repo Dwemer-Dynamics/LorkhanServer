@@ -19,6 +19,11 @@ API Keys card/section layout, custom editor controls and test-reader geometry de
 from the same revision's `ui/core/api_badge.php` and `ui/core/tests/apikey_test.php`.
 Lorkhan retains status-only credential rendering and fixed authentication probes.
 
+Action Editor table, Behavior controls and advanced/active reader presentation derive
+from HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`,
+`ui/function_editor.php`. Lorkhan retains its typed OpenMW action catalog, immutable
+negotiated schemas and revision-checked policy persistence.
+
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under
