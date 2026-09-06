@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 use LorkhanServer\Application\ConnectorCatalog;
 use LorkhanServer\Application\CredentialStore;
-use LorkhanServer\Application\SttTestSample;
 
 $embedded = (string) ($_GET['embed'] ?? '') === '1';
 $pageTitle = 'STT Connector';
@@ -41,15 +40,8 @@ foreach (ConnectorCatalog::all('stt_provider') as $definition) {
     $optionCatalog[$driver] = ConnectorCatalog::optionFields('stt_provider', $driver);
 }
 if (!isset($definitions[$activeDriver])) $activeDriver = 'deepgram';
-$driverDefaults = $defaults[$activeDriver];
-$sameDriver = ($content['driver'] ?? '') === $activeDriver;
-$options = $sameDriver && is_array($content['options'] ?? null) ? $content['options'] : [];
-$credentialVariable = (string) ($definitions[$activeDriver]['credential_environment'] ?? '');
-$credentialStatus = null;
-if ($credentialVariable !== '') {
-    $store = new CredentialStore((string) $config['credential_storage_path']);
-    foreach ($store->statuses() as $status) if ($status['variable'] === $credentialVariable) $credentialStatus = $status;
-}
+$credentialStatuses = [];
+foreach ((new CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) $credentialStatuses[$status['variable']]=$status;
 $pageUrl = $webRoot . '/ui/core/stt_connectors.php';
 $queryFor = static function (array $query) use ($pageUrl,$installationId,$embedded): string {
     if ($installationId !== '') $query['installation_id']=$installationId;if($embedded)$query['embed']='1';
@@ -69,7 +61,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
   <div class="layout">
    <aside class="left-col"><div class="summary-note">This page edits the single installation-global STT connector. Switching services revises the active connector instead of creating parallel records.</div>
     <div class="list-wrap" id="stt_driver_list"><?php foreach($groups as $group=>$providers): ?><div class="group-title"><?php echo lorkhan_ui_h($group); ?></div><?php foreach($providers as [$driver,$name,$badge,$description]): ?>
-     <a class="conn-card<?php echo $driver===$activeDriver?' active':''; ?>" href="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"><span class="conn-head"><span class="conn-name"><?php echo lorkhan_ui_h($name); ?></span><span class="conn-badge"><?php echo lorkhan_ui_h($badge); ?></span></span><span class="conn-sub"><?php echo lorkhan_ui_h($description); ?></span></a>
+     <a data-stt-driver-card="<?php echo lorkhan_ui_h($driver); ?>" class="conn-card<?php echo $driver===$activeDriver?' active':''; ?>" href="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"><span class="conn-head"><span class="conn-name"><?php echo lorkhan_ui_h($name); ?></span><span class="conn-badge"><?php echo lorkhan_ui_h($badge); ?></span></span><span class="conn-sub"><?php echo lorkhan_ui_h($description); ?></span></a>
     <?php endforeach; endforeach; ?></div>
    </aside>
    <section class="right-col">
@@ -80,16 +72,9 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
      <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="kind" value="stt_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><input type="hidden" name="change_reason" value="Management STT update"><input type="hidden" name="voice" value=""><input type="hidden" name="option_fields_present" value="1">
      <div class="editor-grid">
       <div class="field-block"><label for="stt-name">Name</label><input id="stt-name" type="text" value="<?php echo lorkhan_ui_h($selected['name']); ?>" readonly><div class="field-help">One connector is shared by every Core Profile and NPC in this installation.</div></div>
-      <div class="field-block"><label for="stt-driver">Service</label><select id="stt-driver" name="driver" data-route-select><?php foreach($groups as $group=>$providers): ?><optgroup label="<?php echo lorkhan_ui_h($group); ?>"><?php foreach($providers as [$driver,$name]): ?><option value="<?php echo lorkhan_ui_h($driver); ?>" data-url="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"<?php echo $driver===$activeDriver?' selected':''; ?>><?php echo lorkhan_ui_h($name); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">Choose the speech-to-text backend LorkhanServer loads globally.</div></div>
-      <div class="field-block"><label for="stt-api-badge">API Badge</label><select id="stt-api-badge" disabled aria-disabled="true"><option><?php echo $credentialVariable===''?'Not required':lorkhan_ui_h($definitions[$activeDriver]['label']); ?></option></select><div class="api-key-notice <?php echo $credentialVariable===''||($credentialStatus['configured']??false)?'ok':'warn'; ?>"><?php echo $credentialVariable===''?'This service does not require an API key.':(($credentialStatus['configured']??false)?'Selected API badge is configured via '.lorkhan_ui_h($credentialStatus['source']).'.':'Selected API badge does not have a configured key yet.'); ?> <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/api_keys.php">API Keys</a></div></div>
-      <div class="field-block"><label for="stt-endpoint">URL</label><input id="stt-endpoint" type="text" name="endpoint" required maxlength="2048" value="<?php echo lorkhan_ui_h($sameDriver?($content['endpoint']??$driverDefaults['endpoint']):$driverDefaults['endpoint']); ?>"><div class="field-help">Provider endpoint; Parakeet adds /v1/audio/transcriptions automatically.</div></div>
+      <div class="field-block"><label for="stt-driver">Service</label><select id="stt-driver" name="driver"><?php foreach($groups as $group=>$providers): ?><optgroup label="<?php echo lorkhan_ui_h($group); ?>"><?php foreach($providers as [$driver,$name]): ?><option value="<?php echo lorkhan_ui_h($driver); ?>" data-url="<?php echo lorkhan_ui_h($queryFor(['driver'=>$driver])); ?>"<?php echo $driver===$activeDriver?' selected':''; ?>><?php echo lorkhan_ui_h($name); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">Choose the speech-to-text backend LorkhanServer loads globally.</div></div>
      </div>
-     <div class="meta-group active"><h3><?php echo lorkhan_ui_h($definitions[$activeDriver]['label']); ?> Settings</h3><div class="inline-two">
-      <div class="field-block"><label for="stt-language">Lang</label><input id="stt-language" name="language" maxlength="35" value="<?php echo lorkhan_ui_h($sameDriver?($content['language']??$driverDefaults['language']):$driverDefaults['language']); ?>"><div class="field-help">Language tag sent with transcription requests.</div></div>
-      <div class="field-block"><label for="stt-model">Model</label><input id="stt-model" name="model" maxlength="256" value="<?php echo lorkhan_ui_h($sameDriver?($content['model']??$driverDefaults['model']):$driverDefaults['model']); ?>"></div>
-      <div class="field-block"><label for="stt-timeout">Timeout (ms)</label><input id="stt-timeout" type="number" min="1000" max="120000" name="timeout_ms" value="<?php echo (int)($sameDriver?($content['timeout_ms']??30000):30000); ?>"></div>
-      <?php foreach($optionCatalog[$activeDriver] as $field): $name=(string)$field['name'];$value=$options[$name]??'';$fieldId='stt-option-'.$activeDriver.'-'.$name; ?><div class="field-block"><label for="<?php echo lorkhan_ui_h($fieldId); ?>"><?php echo lorkhan_ui_h($field['label']); ?></label><?php if($field['type']==='boolean'): ?><label class="boolean-field"><input id="<?php echo lorkhan_ui_h($fieldId); ?>" name="option__<?php echo lorkhan_ui_h($name); ?>" type="checkbox" value="1"<?php echo $value===true?' checked':''; ?>> Enabled</label><?php elseif($field['type']==='select'): ?><select id="<?php echo lorkhan_ui_h($fieldId); ?>" name="option__<?php echo lorkhan_ui_h($name); ?>"><?php foreach($field['values'] as $choice): ?><option value="<?php echo lorkhan_ui_h($choice); ?>"<?php echo (string)$value===(string)$choice?' selected':''; ?>><?php echo lorkhan_ui_h($choice); ?></option><?php endforeach; ?></select><?php endif; ?></div><?php endforeach; ?>
-     </div><details class="advanced-json"><summary>Advanced connector options</summary><div class="field-block"><label for="stt-options">Connector options (JSON)</label><textarea id="stt-options" name="options_json"><?php echo lorkhan_ui_h(json_encode($options===[]?(object)[]:$options,JSON_PRETTY_PRINT|JSON_UNESCAPED_SLASHES)); ?></textarea></div></details></div>
+     <?php include __DIR__ . '/tmpl/stt_connector_fields.php'; ?>
     </form>
     <?php endif; ?>
    </section>
@@ -98,5 +83,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 </main>
 <?php if ($selected !== null) include __DIR__ . '/tmpl/stt_connector_test.php'; ?>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/stt-connector-editor.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/stt-connector-editor.js'); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/stt-connector-test.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/stt-connector-test.js'); ?>" defer></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

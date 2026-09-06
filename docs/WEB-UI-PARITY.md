@@ -78,7 +78,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
-| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result dialog implemented and compared; API Badge, Google Free STT, provider fields and service-switch draft preservation pending |
+| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name and Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Pending structural and populated-state comparison |
@@ -554,3 +554,46 @@ Remaining Core Profile requirements identified from the pinned source and live e
   and unauthenticated native sessions 401. Existing configuration, credentials
   and voice contents were preserved. Live GET confirms the new dialog, script,
   sample URL and protected endpoint without clicking Test or Save. No game ran.
+
+### STT provider editor and API Badge
+
+- Replaced the uniform Lang/Model/Timeout form with each provider's pinned Herika
+  `conf/conf_schema.json` field order and types: Whisper Lang/Translate,
+  Azure Lang/Profanity, Local Whisper URL/Formfield, Deepgram and Gemini Lang/model
+  selectors, Parakeet Lang, and Inworld Model Id/Language. A saved custom model
+  remains an option instead of being silently replaced by a suggested model.
+- `ui/core/tmpl/stt_connector_fields.php` and `ui/js/stt-connector-editor.js`
+  derive the field groups, labels, provider titles, badge list and switch behavior
+  from the pinned STT editor/schema. Non-reference transport options remain in
+  the collapsed Advanced section so existing custom endpoints, model overrides,
+  timeouts and Gemini tone behavior are preserved, not silently reset.
+- Switching cards or the Service selector changes the form locally, without
+  navigation. Each service retains its own unsaved values and badge selection.
+  Only the active group's controls submit, and all 8 groups have unique label
+  targets. The active service card has a keyboard focus outline/current state.
+  True/False selects now persist explicit false through the typed form parser.
+- API Badge is functional: configured keys appear first, then missing keys, with
+  -- None -- and a status notice. STT records optionally store only an allowlisted
+  server-held credential reference. ProviderFactory resolves that selection;
+  old records without it retain their provider default. Keys are never serialized
+  into the editor, revisions or portable exports. Nested secret fields still fail
+  validation. Export and import force the reference to None so a portable endpoint
+  cannot acquire a destination server's key without explicit selection.
+- Browser fixtures exercised every provider group, independent URL/language/model/
+  Translate/badge drafts, configured/missing badge notices, saved custom models,
+  the Disabled empty state, and keyboard access at 390px. Desktop structure was
+  compared with the live read-only Herika Parakeet editor and the pinned schema.
+  Fixture writes were blocked; neither server's live settings were saved.
+- Existing HTTP tests cover all 8 rendered groups, label uniqueness, active-only
+  form fields, true/false persistence, rejected credential references, mock-provider
+  Authorization selection/None, portable import/export credential removal, and
+  nested-secret rejection. Test credentials are isolated fixtures, never live keys.
+- Remaining STT work is explicitly narrowed by evidence, not waived: editable Name
+  and Google Free STT are still missing. This row does not yet claim full parity.
+- Final checks passed: PHP lint, 328 server checks, 98 protocol files, management
+  HTTP including import/secret-rejection probes, integration, migrations/durable
+  jobs, JavaScript syntax and whitespace checks. The 166-relation schema is unchanged.
+  Local deployment hash-verifies all 687 runtime files, preserves private config,
+  credentials and voice contents, and retains private-file 403/native-session 401.
+  Live GET shows the new Deepgram model selector and configured/missing badge list
+  without saving, testing, recording speech, or launching the game.

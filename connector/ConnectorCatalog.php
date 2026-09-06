@@ -141,6 +141,7 @@ final class ConnectorCatalog
         $driver = $content['driver'] ?? null;
         if (!is_string($driver) || !isset($catalog[$driver])) throw new InvalidArgumentException('invalid_connector_driver');
         $allowed = ['driver', 'endpoint', 'model', 'voice', 'language', 'timeout_ms', 'options'];
+        if ($kind === 'stt_provider') $allowed[] = 'credential';
         if (array_diff(array_keys($content), $allowed) !== []) throw new InvalidArgumentException('invalid_connector_content');
         $endpoint = trim((string) ($content['endpoint'] ?? ''));
         if ($endpoint === '' || strlen($endpoint) > 2048 || ($driver !== 'none' && parse_url($endpoint, PHP_URL_HOST) === null)) {
@@ -157,7 +158,7 @@ final class ConnectorCatalog
         if (!is_array($options) || ($options !== [] && array_is_list($options)) || strlen(json_encode($options, JSON_THROW_ON_ERROR)) > 16_384) {
             throw new InvalidArgumentException('invalid_connector_options');
         }
-        return [
+        $result = [
             'driver' => $driver,
             'endpoint' => $endpoint,
             'model' => (string) ($content['model'] ?? ''),
@@ -166,6 +167,14 @@ final class ConnectorCatalog
             'timeout_ms' => $timeout,
             'options' => $options,
         ];
+        if (array_key_exists('credential', $content)) {
+            $reference = $content['credential'];
+            if (!is_string($reference) || ($reference !== 'none' && !CredentialStore::isAllowed($reference))) {
+                throw new InvalidArgumentException('invalid_connector_credential');
+            }
+            $result['credential'] = $reference;
+        }
+        return $result;
     }
 
     public static function definition(string $kind, string $driver): array

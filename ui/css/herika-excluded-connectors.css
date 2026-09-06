@@ -142,6 +142,8 @@ body.excluded-connector-page-shell main.excluded-connector-page button.btn-secon
 }
 
 .excluded-connector-page .advanced-json > summary { cursor: pointer; color: #e9efff; font-weight: 600; margin: 12px 0; }
+.excluded-connector-page [data-stt-driver-fields][hidden] { display: none !important; }
+.excluded-connector-page .conn-card:focus-visible { outline: 2px solid #bc9d5a; outline-offset: 2px; }
 .stt-test-dialog {
     box-sizing: border-box; width: min(1100px, 94vw); height: min(820px, 92vh); max-width: none; max-height: none;
     padding: 0; border: 1px solid #3a3a3a; border-radius: 10px; overflow: hidden;

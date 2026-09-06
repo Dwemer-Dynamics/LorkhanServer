@@ -745,7 +745,11 @@ final class ManagementRouter
         }
         if(isset($values['option_fields_present']))foreach(ConnectorCatalog::optionFields($kind,$driver)as$field){
             $name=(string)$field['name'];$key='option__'.$name;$type=(string)$field['type'];
-            if($type==='boolean'){$options[$name]=isset($values[$key]);continue;}
+            if($type==='boolean'){
+                $boolean=filter_var($values[$key]??false,FILTER_VALIDATE_BOOLEAN,FILTER_NULL_ON_FAILURE);
+                if($boolean===null)throw new InvalidArgumentException('invalid_connector_option_'.$name);
+                $options[$name]=$boolean;continue;
+            }
             if(!array_key_exists($key,$values))continue;$raw=trim((string)$values[$key]);if($raw===''){unset($options[$name]);continue;}
             if($type==='select'){if(!in_array($raw,$field['values'],true))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;continue;}
             if($type==='integer'||$type==='number'){$valid=filter_var($raw,$type==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
@@ -753,10 +757,12 @@ final class ManagementRouter
                 $options[$name]=$type==='integer'?(int)$valid:(float)$valid;continue;}
             if(strlen($raw)>512||!mb_check_encoding($raw,'UTF-8'))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;
         }
-        return ['driver'=>$driver,'endpoint'=>$this->need($values,'endpoint'),
+        $content=['driver'=>$driver,'endpoint'=>$this->need($values,'endpoint'),
             'model'=>trim((string)($values['model']??'')),'voice'=>trim((string)($values['voice']??'')),
             'language'=>trim((string)($values['language']??'en')),'timeout_ms'=>(int)($values['timeout_ms']??30000),
             'options'=>$options];
+        if($kind==='stt_provider'&&array_key_exists('credential',$values))$content['credential']=$values['credential'];
+        return $content;
     }
 
     /** Convert the labelled LLM model-slot form into the strict server-owned provider document. */
@@ -1284,6 +1290,7 @@ final class ManagementRouter
         if(!in_array($kind,['tts_provider','stt_provider'],true))throw new RuntimeException('not_found');
         $row=$this->repository->getRevisioned($kind,$configurationId);$content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('connector_export_rejected');
+        if($kind==='stt_provider')$content['credential']='none';
         $document=['schema'=>'lorkhan.connector-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),'kind'=>$kind,
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-connector';
@@ -1321,6 +1328,8 @@ final class ManagementRouter
             ||($document['kind']??null)!==$kind||!is_string($document['exported_at']??null)||strlen($document['exported_at'])>64
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_connector_export');
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_connector_export');
+        // A portable endpoint must never acquire a credential already held by its destination.
+        if($kind==='stt_provider')$document['content']['credential']='none';
         return$this->service->createRevisioned($kind,['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'content'=>$document['content']]);
     }

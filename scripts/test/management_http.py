@@ -12,6 +12,7 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     embedding_requests=[]
     speech_requests=[]
     transcription_requests=[]
+    transcription_auth=[]
     transcription_text='Ash drifts across the quiet road. A traveler stops at the inn, warms by the fire, and asks the keeper for a room until morning.'
     samples=b'\x00'*160
     silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
@@ -24,6 +25,7 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     def do_POST(self):
         if self.path=='/stt-test':
             self.transcription_requests.append(self.rfile.read(int(self.headers.get('Content-Length','0'))))
+            self.transcription_auth.append(self.headers.get('Authorization',''))
             payload=json.dumps({'text':self.transcription_text}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path=='/embed':
@@ -1401,4 +1403,29 @@ assert len(VoiceProvider.transcription_requests)==1 and (repository_root/'ui/tes
 assert len(VoiceProvider.speech_requests)==speech_count
 VoiceProvider.transcription_text=''
 r=json_request(stt_path,'POST',stt_request,csrf); assert r.status==502 and json.loads(r.read())=={'error':'stt_test_failed'}
+# Only active driver fields submit, explicit False stays false, and badges resolve server-side.
+for driver in ['none','localwhisper','parakeet','whisper','azure','deepgram','gemini','inworld']:
+    page,body=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']+'&driver='+driver))
+    fields=next(f['fields'] for f in page.forms if f['action'].endswith('/forms/connector-revise'))
+    assert fields['driver']==driver and ('option__translate' in fields)==(driver=='whisper') and ('option__file_field' in fields)==(driver=='localwhisper'),(driver,list(fields))
+    ids=re.findall(r'\bid="([^"]+)"',body); assert len(ids)==len(set(ids)),driver
+for option,expected in [('0',False),('1',True)]:
+    r=request(stt_form['action'],'POST',dict(stt_values,driver='whisper',option__translate=option,credential='none')); r.read(); assert r.status==200,r.status
+    exported=json.loads(request('/LorkhanServer/manage/exports/connectors/'+stt_values['configuration_id']+'.json').read())
+    assert exported['content']['options']['translate'] is expected
+r=request(stt_form['action'],'POST',dict(stt_values,credential='NOT_A_CREDENTIAL')); r.read(); assert r.status==422,r.status
+r=request('/LorkhanServer/ui/core/api_keys.php','POST',{'_csrf':csrf,'add_custom':'1','custom_name':'STT_HTTP','custom_credential':'fixture-stt-key'}); body=r.read().decode(); assert r.status==200 and 'fixture-stt-key' not in body
+VoiceProvider.transcription_text='A short mock transcript.'
+for badge,auth in [('LORKHAN_CUSTOM_STT_HTTP_API_KEY','Bearer fixture-stt-key'),('none','')]:
+    r=request(stt_form['action'],'POST',dict(stt_values,credential=badge)); r.read(); assert r.status==200,r.status
+    r=json_request(stt_path,'POST',stt_request,csrf); result=json.loads(r.read()); assert r.status==200,(r.status,result)
+    assert VoiceProvider.transcription_auth[-1]==auth
+    exported=json.loads(request('/LorkhanServer/manage/exports/connectors/'+stt_values['configuration_id']+'.json').read())
+    assert exported['content']['credential']=='none' and 'fixture-stt-key' not in json.dumps(exported)
+exported['name']='HTTP imported STT badge'; exported['content']['credential']='LORKHAN_CUSTOM_STT_HTTP_API_KEY'
+r=request('/LorkhanServer/manage/forms/connector-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'kind':'stt_provider','connector_json':json.dumps(exported)}); r.read(); assert r.status==200,r.status
+stt_records=json.loads(json_request('/LorkhanServer/manage/api/v1/stt-providers?installation_id='+valid['installation_id']).read())['items']
+imported_stt=next(row for row in stt_records if row['name']=='HTTP imported STT badge')['content']
+assert (json.loads(imported_stt) if isinstance(imported_stt,str) else imported_stt)['credential']=='none'
+r=request(stt_form['action'],'POST',dict(stt_values,credential='none',options_json=json.dumps({'credential':'fixture-stt-key'}))); r.read(); assert r.status==422,r.status
 print('browser-like management HTTP forms passed')
