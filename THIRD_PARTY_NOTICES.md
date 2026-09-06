@@ -11,6 +11,12 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Relationship LLM Logs header/statistics, type controls, cleanup bar, four-column
+table and inline context-reader presentation derive from HerikaServer
+`529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/relationship_logs.php`.
+Lorkhan retains native evaluation/build receipts, explicit missing-recording
+labels, keyboard-accessible context/confirmation controls and protected log removal.
+
 Oghma Audit's header, toolbar, metadata grid and five trace sections derive from
 HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/oghma_audit.php`.
 Lorkhan retains typed retrieval evidence, recorded turn input and secondary native

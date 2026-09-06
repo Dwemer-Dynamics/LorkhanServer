@@ -115,9 +115,14 @@ final class ManagementRepository
     public function revoke(string $session):void{$this->db->prepare('UPDATE browser_sessions SET revoked_at=clock_timestamp() WHERE session_hash=:session')->execute(['session'=>BrowserSession::hash($session)]);}
 
     /** Clear completed LLM entries from the reader, retaining accounting and unfinished work. */
-    public function clearRequestLog(string $installation): int
+    public function clearRequestLog(string $installation,?string $relationshipAge=null): int
     {
         if (!Uuid::isValid($installation)) throw new \InvalidArgumentException('invalid_installation_id');
+        if($relationshipAge!==null&&!in_array($relationshipAge,['all','1 hour','6 hours','1 day','3 days','1 week','2 weeks','1 month'],true))
+            throw new \InvalidArgumentException('invalid_relationship_log_age');
+        $filter=$relationshipAge===null?'':" AND a.operation IN ('evaluate_relationship','build_relationships') AND j.job_type IN ('relationship.evaluate','relationship.build')";
+        $params=['installation'=>$installation];
+        if($relationshipAge!==null&&$relationshipAge!=='all'){$filter.=' AND a.started_at<transaction_timestamp()-CAST(:age AS interval)';$params['age']=$relationshipAge;}
         $this->db->beginTransaction();
         try {
             $scope = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR SHARE');
@@ -132,11 +137,11 @@ final class ManagementRepository
                     AND a.finished_at<=transaction_timestamp()
                     AND (t.turn_id IS NULL OR t.state IN ('complete','failed','cancelled'))
                     AND (j.job_id IS NULL OR j.state IN ('succeeded','dead'))
-                    AND COALESCE(s.installation_id::text,j.payload->>'installation_id')=:installation
+                    AND COALESCE(s.installation_id::text,j.payload->>'installation_id')=:installation".$filter."
                 ON CONFLICT DO NOTHING");
-            $statement->execute(['installation'=>$installation]);
+            $statement->execute($params);
             $count = $statement->rowCount();
-            $this->audit('control', 'clear_request_log', ['installation_id'=>$installation], ['count'=>$count]);
+            $this->audit('control', $relationshipAge===null?'clear_request_log':'clear_relationship_log', $params, ['count'=>$count]);
             $this->db->commit();
             return $count;
         } catch (\Throwable $error) {

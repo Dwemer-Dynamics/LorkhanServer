@@ -1,0 +1,141 @@
+/* HerikaServer 529364c ui/relationship_logs.php presentation, scoped to this reader. */
+.relationship-log-page .rel-log-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+.relationship-log-page .rel-log-header h1 { margin: 0; font-size: 1.4em; }
+.relationship-log-page .rel-stats { display: flex; gap: 15px; flex-wrap: wrap; }
+.relationship-log-page .rel-stat { background: #2a2a2a; padding: 8px 12px; border-radius: 6px; border: 1px solid #4a4a4a; }
+.relationship-log-page .rel-stat-label { color: #888; font-size: 0.85em; }
+.relationship-log-page .rel-stat-value { color: #bc9d5a; font-weight: bold; font-size: 1.1em; }
+
+.relationship-log-page .rel-filters { margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.relationship-log-page .rel-filters select, .relationship-log-page .rel-filters input {
+    padding: 6px 10px;
+    border-radius: 4px;
+    border: 1px solid #666;
+    background: #2a2a2a;
+    color: #f8f9fa;
+}
+.relationship-log-page .btn-base { cursor:pointer; padding:6px 10px; border-radius:4px; border:1px solid #666; }
+.relationship-log-page .btn-primary { background:#204e7a; color:#fff; }
+.relationship-log-page .btn-primary:hover { background:#2a5e8a; }
+
+.relationship-log-page .rel-log-table { width: 100%; border-collapse: collapse; font-size: 0.9em; }
+.relationship-log-page .rel-log-table th { background: #1a1a1a; padding: 10px 8px; text-align: left; border-bottom: 2px solid #bc9d5a; }
+.relationship-log-page .rel-log-table td { padding: 8px; border-bottom: 1px solid #3a3a3a; vertical-align: top; }
+.relationship-log-page .rel-log-table tr:hover { background: #2a2a2a; }
+
+.relationship-log-page .rel-type {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.85em;
+    font-weight: bold;
+}
+.relationship-log-page .rel-type-eval { background: #1e3a5f; color: #60a5fa; }
+.relationship-log-page .rel-type-analyze { background: #3f2f1e; color: #f59e0b; }
+.relationship-log-page .rel-type-npc2npc { background: #1e3f2f; color: #34d399; }
+
+.relationship-log-page .rel-delta { font-weight: bold; padding: 2px 6px; border-radius: 3px; }
+.relationship-log-page .rel-delta-pos { background: #1e3f1e; color: #4ade80; }
+.relationship-log-page .rel-delta-neg { background: #3f1e1e; color: #f87171; }
+.relationship-log-page .rel-delta-zero { background: #2a2a2a; color: #888; }
+
+.relationship-log-page .rel-changes { min-width: 300px; }
+.relationship-log-page .rel-change-item { margin: 4px 0; padding: 4px 8px; background: #1a1a1a; border-radius: 4px; font-size: 0.9em; }
+.relationship-log-page .rel-reason { color: #aaa; font-style: italic; font-size: 0.85em; margin-top: 2px; }
+
+.relationship-log-page .rel-context-toggle {
+    cursor: pointer;
+    color: #bc9d5a;
+    text-decoration: underline;
+    font-size: 0.85em;
+    display: inline-block;
+    margin-left: 10px;
+}
+.relationship-log-page .rel-context-wrapper {
+    margin-top: 8px;
+}
+.relationship-log-page .rel-context-content {
+    display: none;
+    margin-top: 8px;
+    padding: 10px;
+    background: #1a1a1a;
+    border-radius: 4px;
+    border: 1px solid #3a3a3a;
+    max-height: 400px;
+    overflow-y: auto;
+    font-size: 0.8em;
+    white-space: pre-wrap;
+    word-break: break-word;
+    line-height: 1.4;
+}
+.relationship-log-page .rel-context-content.show { display: block; }
+
+.relationship-log-page .pagination-buttons { margin: 15px 0; display: flex; gap: 10px; }
+.relationship-log-page .no-data { text-align: center; padding: 40px; color: #888; }
+
+.relationship-log-page .cleanup-section {
+    margin: 15px 0;
+    padding: 12px;
+    background: #2a2a2a;
+    border-radius: 8px;
+    border: 1px solid #4a4a4a;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+    flex-wrap: nowrap;
+    width: 100%;
+}
+.relationship-log-page .cleanup-section span { white-space: nowrap; }
+.relationship-log-page .btn-danger { background: #7a1e1e; color: #fff; border-color: #5a1515; }
+.relationship-log-page .btn-danger:hover { background: #8a2e2e; }
+.relationship-log-page .btn-warning { background: #a04040; color: #fff; border-color: #804040; }
+.relationship-log-page .btn-warning:hover { background: #b05050; }
+.relationship-log-page .cleanup-confirm {
+    display: none;
+    background: #3a1a1a;
+    padding: 15px;
+    border-radius: 8px;
+    border: 1px solid #7a1e1e;
+    margin: 10px 0;
+}
+.relationship-log-page .cleanup-confirm.show { display: block; }
+
+body.hub-page main.relationship-log-page { padding:10px 10px 40px; width:100%; max-width:none; margin:0; font-family:"Futura CondensedLight",Arial,sans-serif; line-height:1.5; }
+.relationship-log-page .rel-log-header h1 { color:#f8f9fa; }
+.relationship-log-page .rel-table-wrap { overflow-x:auto; }
+.relationship-log-page .rel-log-table { min-width:630px; }
+.relationship-log-page .rel-time { font-weight:bold; }
+.relationship-log-page .rel-date { color:#888; font-size:.85em; }
+.relationship-log-page .rel-context-toggle { background:none; border:0; padding:0; }
+.relationship-log-page .rel-context-content[hidden] { display:none; }
+.relationship-log-page .rel-context-content:not([hidden]) { display:block; }
+.relationship-log-page .rel-source-note { color:#888; font-size:.85em; }
+.relationship-log-page .relationship-tools-disclosure { margin-top:20px; }
+.relationship-log-page .relationship-tools-disclosure>summary { cursor:pointer; color:#bc9d5a; }
+.relationship-log-page .relationship-tools { padding:16px 0; }
+.relationship-log-page .cleanup-section select { padding:6px 10px; border-radius:4px; border:1px solid #666; background:#2a2a2a; color:#f8f9fa; }
+.relationship-log-page .cleanup-age { display:inline-flex; gap:10px; align-items:center; flex-wrap:wrap; }
+.relationship-log-page dialog { max-width:520px; width:calc(100% - 32px); background:#252525; color:#eee; border:1px solid #555; border-radius:8px; padding:20px; }
+.relationship-log-page dialog::backdrop { background:#000a; }
+.relationship-log-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+@media(max-width:700px) { .relationship-log-page .cleanup-section { flex-wrap:wrap; gap:10px; } }
+/* Match the reference's effective shared-theme rules after local control-page overrides. */
+.relationship-log-page .cleanup-age { flex-wrap:nowrap; }
+.relationship-log-page .cleanup-age>label { width:auto; margin:0; font-size:15px; font-weight:400; color:#9fb1c9; white-space:nowrap; }
+.relationship-log-page .cleanup-age>select { width:auto; flex:none; }
+.relationship-log-page .rel-log-table { margin-bottom:20px; }
+.relationship-log-page .rel-log-table td { border:1px solid #343434!important; }
+.relationship-log-page .rel-log-table th { border-right:1px solid #343434!important; }
+.relationship-log-page button.rel-context-toggle { min-height:0!important; height:auto!important; background:none!important; border:0!important; box-shadow:none!important; padding:0!important; margin:0 0 0 10px!important; color:#bc9d5a!important; font-size:10.88px!important; line-height:1.5!important; font-weight:400!important; border-radius:0!important; }
+.relationship-log-page .rel-filters button.btn-base.btn-primary { background:var(--chim-accent-dark)!important; border-color:#bc9d5a!important; color:#fff7ec!important; line-height:1.2!important; }
+.relationship-log-page .cleanup-section button.btn-warning { background:#2f714b!important; border-color:#4c996b!important; color:white!important; }
+@media(max-width:700px) { .relationship-log-page .cleanup-age { flex-wrap:wrap; } }
+.relationship-log-page .no-data p { margin:0 0 10px; }
+.relationship-log-page .no-data p.rel-source-note { font-size:.9em; }

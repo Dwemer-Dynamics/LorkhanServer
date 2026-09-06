@@ -1041,6 +1041,10 @@ $products->revise('provider',$profileModelSlot['configuration_id'],
     array_replace($profileModelSlot['content'],['model'=>'later-model']), 'provider changed after enqueue',$now);
 $relationshipStats=$relationshipWorker();
 $relationshipReceipt=$db->query('SELECT * FROM relationship_evaluation_results')->fetch();
+$relationshipLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($db))->page($installationId);
+$assert(count($relationshipLog['rows'])===1&&(int)$relationshipLog['rows'][0]['affinity_delta']===2
+    &&$relationshipLog['rows'][0]['context']!==''&&$relationshipLog['rows'][0]['type']==='eval_',
+    'relationship log did not map committed evaluation and retained source context');
 $assert($relationshipStats['succeeded']===1&&$relationshipProvider->calls===1&&$relationshipReceipt
     &&(int)$relationshipReceipt['disposition_delta']===4&&(int)$relationshipReceipt['affinity_delta']===2,
     'played relationship worker did not persist one bounded result under the global policy');
@@ -1148,6 +1152,10 @@ $buildWorker=static fn()=> (new \LorkhanServer\Application\Worker(new \LorkhanSe
 $db->exec('SAVEPOINT history_queued');
 $assert($buildWorker()['succeeded']===1&&$buildProvider->calls===1,'offline history build did not run at chance zero');
 $buildReceipt=$db->query('SELECT source_count,target_count,changed_count FROM relationship_build_results')->fetch();
+$buildLog=(new \LorkhanServer\Infrastructure\RelationshipLogRepository($db))->page($installationId,'analyze_');
+$assert(count($buildLog['rows'])===1&&(int)$buildLog['rows'][0]['changed_count']===2
+    &&$buildLog['rows'][0]['context']!==''&&!str_contains(json_encode($buildLog),$privateBuildNote),
+    'relationship build log lost its receipt/context or exposed private Custom Info');
 $assert($buildReceipt&&array_map('intval',array_values($buildReceipt))===[2,2,2], 'history build did not atomically update both known targets');
 $privateRows=$products->exportScope($buildScope)['relationships'];
 $assert(count(array_filter($privateRows,static fn(array $row):bool=>$row['custom_info']===$privateBuildNote))===2,
@@ -2485,6 +2493,25 @@ $assert(is_array($responseScope), 'response maintenance needs a populated comple
 $db->prepare("UPDATE turns SET state='processing' WHERE turn_id=:turn")->execute(['turn'=>$responseScope['turn_id']]);
 $historyCounts = static fn(): array => $db->query('SELECT (SELECT count(*) FROM source_events) AS sources,
     (SELECT count(*) FROM dialogue_utterances) AS utterances,(SELECT count(*) FROM public.audit_request) AS audit')->fetch();
+$relLogAttempts=new \LorkhanServer\Infrastructure\ProviderAttemptRepository($db);
+foreach([[9801,'relationship.evaluate','succeeded','evaluate_relationship','2 weeks',$responseScope['installation_id']],
+    [9802,'relationship.evaluate','succeeded','evaluate_relationship','0 seconds',$responseScope['installation_id']],
+    [9803,'relationship.evaluate','queued','evaluate_relationship','2 weeks',$responseScope['installation_id']],
+    [9804,'profile.generate','succeeded','generate_profile','2 weeks',$responseScope['installation_id']],
+    [9805,'relationship.build','succeeded','build_relationships','2 weeks',$newUuid(9806)]] as [$num,$jobType,$jobState,$operation,$age,$installation]) {
+    $jobId=$newUuid($num);$attemptId=$newUuid($num+10);
+    $db->prepare('INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,state) VALUES(:id,:type,1,:key,CAST(:payload AS jsonb),:state)')
+        ->execute(['id'=>$jobId,'type'=>$jobType,'key'=>'relationship-log-'.$num,'payload'=>json_encode(['installation_id'=>$installation]),'state'=>$jobState]);
+    $relLogAttempts->start($attemptId,'llm','mock',$operation,1,jobId:$jobId);
+    $relLogAttempts->finish($attemptId,'failed',errorCode:'fixture');
+    $db->prepare('UPDATE provider_attempts SET started_at=clock_timestamp()-CAST(:age AS interval) WHERE provider_attempt_id=:id')->execute(['age'=>$age,'id'=>$attemptId]);
+}
+$assert($maintenance->clearRequestLog($responseScope['installation_id'],'1 week')===1,
+    'relationship log age clear crossed operation, installation, recent or unfinished-job boundaries');
+$assert($maintenance->clearRequestLog($responseScope['installation_id'],'all')===1
+    &&$maintenance->clearRequestLog($responseScope['installation_id'],'all')===0,
+    'relationship log clear did not preserve pending work or was not idempotent');
+$db->prepare("UPDATE durable_jobs SET state='dead' WHERE job_id=:id")->execute(['id'=>$newUuid(9803)]);
 $beforeHistory = $historyCounts();
 $beforeProviderCount=(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn();
 $requestCleared=$maintenance->clearRequestLog($responseScope['installation_id']);

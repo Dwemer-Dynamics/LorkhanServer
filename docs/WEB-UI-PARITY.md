@@ -97,7 +97,7 @@ do not use an exception to excuse a generic substitute layout.
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
-| `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
+| `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup presentation compared populated and empty; native editing secondary. Recording gaps still pending: exact per-attempt prompt/proposal and per-target build/type-change evidence; see Relationship LLM Logs checkpoint |
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
 | `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
@@ -1436,3 +1436,64 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Matched resets to page 1 while retaining page size. Current-page Llandras search
   shows six cards. Oghma trace count remains 49 before/after this read-only review.
   Relationship Logs and the remaining all-pages matrix are still pending.
+
+### Relationship LLM Logs — evaluation-first presentation
+
+- Replaced the editor-first Relationship Audit page with the actual pinned
+  HerikaServer 529364c `ui/relationship_logs.php` presentation: Total Evaluations,
+  Last Hour, Type filter, Refresh, age/all cleanup, top/bottom pagination, and
+  Time / Type / NPC / Changes & Context table. Manual records, Build with AI,
+  editing, deletion and detailed change history remain under a secondary
+  Manage relationships & change history disclosure, including their existing
+  revision, CSRF, scope and private Custom Info behavior.
+- Reads actual `evaluate_relationship` / `build_relationships` provider attempts;
+  manual edits are never counted as LLM evaluations. Automatic NPC-to-NPC type
+  comes from the recorded interlocutor kind. Applied evaluation deltas/reasons
+  and history-build counts come from their committed receipts, not guesses from
+  current mutable relationship scores. Pending, failed and cancelled attempts
+  are distinguished from missing retained results.
+- Source context reads only retained, unsuppressed played conversations, bounded
+  to 100 source IDs and 64KiB per attempt, with one batched source query per row.
+  It does not select provider configuration or Custom Info. Context is explicitly
+  labelled as source conversation rather than an exact unrecorded model prompt.
+- Remaining recording work is NOT an accepted parity exception: retain bounded,
+  safe per-attempt request/proposal and committed per-target build/type-change
+  evidence for future calls; expose these using the same context/change layout.
+  Historical build receipts only store aggregate counts. Do not fabricate missing
+  historical changes or equate a provider proposal with an applied result.
+- Actual source/reference templates were compared using synthetic evaluation,
+  NPC-to-NPC and build rows, plus empty states. At 1280px, both headers are
+  y10/h65.25, cleanup bars y221.40625/h66, tables y351.90625, first evaluation
+  rows y391.09375/h92.640625, and inline context links h16.3125. Source's aggregate
+  build row differs because its individual historical results are unavailable.
+  Gold replaces the orange primary accent; semantic type/delta colors remain.
+- Exercised context with Enter, cleanup confirmation without submitting, Escape
+  and focus restoration to Delete Old. At 390px controls wrap and the table
+  scrolls within a labelled keyboard-focusable region (355px viewport / 630px
+  table); document/scroll widths are both375px. The reference instead overflows
+  the document and clips cleanup controls, which is not copied.
+- Log cleanup extends the existing request-log visibility mechanism with an
+  allowlisted relationship-operation and age scope. Only completed attempts
+  with terminal parent jobs/turns are hidden, consistently in Relationship Logs
+  and Request Logs. Saved relationships, relationship audit, source history and
+  provider accounting remain untouched. Confirmation and CSRF are required.
+- Existing checks: 354 server checks, 98 protocol files, management HTTP forms,
+  full integration, migrations/durable jobs, PHP/JS syntax and diff checks pass.
+  Added focused cases in the existing suites for evaluation/build projections,
+  private-note exclusion, cleanup CSRF/age validation, and old/recent/pending/
+  unrelated-operation/other-installation cleanup boundaries. No new test file.
+  Schema inventory remains167 relations; source-reference hash is now
+  2ae8a2f8027d65103de8e1fd2ca0c1cdaeaa989b8e9045cd5b5b225828864fb4.
+- Deployed locally; rollback `/var/backups/lorkhanserver-code.GOUnv6`. All721
+  runtime files match source, no extras/old paths, and health/auth/private-file
+  probes pass. Configuration, credentials and voices were preserved.
+- The actual local installation has zero evaluation/build attempts, relationship
+  records, relationship audit entries and hidden request logs before/after review.
+  Verified the live Control Panel empty layout, NPC-to-NPC filter GET navigation,
+  Refresh preserving that filter, and keyboard opening of the retained tools.
+  No live log cleanup, AI build, provider call or game interaction was performed.
+  Populated evidence is from synthetic fixtures and isolated worker integration,
+  not claimed as a live populated test. Keyboard ArrowRight scrolls the narrow
+  table by40px without scrolling the page.
+- Keep the matrix row partial until recording gaps and final placement of the
+  existing relationship management tools versus Herika's NPC editor are resolved.

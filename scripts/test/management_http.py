@@ -753,6 +753,13 @@ assert memory_text not in memory_after_clear
 legacy_relationships,body=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab'))
 assert legacy_relationships.current==1 and 'id="journal-tab" class="tab-content active"' in body and '/forms/relationships' not in body,(legacy_relationships.current,body)
 relationship_page,body=parse(request('/LorkhanServer/ui/relationship_logs.php?embed=1&installation_id='+valid['installation_id']))
+assert 'Relationship LLM Logs' in body and 'Total Evaluations' in body and 'Manage relationships &amp; change history' in body
+relationship_clear_path='/LorkhanServer/manage/api/v1/relationship-logs/clear'
+relationship_clear_values={'installation_id':valid['installation_id'],'confirm':'Clear','age':'all'}
+assert json_request(relationship_clear_path,'POST',relationship_clear_values).status==401
+assert json_request(relationship_clear_path,'POST',dict(relationship_clear_values,age='invalid'),csrf).status==422
+assert json_request(relationship_clear_path,'POST',dict(relationship_clear_values,confirm=''),csrf).status==422
+assert json_request(relationship_clear_path,'POST',relationship_clear_values,csrf).status==200
 relationship_create=next((f for f in relationship_page.forms if f['action'].endswith('/forms/relationships')),None)
 assert relationship_create is not None,body
 assert re.search(r'id="relationship-custom-info"[^>]*></textarea>',body)
