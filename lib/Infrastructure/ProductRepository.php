@@ -1974,6 +1974,30 @@ SQL);
         });
     }
 
+    /** A compact concurrency token covers every active row, not just the bounded editor table. */
+    public function relationshipClearSnapshot(array $scope):array
+    {
+        $query=$this->db->prepare("SELECT count(*)::int AS count,md5(COALESCE(string_agg(relationship_id::text||':'||revision::text,',' ORDER BY relationship_id),'')) AS token
+            FROM relationship_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL");
+        $query->execute($this->scopeParams($scope));return$query->fetch();
+    }
+
+    /** Clear only the confirmed snapshot atomically; concurrent edits cause a complete rollback. */
+    public function clearRelationships(array $scope,string $expectedToken,string $now):int
+    {
+        if(preg_match('/^[0-9a-f]{32}$/D',$expectedToken)!==1)throw new \InvalidArgumentException('invalid_relationship_snapshot');
+        return $this->transaction(function()use($scope,$expectedToken,$now):int{
+            $query=$this->db->prepare('SELECT relationship_id,revision FROM relationship_records WHERE installation_id=:installation '
+                .'AND profile_id=:profile AND playthrough_id=:playthrough AND deleted_at IS NULL ORDER BY relationship_id FOR UPDATE');
+            $query->execute($this->scopeParams($scope));$rows=$query->fetchAll();
+            $token=md5(implode(',',array_map(static fn(array$row):string=>$row['relationship_id'].':'.$row['revision'],$rows)));
+            if(!hash_equals($token,$expectedToken))throw new RuntimeException('relationship_revision_conflict');
+            // New actors inserted after this snapshot are deliberately not included in the deletion.
+            foreach($rows as$row)$this->deleteRelationship($row['relationship_id'],$now,(int)$row['revision']);
+            return count($rows);
+        });
+    }
+
     /** Runtime readers never load Custom Info; only management rows and explicit exports may expose it. */
     public function relationships(array $scope):array
     {

@@ -296,6 +296,12 @@ final class ManagementRouter
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
+        if($domain==='relationship-clear'){
+            if(($v['confirm_clear']??null)!=='Clear')throw new InvalidArgumentException('confirmation_required');
+            foreach(['installation_id','profile_id','playthrough_id']as$key)if(!isset($scope[$key]))throw new InvalidArgumentException('invalid_relationship_scope');
+            $this->repository->clearRelationships($scope,$this->need($v,'snapshot_token'),gmdate('Y-m-d\TH:i:s\Z'));
+            return $this->redirect($this->relationshipPageLocation($v,'relationships_cleared'));
+        }
         if($domain==='relationship-history-build'){
             $request=$this->need($v,'request_id');$this->uuid($request,'request_id');
             $limit=filter_var($v['history_limit']??null,FILTER_VALIDATE_INT);
@@ -1938,6 +1944,13 @@ final class ManagementRouter
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         unset($content['settings_overrides']);
+        if(array_key_exists('npc_relationship_locked',$values)){
+            $value=$values['npc_relationship_locked'];
+            if(!in_array($value,['inherit','0','1'],true))throw new InvalidArgumentException('invalid_npc_relationship_override');
+            $relationship=is_array($content['relationship']??null)?$content['relationship']:[];
+            if($value==='inherit')unset($relationship['locked']);else$relationship['locked']=$value==='1';
+            if($relationship===[])unset($content['relationship']);else$content['relationship']=$relationship;
+        }
         // NPC diary switches override only their own leaves; unrelated saves retain inheritance.
         foreach(['automatic_enabled','automatic_wait_enabled']as$field){
             $key='npc_diary_'.$field;if(!array_key_exists($key,$values))continue;

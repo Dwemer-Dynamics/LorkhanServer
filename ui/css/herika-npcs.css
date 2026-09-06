@@ -740,3 +740,8 @@ body .npc-relationships .npc-rel-actions button[type=submit]{background:#383838!
 .npc-rel-table td,.npc-rel-table th{border-right:1px solid #333}
 dialog.npc-rel-build{margin:auto;width:min(90%,500px);max-height:85vh;overflow:auto;color:var(--chim-text)}
 dialog.npc-rel-build::backdrop{background:rgba(0,0,0,.7)}
+.npc-rel-lock{margin:4px 0 10px;font-size:.9em}
+.npc-rel-lock>label{display:flex;flex-direction:row;align-items:center;gap:8px;color:#fcd34d;cursor:pointer;margin:0}
+.npc-rel-lock small{color:#888;margin-right:8px;font-size:.85em}
+.npc-rel-lock .npc-inherit-button{font-size:.8em!important;min-height:24px!important;padding:3px 7px!important}
+body .npc-relationships .npc-rel-build button.btn-danger[type=submit]{background:#6f3030!important;border-color:#a84b4b!important;color:#fff!important}

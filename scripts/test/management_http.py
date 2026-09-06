@@ -846,12 +846,26 @@ npc_saved,npc_saved_body=parse(r)
 assert r.status==200 and '/ui/core/npc_master.php?' in r.geturl() and 'Relationship changes saved.' in npc_saved_body
 relationship_page,body=parse(request('/LorkhanServer/ui/relationship_logs.php?installation_id='+relationship_values['installation_id']))
 assert 'NPC table save' in body
+npc_clear=next(f for f in npc_saved.forms if f['action'].endswith('/forms/relationship-clear') and f['fields'].get('profile_id')==relationship_values['profile_id'])
+csrf_rejected=request(npc_clear['action'],'POST',dict(npc_clear['fields'],_csrf='bad',confirm_clear='Clear'))
+assert csrf_rejected.status==200 and '/ui/home.php' in csrf_rejected.geturl(),(csrf_rejected.status,csrf_rejected.geturl())
+csrf_probe,_=parse(request(npc_relationship_url))
+assert next(f for f in csrf_probe.forms if f['action']==npc_clear['action'] and f['fields'].get('profile_id')==relationship_values['profile_id'])['fields']['snapshot_token']==npc_clear['fields']['snapshot_token']
+assert request(npc_clear['action'],'POST',dict(npc_clear['fields'],_csrf=csrf,confirm_clear='no')).status==422
+r=request(npc_clear['action'],'POST',dict(npc_clear['fields'],_csrf=csrf,confirm_clear='Clear',snapshot_token='0'*32))
+assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
 relationship_delete=next(f for f in relationship_page.forms if f['fields'].get('relationship_id')==relationship_id and f['action'].endswith('/forms/relationship-delete'))
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf,expected_revision='1')); assert r.status==200 and 'relationship_revision_conflict' in r.geturl()
 r=request(relationship_delete['action'],'POST',dict(relationship_delete['fields'],_csrf=csrf)); relationship_page,body=parse(r)
 assert r.status==200 and not any(f['fields'].get('relationship_id')==relationship_id for f in relationship_page.forms)
 assert 'HTTP relationship create' in body and 'HTTP relationship edit' in body and 'management delete' in body
 assert 'Recent changes' in body and '>7 shown<' in body
+# Clearing a newly created row uses the same page-wide scope token and retains its audit trail.
+r=request(relationship_create['action'],'POST',dict(relationship_values,_csrf=csrf)); assert r.status==200
+npc_clear_page,_=parse(request(npc_relationship_url))
+npc_clear=next(f for f in npc_clear_page.forms if f['action'].endswith('/forms/relationship-clear') and f['fields'].get('profile_id')==relationship_values['profile_id'])
+r=request(npc_clear['action'],'POST',dict(npc_clear['fields'],_csrf=csrf,confirm_clear='Clear')); clear_body=r.read().decode()
+assert r.status==200 and 'relationships_cleared' in r.geturl() and 'Their change history was kept.' in clear_body
 backup_response=request('/LorkhanServer/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='lorkhan.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
 playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
@@ -1109,6 +1123,18 @@ for enabled,waiting in [('1','0'),('0','1'),('inherit','inherit')]:
     diary_values=dict(diary_saved['fields'],_csrf=csrf,change_reason='HTTP NPC diary override')
 r=request(saved_routing['action'],'POST',dict(diary_values,npc_diary_automatic_enabled='invalid'))
 assert r.status==422 and 'invalid_npc_diary_override' in r.read().decode()
+lock_values=dict(diary_values)
+for lock_value in ['1','0','inherit']:
+    lock_values.update(_csrf=csrf,npc_relationship_locked=lock_value,change_reason='HTTP relationship lock')
+    r=request(saved_routing['action'],'POST',lock_values); lock_page,lock_body=parse(r)
+    assert r.status==200,(r.status,lock_body)
+    lock_saved=next(f for f in lock_page.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==routing_profile_id)
+    lock_content=json.loads(lock_saved['fields']['base_content_json'])
+    if lock_value=='inherit':assert 'locked' not in lock_content.get('relationship',{}),lock_content.get('relationship')
+    else:assert lock_content['relationship']['locked']==(lock_value=='1'),lock_content['relationship']
+    lock_values=dict(lock_saved['fields'])
+r=request(saved_routing['action'],'POST',dict(lock_values,_csrf=csrf,npc_relationship_locked='invalid'))
+assert r.status==422 and 'invalid_npc_relationship_override' in r.read().decode()
 assert len(VoiceProvider.llm_requests)==provider_calls_before_routing_save
 
 # System connectors are installation-owned Global Settings, never NPC profile fields.

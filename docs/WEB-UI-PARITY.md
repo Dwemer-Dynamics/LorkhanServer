@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Lock/Clear All/details/save semantics, remaining General/Info and full editor/list review remain |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All added; details/save semantics, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -1578,3 +1578,48 @@ Remaining Core Profile requirements identified from the pinned source and live e
   using rel_profile/rel_playthrough; Escape closes Build without closing the
   NPC editor and restores the trigger. No form was submitted on the live server.
   Relationship attempts/records/audit/hidden counts remain zero before and after.
+
+### NPC Relationships — Lock and Clear All
+
+- Relationship Lock now sits above the affinity editor, following the reference
+  label and styling. It saves the native relationship.locked NPC override with
+  the profile; Use Core Profile removes only that override. The shared inherited
+  checkbox controller also keeps diary switches working and marks reset/toggle
+  changes as unsaved, including externally associated form controls.
+- Clear All uses a native confirmation dialog naming the NPC, playthrough and
+  full active-record count. It requires the exact word Clear and existing CSRF
+  authentication. The snapshot covers all active records, not just 100 table
+  rows. Clearing locks the confirmed rows, checks their IDs/revisions, and uses
+  the existing soft-delete/audit path in one transaction. A stale snapshot clears
+  nothing; new actors arriving after the snapshot are not silently deleted.
+  Private notes and change history remain retained on deleted records.
+- Existing integration coverage passes with more than 100 records, a stale
+  snapshot, another NPC's records and retained private notes. Management HTTP
+  coverage passes for clear/save, CSRF rejection without mutation, required
+  confirmation, stale confirmation, and lock true/false/inherit/invalid values.
+  The existing unauthenticated-form path redirects to Home, so that exact path
+  and the unchanged snapshot are checked instead of assuming a 403 response.
+- 355 server checks, 98 protocol files, management HTTP, full integration,
+  migrations/durable jobs, PHP/JS syntax and diff checks passed. Schema inventory
+  remains 167 relations with hash
+  2ae8a2f8027d65103de8e1fd2ca0c1cdaeaa989b8e9045cd5b5b225828864fb4.
+- Browser fixtures confirm inherited true -> explicit false -> inherited true,
+  dirty tracking, empty-state Clear All disabled, keyboard dialog opening and
+  cancel/Escape focus restoration. At 390px the document/client/scroll widths
+  are 375px; the confirmation reader client/scroll widths are both 336px.
+  A blank confirmation is invalid; Clear is valid. No destructive action was
+  submitted through the browser and no provider/game request was made.
+- Remaining: staged versus separate saves, full details/direction fields,
+  recent build status and full history/paging. Keep the old log-page management
+  tools until those capabilities have replacements; their removal is not yet
+  complete. The all-pages goal remains active.
+
+- Final deployment: rollback /var/backups/lorkhanserver-code.hYvg64; all 722
+  runtime files match source with no extras or old paths. Health, private-file
+  protection and unauthorized-session checks pass. Configuration, credentials
+  and voice file hashes are preserved. The live Fargoth Relationships tab opens
+  with inherited Lock off and Clear All disabled for its empty state. Desktop
+  review caught and fixed an inherited column layout on the lock label; the
+  deployed checkbox now sits beside its text. At 390px the deployed document
+  client/scroll widths are both 390px. No live form was submitted. Populated
+  mutation coverage is isolated; this is not in-game validation or full parity.

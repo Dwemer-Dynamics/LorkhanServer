@@ -714,11 +714,11 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         }
         $own=$content['diary'][$key]??null;$value=is_bool($own)?($own?'1':'0'):'inherit';
         $checked=is_bool($own)?$own:($defaults[$installationId][$coreProfileId]??false);
-        echo'<div class="form-item npc-editor-check npc-diary-control" data-npc-diary data-profile-form="'.lorkhan_ui_h($formId).'" data-installation-id="'.lorkhan_ui_h($installationId).'" data-core-defaults="'.lorkhan_ui_h(json_encode($defaults)).'">';
-        echo'<label><input type="checkbox" data-npc-diary-toggle'.($checked?' checked':'').'> '.lorkhan_ui_h($label).'</label>';
+        echo'<div class="form-item npc-editor-check npc-diary-control" data-npc-inherited data-profile-form="'.lorkhan_ui_h($formId).'" data-installation-id="'.lorkhan_ui_h($installationId).'" data-core-defaults="'.lorkhan_ui_h(json_encode($defaults)).'">';
+        echo'<label><input type="checkbox" form="'.lorkhan_ui_h($formId).'" data-npc-inherited-toggle'.($checked?' checked':'').'> '.lorkhan_ui_h($label).'</label>';
         echo'<input type="hidden" name="npc_diary_'.$key.'" form="'.lorkhan_ui_h($formId).'" value="'.$value.'">';
-        echo'<small class="hint">'.lorkhan_ui_h($help).' <strong data-npc-diary-source>'.($value==='inherit'?'(Inherited from profile)':'(NPC override)').'</strong></small>';
-        echo'<button type="button" class="npc-inherit-button" data-npc-diary-reset'.($value==='inherit'?' disabled':'').'>Use Core Profile</button></div>';
+        echo'<small class="hint">'.lorkhan_ui_h($help).' <strong data-npc-inherited-source>'.($value==='inherit'?'(Inherited from profile)':'(NPC override)').'</strong></small>';
+        echo'<button type="button" class="npc-inherit-button" data-npc-inherited-reset'.($value==='inherit'?' disabled':'').'>Use Core Profile</button></div>';
     }
     $field('prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="roleplay" hidden>';

@@ -497,23 +497,23 @@
         }
     });
 
-    document.querySelectorAll('[data-npc-diary]').forEach((control) => {
+    document.querySelectorAll('[data-npc-inherited]').forEach((control) => {
         const form = document.getElementById(control.dataset.profileForm);
         const profile = form?.elements.core_profile_id;
         const installation = form?.elements.installation_id;
-        const toggle = control.querySelector('[data-npc-diary-toggle]');
+        const toggle = control.querySelector('[data-npc-inherited-toggle]');
         const value = control.querySelector('input[type="hidden"]');
-        const reset = control.querySelector('[data-npc-diary-reset]');
+        const reset = control.querySelector('[data-npc-inherited-reset]');
         const defaults = JSON.parse(control.dataset.coreDefaults || '{}');
         const render = () => {
             const inherited = value.value === 'inherit';
             const scopedDefaults = defaults[installation?.value || control.dataset.installationId] || {};
             toggle.checked = inherited ? scopedDefaults[profile?.value || ''] === true : value.value === '1';
-            control.querySelector('[data-npc-diary-source]').textContent = inherited ? '(Inherited from profile)' : '(NPC override)';
+            control.querySelector('[data-npc-inherited-source]').textContent = inherited ? '(Inherited from profile)' : '(NPC override)';
             reset.disabled = inherited;
         };
         toggle.addEventListener('change', () => { value.value = toggle.checked ? '1' : '0'; render(); });
-        reset.addEventListener('click', () => { value.value = 'inherit'; render(); toggle.focus(); });
+        reset.addEventListener('click', () => { value.value = 'inherit'; render(); toggle.dispatchEvent(new Event('input',{bubbles:true})); toggle.focus(); });
         profile?.addEventListener('change', render);
         installation?.addEventListener('change', render);
     });

@@ -12,7 +12,7 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 ## Dwemer Dynamics shared server UI
 
 NPC relationship table, affinity tiers, type icons, signals, build/custom-type
-dialogs and recent-change presentation derive from HerikaServer
+dialogs, lock/clear controls and recent-change presentation derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`,
 `ext/relationship_system/relationship_editor.php`, `lib/relationship_manager.php`
 and `ui/core/npc_master.php`. Lorkhan retains actor identities, playthrough scope,

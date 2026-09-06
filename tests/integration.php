@@ -1442,6 +1442,25 @@ $assert(count($historyRows)===3&&($historyRows[0]['after_value']['deleted']??fal
     &&$historyRows[0]['before_value']['revision']===2&&$historyRows[1]['after_value']['disposition']===31
     &&$historyRows[1]['after_value']['relationship_type']==='trusted_companion',
     'relationship history must retain ordered create, edit and delete audit records');
+$clearScope=['installation_id'=>$installationId,'profile_id'=>$actorProfile['profile_id'],'playthrough_id'=>$turn['playthrough_id']];
+$db->prepare("INSERT INTO relationship_records(relationship_id,installation_id,profile_id,playthrough_id,actor_identity,disposition,affinity,source_mode)
+    SELECT ('aa000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,:installation,:profile,:playthrough,
+        jsonb_build_object('record_id','clear_limit_'||n::text),0,0,'manual' FROM generate_series(1,101) n")
+    ->execute(['installation'=>$installationId,'profile'=>$actorProfile['profile_id'],'playthrough'=>$turn['playthrough_id']]);
+$clearSnapshot=$products->relationshipClearSnapshot($clearScope);
+$assert((int)$clearSnapshot['count']>100,'clear snapshot was truncated to the editor page');
+$db->prepare('UPDATE relationship_records SET custom_info=:note WHERE relationship_id=:id')->execute(['note'=>'Private note retained on clear','id'=>$legacyId]);
+try{$products->clearRelationships($clearScope,$clearSnapshot['token'],$memoryNow);throw new RuntimeException('stale clear accepted');}
+catch(RuntimeException$error){$assert($error->getMessage()==='relationship_revision_conflict','wrong stale clear result');}
+$freshClear=$products->relationshipClearSnapshot($clearScope);
+$assert((int)$freshClear['count']===(int)$clearSnapshot['count'],'stale clear removed some records');
+$otherCount=(int)$db->query("SELECT count(*) FROM relationship_records WHERE deleted_at IS NULL AND profile_id<>'".$actorProfile['profile_id']."'")->fetchColumn();
+$cleared=$products->clearRelationships($clearScope,$freshClear['token'],$memoryNow);
+$assert($cleared===(int)$freshClear['count']&&(int)$products->relationshipClearSnapshot($clearScope)['count']===0
+    &&(int)$db->query("SELECT count(*) FROM relationship_records WHERE deleted_at IS NULL AND profile_id<>'".$actorProfile['profile_id']."'")->fetchColumn()===$otherCount,
+    'clear all crossed NPC scope or left confirmed relationships active');
+$clearNote=$db->prepare('SELECT custom_info FROM relationship_records WHERE relationship_id=:id AND deleted_at IS NOT NULL');$clearNote->execute(['id'=>$legacyId]);
+$assert($clearNote->fetchColumn()==='Private note retained on clear','clear all discarded private notes');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_edits');
 $memoryService->setRelationship($privateScope+['relationship_id'=>$ownedRelationship['relationship_id'],'expected_revision'=>1,
     'disposition'=>20,'affinity'=>5,'relationship_type'=>'trusted_companion','source_mode'=>'manual',
