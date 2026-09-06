@@ -35,7 +35,7 @@
         };
         form.addEventListener('input', handleChange);
         form.addEventListener('change', handleChange);
-        form.addEventListener('submit', clearDirty);
+        form.addEventListener('submit', (event) => { if (!event.defaultPrevented) clearDirty(); });
         form.addEventListener('reset', () => window.setTimeout(clearDirty, 0));
     });
 

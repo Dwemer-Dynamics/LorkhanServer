@@ -31,4 +31,11 @@ body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color
 .quickstart-page .quickstart-grid .btn-base{justify-self:start}
 .quickstart-page .quickstart-notice{border:1px solid #bc9d5a;background:#29271f;padding:12px;border-radius:6px}
 .quickstart-page :focus-visible{outline:2px solid #bc9d5a;outline-offset:3px}
+.quickstart-page [hidden]{display:none!important}
+.quickstart-page .qs-key-input{display:flex;align-items:center;gap:6px;min-width:0}
+.quickstart-page .qs-key-input input{flex:1;min-width:0}
+.quickstart-page .qs-key-input .btn-primary{flex:none;margin:6px 0 6px 6px!important}
+.quickstart-page .qs-key-status{color:#bbb;font-size:.875em;margin-top:4px}
+.quickstart-page [data-deepgram-key]{margin-top:4px}
+.quickstart-page [data-quickstart-error]{color:#ffb7b7;font-size:13px}
 @media(max-width:640px){.quickstart-page .qs-connector-grid,.quickstart-page .quickstart-grid{grid-template-columns:1fr}}

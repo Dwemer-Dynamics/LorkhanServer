@@ -1484,4 +1484,28 @@ for kind,connector_id,editor,export_path,action in [
     unchanged=json.loads(request('/LorkhanServer/manage/exports/'+export_path+'/'+connector_id+'.json').read())
     assert unchanged['name']==after['name'] and unchanged['content']==after['content'],kind
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==422 and 'provider_in_use' in r.read().decode()
+# Quickstart keys use fixed server-owned names, CSRF, bounded inputs and status-only responses.
+key_path='/LorkhanServer/manage/api/v1/quickstart-key'
+dummy_key='quickstart-isolated-test-'+uuid.uuid4().hex
+assert json_request(key_path,'POST',{'provider':'openrouter','credential':dummy_key}).status==401
+for payload in [
+    {'provider':'unknown','credential':dummy_key},
+    {'provider':'openrouter','credential':''},
+    {'provider':'openrouter','credential':'x'*8193},
+    {'provider':'openrouter','credential':'bad\nheader'},
+    {'provider':'openrouter','credential':[]},
+    {'provider':'openrouter','credential':dummy_key,'variable':'LORKHAN_CUSTOM_INJECTED_API_KEY'},
+]:
+    r=json_request(key_path,'POST',payload,csrf); error=r.read().decode()
+    assert r.status==422 and dummy_key not in error,(r.status,error)
+for provider in ['openrouter','deepgram']:
+    r=json_request(key_path,'POST',{'provider':provider,'credential':dummy_key+'-'+provider},csrf)
+    assert r.status==200 and json.loads(r.read())=={'saved':True}
+key_page,key_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+assert dummy_key not in key_body and 'data-key-endpoint="'+key_path+'"' in key_body
+for provider in ['openrouter','deepgram']:
+    input_tag=re.search(r'<input[^>]*id="qs-'+provider+r'-key"[^>]*>',key_body).group(0)
+    assert 'Configured - leave blank to keep' in input_tag and 'value=' not in input_tag and ' name=' not in input_tag,input_tag
+    assert 'data-quick-key="'+provider+'"' in key_body
+assert json_request(key_path).status==404
 print('browser-like management HTTP forms passed')

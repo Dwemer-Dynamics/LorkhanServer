@@ -68,7 +68,7 @@ do not use an exception to excuse a generic substitute layout.
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
-| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, separate speech-service sections and four-card model recap implemented; OpenRouter/Deepgram quick keys, Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
+| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
@@ -801,3 +801,40 @@ Remaining Core Profile requirements identified from the pinned source and live e
   credentials and voice hashes were preserved. Live Quickstart was restored to
   its unchanged saved Player, GLM 4.7 Standard and Dialectic Inworld selections;
   no dirty draft remains. The isolated reference server was stopped.
+
+### Quickstart OpenRouter and Deepgram keys
+
+- Added the reference's OpenRouter section after Player and Deepgram key field
+  inside STT Service, with Unhide and Create key controls. Leaving a key field
+  saves its entered replacement; blank keeps the existing key. Stored values
+  are never rendered: the page exposes configured/environment status only.
+  Unhide reveals only the current entered draft. Successful saves clear it.
+- The fixed, CSRF-protected management endpoint accepts only OpenRouter's
+  Default LLM key or the provider-default Deepgram key. Unknown providers,
+  additional properties, invalid types, blank/oversized/control-character values
+  are rejected. Responses contain only status, never keys. Environment-owned
+  keys are disabled in the page and rejected by the endpoint.
+- The Deepgram field follows the selected STT driver. It is hidden for other
+  services and disabled, with an explanation, when that connector selects a
+  different API badge. Saving a quick key does not rewrite connector bindings.
+  Keys are server-wide, like the existing API Keys page; this scope is explicit.
+- Writes are serialized, use a ten-second timeout and preserve failed/newer
+  drafts. Save and Continue flushes active key drafts before the existing profile
+  save; failed writes keep the form dirty. The shared dirty-form handler now
+  respects prevented submit events so this asynchronous prerequisite cannot
+  discard unsaved state. Keys have no form names and are absent from profile POSTs.
+- Existing HTTP checks cover authorization, strict input validation, both key
+  writes and status-only HTML/JSON. Full PHP lint, 337 server checks, 98 protocol
+  checks, HTTP, integration and migrations passed. JavaScript syntax passed.
+- An isolated browser fixture used the actual Quickstart template/scripts and
+  mock key/form endpoints. It verified Unhide, save-on-leave, Deepgram/Parakeet
+  switching, custom-badge lockout, failed-save dirty state, recovery, serial
+  writes (maximum one active), and exactly one final form submission without
+  any key fields. The 390px key rows fit within the page. No live key or provider
+  was used for these checks. Setup, local models, MiniMe, provisioning and
+  Player2 remain open; this is not complete-page acceptance.
+- Deployed and hash-verified all 694 runtime files. Private-file 403/native-session
+  401 checks passed; configuration, credentials and voice hashes were unchanged.
+  Live desktop review confirmed that the existing OpenRouter key is environment
+  managed and locked, while the selected Deepgram connector correctly reports
+  its provider-default key as not configured. No live key was entered or saved.

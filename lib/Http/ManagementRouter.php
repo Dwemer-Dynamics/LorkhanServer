@@ -123,6 +123,19 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if($r->method==='POST'&&$path==='/api/v1/quickstart-key'){
+            $body=$this->json($r);$keys=array_keys($body);sort($keys);
+            if($keys!==['credential','provider']||!is_string($body['provider'])||!is_string($body['credential']))
+                throw new InvalidArgumentException('invalid_quickstart_key');
+            $variable=match($body['provider']){'openrouter'=>'LORKHAN_LLM_API_KEY','deepgram'=>'LORKHAN_TTS_DEEPGRAM_API_KEY',
+                default=>throw new InvalidArgumentException('invalid_quickstart_key')};
+            // Environment-owned keys cannot be changed by writing an ineffective managed replacement.
+            $environment=getenv($variable);
+            if(is_string($environment)&&$environment!=='')return Response::json(409,['error'=>'credential_managed_by_environment']);
+            $store=new \LorkhanServer\Application\CredentialStore((string)($this->providerConfig['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
+            $store->set($variable,$body['credential']);
+            return Response::json(200,['saved'=>true]);
+        }
         if ($r->method==='POST' && $path==='/api/v1/roleplay/sync-memories') {
             $body=$this->json($r);
             if (($body['confirm']??'')!=='Sync') throw new InvalidArgumentException('confirmation_mismatch');
