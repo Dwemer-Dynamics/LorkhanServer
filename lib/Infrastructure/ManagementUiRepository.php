@@ -370,7 +370,7 @@ SQL);
             'profiles' => "SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,(SELECT count(*)::int FROM actor_profile_bindings b WHERE b.installation_id=p.installation_id AND b.profile_id=p.profile_id) AS binding_count,r.created_at,(SELECT jsonb_agg(jsonb_build_object('revision',history.revision,'reason',history.change_reason,'created_at',history.created_at) ORDER BY history.revision DESC) FROM profile_revisions history WHERE history.profile_id=p.profile_id) AS revisions FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.deleted_at IS NULL AND COALESCE(p.actor_identity->>'kind','actor') NOT IN ('player','narrator') ORDER BY CASE WHEN p.actor_identity->>'kind'='template' THEN 0 ELSE 1 END,p.name LIMIT 500",
             'npc_biographies' => "SELECT NULL::uuid AS profile_id,NULL::uuid AS installation_id,template.npc_name AS name,NULL::int AS current_revision,"
                 . "jsonb_strip_nulls(jsonb_build_object('kind','template','record_id',COALESCE(NULLIF(template.refid,''),template.npc_name),'display_name',template.npc_name,'gender',template.gender,'race',template.race)) AS actor_identity,"
-                . "jsonb_strip_nulls(jsonb_build_object('biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
+                . "jsonb_strip_nulls(jsonb_build_object('core',template.core,'biography',template.npc_static_bio,'oghma_tags',template.oghma_knowledge_tags,'appearance',template.appearance,'personality',template.personality,'relationships',template.relationships,'occupation',template.occupation,'skills',template.skills,'speech_style',template.speechstyle,'goals',template.goals,'voice',jsonb_strip_nulls(jsonb_build_object('id',template.voiceid)))) AS content,"
                 . "0::int AS binding_count,NULL::timestamptz AS created_at,NULL::jsonb AS revisions,CASE WHEN custom.npc_name IS NULL THEN 'factory' ELSE 'custom' END AS source "
                 . "FROM public.combined_bio_templates template LEFT JOIN public.bio_templates_custom custom ON custom.npc_name=template.npc_name ORDER BY lower(template.npc_name) LIMIT 5000",
             'player' => "SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,"
@@ -443,6 +443,35 @@ SQL);
             return $this->redactRow($row);
         }, $this->all($sql,$relationshipScoped?$relationshipParams:($memoryScoped?
             ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:($playthroughScoped?['playthrough_installation'=>$memoryScope['installation_id']]:[]))));
+    }
+
+    /** Include installation-scoped imported templates without publishing them into the global factory overrides. */
+    public function biographyRows(string $installationId):array
+    {
+        $rows=$this->rows('npc_biographies');
+        if($installationId==='')return $rows;
+        $query=$this->db->prepare("SELECT p.profile_id,p.installation_id,p.name,p.current_revision,p.actor_identity,r.content,'installation' AS source "
+            ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
+            ."WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' ORDER BY lower(p.name),p.profile_id LIMIT 5000");
+        $query->execute(['installation'=>$installationId]);
+        foreach($query->fetchAll() as $row)$rows[]=$this->redactRow($row);
+        usort($rows,static fn(array $a,array $b):int=>strcasecmp($a['name'],$b['name']));
+        return $rows;
+    }
+
+    /** Read an imported template by its stable profile ID and installation, never by display name. */
+    public function installationBiographyTemplate(string $profileId,string $installationId):?array
+    {
+        if(!Uuid::isValid($profileId)||!Uuid::isValid($installationId))return null;
+        $query=$this->db->prepare("SELECT p.profile_id,p.installation_id,p.current_revision,p.name AS npc_name,p.actor_identity->>'record_id' AS refid,"
+            ."r.content->>'core' AS core,r.content->>'biography' AS npc_static_bio,r.content->>'oghma_knowledge_tags' AS oghma_knowledge_tags,"
+            ."r.content->>'appearance' AS appearance,r.content->>'personality' AS personality,r.content->>'relationships' AS relationships,"
+            ."r.content->>'occupation' AS occupation,r.content->>'skills' AS skills,r.content->>'speech_style' AS speechstyle,"
+            ."r.content->>'goals' AS goals,r.content#>>'{voice,id}' AS voiceid,r.content->>'gender' AS gender,r.content->>'race' AS race,'installation' AS source "
+            ."FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision "
+            ."WHERE p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template'");
+        $query->execute(['profile'=>$profileId,'installation'=>$installationId]);
+        $row=$query->fetch();return $row===false?null:$row;
     }
 
     /** Return one effective factory-or-custom biography template for on-demand details and editing. */

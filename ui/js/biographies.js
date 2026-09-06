@@ -37,6 +37,9 @@ function initializeBiographyPage() {
 
     const editModal = document.getElementById('biography-edit-modal');
     const detailsModal = document.getElementById('biography-details-modal');
+    const createModal = document.getElementById('biography-create-modal');
+    const modals = [editModal, detailsModal, createModal];
+    let backgroundOverflow = '';
     const loadError = document.getElementById('biography-load-error');
     const templateCache = new Map();
     const modalTriggers = new WeakMap();
@@ -50,11 +53,16 @@ function initializeBiographyPage() {
     function closeModal(modal) {
         modal.classList.remove('open');
         modal.setAttribute('aria-hidden', 'true');
+        if (!modals.some(item => item.classList.contains('open'))) document.body.style.overflow = backgroundOverflow;
         const trigger = modalTriggers.get(modal);
         if (trigger && trigger.isConnected) trigger.focus();
     }
 
     function openModal(modal, trigger, preferredFocus) {
+        if (!modals.some(item => item.classList.contains('open'))) backgroundOverflow = document.body.style.overflow;
+        modals.forEach(item => { if (item !== modal) { item.classList.remove('open'); item.setAttribute('aria-hidden', 'true'); } });
+        document.body.style.overflow = 'hidden';
+        loadError.hidden = true;
         modalTriggers.set(modal, trigger);
         modal.classList.add('open');
         modal.setAttribute('aria-hidden', 'false');
@@ -62,19 +70,24 @@ function initializeBiographyPage() {
         if (target) target.focus();
     }
 
-    function loadTemplate(name) {
-        if (templateCache.has(name)) return templateCache.get(name);
+    function loadTemplate(name, profileId) {
+        const cacheKey = profileId || name;
+        if (templateCache.has(cacheKey)) return templateCache.get(cacheKey);
         const url = new URL(window.location.href);
         url.search = '';
         url.searchParams.set('template', name);
+        if (profileId) {
+            url.searchParams.set('profile_id', profileId);
+            url.searchParams.set('installation_id', document.querySelector('#biography-edit-modal [name=installation_id]').value);
+        }
         const request = fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } }).then(function (response) {
             if (!response.ok) throw new Error('Biography template could not be loaded.');
             return response.json();
         }).catch(function (error) {
-            templateCache.delete(name);
+            templateCache.delete(cacheKey);
             throw error;
         });
-        templateCache.set(name, request);
+        templateCache.set(cacheKey, request);
         return request;
     }
 
@@ -82,8 +95,8 @@ function initializeBiographyPage() {
         button.addEventListener('click', async function () {
             button.disabled = true;
             try {
-                const template = await loadTemplate(button.dataset.templateName || '');
-                document.getElementById('biography-details-title').textContent = 'Extended Profile: ' + displayTemplateName(template.npc_name);
+                const template = await loadTemplate(button.dataset.templateName || '', button.dataset.templateProfile || '');
+                document.getElementById('biography-details-title').textContent = 'Extended Profiles: ' + displayTemplateName(template.npc_name);
                 document.querySelectorAll('[data-biography-detail-field]').forEach(function (field) {
                     const value = String(template[field.dataset.biographyDetailField] || '').trim();
                     field.textContent = value || 'Not provided.';
@@ -101,6 +114,7 @@ function initializeBiographyPage() {
 
     const editFields = {
         'biography-template-name': 'npc_name',
+        'biography-display-name': 'npc_name',
         'biography-core': 'core',
         'biography-oghma-tags': 'oghma_knowledge_tags',
         'biography-text': 'npc_static_bio',
@@ -121,13 +135,17 @@ function initializeBiographyPage() {
         button.addEventListener('click', async function () {
             button.disabled = true;
             try {
-                const template = await loadTemplate(button.dataset.templateName || '');
+                const template = await loadTemplate(button.dataset.templateName || '', button.dataset.templateProfile || '');
                 Object.keys(editFields).forEach(function (id) {
                     const value = template[editFields[id]];
                     document.getElementById(id).value = value === null || value === undefined ? '' : String(value);
                 });
-                document.getElementById('biography-modal-title').textContent = 'Edit NPC Entry: ' + displayTemplateName(template.npc_name);
-                document.getElementById('biography-profile-meta').textContent = template.source === 'custom'
+                document.getElementById('biography-template-profile').value = template.profile_id || '';
+                document.getElementById('biography-template-revision').value = template.current_revision || '';
+                document.getElementById('biography-modal-title').textContent = 'Edit NPC Entry';
+                document.getElementById('biography-profile-meta').textContent = template.source === 'installation'
+                    ? 'Editing this installation template. Other installations and factory templates remain unchanged.'
+                    : template.source === 'custom'
                     ? 'Editing the active custom override. The factory biography remains unchanged.'
                     : 'Saving creates a custom override. The factory biography remains unchanged.';
                 openModal(editModal, button, document.getElementById('biography-core'));
@@ -145,13 +163,22 @@ function initializeBiographyPage() {
     document.querySelectorAll('[data-biography-details-close]').forEach(function (button) {
         button.addEventListener('click', function () { closeModal(detailsModal); });
     });
-    [editModal, detailsModal].forEach(function (modal) {
+    document.querySelectorAll('[data-biography-create]').forEach(function (button) {
+        button.addEventListener('click', function () {
+            createModal.querySelector('form').reset();
+            openModal(createModal, button, document.getElementById('new-bio-name'));
+        });
+    });
+    document.querySelectorAll('[data-biography-create-close]').forEach(function (button) {
+        button.addEventListener('click', function () { closeModal(createModal); });
+    });
+    modals.forEach(function (modal) {
         modal.addEventListener('click', function (event) {
             if (event.target === modal) closeModal(modal);
         });
     });
     document.addEventListener('keydown', function (event) {
-        const activeModal = editModal.classList.contains('open') ? editModal : (detailsModal.classList.contains('open') ? detailsModal : null);
+        const activeModal = modals.find(modal => modal.classList.contains('open'));
         if (!activeModal) return;
         if (event.key === 'Escape') {
             event.preventDefault();

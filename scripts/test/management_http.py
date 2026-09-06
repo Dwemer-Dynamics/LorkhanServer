@@ -399,6 +399,10 @@ assert any(f['action'].endswith('/forms/biography-template-revise') for f in bio
 biography_import=next(f for f in biographies.forms if f['action'].endswith('/forms/biography-import'))
 biography_installation=biography_import['fields']['installation_id']
 biography_header=['content_file','record_id','name','core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','oghma_tags','voice_id','gender','race']
+biography_create=next(f for f in biographies.forms if f['action'].endswith('/forms/biography-template-create'))
+new_biography_dialog=text.split('id="biography-create-modal"',1)[1].split('</form>',1)[0]
+assert set(biography_header).issubset(re.findall(r'<(?:input|textarea)\b[^>]*\bname="([^"]+)"',new_biography_dialog))
+assert all(marker in text for marker in ['Extended Profile</h3>','Voice &amp; Meta</h3>','id="biography-display-name"','data-biography-create-close']) and 'id="create-biography"' not in text
 def biography_csv(rows):
     stream=io.StringIO(newline=''); writer=csv.writer(stream,lineterminator='\n'); writer.writerow(biography_header); writer.writerows(rows)
     return stream.getvalue().encode()
@@ -423,6 +427,29 @@ assert r.status==200 and '1 biography template imported.' in body,(r.status,r.ge
 exported=request('/LorkhanServer/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
 export_rows=[row for row in csv.DictReader(io.StringIO(exported)) if row['record_id']==biography_record]
 assert len(export_rows)==1 and export_rows[0]['content_file']=='HTTP Test.esp' and export_rows[0]['biography']=='Imported biography v2.' and export_rows[0]['oghma_tags']=='Balmora',export_rows
+entry_values=dict(zip(biography_header,['HTTP Test.esp','new_entry_'+biography_suffix,'New Entry '+biography_suffix,'Core summary for table.','Different detailed history.','Golden mask','Curious','{}','Scholar','Alchemy','Formal','Find lost books','Balmora','fixture_voice','Male','Argonian']))
+r=request(biography_create['action'],'POST',dict(biography_create['fields'],**entry_values,_csrf=csrf)); entry_body=r.read().decode()
+assert r.status==200 and '1 biography template imported.' in entry_body and re.search(r'<td>'+re.escape(entry_values['name'])+r'</td>\s*<td>Core summary for table\.</td>',entry_body),(r.status,entry_body)
+entry_export=request('/LorkhanServer/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+created_entry=next(row for row in csv.DictReader(io.StringIO(entry_export)) if row['record_id']==entry_values['record_id'])
+assert all(created_entry[key]==value for key,value in entry_values.items()),created_entry
+entry_profile=re.search(r'data-template-name="'+re.escape(entry_values['name'])+r'" data-template-profile="([^"]+)"',entry_body).group(1)
+entry_url='/LorkhanServer/ui/core/npc_biographies.php?'+urllib.parse.urlencode({'template':entry_values['name'],'profile_id':entry_profile,'installation_id':biography_installation})
+entry_template=json.loads(request(entry_url).read())
+assert entry_template['core']==entry_values['core'] and entry_template['npc_static_bio']==entry_values['biography'] and entry_template['speechstyle']=='Formal' and entry_template['voiceid']=='fixture_voice'
+entry_edit=dict(entry_template,_csrf=csrf,expected_revision=str(entry_template['current_revision']),core='Updated installation summary.')
+revised=request('/LorkhanServer/manage/forms/biography-template-revise','POST',entry_edit)
+assert revised.status==200,revised.status
+saved_entry=json.loads(request(entry_url).read())
+assert saved_entry['core']=='Updated installation summary.' and saved_entry['current_revision']==entry_template['current_revision']+1,saved_entry
+entry_export=request('/LorkhanServer/manage/exports/biographies/custom.csv?installation_id='+biography_installation).read().decode('utf-8-sig')
+assert next(row for row in csv.DictReader(io.StringIO(entry_export)) if row['record_id']==entry_values['record_id'])['core']=='Updated installation summary.'
+assert request('/LorkhanServer/manage/forms/biography-template-revise','POST',entry_edit).status==409
+assert request('/LorkhanServer/ui/core/npc_biographies.php?template='+urllib.parse.quote(entry_values['name'])).status==404
+assert request(entry_url.replace(biography_installation,str(uuid.uuid4()))).status==404
+tampered_entry=dict(entry_edit,expected_revision=str(saved_entry['current_revision']),refid='some_other_record')
+assert request('/LorkhanServer/manage/forms/biography-template-revise','POST',tampered_entry).status!=200
+assert json.loads(request(entry_url).read())['current_revision']==saved_entry['current_revision']
 descriptions,text=parse(request('/LorkhanServer/ui/description_manager.php')); assert descriptions.current==1 and '<h1>Description Manager</h1>' in text and 'Descriptions Database' in text
 oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
 assert request('/LorkhanServer/ui/server_plugins.php').status==404

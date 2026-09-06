@@ -157,3 +157,11 @@ adapt the header, active-state summary, paired panels and bounded backup-list
 presentation from the same pinned HerikaServer `ui/playthrough_manager.php`
 under its MIT license. Lorkhan's profile-scoped export/import semantics are
 explicit; these controls do not implement Herika's full-schema snapshot switch.
+
+The biography page `ui/core/npc_biographies.php`, shared dialog fields in
+`ui/tmpl/biography_fields.php`, `ui/css/herika-biographies.css` and
+`ui/js/biographies.js` adapt the page header, biography table, Add/Edit dialogs
+and stacked Extended Profiles reader from pinned HerikaServer `ui/npc_upload.php`
+under the same MIT license. Lorkhan preserves stable OpenMW record identity and
+installation-owned imported templates instead of publishing those records into
+global factory overrides.

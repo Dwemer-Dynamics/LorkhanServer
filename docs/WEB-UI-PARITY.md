@@ -80,7 +80,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
-| `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
+| `core/npc_biographies.php` | `npc_upload.php` | Header, table summary, Add/Edit and stacked Extended Profiles reader aligned; scoped import/edit wiring fixed. Inline Oghma reader, factory reset, full custom export and large-catalog pagination remain. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Pending structural and populated-state comparison |
@@ -1996,3 +1996,56 @@ Remaining Core Profile requirements identified from the pinned source and live e
   returned 401. Configuration, credential and voice-file hashes were unchanged.
   Rollback: `/var/backups/lorkhanserver-code.bPE5s4`. No live snapshot import,
   provider call or game action was performed.
+
+## NPC Biographies: dialogs, reader and scoped save checkpoint
+
+- Compared the actual source presentation with pinned HerikaServer
+  `ui/npc_upload.php` using synthetic populated and empty fixtures. Restored the
+  centered header and reference page gutters. Summary Bio now displays `core`
+  rather than the separate detailed biography. Long summaries are truncated by
+  Unicode characters, not bytes.
+- Replaced the incomplete Add Entry expander with the reference modal workflow.
+  Add/Edit share the complete field sequence: name, Oghma tags, core, extended
+  biography fields, voice and metadata. OpenMW creation additionally requires
+  the content file and stable record ID. Edit preserves identity. Both dialogs
+  measured 800px wide and 521px high at the desktop comparison viewport, matching
+  the reference, with its scrolling body and sticky Save/Cancel footer.
+- Replaced the divergent two-column Extended Profiles cards with the reference
+  stacked reader, section order, typography, content panels and scrolling footer.
+  Compared the rendered result directly with the reference reader. Gold accents,
+  visible focus outlines and white headings remain.
+- Save-path testing exposed a pre-existing split: imported/new templates lived
+  in installation-owned revisioned profiles, while the page only listed the
+  global combined template table. Installation templates now appear in the same
+  table with their own source label. Details and edits use the stable profile ID
+  plus installation; they are not published as global factory overrides. Edits
+  update that same revisioned record, so CSV export and NPC initialization use
+  the edited content. Stale revisions are rejected; record identity is immutable.
+- Existing HTTP coverage now exercises creation with all 16 CSV fields, summary
+  vs detailed biography, scoped detail retrieval, editing, updated CSV export,
+  stale-write rejection, wrong-installation lookup and record-ID tampering.
+  Global factory/custom override editing retains its previous storage path.
+- Checked Add/Edit and Extended Profiles, search/no-match, alphabet filtering,
+  empty and no-installation states, Escape/Cancel focus restoration and reverse
+  Tab wrapping. At a 390px viewport the open dialog measured 374px wide; the
+  ordinary document client/scroll widths both measured 375px. The 920px table
+  remains inside its focusable horizontal scrolling region.
+- This is a checkpoint, not full page parity. Inline Oghma reading still links
+  away, factory reset is absent, global custom overrides are not included in the
+  installation CSV export, and access beyond each existing 5,000-row list cap
+  remains unfinished. Batch-help presentation also differs. These are tracked
+  gaps, not product exceptions. No factory reset, live edit/import, provider call
+  or game action was performed during this work.
+- Final checks passed: PHP/JavaScript syntax, 370 server checks, 98 protocol
+  files, management HTTP, integration, migrations and durable jobs. Schema
+  inventory remained 167 relations with the existing summary hash.
+- Local deployment verified 733 runtime files with no mismatches, extras or old
+  paths. Protected files returned 403 on all checked ports; unauthenticated
+  session creation returned 401. Configuration, credential and voice-file hashes
+  were unchanged. Rollback: `/var/backups/lorkhanserver-code.FEEMKT`.
+- The live page showed 5,001 rows: the existing 5,000-row global cap plus one
+  installation template. The previously omitted Dagoth Ur template appeared,
+  and its scoped Edit dialog loaded the saved name and distinct core/detail
+  fields. Cancelled without saving. One browser Search click timed out on this
+  large DOM; Enter applied the same filter successfully. Large-catalog paging
+  and server-side filtering therefore remain a concrete usability priority.

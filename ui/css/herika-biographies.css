@@ -4,13 +4,14 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 .biography-page {
     width: 100%;
     margin: 0;
-    /* Compact responsive gutter instead of a fixed 10% on every viewport. */
-    padding: 0 clamp(10px, 2.5vw, 34px) 24px;
+    padding: 20px 10% 40px;
     font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
-.biography-page.embedded { padding-top: 10px; }
-/* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
+.biography-page.embedded { padding-top: 20px; }
+.biography-page .page-header { text-align:center; margin-bottom:30px; padding:20px; border:1px solid #3a3a3a; border-radius:10px; background:#232323; }
+.biography-page .page-header h1 { margin-bottom:8px; font:2.2em/1.2 MagicCards,serif; word-spacing:8px; color:#fff; text-shadow:2px 2px 4px #0008; }
+.biography-page .page-subtitle { margin:0; font-size:1.1em; line-height:1.6; }
 .biography-page .page-subtitle { color: #bbb; }
 .biography-page .content-section {
     margin-bottom: 20px;
@@ -103,7 +104,7 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 .biography-page .feature-state-badge { margin-left: 7px; }
 .biography-page .database-section { margin-top: 42px; }
 .biography-page .action-container { display: flex; align-items: center; justify-content: space-between; gap: 15px; margin-bottom: 20px; }
-.biography-page .search-container { display: flex; gap: 10px; min-width: 400px; }
+.biography-page .search-container { display: flex; gap: 10px; min-width: 300px; }
 .biography-page .search-container input { flex: 1; min-width: 0; padding: 8px; }
 .biography-page .database-note { margin: 0; color: #f5f1e8 !important; font-size: 1.35em; }
 .biography-page .filter-buttons { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; margin: 48px 0 20px; }
@@ -149,24 +150,27 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
     display: none;
     overflow-y: auto;
     padding: 20px 0;
-    background: rgba(0, 0, 0, .76);
+    background: rgba(0, 0, 0, .72);
+    backdrop-filter: blur(5px);
+    font-family: "Futura CondensedLight", Arial, sans-serif;
 }
 
 .biography-modal.open { display: block; }
-.biography-modal .modal-container { width: 90%; max-width: 800px; margin: 80px auto 40px; overflow: hidden; border: 1px solid #4a4a4a; border-radius: 10px; background: #2a2a2a; box-shadow: 0 12px 40px rgba(0, 0, 0, .55); }
-.biography-modal .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 18px 22px; border-bottom: 1px solid #4a4a4a; background: #333; }
-.biography-modal .modal-title { margin: 0; color: #f5f1e8; font: 1.6em/1.2 MagicCards, serif; }
+.biography-modal .modal-container {width:90%;max-width:800px;margin:80px auto 40px;padding:30px;overflow:hidden;border:1px solid #4a4a4a;border-radius:10px;background:#2a2a2a;box-shadow:0 12px 40px #0008}
+.biography-modal .modal-header {display:block;padding:0;border:0;background:#2a2a2a}
+.biography-modal .modal-title {margin:0;color:#f5f1e8;font:26px/1.5 "Futura CondensedLight",Arial,sans-serif;word-spacing:normal;overflow-wrap:anywhere}
 .biography-modal .modal-close { padding: 4px 10px; border: 0; background: transparent; color: #ddd; font-size: 24px; }
-.biography-modal .modal-body { max-height: calc(100vh - 300px); overflow-y: auto; padding: 20px 22px; }
-.biography-modal .modal-body label { display: block; margin-top: 15px; color: rgb(188, 157, 90); font-weight: 700; }
+.biography-modal .modal-body {max-height:calc(100vh - 300px);overflow-y:auto;padding:0 15px 0 0}
+.biography-modal .modal-body label {display:block;margin:15px 0 0;color:#bc9d5a;font-size:13.44px;font-weight:700}
 .biography-modal .modal-body input,
-.biography-modal .modal-body textarea { width: 100%; margin: 5px 0 15px; padding: 10px 12px; border: 1px solid #555; border-radius: 6px; background: #181818; color: #f5f1e8; }
-.biography-modal .modal-body textarea { min-height: 190px; resize: vertical; }
-.biography-modal .modal-footer { display: flex; justify-content: flex-end; gap: 10px; padding: 15px 22px; border-top: 1px solid #4a4a4a; background: #333; }
-.biography-modal .biography-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-.biography-modal .biography-detail-grid section { min-width: 0; padding: 14px; border: 1px solid #444; border-radius: 6px; background: #232323; }
-.biography-modal .biography-detail-grid h3 { margin: 0 0 8px; color: rgb(188, 157, 90); }
-.biography-modal .biography-detail-grid [data-biography-detail-field] { color: #e6e6e6; white-space: pre-wrap; overflow-wrap: anywhere; }
+.biography-modal .modal-body textarea { width: 100%; margin: 0 0 15px; padding: 7px 10px; border: 1px solid #555; border-radius: 6px; background: #181818; color: #f5f1e8; }
+.biography-modal .modal-body textarea { min-height: 92px; resize: vertical; }
+.biography-modal .modal-footer {display:flex;justify-content:flex-end;gap:4px;position:sticky;bottom:0;padding:15px 0;margin-top:20px;border-top:1px solid #4a4a4a;background:#333}
+.biography-modal .biography-detail-grid { display: grid; gap: 20px; }
+.biography-modal .biography-detail-grid section { min-width: 0; }
+.biography-modal .biography-detail-grid h4 { margin: 0 0 8px; padding-bottom:4px; border-bottom:1px solid #444; color:#bc9d5a; }
+.biography-modal .biography-detail-grid [data-biography-detail-field] { padding:12px; border-radius:4px; min-height:40px; background:#2a2a2a; color: #d4d4d4; white-space: pre-wrap; overflow-wrap: anywhere; }
+.biography-modal .action-button {font:13px/1.5 Arial,sans-serif;font-weight:400;}
 .biography-modal .biography-detail-grid [data-biography-detail-field].empty { color: #888; font-style: italic; }
 
 @media (max-width: 900px) {
@@ -194,42 +198,12 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
     .biography-page .button-group .btn-danger { width: 100%; }
 }
 
-/* Compact current-Herika record management rhythm. */
-.biography-page .content-section { margin-bottom: 14px; padding: 14px; border-radius: 6px; }
-.biography-page .content-section h1,
-.biography-page .database-section > h1 { margin-bottom: 12px; font-size: 1.35rem; line-height: 1.25; text-shadow: none; word-spacing: 6px; }
-.biography-page .content-section h3 { margin-bottom: 8px; font-size: 1.05rem; }
-.biography-page .content-section h4 { margin-bottom: 10px; font-size: .9rem; }
-.biography-page .content-section p,
-.biography-page .database-section p { margin: 6px 0; font-size: .82rem; line-height: 1.4; }
-.biography-page .biography-field { margin-top: 10px; }
-.biography-page .button-group { gap: 8px; margin-top: 10px; }
-.biography-page .biography-tips { margin-top: 10px; }
-.biography-page .database-section { margin-top: 24px; }
-.biography-page .action-container { margin-bottom: 12px; }
-.biography-page .database-note { font-size: 1rem; line-height: 1.35; }
-.biography-page .filter-buttons { margin: 24px 0 12px; }
-.biography-page .table-container { margin-top: 12px; }
-.biography-modal { display: none; align-items: flex-start; justify-content: center; padding: 20px 12px; }
-.biography-modal.open { display: flex; }
-.biography-modal .modal-container { width: min(800px, 100%); max-height: calc(100vh - 40px); display: flex; flex-direction: column; margin: 0; }
-.biography-modal .modal-header { padding: 12px 16px; }
-.biography-modal .modal-title { font-size: 1.25rem; overflow-wrap: anywhere; word-spacing: 6px; }
-.biography-modal .modal-body { min-height: 0; max-height: none; flex: 1 1 auto; padding: 14px 16px; }
-.biography-modal .modal-body label { margin-top: 10px; font-size: .82rem; }
-.biography-modal .modal-body input,
-.biography-modal .modal-body textarea { margin: 4px 0 10px; padding: 7px 9px; }
-.biography-modal .modal-body textarea { min-height: 100px; }
-.biography-modal .modal-footer { padding: 10px 16px; }
-.biography-modal :focus-visible { outline: 2px solid rgba(188,157,90,.9); outline-offset: 2px; }
 
-@media (max-width: 480px) {
-    .biography-page .content-section { padding: 11px; }
-    .biography-page .content-section h1,
-    .biography-page .database-section > h1 { font-size: 1.2rem; }
-    .biography-modal { padding: 8px; }
-    .biography-modal .modal-container { max-height: calc(100vh - 16px); }
-    .biography-modal .modal-header,
-    .biography-modal .modal-body,
-    .biography-modal .modal-footer { padding-right: 12px; padding-left: 12px; }
-}
+.biography-modal .modal-body small { display:block; color:#888; margin-bottom:5px; font-size:13.125px; }
+.biography-modal .biography-field-section { color:#bc9d5a; margin:25px 0 15px; border-bottom:1px solid #444; }
+.biography-modal [readonly] { background:#2a2a2a!important; cursor:default; }
+.biography-page :is(button,a,input,select,textarea,[tabindex]):focus-visible,
+.biography-modal :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+@media(max-width:768px){.biography-page{padding-left:5%;padding-right:5%}.biography-modal{padding:8px}.biography-modal .modal-container{width:100%;margin:20px auto}.biography-modal .modal-body{max-height:calc(100dvh - 200px)}.biography-modal .modal-header,.biography-modal .modal-body,.biography-modal .modal-footer{padding-left:12px;padding-right:12px}}
+
+@media(max-width:480px){.biography-page{padding-left:2%;padding-right:2%}.biography-page .page-header h1{font-size:1.5em}.biography-modal .modal-container{padding:16px}.biography-modal .modal-title{font-size:22px}.biography-modal .modal-body{padding:0 8px 0 0}.biography-modal .modal-header,.biography-modal .modal-footer{padding-left:0;padding-right:0}}

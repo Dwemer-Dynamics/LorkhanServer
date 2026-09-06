@@ -1445,9 +1445,18 @@ final class ProductRepository
         return$this->transaction(function()use($input):array{
             $name=trim((string)($input['npc_name']??''));
             if($name===''||strlen($name)>128||str_contains($name,"\0"))throw new RuntimeException('invalid_biography_template_name');
-            $exists=$this->db->prepare('SELECT 1 FROM public.combined_bio_templates WHERE npc_name=:name');
-            $exists->execute(['name'=>$name]);
-            if($exists->fetchColumn()===false)throw new RuntimeException('biography_template_not_found');
+            $profileId=trim((string)($input['profile_id']??''));$profile=null;
+            if($profileId!==''){
+                if(!Uuid::isValid($profileId))throw new RuntimeException('invalid_profile_id');
+                $profile=$this->getRevisioned('profile',$profileId);
+                $identity=is_string($profile['actor_identity'])?$this->json($profile['actor_identity']):$profile['actor_identity'];
+                if(($identity['kind']??'')!=='template'||$profile['installation_id']!==($input['installation_id']??'')||$profile['name']!==$name)
+                    throw new RuntimeException('biography_template_not_found');
+            }else{
+                $exists=$this->db->prepare('SELECT 1 FROM public.combined_bio_templates WHERE npc_name=:name');
+                $exists->execute(['name'=>$name]);
+                if($exists->fetchColumn()===false)throw new RuntimeException('biography_template_not_found');
+            }
             $relationships=trim((string)($input['relationships']??''));
             if($relationships==='')$relationships='{}';
             if(strlen($relationships)>16384||str_contains($relationships,"\0"))throw new RuntimeException('invalid_biography_relationships');
@@ -1465,6 +1474,19 @@ final class ProductRepository
             }
             $values['oghma_knowledge_tags']=$this->npcKnowledgeTags($values['oghma_knowledge_tags']??'');
             if($values['core']===null)throw new RuntimeException('invalid_biography_template_core');
+            if($profile!==null){
+                if(($identity['record_id']??'')!==($values['refid']??''))throw new RuntimeException('invalid_biography_identity');
+                $content=$profile['content'];
+                foreach(['core'=>'core','npc_static_bio'=>'biography','appearance'=>'appearance','personality'=>'personality',
+                    'relationships'=>'relationships','occupation'=>'occupation','skills'=>'skills','speechstyle'=>'speech_style',
+                    'goals'=>'goals','oghma_knowledge_tags'=>'oghma_knowledge_tags','gender'=>'gender','race'=>'race'] as $field=>$key)
+                    $content[$key]=$values[$field]??'';
+                $content['voice']=array_replace(is_array($content['voice']??null)?$content['voice']:[],['id'=>$values['voiceid']??'']);
+                $expected=filter_var($input['expected_revision']??'',FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+                if($expected===false)throw new RuntimeException('invalid_expected_revision');
+                $this->revise('profile',$profileId,$content,'biography template edit',gmdate('c'),$expected);
+                return ['npc_name'=>$name,'source'=>'installation','profile_id'=>$profileId];
+            }
             $this->db->prepare('INSERT INTO public.bio_templates_custom '
                 .'(npc_name,oghma_knowledge_tags,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,voiceid,gender,race,refid) '
                 .'VALUES(:npc_name,:oghma_knowledge_tags,:core,:npc_static_bio,:appearance,:personality,:relationships,:occupation,:skills,:speechstyle,:goals,:voiceid,:gender,:race,:refid) '
