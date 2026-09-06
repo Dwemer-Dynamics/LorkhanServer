@@ -217,6 +217,10 @@ assert text.count('class="log-section"')==3 and all(label in text for label in [
 assert '/var/log/' not in text and 'chim.log' not in text
 database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1 class="lorkhan-page-head-title">Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
+for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
+    cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()
+    assert cache_html.count('<h1>'+provider_label+' Voice Cache</h1>')==1 and ' Local Voice Library</h1>' not in cache_html
+    assert 'Provider Voice Browser &amp; Connector Settings' in cache_html and 'Missing Voices</h1>' in cache_html
 fallback_page,fallback_html=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks'))
 fallback_form=next(f for f in fallback_page.forms if f['fields'].get('action')=='fallback_save')
 fallback_fields=fallback_form['fields']
@@ -236,6 +240,10 @@ r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(saved_fallback_
 assert 'Global fallback voices saved for every TTS connector.' in body and 'value="mw_dark_elf_male"' in body,body
 batch_voice='HTTPBatch'+uuid.uuid4().hex
 wav=VoiceProvider.silence
+# A WAV's filename is the default voice name; custom naming remains optional.
+r=multipart_request('/LorkhanServer/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':''},'voice_sample',batch_voice+'.wav','audio/wav',wav); body=r.read().decode()
+assert r.status==200 and 'Voice sample saved.' in body and batch_voice in body
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',{'_csrf':csrf,'action':'delete','voice_name':batch_voice}); assert 'Local voice sample deleted.' in r.read().decode()
 archive=io.BytesIO()
 with zipfile.ZipFile(archive,'w',zipfile.ZIP_DEFLATED) as bundle: bundle.writestr(batch_voice+'.wav',wav)
 r=multipart_request('/LorkhanServer/ui/core/voice_library.php',{'_csrf':csrf,'action':'upload','voice_name':''},'voice_sample','voices.zip','application/zip',archive.getvalue()); body=r.read().decode()

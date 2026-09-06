@@ -122,3 +122,9 @@ Save/Cancel interaction in `ui/tmpl/npc_relationships.html.php`,
 pinned HerikaServer `ext/relationship_system/relationship_editor.php` under its
 MIT license. Lorkhan's native identity, private notes, revisioned storage and
 OpenMW disposition handling are retained.
+
+Voice Studio's primary cache, upload/cache/batch section hierarchy, status/ID
+presentation and compact action styling in `ui/core/tmpl/voice_library_studio.php`
+and `ui/css/herika-tts-studio.css` are adapted from the same pinned HerikaServer
+`ui/xtts_clone.php` under its MIT license. Lorkhan keeps scoped connectors,
+protected persistent samples and explicit cloud-upload authorization.

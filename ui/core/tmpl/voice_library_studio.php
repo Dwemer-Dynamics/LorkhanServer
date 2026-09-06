@@ -376,8 +376,11 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $canBrowse = is_array($selectedProvider) && in_array($selectedProviderDriver, $voiceDiscoveryDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $canSync = is_array($selectedProvider) && in_array($selectedProviderDriver, $sampleUploadDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $cloudClone = in_array($activeTab, ['cartesia', 'inworld'], true);
+        $localOnly=$selectedProviderDriver==='pockettts'&&!$canSync;
         $syncedSamples=[];$syncedSampleIds=[];
-        if($selectedProviderId!=='')foreach($products->connectorVoiceCatalog($selectedProviderId)as$knownVoice){$syncedSamples[mb_strtolower($knownVoice['id'])]=true;$syncedSamples[mb_strtolower($knownVoice['display'])]=true;$syncedSampleIds[mb_strtolower($knownVoice['display'])]=$knownVoice['id'];}
+        if($selectedProviderId!=='')foreach($products->connectorVoiceCatalog($selectedProviderId)as$knownVoice){if($activeTab==='omnivoice'&&($knownVoice['language']??'en')!==$discoverLanguage)continue;$syncedSamples[mb_strtolower($knownVoice['id'])]=true;$syncedSamples[mb_strtolower($knownVoice['display'])]=true;$syncedSampleIds[mb_strtolower($knownVoice['display'])]=$knownVoice['id'];}
+        $missingCount=count(array_filter($samples,static fn(array$sample):bool=>!isset($syncedSamples[mb_strtolower($sample['name'])])));
+        $batchVerb=$cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Upload');
         $catalogMatchesTab = is_array($discoveredPreset) && in_array((string) ($discoveredPreset['content']['driver'] ?? ''), $tab['drivers'], true);
     ?>
         <section class="content-section">
@@ -386,7 +389,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <span class="visually-hidden">Add WAV voice samples</span>
             <form method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
-                <div class="field-row"><div><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80"></div><div><label for="voice-sample">Voice sample or batch</label><input id="voice-sample" name="voice_sample" type="file" accept="audio/wav,.wav,application/zip,.zip" required></div></div>
+                <div class="voice-upload-field"><label for="voice-sample">Select a .wav file or .zip archive to upload:</label><input id="voice-sample" name="voice_sample" type="file" accept="audio/wav,.wav,application/zip,.zip" required></div><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"></details>
                 <div class="button-group"><button class="btn-primary" type="submit">Upload Voice Sample</button></div>
             </form>
             <div class="requirements"><p><strong>📋 File Requirements:</strong></p><ul><li>PCM-compatible RIFF/WAVE, up to 16 MiB per sample</li><li>Voice names use letters, numbers, spaces, underscores, plus, dot, or hyphen</li><li>A flat ZIP batch may contain up to 64 WAV files and 128 MiB extracted</li><li>Files remain outside profile JSON and browser cookies</li></ul></div>
@@ -394,7 +397,11 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
 
         <section class="content-section">
             <h1><?php echo lorkhan_ui_h($providerLabel); ?> Voice Cache</h1>
-            <span class="visually-hidden">Provider Voice Browser</span>
+            <span class="visually-hidden">Voice Library</span>
+            <p>Manage voice <?php echo $cloudClone?'generation':'synchronization'; ?> for <?php echo lorkhan_ui_h($providerLabel); ?> from the persistent local WAV library.</p>
+            <?php if($cloudClone&&!is_array($selectedProvider)): ?><div class="voice-warning"><strong>⚠️ No <?php echo lorkhan_ui_h($providerLabel); ?> connector is configured</strong><p><a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure a TTS connector</a> before discovering or generating provider voices.</p></div><?php endif; ?>
+            <?php if($cloudClone): ?><div class="voice-info"><strong>ℹ️ Automatic Voice Generation</strong><p>Voices are generated from local samples when needed for dialogue. You do not need to sync every voice before playing.</p></div><?php endif; ?>
+            <details class="voice-provider-library"><summary>Provider Voice Browser &amp; Connector Settings</summary>
             <p>Explicitly query the selected connector's speaker library. Opening TTS Studio never contacts a provider automatically.</p>
             <?php if (is_array($selectedProvider)): ?><p><strong>Current connector default:</strong> <?php echo lorkhan_ui_h((string)($selectedProviderContent['voice'] ?? 'Connector default')); ?> <span class="status-badge"><?php echo lorkhan_ui_h((string)($selectedProviderContent['language'] ?? 'en')); ?></span></p><?php endif; ?>
             <?php if ($canBrowse): ?>
@@ -412,16 +419,15 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <?php if ($catalogMatchesTab && $catalogLoaded): ?>
                 <?php if ($discoveredVoices === []): ?><p>The provider returned no voices for this language.</p><?php else: ?><div class="voice-status-grid"><?php foreach ($discoveredVoices as $item): ?><article class="voice-status-item"><span class="voice-name"><?php echo lorkhan_ui_h($item['display']); ?></span><span class="status-icon synced">✓</span><div class="voice-actions"><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><button type="submit" title="Test voice">▶</button></form><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-default-voice"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($item['language']); ?>"><button class="btn-primary" type="submit" title="Set connector default">✓</button></form></div></article><?php endforeach; ?></div><?php endif; ?>
             <?php endif; ?>
-        </section>
-
-        <section class="content-section">
-            <h1><?php echo lorkhan_ui_h($providerLabel); ?> Local Voice Library</h1>
-            <span class="visually-hidden">Voice Library</span>
-            <p>Manage persistent local samples and explicitly sync or test them with this provider.</p>
+            </details>
+            <p class="voice-cache-caption"><?php echo count($samples); ?> local voice samples<?php if(is_array($selectedProvider)): ?> · <?php echo lorkhan_ui_h($selectedProvider['name']); ?><?php endif; ?><?php if($activeTab==='omnivoice'): ?> · <?php echo lorkhan_ui_h($discoverLanguage); ?><?php endif; ?></p>
+            <p class="voice-copy-status" data-voice-copy-status role="status" hidden></p>
+            <?php if($cloudClone&&$canSync&&$missingCount>0): ?><label class="voice-cloud-consent"><input type="checkbox" data-voice-cloud-consent> Allow selected samples to be uploaded to <?php echo lorkhan_ui_h($providerLabel); ?> for cloning (provider charges may apply).</label><noscript><p>JavaScript is needed for individual cloud uploads. The confirmed batch form below also works without it.</p></noscript><?php endif; ?>
             <?php if ($samples === []): ?><p>No voice files found in LORKHAN's persistent voice library. Upload voice samples above first.</p><?php else: ?><div class="voice-status-grid">
                 <?php foreach ($samples as $sample): $references = lorkhan_voice_references($sample['name'], $voiceReferenceIndex); $isSynced=isset($syncedSamples[mb_strtolower($sample['name'])]); ?>
-                    <article class="voice-status-item"><span class="voice-name" title="<?php echo lorkhan_ui_h($sample['name']); ?>"><?php echo lorkhan_ui_h($sample['name']); ?></span><span class="status-icon <?php echo $isSynced ? 'synced' : 'unsynced'; ?>"><?php echo $canSync ? '✗' : '✓'; ?></span><div class="voice-actions">
-                        <?php if ($canSync): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><?php if($cloudClone): ?><label title="Upload this sample to the cloud provider"><input type="checkbox" name="consent" value="1" required> Upload</label><?php endif; ?><button class="btn-primary" type="submit" title="<?php echo $cloudClone?'Clone this voice':'Sync this voice'; ?>">↻</button></form><?php endif; ?>
+                    <article class="voice-status-item"><div class="voice-identity"><button type="button" class="voice-name voice-copy" data-copy-voice="<?php echo lorkhan_ui_h($sample['name']); ?>" title="Copy voice name: <?php echo lorkhan_ui_h($sample['name']); ?>"><?php echo lorkhan_ui_h($sample['name']); ?></button><?php $remoteId=$syncedSampleIds[mb_strtolower($sample['name'])]??'';if($cloudClone&&$remoteId!==''): ?><span class="voice-id" title="<?php echo lorkhan_ui_h($remoteId); ?>"><?php echo lorkhan_ui_h($remoteId); ?></span><?php endif; ?></div><span class="status-icon <?php echo $isSynced||$localOnly?'synced':(is_array($selectedProvider)?'unsynced':'unknown'); ?>" title="<?php echo $isSynced?'Cached provider voice':($localOnly?'Available as a local sample':(is_array($selectedProvider)?'Not in the cached provider library':'No connector configured')); ?>"><?php echo $isSynced||$localOnly?'✓':(is_array($selectedProvider)?'✗':'—'); ?></span>
+                        <div class="voice-actions">
+                        <?php if ($canSync&&(!$cloudClone||!$isSynced)): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><?php if($cloudClone): ?><input type="hidden" name="consent" value="0" data-voice-upload-consent><?php endif; ?><button class="btn-primary" type="submit"<?php echo $cloudClone?' disabled':''; ?> title="<?php echo $cloudClone?'Clone this voice':'Sync this voice'; ?>">↻</button></form><?php endif; ?>
                         <?php if (is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($syncedSampleIds[mb_strtolower($sample['name'])]??$sample['name']); ?>"><button type="submit" title="Test voice">▶</button></form><?php endif; ?>
                         <?php if ($references === []): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-confirm="Delete this local voice sample?"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="delete"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><button class="btn-danger" type="submit" title="Delete local sample">×</button></form><?php endif; ?>
                     </div></article>
@@ -429,17 +435,19 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             </div><?php endif; ?>
         </section>
 
-        <?php if($canSync): ?>
         <section class="content-section">
-            <h1>Batch Process Missing Voices</h1>
-            <p>Upload missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
+            <h1>Batch <?php echo $cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Process'); ?> Missing Voices</h1>
+            <p><?php echo $batchVerb; ?> missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
+            <?php if($canSync&&$missingCount>0): ?><p class="voice-missing-count">Found <?php echo $missingCount; ?> voice(s) not yet <?php echo $cloudClone?'generated':'synced'; ?> in the cached provider library.</p>
             <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch>
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="batch_sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>">
                 <label><input type="checkbox" name="consent" value="1" required> Upload these samples to the selected provider<?php echo $cloudClone?' and create cloud voices (provider charges may apply)':''; ?>.</label>
-                <div class="button-group"><button class="btn-primary" type="submit">Batch Upload Missing Voices</button><button type="button" data-voice-batch-stop hidden>Stop after current voice</button></div><p role="status" data-voice-batch-status></p>
+                <div class="button-group"><button class="btn-primary" type="submit">Batch <?php echo $batchVerb; ?> Missing Voices (<?php echo $missingCount; ?>)</button><button type="button" data-voice-batch-stop hidden>Stop after current voice</button></div><p role="status" data-voice-batch-status></p>
             </form>
+            <?php elseif($localOnly): ?><p class="voice-ready">✓ Local samples are ready for PocketTTS audio.cpp; no server upload is needed.</p>
+            <?php elseif(!$canSync): ?><p>Configure a compatible <?php echo lorkhan_ui_h($providerLabel); ?> connector to upload voices.</p><a class="btn-primary" href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure TTS connector</a>
+            <?php else: ?><p class="voice-ready">✓ No missing voices in the cached library. Refresh Server Voices above to check the provider.</p><?php endif; ?>
         </section>
-        <?php endif; ?>
     <?php endif; ?>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/lorkhan-management.js" defer></script>

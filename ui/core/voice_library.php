@@ -229,7 +229,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $upload=$_FILES['voice_sample']??null;if(!is_array($upload)||($upload['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK||!is_uploaded_file((string)($upload['tmp_name']??'')))throw new InvalidArgumentException('voice_upload_failed');
             $extension=strtolower(pathinfo((string)($upload['name']??''),PATHINFO_EXTENSION));
             if($extension==='zip'){$count=lorkhan_voice_import_zip((string)$upload['tmp_name'],$voiceRoot);$notice=$count.' voice samples imported.';}
-            else{$filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;lorkhan_voice_validate_wav((string)$upload['tmp_name']);
+            else{$filename=lorkhan_voice_filename(trim($voice)!==''?$voice:pathinfo((string)$upload['name'],PATHINFO_FILENAME));$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;lorkhan_voice_validate_wav((string)$upload['tmp_name']);
                 if(is_file($path))throw new InvalidArgumentException('voice_sample_exists');
                 if(!move_uploaded_file((string)$upload['tmp_name'],$path))throw new RuntimeException('voice_upload_failed');@chmod($path,0640);$notice='Voice sample saved.';}
         }elseif($action==='sync'){
@@ -288,7 +288,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
 $pronunciationEntries=$pronunciations->rows();
 
 if($discoveredPreset===null){
-    $selectedDiscoveryId=(string)($_GET['configuration_id']??($activeTts['configuration_id']??''));
+    $selectedDiscoveryId=(string)($_GET['configuration_id']??$_POST['configuration_id']??($activeTts['configuration_id']??''));
     if(!isset($ttsPresetsById[$selectedDiscoveryId])||!lorkhan_voice_can_sync($ttsPresetsById[$selectedDiscoveryId])){
         $selectedDiscoveryId='';foreach($ttsPresets as$preset)if(lorkhan_voice_can_sync($preset)){$selectedDiscoveryId=(string)($preset['configuration_id']??'');break;}
     }

@@ -79,7 +79,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
-| `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
+| `core/voice_library.php` | `xtts_clone.php` | Six provider tabs use one primary voice cache, compact name/status/ID/actions and matching batch section hierarchy; Inworld populated desktop/narrow compared. Provider-side clone management, OmniVoice language workflow, multi-file upload and full fallback/pronunciation state comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
@@ -1754,3 +1754,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   hashes were preserved. The live empty Fargoth editor contains all five detail
   labels and the NPC-save guidance. Migration 089 is present; relationship
   records/audit/provider-attempt counts remain 0/0/0. No live form was submitted.
+
+### Voice Studio — consolidated provider cache structure
+
+- XTTS, Chatterbox, PocketTTS, OmniVoice, Cartesia and Inworld now have one
+  primary Voice Cache instead of separate provider and local-library sections.
+  Provider discovery, connector selection and default-voice controls remain
+  available inside a collapsed Provider Voice Browser. Existing authenticated
+  uploads, tests, deletion safeguards and explicit provider requests are retained.
+- Cached local voices display the actual cached status rather than a cross based
+  on upload capability. Unconfigured connectors show an unknown marker, not a
+  success check; PocketTTS audio.cpp is labelled local-only. OmniVoice cached
+  status is filtered by the selected language. Cloud voice IDs sit under the
+  name so long IDs do not squeeze the name to one character. These are cached
+  observations, not live provider-health checks.
+- Copy-name buttons are keyboard-accessible. Action buttons use the pinned
+  reference's compact gray treatment. One scoped approval checkbox enables only
+  the individual cloud-upload controls; revoking it disables them again. Backend
+  upload consent is still mandatory. Batch approval remains separate.
+- Batch sections remain visible for empty and unconfigured providers, with
+  missing counts, Generate/Import/Process labels, local-only readiness or a
+  connector setup link. Cloud tabs also show the automatic-generation explanation
+  and an explicit warning when no connector exists.
+- The upload panel now leads with the file chooser. Optional custom naming is
+  collapsed; a single WAV uses its validated filename when no override is given.
+  WAV/ZIP limits and persistent storage are unchanged. Multiple individual files
+  and automatic upload-and-provider-sync still differ from the reference.
+- Compared the actual pinned Inworld component with synthetic populated source
+  states, including the combined cache, ID/action arrangement and batch section.
+  UI checks cover consent enable/revoke and provider browser expansion. At 390px
+  viewport the document client/scroll widths are both 375px and cards have equal
+  326px client/scroll widths. No provider action was submitted in the browser.
+- Still pending: provider-side forget/reclone/delete semantics and managed-clone
+  ownership, automatic clone-cache visibility, provider-readiness checks,
+  OmniVoice's dedicated language library, full provider-by-provider comparison,
+  multiple-file uploads, batch progress parity, and Fallback/Pronunciations states.
+  Those are open parity gaps, not accepted product exceptions.
+- Also checked synthetic empty, unconfigured and XTTS populated states. The
+  unconfigured cloud page shows its connector warning and no clone controls.
+  The deployed Inworld page has one combined cache with 22 existing samples,
+  a collapsed provider browser and a batch section. This was a read-only visit;
+  no uploads, previews, refreshes, deletions or provider requests were submitted.
+- Verification: 370 server checks, 98 protocol files, management HTTP forms,
+  integration, migrations and durable jobs passed. PHP/JavaScript syntax and
+  diff checks passed. The deployed manifest contains 725 matching files, with
+  no extras or old paths; protected files return 403 on all three checked ports
+  and unauthenticated session requests return 401. Configuration, credential and
+  voice-file hashes remain unchanged. Rollback:
+  `/var/backups/lorkhanserver-code.0k03pa`. No game was launched or controlled.

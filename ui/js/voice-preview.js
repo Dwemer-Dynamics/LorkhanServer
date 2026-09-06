@@ -2,6 +2,18 @@
 (() => {
     const root = document.querySelector('[data-voice-preview-endpoint]');
     if (!root) return;
+    const consent=root.querySelector('[data-voice-cloud-consent]');
+    const cloudForms=[...root.querySelectorAll('form')].filter(form=>form.querySelector('[data-voice-upload-consent]'));
+    consent?.addEventListener('change',()=>cloudForms.forEach(form=>{
+        form.querySelector('[data-voice-upload-consent]').value=consent.checked?'1':'0';
+        form.querySelector('button[type="submit"]').disabled=!consent.checked;
+    }));
+    cloudForms.forEach(form=>form.addEventListener('submit',event=>{if(!consent?.checked){event.preventDefault();consent?.focus();}}));
+    root.querySelectorAll('[data-copy-voice]').forEach(button=>button.addEventListener('click',async()=>{
+        const message=root.querySelector('[data-voice-copy-status]');message.hidden=false;
+        try{await navigator.clipboard.writeText(button.dataset.copyVoice);message.textContent=`Copied ${button.dataset.copyVoice}`;}
+        catch(_error){message.textContent=`Copy unavailable. Voice name: ${button.dataset.copyVoice}`;}
+    }));
     const audio = document.createElement('audio'); audio.controls = true; audio.hidden = true; audio.preload = 'none';
     const status = document.createElement('p'); status.setAttribute('role', 'status');
     root.prepend(status, audio);
