@@ -15,7 +15,7 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .page-subtitle { color: #bbb; }
 .api-keys-page .keys-notice { margin: 0 0 14px; padding: 10px 12px; border: 1px solid rgba(65, 170, 100, .4); border-radius: 8px; background: rgba(42, 42, 42, .95); color: #a9e5bd; }
 .api-keys-page .keys-notice.error { border-color: rgba(220, 80, 90, .5); color: #ffb0b7; }
-.api-keys-page .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 12px; }
+.api-keys-page .content-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-bottom: 30px; }
 
 .api-keys-page .content-section {
     padding: 25px;
@@ -34,7 +34,7 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .full-width-section { grid-column: 1 / -1; }
 .api-keys-page .provider-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 
-.api-keys-page .provider-card {
+.api-keys-page :is(.provider-card, .custom-card) {
     padding: 14px;
     border: 1px solid #3a3a3a;
     border-radius: 10px;
@@ -43,8 +43,8 @@ body.api-keys-page-shell > main.api-keys-page {
     transition: all .2s ease;
 }
 
-.api-keys-page .provider-card:hover { border-color: #4a4a4a; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); transform: translateY(-1px); }
-.api-keys-page .provider-card.has-key { border-color: #2d6a4f; box-shadow: 0 0 0 1px rgba(45, 106, 79, .35) inset, 0 1px 4px rgba(0, 0, 0, .1); }
+.api-keys-page :is(.provider-card, .custom-card):hover { border-color: #4a4a4a; box-shadow: 0 3px 8px rgba(0, 0, 0, .2); transform: translateY(-1px); }
+.api-keys-page .custom-card.has-key { border-color: #2d6a4f; box-shadow: 0 0 0 1px rgba(45, 106, 79, .35) inset, 0 1px 4px rgba(0, 0, 0, .1); }
 .api-keys-page .provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 8px; }
 .api-keys-page .provider-title { display: flex; align-items: center; gap: 10px; color: #e0e0e0; }
 .api-keys-page .provider-icon { display: flex; width: 28px; height: 28px; align-items: center; justify-content: center; border-radius: 6px; background: linear-gradient(135deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, .9)); box-shadow: 0 1px 3px rgba(0, 0, 0, .2); font-size: 16px; }
@@ -52,10 +52,10 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .provider-links a { color: rgb(188, 157, 90); font-size: 12px; text-decoration: underline; }
 .api-keys-page .provider-body { display: flex; align-items: center; gap: 8px; }
 
-.api-keys-page .provider-card input[type="password"],
-.api-keys-page .provider-card input[type="text"] { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .8); color: #e9efff; transition: all .2s ease; }
-.api-keys-page .provider-card input:focus { border-color: rgba(188, 157, 90, .5); outline: none; background: rgba(34, 34, 34, .9); box-shadow: 0 0 0 3px rgba(188, 157, 90, .1); }
-.api-keys-page .provider-card input:disabled { filter: none !important; opacity: .72 !important; }
+.api-keys-page :is(.provider-card, .custom-card) input[type="password"],
+.api-keys-page :is(.provider-card, .custom-card) input[type="text"] { flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #3a3a3a; border-radius: 6px; background: rgba(26, 26, 26, .8); color: #e9efff; transition: all .2s ease; }
+.api-keys-page :is(.provider-card, .custom-card) input:focus { border-color: rgba(188, 157, 90, .5); outline: none; background: rgba(34, 34, 34, .9); box-shadow: 0 0 0 3px rgba(188, 157, 90, .1); }
+.api-keys-page :is(.provider-card, .custom-card) input:disabled { filter: none !important; opacity: .72 !important; }
 .api-keys-page .provider-subtext { margin-top: 8px; color: #bdbdbd; font-size: 12px; }
 .api-keys-page .provider-subtext .desc { margin: 0 0 2px; color: #cfcfcf; font-size: 12px !important; line-height: 18px !important; }
 .api-keys-page #custom-keys { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin-bottom: 10px; }
@@ -63,10 +63,36 @@ body.api-keys-page-shell > main.api-keys-page {
 .api-keys-page .status-control > .feature-state-badge { position: absolute; top: -8px; right: -7px; z-index: 1; white-space: nowrap; transform: scale(.72); transform-origin: top right; }
 .api-keys-page .add-custom-control { margin-top: 0; }
 .api-keys-page .status-control button:disabled { filter: none !important; opacity: .72 !important; }
-.api-keys-page .btn-save { border-color: #27853d !important; background: #2f7f57 !important; color: #fff !important; }
+.api-keys-page .key-source { color: #bdbdbd; font-size: 12px; }
+.api-keys-page .custom-card label { display: block; margin: 10px 0 6px; color: #bc9d5a; font-weight: 600; }
+.api-keys-page .custom-card > input, .api-keys-page .custom-card label > input { display: block; width: 100%; font-weight: 400; }
+.api-keys-page .custom-card label > input { margin-top: 6px; }
+.api-keys-page .key-actions { display: flex; gap: 6px; }
+.api-keys-page .key-status, .api-keys-page .keys-help { color: #bdbdbd; font-size: 12px; line-height: 18px; margin: 8px 0 0; }
+.api-keys-page .keys-help { margin: 0 0 10px; }
+.api-keys-page .key-status:empty { display: none; }
+.api-keys-page #add-custom-key + .keys-help { margin-top: 10px; }
+.api-keys-page .provider-body button, .api-keys-page .key-actions button { flex-shrink: 0; }
+
+/* Reference's 900px / 70vh test reader, with native focus and Escape handling. */
+.apikey-test-dialog { width: 90%; max-width: 900px; height: 70vh; max-height: 90vh; padding: 0; color: #ddd; background: #0e1624; border: 1px solid rgba(138,155,182,.4); border-radius: 10px; box-shadow: 0 10px 30px rgba(0,0,0,.6); }
+.apikey-test-dialog::backdrop { background: rgba(0,0,0,.65); }
+.apikey-test-dialog .apikey-test-close { position: absolute; top: 8px; right: 10px; padding: 4px 10px; background: #300 !important; color: #fff; border: 1px solid rgba(255,255,255,.2); border-radius: 6px; }
+.apikey-test-content { height: 100%; overflow: auto; padding: 12px; background: #2a2a2a; color: #e9efff; font-family: system-ui, sans-serif; }
+.apikey-test-panel { border: 1px solid #4a4a4a; border-radius: 10px; padding: 12px; margin: 10px 0; }
+.apikey-test-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-right: 50px; margin-bottom: 6px; }
+.apikey-test-content h1 { margin: 0; color: #bc9d5a; font: 600 18px/1.5 system-ui, sans-serif; }
+#apikey-test-title { color: #bc9d5a !important; }
+#apikey-test-provider { color: #9fb1c9; font-size: 13px; opacity: .85; }
+.apikey-test-content .keys-help { margin: 10px 0 0; color: #9fb1c9; font-size: 12px; }
+#apikey-test-status { white-space: pre-wrap; overflow-wrap: anywhere; }
+#apikey-test-status.is-success { color: #6dd19c; }
+#apikey-test-status.is-error { color: #ff6b6b; }
+#apikey-test-status.is-loading::before { content: ''; display: inline-block; width: 18px; height: 18px; margin-right: 10px; vertical-align: middle; border: 2px solid #777; border-top-color: #bc9d5a; border-radius: 50%; animation: key-test-spin 1s linear infinite; }
+@keyframes key-test-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { #apikey-test-status.is-loading::before { animation: none; } }
 
 @media (max-width: 900px) {
-    body.api-keys-page-shell > main.api-keys-page { padding-right: 5%; padding-left: 5%; }
     .api-keys-page .content-grid,
     .api-keys-page .provider-grid,
     .api-keys-page #custom-keys { grid-template-columns: 1fr; }
@@ -74,6 +100,8 @@ body.api-keys-page-shell > main.api-keys-page {
 
 @media (max-width: 560px) {
     .api-keys-page .section-header { align-items: flex-start; gap: 12px; }
+    .api-keys-page .content-section { padding: 14px; }
+    .api-keys-page .provider-head { flex-wrap: wrap; }
     .api-keys-page .provider-body { flex-wrap: wrap; }
     .api-keys-page .provider-body input { flex-basis: 100%; }
 }

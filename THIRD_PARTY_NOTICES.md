@@ -15,6 +15,10 @@ Quickstart's section/card geometry and typography derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/quickstart.php`, with
 Lorkhan colors, protected forms and existing connector identities retained.
 
+API Keys card/section layout, custom editor controls and test-reader geometry derive
+from the same revision's `ui/core/api_badge.php` and `ui/core/tests/apikey_test.php`.
+Lorkhan retains status-only credential rendering and fixed authentication probes.
+
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under

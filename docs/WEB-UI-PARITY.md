@@ -75,7 +75,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
-| `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
+| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
@@ -838,3 +838,33 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Live desktop review confirmed that the existing OpenRouter key is environment
   managed and locked, while the selected Deepgram connector correctly reports
   its provider-default key as not configured. No live key was entered or saved.
+
+### API Keys cards and test reader
+
+- Compared the actual pinned API badge preset/custom-card markup and styles in an
+  isolated reference fixture. Restored the 30px section spacing, standalone Custom
+  Keys heading, puzzle-icon cards, stacked Label/API Key fields, per-card Save/Delete
+  and Add Custom Key. Desktop and 390px reviews caught and corrected a green Delete
+  button and an extra section-header bar. Narrow cards keep usable input widths.
+- Preset and existing custom replacements save on leaving their card; blank keeps
+  the saved key. New custom cards require explicit Save. Writes are serialized,
+  failed/newer drafts remain visible, and unsaved drafts have a navigation guard.
+  Duplicate custom identifiers are rejected instead of overwriting an existing key.
+- Test now opens the reference-sized 900px/70vh reader, keeps the entered draft and
+  page position, shows loading/success/failure and restores focus on Close/Escape.
+  It posts only the tested key's fields. The existing fixed authentication probes
+  remain; the reference's paid chat-completion probe is not copied. Neither test
+  result nor autosave returns stored keys, raw provider bodies or configuration.
+- Environment-owned keys show a clear status and are protected by the POST path
+  as well as disabled inputs. Strict input/CSRF checks and metadata-only responses
+  support asynchronous card actions without rendering secrets into HTML or JSON.
+- Full lint, 337 server checks, 98 protocol checks, HTTP, integration and migration
+  checks passed; the final HTTP rerun and JavaScript syntax checks also passed.
+  Isolated browser checks covered test success/failure, focus, custom save failure
+  and recovery, and failed/retried replacement autosave. Native Delete confirmation
+  blocked browser automation; its mutation/authorization path passed HTTP checks,
+  but complete browser confirmation acceptance is not claimed.
+- Live deployment preserved configuration, credential and voice content hashes.
+  Its preset controls and empty Custom Keys state were reviewed without entering
+  a key or invoking a provider. Custom-label renaming and consolidation of separate
+  service key identities remain pending, so this is not whole-page acceptance.

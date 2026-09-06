@@ -1508,4 +1508,31 @@ for provider in ['openrouter','deepgram']:
     assert 'Configured - leave blank to keep' in input_tag and 'value=' not in input_tag and ' name=' not in input_tag,input_tag
     assert 'data-quick-key="'+provider+'"' in key_body
 assert json_request(key_path).status==404
+# API Keys card mutations return metadata only; malformed tests never contact a provider.
+badge_path='/LorkhanServer/ui/core/api_keys.php'
+ajax='application/json'
+r=request(badge_path,'POST',{'action':'set','variable':'LORKHAN_LLM_API_KEY','credential':dummy_key},accept=ajax)
+assert r.status==401 and dummy_key not in r.read().decode()
+for values in [
+    {'action':'set','variable':'UNKNOWN','credential':dummy_key},
+    {'action':'set','variable':'LORKHAN_LLM_API_KEY','credential[]':dummy_key},
+    {'test_key':'unknown'},
+    {'test_key':'LORKHAN_LLM_API_KEY','credentials[LORKHAN_LLM_API_KEY]':'invalid\nheader'},
+]:
+    r=request(badge_path,'POST',dict(values,_csrf=csrf),accept=ajax); result=r.read().decode()
+    assert r.status==422 and json.loads(result)['ok'] is False and dummy_key not in result,(r.status,result)
+custom_name='CARD_'+uuid.uuid4().hex[:12].upper(); custom_variable='LORKHAN_CUSTOM_'+custom_name+'_API_KEY'
+custom_values={'_csrf':csrf,'add_custom':'1','custom_name':custom_name,'custom_credential':dummy_key}
+r=request(badge_path,'POST',custom_values,accept=ajax); result=r.read().decode()
+assert r.status==200 and json.loads(result)['variable']==custom_variable and dummy_key not in result
+r=request(badge_path,'POST',custom_values,accept=ajax); result=r.read().decode()
+assert r.status==422 and 'already exists' in json.loads(result)['message'] and dummy_key not in result
+r=request(badge_path,'POST',{'_csrf':csrf,'action':'set','variable':custom_variable,'credential':dummy_key+'-replacement'},accept=ajax)
+assert r.status==200 and json.loads(r.read())['ok'] is True
+card_page,card_body=parse(request(badge_path))
+assert 'custom-card has-key' in card_body and 'data-variable="'+custom_variable+'"' in card_body
+assert 'Preset Keys (Saves Automatically)' in card_body and 'id="apikey-test-dialog"' in card_body and dummy_key not in card_body
+r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':custom_variable},accept=ajax)
+assert r.status==200 and json.loads(r.read())['ok'] is True
+_,card_body=parse(request(badge_path)); assert custom_variable not in card_body
 print('browser-like management HTTP forms passed')
