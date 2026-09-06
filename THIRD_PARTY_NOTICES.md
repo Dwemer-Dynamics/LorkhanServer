@@ -1,5 +1,14 @@
 # Third-party notices
 
+## Home dashboard word cloud
+
+The Home dashboard vendors D3 7.9.0 (ISC) and d3-cloud 1.2.7 (BSD-3-Clause)
+to use HerikaServer's word-cloud layout without external runtime scripts.
+Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
+
+- D3: https://github.com/d3/d3/tree/v7.9.0
+- d3-cloud: https://github.com/jasondavies/d3-cloud/tree/v1.2.7
+
 ## Dwemer Dynamics shared server UI
 
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,

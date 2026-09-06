@@ -102,7 +102,7 @@
     stopButton.addEventListener('click', () => stop());
     window.addEventListener('pagehide', () => stop(''));
     document.addEventListener('visibilitychange', () => { if (document.hidden && active) stop(); });
-    root.querySelector('[data-reader-refresh]').addEventListener('click', () => { stop(''); window.location.reload(); });
+    root.querySelector('[data-reader-refresh]')?.addEventListener('click', () => { stop(''); window.location.reload(); });
     root.querySelectorAll('[data-reader-scope]').forEach((control) => control.addEventListener('change', () => {
         stop('');
         const form = control.form;

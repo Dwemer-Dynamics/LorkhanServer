@@ -67,7 +67,7 @@ do not use an exception to excuse a generic substitute layout.
 
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
-| `home.php` | `home.php` | Pending structural and populated-state comparison |
+| `home.php` | `home.php` | Dialogue, diary/audio, relationship changes and D3 cloud aligned; current-playthrough fields, statistics/drilldowns and header destinations pending |
 | `quickstart.php` | `quickstart.php` | Pending structural and populated-state comparison |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
@@ -630,3 +630,49 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Test, speech recording and game commands were not invoked. All 687 runtime
   files hash-match source, private-file 403/native-session 401 checks remain
   intact, and configuration, credentials and voice contents were preserved.
+
+### Home dialogue, diary, relationship changes and word cloud
+
+- Recent Dialogue now uses the latest five whole `chat`/`inputtext` event-log
+  records, with UTC and recorded Tamrielic time, rather than twelve speech
+  delivery rows and a Delivery column. Hidden log records remain hidden.
+- Latest Diary selects only non-deleted `diary` narratives, with the author,
+  existing paper artwork, handwritten font and centered Play Audio control.
+  It reuses the existing authenticated sentence-by-sentence reader and Narrator
+  defaults. Stop releases audio and cancels pending requests. No generation occurs
+  on page load; unavailable voices disable the control with setup guidance.
+- Recent Relationship Changes shows five audit changes, signed affinity badges,
+  type changes, reasons, owner/target and compact UTC timestamps. Its header links
+  to Lorkhan's existing full relationship audit. The separate audit page still
+  needs its own parity work; this is not a replacement for that work.
+- Removed the chip substitute. The cloud uses locally vendored D3 7.9.0 and
+  d3-cloud 1.2.7 with their full licenses, the reference's 10,000-chat window,
+  top-100 vocabulary, filtering, logarithmic font sizing, horizontal layout,
+  five gold shades and hover count. Keyboard focus also exposes the count.
+  Resizing reruns the layout from immutable data. Positions are randomized,
+  as in the reference; narrow clouds may fit fewer words.
+- These four datasets use the selected current session's installation and
+  playthrough. No source records or live settings are changed. The client
+  version strip now reports observed versions instead of hardcoded versions.
+- Scoped CSS defeats the shared theme's rounded/gold table overrides so the
+  dashboard uses the pinned reference's table headers, rows and spacing.
+- Source comparison used pinned Herika `529364c`; browser comparison also
+  inspected the live CHIM Home diary, relationship panel and cloud. The live
+  reference has some newer shared-theme styling; it does not silently replace
+  the pinned target. Synthetic populated fixtures were inspected at 1440px and
+  390px. Mock audio completed, queued separate text segments, stopped immediately
+  and released its source. Markup in diary prose remained literal text.
+- PHP lint, 328 server checks, 98 protocol checks, management HTTP, integration,
+  migrations/durable jobs and JavaScript syntax checks passed. The existing
+  integration suite now checks the five-event limit, calendar, diary-only
+  selection, stop/speaker/context-word filtering, suppression and scope.
+- Home remains incomplete: align the current player/world/mode/model fields,
+  real product statistics and their drilldowns, observed Morrowind statistics,
+  and header destinations. Do not treat generic server/job counters as parity
+  for player statistics. Excluded Background Life/Active Quests stay excluded.
+- Local deployment hash-matches all 692 runtime files with no extras or old
+  paths. Private files return 403 on all three checked listeners; the native
+  session route remains 401 without authentication. Configuration, credentials
+  and voice contents were preserved. Live Home shows five dialogue rows with
+  recorded game dates, the correct empty diary state and a populated SVG cloud.
+  No live TTS calls, settings writes or game operations were made.

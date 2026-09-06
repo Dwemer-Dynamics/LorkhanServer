@@ -59,6 +59,16 @@
 .widget-table table td { padding: 8px; border: 0; border-bottom: 1px solid #3a3a3a; text-align: left; vertical-align: top; line-height: 1.5; overflow-wrap: break-word; }
 .widget-table table th { background: #1a1a1a; color: #f8f9fa; font-weight: 700; }
 .widget-table table tr:last-child td { border-bottom: 0; }
+/* The shared theme's rounded gold tables must not override Herika's dashboard grid. */
+body .dashboard-container .widget-table table { border: 0 !important; border-collapse: collapse; border-radius: 0; background: transparent !important; }
+body .dashboard-container .widget-table thead,
+body .dashboard-container .widget-table th { background: #1a1a1a !important; color: #f8f9fa !important; }
+body .dashboard-container .widget-table th,
+body .dashboard-container .widget-table td { padding: 8px !important; border-color: #3a3a3a !important; vertical-align: top; font-size: small; }
+body .dashboard-container .widget-table tbody tr,
+body .dashboard-container .widget-table tbody tr:nth-child(even),
+body .dashboard-container .widget-table tbody tr > td { background: transparent !important; color: #d4d4d4 !important; box-shadow: none; }
+body .dashboard-container .stat-card { background: #1a1a1a !important; border: 0 !important; border-radius: 4px; box-shadow: none !important; }
 
 /* Long Morrowind dialogue wraps in place instead of forcing the widget to scroll. */
 .widget-dialogue-table table { table-layout: fixed; }
@@ -109,28 +119,43 @@
 .dashboard-btn:hover { background: #3a3a3a; color: #f8f9fa; transform: translateY(-2px); box-shadow: 0 4px 8px rgba(0, 0, 0, .3); }
 .dashboard-btn:active { transform: translateY(0); box-shadow: 0 2px 4px rgba(0, 0, 0, .2); }
 .dashboard-btn .btn-icon { margin-right: 8px; font-size: 1.1em; }
-/* Herika's word cloud is a CDN d3 layout. LORKHAN keeps CSP-safe chips and matches
-   the panel geometry, the accent count band, and the size-by-frequency reading order
-   with five CSS-only tiers driven by the counts already in the page. */
 .word-cloud-container { padding: 20px; border-radius: 8px; background: #1a1a1a; }
 .word-count-display { margin: 0 0 20px; padding: 10px; min-height: 30px; color: rgba(188, 157, 90, .9); font-size: 24px; font-weight: bold; text-align: center; }
-.word-cloud { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: center; gap: 8px 12px; }
-.word-chip { display: inline-flex; align-items: baseline; gap: 6px; padding: 5px 9px; border: 1px solid #3a3a3a; border-radius: 999px; background: #232323; line-height: 1.2; }
-.word-chip-text { color: #d9c18c; font-weight: 700; }
-.word-chip-count { color: #6c757d; font-size: .72rem; font-variant-numeric: tabular-nums; }
-.word-tier-1 .word-chip-text { font-size: .9rem; opacity: .72; }
-.word-tier-2 .word-chip-text { font-size: 1.05rem; opacity: .82; }
-.word-tier-3 .word-chip-text { font-size: 1.25rem; opacity: .9; }
-.word-tier-4 .word-chip-text { font-size: 1.5rem; }
-.word-tier-5 .word-chip-text { font-size: 1.85rem; }
+#word-cloud { display: block; width: 100%; height: 500px; }
+.word-cloud-text { cursor: pointer; transition: opacity .3s; }
+.word-cloud-text:hover, .word-cloud-text:focus { opacity: .7; }
+.word-cloud-text:focus-visible { outline: 1px solid #bc9d5a; }
 
 /* Herika gives an empty widget the same deliberate height as a populated one. */
 .empty-state { margin: 0; padding: 40px 20px; border-radius: 8px; background: #1a1a1a; color: #6c757d; font-size: 1.1em; text-align: center; }
 
-/* Latest Diary Entry keeps Herika's inset reading panel without its Skyrim paper art. */
+@font-face { font-family: SkyrimBooks_Handwritten_Bold; src: url('font/SkyrimBooks_Handwritten_Bold-Regular.ttf') format('truetype'); font-display: swap; }
 .diary-entry { max-width: 1200px; margin: 0 auto; padding: 25px; border-radius: 8px; background: #1a1a1a; }
-.diary-entry h4 { margin: 0 0 15px; color: #f8f9fa; font-size: 1.1em; }
-.diary-entry-body { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.diary-paper { background: url('../images/paper.jpg') center/cover; padding: 40px; border-radius: 6px; box-shadow: 0 4px 8px #0008; color: #000; font-family: SkyrimBooks_Handwritten_Bold, Arial, sans-serif; line-height: 1.4; }
+.diary-author { font-size: 1.1em; margin-bottom: 15px; }
+.diary-entry-body { margin: 0; padding-top: 15px; font-size: 1.2em; overflow-wrap: anywhere; }
+.diary-audio-controls { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; margin-top: 15px; }
+body .diary-audio-controls .dashboard-btn { background: #bc9d5a !important; color: #171717 !important; border: 0 !important; border-radius: 4px; font-weight: 700; padding: 8px 12px; }
+.diary-entry audio { max-width: 100%; }
+.diary-entry [data-reader-status]:empty { display: none; }
+.diary-entry .dashboard-btn:disabled { opacity: .5; cursor: not-allowed; }
+.relationship-change-list { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.relationship-change-item { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px; align-items: baseline; padding: 7px 10px; border-left: 3px solid #bc9d5a; border-radius: 0 4px 4px 0; background: #222; }
+.relationship-change-delta { min-width: 3.1em; padding: 1px 6px; border-radius: 4px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .92em; font-weight: 700; font-variant-numeric: tabular-nums; text-align: center; white-space: nowrap; }
+.relationship-change-delta.is-up { color: #7ee08a; background: #4caf5024; border: 1px solid #7ee08a59; }
+.relationship-change-delta.is-down { color: #ff8a80; background: #f4433624; border: 1px solid #ff8a8059; }
+.relationship-change-delta.is-type { color: #d9c18c; background: #bc9d5a24; border: 1px solid #d9c18c59; font-family: inherit; font-size: .72em; letter-spacing: .04em; text-transform: uppercase; }
+.relationship-change-body { min-width: 0; }
+.relationship-change-reason { margin: 0; color: #e2e2e2; font-size: .92em; line-height: 1.35; overflow-wrap: anywhere; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; overflow: hidden; }
+.relationship-change-meta { margin: 2px 0 0; display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 6px; font-size: .74em; color: #929292; }
+.relationship-change-npc { color: #d9c18c; font-weight: 600; overflow-wrap: anywhere; }
+.relationship-change-target { color: #bdbdbd; overflow-wrap: anywhere; }
+.relationship-change-tier { padding: 0 4px; border: 1px solid #4a4033; border-radius: 3px; color: #d9c39a; }
+.relationship-change-time { margin-left: auto; color: #8a8a8a; white-space: nowrap; }
+.relationship-change-empty { margin: 0; color: #929292; text-align: center; }
+.relationship-change-link { color: #d9c18c; text-decoration: none; }
+.relationship-change-link:hover, .relationship-change-link:focus-visible { color: #fff; text-decoration: underline; }
+.widget-header:has(.relationship-change-link) { flex-wrap: wrap; gap: 10px; }
 
 @media (max-width: 768px) {
     .dashboard-container { grid-template-columns: 1fr; }
@@ -140,11 +165,11 @@
     .home-version-info { align-items: flex-start; }
     .word-cloud-container { padding: 12px; }
     .word-count-display { margin-bottom: 12px; padding: 6px; font-size: 18px; }
-    .word-cloud { gap: 6px 8px; }
-    .word-tier-4 .word-chip-text { font-size: 1.3rem; }
-    .word-tier-5 .word-chip-text { font-size: 1.5rem; }
     .empty-state { padding: 28px 16px; font-size: 1em; }
     .diary-entry { padding: 16px; }
+    .diary-paper { padding: 24px; }
+    .relationship-change-item { gap: 8px; padding: 7px 8px; }
+    .relationship-change-time { margin-left: 0; white-space: normal; }
     .widget-dialogue-table table th:first-child,
     .widget-dialogue-table table td:first-child { width: 46%; }
     .widget-dialogue-table table th:nth-child(2),

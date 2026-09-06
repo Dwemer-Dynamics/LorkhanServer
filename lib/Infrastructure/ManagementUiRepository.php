@@ -160,20 +160,46 @@ SQL);
     public function dashboard(): array
     {
         $current = $this->one(
-            "SELECT s.state,s.created_at,s.openmw_version,s.lua_api_revision,s.client_version,s.platform,"
+            "SELECT s.installation_id,s.playthrough_id,s.state,s.created_at,s.openmw_version,s.lua_api_revision,s.client_version,s.platform,"
             . "p.name AS profile_name,pt.name AS playthrough_name "
             . "FROM sessions s LEFT JOIN profiles p ON p.profile_id=s.profile_id "
             . "LEFT JOIN playthroughs pt ON pt.playthrough_id=s.playthrough_id "
             . "ORDER BY (s.state='active') DESC,s.created_at DESC LIMIT 1"
         );
 
+        $scope = ['installation' => $current['installation_id'] ?? null, 'playthrough' => $current['playthrough_id'] ?? null];
+        $eventScope = 'm.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL';
+        $dialogue = $this->all(
+            "SELECT e.data AS text,to_timestamp(e.localts) AS emitted_at,"
+            . "COALESCE(m.payload#>'{context,world,calendar}',m.payload->'calendar',t.context#>'{world,calendar}') AS calendar_data "
+            . "FROM public.eventlog e JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid "
+            . "LEFT JOIN turns t ON t.turn_id=m.turn_id WHERE ".$eventScope." AND e.type IN ('chat','inputtext') "
+            . "ORDER BY e.localts DESC,e.rowid DESC LIMIT 5", $scope
+        );
+        // Match Herika's chat-only vocabulary window, removing speaker names and parenthetical context.
+        $chat = $this->all("SELECT e.data FROM public.eventlog e JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid "
+            . "WHERE ".$eventScope." AND e.type='chat' ORDER BY e.localts DESC,e.rowid DESC LIMIT 10000", $scope);
+        $stopWords = array_fill_keys(explode(' ', 'the be to of and a in that have i it for not on with he as you do at this but his by from they we say her she or an will my one all would there their what so up out if about who get which go me when make can like time no just him know take people into year your good some could them see other than then now look only come its over think also back after use two how our work first well way even new want because any these give day most us im ive are was been had has yes ok okay oh ah hmm uh er um whats thats youre dont cant wont shouldnt couldnt wouldnt lets theres heres wheres whos nobodys everybodys talking talk said says tell told went gone coming going doing done being having getting putting taking making finding found made put took got goes came'), true);
+        $frequencies = [];
+        foreach ($chat as $row) {
+            $text = preg_replace('/\([^)]*\)/u', '', (string) $row['data']) ?? '';
+            $text = preg_replace('/^[^:]*:/u', '', $text) ?? '';
+            $text = preg_replace("/[^\\w\\s']/u", '', mb_strtolower($text)) ?? '';
+            $text = preg_replace("/\\s'|'(\\s|$)|('+)/u", ' ', $text) ?? '';
+            foreach (preg_split('/\s+/u', $text, -1, PREG_SPLIT_NO_EMPTY) ?: [] as $word) {
+                if (mb_strlen($word) > 2 && !isset($stopWords[$word])) $frequencies[$word] = ($frequencies[$word] ?? 0) + 1;
+            }
+        }
+        arsort($frequencies);
+        $words = [];
+        foreach (array_slice($frequencies, 0, 100, true) as $word => $count) {
+            $words[] = ['text' => (string) $word, 'count' => $count, 'size' => log($count * 5) * 8 + 20];
+        }
+
         return [
             'database_version' => (string) $this->db->query('SHOW server_version')->fetchColumn(),
             'current' => $current,
-            'dialogue' => $this->all(
-                "SELECT COALESCE(speaker->>'display_name',speaker->>'name',speaker->>'record_id','Unknown') AS speaker,"
-                . "text,delivery_state,emitted_at FROM dialogue_utterances ORDER BY emitted_at DESC LIMIT 12"
-            ),
+            'dialogue' => $dialogue,
             'stats' => [
                 'Installations' => $this->count('installations', 'revoked_at IS NULL'),
                 'Sessions' => $this->count('sessions'),
@@ -182,16 +208,20 @@ SQL);
                 'Relationships' => $this->count('relationship_records', 'deleted_at IS NULL'),
                 'Queued Jobs' => $this->count('durable_jobs', "state='queued'"),
             ],
-            'latest_narrative' => $this->one(
-                "SELECT kind,title,content,created_at FROM narrative_records WHERE deleted_at IS NULL "
-                . "ORDER BY created_at DESC LIMIT 1"
+            'latest_diary' => $this->all(
+                "SELECT n.narrative_id,n.title,n.content,n.created_at,p.name AS author FROM narrative_records n "
+                . "JOIN profiles p ON p.profile_id=n.profile_id AND p.installation_id=n.installation_id "
+                . "WHERE n.installation_id=:installation AND n.playthrough_id=:playthrough AND n.deleted_at IS NULL AND n.kind='diary' "
+                . "ORDER BY n.created_at DESC,n.narrative_id DESC LIMIT 1", $scope
+            )[0] ?? null,
+            'relationships' => $this->all(
+                "SELECT p.name AS owner,COALESCE(r.actor_identity->>'display_name',r.actor_identity->>'record_id','Unknown') AS target,"
+                . "a.before_value,a.after_value,a.reason,a.created_at FROM relationship_audit a "
+                . "JOIN relationship_records r ON r.relationship_id=a.relationship_id JOIN profiles p ON p.profile_id=r.profile_id "
+                . "WHERE r.installation_id=:installation AND r.playthrough_id=:playthrough AND r.deleted_at IS NULL "
+                . "ORDER BY a.created_at DESC,a.audit_sequence DESC LIMIT 5", $scope
             ),
-            'words' => $this->all(
-                "SELECT word,count(*)::int AS uses FROM "
-                . "(SELECT text FROM dialogue_utterances ORDER BY emitted_at DESC LIMIT 100) d "
-                . "CROSS JOIN LATERAL regexp_split_to_table(lower(d.text),'[^[:alnum:]_]+') AS word "
-                . "WHERE length(word)>3 GROUP BY word ORDER BY uses DESC,word LIMIT 12"
-            ),
+            'words' => $words,
             'runtime' => [
                 'Active Sessions' => $this->count('sessions', "state='active'"),
                 'Pending Dialogue' => $this->count('dialogue_utterances', "delivery_state='pending'"),

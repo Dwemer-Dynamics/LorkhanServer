@@ -2,6 +2,9 @@
 
 declare(strict_types=1);
 
+use LorkhanServer\Application\MorrowindCalendar;
+use LorkhanServer\Application\SpeechPreviewCatalog;
+
 $pageTitle = 'Home';
 $topNavSection = 'home';
 require __DIR__ . '/ui_bootstrap.php';
@@ -10,7 +13,7 @@ $dashboard = $uiRepository->dashboard();
 $dashboardTime = static function (mixed $value): string {
     if (!is_string($value) || trim($value) === '') return 'Unknown';
     try {
-        return (new DateTimeImmutable($value))->setTimezone(new DateTimeZone('UTC'))->format('j M Y, H:i');
+        return (new DateTimeImmutable($value))->setTimezone(new DateTimeZone('UTC'))->format('jS F, Y, H:i');
     } catch (Throwable) {
         return 'Unknown';
     }
@@ -26,25 +29,23 @@ $currentRows = $dashboard['current'] === null ? [] : [
     ['Stats' => 'Playthrough', 'Value' => $dashboard['current']['playthrough_name'] ?? 'unbound'],
 ];
 $dialogueRows = array_map(static fn(array $row): array => [
-    'Dialogue' => (string) ($row['speaker'] ?? 'Unknown') . ': ' . (string) ($row['text'] ?? ''),
+    'Dialogue' => (string) ($row['text'] ?? ''),
     'Time (UTC)' => $dashboardTime($row['emitted_at'] ?? null),
-    'Delivery' => $row['delivery_state'] ?? 'unknown',
+    'Tamrielic Time' => MorrowindCalendar::parse($row['calendar_data'] ?? null)['label'] ?? 'Not recorded',
 ], $dashboard['dialogue']);
-// Herika ranks its word cloud with a CDN d3 layout. LORKHAN keeps CSP-safe chips and
-// reproduces the same "biggest word wins" reading order with five CSS-only tiers
-// derived from the counts the dashboard query already returns.
-$wordUses = array_map(static fn(array $row): int => (int) ($row['uses'] ?? 0), $dashboard['words']);
-$wordLeast = $wordUses === [] ? 0 : min($wordUses);
-$wordMost = $wordUses === [] ? 0 : max($wordUses);
-$wordTotalUses = array_sum($wordUses);
-// Herika sizes each word by log(count), which keeps a skewed vocabulary readable.
-// The tier index reproduces that curve so one dominant word cannot flatten the rest.
-$wordTier = static function (int $uses) use ($wordLeast, $wordMost): int {
-    if ($wordMost <= $wordLeast) return 3;
-    $span = log($wordMost + 1) - log($wordLeast + 1);
-    $tier = 1 + (int) floor(4 * (log(max(0, $uses) + 1) - log($wordLeast + 1)) / $span);
-    return max(1, min(5, $tier));
-};
+$installation = (string) ($dashboard['current']['installation_id'] ?? '');
+$scopeQuery = http_build_query(['installation_id' => $installation, 'playthrough_id' => $dashboard['current']['playthrough_id'] ?? '']);
+$diary = $dashboard['latest_diary'];
+$preview = [];
+if ($diary !== null && $installation !== '') {
+    $narrator = $productRepository->narratorProfileForInstallation($installation);
+    $preview = SpeechPreviewCatalog::options(
+        $productRepository->listRevisioned('tts_provider', $installation), $productRepository->connectorVoiceCatalog(),
+        (string) ($config['voice_storage_path'] ?? ''),
+        (string) ($productRepository->connectorForInstallation($installation, 'tts_provider')['configuration_id'] ?? ''),
+        SpeechPreviewCatalog::narratorVoice($narrator), SpeechPreviewCatalog::narratorConnector($narrator));
+}
+$diaryAudioReady = ($preview['default_connector_id'] ?? '') !== '' && ($preview['default_voice'] ?? '') !== '';
 $includeManagementStyles = false;
 $additionalStylesheets = ['herika-home.css?v=' . (string) filemtime(__DIR__ . '/css/herika-home.css')];
 include __DIR__ . '/tmpl/head.html';
@@ -53,7 +54,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 <div class="container home-version-info">
     <div class="home-version-stack">
         <span>Server: LorkhanServer · PostgreSQL <?php echo lorkhan_ui_h($dashboard['database_version']); ?></span>
-        <span>Client: OpenMW 0.51 / Lua API 129</span>
+        <span>Client: <?php echo $dashboard['current'] === null ? 'Not connected' : lorkhan_ui_h('OpenMW '.$dashboard['current']['openmw_version'].' / Lua API '.$dashboard['current']['lua_api_revision']); ?></span>
     </div>
     <div class="home-social-links" aria-label="Dwemer Dynamics links">
         <a href="https://www.youtube.com/@DwemerDynamics" target="_blank" rel="noopener noreferrer" title="Dwemer Dynamics on YouTube"><img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/youtube.png" alt="YouTube"></a>
@@ -100,14 +101,43 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <article class="widget widget-wide">
             <div class="widget-header"><h3>Latest Diary Entry</h3></div>
             <div class="widget-content">
-                <?php if ($dashboard['latest_narrative'] === null): ?>
-                    <p class="empty-state">No diary or narrative entry is available yet.</p>
+                <?php if ($diary === null): ?>
+                    <p class="empty-state">No diary entries found yet.</p>
                 <?php else: ?>
-                    <article class="diary-entry">
-                        <h4><?php echo lorkhan_ui_h($dashboard['latest_narrative']['title']); ?></h4>
-                        <p class="diary-entry-body"><?php echo nl2br(lorkhan_ui_h($dashboard['latest_narrative']['content'])); ?></p>
-                    </article>
+                    <div class="diary-entry" data-reader data-preview-endpoint="<?= lorkhan_ui_h($managementBasePath.'/api/v1/tts-previews') ?>" data-installation="<?= lorkhan_ui_h($installation) ?>" data-csrf="<?= lorkhan_ui_h($csrf) ?>" data-connector="<?= lorkhan_ui_h($preview['default_connector_id'] ?? '') ?>" data-voice="<?= lorkhan_ui_h($preview['default_voice'] ?? '') ?>" data-max-length="<?= SpeechPreviewCatalog::MAX_TEXT_LENGTH ?>">
+                        <article data-reader-entry>
+                            <div class="diary-paper"><div class="diary-author"><?= lorkhan_ui_h($diary['author']) ?></div><div class="diary-entry-body" data-reader-text><?= nl2br(lorkhan_ui_h($diary['content'])) ?></div></div>
+                            <div class="diary-audio-controls">
+                                <button type="button" class="dashboard-btn" data-reader-play<?= $diaryAudioReady ? '' : ' disabled' ?> title="<?= $diaryAudioReady ? 'Uses the Narrator voice or TTS default. Your speech provider may charge.' : 'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play Audio</button>
+                                <button type="button" class="dashboard-btn" data-reader-stop hidden>Stop Audio</button>
+                            </div>
+                        </article>
+                        <p data-reader-status role="status" aria-live="polite"></p><audio data-reader-audio controls preload="none" hidden></audio>
+                    </div>
                 <?php endif; ?>
+            </div>
+        </article>
+
+        <article class="widget widget-wide">
+            <div class="widget-header"><h3>Recent Relationship Changes</h3><a class="relationship-change-link" href="<?= lorkhan_ui_h($webRoot.'/ui/relationship_logs.php?'.$scopeQuery.'#relationship-history') ?>">View full timeline</a></div>
+            <div class="widget-content">
+                <?php if ($dashboard['relationships'] === []): ?><p class="relationship-change-empty">No relationship changes recorded yet.</p>
+                <?php else: ?><ul class="relationship-change-list" role="list">
+                    <?php foreach ($dashboard['relationships'] as $change):
+                        $before = json_decode((string) ($change['before_value'] ?? '{}'), true) ?: [];
+                        $after = json_decode((string) ($change['after_value'] ?? '{}'), true) ?: [];
+                        $delta = isset($after['affinity']) && is_numeric($after['affinity']) ? (int) $after['affinity'] - (int) ($before['affinity'] ?? 0) : 0;
+                        $typeChanged = ($after['relationship_type'] ?? '') !== ($before['relationship_type'] ?? '');
+                        $badge = $delta > 0 ? '+'.$delta : ($delta < 0 ? (string) $delta : ($typeChanged ? 'Type' : 'Updated'));
+                        $badgeClass = $delta > 0 ? 'is-up' : ($delta < 0 ? 'is-down' : 'is-type'); ?>
+                        <li class="relationship-change-item"><span class="relationship-change-delta <?= $badgeClass ?>" aria-label="<?= lorkhan_ui_h($delta === 0 ? 'Relationship updated' : 'Affinity change '.$badge) ?>"><?= lorkhan_ui_h($badge) ?></span><div class="relationship-change-body">
+                            <p class="relationship-change-reason" title="<?= lorkhan_ui_h($change['reason']) ?>"><?= lorkhan_ui_h($change['reason']) ?></p>
+                            <p class="relationship-change-meta"><span class="relationship-change-npc"><?= lorkhan_ui_h($change['owner']) ?></span><span aria-hidden="true">→</span><span class="relationship-change-target"><?= lorkhan_ui_h($change['target']) ?></span>
+                            <?php if (($after['relationship_type'] ?? '') !== ''): ?><span class="relationship-change-tier"><?= lorkhan_ui_h(ucfirst((string) $after['relationship_type'])) ?></span><?php endif; ?>
+                            <time class="relationship-change-time" datetime="<?= lorkhan_ui_h($change['created_at']) ?>" title="<?= lorkhan_ui_h($dashboardTime($change['created_at'])) ?> UTC"><?= lorkhan_ui_h((new DateTimeImmutable($change['created_at']))->setTimezone(new DateTimeZone('UTC'))->format('j M, H:i')) ?></time></p>
+                        </div></li>
+                    <?php endforeach; ?>
+                </ul><?php endif; ?>
             </div>
         </article>
 
@@ -118,12 +148,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <p class="empty-state">Dialogue words will appear after the first conversation.</p>
                 <?php else: ?>
                     <div class="word-cloud-container">
-                        <p class="word-count-display"><?php echo count($dashboard['words']); ?> words · <?php echo (int) $wordTotalUses; ?> uses</p>
-                        <div class="word-cloud">
-                            <?php foreach ($dashboard['words'] as $word): ?>
-                                <span class="word-chip word-tier-<?php echo $wordTier((int) ($word['uses'] ?? 0)); ?>"><span class="word-chip-text"><?php echo lorkhan_ui_h($word['word']); ?></span><span class="word-chip-count"><?php echo lorkhan_ui_h($word['uses']); ?></span></span>
-                            <?php endforeach; ?>
-                        </div>
+                        <p class="word-count-display" id="word-count-display" aria-live="polite"></p>
+                        <svg id="word-cloud" role="group" aria-label="Most used dialogue words" data-words="<?= lorkhan_ui_h(json_encode($dashboard['words'], JSON_THROW_ON_ERROR | JSON_INVALID_UTF8_SUBSTITUTE)) ?>"></svg>
                     </div>
                 <?php endif; ?>
             </div>
@@ -139,4 +165,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         </article>
     </section>
 </main>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/lib/ui/d3/d3.v7.9.0.min.js"></script>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/lib/ui/d3/d3.layout.cloud.v1.2.7.js"></script>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/home-dashboard.js"></script>
+<script defer src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/roleplay-reader.js?v=<?= filemtime(__DIR__.'/js/roleplay-reader.js') ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

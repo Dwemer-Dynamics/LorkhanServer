@@ -2507,6 +2507,32 @@ $db->prepare("UPDATE turns SET context=jsonb_set(context,'{world}',COALESCE(cont
     ->execute(['calendar'=>json_encode($calendar),'turn'=>$responseScope['turn_id']]);
 $calendarDiary=$products->createNarrative($calendarScope+['kind'=>'diary','title'=>'Calendar fixture','content'=>'A recorded morning.',
     'provenance'=>['source_turn_ids'=>[$responseScope['turn_id']]]],gmdate(DATE_ATOM));
+// Home reads scoped whole chat events and real diaries, not sentence delivery rows or summaries.
+$db->exec("UPDATE sessions SET state='ended'");
+$db->prepare("UPDATE sessions SET state='active' WHERE session_id=(SELECT session_id FROM turns WHERE turn_id=:turn)")
+    ->execute(['turn'=>$responseScope['turn_id']]);
+$products->createNarrative($calendarScope+['kind'=>'summary','title'=>'Not a diary','content'=>'Summary sentinel.',
+    'provenance'=>[]],gmdate(DATE_ATOM,time()+10));
+$homeEvent=$db->prepare("INSERT INTO public.eventlog(type,data,localts,gamets) VALUES ('chat',:text,:time,0) RETURNING rowid");
+$homeMetadata=$db->prepare("INSERT INTO lorkhan_internal.eventlog_metadata(rowid,installation_id,playthrough_id,turn_id,projection_kind,projection_key,payload,suppressed_at) "
+    . "VALUES (:rowid,:installation,:playthrough,:turn,'home_fixture',:key,CAST(:payload AS jsonb),:suppressed)");
+for($i=0;$i<7;$i++){
+    $homeEvent->execute(['text'=>$i===6?'Hidden: hiddenword':'Speakername: Moonstone moonstone the and (contextword).','time'=>time()+100+$i]);
+    $homeMetadata->execute(['rowid'=>$homeEvent->fetchColumn(),'installation'=>$calendarScope['installation_id'],
+        'playthrough'=>$calendarScope['playthrough_id'],'turn'=>$responseScope['turn_id'],'key'=>'home-'.$i,
+        'payload'=>json_encode(['calendar'=>$calendar]),'suppressed'=>$i===6?gmdate(DATE_ATOM):null]);
+}
+$homeDashboard=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->dashboard();
+$homeWords=array_column($homeDashboard['words'],null,'text');
+$assert(count($homeDashboard['dialogue'])===5 && !in_array('Hidden: hiddenword',array_column($homeDashboard['dialogue'],'text'),true)
+    &&\LorkhanServer\Application\MorrowindCalendar::parse($homeDashboard['dialogue'][0]['calendar_data'])['label']==='16 Last Seed, 3E 427 · 09:30',
+    'Home dialogue lost its five whole-event limit, suppression or recorded calendar');
+$assert($homeDashboard['latest_diary']['narrative_id']===$calendarDiary['narrative_id']
+    &&($homeWords['moonstone']['count']??0)===12 && !isset($homeWords['speakername'],$homeWords['contextword'],$homeWords['hiddenword'],$homeWords['the']),
+    'Home selected a non-diary or counted speaker/context/stop/suppressed words');
+$db->prepare("UPDATE lorkhan_internal.eventlog_metadata SET playthrough_id=NULL WHERE projection_kind='home_fixture'")->execute();
+$otherScopeDashboard=(new \LorkhanServer\Infrastructure\ManagementUiRepository($db))->dashboard();
+$assert(!in_array('moonstone',array_column($otherScopeDashboard['words'],'text'),true), 'Home vocabulary crossed playthrough scope');
 $savedQuery=$_GET;
 $_GET=['installation_id'=>$calendarScope['installation_id'],'playthrough_id'=>$calendarScope['playthrough_id'],
     'calendar'=>'tamrielic','game_date'=>'0427-08-16'];
