@@ -11,6 +11,11 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Request Logs table, toolbar and payload-reader geometry derive from HerikaServer
+`529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/request_logs.php`.
+Lorkhan retains its LLM attempt identities, safe recorded-message projections,
+native keyboard-accessible dialogs and scoped presentation-only clearing.
+
 Quickstart's section/card geometry and typography derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/quickstart.php`, with
 Lorkhan colors, protected forms and existing connector identities retained.

@@ -83,6 +83,37 @@ final class ManagementRepository
 
     public function revoke(string $session):void{$this->db->prepare('UPDATE browser_sessions SET revoked_at=clock_timestamp() WHERE session_hash=:session')->execute(['session'=>BrowserSession::hash($session)]);}
 
+    /** Clear completed LLM entries from the reader, retaining accounting and unfinished work. */
+    public function clearRequestLog(string $installation): int
+    {
+        if (!Uuid::isValid($installation)) throw new \InvalidArgumentException('invalid_installation_id');
+        $this->db->beginTransaction();
+        try {
+            $scope = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR SHARE');
+            $scope->execute(['installation'=>$installation]);
+            if (!$scope->fetchColumn()) throw new \InvalidArgumentException('invalid_installation_id');
+            $statement = $this->db->prepare("INSERT INTO lorkhan_internal.request_log_hidden(provider_attempt_id)
+                SELECT a.provider_attempt_id FROM provider_attempts a
+                LEFT JOIN turns t ON t.turn_id=a.turn_id
+                LEFT JOIN sessions s ON s.session_id=t.session_id
+                LEFT JOIN durable_jobs j ON j.job_id=a.job_id
+                WHERE a.provider_kind='llm' AND a.state IN ('succeeded','failed','cancelled')
+                    AND a.finished_at<=transaction_timestamp()
+                    AND (t.turn_id IS NULL OR t.state IN ('complete','failed','cancelled'))
+                    AND (j.job_id IS NULL OR j.state IN ('succeeded','dead'))
+                    AND COALESCE(s.installation_id::text,j.payload->>'installation_id')=:installation
+                ON CONFLICT DO NOTHING");
+            $statement->execute(['installation'=>$installation]);
+            $count = $statement->rowCount();
+            $this->audit('control', 'clear_request_log', ['installation_id'=>$installation], ['count'=>$count]);
+            $this->db->commit();
+            return $count;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
     /** Clear a scoped presentation log without deleting immutable source events or conversation history. */
     public function clearRoleplayLog(string $installation, string $playthrough, string $kind): int
     {

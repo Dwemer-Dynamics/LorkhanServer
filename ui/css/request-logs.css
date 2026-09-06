@@ -1,0 +1,55 @@
+/* Request Logs layout derived from HerikaServer 529364c; Lorkhan branding and native dialogs. */
+main.request-log-page { padding:120px 12px 40px; width:100%; max-width:none; }
+body.embedded-page main.request-log-page { padding:20px 12px 40px; }
+.request-log-page .tab-content { display:block; background:linear-gradient(135deg,rgba(42,42,42,.95),rgba(34,34,34,.98)); padding:20px; border-radius:8px; border:1px solid #3a3a3a; box-shadow:0 2px 8px #00000026,inset 0 1px #ffffff08; }
+.request-log-page .page-title { margin:0 0 14px; font-family:MagicCards,serif; word-spacing:8px; font-size:2em; color:#bc9d5a; text-shadow:2px 2px 4px #0008; letter-spacing:0; text-align:left; }
+.request-log-page .meta-line { color:#aaa; font-size:.95em; margin:0; }
+.request-log-meta { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:baseline; gap:8px; margin-top:10px; }
+.request-log-meta:has(details[open]) { display:block; }
+.request-log-meta details[open] { margin-top:12px; }
+.request-log-page .btn-row { display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:16px 0 6px; }
+.request-log-page .btn-base { cursor:pointer; padding:7px 12px; border-radius:6px; border:1px solid #666; text-decoration:none; font-size:12px; font-weight:600; }
+.request-log-page .btn-row button.btn-base { min-height:0 !important; margin:0 !important; padding:7px 12px !important; font-size:12px !important; font-weight:600 !important; line-height:18px !important; }
+.request-log-page .btn-primary { background:#2f5d87; color:#fff; border-color:#4677a4; }
+.request-log-page .btn-danger { background:#8f1f2e; color:#fff; border-color:#a43846; }
+.request-log-page .btn-secondary { background:#3a3a3a; color:#f8f9fa; border-color:#595959; }
+.request-log-page button:disabled { opacity:.5; cursor:not-allowed; }
+.request-log-page .btn-linklike { background:rgba(188,157,90,.15); border:1px solid rgba(188,157,90,.35); color:#f8f9fa; border-radius:6px; padding:4px 8px; font-size:12px; cursor:pointer; margin-top:4px; }
+.request-log-page .btn-linklike:hover { background:rgba(188,157,90,.22); }
+.request-log-page .table-container { max-height:calc(100vh - 450px); min-height:70px; margin-top:20px; width:100%; overflow:auto; background:linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98)); border-radius:10px; border:1px solid #3a3a3a; box-shadow:0 2px 8px #00000026,inset 0 1px #ffffff08; padding:12px; }
+.request-log-page table { width:100%; table-layout:fixed; border-collapse:collapse; margin-bottom:0; font-size:12px; }
+.request-log-page th { position:sticky; top:0; z-index:2; padding:12px 10px; font-weight:bold; text-align:left; vertical-align:top; color:#bc9d5a; background:rgba(26,26,26,.6); border-bottom:2px solid rgba(188,157,90,.3); font-size:.95em; }
+.request-log-page td { padding:10px; text-align:left; border-bottom:1px solid rgba(74,74,74,.3); color:#d0d0d0; vertical-align:top; line-height:1.5; overflow-wrap:break-word; hyphens:auto; }
+.request-log-page tr:hover td { background:rgba(188,157,90,.05); }
+.request-log-page .mono { font-family:Consolas,"Courier New",monospace; word-break:break-word; }
+.request-log-page .status-pill { display:inline-block; padding:2px 8px; border-radius:999px; font-weight:700; letter-spacing:.3px; text-transform:uppercase; font-size:11px; border:1px solid transparent; }
+.request-log-page .status-success { color:#9be49f; background:rgba(60,133,67,.2); border-color:rgba(60,133,67,.5); }
+.request-log-page .status-error { color:#ffb0b0; background:rgba(171,58,58,.2); border-color:rgba(171,58,58,.5); }
+.request-log-page .status-unknown { color:#f0dca4; background:rgba(125,112,66,.2); border-color:rgba(160,143,81,.4); }
+.request-log-page .empty-state { color:#aaa; padding:12px 4px; }
+.request-log-page .cell-url { min-width:220px; max-width:320px; word-break:break-all; }
+.request-log-page .cell-preview { min-width:260px; max-width:420px; }
+.request-log-page .request-log-dialog { width:min(1100px,calc(100% - 48px)); max-width:none; max-height:calc(100vh - 48px); margin:auto; padding:0; color:#f8f9fa; background:#212121; border:1px solid #464646; border-radius:12px; box-shadow:0 14px 48px #0007; overflow:hidden; }
+.request-log-dialog::backdrop { background:rgba(0,0,0,.55); }
+.request-log-page .modal-head { display:flex; justify-content:space-between; align-items:center; gap:16px; padding:16px 18px; border-bottom:1px solid rgba(188,157,90,.25); background:rgba(0,0,0,.18); }
+.request-log-page .modal-title { margin:0; color:#bc9d5a; font-size:18px; font-family:MagicCards,serif; word-spacing:6px; overflow-wrap:anywhere; }
+.request-log-page .modal-body { padding:18px; max-height:calc(100vh - 160px); overflow:auto; }
+.request-log-page .modal-pre { white-space:pre-wrap; word-break:break-word; color:#f8f9fa; margin:0; font-size:12px; line-height:1.4; font-family:Consolas,"Courier New",monospace; }
+.request-log-page .payload-note,.request-log-filters { font-size:12px; color:#aaa; }
+.request-coverage { margin-top:16px; overflow:auto; }
+.request-coverage summary { cursor:pointer; }
+.request-log-page .request-coverage table { min-width:480px; }
+.request-log-filters { margin:0; }
+.request-log-filters summary { width:fit-content; cursor:pointer; }
+.request-log-filters .control-reader-filters { margin-top:12px; }
+.request-log-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:3px; }
+.request-log-page .clear-log-dialog { width:min(600px,calc(100% - 48px)); }
+@media(max-width:900px) {
+    main.request-log-page { padding-top:100px; }
+    body.embedded-page main.request-log-page { padding-top:10px; }
+    .request-log-page .table-container { max-height:none; }
+    .request-log-page table { min-width:900px; }
+    .request-log-page .page-title { font-size:1.7em; }
+    .request-log-page .modal-head { align-items:flex-start; }
+    .request-log-page .modal-head button { flex-shrink:0; }
+}

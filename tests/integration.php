@@ -2463,6 +2463,18 @@ $db->prepare("UPDATE turns SET state='processing' WHERE turn_id=:turn")->execute
 $historyCounts = static fn(): array => $db->query('SELECT (SELECT count(*) FROM source_events) AS sources,
     (SELECT count(*) FROM dialogue_utterances) AS utterances,(SELECT count(*) FROM public.audit_request) AS audit')->fetch();
 $beforeHistory = $historyCounts();
+$beforeProviderCount=(int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn();
+$requestCleared=$maintenance->clearRequestLog($responseScope['installation_id']);
+$assert($requestCleared>0 && (int)$db->query('SELECT count(*) FROM provider_attempts')->fetchColumn()===$beforeProviderCount
+    && $historyCounts()===$beforeHistory,'request log clear erased accounting/history or did not hide completed entries');
+$hiddenInvalid=$db->prepare("SELECT count(*) FROM lorkhan_internal.request_log_hidden h
+    JOIN provider_attempts a USING(provider_attempt_id) LEFT JOIN turns t ON t.turn_id=a.turn_id
+    LEFT JOIN sessions s ON s.session_id=t.session_id LEFT JOIN durable_jobs j ON j.job_id=a.job_id
+    WHERE a.provider_kind<>'llm' OR a.state='started' OR t.state IN ('accepted','processing')
+        OR j.state IN ('queued','leased') OR COALESCE(s.installation_id::text,j.payload->>'installation_id','')<>:installation");
+$hiddenInvalid->execute(['installation'=>$responseScope['installation_id']]);
+$assert((int)$hiddenInvalid->fetchColumn()===0,'request log clear crossed installation or hid pending/non-LLM work');
+$assert($maintenance->clearRequestLog($responseScope['installation_id'])===0,'request log clear was not idempotent');
 $outsideCount = $db->prepare('SELECT count(*) FROM public.log l JOIN lorkhan_internal.log_metadata m ON m.rowid=l.rowid
     JOIN turns t ON t.turn_id=m.turn_id JOIN sessions s ON s.session_id=t.session_id
     WHERE s.installation_id<>:installation OR s.playthrough_id<>:playthrough');

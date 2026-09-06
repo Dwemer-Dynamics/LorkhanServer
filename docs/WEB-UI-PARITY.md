@@ -94,7 +94,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `adventure` tab | Herika Adventure Log | Recorded game events, UTC/Tamrielic calendars and export implemented; live Tamrielic date selection verified against 21 matching events |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
-| `request_logs.php` | Same path | Pending structural and populated-state comparison |
+| `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Herika response log composition | Pending structural and populated-state comparison |
 | `cache_browser.php` | Same path | Pending structural and populated-state comparison |
 | `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
@@ -1206,3 +1206,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   save, provider call or game action was used as a test.
 - Previous-feature rollback: /var/backups/lorkhanserver-code.suR0qi. Final alphabetical
   prompt-list refresh rollback: /var/backups/lorkhanserver-code.HYTXD5.
+
+### Request Logs — LLM attempt table and readers
+
+- Replaced the generic prompt-trace table with the reference `ui/request_logs.php`
+  hierarchy: Request to LLM Services Log, Previous/Next, Limit 100/200, Clear Log,
+  record/page count, and ID / Time (UTC) / Connector-Model / Status / Tokens / URL /
+  Request / Result / Error columns. Default page size is 50, matching the reference.
+- Uses individual LLM attempts, including installation-scoped jobs, rather than a
+  turn-level projection that can pick a TTS attempt. Model names use the explicit
+  attempt column or the worker's recorded model metadata. Error codes are shown;
+  raw error detail, provider configurations and arbitrary metadata are excluded.
+- Separate native Request/Result dialogs retain Escape and focus restoration.
+  Request text is the existing bounded role/message projection; section coverage
+  remains expandable inside its reader. Result text is accepted dialogue from the
+  latest successful complete-turn attempt, never a failed retry's result.
+- Data limits are explicit: endpoint URLs and raw HTTP payloads are not retained;
+  jobs without recorded messages show Not recorded. UUID attempt identifiers are
+  retained. Missing token metrics are not invented. These are not claims of raw
+  provider audit-payload parity.
+- Clear Log is a CSRF-protected, confirmed POST scoped to one installation. The
+  reversible 088 migration adds visibility markers, retaining provider accounting,
+  source events and conversation history. Pending attempts, active turns and
+  queued/leased jobs stay visible. All-installation clearing is disabled. Tests
+  exercise rejection, scope, idempotency and preservation using isolated data.
+- Synthetic source/reference screenshots compared populated and empty tables and
+  the Request reader. At 1280x720, both table frames start at x33/y177.656 with
+  width1214/height270 and both titles at x33/y41 with height36. Filters occupy the
+  unused right side of the record-count row. At 390x844 the wide table scrolls
+  inside its region; the dialog fits and restores focus. Escaped script-like text,
+  Result opening, Clear cancellation and filter controls were checked.
+- Validation passed: 348 server checks, 98 protocol files, PHP lint, management
+  HTTP forms, integration slice, migration/durable-job checks, JavaScript syntax
+  and diff checks. Regenerated inventory: 167 relations,
+  30920ad27f5044216661c0cf9e98b3abf317d31ac13849244af1ef266d3b5f7a.
+  The final model-metadata projection additionally passed PHP lint and live GET.
+- Deployed locally: 703 runtime files match source; no extra files or legacy paths.
+  Health, authentication and private-file probes pass. The live page shows 49 LLM
+  attempts and 49 model names; 49 Request readers and 48 Result readers are
+  available. Opened both reader types, checked 11 recorded coverage sections,
+  navigated Limit 200, and cancelled Clear without executing it.
+- Counts remain 540 provider attempts, 517 source events and 285 utterances;
+  visibility markers remain zero. Configurations, credentials and voice files were
+  preserved. No provider call, game launch or game command was used for validation.
+- Previous-feature rollback: /var/backups/lorkhanserver-code.E7FNLF. Final model
+  mapping refresh rollback: /var/backups/lorkhanserver-code.dTyQHj.
+- The all-pages goal remains active. Response Queue's reference entry redirects to
+  `ai-response.php`; its real counterpart must be inspected next, not inferred
+  from the filename or treated as covered by this Request Logs work.

@@ -568,6 +568,18 @@ revise_narrative=next(f for f in narratives.forms if f['action'].endswith('/form
 revised_title=narrative_title+' revised'; revised_text='Reached Balmora and found Caius.'
 r=request(revise_narrative['action'],'POST',dict(revise_narrative['fields'],_csrf=csrf,kind='summary',title=revised_title,content=revised_text,provenance='management-http edit')); body=r.read().decode()
 assert r.status==200 and revised_title in body and revised_text in body,(r.status,r.geturl(),body)
+request_log_path='/LorkhanServer/ui/request_logs.php?installation_id='+valid['installation_id']
+_,request_log_html=parse(request(request_log_path+'&limit=200&embed=1'))
+assert 'Request to LLM Services Log' in request_log_html and 'Limit 200' in request_log_html and 'data-confirm-clear' in request_log_html
+assert '_provider_configuration' not in request_log_html
+request_clear_path='/LorkhanServer/manage/api/v1/request-logs/clear'
+request_clear_values={'installation_id':valid['installation_id'],'confirm':'Clear'}
+r=json_request(request_clear_path,'GET',None,csrf); assert r.status in (404,405)
+r=json_request(request_clear_path,'POST',request_clear_values); assert r.status==401
+r=json_request(request_clear_path,'POST',dict(request_clear_values,confirm=''),csrf); assert r.status==422
+r=json_request(request_clear_path,'POST',dict(request_clear_values,installation_id=str(uuid.uuid4())),csrf); assert r.status==422
+r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and isinstance(json.loads(r.read())['cleared'],int)
+r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==0
 clear_path='/LorkhanServer/manage/api/v1/roleplay/clear'
 clear_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'kind':'diaries','confirm':'Clear'}
 r=json_request(clear_path,'GET',None,csrf); assert r.status in (404,405)

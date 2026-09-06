@@ -144,6 +144,12 @@ final class ManagementRouter
             }
             return Response::json(202,$this->management->syncMemorySummaries($body['installation_id'],$body['playthrough_id']));
         }
+        if ($r->method === 'POST' && $path === '/api/v1/request-logs/clear') {
+            $body = $this->json($r);
+            if (($body['confirm'] ?? '') !== 'Clear') throw new InvalidArgumentException('confirmation_mismatch');
+            if (!is_string($body['installation_id'] ?? null)) throw new InvalidArgumentException('invalid_installation_id');
+            return Response::json(200, ['cleared'=>$this->management->clearRequestLog($body['installation_id'])]);
+        }
         if ($r->method === 'POST' && $path === '/api/v1/roleplay/clear') {
             $body = $this->json($r);
             if (($body['confirm'] ?? '') !== 'Clear') throw new InvalidArgumentException('confirmation_mismatch');

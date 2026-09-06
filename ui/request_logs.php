@@ -1,42 +1,68 @@
 <?php
 declare(strict_types=1);
-$pageTitle='Request Logs';$topNavSection='control';$BODY_CLASS='hub-page';
-require __DIR__.'/ui_bootstrap.php';require __DIR__.'/tmpl/control_reader.php';
+$pageTitle='Request Logs'; $topNavSection='control'; $BODY_CLASS='hub-page';
+require __DIR__.'/ui_bootstrap.php';
+require __DIR__.'/tmpl/control_reader.php';
 $state=lorkhan_control_state($uiRepository->rows('installations'));
-$states=['accepted'=>'Accepted','processing'=>'Processing','complete'=>'Complete','failed'=>'Failed','cancelled'=>'Cancelled'];
-if(!isset($states[$state['state']]))$state['state']='';
-$conditions=[];$params=[];
-if($state['installation']!==''){$conditions[]='trace.installation_id=:installation';$params['installation']=$state['installation'];}
-if($state['since']!==null){$conditions[]='trace.created_at>=CAST(:since AS timestamptz)';$params['since']=$state['since'];}
-if($state['state']!==''){$conditions[]='t.state=:state';$params['state']=$state['state'];}
-if($state['query']!==''){$conditions[]='(p.name ILIKE :name_query OR trace.request_id::text ILIKE :id_query)';$params['name_query']='%'.$state['query'].'%';$params['id_query']='%'.$state['query'].'%';}
-$from="FROM prompt_traces trace LEFT JOIN profiles p ON p.profile_id=COALESCE(trace.selected_profile_id,trace.profile_id) LEFT JOIN turns t ON t.turn_id=trace.turn_id LEFT JOIN turn_provider_snapshots snapshot ON snapshot.turn_id=trace.turn_id";
-$select="trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.input_sha256,trace.created_at,trace.truncated,p.name AS profile_name,t.state AS turn_state,snapshot.source_manifest#>'{message,_prompt,_messages}' AS prompt_messages";
-$state=lorkhan_control_query($database,$state,$select,$from,$conditions,$params,'trace.created_at DESC,trace.prompt_trace_id');
-$sectionQuery=$database->prepare('SELECT section_order,section_key,inclusion_reason,source_characters,estimated_tokens,redacted_preview FROM prompt_trace_sections WHERE prompt_trace_id=:trace ORDER BY section_order LIMIT 32');
-$attemptQuery=$database->prepare("SELECT provider_name,provider_kind,model,operation,state,duration_ms,error_code,metadata->'usage' AS usage FROM provider_attempts WHERE turn_id=:turn ORDER BY started_at,provider_attempt_id LIMIT 100");
-foreach($state['rows']as&$row){
-    $sectionQuery->execute(['trace'=>$row['prompt_trace_id']]);$row['sections']=$sectionQuery->fetchAll(PDO::FETCH_ASSOC);
-    $attemptQuery->execute(['turn'=>$row['turn_id']]);$row['attempts']=$attemptQuery->fetchAll(PDO::FETCH_ASSOC);
-    $row['prompt_messages']=lorkhan_control_prompt_messages($row['prompt_messages']);
-}unset($row);
-$additionalStylesheets=['control-reader.css?v='.(string)filemtime(__DIR__.'/css/control-reader.css')];include __DIR__.'/tmpl/head.html';if(!$embedded)include __DIR__.'/tmpl/navbar.php';
+$limit=(int)($_GET['limit']??50);
+$state['limit']=in_array($limit,[50,100,200],true)?$limit:50;
+if (!isset($_GET['period'])) { $state['period']='all'; $state['since']=null; }
+$states=['started'=>'Pending','succeeded'=>'Success','failed'=>'Error','cancelled'=>'Cancelled'];
+if (!isset($states[$state['state']])) $state['state']='';
+$conditions=["a.provider_kind='llm'",'NOT EXISTS (SELECT 1 FROM lorkhan_internal.request_log_hidden hidden WHERE hidden.provider_attempt_id=a.provider_attempt_id)'];
+$params=[];
+if ($state['installation']!=='') {
+    $conditions[]="COALESCE(s.installation_id::text,j.payload->>'installation_id')=:installation";
+    $params['installation']=$state['installation'];
+}
+if ($state['since']!==null) { $conditions[]='a.started_at>=CAST(:since AS timestamptz)'; $params['since']=$state['since']; }
+if ($state['state']!=='') { $conditions[]='a.state=:state'; $params['state']=$state['state']; }
+if ($state['query']!=='') {
+    $conditions[]='(a.provider_name ILIKE :provider_query OR a.model ILIKE :model_query OR a.provider_attempt_id::text ILIKE :id_query)';
+    foreach (['provider_query','model_query','id_query'] as $key) $params[$key]='%'.$state['query'].'%';
+}
+$from='FROM provider_attempts a LEFT JOIN turns t ON t.turn_id=a.turn_id
+    LEFT JOIN sessions s ON s.session_id=t.session_id LEFT JOIN durable_jobs j ON j.job_id=a.job_id';
+$select="a.provider_attempt_id,a.turn_id,a.provider_name,
+    COALESCE(a.model,CASE WHEN jsonb_typeof(a.metadata->'model')='string' THEN a.metadata->>'model' END) AS model,
+    a.operation,a.state,a.error_code,
+    to_char(a.started_at AT TIME ZONE 'UTC','DD-MM-YYYY HH24:MI:SS') AS time_utc,a.metadata->'usage' AS usage";
+$state=lorkhan_control_query($database,$state,$select,$from,$conditions,$params,'a.started_at DESC,a.provider_attempt_id DESC');
+// Only complete_turn retains these safe projections. Never select provider configuration or raw errors.
+$messages=$database->prepare("SELECT source_manifest#>'{message,_prompt,_messages}' FROM turn_provider_snapshots WHERE turn_id=:turn");
+$coverage=$database->prepare("SELECT section_order,section_key,inclusion_reason,source_characters,estimated_tokens
+    FROM prompt_trace_sections WHERE prompt_trace_id=(SELECT prompt_trace_id FROM prompt_traces
+        WHERE turn_id=:turn ORDER BY created_at DESC,prompt_trace_id DESC LIMIT 1) ORDER BY section_order LIMIT 32");
+$result=$database->prepare("SELECT left(string_agg(u.text,E'\n' ORDER BY u.utterance_index),131072)
+    FROM dialogue_utterances u WHERE u.turn_id=:turn AND :attempt=(
+        SELECT provider_attempt_id::text FROM provider_attempts
+        WHERE turn_id=u.turn_id AND provider_kind='llm' AND operation='complete_turn' AND state='succeeded'
+        ORDER BY started_at DESC,provider_attempt_id DESC LIMIT 1)");
+foreach ($state['rows'] as &$row) {
+    $row['request']=''; $row['result']=''; $row['sections']=[];
+    if ($row['operation']==='complete_turn' && $row['turn_id']!==null) {
+        $messages->execute(['turn'=>$row['turn_id']]);
+        $safeMessages=lorkhan_control_prompt_messages($messages->fetchColumn());
+        $coverage->execute(['turn'=>$row['turn_id']]); $row['sections']=$coverage->fetchAll(PDO::FETCH_ASSOC);
+        if ($safeMessages!==[]) $row['request']=json_encode(['messages'=>$safeMessages],JSON_PRETTY_PRINT|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES|JSON_INVALID_UTF8_SUBSTITUTE);
+        if ($row['state']==='succeeded') {
+            $result->execute(['turn'=>$row['turn_id'],'attempt'=>$row['provider_attempt_id']]);
+            $row['result']=(string)($result->fetchColumn()?:'');
+        }
+    }
+    $usage=is_string($row['usage'])?json_decode($row['usage'],true):[];
+    $tokens=[]; $hasTokens=false;
+    foreach (['prompt_tokens','completion_tokens','total_tokens'] as $key) {
+        $value=is_array($usage)?($usage[$key]??null):null;
+        $valid=(is_int($value)||is_float($value)) && is_finite((float)$value) && $value>=0;
+        $tokens[]=$valid?number_format($value,0,'.',''):'-'; $hasTokens=$hasTokens||$valid;
+    }
+    $row['tokens']=$hasTokens?implode(' / ',$tokens):'';
+} unset($row);
+$additionalStylesheets=['control-reader.css?v='.(string)filemtime(__DIR__.'/css/control-reader.css'),
+    'request-logs.css?v='.(string)filemtime(__DIR__.'/css/request-logs.css')];
+include __DIR__.'/tmpl/head.html'; if (!$embedded) include __DIR__.'/tmpl/navbar.php';
+include __DIR__.'/tmpl/request_logs.html.php';
 ?>
-<main class="control-reader"><header class="control-reader-heading"><div><h1>Request Logs</h1><p>Frozen prompt messages, section coverage and measured provider usage. Provider settings and credentials are never included.</p></div></header>
-<?php lorkhan_control_filters($state,$states);lorkhan_control_pagination($state); ?>
-<div class="control-reader-table-wrap"><table><thead><tr><th>Time / Request</th><th>Profile / State</th><th>Input</th><th>Request Details</th></tr></thead><tbody>
-<?php foreach($state['rows']as$row): ?>
-<tr><td><?= lorkhan_ui_h($row['created_at']) ?><small><code><?= lorkhan_ui_h($row['request_id']) ?></code></small></td><td><?= lorkhan_ui_h($row['profile_name']??'Unknown') ?><small class="state"><?= lorkhan_ui_h($row['turn_state']??'unknown') ?></small></td><td><?= number_format((int)$row['input_bytes']/1024,1) ?> KiB<small><?= count($row['sections']) ?> sections</small><?php if(filter_var($row['truncated'],FILTER_VALIDATE_BOOL)): ?><small>Input budget reached</small><?php endif; ?></td><td>
-<details><summary>View Prompt</summary><p class="muted">Read-only messages captured for this request. Legacy records without message snapshots show section metadata below. Display is bounded to 128 KiB.</p>
-<?php foreach($row['prompt_messages']as$message): ?><section class="control-reader-section"><h3><?= lorkhan_ui_h(ucfirst($message['role'])) ?></h3><pre><?= lorkhan_ui_h($message['content']) ?></pre></section><?php endforeach; ?>
-<?php if($row['prompt_messages']===[]): ?><p class="muted">No frozen message text is available for this request.</p><?php endif; ?>
-</details>
-<details><summary>Section Coverage</summary><table><thead><tr><th>Order / Section</th><th>Included</th><th>Characters</th><th>Estimated Tokens</th></tr></thead><tbody><?php foreach($row['sections']as$section): ?><tr><td><?= (int)$section['section_order'] ?> · <?= lorkhan_ui_h(str_replace('_',' ',$section['section_key'])) ?></td><td><?= lorkhan_ui_h($section['inclusion_reason']) ?></td><td><?= number_format((int)$section['source_characters']) ?></td><td><?= number_format((int)$section['estimated_tokens']) ?></td></tr><?php endforeach; ?></tbody></table><small class="muted">Input SHA-256: <?= lorkhan_ui_h($row['input_sha256']) ?></small></details>
-<details><summary>Provider Attempts &amp; Tokens</summary><?php if($row['attempts']===[]): ?><p class="muted">No correlated attempts recorded.</p><?php endif; ?>
-<?php foreach($row['attempts']as$attempt): $usage=is_string($attempt['usage'])?json_decode($attempt['usage'],true):[];if(!is_array($usage))$usage=[]; ?>
-<section class="control-reader-section"><h3><?= lorkhan_ui_h($attempt['provider_name']) ?> · <?= lorkhan_ui_h($attempt['model']??$attempt['provider_kind']) ?></h3><p><?= lorkhan_ui_h($attempt['operation']) ?> · <?= lorkhan_ui_h($attempt['state']) ?> · <?= $attempt['duration_ms']===null?'Duration not recorded':number_format((int)$attempt['duration_ms']).' ms' ?></p><p class="muted"><?php foreach(['prompt_tokens'=>'Input','completion_tokens'=>'Output','total_tokens'=>'Total']as$key=>$label): ?><?= $label ?> tokens: <?= is_numeric($usage[$key]??null)?number_format((int)$usage[$key]):'Unknown' ?> &nbsp; <?php endforeach; ?></p><p class="muted">Recorded cost: <?= is_numeric($usage['cost_usd']??null)?'$'.number_format((float)$usage['cost_usd'],6):'Unknown' ?></p><?php if($attempt['error_code']!==null): ?><p class="muted">Error: <?= lorkhan_ui_h($attempt['error_code']) ?></p><?php endif; ?></section>
-<?php endforeach; ?></details>
-</td></tr>
-<?php endforeach; ?>
-<?php if($state['rows']===[]): ?><tr><td colspan="4" class="control-reader-empty">No requests match these filters.</td></tr><?php endif; ?>
-</tbody></table></div><?php lorkhan_control_pagination($state); ?></main><?php include __DIR__.'/tmpl/footer.html'; ?>
+<script src="<?= lorkhan_ui_h($webRoot) ?>/ui/js/request-logs.js?v=<?= filemtime(__DIR__.'/js/request-logs.js') ?>" defer></script>
+<?php include __DIR__.'/tmpl/footer.html'; ?>
