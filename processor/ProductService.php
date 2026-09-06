@@ -49,6 +49,14 @@ final class ProductService
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso(), $expectedRevision);
     }
 
+    /** Validate the Quickstart player label without changing the persona's other saved settings. */
+    public function renamePlayer(string $installation,string $name,int $expectedRevision):array
+    {
+        $this->uuid($installation);$name=trim($name);$this->boundedString(['name'=>$name],'name',1,256);
+        if(preg_match('/[\x00-\x1f\x7f]/',$name)||$expectedRevision<1)throw new InvalidArgumentException('invalid_player_name');
+        return $this->repository->renamePlayer($installation,$name,$expectedRevision,$this->clock->iso());
+    }
+
     /** Validate an editable connector label together with the same typed settings used by normal revisions. */
     public function reviseNamedConnector(string $kind,string $id,string $name,array $content,string $reason):array
     {

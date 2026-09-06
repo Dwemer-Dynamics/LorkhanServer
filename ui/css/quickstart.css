@@ -1,11 +1,34 @@
-.quickstart-page{max-width:1100px;margin:0 auto;padding-bottom:30px;color:#e0e0e0}
-.quickstart-header{text-align:center;margin-bottom:20px}.quickstart-header h1{color:rgb(188,157,90)}
-.quickstart-card{background:#2a2a2a;border:1px solid #444;border-radius:10px;margin:18px 0;padding:22px}
-.quickstart-card h2{font-size:1.3rem;color:rgb(188,157,90);margin:0 0 16px;padding-bottom:10px;border-bottom:1px solid #444}
-.quickstart-card p{color:#bbb;font-size:13px;margin:14px 0}.quickstart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:18px;align-items:end}
-.quickstart-grid label{display:flex;flex-direction:column;gap:7px;min-width:0;font-weight:600}
-.quickstart-grid select{width:100%;min-width:0;max-width:100%;background:#333;color:#fff;border:1px solid #555;border-radius:5px;padding:10px;font-weight:400}
-.quickstart-links,.quickstart-footer{display:flex;gap:10px;flex-wrap:wrap;margin-top:18px}.quickstart-footer{justify-content:center}
-.quickstart-notice{border:1px solid rgb(188,157,90);background:#29271f;padding:12px;border-radius:6px}
-.quickstart-page :focus-visible{outline:2px solid rgb(188,157,90);outline-offset:3px}
-@media(max-width:650px){.quickstart-grid{grid-template-columns:1fr}.quickstart-card{padding:16px}.quickstart-page{padding-left:12px;padding-right:12px}}
+/* Quickstart section geometry derives from Herika 529364c; retain Lorkhan gold. */
+body.quickstart-shell{padding-top:0!important}
+body > main.quickstart-page{max-width:none;margin:0;padding:80px 10px 40px;color:#e0e0e0;font:15px/1.5 'Futura CondensedLight',Arial,sans-serif}
+.quickstart-page .qs-shell{max-width:980px;margin:0 auto}
+.quickstart-page .confwizard{background:transparent;padding:0;margin:0;border:0;box-shadow:none}
+.quickstart-page .qs-section{border:1px solid #3a3a3a;border-radius:10px;background:linear-gradient(180deg,rgba(42,42,42,.95),rgba(34,34,34,.98));padding:16px;margin-bottom:14px}
+.quickstart-page .qs-header-card{text-align:center}
+.quickstart-page .qs-title{margin:0;font-family:MagicCards,serif;word-spacing:8px;font-size:2.2em;font-weight:400;color:#f5f1e8!important;text-shadow:2px 2px 4px rgba(0,0,0,.5)}
+.quickstart-page .qs-section-title{font-family:MagicCards,serif;color:#f5f1e8!important;text-shadow:1px 1px 2px rgba(0,0,0,.5);word-spacing:6px;margin:0 0 10px;font-size:1.4em;font-weight:400}
+.quickstart-page label{display:block;color:#f5f1e8;font-size:.84rem;font-weight:700;margin:0}
+.quickstart-page .form-control,.quickstart-page select{width:100%;min-width:0;max-width:100%;background:#2c2c2c;color:#e0e0e0;border:1px solid #444;border-radius:4px;padding:7px 10px;font:400 .84rem/1.5 'Futura CondensedLight',Arial,sans-serif}
+.quickstart-page .form-text{display:block;color:#bbb;font-size:.875em;line-height:1.5;margin:4px 0 0;overflow-wrap:anywhere}
+.quickstart-page a{color:#bc9d5a;text-decoration:underline}
+.quickstart-page .qs-service-group{margin-bottom:18px}
+.quickstart-page .qs-service-group-stt{margin-top:26px}
+.quickstart-page .qs-service-group .form-control{margin-top:6px}
+.quickstart-page .qs-service-group .form-text{margin-top:8px}
+.quickstart-page .qs-connector-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:8px}
+.quickstart-page .qs-connector-card{background:#1f1f1f;border:1px solid #3b3b3b;border-radius:8px;padding:12px;min-width:0}
+.quickstart-page .qs-connector-card label{font-size:14px}
+.quickstart-page .qs-model{margin-top:6px;color:#bc9d5a;font-size:14px;overflow-wrap:anywhere}
+.quickstart-page .qs-actions{display:flex;justify-content:flex-end;align-items:center;gap:12px;margin-top:14px;flex-wrap:wrap}
+.quickstart-page .qs-save-btn{min-width:180px}
+.quickstart-page .confwizard .btn-primary{padding:10px 18px!important;color:#fff!important;border:2px solid rgba(255,255,255,.65)!important;border-radius:6px!important;cursor:pointer;font-size:16px!important;text-decoration:none;display:inline-block!important;margin:6px!important;font-weight:bold!important;background:#766237!important}
+.quickstart-page .confwizard .btn-primary:hover{background:#66542e!important}
+.quickstart-page .confwizard .btn-primary:disabled{opacity:.5;cursor:not-allowed}
+.quickstart-page .qs-profile-scope{font-size:13px;padding:10px 16px}
+.quickstart-page .qs-profile-scope summary{cursor:pointer;color:#bbb}
+.quickstart-page .quickstart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-top:12px;align-items:end}
+.quickstart-page .quickstart-grid label{min-width:0}
+.quickstart-page .quickstart-grid .btn-base{justify-self:start}
+.quickstart-page .quickstart-notice{border:1px solid #bc9d5a;background:#29271f;padding:12px;border-radius:6px}
+.quickstart-page :focus-visible{outline:2px solid #bc9d5a;outline-offset:3px}
+@media(max-width:640px){.quickstart-page .qs-connector-grid,.quickstart-page .quickstart-grid{grid-template-columns:1fr}}

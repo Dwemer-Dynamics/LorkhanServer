@@ -1980,7 +1980,13 @@ final class ManagementRouter
                 $this->service->selectConnector(['installation_id'=>$installation,'kind'=>$kind,'configuration_id'=>$connector]);
                 if($kind==='tts_provider')$content['routing']['tts_configuration_id']=$connector;
             }
-            return$this->service->revise('core_profile',$id,$content,'Quickstart connector selection',$expected);
+            $result=$this->service->revise('core_profile',$id,$content,'Quickstart connector selection',$expected);
+            if(array_key_exists('player_name',$values)){
+                $playerRevision=filter_var($values['player_revision']??null,FILTER_VALIDATE_INT);
+                if($playerRevision===false||$playerRevision<1)throw new InvalidArgumentException('invalid_player_revision');
+                $this->service->renamePlayer($installation,$this->need($values,'player_name'),$playerRevision);
+            }
+            return $result;
         });
     }
 

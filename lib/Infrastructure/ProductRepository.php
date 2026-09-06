@@ -188,6 +188,22 @@ final class ProductRepository
         });
     }
 
+    /** Rename only the installation's player persona; recorded source events keep their original identities. */
+    public function renamePlayer(string $installation,string $name,int $expectedRevision,string $now):array
+    {
+        return $this->transaction(function()use($installation,$name,$expectedRevision,$now):array{
+            $statement=$this->db->prepare("SELECT profile_id,current_revision,name FROM profiles WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='player' ORDER BY created_at,profile_id LIMIT 1 FOR UPDATE");
+            $statement->execute(['installation'=>$installation]);$row=$statement->fetch();
+            if(!$row)throw new RuntimeException('not_found');
+            if((int)$row['current_revision']!==$expectedRevision)throw new RuntimeException('revision_conflict');
+            $profile=$this->getRevisioned('profile',$row['profile_id']);
+            if($row['name']===$name)return $profile;
+            $this->db->prepare("UPDATE profiles SET name=:name,actor_identity=jsonb_set(actor_identity,'{display_name}',to_jsonb(CAST(:display AS text))) WHERE profile_id=:id")
+                ->execute(['name'=>$name,'display'=>$name,'id'=>$row['profile_id']]);
+            return $this->revise('profile',$row['profile_id'],$profile['content'],'Quickstart player name update',$now,$expectedRevision);
+        });
+    }
+
     /** Materialize the installation-scoped player profile before the first game turn needs it. */
     public function ensurePlayerProfile(string $installationId,string $now):array
     {

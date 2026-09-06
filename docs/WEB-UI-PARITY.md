@@ -68,7 +68,7 @@ do not use an exception to excuse a generic substitute layout.
 | Lorkhan page | Herika counterpart | Current status |
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
-| `quickstart.php` | `quickstart.php` | Reference traced; current connector-picker substitute still needs Player, OpenRouter, Setup/Local LLM, MiniMe, speech-service sections, Player2 and connector recap |
+| `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, separate speech-service sections and four-card model recap implemented; OpenRouter/Deepgram quick keys, Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
@@ -759,3 +759,45 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - Reuse protected credentials rather than rendering saved API keys into HTML.
   Provider tests must remain explicit. Do not copy reference model prices or
   overwrite current model routes merely to reproduce static recap cards.
+
+### Quickstart player and section structure checkpoint
+
+- Replaced the generic Quickstart header, combined speech panel and model grid
+  with the reference's 980px shell, Quickstart Menu card, Player section,
+  individual TTS/STT Service sections, four model recap cards and Save and
+  Continue placement. Installation/Core Profile selection is retained in a
+  compact disclosure; existing non-default profiles and routes remain selectable.
+- Player Name now edits the installation player persona through a bounded,
+  revision-checked write. The name and identity display name change together;
+  the profile ID, biography, voice, routing and immutable source events do not.
+  Quickstart saves player/connector changes in one transaction; stale player or
+  Core Profile revisions roll back the entire save. Old forms that omit player
+  fields remain compatible. This is not a game-console character rename, and
+  observed game speaker names still take precedence in dialogue prompts.
+- Model recaps show the actual selected connector's model ID, including unsaved
+  choices, rather than hardcoded reference model names or prices. The existing
+  dirty-form guard is loaded. Changes were previewed then discarded; no live
+  settings were saved and no provider or game operation was invoked.
+- A local reference fixture executed the pinned page's actual header, Player and
+  speech-section rendering with synthetic values, plus its real stylesheet
+  cascade. It omitted runtime bootstrap, databases, credentials and scripts;
+  it proves those sections' presentation, not complete Quickstart behavior.
+  The comparison caught and fixed doubled navbar spacing, 16px versus 15px base
+  text, control padding and heading/label sizing. White headings remain white;
+  Lorkhan keeps gold accents. Desktop and 390px live rendering, stacked recap
+  cards, unsaved indication/restoration and missing-installation state were checked.
+- Existing HTTP tests cover empty player setup, player rename, invalid names and
+  stale-player rollback of the Core Profile revision. Full PHP lint, 337 server
+  checks, 98 protocol checks, HTTP, integration and migration/durable-job checks
+  passed. The schema remains 166 relations with the same inventory hash.
+- Quickstart is still incomplete: OpenRouter and Deepgram quick-key editing,
+  shared Default/Local LLM profile effects and local-model setup, MiniMe status,
+  service provisioning and Player2 routing still need implementation and review.
+  Current saved-connector selects are not accepted as a substitute for service
+  provisioning. The complete-page counterpart comparison remains pending.
+- Final HTTP rerun and JavaScript syntax checks passed after the style/dirty-form
+  corrections. Local deployment hash-matches 694 runtime files with no extras or
+  old paths; private-file 403 and native-session 401 checks pass. Configuration,
+  credentials and voice hashes were preserved. Live Quickstart was restored to
+  its unchanged saved Player, GLM 4.7 Standard and Dialectic Inworld selections;
+  no dirty draft remains. The isolated reference server was stopped.

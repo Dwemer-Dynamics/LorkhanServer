@@ -1350,17 +1350,40 @@ assert r.status==422 and 'provider_in_use' in body,(r.status,r.geturl(),body)
 r=request('/LorkhanServer/manage/login'); assert r.status==200 and r.geturl().endswith('/ui/home.php')
 # Quickstart uses saved connectors, preserves profiles, and rejects stale submissions atomically.
 quickstart,quickstart_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+if 'name="player_revision"' not in quickstart_body:
+    assert 'No player profile is configured.' in quickstart_body
+    player_setup,_=parse(request('/LorkhanServer/ui/core/player_management.php?installation_id='+valid['installation_id']))
+    create=next(f for f in player_setup.forms if f['action'].endswith('/forms/player-profile-create'))
+    r=request(create['action'],'POST',dict(create['fields'],_csrf=csrf,name='Quickstart Original Player',biography='Preserve this biography.'))
+    r.read(); assert r.status==200
+    quickstart,quickstart_body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
 quickstart_form=next(f for f in quickstart.forms if f['action'].endswith('/forms/quickstart-save'))
 quickstart_values=dict(quickstart_form['fields'],_csrf=csrf)
 assert quickstart_values.get('core_profile_id'),quickstart_values
+assert all(marker in quickstart_body for marker in ['Quickstart Menu','>Player</h2>','>TTS Service</h2>','>STT Service</h2>','LLM Connectors Note','Save and Continue'])
+assert quickstart_values.get('player_revision'), 'Quickstart must use the existing player revision'
+quickstart_values['player_name']='Quickstart Test Player'
 model_choices=re.search(r'<select name="llm_configuration_id"[^>]*>(.*?)</select>',quickstart_body,re.S)
 model_choice=re.search(r'<option value="([0-9a-f-]{36})"',model_choices.group(1)); assert model_choice,quickstart_body
 for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id']:
     quickstart_values[field]=model_choice.group(1)
 r=request(quickstart_form['action'],'POST',quickstart_values); saved_body=r.read().decode()
-assert r.status==200 and 'Connector selections saved.' in saved_body,(r.status,saved_body)
+assert r.status==200 and 'Quickstart settings saved.' in saved_body,(r.status,saved_body)
 r=request(quickstart_form['action'],'POST',quickstart_values); stale_body=r.read().decode()
 assert r.status in (409,422) and 'revision' in stale_body,(r.status,stale_body)
+# A stale player edit rolls back the Core Profile revision and connector selections as well.
+fresh,body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+fresh_form=next(f for f in fresh.forms if f['action'].endswith('/forms/quickstart-save'))
+fresh_values=dict(fresh_form['fields'],_csrf=csrf)
+assert fresh_values['player_name']=='Quickstart Test Player'
+bad=dict(fresh_values,player_name='Must Not Be Saved',player_revision='1')
+r=request(fresh_form['action'],'POST',bad); body=r.read().decode()
+assert r.status in (409,422) and 'revision' in body,(r.status,body)
+after,body=parse(request('/LorkhanServer/ui/quickstart.php?installation_id='+valid['installation_id']))
+after_values=next(f['fields'] for f in after.forms if f['action'].endswith('/forms/quickstart-save'))
+assert after_values['player_name']==fresh_values['player_name'] and after_values['base_revision']==fresh_values['base_revision']
+r=request(fresh_form['action'],'POST',dict(fresh_values,player_name='')); body=r.read().decode()
+assert r.status==422,(r.status,body)
 # Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
 copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))
