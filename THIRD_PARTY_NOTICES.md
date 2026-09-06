@@ -11,6 +11,11 @@ Unmodified distributions and their full licenses are in `ui/lib/ui/d3/`.
 
 ## Dwemer Dynamics shared server UI
 
+Response Queue's heading, seven-column striped table and row control presentation
+derive from the same pinned HerikaServer revision's `ui/control_panel.php`,
+`ui/index.php?table=responselog` and `lib/misc_ui_functions.php`. Lorkhan retains
+typed response events and protects pending work from presentation-log removal.
+
 Request Logs table, toolbar and payload-reader geometry derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/request_logs.php`.
 Lorkhan retains its LLM attempt identities, safe recorded-message projections,

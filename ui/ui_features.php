@@ -130,11 +130,11 @@ function lorkhan_ui_feature_registry(): array
         'roleplay.destructive' => ['title' => 'Bulk Roleplay Deletion', 'state' => 'replaced', 'description' => 'LORKHAN preserves typed audit records and uses bounded retention and Database Manager backups instead of destructive browser bulk deletion.'],
 
         'control.logs' => ['title' => 'Server Logs', 'state' => 'live', 'description' => 'Bounded redacted server logs.'],
-        'control.requests' => ['title' => 'Request Logs', 'state' => 'live', 'description' => 'Paginated request traces, stored prompt messages, and provider attempt details.'],
+        'control.requests' => ['title' => 'Request Logs', 'state' => 'live', 'description' => 'LLM attempts, recorded prompt/result readers, token usage and protected log clearing.'],
         'control.oghma-audit' => ['title' => 'Oghma Audit', 'state' => 'live', 'description' => 'Knowledge retrieval audit records.'],
         'control.relationships' => ['title' => 'Relationship Logs', 'state' => 'live', 'description' => 'Relationship change audit.'],
         'control.usage' => ['title' => 'Cost Breakdown', 'state' => 'live', 'description' => 'Recorded provider token counts and reported costs; unavailable costs are identified explicitly.'],
-        'control.responses' => ['title' => 'Response Queue', 'state' => 'live', 'description' => 'Dialogue delivery and terminal states.'],
+        'control.responses' => ['title' => 'Response Queue', 'state' => 'live', 'description' => 'Queued dialogue, action and lifecycle messages, with recorded playback details and protected log removal.'],
         'control.providers' => ['title' => 'Provider Attempts', 'state' => 'live', 'description' => 'Provider latency and bounded error traces.'],
         'control.jobs' => ['title' => 'Workers & Jobs', 'state' => 'live', 'description' => 'Durable worker and dead-letter status.'],
         'control.cache' => ['title' => 'Audio Cache', 'state' => 'live', 'description' => 'Authenticated playback of unexpired audio using opaque media IDs.'],

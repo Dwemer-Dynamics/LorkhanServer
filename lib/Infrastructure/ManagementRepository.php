@@ -12,7 +12,38 @@ use RuntimeException;
 
 final class ManagementRepository
 {
+    // Fixed r/m/t/s aliases shared by the queue reader and its guarded presentation-only deletion.
+    public const RESPONSE_QUEUE_REMOVABLE = "r.sent=1 AND (s.state IN ('ended','replaced') OR
+        (t.state IN ('complete','failed','cancelled')
+        AND NOT EXISTS (SELECT 1 FROM dialogue_utterances pending WHERE pending.turn_id=m.turn_id AND pending.delivery_state='pending')
+        AND NOT EXISTS (SELECT 1 FROM action_intents pending WHERE pending.turn_id=m.turn_id AND pending.state<>'terminal')))";
+
     public function __construct(private readonly PDO $db) {}
+
+    /** Remove a completed queue-log projection without cancelling or erasing native response events. */
+    public function removeResponseQueueEntry(string $installation, int $rowid): int
+    {
+        if (!Uuid::isValid($installation) || $rowid<1) throw new \InvalidArgumentException('invalid_response_queue_scope');
+        $this->db->beginTransaction();
+        try {
+            $query=$this->db->prepare('WITH eligible AS (
+                SELECT r.rowid FROM public.responselog r JOIN lorkhan_internal.responselog_metadata m ON m.rowid=r.rowid
+                    LEFT JOIN sessions s ON s.session_id=m.session_id LEFT JOIN turns t ON t.turn_id=m.turn_id
+                WHERE m.installation_id=:installation AND r.rowid=:rowid AND '.self::RESPONSE_QUEUE_REMOVABLE.'
+                ), removed AS (
+                DELETE FROM lorkhan_internal.responselog_metadata m USING eligible WHERE m.rowid=eligible.rowid RETURNING m.rowid
+                ) DELETE FROM public.responselog r USING removed WHERE r.rowid=removed.rowid');
+            $query->execute(['installation'=>$installation,'rowid'=>$rowid]);
+            $count=$query->rowCount();
+            if ($count!==1) throw new RuntimeException('response_queue_entry_unavailable_or_pending');
+            $this->audit('control','remove_response_queue_entry',['installation_id'=>$installation],['rowid'=>$rowid]);
+            $this->db->commit();
+            return $count;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
 
     public function globalSettingsPresets(string $installation): array
     {

@@ -172,7 +172,14 @@ narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=nar
 diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
 narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
 cache,text=parse(request('/LorkhanServer/ui/cache_browser.php')); assert cache.current==1 and '<h1>Audio Cache</h1>' in text and 'Expired and deleted entries' in text
-queue,text=parse(request('/LorkhanServer/ui/response_queue.php')); assert queue.current==1 and '<h1>Response Queue</h1>' in text and 'actual playback state' in text
+queue,text=parse(request('/LorkhanServer/ui/response_queue.php')); assert queue.current==1 and '>Response Queue</h1>' in text and 'actual playback state' in text and 'data-response-queue' in text
+queue_remove='/LorkhanServer/manage/api/v1/response-queue/remove'
+queue_values={'installation_id':queue.forms[0]['fields']['installation_id'],'rowid':1,'confirm':'Remove'}
+r=json_request(queue_remove,'GET',None,csrf); assert r.status in (404,405)
+r=json_request(queue_remove,'POST',queue_values); assert r.status==401
+r=json_request(queue_remove,'POST',dict(queue_values,confirm=''),csrf); assert r.status==422
+r=json_request(queue_remove,'POST',dict(queue_values,rowid='1'),csrf); assert r.status==422
+r=json_request(queue_remove,'POST',dict(queue_values,installation_id=str(uuid.uuid4())),csrf); assert r.status==404
 oghma,text=parse(request('/LorkhanServer/ui/oghma_audit.php')); assert oghma.current==1 and '<h1>Oghma Audit</h1>' in text and 'retrieval traces' in text
 assert all('value="'+status+'"' in text for status in ['grounded','no_match','fallback_succeeded','fallback_unresolved','fallback_failed','fallback_disabled','fallback_unconfigured','disabled','ineligible','unavailable','not_run','legacy']),text
 usage,text=parse(request('/LorkhanServer/ui/provider_usage.php')); assert usage.current==1 and '<h1>Cost Breakdown</h1>' in text and 'Missing pricing is shown as unknown' in text

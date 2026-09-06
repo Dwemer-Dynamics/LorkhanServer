@@ -95,7 +95,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
-| `response_queue.php` | Herika response log composition | Pending structural and populated-state comparison |
+| `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path | Pending structural and populated-state comparison |
 | `relationship_logs.php` | Same path | Pending structural and populated-state comparison |
 | `oghma_audit.php` | Same path | Pending structural and populated-state comparison |
@@ -1254,3 +1254,46 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - The all-pages goal remains active. Response Queue's reference entry redirects to
   `ai-response.php`; its real counterpart must be inspected next, not inferred
   from the filename or treated as covered by this Request Logs work.
+
+### Response Queue — actual Control Panel counterpart
+
+- The preceding Request Logs checkpoint identified the old `response_queue.php`
+  shortcut. Following the actual reference Control Panel iframe revealed the real
+  counterpart: `index.php?table=responselog`, rendered by `print_array_as_table()`
+  in `lib/misc_ui_functions.php`, not the separate AI Responses reader.
+- Replaced the speech-history table with the scoped `public.responselog` projection:
+  localts, sent, actor, text, action, tag, rowid, in ascending row order. Dialogue,
+  action and lifecycle messages now appear. Raw internal payloads are not exposed.
+- Matched the plain heading, full-width bordered/striped table, typography and row
+  controls. The populated 1280x720 fixtures share heading x12/y8, table frame
+  x12/y54.390625, width1256/height208.75, and row height47.1875. The reference
+  fixture includes its real dark HTML theme; missing Bootstrap icon font is not
+  treated as a product difference. Lorkhan uses its existing Unicode trash mark.
+- Bounded paging, filters, CSV and actual playback details remain under Filters and
+  tools; published/sent is explicitly distinguished from played. Timestamps and
+  row IDs do not split across lines. Narrow tables scroll inside their region.
+  Empty filters show a quiet no-records message instead of an unexplained blank.
+- Confirmed row removal is a browser-session/CSRF-protected POST. It removes only
+  the completed projection and companion metadata. Immutable/native response
+  events and the typed queue remain intact; unsent records and active unfinished
+  turns/dialogue/actions are protected. This deliberately does not cancel native
+  game delivery. No live row deletion was performed.
+- Existing checks passed: 348 server checks, 98 protocol files, management HTTP,
+  integration, migration/durable jobs and schema inventory; final PHP/JavaScript
+  syntax and diff checks passed. Added cases to existing tests for method/CSRF/type
+  rejection, wrong installation, unsent protection and retained native history.
+  Inventory remains 167 relations; source-reference hash is
+  ce4b70b508eb1c7e63a095e1f16c1fc09832bfdcda359a19f36650739345e6f0.
+- Compared populated/empty fixtures and 390x844 scrolling, pending disabled control,
+  removal confirmation, Escape/focus restoration and playback details. Live GET
+  shows 1,000 records / 10 pages; Next moves IDs1-100 to101-200. Standalone and
+  Control Panel iframe expose the same seven columns. Live empty-filter and CSV
+  probes pass (100 data rows with the seven expected headers).
+- Deployed locally; all 706 runtime files match source, no extra/old paths, and
+  health/auth/private-file checks pass. Counts remain 1,000 public queue entries,
+  1,000 typed queue entries, 1,000 native response events and 517 source events.
+  Configurations, credentials and voices were preserved. No provider/game calls.
+- Previous-feature rollback: /var/backups/lorkhanserver-code.BcYzCo. Final timestamp
+  wrapping refresh rollback: /var/backups/lorkhanserver-code.3BLvlB.
+- The all-pages goal remains active. Audio Cache and the remaining matrix entries
+  still need their own counterpart and populated-state work.

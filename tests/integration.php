@@ -2455,6 +2455,24 @@ foreach([$legacyClientSettings,$legacyGlobalSettings]as$index=>$legacySettings){
 }
 // Presentation-log maintenance must never erase immutable history or a response still in flight.
 $maintenance = new \LorkhanServer\Infrastructure\ManagementRepository($db);
+$queueHistory=static fn(): array => $db->query('SELECT (SELECT count(*) FROM response_events) AS events,
+    (SELECT count(*) FROM lorkhan_internal.responselog) AS typed_queue,(SELECT count(*) FROM source_events) AS sources')->fetch();
+$queueBefore=$queueHistory();
+$queueEntry=$db->query("SELECT r.rowid,m.installation_id FROM public.responselog r
+    JOIN lorkhan_internal.responselog_metadata m ON m.rowid=r.rowid JOIN sessions s ON s.session_id=m.session_id
+    WHERE r.sent=1 AND s.state IN ('ended','replaced') ORDER BY r.rowid LIMIT 1")->fetch();
+$assert(is_array($queueEntry),'response queue maintenance needs an ended-session fixture');
+$db->prepare('UPDATE public.responselog SET sent=0 WHERE rowid=:rowid')->execute(['rowid'=>$queueEntry['rowid']]);
+try { $maintenance->removeResponseQueueEntry($queueEntry['installation_id'],(int)$queueEntry['rowid']); $assert(false,'unsent response log entry was removed'); }
+catch (RuntimeException $error) { $assert($error->getMessage()==='response_queue_entry_unavailable_or_pending','unexpected queue-removal error'); }
+$db->prepare('UPDATE public.responselog SET sent=1 WHERE rowid=:rowid')->execute(['rowid'=>$queueEntry['rowid']]);
+try { $maintenance->removeResponseQueueEntry(\LorkhanServer\Infrastructure\Uuid::v4(),(int)$queueEntry['rowid']); $assert(false,'queue removal crossed installations'); }
+catch (RuntimeException $error) { $assert($error->getMessage()==='response_queue_entry_unavailable_or_pending','unexpected queue scope error'); }
+$assert($maintenance->removeResponseQueueEntry($queueEntry['installation_id'],(int)$queueEntry['rowid'])===1
+    && $queueHistory()===$queueBefore,'queue removal erased typed delivery or source history');
+$removedQueue=$db->prepare('SELECT (SELECT count(*) FROM public.responselog WHERE rowid=:rowid)+(SELECT count(*) FROM lorkhan_internal.responselog_metadata WHERE rowid=:metadata)');
+$removedQueue->execute(['rowid'=>$queueEntry['rowid'],'metadata'=>$queueEntry['rowid']]);
+$assert((int)$removedQueue->fetchColumn()===0,'queue removal left an orphaned projection');
 $responseScope = $db->query("SELECT s.installation_id,s.playthrough_id,t.turn_id FROM public.log l
     JOIN lorkhan_internal.log_metadata m ON m.rowid=l.rowid JOIN turns t ON t.turn_id=m.turn_id
     JOIN sessions s ON s.session_id=t.session_id WHERE t.state='complete' ORDER BY l.rowid DESC LIMIT 1")->fetch();

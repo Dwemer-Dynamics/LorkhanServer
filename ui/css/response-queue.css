@@ -1,0 +1,41 @@
+/* Herika control_panel.php -> index.php?table=responselog, with bounded typed Lorkhan records. */
+main.response-queue-page { width:100%; max-width:none; padding:0 12px 40px; margin:0; }
+body.embedded-page main.response-queue-page { padding:0 12px 40px; }
+.queue-heading { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+.queue-heading h1 { font-family:MagicCards,serif; }
+.queue-tools { font-size:12px; color:#aaa; }
+.queue-tools summary { cursor:pointer; }
+.queue-heading:has(.queue-tools[open]) { flex-wrap:wrap; }
+.queue-tools[open] { flex-basis:100%; }
+.queue-tools-body { padding:12px 0; }
+.queue-tools-body label { display:flex; flex-direction:column; gap:5px; min-width:0; }
+.queue-tools-body p { margin-top:14px; max-width:100ch; }
+.response-queue-page .datatable { width:100%; max-height:700px; overflow:scroll; font-family:'Futura CondensedLight',Arial,sans-serif; font-weight:700; border:1px solid lightgray; }
+.response-queue-page .datatable:has(.queue-empty) { border:0; overflow:visible; font-weight:400; }
+.response-queue-page .datatable table { font-family:inherit; font-weight:inherit; margin-bottom:16px; }
+.response-queue-page .datatable th,.response-queue-page .datatable td { border-top-width:0; border-bottom-width:0; }
+.response-queue-page .datatable td:has(button) { text-align:left; }
+.response-queue-page table { width:100%; border-collapse:collapse; background-color:#3a3a3a; margin-bottom:20px; font-size:small; }
+.response-queue-page th { background:#1a1a1a; color:#fff; font-weight:bold; padding:12px; text-align:left; border-bottom:2px solid #444; }
+.response-queue-page td { padding:10px; text-align:left; border-bottom:1px solid #444; color:#f8f9fa; overflow-wrap:break-word; }
+.response-queue-page .datatable td:first-child { white-space:nowrap; }
+.response-queue-page tr:nth-child(even) { background:rgb(77,77,77); }
+.response-queue-page td:has(button) { text-align:center; }
+.response-queue-page .queue-text { white-space:normal; overflow-wrap:anywhere; }
+.response-queue-page .queue-playback { margin-top:8px; font-size:11px; color:#aaa; white-space:normal; }
+.queue-playback summary { cursor:pointer; width:fit-content; }
+.response-queue-page .queue-row-remove { display:inline-flex; align-items:center; gap:5px; white-space:nowrap; background:rgba(220,53,69,.1) !important; border:1px solid rgba(220,53,69,.35) !important; border-radius:4px; padding:4px 8px !important; min-height:0 !important; margin:0 !important; font:inherit !important; color:#f55 !important; }
+.response-queue-page .queue-row-remove:disabled { color:#aaa !important; opacity:.65; cursor:not-allowed; }
+.response-queue-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+.queue-empty { color:#aaa; padding:12px 0; }
+.queue-remove-dialog { width:min(600px,calc(100% - 32px)); margin:auto; padding:20px; border:1px solid #555; border-radius:8px; background:#242424; color:#eee; }
+.queue-remove-dialog::backdrop { background:#0009; }
+.queue-remove-dialog h2 { font-family:MagicCards,serif; font-size:22px; margin:0 0 15px; }
+.queue-dialog-actions { display:flex; justify-content:flex-end; gap:8px; }
+.queue-confirm { background:#812f38 !important; border-color:#a34b54 !important; }
+@media(max-width:768px) {
+    .response-queue-page table { font-size:smaller; min-width:750px; }
+    .response-queue-page th,.response-queue-page td { padding:8px; }
+    .queue-heading { flex-wrap:wrap; }
+    .queue-heading h1 { font-size:28px; }
+}

@@ -144,6 +144,12 @@ final class ManagementRouter
             }
             return Response::json(202,$this->management->syncMemorySummaries($body['installation_id'],$body['playthrough_id']));
         }
+        if ($r->method === 'POST' && $path === '/api/v1/response-queue/remove') {
+            $body=$this->json($r);
+            if (($body['confirm']??'')!=='Remove') throw new InvalidArgumentException('confirmation_mismatch');
+            if (!is_string($body['installation_id']??null) || !is_int($body['rowid']??null)) throw new InvalidArgumentException('invalid_response_queue_scope');
+            return Response::json(200,['removed'=>$this->management->removeResponseQueueEntry($body['installation_id'],$body['rowid'])]);
+        }
         if ($r->method === 'POST' && $path === '/api/v1/request-logs/clear') {
             $body = $this->json($r);
             if (($body['confirm'] ?? '') !== 'Clear') throw new InvalidArgumentException('confirmation_mismatch');
