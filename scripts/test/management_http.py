@@ -11,6 +11,8 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     llm_requests=[]
     embedding_requests=[]
     speech_requests=[]
+    transcription_requests=[]
+    transcription_text='Ash drifts across the quiet road. A traveler stops at the inn, warms by the fire, and asks the keeper for a room until morning.'
     samples=b'\x00'*160
     silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
              +(16000).to_bytes(4,'little')+(32000).to_bytes(4,'little')+(2).to_bytes(2,'little')+(16).to_bytes(2,'little')+b'data'+len(samples).to_bytes(4,'little')+samples)
@@ -20,6 +22,10 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
     def do_POST(self):
+        if self.path=='/stt-test':
+            self.transcription_requests.append(self.rfile.read(int(self.headers.get('Content-Length','0'))))
+            payload=json.dumps({'text':self.transcription_text}).encode()
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path=='/embed':
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.embedding_requests.append(body)
             payload=json.dumps({'embedding':[1.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0]}).encode()
@@ -1370,4 +1376,29 @@ assert json_request(copy_path,'POST',copy_values,csrf).status==409
 copy_values['revision']=copied['revision']
 r=json_request(copy_path,'POST',copy_values,csrf); repeated=json.loads(r.read())
 assert r.status==200 and repeated['profiles_updated']==0 and repeated['revision']==copied['revision'],repeated
+# STT tests use the owned fixed sample, not a TTS call, and expose only bounded results.
+# Earlier TTS checks deliberately exhaust their browser's shared speech-test budget.
+jar.clear()
+request('/LorkhanServer/ui/home.php').read()
+csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
+r=json_request('/LorkhanServer/manage/api/v1/stt-providers','POST',{'installation_id':valid['installation_id'],'name':'HTTP STT test','content':{'driver':'localwhisper','endpoint':'http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test','model':'whisper-1','language':'en','timeout_ms':30000,'options':{}}},csrf)
+created_stt=json.loads(r.read()); assert r.status==201,(r.status,created_stt)
+stt_page,stt_body=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']+'&driver=localwhisper'))
+stt_form=next(f for f in stt_page.forms if f['action'].endswith('/forms/connector-revise'))
+stt_values=dict(stt_form['fields'],_csrf=csrf,endpoint='http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test',options_json='{}')
+r=request(stt_form['action'],'POST',stt_values); r.read(); assert r.status==200,r.status
+stt_path='/LorkhanServer/manage/api/v1/stt-connector-tests'
+stt_request={'installation_id':valid['installation_id'],'configuration_id':stt_values['configuration_id']}
+assert json_request(stt_path,'POST',stt_request).status==401
+assert json_request(stt_path,'POST',dict(stt_request,text='arbitrary audio'),csrf).status==422
+assert json_request(stt_path,'POST',dict(stt_request,installation_id=str(uuid.uuid4())),csrf).status==422
+assert json_request(stt_path,'POST',dict(stt_request,configuration_id=tts_id),csrf).status==422
+assert json_request(stt_path,'POST',dict(stt_request,configuration_id=str(uuid.uuid4())),csrf).status==404
+speech_count=len(VoiceProvider.speech_requests)
+r=json_request(stt_path,'POST',stt_request,csrf); stt_result=json.loads(r.read())
+assert r.status==200 and stt_result['transcript']==VoiceProvider.transcription_text and stt_result['similarity_percent']==100 and stt_result['driver']=='localwhisper' and stt_result['elapsed_ms']>=0,(r.status,stt_result)
+assert len(VoiceProvider.transcription_requests)==1 and (repository_root/'ui/tests/assets/stt-test.wav').read_bytes() in VoiceProvider.transcription_requests[0]
+assert len(VoiceProvider.speech_requests)==speech_count
+VoiceProvider.transcription_text=''
+r=json_request(stt_path,'POST',stt_request,csrf); assert r.status==502 and json.loads(r.read())=={'error':'stt_test_failed'}
 print('browser-like management HTTP forms passed')

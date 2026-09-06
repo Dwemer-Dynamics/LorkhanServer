@@ -15,6 +15,7 @@ use LorkhanServer\Application\ProductService;
 use LorkhanServer\Application\Provider;
 use LorkhanServer\Application\ProviderFactory;
 use LorkhanServer\Application\SpeechPreviewCatalog;
+use LorkhanServer\Application\SttTestSample;
 use LorkhanServer\Application\SettingsCatalog;
 use LorkhanServer\Application\TranslationPolicy;
 use LorkhanServer\Infrastructure\ManagementRepository;
@@ -201,6 +202,18 @@ final class ManagementRouter
         if($path==='/api/v1/profile-connector-tests'){
             if($r->method==='GET')return Response::json(200,$this->repository->coreProfileConnectorTestPlan($this->queryUuid($r,'installation_id')));
             if($r->method==='POST')return Response::json(200,['result'=>$this->runProfileConnectorTest($this->json($r))]);
+        }
+        if ($r->method === 'POST' && $path === '/api/v1/stt-connector-tests') {
+            // Expensive speech diagnostics share the existing browser preview rate budget.
+            if (!$this->management->allowTtsPreview($browserSession)) return Response::json(429, ['error'=>'stt_test_rate_limited']);
+            $values = $this->json($r);
+            $keys = array_keys($values); sort($keys);
+            if ($keys !== ['configuration_id', 'installation_id']) throw new InvalidArgumentException('invalid_stt_test_request');
+            try { return Response::json(200, $this->testSpeechToText($values)); }
+            catch (RuntimeException $error) {
+                if ($error->getMessage() === 'not_found') throw $error;
+                return Response::json(502, ['error'=>'stt_test_failed']);
+            }
         }
         if($r->method==='POST'&&$path==='/api/v1/tts-previews')return$this->speechPreview($this->json($r),$browserSession);
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
@@ -2019,16 +2032,35 @@ final class ManagementRouter
         $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
         $kind=$this->need($values,'kind');if(!in_array($kind,['tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
         $preset=$this->repository->getRevisioned($kind,$configuration);$token=new NeverCancelledToken();$started=microtime(true);
+        if (($preset['installation_id'] ?? '') !== $installation) throw new InvalidArgumentException('invalid_provider_scope');
         if($kind==='tts_provider'){
             $voice=trim((string)($values['voice_id']??''));$context=$voice===''?[]:['voice'=>$voice];
             $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)->synthesize('Greetings, traveler. This is LORKHAN.',$token,$context);
             return strtoupper((string)$audio['codec']).' '.(int)$audio['duration_ms'].' ms in '.(int)round((microtime(true)-$started)*1000).' ms';
         }
-        $speechPreset=$this->repository->connectorForInstallation($installation,'tts_provider');
-        if($speechPreset===null)throw new InvalidArgumentException('active_tts_connector_required');
-        $audio=ProviderFactory::speechForPreset($this->providerConfig,$speechPreset)->synthesize('Greetings, traveler. This is LORKHAN.',$token);
-        $result=ProviderFactory::speechToTextForPreset($this->providerConfig,$preset)->transcribe($audio['bytes'],$audio['codec'],'en',$token);
-        return trim((string)$result['text']).' ('.(int)round((microtime(true)-$started)*1000).' ms)';
+        $result = $this->testSpeechToText($values);
+        return $result['transcript'] . ' (' . $result['elapsed_ms'] . ' ms)';
+    }
+
+    /** Test only STT with a fixed owned sample, never requiring or calling a TTS connector. */
+    private function testSpeechToText(array $values): array
+    {
+        $installation = $this->need($values, 'installation_id'); $this->uuid($installation, 'installation_id');
+        $configuration = $this->need($values, 'configuration_id'); $this->uuid($configuration, 'configuration_id');
+        $preset = $this->repository->getRevisioned('stt_provider', $configuration);
+        if (($preset['kind'] ?? '') !== 'stt_provider') throw new InvalidArgumentException('invalid_connector_kind');
+        if (($preset['installation_id'] ?? '') !== $installation) throw new InvalidArgumentException('invalid_provider_scope');
+        $content = is_array($preset['content'] ?? null) ? $preset['content'] : [];
+        if (($content['driver'] ?? '') === 'none') throw new InvalidArgumentException('stt_service_disabled');
+        $started = microtime(true);
+        try {
+            $result = ProviderFactory::speechToTextForPreset($this->providerConfig, $preset)
+                ->transcribe(SttTestSample::bytes(), 'wav', 'en', new NeverCancelledToken());
+            $text = trim((string) ($result['text'] ?? ''));
+            if ($text === '' || !mb_check_encoding($text, 'UTF-8') || mb_strlen($text, 'UTF-8') > 4096) throw new RuntimeException('stt_test_failed');
+        } catch (Throwable) { throw new RuntimeException('stt_test_failed'); }
+        return ['transcript'=>$text, 'similarity_percent'=>SttTestSample::similarity($text),
+            'elapsed_ms'=>(int) round((microtime(true)-$started)*1000), 'driver'=>(string) ($content['driver'] ?? '')];
     }
 
     /** List the connector and installed-voice choices the pronunciation preview strip may offer. */

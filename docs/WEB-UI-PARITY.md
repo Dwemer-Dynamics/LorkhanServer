@@ -78,7 +78,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
-| `core/stt_connectors.php` | `stt_connectors.php` | Pending structural and populated-state comparison |
+| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result dialog implemented and compared; API Badge, Google Free STT, provider fields and service-switch draft preservation pending |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Pending structural and populated-state comparison |
@@ -513,3 +513,44 @@ Remaining Core Profile requirements identified from the pinned source and live e
   URL visibility and complete import/create/clone/delete state comparison. Free-form
   test voice IDs and longer test text are not implemented by this catalog-backed
   preview; this checkpoint does not declare the whole page complete.
+
+### STT fixed-sample test reader
+
+- Compared pinned Herika `ui/stt_connectors.php` and `ui/tests/stt-test.php`.
+  The new `ui/core/tmpl/stt_connector_test.php`, `ui/js/stt-connector-test.js`
+  and reader styles in `ui/css/herika-excluded-connectors.css` derive their
+  dialog, expected sample/play control, transcript and similarity presentation
+  from those files. A source-derived reference fixture was rendered without
+  executing Herika's automatic provider call; it is not live provider evidence.
+- Test follows the reference save-before-test flow. The button warns that it
+  saves the connector and that cloud transcription may incur charges. Save
+  failure prevents transcription. Closing aborts the browser request, stops
+  sample playback and restores focus; it cannot roll back a completed save or
+  guarantee cancellation of work already received by a provider.
+- `/api/v1/stt-connector-tests` accepts only installation and connector IDs,
+  enforces CSRF, connector kind/ownership and the shared speech-preview budget,
+  and returns bounded transcript, similarity, service and elapsed time. Provider
+  failures are opaque. It uses an original offline-synthesized English WAV,
+  checksum-verified by `SttTestSample`; no game sample, microphone recording,
+  generated TTS, source event, dialogue job or audio record is involved.
+- This also fixes Local Whisper credential resolution: its declared empty API-key
+  setting means no credential, rather than an invalid environment-variable name.
+  Existing HTTP tests exercise real multipart sample bytes against the mock STT
+  provider and prove no TTS requests occur, plus invalid scope/kind, extra fields,
+  missing CSRF and provider-failure responses.
+- Actual-template/script browser fixtures checked save-before-test ordering,
+  successful output with literal HTML text, save/provider errors, late-response
+  fencing, Close focus restoration and the 390px layout. Live Test is deliberately
+  not clicked because it saves settings and invokes the selected provider.
+- Raw connector JSON is collapsed behind Advanced connector options; provider
+  option labels now have explicit input IDs. The rest of the STT page is still
+  pending: API Badge selection, Google Free STT, provider-specific fields and
+  preservation of unsaved drafts when switching services. This is a partial
+  page checkpoint, not completion of the full matrix.
+- Verification for this checkpoint: PHP lint, 328 server checks, 98 protocol
+  files, management HTTP, integration, migrations, durable jobs, JavaScript
+  syntax and whitespace checks passed. The schema remains 166 relations.
+  All 685 deployed runtime files hash-match source; private paths return 403
+  and unauthenticated native sessions 401. Existing configuration, credentials
+  and voice contents were preserved. Live GET confirms the new dialog, script,
+  sample URL and protected endpoint without clicking Test or Save. No game ran.

@@ -140,3 +140,26 @@ body.excluded-connector-page-shell main.excluded-connector-page button.btn-secon
 @media (max-width: 560px) {
     .excluded-connector-page .feature-status-corner { top: 8px; right: 8px; transform: scale(.84); transform-origin: top right; }
 }
+
+.excluded-connector-page .advanced-json > summary { cursor: pointer; color: #e9efff; font-weight: 600; margin: 12px 0; }
+.stt-test-dialog {
+    box-sizing: border-box; width: min(1100px, 94vw); height: min(820px, 92vh); max-width: none; max-height: none;
+    padding: 0; border: 1px solid #3a3a3a; border-radius: 10px; overflow: hidden;
+    background: #2c2c2c; color: #f8f9fa; font: 15px/1.5 Arial, sans-serif;
+}
+.stt-test-dialog::backdrop { background: rgba(0,0,0,.66); }
+body:has(.stt-test-dialog[open]) { overflow: hidden; }
+.stt-test-close { position: absolute; top: 10px; right: 10px; z-index: 2; margin: 0; }
+.stt-test-content { height: 100%; box-sizing: border-box; padding: 20px; overflow: auto; }
+.stt-test-content h1 { color: #fff; font: bold 28px/1.25 Arial, sans-serif; margin: 0 65px 20px 0; }
+.stt-test-status, .stt-test-message, .stt-test-response { border: 1px solid #555; border-radius: 5px; overflow-wrap: anywhere; }
+.stt-test-status { margin: 0 0 15px; padding: 10px; background: #3a3a3a; font-weight: bold; }
+.stt-test-message { max-width: 800px; margin-bottom: 20px; padding: 10px; background: #444; }
+.stt-test-response { padding: 15px; margin: 10px 0 20px; background: #3a3a3a; font-weight: bold; white-space: pre-wrap; }
+.stt-test-note { color: #b9c4d3; font-size: 12px; }
+#stt-test-play { width: auto; min-width: 0; margin: 0 0 0 10px; padding: 0 5px !important; background: transparent !important; border: 0 !important; color: #6dd19c !important; }
+.stt-test-dialog button:focus-visible { outline: 2px solid #bc9d5a; outline-offset: 3px; }
+@media (max-width: 480px) {
+    .stt-test-content { padding: 16px 12px; }
+    .stt-test-content h1 { font-size: 23px; }
+}

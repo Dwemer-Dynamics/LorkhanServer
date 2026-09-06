@@ -40,6 +40,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\MockProvider' => '/connector/MockProvider.php',
         'Application\\MockSpeechProvider' => '/tts/MockSpeechProvider.php',
         'Application\\MockSpeechToTextProvider' => '/stt/MockSpeechToTextProvider.php',
+        'Application\\SttTestSample' => '/stt/SttTestSample.php',
         'Application\\NarrationTextPolicy' => '/prompts/NarrationTextPolicy.php',
         'Application\\OghmaTopicExtractor' => '/connector/OghmaTopicExtractor.php',
         'Application\\OpenAiCompatibleOghmaTopicExtractor' => '/connector/OpenAiCompatibleOghmaTopicExtractor.php',

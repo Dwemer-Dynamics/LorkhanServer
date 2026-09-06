@@ -195,7 +195,7 @@ final class ProviderFactory
         if($translate&&str_ends_with($endpoint,'/v1/audio/transcriptions'))$endpoint=substr($endpoint,0,-strlen('transcriptions')).'translations';
         if(in_array($driver,['parakeet','localwhisper','whisper'],true))return new OpenAiCompatibleSpeechToTextProvider(
             $endpoint,[$host],$driver==='parakeet'?'whisper-1':(string)($content['model']?:'whisper-1'),
-            self::environment((string)$definition['credential_environment'],$config),(int)$content['timeout_ms'],$loopback,
+            $definition['credential_environment']===''?'':self::environment((string)$definition['credential_environment'],$config),(int)$content['timeout_ms'],$loopback,
             $driver==='localwhisper'?(string)($options['file_field']??'audio_file'):'file',$driver!=='localwhisper',
             !$translate&&$driver!=='localwhisper'?(string)($options['prompt']??'LORKHAN,Nerevarine,Morrowind'):'',!$translate);
         if(in_array($driver,['azure','deepgram','gemini','inworld'],true))return new CloudSpeechToTextConnectorProvider(
