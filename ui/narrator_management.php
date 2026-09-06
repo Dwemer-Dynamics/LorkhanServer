@@ -25,6 +25,7 @@ $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
+$narratorPromptRows = \LorkhanServer\Application\NarratorEventPrompts::rows($installationId, $uiRepository->rows('prompts'));
 $embedded = ($_GET['embed'] ?? '') === '1';
 $coreRows = array_values(array_filter($coreRows, static fn(array $row): bool =>
     (string)$row['installation_id'] === $installationId));
@@ -70,7 +71,7 @@ function lorkhan_narrator_number(string $name, string $label, int $value, int $m
     echo '<label for="narrator-' . lorkhan_ui_h($name) . '">' . lorkhan_ui_h($label) . '</label><input id="narrator-' . lorkhan_ui_h($name) . '" name="' . lorkhan_ui_h($name) . '" type="number" value="' . $value . '" min="' . $minimum . '" max="' . $maximum . '"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
-$additionalStylesheets = ['herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css')];
+$additionalStylesheets = ['herika-prompts.css?v=' . (string) filemtime(__DIR__ . '/css/herika-prompts.css'), 'herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css')];
 $includeManagementStyles = false;
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
@@ -261,15 +262,17 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <label for="narrator-notes">Additional Notes</label>
                     <textarea id="narrator-notes" name="notes" rows="3"><?php echo lorkhan_ui_h($content['notes'] ?? ''); ?></textarea>
 
-                    <?php foreach ([
-                        'config.narrator.actions' => ['Narrator Actions', 'Manage Narrator Actions'],
-                        'config.narrator.prompts' => ['Advanced Prompts (Prompts Manager)', 'Edit Narrator Prompt'],
-                    ] as $featureId => [$label, $control]): ?>
-                        <details class="narrator-advanced-wrap">
-                            <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">&#x25B6;</span><span><?php echo lorkhan_ui_h($label); ?></span></span><?php echo lorkhan_ui_feature_badge($featureId, true); ?></summary>
-                            <div class="narrator-advanced-panel"><div class="narrator-advanced-placeholder"><p><?php echo lorkhan_ui_h(lorkhan_ui_feature($featureId)['description']); ?></p><a class="btn-base" target="_top" href="<?php echo lorkhan_ui_h($webRoot.($featureId==='config.narrator.actions'?'/ui/core/config_hub.php?tab=actions-page':'/ui/core/config_hub.php?tab=prompts-page')); ?>"><?php echo lorkhan_ui_h($control); ?></a></div></div>
-                        </details>
-                    <?php endforeach; ?>
+                    <details class="narrator-advanced-wrap">
+                        <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">▶</span><span>Narration Actions</span></span><span class="narrator-actions-summary-count">0 enabled / 0 total</span></summary>
+                        <?php // ActionCatalogRepository currently defines no narrator-capable OpenMW actions. ?>
+                        <div class="narrator-advanced-panel"><div class="narrator-actions-empty">No narrator-scoped actions were found.</div></div>
+                    </details>
+                    <details class="narrator-advanced-wrap" data-narrator-prompts>
+                        <summary class="narrator-advanced-summary"><span class="narrator-advanced-summary-text"><span class="narrator-advanced-summary-icon">▶</span><span>Advanced Prompts (Prompts Manager)</span></span></summary>
+                        <div class="narrator-advanced-panel">
+                            <?php include __DIR__ . '/tmpl/narrator_prompt_rows.php'; ?>
+                        </div>
+                    </details>
                 </section>
 
                 <?php if ($profile !== null): ?><section class="narrator-content-section narrator-full-width"><label for="narrator-revision-note">Revision Note</label><input id="narrator-revision-note" name="change_reason" required maxlength="512" value="Management narrator update"><span class="narrator-hint">Saved as revision <?php echo lorkhan_ui_h((int) $profile['current_revision'] + 1); ?> of the typed narrator profile.</span></section><?php endif; ?>
@@ -318,5 +321,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
         <?php endif; ?>
     </div>
 </main>
+<?php $rows = $narratorPromptRows; $narratorInlinePromptEditor = true; include __DIR__ . '/tmpl/prompt_dialogs.php'; ?>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/prompts-manager.js?v=<?php echo lorkhan_ui_h((string) filemtime(__DIR__ . '/js/prompts-manager.js')); ?>"></script>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script>
 <?php include __DIR__ . '/tmpl/footer.html'; ?>

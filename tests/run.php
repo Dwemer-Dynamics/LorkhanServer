@@ -520,6 +520,15 @@ foreach($automaticCues as$source=>$expectedCue){$automaticTurn=$promptTurn;$auto
     $automaticFinal=$automaticMessages[array_key_last($automaticMessages)]['content']??'';
     $check(str_contains((string)$automaticFinal,$expectedCue)&&!str_contains((string)$automaticFinal,'RANGROO: [Autonomy:test]'),
         $source.' uses a server-owned action-free prompt cue');}
+foreach (\LorkhanServer\Application\NarratorEventPrompts::SOURCES as $source => $key) {
+    $narratorTurn = $promptTurn; $narratorTurn['payload']['ui_source'] = $source;
+    $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
+    $expected = strtr(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$key]['default_prompt'], ['{PLAYER_NAME}' => 'RANGROO']);
+    $check($messages[array_key_last($messages)]['content'] === $expected, $key.' preserves the prior event instruction by default');
+    $narratorTurn['_narrator_event_prompts'] = [$key => 'Observe the scene for {PLAYER_NAME}, without inventing events.'];
+    $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
+    $check($messages[array_key_last($messages)]['content'] === 'Observe the scene for RANGROO, without inventing events.', $key.' applies the frozen custom instruction');
+}
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe'),

@@ -887,16 +887,18 @@ final class PromptAssembler
 
     private function currentTurnMessage(array $turn, string $actorName, string $playerName, mixed $moodTemplates): string
     {
+        $narratorKey = NarratorEventPrompts::SOURCES[$turn['payload']['ui_source'] ?? ''] ?? null;
+        if ($narratorKey !== null) {
+            $custom = $turn['_narrator_event_prompts'][$narratorKey] ?? null;
+            $instruction = is_string($custom) && trim($custom) !== '' ? $custom
+                : NarratorEventPrompts::definitions()[$narratorKey]['default_prompt'];
+            return strtr($instruction, ['{PLAYER_NAME}' => $playerName]);
+        }
         $automaticCue = match ($turn['payload']['ui_source'] ?? null) {
             'lorkhan_rpg_event' => 'Make one brief in-character comment about this observed game event: '.(string)($turn['payload']['input']['text']??'').'. This is scene context, not spoken player dialogue. Do not invent additional events.',
             'lorkhan_auto_greeting' => "Automatic greeting for {$actorName}. Address {$playerName} with one brief, natural greeting that fits your character and the current situation.",
             'lorkhan_auto_boredom' => "Automatic idle remark for {$actorName}. Make one brief, spontaneous in-character observation about the current situation. Address {$playerName} only when it feels natural.",
             'lorkhan_auto_combat_bark' => "Automatic combat bark for {$actorName}. Deliver one short, urgent in-character combat line. Do not narrate actions or produce dialogue for anyone else.",
-            'lorkhan_narrator_welcome' => "Welcome {$playerName} after loading the game. Give a concise recap grounded only in the supplied history, journal, and current scene. Do not invent events or speak as another character.",
-            'lorkhan_narrator_random' => "Add a concise visual description of the current scene using only supplied context. Focus on visible people, environment, lighting, and atmosphere. Do not advance the plot or invent actions.",
-            'lorkhan_narrator_boredom' => "Make one concise narrator observation about the current scene after a quiet period. Use only supplied context; do not invent events or dialogue for world actors.",
-            'lorkhan_narrator_quest' => "Comment concisely on the newest supplied journal update. Preserve uncertainty and do not invent quest outcomes, objectives, or events.",
-            'lorkhan_narrator_book' => "Summarize or react concisely to the newest supplied opened book. Use only its supplied title and text; do not invent contents.",
             default => null,
         };
         if ($automaticCue !== null) return $automaticCue;

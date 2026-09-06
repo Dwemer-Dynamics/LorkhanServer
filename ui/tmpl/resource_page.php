@@ -36,6 +36,7 @@ $routingViews=['characters','profiles','narrator'];
 $llmRoutingRows=in_array($view,$routingViews,true)?$uiRepository->rows('llm'):[];
 $ttsRoutingRows=in_array($view,$routingViews,true)?$uiRepository->rows('tts'):[];
 $promptRoutingRows=in_array($view,['characters','profiles'],true)?$uiRepository->rows('prompts'):[];
+$promptRoutingRows=array_values(array_filter($promptRoutingRows,static fn(array $row):bool=>($row['content']['purpose']??'')!=='narrator_event'));
 $llmRoutingOptions=[''=>'Use the current session model slot'];
 foreach($llmRoutingRows as$row){$id=(string)($row['configuration_id']??'');$content=is_array($row['content']??null)?$row['content']:[];
     if($id!=='')$llmRoutingOptions[$id]=(string)($row['name']??$id).' - '.(string)($content['model']??'default model');}

@@ -55,7 +55,24 @@ document.addEventListener('DOMContentLoaded', () => {
         const response = await fetch(form.action, {method:'POST',body,headers:{Accept:'application/json'},signal:controller.signal});
         const result = await response.json();
         if (!response.ok || result.ok !== true) throw new Error(result.error || `HTTP ${response.status}`);
-        location.reload();
+        if (dialog.hasAttribute('data-prompt-inline')) {
+          const key = form.elements.prompt_key.value;
+          const row = [...document.querySelectorAll('[data-prompt-inline-row]')].find(item => item.dataset.promptInlineRow === key);
+          const custom = String(body.get('custom_prompt') || '');
+          const isCustom = custom.trim() !== '';
+          const active = isCustom ? custom : dialog.querySelector('.prompt-default').textContent;
+          const badge = row.querySelector('[data-inline-prompt-status]');
+          badge.textContent = isCustom ? 'Custom' : 'Default';
+          badge.classList.toggle('custom', isCustom); badge.classList.toggle('default', !isCustom);
+          const preview = row.querySelector('[data-inline-prompt-preview]');
+          preview.textContent = active.length > 150 ? active.slice(0, 147) + '...' : active;
+          preview.classList.toggle('custom', isCustom);
+          row.querySelector('[data-prompt-clear]').hidden = !isCustom;
+          form.elements.expected_revision.value = String(result.revision);
+          form.elements.custom_prompt.defaultValue = custom;
+          document.querySelector('[data-inline-prompt-notice]').textContent = `Saved ${key}. Unsaved narration settings have not changed.`;
+          dialog.close();
+        } else location.reload();
       } catch (error) {
         status.textContent = error.name === 'AbortError' ? 'Save timed out. Your draft is retained; reload before retrying if the server already saved it.'
           : error.message === 'revision_conflict' ? 'This prompt changed elsewhere. Your draft is retained; copy it before reloading.'

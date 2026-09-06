@@ -29,6 +29,7 @@ $profiles = $forInstallation($uiRepository->rows('core_profiles'));
 $llm = $forInstallation($uiRepository->rows('llm'));
 $tts = $forInstallation($uiRepository->rows('tts'));
 $prompts = $forInstallation($uiRepository->rows('prompts'));
+$prompts = array_values(array_filter($prompts, static fn(array $row): bool => ($row['content']['purpose'] ?? '') !== 'narrator_event'));
 
 $selectedId = trim((string) ($_GET['edit'] ?? ''));
 $selected = null;

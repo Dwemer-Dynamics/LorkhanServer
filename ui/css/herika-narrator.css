@@ -356,3 +356,176 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
     .narrator-toggle-row + .narrator-hint { margin-left: 0; }
     .narrator-save-row > * { flex: 1 1 auto; justify-content: center; text-align: center; }
 }
+
+/* Pinned Herika inline narrator prompt table, retaining the gold accent. */
+    .narrator-inline-prompts-table-wrap {
+        background: linear-gradient(135deg, rgba(42, 42, 42, 0.95), rgba(34, 34, 34, 0.98));
+        border-radius: 10px;
+        border: 1px solid #3a3a3a;
+        max-height: 560px;
+        overflow-y: auto;
+        overflow-x: auto;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15), inset 0 1px rgba(255, 255, 255, 0.03);
+    }
+
+    .narrator-inline-prompts-table-wrap thead {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        background: linear-gradient(180deg, rgba(26, 26, 26, 0.95), rgba(20, 20, 20, 0.98));
+        border-bottom: 2px solid rgba(188, 157, 90, 0.5);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+    }
+
+    .narrator-inline-prompts-table {
+        width: 100%;
+        border-collapse: collapse;
+    }
+
+    .narrator-inline-prompts-table th {
+        padding: 15px 12px;
+        text-align: left;
+        color: rgb(188, 157, 90);
+        font-family: 'MagicCards', serif;
+        font-size: 1.05em;
+        word-spacing: 6px;
+        font-weight: normal;
+        letter-spacing: 1px;
+    }
+
+    .narrator-inline-prompts-table tbody tr {
+        border-bottom: 1px solid #3a3a3a;
+        transition: background-color 0.2s ease, box-shadow 0.2s ease;
+    }
+
+    .narrator-inline-prompts-table tbody tr:hover {
+        background: rgba(188, 157, 90, 0.05);
+        box-shadow: inset 0 0 10px rgba(188, 157, 90, 0.1);
+    }
+
+    .narrator-inline-prompts-table td {
+        padding: 12px;
+        color: #e0e0e0;
+        vertical-align: top;
+    }
+
+    .narrator-inline-prompt-key-cell {
+        min-width: 220px;
+        font-family: 'Courier New', monospace;
+        color: rgb(100, 149, 237);
+        font-size: 0.9em;
+    }
+
+    .narrator-inline-prompt-description-cell {
+        min-width: 260px;
+        color: #b0b0b0;
+        font-style: italic;
+        font-size: 0.9em;
+    }
+
+    .narrator-inline-prompt-content-cell {
+        max-width: 420px;
+    }
+
+    .narrator-inline-prompt-preview {
+        background: #1a1a1a;
+        padding: 10px;
+        border-radius: 4px;
+        border: 1px solid #3a3a3a;
+        font-family: 'Courier New', monospace;
+        font-size: 0.85em;
+        white-space: pre-wrap;
+        max-height: 100px;
+        overflow-y: auto;
+        color: #ccc;
+        line-height: 1.4;
+    }
+
+    .narrator-inline-prompt-preview.custom {
+        border-color: rgb(188, 157, 90);
+        background: rgba(188, 157, 90, 0.05);
+    }
+
+    .narrator-inline-status-badge {
+        display: inline-block;
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 0.8em;
+        font-weight: bold;
+        text-align: center;
+    }
+
+    .narrator-inline-status-badge.custom {
+        background: rgba(188, 157, 90, 0.2);
+        color: rgb(188, 157, 90);
+        border: 1px solid rgb(188, 157, 90);
+    }
+
+    .narrator-inline-status-badge.default {
+        background: rgba(100, 149, 237, 0.2);
+        color: rgb(100, 149, 237);
+        border: 1px solid rgb(100, 149, 237);
+    }
+
+    .narrator-inline-prompts-actions-cell {
+        white-space: nowrap;
+        text-align: center;
+        min-width: 120px;
+    }
+
+    .narrator-inline-prompts-btn {
+        padding: 6px 12px;
+        border: 1px solid rgba(58, 58, 58, 0.5);
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.85em;
+        transition: all 0.2s ease;
+        margin: 2px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+    }
+
+    .narrator-inline-prompts-btn-edit {
+        background: linear-gradient(135deg, rgba(100, 149, 237, 0.9), rgba(80, 129, 217, 0.9));
+        color: white;
+        border-color: rgba(100, 149, 237, 0.3);
+    }
+
+    .narrator-inline-prompts-btn-edit:hover {
+        background: linear-gradient(135deg, rgba(80, 129, 217, 1), rgba(60, 109, 197, 1));
+        border-color: rgba(100, 149, 237, 0.5);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    .narrator-inline-prompts-btn-clear {
+        background: linear-gradient(135deg, rgba(188, 157, 90, 0.9), rgba(168, 137, 70, 0.9));
+        color: white;
+        border-color: rgba(188, 157, 90, 0.3);
+    }
+
+    .narrator-inline-prompts-btn-clear:hover {
+        background: linear-gradient(135deg, rgba(168, 137, 70, 1), rgba(148, 117, 50, 1));
+        border-color: rgba(188, 157, 90, 0.5);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
+    }
+
+    .narrator-inline-prompts-empty {
+        padding: 18px;
+        color: #cfd8e3;
+    }
+
+
+.narrator-actions-summary-count { color:#aaa; font:12px Arial,sans-serif; }
+.narrator-actions-empty { padding:18px; color:#aaa; }
+.narrator-inline-prompts-btn[hidden] { display:none; }
+
+/* Narrator uses its counterpart reader density; the shared prompt editor retains its own layout. */
+.prompt-edit-modal[data-prompt-inline] { border:2px solid rgba(188,157,90,.5); background:linear-gradient(135deg,rgba(42,42,42,.98),rgba(34,34,34,.98)); font-family:'Futura CondensedLight',Arial,sans-serif; }
+.prompt-edit-modal[data-prompt-inline] > header { flex-direction:row-reverse; }
+.prompt-edit-modal[data-prompt-inline] > header h2 { flex:1; font-size:1.5em; font-weight:400; word-spacing:6px; }
+.prompt-edit-modal[data-prompt-inline] > header h2 span { font-family:'Futura CondensedLight',Arial,sans-serif; }
+.prompt-edit-modal[data-prompt-inline] .prompt-close { min-height:0 !important; padding:0 !important; border:0 !important; background:transparent !important; box-shadow:none !important; font:700 28px/20px 'Futura CondensedLight',Arial,sans-serif !important; color:#aaa; }
+.prompt-edit-modal[data-prompt-inline] .prompt-form-group > strong { font-size:.84rem; }
+.prompt-edit-modal[data-prompt-inline] .prompt-form-group > p { margin:0; }
+.prompt-edit-modal[data-prompt-inline] textarea[name=custom_prompt] { min-height:300px; padding:12px; font:14px/1.5 'Courier New',monospace; background:rgba(26,26,26,.8); }
+.prompt-edit-modal[data-prompt-inline] > footer .prompt-button { padding:10px 18px; border-radius:6px; font-size:.95em; }
+@media(max-width:768px) { .prompt-edit-modal[data-prompt-inline] { width:95%; margin:5% auto; } }

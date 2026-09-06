@@ -41,6 +41,9 @@ Narrator Management's toolbar, switch/field-chip presentation and selected profi
 connector summary derive from that revision's `ui/core/narrator_management.php`
 and `ui/css/player-narration.css`. Lorkhan preserves its supported narrator routes
 and scoped, revisioned import forms.
+Its inline Advanced Prompts table and reader also derive from that narrator page,
+using the shared Lorkhan prompt dialog for both management surfaces. Event prompt
+defaults remain Lorkhan's existing OpenMW instructions.
 
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by

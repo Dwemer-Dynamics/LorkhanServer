@@ -2480,10 +2480,10 @@ SQL);
         $routing=$effective['routing'];
         $selectedPrompt=(string)($routing['prompt_configuration_id']??'');$prompt=false;
         if(preg_match('/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/D',$selectedPrompt)===1){
-            $promptStmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:prompt AND c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL");
+            $promptStmt=$this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.configuration_id=:prompt AND c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL AND COALESCE(r.content->>'purpose','')<>'narrator_event'");
             $promptStmt->execute(['prompt'=>$selectedPrompt,'installation'=>$turn['installation_id']]);$prompt=$promptStmt->fetch();
         }
-        if(!$prompt){$promptStmt = $this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL AND (c.profile_id=:actor_profile OR c.profile_id=:session_profile OR c.profile_id IS NULL) ORDER BY CASE WHEN c.profile_id=:actor_profile THEN 0 WHEN c.profile_id=:session_profile THEN 1 ELSE 2 END,c.name,c.configuration_id LIMIT 1");
+        if(!$prompt){$promptStmt = $this->db->prepare("SELECT c.configuration_id,c.current_revision AS revision,r.content FROM configuration_sets c JOIN configuration_revisions r ON r.configuration_id=c.configuration_id AND r.revision=c.current_revision WHERE c.installation_id=:installation AND c.kind='prompt' AND c.deleted_at IS NULL AND COALESCE(r.content->>'purpose','')<>'narrator_event' AND (c.profile_id=:actor_profile OR c.profile_id=:session_profile OR c.profile_id IS NULL) ORDER BY CASE WHEN c.profile_id=:actor_profile THEN 0 WHEN c.profile_id=:session_profile THEN 1 ELSE 2 END,c.name,c.configuration_id LIMIT 1");
             $promptStmt->execute(['installation'=>$turn['installation_id'],'actor_profile'=>$activeProfileId,'session_profile'=>$turn['profile_id']]);$prompt = $promptStmt->fetch();}
         if (!$prompt) {
             $prompt = ['configuration_id'=>$activeProfileId,'revision'=>(int)$profile['current_revision'],'content'=>['instruction'=>'Respond in character using only scoped context.']];
@@ -2615,6 +2615,8 @@ SQL);
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),
+            'narrator_event_prompts'=>isset(\LorkhanServer\Application\NarratorEventPrompts::SOURCES[$turn['payload']['ui_source']??''])
+                ?$this->narratorEventPromptTexts($turn['installation_id']):[],
             'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
             'item_descriptions'=>$contextSections['record_descriptions']?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
@@ -3230,6 +3232,47 @@ SQL);
     public function prune(int $days,string $now):array{$result=[];$queries=['rate_limits'=>"DELETE FROM rate_limit_buckets WHERE window_started_at < CAST(:now AS timestamptz) - interval '1 day'",'idempotency'=>"DELETE FROM idempotency_requests WHERE created_at < CAST(:now AS timestamptz) - (:days || ' days')::interval",'browser_sessions'=>'DELETE FROM browser_sessions WHERE expires_at<:now OR revoked_at IS NOT NULL'];foreach($queries as $key=>$sql){$s=$this->db->prepare($sql);$s->execute(['now'=>$now]+(str_contains($sql,':days')?['days'=>(string)$days]:[]));$result[$key]=$s->rowCount();}return $result;}
 
     private function revision(string $table,string $key,string $id,int $revision,array $content,string $reason,string $now):void{$this->db->prepare("INSERT INTO {$table} ({$key},revision,content,change_reason,created_at) VALUES (:id,:revision,CAST(:content AS jsonb),:reason,:now)")->execute(['id'=>$id,'revision'=>$revision,'content'=>$this->encode($content),'reason'=>$reason,'now'=>$now]);}
+    /** Load only known event overrides for the selected installation before the turn is frozen. */
+    public function narratorEventPromptTexts(string $installationId): array
+    {
+        $query = $this->db->prepare('SELECT prompt_key,custom_prompt FROM prompts WHERE installation_id=:installation');
+        $query->execute(['installation' => $installationId]);
+        $known = \LorkhanServer\Application\NarratorEventPrompts::definitions();
+        $result = [];
+        foreach ($query->fetchAll() as $row) {
+            if (isset($known[$row['prompt_key']]) && is_string($row['custom_prompt']) && trim($row['custom_prompt']) !== '')
+                $result[$row['prompt_key']] = $row['custom_prompt'];
+        }
+        return $result;
+    }
+
+    /** Serialize first saves as well as revisions, preserving other prompt document fields. */
+    public function saveNarratorEventPrompt(string $installationId, string $key, string $custom, int $expectedRevision): array
+    {
+        $definition = \LorkhanServer\Application\NarratorEventPrompts::definitions()[$key] ?? null;
+        if ($definition === null || $expectedRevision < 0 || strlen($custom) > 32768 || !mb_check_encoding($custom, 'UTF-8'))
+            throw new InvalidArgumentException('invalid_narrator_prompt');
+        return $this->transaction(function () use ($installationId, $key, $custom, $expectedRevision, $definition): array {
+            $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation');
+            $lock->execute(['installation' => $installationId]);
+            if ($lock->fetchColumn() === false) throw new RuntimeException('not_found');
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')
+                ->execute(['key' => 'narrator-prompt:'.$installationId.':'.$key]);
+            $query = $this->db->prepare('SELECT source_configuration_id,source_revision FROM prompts WHERE installation_id=:installation AND prompt_key=:key');
+            $query->execute(['installation' => $installationId, 'key' => $key]);
+            $row = $query->fetch();
+            if ((int)($row['source_revision'] ?? 0) !== $expectedRevision) throw new RuntimeException('revision_conflict');
+            $current = $row ? $this->getRevisioned('prompt', $row['source_configuration_id']) : null;
+            $content = array_replace($current['content'] ?? [], $definition);
+            $content['purpose'] = 'narrator_event';
+            $content['custom_prompt'] = trim($custom) === '' ? null : $custom;
+            $content['instruction'] = $content['custom_prompt'] ?? $definition['default_prompt'];
+            $service = new \LorkhanServer\Application\ProductService($this, new \LorkhanServer\Application\DeterministicClock());
+            return $row ? $service->revise('prompt', $row['source_configuration_id'], $content, 'Narrator event prompt update', $expectedRevision)
+                : $service->createRevisioned('prompt', ['installation_id' => $installationId, 'name' => $key, 'content' => $content]);
+        });
+    }
+
     /** Read the stored prompt baseline; browser edits cannot replace it with a submitted default. */
     public function promptText(string $configurationId):array
     {

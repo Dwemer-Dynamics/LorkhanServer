@@ -201,6 +201,7 @@ final class Router
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
                 if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
+                if(is_array($selection['narrator_event_prompts']??null))$providerInput['_narrator_event_prompts']=$selection['narrator_event_prompts'];
                 if(is_array($selection['nearby_actor_profiles']??null)&&$selection['nearby_actor_profiles']!==[])$providerInput['_nearby_actor_profiles']=$selection['nearby_actor_profiles'];
                 if(is_array($selection['item_descriptions']??null)&&$selection['item_descriptions']!==[])$providerInput['_item_descriptions']=$selection['item_descriptions'];
                 $assembled = $this->promptAssembler->assemble($providerInput, $selection);

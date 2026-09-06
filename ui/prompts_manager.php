@@ -13,6 +13,9 @@ $installationId=(string)($installations[0]['installation_id']??'');
 $requestedInstallation=(string)($_GET['installation_id']??$_POST['installation_id']??'');
 foreach($installations as $installation)if($installation['installation_id']===$requestedInstallation)$installationId=$requestedInstallation;
 $rows=array_values(array_filter($rows,static fn(array $row):bool=>$row['installation_id']===$installationId));
+$narratorPromptRows=\LorkhanServer\Application\NarratorEventPrompts::rows($installationId,$rows);
+$rows=array_merge(array_values(array_filter($rows,static fn(array $row):bool=>!isset(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$row['prompt_key']]))),$narratorPromptRows);
+usort($rows,static fn(array $left,array $right):int=>strcmp($left['prompt_key'],$right['prompt_key']));
 $csvNotice='';$csvError='';
 if(($_GET['export']??'')==='csv'){
     header('Content-Type: text/csv; charset=utf-8');header('Content-Disposition: attachment; filename="custom_prompts.csv"');header('Cache-Control: no-store');
@@ -39,7 +42,12 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['action']??'')==='impor
         if($batch===[])throw new RuntimeException('CSV contains no prompts.');
         $productRepository->transaction(function()use($batch,$known,$productRepository):void{
             $service=new \LorkhanServer\Application\ProductService($productRepository,new \LorkhanServer\Application\DeterministicClock());
-            foreach($batch as$key=>$instruction){$row=$known[$key];$current=$productRepository->getRevisioned('prompt',$row['configuration_id']);$content=$current['content'];
+            foreach($batch as$key=>$instruction){$row=$known[$key];
+                if(!empty($row['narrator_event_prompt'])){
+                    $productRepository->saveNarratorEventPrompt($row['installation_id'],$key,$instruction,(int)$row['current_revision']);
+                    continue;
+                }
+                $current=$productRepository->getRevisioned('prompt',$row['configuration_id']);$content=$current['content'];
                 $content['default_prompt']=(string)($row['content']['default_prompt']??'');
                 $content['custom_prompt']=trim($instruction)===''?null:$instruction;
                 $content['instruction']=$content['custom_prompt']??$content['default_prompt'];
@@ -48,6 +56,9 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'&&($_POST['action']??'')==='impor
         });
         $csvNotice=count($batch).' prompts imported.';
         $rows=array_values(array_filter($uiRepository->rows('prompts'),static fn(array$row):bool=>$row['installation_id']===$installationId));
+        $narratorPromptRows=\LorkhanServer\Application\NarratorEventPrompts::rows($installationId,$rows);
+        $rows=array_merge(array_values(array_filter($rows,static fn(array $row):bool=>!isset(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$row['prompt_key']]))),$narratorPromptRows);
+usort($rows,static fn(array $left,array $right):int=>strcmp($left['prompt_key'],$right['prompt_key']));
     }catch(Throwable $error){$csvError=$error instanceof RuntimeException&&!($error instanceof PDOException)?$error->getMessage():'Prompt import failed.';}
 }
 

@@ -267,6 +267,14 @@ final class ManagementRouter
     private function submit(string $domain,Request $r):Response
     {
         $v=$this->form($r);$scope=$this->scopeForm($v);
+        if ($domain === 'narrator-prompt-save') {
+            $revision = filter_var($v['expected_revision'] ?? null, FILTER_VALIDATE_INT);
+            if ($revision === false || !is_string($v['custom_prompt'] ?? null)) throw new InvalidArgumentException('invalid_narrator_prompt');
+            $result = $this->repository->saveNarratorEventPrompt(
+                $scope['installation_id'] ?? throw new InvalidArgumentException('invalid_installation_id'),
+                $this->need($v, 'prompt_key'), $v['custom_prompt'], $revision);
+            return Response::json(200, ['ok' => true, 'revision' => (int)$result['current_revision']]);
+        }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
@@ -2341,7 +2349,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
-        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise'))
+        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>
 :root{--bg:#100f12;--surface:#19171c;--surface-2:#211e24;--line:#3a3237;--line-hot:#856c36;--text:#e8e2d8;--muted:#9e978f;--accent:#bc9d5a;--accent-soft:rgba(188,157,90,.15);--good:#79bf87;--bad:#df7777;color-scheme:dark}

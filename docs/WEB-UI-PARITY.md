@@ -74,7 +74,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; remaining General, Relationships, Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
-| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips and live selected-profile connector summary aligned; core semantics and embedded Actions/Prompts still pending |
+| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
@@ -1157,3 +1157,52 @@ Remaining Core Profile requirements identified from the pinned source and live e
   policy mapping. Existing book-event and profile-context switches are not equivalent
   to Herika's narrator-only book summary and hide-spoken-lines controls. This is an
   incremental correction, not completed Narrator or all-page parity.
+
+### Narrator Management: shared inline event-prompt editors
+
+- Replaced the Advanced Prompts shortcut with the reference's five-column inline
+  table (key, description, status, preview, actions), default/custom badges,
+  scrolling previews, Edit and Clear, and its 1200px/90vh reader. The shared dialog
+  partial also serves Prompts Manager; Narrator retains the counterpart's plain
+  labels, 300px monospace textarea and compact title/close layout.
+- Added shared, revisioned overrides for the five event instructions actually
+  supported by OpenMW: welcome, random narration, bored narration, journal comments
+  and book narration. Four keys match Herika; narrator_book_prompt is the existing
+  OpenMW book-event instruction. Defaults preserve previous runtime wording exactly.
+  {PLAYER_NAME} resolves from the accepted turn, without template evaluation.
+- Both pages use the same prompt records, with factory rows rendered without database
+  writes. CSV import/export works through Prompts Manager. The first explicit save
+  creates a prompt document; subsequent saves and Clear use revision checks and a
+  transaction-scoped per-installation/key lock. CSRF and unknown-key checks remain.
+- Event documents are tagged and excluded from normal Core/NPC prompt selectors and
+  fallback selection. This prevents an alphabetically earlier event prompt from
+  becoming an NPC's general roleplay prompt. The selected installation's overrides
+  enter the existing immutable provider snapshot before queueing, never a worker-time
+  lookup. Existing queued inputs remain unchanged.
+- Inline saves update the row and editor revision without reloading Narrator Management.
+  A browser fixture verified Save/Custom, Clear/Default, preserved unsaved Core Summary,
+  Cancel/Escape focus, no nested forms and a contained scrolling dialog at 390px.
+  The reference and Lorkhan desktop headers both measured 71px; screenshot comparisons
+  included the populated table and actual reference reader, using synthetic text.
+- Catalog/runtime audit found that ActionCatalogRepository marks every current action
+  unavailable to the narrator, and narrator event requests suppress actions. The
+  Narration Actions disclosure now shows the real zero-count/empty state. No dummy
+  action rows, ineffective toggles or game capability changes were introduced.
+- Remaining narrator scope: the four inline-narration prompt templates and player
+  speech-style template are not yet editable here; display identity, Oghma tags,
+  diary/context/book policy differences from the previous checkpoint remain. The
+  empty action catalog does not establish functional narrator-action parity.
+- Validation: 348 server checks, 98 protocol manifest files, PHP lint, management
+  HTTP forms, integration slice, migration/durable-job checks, JavaScript syntax and
+  diff checks passed. Existing tests now cover factory first-save, CSRF rejection,
+  stale revisions, shared edits, Clear, CSV, runtime default/custom event instructions
+  and protection of roleplay prompt selection. Schema is unchanged (166 relations,
+  95ef442e3fe13f3f7e1ce7d036a5c240226c7db9dc588bc2dc4d4655cf498819).
+- Deployed locally; all 698 runtime files match source, with no extras or legacy
+  paths. Authentication, health and private-file probes pass. Configurations,
+  credentials and voice files were preserved. Live inspection opened and cancelled
+  the reader and checked both pages: five factory entries plus the existing roleplay
+  document, while the database retained its original single prompt row. No live
+  save, provider call or game action was used as a test.
+- Previous-feature rollback: /var/backups/lorkhanserver-code.suR0qi. Final alphabetical
+  prompt-list refresh rollback: /var/backups/lorkhanserver-code.HYTXD5.

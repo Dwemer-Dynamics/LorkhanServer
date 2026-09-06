@@ -1365,6 +1365,25 @@ else:
     assert any(f['action'].endswith('/forms/player-profile-revise') for f in player.forms),'existing player profile is not editable'
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 assert 'profile_generation_configuration_id' not in {control[2] for control in narrator_page.controls} and 'Global Settings' in body
+# Inline narrator prompts and Prompts Manager share one revisioned document, even before a narrator exists.
+event_form=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-prompt-save') and f['fields'].get('prompt_key')=='narrator_welcome_prompt')
+event_values=dict(event_form['fields'],custom_prompt='Welcome {PLAYER_NAME}. HTTP shared narrator prompt.')
+r=request(event_form['action'],'POST',dict(event_values,_csrf='invalid'),accept='application/json'); assert r.status==401,r.status
+r=request(event_form['action'],'POST',dict(event_values,_csrf=csrf)); event_saved=json.loads(r.read().decode()); assert r.status==200 and event_saved['ok'],event_saved
+r=request(event_form['action'],'POST',dict(event_values,_csrf=csrf)); assert r.status==409
+prompt_page,prompt_body=parse(request('/LorkhanServer/ui/prompts_manager.php?installation_id='+valid['installation_id']))
+shared_form=next(f for f in prompt_page.forms if f['action'].endswith('/forms/narrator-prompt-save') and f['fields'].get('prompt_key')=='narrator_welcome_prompt')
+assert event_values['custom_prompt'] in prompt_body and int(shared_form['fields']['expected_revision'])==event_saved['revision']
+r=request(shared_form['action'],'POST',dict(shared_form['fields'],_csrf=csrf,custom_prompt='')); assert r.status==200
+reset_page,reset_body=parse(request('/LorkhanServer/ui/narrator_management.php'))
+reset_form=next(f for f in reset_page.forms if f['action'].endswith('/forms/narrator-prompt-save') and f['fields'].get('prompt_key')=='narrator_welcome_prompt')
+assert event_values['custom_prompt'] not in reset_body and int(reset_form['fields']['expected_revision'])==event_saved['revision']+1
+r=request(reset_form['action'],'POST',dict(reset_form['fields'],_csrf=csrf,custom_prompt='',prompt_key='not_a_narrator_prompt')); assert r.status==422,r.status
+event_csv=b'prompt_key,custom_prompt\nnarrator_welcome_prompt,CSV narrator welcome.\n'
+r=multipart_request('/LorkhanServer/ui/prompts_manager.php',{'_csrf':csrf,'action':'import_csv','installation_id':valid['installation_id']},'csv_file','custom_prompts.csv','text/csv',event_csv)
+assert r.status==200 and '1 prompts imported.' in r.read().decode()
+assert 'CSV narrator welcome.' in request('/LorkhanServer/ui/narrator_management.php').read().decode()
+assert 'narrator_welcome_prompt' not in request('/LorkhanServer/ui/core/core_profiles.php').read().decode()
 create_narrator=next((f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-create')),None)
 if create_narrator is not None:
     narrator_name='HTTP narrator '+uuid.uuid4().hex

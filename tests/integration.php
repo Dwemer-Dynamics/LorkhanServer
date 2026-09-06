@@ -1508,6 +1508,17 @@ $assert(array_column($fallbackContext['relationship'],'relationship_id')===[$own
     'an exact-identity session profile must retain its own relationships and memories without a binding or matching display name');
 $db->exec('ROLLBACK TO SAVEPOINT relationship_fallback');
 $visible=$products->promptContext($memoryProbe,$memoryNow)['memory'];
+$db->exec('SAVEPOINT narrator_prompt_editor');
+$priorPrompt=$products->promptContext($memoryProbe,$memoryNow)['prompt'];
+$savedEventPrompt=$products->saveNarratorEventPrompt($installationId,'narrator_welcome_prompt','A scoped welcome for {PLAYER_NAME}.',0);
+$narratorEventProbe=$memoryProbe;$narratorEventProbe['payload']['ui_source']='lorkhan_narrator_welcome';
+$eventSelection=$products->promptContext($narratorEventProbe,$memoryNow);
+$assert(($eventSelection['narrator_event_prompts']['narrator_welcome_prompt']??'')==='A scoped welcome for {PLAYER_NAME}.'
+    &&$products->promptContext($memoryProbe,$memoryNow)['prompt']['configuration_id']===$priorPrompt['configuration_id'],
+    'narrator event instructions load into scoped selection without replacing the roleplay prompt');
+$products->saveNarratorEventPrompt($installationId,'narrator_welcome_prompt','',(int)$savedEventPrompt['current_revision']);
+$assert($products->narratorEventPromptTexts($installationId)===[],'clearing narrator event text restores the factory instruction');
+$db->exec('ROLLBACK TO SAVEPOINT narrator_prompt_editor');
 $hidden=$products->promptContext($bystanderProbe,$memoryNow)['memory'];
 $assert(in_array($delivery['message_id'],array_column($visible,'source_event_id'),true)
     &&!in_array($delivery['message_id'],array_column($hidden,'source_event_id'),true),
