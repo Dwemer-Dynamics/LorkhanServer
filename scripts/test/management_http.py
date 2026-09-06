@@ -602,8 +602,15 @@ create_playthrough=next(f for f in playthroughs.forms if f['action'].endswith('/
 playthrough_name='HTTP playthrough '+uuid.uuid4().hex
 values=dict(create_playthrough['fields'],_csrf=csrf,profile_id=profile_id,name=playthrough_name,content_json='{}')
 r=request(create_playthrough['action'],'POST',values); body=r.read().decode(); assert r.status==200 and playthrough_name in body and all(label in body for label in ['Sessions','Turns','Responses','Memories','Relationships','Narratives','Knowledge']),(r.status,r.geturl(),body)
-match=re.search(r'<h2>'+re.escape(playthrough_name)+r'</h2>.*?/exports/playthroughs/([0-9a-f-]{36})\.json',body,re.S); assert match,body
+match=re.search(r'/exports/playthroughs/([0-9a-f-]{36})\.json',body); assert match,body
 playthrough_id=match.group(1)
+selected_playthrough,selected_body=parse(request('/LorkhanServer/ui/playthrough_manager.php?playthrough_id='+playthrough_id+'&installation_id='+valid['installation_id']+'&embed=1'))
+assert 'Selected Playthrough</h2>' in selected_body and 'Export Profile Snapshot</h2>' in selected_body and 'class="backup-item selected"' in selected_body
+assert all(marker in selected_body for marker in ['Conversations, source events, knowledge, configuration, credentials and audio are not included','not stored database backups','Snapshot JSON','Create playthrough'])
+selected_import=next(f for f in selected_playthrough.forms if f['action'].endswith('/forms/playthrough-import'))
+assert selected_import['fields']['installation_id']==valid['installation_id'] and selected_import['fields']['profile_id']==profile_id and selected_import['fields']['playthrough_id']==playthrough_id
+invalid_playthrough,invalid_body=parse(request('/LorkhanServer/ui/playthrough_manager.php?playthrough_id='+str(uuid.uuid4())+'&installation_id=invalid'))
+assert 'Selected Playthrough</h2>' in invalid_body and invalid_playthrough.forms[0]['fields']['installation_id']==valid['installation_id']
 state_query=urllib.parse.urlencode(dict(embed='1',q=profile_name,profile='',state='favorites',initial='H',fav='1',lock='1',installation_id=valid['installation_id']))
 characters,state_body=parse(request('/LorkhanServer/ui/core/npc_master.php?'+state_query))
 core_match=re.search(r'name="core_profile_id" form="management-form-profile-'+re.escape(profile_id)+r'"[^>]*>.*?<option value="([0-9a-f-]{36})" selected',state_body,re.S)

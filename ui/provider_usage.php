@@ -3,7 +3,6 @@ declare(strict_types=1);
 $pageTitle='Cost Breakdown';$topNavSection='control';$BODY_CLASS='hub-page cost-breakdown-shell';
 require __DIR__.'/ui_bootstrap.php';require __DIR__.'/tmpl/control_reader.php';
 $state=lorkhan_control_state($uiRepository->rows('installations'));
-if(array_key_exists('installation_id',$_GET)&&$_GET['installation_id']==='')$state['installation']='';
 $now=new DateTimeImmutable('now',new DateTimeZone('UTC'));
 $filter=(string)($_GET['filter']??(isset($_GET['period'])?'period':'today'));
 if(!in_array($filter,['today','date','week','period'],true))$filter='today';

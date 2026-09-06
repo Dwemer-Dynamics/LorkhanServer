@@ -151,3 +151,9 @@ license reproduced in `ui/lib/ui/chartjs/LICENSE.md`. Copyright 2014-2024 Chart.
 Contributors. Source: https://github.com/chartjs/Chart.js/tree/v4.5.1.
 The npm release archive was verified against its published SHA-512 integrity
 before extracting these files; no package installation scripts were run.
+
+`ui/tmpl/playthrough_manager.html.php` and `ui/css/herika-playthroughs.css`
+adapt the header, active-state summary, paired panels and bounded backup-list
+presentation from the same pinned HerikaServer `ui/playthrough_manager.php`
+under its MIT license. Lorkhan's profile-scoped export/import semantics are
+explicit; these controls do not implement Herika's full-schema snapshot switch.

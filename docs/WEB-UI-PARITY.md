@@ -99,7 +99,7 @@ do not use an exception to excuse a generic substitute layout.
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
 | `relationship_logs.php` | Same path | Evaluation-first header/filter/table/context/cleanup compared populated and empty; future request/proposal and committed per-target/type-change evidence implemented and checked. Historical missing data stays explicit. Final placement of native management tools remains pending |
 | `oghma_audit.php` | Same path | Header, filters/pager, nine metadata pills and five trace sections compared populated/empty at 1280px and narrow 390px; native retrieval evidence retained in secondary details; see Oghma Audit checkpoint |
-| `playthrough_manager.php` | Same path | Pending structural and populated-state comparison |
+| `playthrough_manager.php` | Same path | Header, selected-scope overview, paired panels and bounded list compared populated/empty/narrow; owning-profile export/import and installation selection aligned with actual behavior. Still incomplete: full stored-snapshot creation/switch/delete, automatic rollback snapshots, timeline and access beyond the 100-row list. See Playthrough Manager checkpoint below. |
 | `server_logs.php` | Control Panel -> Dwemer Debugger CHIM log panels | Three-column log panels, search/severity controls, expanded readers, refresh, visible-entry download and UTC/local display aligned; populated/empty/narrow fixtures and dense live standalone/hub views checked. Only actual Lorkhan service logs are read; cross-product dashboard/MCP controls are not imported. |
 | `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
 | `provider_attempts.php` | Shared operational style | Pending structural and populated-state comparison |
@@ -1917,8 +1917,9 @@ Remaining Core Profile requirements identified from the pinned source and live e
   disclosed. Empty, unknown-cost and explicitly zero-cost states are distinct.
 - Today is the default. Date and ISO-week filters use inclusive UTC starts and
   exclusive ends, including year-end weeks. Existing period URLs still work.
-  Explicit All Installations now stays unscoped rather than silently selecting
-  the first installation. Forms and export retain the current scope.
+  Explicit All Installations stays unscoped through the shared helper. Forms and
+  export retain the current scope. A follow-up review removed a redundant local
+  guard: the helper already handled this case before the Cost Breakdown change.
 - Compared populated and empty pinned reference/source fixtures and source
   unknown/zero-cost states, opened both detail sections and checked date/week
   button URLs. At 390px, Lorkhan keeps 375/375 document client/scroll widths,
@@ -1943,3 +1944,55 @@ Remaining Core Profile requirements identified from the pinned source and live e
   The live all-time scope had 402 attempts, of which 9 recorded $0.006215 total;
   the two unpriced TTS operation groups remained Unknown. These were read-only
   visits. No provider call or game action was issued.
+
+## Playthrough Manager: structural checkpoint, snapshot workflow still incomplete
+
+- Replaced the generic metric-card grid with the pinned Herika page's centered
+  explanatory header, highlighted overview, paired content sections and bounded
+  record list. The source/reference desktop panels measure 1012px overall and
+  491px per paired column, with 20px header and 25px panel padding. Both use
+  337.5px panels with 15px padding at a 390px viewport. Lorkhan retains gold and
+  the reference's semantic green highlights.
+- Added an installation selector and read-only playthrough selection. The SQL
+  applies installation scope before the existing 100-row limit, then orders by
+  latest session and creation time. Import destination fields are derived from
+  the selected playthrough and owning profile, avoiding three independent
+  selectors that could name an inconsistent scope. Selection does not activate
+  a session, switch the game or modify records.
+- Corrected misleading export/import descriptions after tracing
+  `ProductService::exportPlaythrough` and `ProductRepository::exportScope`:
+  existing exports contain only the owning profile's memories, relationships and
+  narratives. They do not include conversations, source events, knowledge,
+  configuration, audio or other profiles. Import is a merge with relationship
+  conflict checks, not complete database restoration. Whole-playthrough summary
+  counts are explicitly distinguished from that narrower export scope.
+- This is NOT full Playthrough Manager parity. Remaining work includes a
+  playthrough-wide multi-profile snapshot contract and stored snapshot creation,
+  notes, listing, safe restore/switch, automatic pre-switch backups, deletion,
+  rollback/Dragon Break handling and the timeline. The current 100-row list also
+  needs access to older records. No fake stored-snapshot or game-switch buttons
+  were added, and these missing features are not recorded as product exceptions.
+- Kept creation/import as secondary expandable tools. Empty and no-installation
+  states explain prerequisites; unusable actions are absent or disabled. File
+  selection now clears stale JSON, rejects oversized files, blocks submission
+  while reading and ignores superseded asynchronous reads. Manual JSON input
+  clears stale picker errors. Existing authenticated export/import routes and
+  relationship protections are unchanged.
+- Compared actual populated/empty source and pinned reference fixtures,
+  no-installation state, long escaped names, the import editor, empty-submit
+  feedback/focus and narrow layouts. Source document client/scroll widths both
+  measured 375px at a 390px viewport. The import picker guards passed a temporary
+  JavaScript probe for oversized, pending, superseded, invalid and empty input.
+  Existing HTTP tests passed scoped creation, selected/invalid route handling,
+  export and import. PHP/JavaScript syntax, 370 server checks, 98 protocol files,
+  HTTP, integration, migrations and durable jobs passed; no schema changed.
+- Live verification caught and corrected a real timezone mismatch: the
+  PostgreSQL session returned `2026-09-05 19:35:12+02`, now explicitly rendered
+  as `2026-09-05 17:35:12` UTC. The deployed overview showed 71 sessions, 49 turns,
+  285 responses and 283 memories. Standalone and Control Panel embedding, the
+  selected export link and visible import destination were checked read-only.
+- Final deployment: 732 runtime files matched source, no extra/old paths,
+  protected files returned 403 on all checked ports and unauthenticated sessions
+  returned 401. Configuration, credential and voice-file hashes were unchanged.
+  Rollback: `/var/backups/lorkhanserver-code.bPE5s4`. No live snapshot import,
+  provider call or game action was performed.
