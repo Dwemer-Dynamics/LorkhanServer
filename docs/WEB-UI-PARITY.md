@@ -76,9 +76,9 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Pending structural and populated-state comparison |
-| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
-| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
-| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name and Google Free STT still pending |
+| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
+| `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Pending structural and populated-state comparison |
 | `core/npc_biographies.php` | `npc_upload.php` | Pending structural and populated-state comparison |
 | `function_editor.php` | Same path | Pending structural and populated-state comparison |
@@ -597,3 +597,36 @@ Remaining Core Profile requirements identified from the pinned source and live e
   credentials and voice contents, and retains private-file 403/native-session 401.
   Live GET shows the new Deepgram model selector and configured/missing badge list
   without saving, testing, recording speech, or launching the game.
+
+### Editable connector names
+
+- LLM, TTS and STT Name fields now match the reference's editable text inputs,
+  keeping their existing placement, labels and form associations. No new naming
+  configuration or duplicate connector record is introduced.
+- The existing Save routes atomically update the display name and create the
+  typed content revision. Connector IDs, profile/player bindings and server-held
+  credentials are not replaced. Public projection triggers propagate the new label
+  to the pickers/list views. Old CLI/form clients that omit Name retain the old
+  revision-only behavior.
+- Empty, oversized and invalid UTF-8 names are rejected. A database name collision
+  returns a specific validation error and rolls back the whole edit, including
+  any simultaneous model/options change. Settings validation still happens before
+  mutation; the rename path retains the same secret/reference rules.
+- Google Free STT remains pending on the STT row. The pinned reference opens
+  `ui/addons/pmstt/index.html` and sends recognized speech through `PlayerSays.php`
+  as an ImpersonatePlayer command. A microphone/transcript-only mockup would not
+  be parity. Lorkhan's current typed debug command catalog has no corresponding
+  player-dialogue operation; implement a real session-bound input path before
+  enabling that control, without invoking it against a live game during this goal.
+- Verification: existing HTTP tests renamed all three connector kinds, confirmed
+  unchanged IDs/content and updated editor labels, rejected missing CSRF/invalid
+  names, rolled back a colliding STT name plus model change, and confirmed the
+  assigned LLM connector still cannot be deleted. PHP lint, 328 server checks,
+  98 protocol files, HTTP, integration, migrations/durable jobs and whitespace
+  checks passed; schema inventory remains 166 relations.
+- Deployed browser checks confirmed Name is editable and associated with each
+  correct form (`llm-revise-form`, `tts-revise-form`, `stt-form`). Typed unsaved
+  drafts were discarded by reloading, restoring all original live names. Save,
+  Test, speech recording and game commands were not invoked. All 687 runtime
+  files hash-match source, private-file 403/native-session 401 checks remain
+  intact, and configuration, credentials and voice contents were preserved.

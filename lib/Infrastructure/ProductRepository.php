@@ -266,6 +266,23 @@ final class ProductRepository
         });
     }
 
+    /** Rename and revise one connector atomically without changing its identity or any assignments. */
+    public function reviseNamedConnector(string $kind,string $id,string $name,array $content,string $reason,string $now):array
+    {
+        if(!in_array($kind,['provider','tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');
+        return $this->transaction(function()use($kind,$id,$name,$content,$reason,$now):array{
+            $row=$this->db->prepare('SELECT configuration_id FROM configuration_sets WHERE configuration_id=:id AND kind=:kind AND deleted_at IS NULL FOR UPDATE');
+            $row->execute(['id'=>$id,'kind'=>$kind]);if($row->fetchColumn()===false)throw new RuntimeException('not_found');
+            try {
+                $this->db->prepare('UPDATE configuration_sets SET name=:name WHERE configuration_id=:id')->execute(['name'=>$name,'id'=>$id]);
+            } catch (\PDOException $error) {
+                if($error->getCode()==='23505')throw new InvalidArgumentException('connector_name_in_use');
+                throw $error;
+            }
+            return $this->revise($kind,$id,$content,$reason,$now);
+        });
+    }
+
     /** Copy one explicitly confirmed draft setting across current Core Profiles, without replacing their other values. */
     public function copyCoreProfileSetting(array $input): array
     {

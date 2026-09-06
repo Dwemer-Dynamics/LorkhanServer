@@ -302,8 +302,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <div class="llm-connection-field">
                                 <label for="llm_name">Name</label>
-                                <input id="llm_name" type="text" aria-describedby="llm_name-help" <?php echo $creating ? 'name="name" required maxlength="128" form="' . lorkhan_ui_h($formId) . '"' : 'value="' . lorkhan_ui_h($selected['name']) . '" readonly'; ?>>
-                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_name-help"><?php echo $creating ? 'This label appears in profile and player connector pickers.' : 'The name stays fixed while model-slot content changes through immutable revisions.'; ?></p>
+                                <input id="llm_name" type="text" aria-describedby="llm_name-help" name="name" required maxlength="128" form="<?php echo lorkhan_ui_h($formId); ?>" value="<?php echo $creating ? '' : lorkhan_ui_h($selected['name']); ?>">
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_name-help">This label appears in profile and player connector pickers. Renaming keeps existing assignments.</p>
                             </div>
 
                             <?php lorkhan_llm_service_picker($webRoot); ?>

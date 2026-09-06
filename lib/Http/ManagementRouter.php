@@ -390,14 +390,14 @@ final class ManagementRouter
             'profile-bulk-switch'=>$this->bulkSwitchProfiles($v,$scope),
             'profile-auto-lock'=>$this->repository->setProfileAutoLock($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),isset($v['enabled']),gmdate('Y-m-d\TH:i:s\Z')),
             'providers'=>$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->providerFormContent($v)]),
-            'provider-revise'=>$this->service->revise('provider',$this->need($v,'configuration_id'),$this->providerFormContent($v),$this->need($v,'change_reason')),
+            'provider-revise'=>$this->reviseConnectorForm('provider',$v,$this->providerFormContent($v)),
             'provider-rollback'=>$this->service->rollback('provider',$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
             'provider-delete'=>$this->service->deleteRevisioned('provider',$this->need($v,'configuration_id')),
             'provider-clone'=>$this->cloneProvider($v),
             'provider-import'=>$this->importProvider($v,$scope),
             'tts-providers'=>$this->service->createRevisioned('tts_provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->connectorFormContent($v,'tts_provider')]),
             'stt-providers'=>$this->service->createRevisioned('stt_provider',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->connectorFormContent($v,'stt_provider')]),
-            'connector-revise'=>$this->service->revise($this->need($v,'kind'),$this->need($v,'configuration_id'),$this->connectorFormContent($v,$this->need($v,'kind')),$this->need($v,'change_reason')),
+            'connector-revise'=>$this->reviseConnectorForm($this->need($v,'kind'),$v,$this->connectorFormContent($v,$this->need($v,'kind'))),
             'connector-rollback'=>$this->service->rollback($this->need($v,'kind'),$this->need($v,'configuration_id'),(int)($v['revision']??0),'management rollback'),
             'connector-delete'=>$this->service->deleteRevisioned($this->need($v,'kind'),$this->need($v,'configuration_id')),
             'connector-selection'=>$this->service->selectConnector(['installation_id'=>$scope['installation_id'],'kind'=>$this->need($v,'kind'),'configuration_id'=>$this->need($v,'configuration_id')]),
@@ -729,6 +729,15 @@ final class ManagementRouter
     private function singular(string $v):string{return match($v){'profiles'=>'profile','core-profiles'=>'core_profile','playthroughs'=>'playthrough','prompts'=>'prompt','providers'=>'provider','tts-providers'=>'tts_provider','stt-providers'=>'stt_provider','action-policies'=>'action_policy'};}
 
     /** Convert the labelled connector form into the strict revisioned connector document. */
+    /** Old CLI/form clients may omit Name; current editors save it with the connector revision. */
+    private function reviseConnectorForm(string $kind,array $values,array $content):array
+    {
+        $id=$this->need($values,'configuration_id');$reason=$this->need($values,'change_reason');
+        return array_key_exists('name',$values)
+            ?$this->service->reviseNamedConnector($kind,$id,$this->need($values,'name'),$content,$reason)
+            :$this->service->revise($kind,$id,$content,$reason);
+    }
+
     private function connectorFormContent(array $values,string $kind):array
     {
         if(!in_array($kind,['tts_provider','stt_provider'],true))throw new InvalidArgumentException('invalid_connector_kind');

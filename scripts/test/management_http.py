@@ -1428,4 +1428,37 @@ stt_records=json.loads(json_request('/LorkhanServer/manage/api/v1/stt-providers?
 imported_stt=next(row for row in stt_records if row['name']=='HTTP imported STT badge')['content']
 assert (json.loads(imported_stt) if isinstance(imported_stt,str) else imported_stt)['credential']=='none'
 r=request(stt_form['action'],'POST',dict(stt_values,credential='none',options_json=json.dumps({'credential':'fixture-stt-key'}))); r.read(); assert r.status==422,r.status
+# Names are ordinary editable labels; a rename and settings revision succeed or fail together.
+for kind,connector_id,editor,export_path,action in [
+    ('provider',slot_id,'llm_connectors.php','providers','provider-revise'),
+    ('tts_provider',tts_id,'tts_connectors.php','connectors','connector-revise'),
+    ('stt_provider',stt_values['configuration_id'],'stt_connectors.php','connectors','connector-revise'),
+]:
+    if kind=='stt_provider':
+        r=json_request('/LorkhanServer/manage/api/v1/connector-selections','POST',{'installation_id':valid['installation_id'],'kind':kind,'configuration_id':connector_id},csrf); r.read(); assert r.status==200,r.status
+        active_stt,_=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']))
+        connector_id=next(f['fields']['configuration_id'] for f in active_stt.forms if f['action'].endswith('/forms/connector-revise'))
+    before=json.loads(request('/LorkhanServer/manage/exports/'+export_path+'/'+connector_id+'.json').read())
+    renamed='Renamed '+kind+' '+uuid.uuid4().hex
+    content=before['content']; rename_values=dict(content,_csrf=csrf,name=renamed,kind=kind,configuration_id=connector_id,change_reason='HTTP connector rename')
+    rename_values['options_json']=json.dumps(rename_values.pop('options',{}))
+    rename_path='/LorkhanServer/manage/forms/'+action
+    denied=dict(rename_values);denied.pop('_csrf')
+    denied_response=request(rename_path,'POST',denied); denied_response.read()
+    assert denied_response.geturl().endswith('/ui/home.php')
+    assert json.loads(request('/LorkhanServer/manage/exports/'+export_path+'/'+connector_id+'.json').read())['name']==before['name']
+    r=request(rename_path,'POST',rename_values); body=r.read().decode(); assert r.status==200,(kind,r.status)
+    after=json.loads(request('/LorkhanServer/manage/exports/'+export_path+'/'+connector_id+'.json').read())
+    assert after['name']==renamed and after['content']==before['content'],(kind,after)
+    editor_body=request('/LorkhanServer/ui/core/'+editor+'?selected='+connector_id+'&installation_id='+valid['installation_id']).read().decode()
+    assert renamed in editor_body and re.search(r'<input[^>]*name="name"[^>]*value="'+re.escape(renamed)+'"',editor_body),kind
+    for invalid_name in ['', 'x'*129]:
+        r=request(rename_path,'POST',dict(rename_values,name=invalid_name)); r.read(); assert r.status==422,(kind,r.status)
+    if kind=='stt_provider':
+        collision_name=stt_values['name'] if connector_id!=stt_values['configuration_id'] else 'HTTP imported STT badge'
+        r=request(rename_path,'POST',dict(rename_values,name=collision_name,model='must-not-save')); error=r.read().decode()
+        assert r.status==422 and 'connector_name_in_use' in error,(r.status,error[:100])
+    unchanged=json.loads(request('/LorkhanServer/manage/exports/'+export_path+'/'+connector_id+'.json').read())
+    assert unchanged['name']==after['name'] and unchanged['content']==after['content'],kind
+r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':slot_id}); assert r.status==422 and 'provider_in_use' in r.read().decode()
 print('browser-like management HTTP forms passed')

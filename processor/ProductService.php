@@ -49,6 +49,17 @@ final class ProductService
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso(), $expectedRevision);
     }
 
+    /** Validate an editable connector label together with the same typed settings used by normal revisions. */
+    public function reviseNamedConnector(string $kind,string $id,string $name,array $content,string $reason):array
+    {
+        $this->uuid($id);$name=trim($name);$this->boundedString(['name'=>$name],'name',1,128);
+        if(!in_array($kind,['provider','tts_provider','stt_provider'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
+        if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
+        if($kind!=='provider')$this->assertNoSecrets($kind==='stt_provider'?array_diff_key($content,['credential'=>true]):$content);
+        $content=$this->validateConfiguration($kind,$content);
+        return $this->repository->reviseNamedConnector($kind,$id,$name,$content,$reason,$this->clock->iso());
+    }
+
     /** Validate and atomically save the Herika-style Core Profile editor document. */
     public function reviseCoreProfile(string $id,string $label,bool $defaultNpc,?int $slot,array $content,string $reason):array
     {
