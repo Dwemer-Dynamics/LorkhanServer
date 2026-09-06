@@ -24,6 +24,10 @@ from HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`,
 `ui/function_editor.php`. Lorkhan retains its typed OpenMW action catalog, immutable
 negotiated schemas and revision-checked policy persistence.
 
+NPC Management's mass-profile dialog, Profile LLMs summary, editor tabs and Roleplay
+field layout derive from the same revision's `ui/core/npc_master.php`. Lorkhan
+retains scoped Core Profile identities and excludes unsupported Skyrim features.
+
 The LorkhanServer management interface derives its presentation structure and selected CSS, font,
 Bootstrap, and image assets from the maintained Dwemer Dynamics server UI lineage used by
 DialecticServer and StobeServer. The shared StobeServer distribution records this UI lineage under

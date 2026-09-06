@@ -673,7 +673,22 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $disabled=function(string$label,string$feature,string$value='',string$classes='')use($formId):void{$id='npc-disabled-'.substr(hash('sha256',$formId.$label),0,14);echo'<div class="form-item npc-editor-disabled'.($classes===''?'':' '.lorkhan_ui_h($classes)).'"><label for="'.$id.'">'.lorkhan_ui_h($label).' '.lorkhan_ui_feature_badge($feature,true).'</label><input id="'.$id.'" type="text" value="'.lorkhan_ui_h($value).'" disabled aria-disabled="true" title="'.lorkhan_ui_h(lorkhan_ui_feature($feature)['description']).'"></div>';};
     $uiRoot=preg_replace('#/manage$#','',$managementBasePath)?:'/LorkhanServer';
     echo'<div class="npc-editor-meta"><label for="npc-editor-tags-'.$profileId.'">Tags:</label><input id="npc-editor-tags-'.$profileId.'" name="tags" form="'.lorkhan_ui_h($formId).'" value="'.lorkhan_ui_h(is_array($content['tags']??null)?implode(', ',array_map('strval',$content['tags'])):(string)($content['tags']??'')).'" placeholder="tags">'.($creating?'':'<a class="btn-base" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/oghma_knowledge.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId)).'">Oghma Knowledge</a>').'<label class="npc-editor-favorite" title="Favorite NPC"><input type="checkbox" name="favorite" form="'.lorkhan_ui_h($formId).'" value="1"'.($favorite?' checked':'').'><span>'.($favorite?'&#9733;':'&#9734;').'</span></label></div>';
-    echo'<div class="npc-profile-llms"><strong>NPC Profile</strong><span>&#129517; '.lorkhan_ui_h($coreProfileOptions[$coreProfileId]??'Use installation default').' | &#128266; '.lorkhan_ui_h((string)($voice['id']??'Connector default')).'</span></div>';
+    // Publish only connector labels for the selected Core Profile, never provider configuration.
+    $llmLabels=[];foreach($llmRows as$llm)if(($llm['installation_id']??'')===$installationId)$llmLabels[(string)$llm['configuration_id']]=(string)$llm['name'];
+    $llmSummaries=[];$defaultCoreId='';
+    foreach($coreProfileRows as$core){
+        if(($core['installation_id']??'')!==$installationId)continue;
+        $routing=is_array($core['content']['routing']??null)?$core['content']['routing']:[];$summary=[];
+        foreach(['llm_configuration_id'=>['🕹️','Standard'],'llm_fast_configuration_id'=>['🏃','Fast'],
+            'llm_powerful_configuration_id'=>['💪','Powerful'],'llm_experimental_configuration_id'=>['🧪','Experimental'],
+            'diary_generation_configuration_id'=>['📓','Diary']]as$key=>[$icon,$label]){
+            $id=(string)($routing[$key]??'');$summary[]=$icon.' '.($id!==''?($llmLabels[$id]??'Missing connector'):($label==='Diary'?'Disabled':'Inherited'));
+        }
+        $llmSummaries[(string)$core['core_profile_id']]=implode(' | ',$summary);
+        if(filter_var($core['default_npc']??false,FILTER_VALIDATE_BOOL))$defaultCoreId=(string)$core['core_profile_id'];
+    }
+    $llmSummaries['']=$llmSummaries[$defaultCoreId]??'No default Core Profile';
+    echo'<div class="npc-profile-llms" data-profile-llm-summary data-profile-form="'.lorkhan_ui_h($formId).'" data-profile-summaries="'.lorkhan_ui_h(json_encode($llmSummaries,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)).'"><strong>Profile LLMs</strong><span title="Standard | Fast | Powerful | Experimental | Diary">'.lorkhan_ui_h($llmSummaries[$coreProfileId]??'Missing Core Profile').'</span></div>';
     echo'<div class="npc-editor-tabs" role="tablist" aria-label="NPC editor categories" data-npc-editor-tabs>';
     foreach(['general'=>'&#129517; General','roleplay'=>'&#128214; Roleplay','relationships'=>'&#129309; Relationships','info'=>'&#128736;&#65039; Info','actions'=>'&#9889; Actions','history'=>'&#128220; History']as$key=>$label)echo'<button type="button" class="npc-editor-tab'.($key==='general'?' is-active':'').'" role="tab" aria-selected="'.($key==='general'?'true':'false').'" tabindex="'.($key==='general'?'0':'-1').'" data-npc-editor-tab="'.$key.'">'.$label.'</button>';
     echo'</div><div class="npc-editor-panels">';
@@ -691,7 +706,14 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
     $field('prompt_head','Prompt head (advanced system guidance)','textarea',(string)($content['prompt_head']??''),[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="roleplay" hidden>';
-    $field('core','Core identity and boundaries','textarea',(string)($content['core']??''),[],'span-2');$field('biography','Biography','textarea',(string)($content['biography']??''),[],'span-2');$field('appearance','Appearance','textarea',(string)($content['appearance']??''));$field('personality','Personality','textarea',(string)($content['personality']??''));$field('occupation','Occupation','text',(string)($content['occupation']??''));$field('skills','Skills and capabilities','textarea',(string)($content['skills']??''));$field('emote_moods','Allowed moods and emotes','textarea',(string)($content['emote_moods']??''));$field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''));$field('goals','Goals','textarea',(string)($content['goals']??''));echo'</section>';
+    $field('core','Core','textarea',(string)($content['core']??''),[],'span-2','Core NPC description. 1–2 sentences describing the character.');
+    $field('biography','Backstory','textarea',(string)($content['biography']??''),[],'span-2','Historical facts and background information.');
+    $field('appearance','Appearance','textarea',(string)($content['appearance']??''),[],'span-2','Physical appearance. Keep it limited to character cosmetics, not equipment.');
+    $field('personality','Personality','textarea',(string)($content['personality']??''),[],'','Traits and quirks that guide tone and behavior.');
+    $field('occupation','Occupation','textarea',(string)($content['occupation']??''),[],'','Primary role or job. Include relevant guilds or factions.');
+    $field('skills','Skills','textarea',(string)($content['skills']??''),[],'','Highlight notable competencies of the NPC.');
+    $field('speech_style','Speech Style','textarea',(string)($content['speech_style']??''),[],'','How the NPC speaks their dialogue.');
+    $field('goals','Goals','textarea',(string)($content['goals']??''),[],'','General motivations and goals used during regular dialogue.');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="relationships" hidden>';
     $field('relationships','Relationships','textarea',(string)($content['relationships']??''),[],'span-2');
     echo'<div class="npc-editor-placeholder span-2"><h3>Build with AI</h3><p>Analyze recent played conversations for this NPC. Choose a playthrough on Relationship Audit.</p>';
@@ -699,6 +721,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     else echo'<a class="btn-base btn-primary" target="_blank" rel="noopener" href="'.lorkhan_ui_h($uiRoot.'/ui/relationship_logs.php?installation_id='.rawurlencode($installationId).'&profile_id='.rawurlencode($profileId).'#relationship-builder').'">Build with AI</a>';
     echo'</div></section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="info" hidden>';
+    $field('emote_moods','Emote Moods Override','textarea',(string)($content['emote_moods']??''),[],'span-2','Allowed mood/emote cues. Leave empty to use the inherited defaults.');
     if(!$creating&&$effectiveSettings!==[]){echo'<div class="span-2">';lorkhan_ui_effective_settings_summary($effectiveSettings,'Effective NPC settings and sources');echo'</div>';}
     $field('notes','Notes','textarea',(string)($content['notes']??''),[],'span-2');if(!$creating)$field('change_reason','Change Reason','text','management edit',[],'span-2');echo'</section>';
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="actions" hidden>';

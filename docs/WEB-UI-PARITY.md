@@ -72,7 +72,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
-| `core/npc_master.php` | Same path | Pending structural and populated-state comparison |
+| `core/npc_master.php` | Same path | Mass Core Profile switch, Profile LLMs summary, six-tab geometry and Roleplay fields compared; General, Relationships, Info details, Actions and full editor/list review remain |
 | `core/player_management.php` | Same path | Pending structural and populated-state comparison |
 | `narrator_management.php` | `core/narrator_management.php` | Pending structural and populated-state comparison |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
@@ -944,3 +944,34 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Default and Switch Profiles stays disabled with the missing-second-profile hint.
   No live assignments were changed. Configuration, credentials and voice content
   hashes were preserved. Code rollback: lorkhanserver-code.aATWLc.
+
+### NPC editor: Roleplay fields and Profile LLMs
+
+- Replaced the misleading profile-name/voice summary with the selected Core
+  Profile's Standard, Fast, Powerful, Experimental and Diary connector labels.
+  Selection updates immediately, including installation-default inheritance.
+  Only display labels are rendered; provider configuration and keys are not.
+  No formatter slot is shown because Lorkhan uses its markdown prompting route.
+- Matched all eight Roleplay fields against extracted pinned Herika markup and
+  styles: one column, field order, Core/Backstory/Skills labels, 134px long fields,
+  96px Speech Style/Goals, padding, label size and help text. Occupation now supports
+  multiline editing. Existing saved field names and values are unchanged.
+- Emote Moods Override is under Info. The six supported tabs fill six columns;
+  Background Life stays excluded. Tab/panel ARIA relationships now resolve, and
+  existing keyboard navigation and Escape focus restoration remain functional.
+- Used actual Lorkhan PHP/CSS/JavaScript with synthetic records and no write
+  endpoint. Compared actual extracted Herika Roleplay fields/styles at matching
+  widths. Checked desktop and 390px layouts, escaped connector names, profile/default
+  summary switching, mood placement, keyboard arrows and Escape focus. This fixture
+  stubs History; it does not establish History or full NPC editor acceptance.
+- Full PHP lint, 337 server checks, 98 protocol checks, management HTTP, integration,
+  migration/durable-job and schema checks passed. Final JavaScript syntax passed.
+  General controls, relationship editing, Actions and full modal/list parity remain
+  open. No live NPC, provider setting or game state was changed for these checks.
+- Local deployment hash-matches all 694 runtime files with no extras or old paths.
+  Private-file probes return 403 and unauthenticated native requests return 401.
+  Existing configuration, credential and voice hashes are unchanged.
+  Code rollback: lorkhanserver-code.UorSbu.
+- Reviewed the deployed Fargoth editor without saving: the actual five-slot Core
+  Profile model summary is populated and all eight Roleplay field dimensions match
+  the isolated comparison. Closed the modal without invoking any provider or mutation.

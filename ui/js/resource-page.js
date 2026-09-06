@@ -455,10 +455,29 @@
         }
     });
 
-    document.querySelectorAll('[data-npc-editor-tabs]').forEach((tablist) => {
+    document.querySelectorAll('[data-profile-llm-summary]').forEach((summary) => {
+        const form = document.getElementById(summary.dataset.profileForm);
+        const select = form?.elements.core_profile_id;
+        if (!select) return;
+        const labels = JSON.parse(summary.dataset.profileSummaries || '{}');
+        select.addEventListener('change', () => {
+            summary.querySelector('span').textContent = labels[select.value] || 'Missing Core Profile';
+        });
+    });
+
+    document.querySelectorAll('[data-npc-editor-tabs]').forEach((tablist, index) => {
         const modal = tablist.closest('[data-npc-modal]');
         const buttons = [...tablist.querySelectorAll('[data-npc-editor-tab]')];
         const panels = [...(modal ? modal.querySelectorAll('[data-npc-editor-panel]') : [])];
+        buttons.forEach((button) => {
+            const name = button.dataset.npcEditorTab;
+            const panel = panels.find(item => item.dataset.npcEditorPanel === name);
+            if (!panel) return;
+            button.id = `npc-tab-${index}-${name}`;
+            panel.id ||= `npc-panel-${index}-${name}`;
+            button.setAttribute('aria-controls', panel.id);
+            panel.setAttribute('aria-labelledby', button.id);
+        });
         const activate = (name, focus = false) => {
             buttons.forEach((button) => {
                 const active = button.getAttribute('data-npc-editor-tab') === name;

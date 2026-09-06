@@ -333,7 +333,7 @@ for path in [
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
-profile_labels=['Voice sample','Core Profile','Prompt head (advanced system guidance)','Core identity and boundaries','Gender','Race','Skills and capabilities','Allowed moods and emotes','Lock against automatic AI profile generation','Favorite NPC','Inherited behavior']
+profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock against automatic AI profile generation','Favorite NPC','Inherited behavior']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
