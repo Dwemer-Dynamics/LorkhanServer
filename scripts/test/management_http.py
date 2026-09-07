@@ -745,6 +745,16 @@ assert inworld_form['fields']['option__workspace']=='fixture' and inworld_form['
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(inworld_form['fields'],_csrf=csrf,option__workspace='../wrong')); assert r.status==422
 bad_tts_values=dict(values,credential='DATABASE_PASSWORD')
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',bad_tts_values); assert r.status==422
+
+azure_values=dict(inworld_form['fields'],_csrf=csrf,driver='azure',option__region='eastus',
+    option__fixedMood='angry',option__volume='20',option__rate='1.25',option__countour='(11%, +15%)')
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',azure_values); assert r.status==200
+azure_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+azure_form=next(f for f in azure_page.forms if f['action'].endswith('/forms/connector-revise'))
+assert azure_form['fields']['endpoint']=='https://eastus.tts.speech.microsoft.com'
+assert azure_form['fields']['option__fixedMood']=='angry' and azure_form['fields']['option__countour']=='(11%, +15%)'
+assert azure_form['fields']['option__volume']=='20' and azure_form['fields']['option__rate']=='1.25'
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(azure_form['fields'],_csrf=csrf,option__region='evil.example/')); assert r.status==422
 tts_badge_html=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode()
 assert 'fixture-tts-badge-key' not in tts_badge_html and 'id="tts_credential"' in tts_badge_html
 assert tts_badge_html.index('🟢 Custom Tts Http') < tts_badge_html.index('— Missing Key —')

@@ -14,7 +14,7 @@ $primaryFields = [
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
     'zonos_gradio'=>['language','model','option__pitch_std','option__speaking_rate','option__cfg_scale'],
-    'deepgram'=>[], 'azure'=>[], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
+    'deepgram'=>[], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
     '11labs'=>'ElevenLabs Text-To-Speech','azure'=>'Azure Text-To-Speech','deepgram'=>'Deepgram TTS',
@@ -52,6 +52,9 @@ $fieldHelp = [
         'option__v3_audio_tags'=>'Optional Eleven v3 prompt tags added before the text, such as [whispers] or [curious]. Only used when model_id is eleven_v3.',
     ],
     'kokoro'=>['option__speed'=>'Speed'],
+    'azure'=>['option__fixedMood'=>'Force mood (voice style)',
+        'option__region'=>'Region location of your API key. Leave blank to use the advanced endpoint.',
+        'option__volume'=>'Volume', 'option__rate'=>'Talk speed', 'option__countour'=>'Voice contour'],
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
 ];
 
@@ -108,6 +111,10 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
     if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];
+    if ($providerDriver === 'azure' && (!$activeDriver || $creating)) $values += [
+        'option__region'=>'westeurope','option__volume'=>20,'option__rate'=>1.25,
+        'option__countour'=>'(11%, +15%) (60%, -23%) (80%, -34%)',
+    ];
     if ($providerDriver === '11labs' && (!$activeDriver || $creating)) $values += [
         'option__optimize_streaming_latency'=>0,'option__stability'=>0.75,'option__similarity_boost'=>0.75,
         'option__style'=>0.0,'option__speed'=>1.0,'option__use_speaker_boost'=>true,

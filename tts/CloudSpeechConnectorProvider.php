@@ -185,9 +185,19 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                 ['Authorization: Basic ' . $this->apiKey, 'Content-Type: application/json', 'Accept: text/event-stream']];
         }
         $url = str_contains($base, '/cognitiveservices/v1') ? $base : $base . '/cognitiveservices/v1';
-        $xml = '<speak version="1.0" xml:lang="' . htmlspecialchars($language, ENT_XML1 | ENT_QUOTES, 'UTF-8')
-            . '"><voice name="' . htmlspecialchars($voice, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '">'
-            . htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '</voice></speak>';
+        $attributes = '';
+        foreach (['volume'=>'volume','rate'=>'rate','countour'=>'contour'] as $option=>$attribute) {
+            if (!isset($this->options[$option]) || $this->options[$option] === '') continue;
+            $attributes .= ' ' . $attribute . '="' . htmlspecialchars((string)$this->options[$option], ENT_XML1 | ENT_QUOTES, 'UTF-8') . '"';
+        }
+        $speech = htmlspecialchars($text, ENT_XML1 | ENT_QUOTES, 'UTF-8');
+        if ($attributes !== '') $speech = '<prosody' . $attributes . '>' . $speech . '</prosody>';
+        $style = trim((string)($this->options['fixedMood'] ?? ''));
+        if ($style !== '') $speech = '<mstts:express-as style="' . htmlspecialchars($style, ENT_XML1 | ENT_QUOTES, 'UTF-8')
+            . '" styledegree="2">' . $speech . '</mstts:express-as>';
+        $xml = '<speak version="1.0" xmlns="http://www.w3.org/2001/10/synthesis" xmlns:mstts="https://www.w3.org/2001/mstts" xml:lang="'
+            . htmlspecialchars($language, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '"><voice name="'
+            . htmlspecialchars($voice, ENT_XML1 | ENT_QUOTES, 'UTF-8') . '">' . $speech . '</voice></speak>';
         return [$url, $xml, ['Ocp-Apim-Subscription-Key: ' . $this->apiKey,
             'Content-Type: application/ssml+xml', 'X-Microsoft-OutputFormat: riff-24khz-16bit-mono-pcm',
             'User-Agent: LorkhanServer', 'Accept: audio/wav']];

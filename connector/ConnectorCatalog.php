@@ -168,6 +168,8 @@ final class ConnectorCatalog
         'stylettsv2'=>[['alpha','Alpha','number',0.0,1.0],['beta','Beta','number',0.0,1.0],['diffusion_steps','Diffusion steps','integer',1,100],['embedding_scale','Embedding scale','number',0.0,10.0],['session_id','Session ID','integer',1,2147483647]],
         'openai'=>[['instructions','Instructions','longstring',4096]],
         'kokoro'=>[['speed','Speed','number',0.25,4.0]],
+        'azure'=>[['fixedMood','Fixedmood','string'],['region','Region','string'],
+            ['volume','Volume','integer',0,100],['rate','Rate','number',0.5,2.0],['countour','Countour','string']],
         '11labs'=>[['optimize_streaming_latency','Optimize Streaming Latency','integer',0,4],
             ['stability','Stability','number',0.0,1.0],['similarity_boost','Similarity Boost','number',0.0,1.0],
             ['style','Style','number',0.0,1.0],['speed','Speed','number',0.25,4.0],
@@ -271,6 +273,7 @@ final class ConnectorCatalog
         // Validate newly exposed controls on every ingress, including JSON imports and API revisions.
         $typedFields = $kind === 'tts_provider' ? match ($driver) {
             'openai'=>['instructions'], 'kokoro'=>['speed'],
+            'azure'=>['fixedMood','region','volume','rate','countour'],
             '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
             default=>[],
         } : [];
@@ -280,6 +283,7 @@ final class ConnectorCatalog
             $value = $options[$name];
             $valid = match ($field['type']) {
                 'longstring'=>is_string($value) && strlen($value) <= $field['maxlength'] && mb_check_encoding($value, 'UTF-8'),
+                'string'=>is_string($value) && strlen($value) <= 512 && mb_check_encoding($value, 'UTF-8'),
                 'select'=>is_string($value) && in_array($value, $field['values'], true),
                 'boolean'=>is_bool($value),
                 'integer'=>is_int($value) && $value >= $field['minimum'] && $value <= $field['maximum'],
@@ -287,6 +291,13 @@ final class ConnectorCatalog
                 default=>false,
             };
             if (!$valid) throw new InvalidArgumentException('invalid_connector_option_' . $name);
+        }
+        if ($kind === 'tts_provider' && $driver === 'azure' && trim($options['region'] ?? '') !== '') {
+            $region = strtolower(trim($options['region']));
+            if (!preg_match('/^[a-z][a-z0-9]{1,39}$/D', $region)) throw new InvalidArgumentException('invalid_connector_option_region');
+            $options['region'] = $region;
+            // Resolve the explicit regional setting before the provider applies its outbound host policy.
+            $endpoint = 'https://' . $region . '.tts.speech.microsoft.com';
         }
         $result = [
             'driver' => $driver,

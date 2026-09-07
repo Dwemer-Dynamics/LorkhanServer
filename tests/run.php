@@ -431,7 +431,23 @@ foreach (['eleven_v3','eleven_multilingual_v2'] as $speechModel) {
         &&$speechPayload['apply_language_text_normalization']===true,
         $speechModel.' maps editor controls to the native query/body and applies model-specific tags and boost');
 }
+$azureContent = ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','azure')+['driver'=>'azure',
+    'options'=>['region'=>' EastUS ','fixedMood'=>'angry','volume'=>20,'rate'=>1.25,'countour'=>'(11%, +15%)']]);
+$check($azureContent['endpoint']==='https://eastus.tts.speech.microsoft.com' && $azureContent['options']['region']==='eastus',
+    'Azure explicit region resolves to a bounded Microsoft hostname before outbound policy');
+foreach ([$azureContent['options'],[]] as $azureOptions) {
+    $speechProvider = new CloudSpeechConnectorProvider('https://93.184.216.34','azure','default','en-US-JennyNeural','en-US',$azureOptions,'fake-test-key');
+    [$speechUrl,$speechBody,$speechHeaders] = (new ReflectionMethod($speechProvider,'request'))->invoke($speechProvider,'A < B & C','en-US-JennyNeural','en-US');
+    $xml = new DOMDocument(); $xml->loadXML($speechBody);
+    $prosody = $xml->getElementsByTagName('prosody');
+    $check($xml->documentElement->textContent==='A < B & C' && str_ends_with($speechUrl,'/cognitiveservices/v1')
+        &&($azureOptions===[] ? $prosody->length===0 : $prosody->item(0)->getAttribute('rate')==='1.25'
+            &&$prosody->item(0)->getAttribute('volume')==='20'&&$prosody->item(0)->getAttribute('contour')==='(11%, +15%)'
+            &&$xml->getElementsByTagNameNS('https://www.w3.org/2001/mstts','express-as')->item(0)->getAttribute('style')==='angry'),
+        'Azure escapes speech text and only emits configured prosody and fixed style');
+}
 foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions',['invalid']],
+    ['azure','region','eastus/../../evil'],['azure','rate',0],['azure','volume',101],['azure','fixedMood',[]],
     ['11labs','optimize_streaming_latency',5],['11labs','apply_text_normalization','invalid'],
     ['11labs','apply_language_text_normalization','false'],['11labs','v3_audio_tags',str_repeat('x',1025)],
     ['kokoro','speed',0]] as [$speechDriver,$speechField,$invalidValue]) {

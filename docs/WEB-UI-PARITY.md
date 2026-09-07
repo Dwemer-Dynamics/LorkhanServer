@@ -3182,8 +3182,8 @@ Remaining TTS provider work is concrete, not a product exception:
 | OmniVoice | Prepared-language selector, preparation workflow and language library states |
 | OpenAI | Instructions editor/request mapping completed below; automatic mood-to-instructions routing is still absent from the native speech context |
 | ElevenLabs | Editor controls and model-specific request mapping completed below; live provider synthesis remains untested |
-| Azure | Mood, region, volume, rate, contour and valid moods with SSML wiring |
-| Mimic3 | Volume and default/help review |
+| Azure | Fixed mood, region, volume, rate and contour now have matching primary fields and native SSML routing. Automatic mood/Validmoods remains open with the shared speech-style audit |
+| Mimic3 | Default/help review; reference Volume is only consumed by the legacy `ttsMimicOld` function, not the active provider, so an inert control is not copied |
 | Kokoro | Speed editor/request mapping completed below; native endpoint and effective speed defaults preserved |
 | Deepgram | Bitrate versus native WAV transport semantics; explicit comparison needed |
 | Zonos | Language choices, dynamic tones, cache-path ownership and full defaults/help |
@@ -3255,3 +3255,32 @@ Final deployment rollback: `/var/backups/lorkhanserver-code.IycZiR`. All 780
 runtime files match source, with no extra or legacy paths. Configuration,
 credential and voice hashes are preserved. Private routes remain 403,
 unauthenticated session creation is 401, and health/NPC-reader probes passed.
+
+## Azure provider controls checkpoint
+
+Azure now follows the reference's Fixedmood/Region, Volume/Rate and Countour
+primary field ordering. New connector defaults match the reference; existing
+connectors with absent settings retain unstyled speech. Explicit regions are
+normalized to a Microsoft speech hostname before the provider host policy runs;
+blank region preserves the advanced endpoint. XML text and attribute values
+are escaped, with fixed style and prosody only emitted when configured.
+Microsoft's SSML reference was checked:
+https://learn.microsoft.com/en-us/azure/ai-services/speech-service/speech-synthesis-markup-voice .
+
+The reference's Mimic3 Volume setting is consumed only by `ttsMimicOld`;
+its active TTS closure uses plain text and does not apply Volume. It is not
+copied as an inert control. Azure Validmoods is still outstanding with the
+shared automatic speech-style routing gap; this checkpoint does not claim
+complete Azure, TTS-editor or whole-site parity.
+
+474 server checks, PHP lint, management HTTP save/reload and invalid-region
+checks, integration, migrations and durable-job checks passed. The schema
+inventory remains 170 relations with the existing hash. Paired desktop
+screenshots show the matching primary Azure grid. Unsaved Fixedmood survives
+switching drivers. At 390px the field grid stacks, labels/help remain readable,
+and body content/scroll width both measure 375px. These are source/deployed-form
+fixtures; no real connector was saved and no remote speech request was made.
+
+Local code deployment preserved configuration, credentials and voice files.
+Rollback: `/var/backups/lorkhanserver-code.sd45lb`. No game was launched or
+controlled. Whole-site goal remains active against the full matrix above.

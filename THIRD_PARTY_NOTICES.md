@@ -310,3 +310,7 @@ presentation in `ui/core/tmpl/tts_provider_settings.php` follow that same pinned
 schema/editor. Their bounded native WAV request mappings adapt the matching
 `tts/tts-openai.php`, `tts/tts-kokoro.php` and `tts/tts-11labs.php` behavior,
 including Eleven v3 tags, normalization, latency and speaker-boost handling.
+
+Azure Fixedmood, Region, Volume, Rate and Countour presentation follows the same
+pinned schema/editor. The native SSML prosody and fixed-style mapping adapts
+`tts/tts-azure.php`, preserving escaped text and the existing WAV transport.
