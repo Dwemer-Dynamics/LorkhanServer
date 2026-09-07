@@ -1767,10 +1767,11 @@ clone_name=slot_name+' clone'; r=request(clone_provider['action'],'POST',dict(cl
 assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
 clone_provider_id=connector_editor_id(body,clone_name)
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':clone_provider_id}); assert r.status==200
-provider_export['name']=slot_name+' imported'; llm_page,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?import=1'))
+provider_export['name']=slot_name+' imported'; llm_page,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?import=1&embed=1'))
 import_provider=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-import'))
 r=request(import_provider['action'],'POST',dict(import_provider['fields'],_csrf=csrf,installation_id=valid['installation_id'],provider_json=json.dumps(provider_export))); body=r.read().decode()
 assert r.status==200 and provider_export['name'] in body,(r.status,r.geturl(),body)
+assert import_provider['fields'].get('embed')=='1' and 'embed=1' in r.geturl() and 'edit=' in r.geturl(),r.geturl()
 import_provider_id=connector_editor_id(body,provider_export['name'])
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':import_provider_id}); assert r.status==200
 # Keep the shared model available for the later player and narrator generation checks.
