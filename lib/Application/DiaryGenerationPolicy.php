@@ -12,11 +12,11 @@ final class DiaryGenerationPolicy
 {
     private const DEFAULT_PROMPT = 'Write a concise first-person diary entry about the witnessed Morrowind events. Preserve uncertainty and do not invent facts.';
 
-    /** @return array{enabled:bool,automatic_enabled:bool,automatic_wait_enabled:bool,automatic_interval_seconds:int,include_in_context:bool,context_turn_limit:int,prompt:string} */
+    /** @return array{enabled:bool,automatic_enabled:bool,automatic_wait_enabled:bool,automatic_interval_seconds:int,include_in_context:bool,latest_entry_in_context:bool,context_turn_limit:int,prompt:string} */
     public static function defaults(): array
     {
         return ['enabled'=>false,'automatic_enabled'=>false,'automatic_wait_enabled'=>false,
-            'automatic_interval_seconds'=>120,'include_in_context'=>true,'context_turn_limit'=>20,
+            'automatic_interval_seconds'=>120,'include_in_context'=>true,'latest_entry_in_context'=>false,'context_turn_limit'=>20,
             'prompt'=>self::DEFAULT_PROMPT];
     }
 
@@ -26,7 +26,7 @@ final class DiaryGenerationPolicy
         if(!is_array($settings)||($settings!==[]&&array_is_list($settings))
             ||array_diff(array_keys($settings),array_keys(self::defaults()))!==[])
             throw new InvalidArgumentException('invalid_settings_overrides');
-        foreach(['enabled','automatic_enabled','automatic_wait_enabled','include_in_context']as$field)
+        foreach(['enabled','automatic_enabled','automatic_wait_enabled','include_in_context','latest_entry_in_context']as$field)
             if(array_key_exists($field,$settings)&&!is_bool($settings[$field]))throw new InvalidArgumentException('invalid_settings_overrides');
         if(array_key_exists('automatic_interval_seconds',$settings)&&(!is_int($settings['automatic_interval_seconds'])
             ||$settings['automatic_interval_seconds']<30||$settings['automatic_interval_seconds']>86400))

@@ -4139,3 +4139,10 @@ The pinned UI already used throughout this matrix contains that newer control.
 
 This checkpoint records verified implementation requirements only. No product
 code, provider calls, live configuration or deployment changed in this audit.
+
+### Latest diary setting foundation (2026-09-07)
+
+- Added the typed `diary.latest_entry_in_context` leaf, default false, separately from existing `include_in_context` narrative recall.
+- Existing resolver inheritance now accepts the leaf. Focused checks cover Core Profile true/false defaults, absent author overrides, explicit Narrator true/false, and a second NPC sharing the Core Profile while installation Narrator content is present.
+- This is a foundation only: no UI control is exposed and prompt selection/rendering is not implemented yet. Do not count the latest diary feature as complete or deploy this as a working user feature.
+- Continue in `ui/core/tmpl/core_profile_fields.php`, Core save/preset mapping in `ManagementRouter`, Narrator save/import/export and its copied control, `ProductRepository::promptContext`, and `PromptAssembler`. Preserve source trace/budget attribution in NPC context; do not misreport the selected diary as ordinary Morrowind narrative context.

@@ -201,20 +201,20 @@ $check($conversionMock===['relationships'=>[]]
     'relationship text conversion is not registered as a bounded first-party job');
 $diaryDefaults=\LorkhanServer\Application\DiaryGenerationPolicy::defaults();
 $diaryOverrides=['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabled'=>false,
-    'automatic_interval_seconds'=>120,'include_in_context'=>false,'context_turn_limit'=>12,
+    'automatic_interval_seconds'=>120,'include_in_context'=>false,'latest_entry_in_context'=>false,'context_turn_limit'=>12,
     'prompt'=>'Remember only what was witnessed.'];
 $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
 $check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
     &&$diaryDefaults['automatic_wait_enabled']===false&&$diaryDefaults['automatic_interval_seconds']===120
-    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['context_turn_limit']===20
+    &&$diaryDefaults['include_in_context']===true&&$diaryDefaults['latest_entry_in_context']===false&&$diaryDefaults['context_turn_limit']===20
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($diaryOverrides)===$diaryOverrides
     &&$diaryMock===['title'=>'Fargoth diary','content'=>'Fargoth records 1 witnessed Morrowind event.']
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'manual and automatic diary generation are opt-in, bounded, deterministic under the mock provider, and registered as durable work');
 foreach([
     ['enabled'=>'true'],['automatic_enabled'=>1],['automatic_wait_enabled'=>'true'],['automatic_interval_seconds'=>29],
-    ['automatic_interval_seconds'=>86401],['include_in_context'=>1],['context_turn_limit'=>0],
+    ['automatic_interval_seconds'=>86401],['include_in_context'=>1],['latest_entry_in_context'=>'true'],['context_turn_limit'=>0],
     ['context_turn_limit'=>101],['prompt'=>''],['unknown'=>true],
 ]as$invalidDiary){
     try{\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides($invalidDiary);$check(false,'invalid diary settings accepted');}
@@ -1803,6 +1803,24 @@ $check($npcDiaryResolved['settings']['diary']['automatic_enabled']===false
     &&$npcDiaryResolved['settings']['diary']['automatic_interval_seconds']===240
     &&$npcDiaryResolved['sources']['settings.diary.automatic_enabled']==='npc',
     'NPC diary toggles override their own leaves without replacing inherited generation and interval settings');
+// Narrator content is passed as the selected profile; installation-wide narrator options must not leak its diary override to other NPCs.
+foreach ([false,true] as $coreLatestDiary) {
+    $latestDiaryCore=['settings_overrides'=>['diary'=>['latest_entry_in_context'=>$coreLatestDiary]]];
+    $latestDiaryInherited=(new EffectiveSettingsResolver())->resolve($globalSettings,$latestDiaryCore,[]);
+    $check($latestDiaryInherited['settings']['diary']['latest_entry_in_context']===$coreLatestDiary
+        &&$latestDiaryInherited['sources']['settings.diary.latest_entry_in_context']==='core_profile',
+        'latest diary context inherits the assigned Core Profile default when no author override is saved');
+    foreach ([false,true] as $narratorLatestDiary) {
+        $latestDiaryNarrator=['diary'=>['latest_entry_in_context'=>$narratorLatestDiary]];
+        $latestDiarySelected=(new EffectiveSettingsResolver())->resolve($globalSettings,$latestDiaryCore,$latestDiaryNarrator,[],false,$latestDiaryNarrator);
+        $latestDiaryOtherNpc=(new EffectiveSettingsResolver())->resolve($globalSettings,$latestDiaryCore,[],[],false,$latestDiaryNarrator);
+        $check($latestDiarySelected['settings']['diary']['latest_entry_in_context']===$narratorLatestDiary
+            &&$latestDiarySelected['sources']['settings.diary.latest_entry_in_context']==='npc'
+            &&$latestDiaryOtherNpc['settings']['diary']['latest_entry_in_context']===$coreLatestDiary
+            &&$latestDiarySelected['settings']['diary']['include_in_context']===true,
+            'explicit Narrator latest diary true and false override inheritance without affecting another NPC or existing narrative recall');
+    }
+}
 $projectionInput=$effective;
 $projectionInput['settings']['presentation']=['show_status_hud'=>false,'transcript_rows'=>20,'tts_volume_boost'=>4];
 $projectionInput['routing']['profile_generation_configuration_id']='00000000-0000-4000-8000-000000000333';
