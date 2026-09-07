@@ -73,8 +73,8 @@ do not use an exception to excuse a generic substitute layout.
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
-| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; per-player provider overrides and remaining generation edge states remain pending |
-| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
+| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
+| `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
@@ -4056,3 +4056,35 @@ component. Preserve native security, OpenMW semantics, branding and exclusions.
   not full Player/Narration or all-page completion; remaining matrix work remains.
 - Deployed runtime verified: 790 files, no hash mismatches/extras/old paths;
   health/protected-route checks passed. Rollback: `/var/backups/lorkhanserver-code.1hk8bI`.
+
+## Narrator Profile & Voice and embedded save — 2026-09-07
+
+- Matched the reference Profile / Voice ID / Oghma Knowledge Tags order and
+  primary field markup. Native TTS override, language and generation-routing
+  explanation stay under Advanced routing rather than displacing those fields.
+- Tags save to `oghma_knowledge_tags`, already consumed by the narrator-selected
+  effective settings and Oghma retrieval path. Input is bounded to 4096 UTF-8
+  bytes and normalized with existing profile tag rules. Empty means inherited
+  global tags. V2 narrator exports carry the field; imports accept and normalize
+  it, while older V2 presets without the field preserve the local value.
+- Real browser save testing found a nested-Configuration-hub bug. Narrator forms
+  now carry embed state; create/revise/generate/import embedded redirects target
+  the canonical narrator editor with installation and status, not another hub.
+  Standalone legacy redirects remain unchanged.
+- Compared the Profile & Voice panel against live read-only Herika; saved a
+  disposable narrator with duplicate/article-only tags, confirmed normalized
+  values in its hub editor, cleared them, and verified the corrected embedded
+  save keeps one hub and the saved editor accessible. No live settings/provider
+  requests/game changes. Full Narration and all-page parity remain incomplete.
+- Remaining Narration fields are not styling exceptions: the reference exposes
+  `books_only_narrator`, `hide_from_context`, `only_diary_access` and
+  `latest_diary_context_enabled`. Lorkhan's book-event switch and profile-context
+  switch have different semantics; the latter two diary controls are absent.
+  These require traced backend wiring before their reference controls can be
+  copied truthfully. The current checkpoint does not close that requirement.
+- Final checks passed: 519 server checks, 98 protocol files, HTTP forms including
+  normalized/oversize tags, export/import, legacy preset preservation and embedded
+  redirects; integration, migrations and durable jobs. Schema unchanged at 172
+  relations. Runtime verified at 790 files with no hash mismatches/extras/old paths.
+  Local rollback: `/var/backups/lorkhanserver-code.AZxXWi`; private routes and health
+  pass, and configuration, credentials and voice files are preserved.

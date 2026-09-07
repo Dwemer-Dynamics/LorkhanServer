@@ -531,3 +531,8 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .prompt-edit-modal[data-prompt-inline] textarea[name=custom_prompt] { min-height:300px; padding:12px; font:14px/1.5 'Courier New',monospace; background:rgba(26,26,26,.8); }
 .prompt-edit-modal[data-prompt-inline] > footer .prompt-button { padding:10px 18px; border-radius:6px; font-size:.95em; }
 @media(max-width:768px) { .prompt-edit-modal[data-prompt-inline] { width:95%; margin:5% auto; } }
+
+/* Native routing remains available without displacing the copied Profile & Voice fields. */
+.narrator-voice-options { margin-top:14px; }
+.narrator-voice-options > summary { cursor:pointer; color:#bc9d5a; }
+.narrator-voice-options > label { display:block; margin:10px 0 4px; }

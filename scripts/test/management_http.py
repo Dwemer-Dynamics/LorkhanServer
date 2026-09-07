@@ -2157,11 +2157,14 @@ generate_narrator=next((f for f in narrator_page.forms if f['action'].endswith('
 assert generate_narrator is not None and generate_narrator['fields'].get('profile_id'),'narrator profile generation control is missing'
 r=request(generate_narrator['action'],'POST',dict(generate_narrator['fields'],_csrf=csrf)); assert r.status==200 and r.geturl().endswith('/ui/core/config_hub.php?tab=narration-page&status=saved'),(r.status,r.geturl())
 narrator_revise=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
-narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',diary_enabled='1',
+narrator_route_values=dict(narrator_revise['fields'],_csrf=csrf,inline_narration_mode='Narrator',diary_enabled='1',oghma_knowledge_tags='knowall, Common, Tribunal, Tribunal',
     auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP narrator portability route')
 r=request(narrator_revise['action'],'POST',narrator_route_values); narrator_route_body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),narrator_route_body)
 narrator_page,body=parse(request('/LorkhanServer/ui/narrator_management.php'))
 saved_narrator_form=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert saved_narrator_form['fields'].get('oghma_knowledge_tags')=='knowall, Tribunal'
+invalid_tags=request(narrator_revise['action'],'POST',dict(narrator_route_values,oghma_knowledge_tags='x'*4097))
+assert invalid_tags.status==422,invalid_tags.read().decode()
 assert saved_narrator_form['fields'].get('diary_enabled')=='1' and saved_narrator_form['fields'].get('auto_diary_enabled')=='1'
 assert saved_narrator_form['fields'].get('auto_diary_wait_enabled')=='1' and saved_narrator_form['fields'].get('diary_interval_seconds')=='90'
 generate_narrator=next(f for f in narrator_page.forms if f['action'].endswith('/forms/narrator-profile-generate'))
@@ -2170,7 +2173,8 @@ narrator_id=generate_narrator['fields']['profile_id']
 narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json')
 narrator_preset=json.loads(narrator_preset_response.read().decode())
 assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','narration_filters','notes','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
+assert narrator_preset['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','narration_filters','notes','oghma_knowledge_tags','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
@@ -2182,6 +2186,18 @@ assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),im
 imported_narrator_page,imported_narrator_body=parse(request('/LorkhanServer/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
 assert 'Portable narrator settings imported as a new narrator profile revision.' in imported_narrator_body and 'Portable narrator persona' in imported_narrator_body,imported_narrator_body
 imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert imported_narrator_form['fields'].get('oghma_knowledge_tags')=='knowall, Tribunal'
+legacy_narrator_preset=dict(narrator_preset,settings=dict(narrator_preset['settings']))
+legacy_narrator_preset['settings'].pop('oghma_knowledge_tags')
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(legacy_narrator_preset)))
+assert r.status==200,r.read().decode()
+embedded_narrator_page,embedded_narrator_html=parse(request('/LorkhanServer/ui/narrator_management.php?embed=1'))
+embedded_narrator_form=next(f for f in embedded_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
+assert embedded_narrator_form['fields'].get('embed')=='1'
+r=request(embedded_narrator_form['action'],'POST',dict(embedded_narrator_form['fields'],_csrf=csrf,inline_narration_mode='Text Only'))
+assert r.status==200 and '/ui/narrator_management.php?status=saved&embed=1&installation_id=' in r.geturl(),(r.status,r.geturl(),r.read().decode())
+legacy_narrator_export=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read().decode())
+assert legacy_narrator_export['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
 assert '<option selected>Text Only</option>' in imported_narrator_body and 'profile_generation_configuration_id' not in imported_narrator_form['fields'],imported_narrator_form['fields']
 global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))

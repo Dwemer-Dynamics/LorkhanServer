@@ -101,6 +101,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
 
             <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'narrator-profile-create' : 'narrator-profile-revise'; ?>" data-track-dirty>
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                 <?php if ($profile !== null): ?>
                     <input type="hidden" name="profile_id" value="<?php echo lorkhan_ui_h($profile['profile_id']); ?>">
@@ -189,16 +190,21 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <div class="narrator-content-grid">
                     <section class="narrator-content-section">
                         <h2>Profile &amp; Voice</h2>
-                        <span class="narrator-hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
-                        <div>
                             <label for="narrator-core-profile">Profile</label>
                             <select id="narrator-core-profile" name="core_profile_id" data-narrator-connectors="<?php echo lorkhan_ui_h(json_encode($profileConnectorLabels,JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES)); ?>">
                             <?php foreach ($coreRows as $core): if (($core['installation_id'] ?? '') !== $installationId) continue; ?>
                                 <option value="<?php echo lorkhan_ui_h($core['core_profile_id']); ?>"<?php echo $selectedCoreId === $core['core_profile_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($core['label']); ?></option>
                             <?php endforeach; ?>
                             </select>
-                            <span class="narrator-hint">Use this profile's response models, prompt, and diary settings. The voice below can override its TTS connector.</span>
-                        </div>
+                            <span class="narrator-hint">LLM connector profile for The Narrator.</span>
+                        <label for="narrator-voice">Voice ID</label>
+                        <input id="narrator-voice" name="voice_id" type="text" value="<?php echo lorkhan_ui_h($voice['id'] ?? ''); ?>" placeholder="TheNarrator">
+                        <span class="narrator-hint">TTS voice identifier for the narrator.</span>
+                        <label for="narrator-oghma-knowledge">Oghma Knowledge Tags</label>
+                        <input type="text" id="narrator-oghma-knowledge" name="oghma_knowledge_tags" maxlength="4096" placeholder="Comma-separated knowledge tags (e.g., knowall, knowsome, knownone)" value="<?php echo lorkhan_ui_h($content['oghma_knowledge_tags'] ?? ''); ?>">
+                        <span class="narrator-hint">Comma-separated knowledge tags used by Oghma systems for knowledge lookup restrictions.</span>
+                        <details class="narrator-voice-options"><summary>Advanced routing</summary>
+                        <span class="narrator-hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
                         <label for="narrator-tts">TTS Connector</label>
                         <select id="narrator-tts" name="tts_configuration_id">
                             <option value="">Use installation default</option>
@@ -207,11 +213,9 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <?php endforeach; ?>
                         </select>
                         <span class="narrator-hint">Typed speech connector used by the narrator.</span>
-                        <label for="narrator-voice">Voice ID</label>
-                        <input id="narrator-voice" name="voice_id" type="text" value="<?php echo lorkhan_ui_h($voice['id'] ?? ''); ?>" placeholder="TheNarrator">
-                        <span class="narrator-hint">TTS voice identifier for the narrator.</span>
                         <label for="narrator-language">Voice Language</label>
                         <input id="narrator-language" name="voice_language" type="text" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en'); ?>">
+                        </details>
                     </section>
 
                     <section class="narrator-content-section">
@@ -287,6 +291,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         <p class="narrator-hint" id="narrator-portability-scope">A narrator preset carries narrator enablement, inline narration mode, narrator context visibility, the welcome, random, quest, and book event switches, the prompt head, core summary, background, personality, speech style, goals, and notes, and the narrator voice id and language. Provider and connector selections are never carried.</p>
                         <form class="narrator-portability-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/narrator-profile-settings-import">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                             <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                             <div class="narrator-portability-field">
                                 <label for="narrator-preset-file">Preset file</label>
@@ -311,6 +316,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                     <div class="narrator-advanced-panel">
                         <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/narrator-profile-generate" class="narrator-advanced-placeholder">
                             <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                             <input type="hidden" name="profile_id" value="<?php echo lorkhan_ui_h($profile['profile_id']); ?>">
                             <p>AI generation fills the narrator persona while preserving narrator enablement and voice routing.</p>
                             <button type="submit" class="narrator-save-button">Generate narrator profile with AI</button>

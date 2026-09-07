@@ -609,6 +609,9 @@ final class ManagementRouter
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if(in_array($domain,['narrator-profile-create','narrator-profile-revise','narrator-profile-generate','narrator-profile-settings-import'],true)&&($v['embed']??'')==='1')
+            return$this->redirect($this->webRoot().'/ui/narrator_management.php?'.http_build_query([
+                'status'=>$domain==='narrator-profile-settings-import'?'imported':'saved','embed'=>'1','installation_id'=>$scope['installation_id']]));
         if(in_array($domain,['player-profile-create','player-profile-revise'],true)&&($v['embed']??'')==='1')
             return$this->redirect($this->uiPath('player').'?'.http_build_query(['status'=>'saved','embed'=>'1','installation_id'=>$scope['installation_id']]));
         if($domain==='profile-reset-biography')return$this->redirect($this->characterPageLocation($v,'saved'));
@@ -1262,6 +1265,7 @@ final class ManagementRouter
             $settings['narration_filters']=\LorkhanServer\Application\NarrationTextPolicy::validate($content['narration_filters']??[]);
             $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
+            $settings['oghma_knowledge_tags']=$content['oghma_knowledge_tags']??'';
             $voice=is_array($content['voice']??null)?$content['voice']:[];
             $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
         }
@@ -1277,6 +1281,11 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2&&array_key_exists('oghma_knowledge_tags',$settings)){
+            $tags=$settings['oghma_knowledge_tags'];
+            if(!is_string($tags)||strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new InvalidArgumentException($error);
+            $settings['oghma_knowledge_tags']=$this->npcKnowledgeTags($tags);$expected[]='oghma_knowledge_tags';
+        }
         if($narratorV2&&array_key_exists('narration_filters',$settings)){
             $settings['narration_filters']=\LorkhanServer\Application\NarrationTextPolicy::validate($settings['narration_filters']);$expected[]='narration_filters';
         }
@@ -1744,6 +1753,11 @@ final class ManagementRouter
     private function narratorContent(array $values):array
     {
         $content=$this->profileContent($values,true);$mode=(string)($values['inline_narration_mode']??'Disabled');
+        if(array_key_exists('oghma_knowledge_tags',$values)){
+            $tags=$values['oghma_knowledge_tags'];
+            if(!is_string($tags)||strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new InvalidArgumentException('invalid_oghma_knowledge_tags');
+            $content['oghma_knowledge_tags']=$this->npcKnowledgeTags($tags);
+        }
         if(!in_array($mode,['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException('invalid_inline_narration_mode');
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
         $content['context_visibility']=isset($values['context_visibility']);
