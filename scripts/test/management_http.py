@@ -777,11 +777,12 @@ clone_tts_id=connector_editor_id(body,clone_name)
 clone_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+clone_tts_id))
 assert next(f for f in clone_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':clone_tts_id,'kind':'tts_provider'}); assert r.status==200
-tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?import=1'))
+tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?import=1&embed=1'))
 import_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-import'))
 tts_export['content']['credential']='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 r=request(import_tts['action'],'POST',dict(import_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],kind='tts_provider',connector_json=json.dumps(tts_export))); body=r.read().decode()
 assert r.status==200 and tts_export['name'] in body,(r.status,r.geturl(),body)
+assert import_tts['fields'].get('embed')=='1' and 'embed=1' in r.geturl() and 'edit=' in r.geturl() and r.geturl().count('?')==1,r.geturl()
 import_tts_id=connector_editor_id(body,tts_export['name'])
 imported_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+import_tts_id))
 assert next(f for f in imported_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='none'
@@ -2287,10 +2288,10 @@ request('/LorkhanServer/ui/home.php').read()
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
 r=json_request('/LorkhanServer/manage/api/v1/stt-providers','POST',{'installation_id':valid['installation_id'],'name':'HTTP STT test','content':{'driver':'localwhisper','endpoint':'http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test','model':'whisper-1','language':'en','timeout_ms':30000,'options':{}}},csrf)
 created_stt=json.loads(r.read()); assert r.status==201,(r.status,created_stt)
-stt_page,stt_body=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']+'&driver=localwhisper'))
+stt_page,stt_body=parse(request('/LorkhanServer/ui/core/stt_connectors.php?installation_id='+valid['installation_id']+'&driver=localwhisper&embed=1'))
 stt_form=next(f for f in stt_page.forms if f['action'].endswith('/forms/connector-revise'))
 stt_values=dict(stt_form['fields'],_csrf=csrf,endpoint='http://'+provider_host+':'+str(voice_provider.server_port)+'/stt-test',options_json='{}')
-r=request(stt_form['action'],'POST',stt_values); r.read(); assert r.status==200,r.status
+r=request(stt_form['action'],'POST',stt_values); r.read(); assert r.status==200 and 'embed=1' in r.geturl() and '/ui/core/stt_connectors.php?' in r.geturl() and r.geturl().count('?')==1,r.geturl()
 stt_path='/LorkhanServer/manage/api/v1/stt-connector-tests'
 stt_request={'installation_id':valid['installation_id'],'configuration_id':stt_values['configuration_id']}
 assert json_request(stt_path,'POST',stt_request).status==401
