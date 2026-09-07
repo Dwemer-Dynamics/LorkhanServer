@@ -4644,3 +4644,25 @@ existing card assertion was updated to allow its added OmniVoice CSS class.
 These are mock HTTP results, not live-provider or browser confirmation-dialog
 proof. Final visual/interactive deletion review and direct-upload parity remain
 open, along with the full page matrix.
+
+
+### OmniVoice direct upload and browser lifecycle (2026-09-07)
+
+OmniVoice upload now imports each validated new WAV into the selected connector
+and language library immediately. The shared upload validator returns exactly
+the created files; other tabs keep local staging. Failed/not-ready imports keep
+the local sample and explicitly offer Sync retry, without reporting all samples
+as ready. Existing samples are still never overwritten. The form now follows
+Herika's description, Import Voice Sample label, filename-based IDs, and three
+reference-text requirements; the unrelated custom-name control is hidden here.
+
+PHP lint and the full existing management HTTP suite passed, including French
+multipart import success and provider failure with local sample retention. A
+separate disposable browser/provider fixture passed actual upload -> ready Play,
+delete cancellation, confirmed provider removal, and local WAV -> Sync recovery.
+Screenshots at 1280/390 are private Temp/{herika,lorkhan}-omni-upload-{width}.png.
+The narrow reference comparison identified and corrected requirements-list
+indentation and the upload label. Provider details placement, refresh sizing,
+remaining error presentation and other matrix pages are still open; this does
+not certify full TTS Studio or whole-site parity. No live voice mutation or game
+interaction occurred.

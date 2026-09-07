@@ -484,6 +484,18 @@ assert 'server</span>' in omni_card('RemoteReady',omni_html) and 'title="Test vo
 assert 'needs text</span>' in omni_card('RemoteNeedsText',omni_html) and 'title="Test voice"' not in omni_card('RemoteNeedsText',omni_html)
 assert 'title="Test voice"' in omni_card('ReadyByFlag',omni_html)
 assert 'local</span>' in omni_card(batch_voice,omni_html) and 'title="Test voice"' not in omni_card(batch_voice,omni_html)
+omni_upload=next(f for f in omni_page.forms if f['fields'].get('action')=='upload')
+assert omni_upload['fields']['language']=='fr' and omni_upload['fields']['configuration_id']==omni_id
+assert 'Import Voice Sample' in omni_html and 'Custom voice name (optional)' not in omni_html
+import_voice='omni_import_'+uuid.uuid4().hex
+r=multipart_request(omni_upload['action'],omni_upload['fields'],'voice_sample[]',import_voice+'.wav','audio/wav',wav)
+assert '1 voice sample(s) imported into OmniVoice.' in r.read().decode()
+assert b'\r\n\r\nfr\r\n' in VoiceProvider.uploads[-1][1]
+VoiceProvider.upload_status=500
+retry_voice='omni_retry_'+uuid.uuid4().hex
+r=multipart_request(omni_upload['action'],omni_upload['fields'],'voice_sample[]',retry_voice+'.wav','audio/wav',wav); retry_html=r.read().decode()
+assert 'Local WAVs were kept; retry with Sync' in retry_html and 'data-copy-voice="'+retry_voice+'"' in retry_html
+VoiceProvider.upload_status=200
 delete_form=next(f for f in omni_page.forms if f['fields'].get('action')=='delete_provider')
 assert delete_form['fields']['voice_id']=='RemoteReady' and delete_form['fields']['language']=='fr'
 assert 'Remove custom voice' not in omni_card('ReadyByFlag',omni_html)

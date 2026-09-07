@@ -237,7 +237,7 @@ function lorkhan_voice_sync_connector(array $preset,string $path,string $voice,s
 }
 
 /** Validate the whole multi-file selection before publishing any samples; never overwrite existing voices. */
-function lorkhan_voice_import_uploads(array $upload,string $voice,string $voiceRoot):int
+function lorkhan_voice_import_uploads(array $upload,string $voice,string $voiceRoot):array
 {
     if(!is_array($upload['name']??null))$upload=array_map(static fn($value):array=>[$value],$upload);
     $names=$upload['name']??[];$total=count($names);
@@ -271,7 +271,7 @@ function lorkhan_voice_import_uploads(array $upload,string $voice,string $voiceR
             if(!chmod($file,0640)||!@link($file,$destination))throw new RuntimeException('voice_upload_failed');
             $created[]=$destination;
         }
-        return count($created);
+        return $created;
     }catch(Throwable $error){foreach($created as$file)@unlink($file);throw$error;}
     finally{foreach(scandir($stage)?:[]as$file)if($file!=='.'&&$file!=='..')@unlink($stage.DIRECTORY_SEPARATOR.$file);@rmdir($stage);}
 }
@@ -318,9 +318,24 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $upload=$_FILES['voice_sample']??null;if(!is_array($upload))throw new InvalidArgumentException('voice_upload_failed');
             $expected=(string)($_POST['upload_count']??'');$received=is_array($upload['name']??null)?count($upload['name']):1;
             if($expected!==''&&(!ctype_digit($expected)||(int)$expected!==$received))throw new InvalidArgumentException('invalid_voice_upload_selection');
-            $count=lorkhan_voice_import_uploads($upload,$voice,$voiceRoot);
+            $uploadPreset=null;
+            if($activeTab==='omnivoice'){
+                $configurationId=(string)($_POST['configuration_id']??'');$uploadPreset=$ttsPresetsById[$configurationId]??null;
+                if(!is_array($uploadPreset)||($uploadPreset['content']['driver']??'')!=='omnivoice')throw new InvalidArgumentException('voice_sync_unsupported');
+                $discoverLanguage=lorkhan_voice_language((string)($_POST['language']??'en'));$selectedDiscoveryId=$configurationId;
+            }
+            $created=lorkhan_voice_import_uploads($upload,$voice,$voiceRoot);$count=count($created);
             $singleWav=!is_array($upload['name'])&&strtolower(pathinfo($upload['name'],PATHINFO_EXTENSION))==='wav';
             $notice=$singleWav?'Voice sample saved.':$count.' voice samples imported.';
+            if($uploadPreset!==null){
+                $imported=0;$failed=0;
+                foreach($created as$path){
+                    try{lorkhan_voice_sync_connector($uploadPreset,$path,pathinfo($path,PATHINFO_FILENAME),$discoverLanguage);$imported++;}
+                    catch(Throwable){$failed++;}
+                }
+                $notice=$imported.' voice sample(s) imported into OmniVoice.';
+                if($failed>0)$notice.=' '.$failed.' import(s) did not become ready. Local WAVs were kept; retry with Sync in the voice library.';
+            }
         }elseif($action==='sync'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
