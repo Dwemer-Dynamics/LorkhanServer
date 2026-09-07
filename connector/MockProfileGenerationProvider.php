@@ -43,7 +43,7 @@ final class MockProfileGenerationProvider implements ProfileGenerationProvider
         $notes=($profile['generation_mode']??'npc_profile')==='npc_profile_backfill'
             ?'Deterministic mock backfill from '.count((array)($profile['recent_events']??[])).' recent events; replace or regenerate with a configured live provider.'
             :'Deterministic mock generation; replace or regenerate with a configured live provider.';
-        return[
+        return (in_array('skills', (array)($profile['dynamic_fields']??[]), true) ? ['skills'=>'Practical skills informed by witnessed events.'] : []) + [
             'appearance'=>$name.' has an appearance that should be refined from observed in-game context.',
             'biography'=>$name.' is a Morrowind character identified as '.$record.' from '.$contentFile.'.',
             'personality'=>$name.' is attentive, guarded, and shaped by life in Vvardenfell.',

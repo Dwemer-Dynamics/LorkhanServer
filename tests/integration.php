@@ -765,8 +765,27 @@ $assert((int)$generatedBackfill['current_revision']===(int)$backfillPayload['bas
     &&str_contains((string)($generatedBackfill['content']['notes']??''),'backfill from 10 recent events'),
     'automatic profile backfill worker did not use the frozen actor history');
 
+$evolutionCore=$products->createRevisioned('core_profile',['installation_id'=>$installationId,'name'=>'Evolution discovery defaults',
+    'content'=>['schema'=>'lorkhan.core-profile.v1','prompt'=>'','routing'=>[],
+        'settings_overrides'=>['profile_evolution'=>['enabled'=>true,'fields'=>['occupation','skills']]]]],$now);
+$inheritedNpc=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Evolution inherited NPC',
+    'actor_identity'=>['kind'=>'actor','record_id'=>'evolution_inherited'],
+    'core_profile_id'=>$evolutionCore['core_profile_id'],'content'=>[]],$now);
+$explicitNpc=$products->createRevisioned('profile',['installation_id'=>$installationId,'name'=>'Evolution explicit NPC',
+    'actor_identity'=>['kind'=>'actor','record_id'=>'evolution_explicit'],
+    'core_profile_id'=>$evolutionCore['core_profile_id'],
+    'content'=>['dynamic_profile'=>false,'dynamic_profile_fields'=>['goals']]],$now);
+$evolutionCoreContent=$evolutionCore['content'];$evolutionCoreContent['settings_overrides']['profile_evolution']['enabled']=false;
+$products->revise('core_profile',$evolutionCore['core_profile_id'],$evolutionCoreContent,'change discovery defaults',$now);
+$inheritedNpc=$products->getRevisioned('profile',$inheritedNpc['profile_id']);
+$assert($inheritedNpc['content']['dynamic_profile']===true
+    &&$inheritedNpc['content']['dynamic_profile_fields']===['occupation','skills']
+    &&$explicitNpc['content']['dynamic_profile']===false&&$explicitNpc['content']['dynamic_profile_fields']===['goals'],
+    'Core Profile discovery defaults did not seed new NPCs or overwrote explicit/existing choices');
+
 $dynamicContent=$generatedBackfill['content'];$dynamicContent['dynamic_profile']=true;
-$dynamicContent['dynamic_profile_fields']=['personality'];$dynamicContent['personality']='Baseline personality to evolve.';
+$dynamicContent['dynamic_profile_fields']=['personality','occupation','skills'];$dynamicContent['personality']='Baseline personality to evolve.';
+$dynamicContent['occupation']='Baseline occupation.';$dynamicContent['skills']='Baseline skills.';
 $dynamicContent['speech_style']='Speech style must remain unchanged.';
 $dynamicContent['goals']='Goals must remain unchanged.';
 $dynamicProfile=$products->revise('profile',$backfillProfile['profile_id'],$dynamicContent,'enable dynamic profile fixture',$now);
@@ -778,7 +797,7 @@ $dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE jo
 $dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=$dynamicJob->fetch();
 $dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
-    &&($dynamicPayload['dynamic_fields']??null)===['personality']
+    &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
     &&count($dynamicPayload['source_turn_ids']??[])===10&&count($dynamicPayload['recent_events']??[])===10,
     'dynamic NPC profile evolution did not freeze its selected fields and witnessed history');
 $dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
@@ -789,6 +808,8 @@ $evolvedProfile=$products->getRevisioned('profile',$dynamicProfile['profile_id']
 $dynamicAgain=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
 $assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_revision']+1
     &&($evolvedProfile['content']['personality']??'')!==($dynamicContent['personality']??'')
+    &&($evolvedProfile['content']['occupation']??'')!==$dynamicContent['occupation']
+    &&($evolvedProfile['content']['skills']??'')!==$dynamicContent['skills']
     &&($evolvedProfile['content']['speech_style']??null)==='Speech style must remain unchanged.'
     &&($evolvedProfile['content']['goals']??null)==='Goals must remain unchanged.'
     &&$dynamicAgain['queued']===false&&$dynamicAgain['reason']==='interval',

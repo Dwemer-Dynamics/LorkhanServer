@@ -1160,7 +1160,7 @@ final class ManagementRouter
     private function portableCoreProfileOverrides(array $overrides):array
     {
         $overrides=EffectiveSettingsResolver::validateSettingsOverrides($overrides);$diary=DiaryGenerationPolicy::defaults();
-        return['response'=>['max_words'=>(int)($overrides['response']['max_words']??0)],
+        return (isset($overrides['profile_evolution']) ? ['profile_evolution'=>$overrides['profile_evolution']] : []) + ['response'=>['max_words'=>(int)($overrides['response']['max_words']??0)],
             'behavior'=>['rechat'=>($overrides['behavior']['rechat']??false)===true,
             'rechat_max_depth'=>(int)($overrides['behavior']['rechat_max_depth']??2),
             'rechat_probability_percent'=>(int)($overrides['behavior']['rechat_probability_percent']??50),
@@ -1974,6 +1974,13 @@ final class ManagementRouter
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
 
+        if (isset($values['profile_evolution_present'])) {
+            $fields=$values['profile_evolution_fields']??[];
+            if (!is_array($fields)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+            if ($fields===[] && !isset($values['profile_evolution_enabled'])) $fields=['personality','speech_style','goals'];
+            $overrides['profile_evolution']=EffectiveSettingsResolver::profileEvolutionDefaults([
+                'enabled'=>isset($values['profile_evolution_enabled']), 'fields'=>$fields]);
+        }
         return['schema'=>'lorkhan.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];
     }
@@ -2070,8 +2077,8 @@ final class ManagementRouter
             'locked'=>isset($values['locked']),'favorite'=>isset($values['favorite'])];
         if(array_key_exists('dynamic_profile_fields_present',$values)){
             $requested=$values['dynamic_profile_fields']??[];if(!is_array($requested))throw new InvalidArgumentException('invalid_dynamic_profile_fields');
-            foreach(['personality','speech_style','goals']as$field)if(isset($values['dynamic_profile_'.$field]))$requested[]=$field;
-            $fields=[];foreach(['personality','speech_style','goals']as$field)if(in_array($field,$requested,true))$fields[]=$field;
+            foreach(EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS as$field)if(isset($values['dynamic_profile_'.$field]))$requested[]=$field;
+            $fields=[];foreach(EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS as$field)if(in_array($field,$requested,true))$fields[]=$field;
             if(isset($values['dynamic_profile'])&&$fields===[])throw new InvalidArgumentException('invalid_dynamic_profile_fields');
             $content['dynamic_profile']=isset($values['dynamic_profile']);
             $content['dynamic_profile_fields']=$fields===[]?['personality','speech_style','goals']:$fields;

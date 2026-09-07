@@ -1,6 +1,16 @@
 (() => {
     const dirtyForms = new Set();
 
+    // Core Profile cards must describe the current checkbox state, including unsaved keyboard changes.
+    document.querySelectorAll('.profiles-page .profile-toggle-control input[type="checkbox"]').forEach(control => {
+        const label = control.parentElement.querySelector('.toggle-text');
+        if (!label) return;
+        const sync = () => { label.textContent = control.checked ? 'On' : 'Off'; };
+        control.addEventListener('change', sync);
+        control.form?.addEventListener('reset', () => window.setTimeout(sync, 0));
+        sync();
+    });
+
     // Portable imports stay outside the unsaved Player and Narrator profile forms.
     ['player','narrator'].forEach(kind => {
         const dialog = document.getElementById(`${kind}-import-dialog`);

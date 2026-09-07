@@ -657,6 +657,15 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
     margin-bottom: 8px;
 }
 
+.profiles-page .profile-feature-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; margin-bottom:9px; }
+.profiles-page .profile-feature-grid .provider-card { height:100%; margin:0; box-sizing:border-box; }
+.profiles-page .profile-feature-grid .setting-row { grid-template-columns:1fr; gap:7px; }
+.profiles-page .profile-feature-grid .setting-control { max-width:none; justify-self:stretch; }
+.profiles-page .profile-setting-chips { display:flex; flex-wrap:wrap; gap:8px; justify-content:flex-start; }
+.profiles-page .profile-setting-chip { display:inline-flex; align-items:center; gap:6px; background:#29261f; border:1px solid #554b35; padding:6px 10px; border-radius:8px; color:#e6e0d1; font-size:12px; }
+.profiles-page .profile-setting-chip input[type="checkbox"] { transform:scale(1); margin:0; accent-color:#bc9d5a; }
+@media (max-width:980px) { .profiles-page .profile-feature-grid { grid-template-columns:1fr; } }
+
 .profiles-page .provider-title {
     display: flex;
     align-items: center;

@@ -9,6 +9,22 @@ use InvalidArgumentException;
 /** Resolve typed settings without collapsing explicit false, zero, or empty-string overrides. */
 final class EffectiveSettingsResolver
 {
+    public const DYNAMIC_PROFILE_FIELDS = ['personality', 'occupation', 'skills', 'speech_style', 'goals'];
+
+    /** Validate discovery defaults; these seed NPC content, not the client settings contract. */
+    public static function profileEvolutionDefaults(mixed $value): array
+    {
+        if ($value === null) return ['enabled'=>false, 'fields'=>['personality','speech_style','goals']];
+        if (!is_array($value)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        $keys=array_keys($value);sort($keys);
+        if ($keys!==['enabled','fields'] || !is_bool($value['enabled']) || !is_array($value['fields'])
+            || !array_is_list($value['fields']) || $value['fields']===[] || count($value['fields'])>5)
+            throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        foreach ($value['fields'] as $field) if (!is_string($field) || !in_array($field,self::DYNAMIC_PROFILE_FIELDS,true))
+            throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        if (count(array_unique($value['fields']))!==count($value['fields'])) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        return $value;
+    }
 
     /** @return array<string,mixed> */
     public static function defaults(): array
@@ -291,6 +307,10 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('profile_evolution', $validation)) {
+            self::profileEvolutionDefaults($validation['profile_evolution']);
+            unset($validation['profile_evolution']);
+        }
         // Response length is a server prompt instruction, not an OpenMW client control.
         if (array_key_exists('response', $validation)) {
             $response = $validation['response'];

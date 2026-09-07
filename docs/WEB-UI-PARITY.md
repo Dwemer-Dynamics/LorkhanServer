@@ -3503,3 +3503,36 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   matched, private routes 403, unauthenticated session 401, health valid. Secrets,
   config and voices preserved. No game launch/commands or live provider tests.
   Core Profile row and overall goal remain incomplete.
+
+## Core Profile Dynamic Profile controls — 2026-09-07
+
+- Added the reference Dynamic Profile toggle to Profiles & Memories and the
+  Dynamic Profile Fields card above the settings columns. Editable field chips
+  match the reference order: personality, occupation, skills, speechstyle, goals.
+  Lorkhan stores speech_style internally. Gold branding is retained.
+- Core Profile settings_overrides.profile_evolution is a validated server-only
+  discovery default. New actor profiles inherit enabled/fields; explicit template
+  or NPC choices win. Editing the Core Profile never rewrites existing NPCs.
+  Player, Narrator and template creation do not receive actor defaults. No protocol
+  extension, migration, live profile rewrite or new timer was introduced.
+- Occupation and skills are wired through NPC editing, the existing 20-minute
+  witnessed-history queue, provider JSON schema and revision-fenced worker.
+  The worker still changes only selected fields and respects locked profiles.
+- Portable Core Profile export/import retains the new defaults. Existing HTTP
+  tests now cover save, invalid-field rejection, export and import. Existing
+  integration tests cover inheritance/explicit choices and selected-field updates.
+- Compared live populated Core Profile against Herika edit=1, including screenshots.
+  A write-disabled rendered copy at 390px verified wrapping and Space-key selection.
+  This found stale On/Off labels; fixed shared Core Profile toggle feedback and
+  visually rechecked that checking Dynamic Profile changes Off to On. No live
+  profile save or provider request was submitted during browser review.
+- Passed: 493 server checks, 98-file protocol manifest, PHP lint, browser-like HTTP
+  forms (including a second run with the new assertions), database integration,
+  migration/durable jobs, JavaScript syntax and whitespace checks. Schema remains
+  170 relations, hash b8099463e3d26547c1467feef76847ede606e1c49b3135ec6d760ecdc878b795.
+- Final local deployment rollback: /var/backups/lorkhanserver-code.NXyg1J. All 781
+  runtime files match; no extra files or old paths. Private paths 403, unauthenticated
+  session 401, health valid, NPC routes 200/404. Configuration, secrets and voices
+  preserved. No game launch, game commands or live AI evolution proof.
+- Core Profile parity is still open: presets, other supported settings and their
+  runtime mappings remain in the prior full-form audit. Overall goal remains active.

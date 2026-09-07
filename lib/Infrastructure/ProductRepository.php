@@ -55,6 +55,13 @@ final class ProductRepository
                 $this->revision('core_profile_revisions', 'core_profile_id', $id, 1, $input['content'], $reason, $now);
             } elseif ($kind === 'profile') {
                 $coreProfileId = $input['core_profile_id'] ?? $this->defaultCoreProfileForInstallation((string)$input['installation_id'], $now, true)['core_profile_id'];
+                if (!in_array($input['actor_identity']['kind'] ?? 'actor', ['player','narrator','template'], true)) {
+                    $core=$this->getRevisioned('core_profile',(string)$coreProfileId);
+                    if ($core['installation_id']!==$input['installation_id']) throw new InvalidArgumentException('scope_mismatch');
+                    $defaults=EffectiveSettingsResolver::profileEvolutionDefaults($core['content']['settings_overrides']['profile_evolution']??null);
+                    // Explicit NPC/template choices win; subsequent Core Profile edits do not rewrite NPCs.
+                    $input['content'] += ['dynamic_profile'=>$defaults['enabled'],'dynamic_profile_fields'=>$defaults['fields']];
+                }
                 $this->db->prepare('INSERT INTO profiles (profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES (:id,:installation,:name,CAST(:identity AS jsonb),:core_profile,:now)')
                     ->execute(['id'=>$id,'installation'=>$input['installation_id'],'name'=>$input['name'],'identity'=>$this->encode($input['actor_identity'] ?? []),'core_profile'=>$coreProfileId,'now'=>$now]);
                 $this->revision('profile_revisions', 'profile_id', $id, 1, $input['content'], $reason, $now);
@@ -681,7 +688,7 @@ final class ProductRepository
             if(($content['dynamic_profile']??false)!==true)return['queued'=>false,'reason'=>'disabled','observed'=>0];
             $fields=is_array($content['dynamic_profile_fields']??null)?array_values($content['dynamic_profile_fields']):[];
             $fields=array_values(array_unique(array_filter($fields,static fn(mixed$field):bool=>is_string($field)
-                &&in_array($field,['personality','speech_style','goals'],true))));
+                &&in_array($field,EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,true))));
             if($fields===[])$fields=['personality','speech_style','goals'];
             $identity=$this->json($row['actor_identity']);$narrator=($identity['kind']??null)==='narrator';
             if(!$narrator&&in_array($identity['kind']??'actor',['player','template'],true))

@@ -615,6 +615,8 @@ function lorkhan_ui_profile_cards(array $rows,array $voiceOptions,array $promptR
                 ['locked','Lock against automatic AI profile generation','checkbox','1',[],false,$locked],
                 ['dynamic_profile','Enable Dynamic Profile','checkbox','1',[],false,$dynamicProfile],
                 ['dynamic_profile_personality','Evolve personality','checkbox','1',[],false,in_array('personality',$dynamicFields,true)],
+                ['dynamic_profile_occupation','Evolve occupation','checkbox','1',[],false,in_array('occupation',$dynamicFields,true)],
+                ['dynamic_profile_skills','Evolve skills','checkbox','1',[],false,in_array('skills',$dynamicFields,true)],
                 ['dynamic_profile_speech_style','Evolve speech style','checkbox','1',[],false,in_array('speech_style',$dynamicFields,true)],
                 ['dynamic_profile_goals','Evolve goals','checkbox','1',[],false,in_array('goals',$dynamicFields,true)],
                 ['favorite','Favorite NPC','checkbox','1',[],false,$favorite],
@@ -699,7 +701,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock against automatic AI profile generation',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
     $checkbox('dynamic_profile','Enable Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
     echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><div class="form-item npc-editor-check"><span>Dynamic Profile Fields</span>';
-    foreach(['personality'=>'Personality','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
+    foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
     echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></div>';
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}

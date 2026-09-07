@@ -1474,6 +1474,8 @@ core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_
     setting_diary_automatic_interval_seconds='90',setting_diary_context_turn_limit='12',
     setting_diary_prompt='Record only witnessed events.')
 core_values.pop('setting_diary_include_in_context',None)
+core_values.update(profile_evolution_enabled='1')
+core_values['profile_evolution_fields[]']=['occupation','skills']
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
 core_saved=next(f for f in core_page.forms if f['action'].endswith('/forms/core-profile-save'))
@@ -1483,6 +1485,10 @@ assert core_saved['fields']['setting_diary_automatic_interval_seconds']=='90'
 assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fields']['setting_behavior_rechat_max_depth']=='5' and core_saved['fields']['setting_behavior_rechat_probability_percent']=='65'
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert core_saved['fields']['setting_response_max_words']=='60',core_saved
+assert core_saved['fields']['profile_evolution_enabled']=='1'
+assert all('value="'+field+'" checked' in core_body for field in ['occupation','skills'])
+invalid_evolution=dict(core_values); invalid_evolution['profile_evolution_fields[]']=['notes']
+assert request(core_form['action'],'POST',invalid_evolution).status==422
 invalid_word_values=dict(core_values,setting_response_max_words='10001')
 assert request(core_form['action'],'POST',invalid_word_values).status==422
 assert 'setting_diary_include_in_context' not in core_saved['fields'] and core_saved['fields']['setting_diary_context_turn_limit']=='12'
@@ -1537,6 +1543,7 @@ assert core_preset_response.status==200 and sorted(core_preset)==['exported_at',
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
 assert core_preset['settings_overrides']['response']=={'max_words':60}
+assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills']}
 assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':90,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
@@ -1564,6 +1571,8 @@ assert imported_form['fields']['setting_diary_enabled']=='1' and 'setting_diary_
 assert imported_form['fields']['setting_diary_automatic_enabled']=='1' and imported_form['fields']['setting_diary_automatic_wait_enabled']=='1'
 assert imported_form['fields']['setting_diary_automatic_interval_seconds']=='90'
 assert imported_form['fields']['setting_response_max_words']=='60'
+assert imported_form['fields']['profile_evolution_enabled']=='1'
+assert all('value="'+field+'" checked' in body for field in ['occupation','skills'])
 assert imported_form['fields']['setting_behavior_rechat_allow_actions']=='1'
 assert imported_form['fields']['setting_diary_context_turn_limit']=='12' and '>Record only witnessed events.</textarea>' in body
 assert all(imported_form['fields'].get(field,'')=='' for field in ['prompt_configuration_id','llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','diary_generation_configuration_id','tts_configuration_id'])

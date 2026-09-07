@@ -327,3 +327,8 @@ Chatterbox/XTTS paralinguistic controls derive from the pinned schema/editor.
 `tts/ParalinguisticSpeech.php` adapts the enabled prompt and case-insensitive tag
 allowlist behavior from Herika `main.php` and `lib/chat_helper_functions.php`;
 native prompt provenance, bounded fields and provider-only text handling remain.
+
+Core Profile Dynamic Profile toggle, Editable Fields card and field chips derive
+from the pinned `ui/core/core_profiles.php`. Native discovery defaults seed NPC
+content once and the existing bounded evolution worker supports all five fields;
+Lorkhan branding and the OpenMW controls contract are preserved.

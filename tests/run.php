@@ -683,6 +683,18 @@ $wordPrompt=$assembler->assemble($promptTurn,$wordSelection)['provider_input']['
 $check(str_contains($wordPrompt,'Keep the combined spoken dialogue across all utterances within 60 words.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'combined spoken dialogue'),'profile word limit reaches compact prompt while absent limits preserve the prompt');
 $wordResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['response'=>['max_words'=>60]]],[]);
+$evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS];
+$evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
+$check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
+    &&!isset($evolutionResolved['settings']['profile_evolution'])
+    &&!isset(EffectiveSettingsResolver::controlsProjection($evolutionResolved)['settings']['profile_evolution']),
+    'Core Profile evolution defaults retain all five fields without leaking into the client contract');
+foreach([['enabled'=>'true','fields'=>['personality']],['enabled'=>true,'fields'=>[]],
+    ['enabled'=>true,'fields'=>['notes']],['enabled'=>true,'fields'=>['skills','skills']],
+    ['enabled'=>true,'fields'=>['skills'],'extra'=>true]] as $invalidEvolution){
+    try{EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$invalidEvolution]);$check(false,'invalid evolution defaults rejected');}
+    catch(InvalidArgumentException){$check(true,'invalid evolution defaults rejected');}
+}
 $check($wordResolved['settings']['response']['max_words']===60
     &&$wordResolved['sources']['settings.response.max_words']==='core_profile'
     &&!isset(EffectiveSettingsResolver::controlsProjection($wordResolved)['settings']['response']),'response limits are traced but do not change the client controls schema');

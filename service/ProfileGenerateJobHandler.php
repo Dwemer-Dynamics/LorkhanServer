@@ -72,8 +72,8 @@ final class ProfileGenerateJobHandler implements JobHandler
                 foreach($event['npc_responses']as$text)if(!is_string($text)||trim($text)===''||!mb_check_encoding($text,'UTF-8'))
                     throw new \InvalidArgumentException('invalid_profile_backfill_context');}
             $input['recent_events']=$events;$input['source_turn_ids']=$sources;
-            if($evolution){$fields=$payload['dynamic_fields']??null;$allowed=['personality','speech_style','goals'];
-                if(!is_array($fields)||!array_is_list($fields)||$fields===[]||count($fields)>3||count(array_unique($fields))!==count($fields))
+            if($evolution){$fields=$payload['dynamic_fields']??null;$allowed=EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS;
+                if(!is_array($fields)||!array_is_list($fields)||$fields===[]||count($fields)>count($allowed)||count(array_unique($fields))!==count($fields))
                     throw new \InvalidArgumentException('invalid_profile_evolution_fields');
                 foreach($fields as$field)if(!is_string($field)||!in_array($field,$allowed,true))throw new \InvalidArgumentException('invalid_profile_evolution_fields');
                 $input['dynamic_fields']=$fields;}}
