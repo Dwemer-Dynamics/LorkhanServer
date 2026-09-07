@@ -331,14 +331,14 @@ final class ProductRepository
         $setting = $input['setting'] ?? null;
         $revision = $input['revision'] ?? null;
         $allowed = ['response.max_words', 'behavior.rechat_max_depth', 'behavior.rechat_probability_percent',
-            'behavior.rechat_allow_actions', 'memory.recent_turn_limit', 'diary.context_turn_limit',
+            'profile_evolution.history_limit', 'behavior.rechat_allow_actions', 'memory.recent_turn_limit', 'diary.context_turn_limit',
             'diary.automatic_interval_seconds', 'diary.prompt'];
         if (!is_string($id) || !Uuid::isValid($id) || !is_string($setting) || !in_array($setting, $allowed, true)
             || !is_int($revision) || $revision < 1 || !array_key_exists('value', $input)) throw new InvalidArgumentException('invalid_profile_setting_copy');
         if (($input['confirm'] ?? null) !== 'Copy to all') throw new InvalidArgumentException('confirmation_mismatch');
         [$section, $field] = explode('.', $setting, 2);
         $value = $input['value'];
-        EffectiveSettingsResolver::validateSettingsOverrides([$section => [$field => $value]]);
+        EffectiveSettingsResolver::validateSettingsOverrides([$section => ($section==='profile_evolution'?EffectiveSettingsResolver::profileEvolutionDefaults(null):[]) + [$field => $value]]);
         return $this->transaction(function () use ($id, $setting, $revision, $section, $field, $value): array {
             $source = $this->getRevisioned('core_profile', $id);
             // Stable lock order prevents concurrent bulk operations from deadlocking. Never silently copy a partial page.
@@ -355,6 +355,7 @@ final class ProductRepository
                 $content = $current['content'];
                 if (array_key_exists($field, $content['settings_overrides'][$section] ?? [])
                     && $content['settings_overrides'][$section][$field] === $value) continue;
+                if($section==='profile_evolution')$content['settings_overrides'][$section]=EffectiveSettingsResolver::profileEvolutionDefaults($content['settings_overrides'][$section]??null);
                 $content['settings_overrides'][$section][$field] = $value;
                 EffectiveSettingsResolver::validateCoreProfile($content);
                 $updated = $this->revise('core_profile', $profile['core_profile_id'], $content, 'Copy setting to all: ' . $setting,
@@ -713,8 +714,10 @@ final class ProductRepository
                 ."AND payload->>'mode'=:mode AND created_at>clock_timestamp()-interval '20 minutes' LIMIT 1");
             $pending->execute(['profile'=>$profileId,'playthrough'=>$playthroughId,'mode'=>$mode]);
             if($pending->fetchColumn())return['queued'=>false,'reason'=>'interval','observed'=>0];
-            $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,50)
-                :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,50);
+            $effective=$this->effectiveSettingsForProfile((string)$row['installation_id'],$profileId);
+            $historyLimit=(int)($effective['core_profile']['content']['settings_overrides']['profile_evolution']['history_limit']??50);
+            $history=$narrator?$this->narratorEvolutionHistory((string)$row['installation_id'],$playthroughId,$historyLimit)
+                :$this->profileBackfillHistory((string)$row['installation_id'],$playthroughId,$identity,$historyLimit);
             $observed=count($history['source_turn_ids']);
             if($observed===0)return['queued'=>false,'reason'=>'history_unavailable','observed'=>0];
             $revision=(int)$row['current_revision'];$bucket=(int)floor(time()/1200);

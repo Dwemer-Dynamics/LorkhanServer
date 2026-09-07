@@ -11,18 +11,19 @@ final class EffectiveSettingsResolver
 {
     public const DYNAMIC_PROFILE_FIELDS = ['personality', 'occupation', 'skills', 'speech_style', 'goals'];
 
-    /** Validate discovery defaults; these seed NPC content, not the client settings contract. */
+    /** Validate discovery defaults and server-only evolution history; neither changes the client contract. */
     public static function profileEvolutionDefaults(mixed $value): array
     {
         if ($value === null) return ['enabled'=>false, 'fields'=>['personality','speech_style','goals']];
         if (!is_array($value)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         $keys=array_keys($value);sort($keys);
-        if ($keys!==['enabled','fields'] || !is_bool($value['enabled']) || !is_array($value['fields'])
+        if (!in_array($keys,[['enabled','fields'],['enabled','fields','history_limit']],true) || !is_bool($value['enabled']) || !is_array($value['fields'])
             || !array_is_list($value['fields']) || $value['fields']===[] || count($value['fields'])>5)
             throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         foreach ($value['fields'] as $field) if (!is_string($field) || !in_array($field,self::DYNAMIC_PROFILE_FIELDS,true))
             throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         if (count(array_unique($value['fields']))!==count($value['fields'])) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
+        if(array_key_exists('history_limit',$value)&&(!is_int($value['history_limit'])||$value['history_limit']<0||$value['history_limit']>400))throw new InvalidArgumentException('invalid_profile_evolution_defaults');
         return $value;
     }
 

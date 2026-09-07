@@ -734,7 +734,7 @@ $wordPrompt=$assembler->assemble($promptTurn,$wordSelection)['provider_input']['
 $check(str_contains($wordPrompt,'Keep the combined spoken dialogue across all utterances within 60 words.')
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'combined spoken dialogue'),'profile word limit reaches compact prompt while absent limits preserve the prompt');
 $wordResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['response'=>['max_words'=>60]]],[]);
-$evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS];
+$evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS,'history_limit'=>20];
 $corePresetSource=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Keep the profile prompt.',
     'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001','llm_randomizer_enabled'=>true],
     'settings_overrides'=>['response'=>['max_words'=>70],'profile_evolution'=>$evolutionDefaults]];
@@ -759,6 +759,7 @@ $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'
     &&!isset(EffectiveSettingsResolver::controlsProjection($evolutionResolved)['settings']['profile_evolution']),
     'Core Profile evolution defaults retain all five fields without leaking into the client contract');
 foreach([['enabled'=>'true','fields'=>['personality']],['enabled'=>true,'fields'=>[]],
+    ['enabled'=>true,'fields'=>['skills'],'history_limit'=>-1],['enabled'=>true,'fields'=>['skills'],'history_limit'=>401],['enabled'=>true,'fields'=>['skills'],'history_limit'=>'20'],
     ['enabled'=>true,'fields'=>['notes']],['enabled'=>true,'fields'=>['skills','skills']],
     ['enabled'=>true,'fields'=>['skills'],'extra'=>true]] as $invalidEvolution){
     try{EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$invalidEvolution]);$check(false,'invalid evolution defaults rejected');}

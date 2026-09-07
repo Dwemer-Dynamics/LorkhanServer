@@ -814,6 +814,11 @@ $dynamicContent['goals']='Goals must remain unchanged.';
 $dynamicProfile=$products->revise('profile',$backfillProfile['profile_id'],$dynamicContent,'enable dynamic profile fixture',$now);
 $db->prepare("UPDATE sessions SET created_at=clock_timestamp()-interval '21 minutes' WHERE session_id=:session")
     ->execute(['session'=>$sessionId]);
+$evolutionHistoryCore=$products->getRevisioned('core_profile',$evolutionCore['core_profile_id']);
+$evolutionHistoryContent=$evolutionHistoryCore['content'];$evolutionHistoryContent['settings_overrides']['profile_evolution']['history_limit']=3;
+$products->revise('core_profile',$evolutionCore['core_profile_id'],$evolutionHistoryContent,'bounded evolution history fixture',$now);
+$db->prepare('UPDATE profiles SET core_profile_id=:core WHERE profile_id IN (:npc,:narrator)')->execute([
+    'core'=>$evolutionCore['core_profile_id'],'npc'=>$dynamicProfile['profile_id'],'narrator'=>$narratorProfile['profile_id']]);
 $dynamicQueued=$products->maybeEnqueueDynamicProfileEvolution($dynamicProfile['profile_id'],$session['playthrough_id'],$sessionId);
 $dynamicJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='profile_evolution'");
@@ -821,7 +826,7 @@ $dynamicJob->execute(['profile'=>$dynamicProfile['profile_id']]);$dynamicJobRow=
 $dynamicPayload=$dynamicJobRow?json_decode((string)$dynamicJobRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
 $assert(($dynamicQueued['queued']??false)===true&&$dynamicJobRow&&$dynamicJobRow['state']==='queued'
     &&($dynamicPayload['dynamic_fields']??null)===['personality','occupation','skills']
-    &&count($dynamicPayload['source_turn_ids']??[])===10&&count($dynamicPayload['recent_events']??[])===10,
+    &&count($dynamicPayload['source_turn_ids']??[])===3&&count($dynamicPayload['recent_events']??[])===3,
     'dynamic NPC profile evolution did not freeze its selected fields and witnessed history');
 $dynamicHandlerPayload=$dynamicPayload;unset($dynamicHandlerPayload['provider_configuration_id'],$dynamicHandlerPayload['provider_revision']);
 $dynamicHandlerPayload['_job']=['job_id'=>$dynamicJobRow['job_id'],'attempt'=>1];
@@ -846,9 +851,10 @@ $narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_job
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
 $narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
 $narratorEvolutionPayload=$narratorEvolutionRow?json_decode((string)$narratorEvolutionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
+$assert(count($narratorEvolutionPayload['source_turn_ids']??[])===3,'Narrator evolution ignored Core Profile history limit');
 $assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
     &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
-    &&count($narratorEvolutionPayload['recent_events']??[])===10,
+    &&count($narratorEvolutionPayload['recent_events']??[])===3,
     'dynamic narrator evolution did not freeze the shared witnessed history');
 $narratorEvolutionHandler=$narratorEvolutionPayload;unset($narratorEvolutionHandler['provider_configuration_id'],$narratorEvolutionHandler['provider_revision']);
 $narratorEvolutionHandler['_job']=['job_id'=>$narratorEvolutionRow['job_id'],'attempt'=>1];

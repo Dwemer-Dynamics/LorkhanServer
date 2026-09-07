@@ -4715,3 +4715,29 @@ child functionality or visual parity of all captured screenshots. Database and
 Playthrough Manager feature gaps, other child interactions and the full matrix
 remain open. No product code change or runtime deploy was needed for this
 verification checkpoint.
+
+
+### Core Profile dynamic-history field and runtime mapping (2026-09-07)
+
+The built-in preset audit found Herika CONTEXT_HISTORY_DYNAMIC_PROFILE had no
+editable native counterpart: NPC and Narrator evolution both hard-coded 50.
+Added Context History Dynamic Profile Event Count alongside the two existing
+Context controls, using the reference 0-400 slider/number range, default 50.
+Save, named/portable presets and revision-fenced Copy to all carry the optional
+server-only history_limit leaf. Old profiles/presets without the leaf retain the
+previous default. No client contract or migration changes were made.
+
+Both evolution queue paths now read the assigned/default Core Profile limit.
+Native retrieval still uses completed witnessed dialogue turns (explicit in the
+help text), not a claim of identical Herika eventlog row semantics. Zero supplies
+no history and leaves the existing history-unavailable guard in place. Existing
+byte budgets and field-selection/locking/cadence safeguards remain.
+
+564 unit checks passed. Existing integration fixtures prove a three-turn bound
+for both NPC and Narrator jobs, with selected-field evolution unchanged. The
+integration wrapper initially reported a stale inventory hash; its fresh-write
+run completed migrations/jobs with 172 relations and only a generated hash diff,
+which was reverted. Full management HTTP checks passed save/reload at 20, preset
+export, and Copy to all at 12, including the existing authorization/revision tests.
+Built-in preset mappings, remaining Core fields and final visual acceptance are
+still open; this checkpoint does not certify full Core Profile parity.

@@ -2095,7 +2095,8 @@ final class ManagementRouter
             if (!is_array($fields)) throw new InvalidArgumentException('invalid_profile_evolution_defaults');
             if ($fields===[] && !isset($values['profile_evolution_enabled'])) $fields=['personality','speech_style','goals'];
             $overrides['profile_evolution']=EffectiveSettingsResolver::profileEvolutionDefaults([
-                'enabled'=>isset($values['profile_evolution_enabled']), 'fields'=>$fields]);
+                'enabled'=>isset($values['profile_evolution_enabled']), 'fields'=>$fields,
+                'history_limit'=>$number($values,'setting_profile_evolution_history_limit',50)]);
         }
         return['schema'=>'lorkhan.core-profile.v1','prompt'=>(string)($values['prompt']??''),
             'routing'=>$routing,'settings_overrides'=>$overrides];

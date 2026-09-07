@@ -1552,7 +1552,7 @@ core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_
     setting_diary_prompt='Record only witnessed events.')
 core_values.pop('setting_diary_include_in_context',None)
 core_values['setting_diary_latest_entry_in_context']='1'
-core_values.update(profile_evolution_enabled='1')
+core_values.update(profile_evolution_enabled='1',setting_profile_evolution_history_limit='20')
 core_values['profile_evolution_fields[]']=['occupation','skills']
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
 core_body=core_response.read().decode(); core_page=Page(); core_page.feed(core_body)
@@ -1564,6 +1564,7 @@ assert core_saved['fields']['setting_behavior_rechat']=='1' and core_saved['fiel
 assert core_saved['fields']['setting_memory_recent_turn_limit']=='24',core_saved
 assert core_saved['fields']['setting_response_max_words']=='60',core_saved
 assert core_saved['fields']['profile_evolution_enabled']=='1'
+assert core_saved['fields']['setting_profile_evolution_history_limit']=='20'
 assert all('value="'+field+'" checked' in core_body for field in ['occupation','skills'])
 invalid_evolution=dict(core_values); invalid_evolution['profile_evolution_fields[]']=['notes']
 assert request(core_form['action'],'POST',invalid_evolution).status==422
@@ -1621,7 +1622,7 @@ assert core_preset_response.status==200 and sorted(core_preset)==['exported_at',
 assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset['settings_overrides']['behavior']=={'rechat':True,'rechat_max_depth':5,'rechat_probability_percent':65,'rechat_allow_actions':True}
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
 assert core_preset['settings_overrides']['response']=={'max_words':60}
-assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills']}
+assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills'],'history_limit':20}
 assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':90,'include_in_context':False,'latest_entry_in_context':True,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
@@ -2335,7 +2336,7 @@ assert r.status==422,(r.status,body)
 # Copy-to-all is a confirmed, CSRF-protected exact-field write; stale sources cannot overwrite newer work.
 copy_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
 copy_revision=int(re.search(r'data-profile-copy-revision="(\d+)"',copy_body).group(1))
-assert len(re.findall(r'data-profile-copy-setting="',copy_body))==8
+assert len(re.findall(r'data-profile-copy-setting="',copy_body))==9
 copy_path='/LorkhanServer/manage/api/v1/core-profile-copy-setting'
 copy_values={'core_profile_id':core_edit.group(1),'revision':copy_revision,'setting':'response.max_words','value':37,'confirm':'Copy to all'}
 assert json_request(copy_path,'POST',copy_values).status==401
@@ -2349,6 +2350,10 @@ assert json_request(copy_path,'POST',copy_values,csrf).status==409
 copy_values['revision']=copied['revision']
 r=json_request(copy_path,'POST',copy_values,csrf); repeated=json.loads(r.read())
 assert r.status==200 and repeated['profiles_updated']==0 and repeated['revision']==copied['revision'],repeated
+r=json_request(copy_path,'POST',dict(copy_values,setting='profile_evolution.history_limit',value=12),csrf); copied_history=json.load(r)
+assert r.status==200 and copied_history['profiles_updated']>=1,copied_history
+copy_history_body=request('/LorkhanServer/ui/core/core_profiles.php?edit='+core_edit.group(1)).read().decode()
+assert re.search(r'name="setting_profile_evolution_history_limit" value="12"',copy_history_body)
 # STT tests use the owned fixed sample, not a TTS call, and expose only bounded results.
 # Earlier TTS checks deliberately exhaust their browser's shared speech-test budget.
 jar.clear()
