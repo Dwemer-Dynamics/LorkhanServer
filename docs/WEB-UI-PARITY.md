@@ -4088,3 +4088,54 @@ component. Preserve native security, OpenMW semantics, branding and exclusions.
   relations. Runtime verified at 790 files with no hash mismatches/extras/old paths.
   Local rollback: `/var/backups/lorkhanserver-code.AZxXWi`; private routes and health
   pass, and configuration, credentials and voice files are preserved.
+
+## Narrator diary/context dependency audit — 2026-09-07
+
+Authoritative backend comparison uses `git show` / `git grep` at Herika 529364c,
+not its current local checkout: the checkout's latest-diary helper still excludes
+Narrator, while the pinned revision has the narrator override implementation.
+The pinned UI already used throughout this matrix contains that newer control.
+
+### Next implementation: latest diary inheritance, not a standalone checkbox
+
+- Herika `lib/chat_helper_functions.php:17-92` reads the optional narrator value
+  from core_narrator, otherwise inherits Core Profile metadata
+  `LATEST_DIARY_CONTEXT_ENABLED`. Explicit false overrides an enabled Core
+  Profile. Ordinary NPCs sharing that profile ignore the narrator override.
+  Selection is the author's latest diary ordered by game timestamp, local time
+  and row ID. `unittests/tests/DiaryMemoryRecallTest.php` covers this separation.
+- Lorkhan `DiaryGenerationPolicy` currently has `include_in_context` but no
+  latest-entry flag. `ProductRepository::promptContext` selects up to 100 narrative
+  records from the session and active profile; `PromptAssembler` puts the bounded
+  selected narratives in Morrowind context. This is not a guaranteed latest-entry
+  block in character context. Renaming that existing flag would be incorrect.
+- Implement a validated Core Profile latest-entry default, narrator-only optional
+  override and explicit source selection. Copy the reference Core Profile and
+  Narrator controls together. Preserve existing narrative inclusion independently;
+  do not silently redefine it or mutate shared profiles on Narrator save.
+- Select a non-deleted diary from the active author's profile within the same
+  installation/playthrough; freeze its identity/content in the existing prompt
+  selection and account for it in prompt budgets/source diagnostics. Define the
+  native recorded game-time ordering explicitly rather than using wall time
+  without checking available diary provenance.
+- Required proof: enabled/disabled/inherited/explicit false; NPC sharing the Core
+  Profile unaffected; newer unrelated author/playthrough excluded; empty/deleted
+  entries; actual final assembled prompt placement and source accounting; copied
+  controls, save/reload, export/import and embedded browser state.
+
+### Other controls remain separate work
+
+- `only_diary_access` in pinned Herika filters diary-classified memory recall;
+  when false the narrator may recall NPC diaries. Lorkhan's generation handler
+  currently writes narrative_records, and its narrative selection remains scoped
+  to active/session profiles. Trace recall and diary-derived representations before
+  widening selection or copying this toggle; do not treat the existing bounded
+  narrative list as full recall parity.
+- `hide_from_context` concerns narrator dialogue visibility, unlike Lorkhan's
+  profile-context toggle. Filter source events using canonical identity, before
+  history limits, while preserving stored events and narrator's own context.
+- `books_only_narrator` constrains who summarizes books; Lorkhan's book-event
+  enablement switch is not equivalent. It remains a runtime-routing dependency.
+
+This checkpoint records verified implementation requirements only. No product
+code, provider calls, live configuration or deployment changed in this audit.
