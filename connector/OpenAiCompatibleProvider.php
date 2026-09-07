@@ -38,7 +38,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         return $this->completeStreaming($turn, $cancellation, static function (string $delta): void {});
     }
 
-    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta): array
+    public function completeStreaming(array $turn, CancellationToken $cancellation, callable $onDialogueDelta, ?callable $diagnosticObserver = null): array
     {
         $cancellation->throwIfCancellationRequested();
         $this->reportedUsage=[];
@@ -55,6 +55,7 @@ final class OpenAiCompatibleProvider implements StreamingProvider
             $request['stream_options']=['include_usage'=>true];
             $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         }
+        $this->emitDiagnostic($diagnosticObserver, 'request', $request);
         $networkOptions = OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
         $handle = curl_init($this->endpoint);
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -172,7 +173,28 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         foreach ($visible->push('', true) as $text) $onDialogueDelta($text);
         $result = $this->decodeStructuredContent($content, $prefix);
         $this->validateResultShape($result);
-        return $this->normalizeAction($result, $turn);
+        $result = $this->normalizeAction($result, $turn);
+        $this->emitDiagnostic($diagnosticObserver, 'response', $result);
+        return $result;
+    }
+
+    /** Explicit test readers receive bounded body data only, with the selected key removed even if echoed. */
+    private function emitDiagnostic(?callable $observer, string $stage, array $value): void
+    {
+        if ($observer === null) return;
+        $redact = function (mixed $item, ?string $key = null) use (&$redact): mixed {
+            $item = \LorkhanServer\Security\Redactor::value($item, $key);
+            if (is_array($item)) {
+                foreach ($item as $field=>$child) $item[$field] = $redact($child, is_string($field)?$field:null);
+            } elseif (is_object($item)) {
+                $item = clone $item;
+                foreach (get_object_vars($item) as $field=>$child) $item->$field = $redact($child, $field);
+            } elseif (is_string($item) && $this->apiKey !== '') $item = str_replace($this->apiKey, '[REDACTED]', $item);
+            return $item;
+        };
+        $safe = $redact($value);
+        if (strlen(json_encode($safe, JSON_THROW_ON_ERROR)) > 131072) $safe = ['truncated'=>true];
+        $observer($stage, $safe);
     }
 
     /** Decode the strict response while tolerating one common one-item transport wrapper. */

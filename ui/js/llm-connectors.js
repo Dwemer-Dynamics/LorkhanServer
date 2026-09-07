@@ -22,6 +22,7 @@
             result.className = '';
             result.textContent = 'Testing saved settings… Closing this dialog does not cancel the server request.';
             testDialog.querySelector('[data-llm-test-name]').textContent = testForm.dataset.connectorName;
+            testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => { panel.textContent = 'Waiting for test…'; });
             loader.hidden = false;
             testDialog.showModal();
             const controller = new AbortController();
@@ -30,12 +31,23 @@
                 const response = await fetch(testForm.action, {method:'POST', body:new FormData(testForm),
                     headers:{Accept:'application/json'}, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
                 const payload = await response.json();
+                const diagnostics = payload.diagnostics || {};
+                testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => {
+                    const value = diagnostics[panel.dataset.llmDiagnostic];
+                    panel.textContent = value && typeof value === 'object' && Object.keys(value).length
+                        ? JSON.stringify(value, null, 2)
+                        : panel.dataset.llmDiagnostic === 'request' && diagnostics.input
+                            ? 'No remote request was sent by this provider.' : 'Not captured for this request.';
+                });
                 if (!response.ok || payload.ok !== true || typeof payload.message !== 'string') throw new Error('test_failed');
                 result.textContent = payload.message;
                 result.className = 'llm-test-ok';
             } catch {
                 result.textContent = 'Test failed. Check the saved connector, API key and server logs. Your editor changes were not saved.';
                 result.className = 'llm-test-error';
+                testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => {
+                    if (panel.textContent === 'Waiting for test…') panel.textContent = 'No diagnostic response was received.';
+                });
             } finally {
                 clearTimeout(timeout);
                 loader.hidden = true;

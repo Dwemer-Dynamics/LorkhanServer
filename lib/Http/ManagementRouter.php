@@ -419,11 +419,12 @@ final class ManagementRouter
             return$this->redirect($this->uiPath($target).$joiner.http_build_query(['status'=>'tested','detail'=>$detail]));
         }
         if($domain==='provider-test'){
-            try{$detail=$this->testProvider($v);}catch(RuntimeException $error){
-                if(!$this->htmlRequest($r))return Response::json(502,['error'=>'provider_test_failed']);
+            $diagnostics=$this->htmlRequest($r)?null:[];
+            try{$detail=$this->testProvider($v,$diagnostics);}catch(RuntimeException $error){
+                if(!$this->htmlRequest($r))return Response::json(502,['error'=>'provider_test_failed','diagnostics'=>$diagnostics]);
                 throw$error;
             }
-            if(!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'message'=>$detail]);
+            if(!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'message'=>$detail,'diagnostics'=>$diagnostics]);
             return$this->redirect($this->uiPath('providers').'?'.http_build_query(['status'=>'tested','detail'=>$detail]));
         }
         if($domain==='provider-runtime-test'){
@@ -2426,14 +2427,16 @@ final class ManagementRouter
     }
 
     /** Exercise one saved LLM model slot without persisting the fixed diagnostic turn or its response. */
-    private function testProvider(array $values):string
+    private function testProvider(array $values,?array &$diagnostics=null):string
     {
         $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
         $configuration=$this->need($values,'configuration_id');$this->uuid($configuration,'configuration_id');
         $preset=$this->repository->getRevisioned('provider',$configuration);
         if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
         $slot=['configuration_id'=>$configuration,'revision'=>(int)($preset['current_revision']??0),'content'=>$preset['content']??[]];
-        return$this->diagnoseProvider(ProviderFactory::dialogueForSlot($this->providerConfig,$slot));
+        if($diagnostics!==null)$diagnostics=['connector'=>['name'=>(string)$preset['name'],'revision'=>$slot['revision'],
+            'driver'=>(string)$slot['content']['driver'],'model'=>(string)$slot['content']['model']]];
+        return$this->diagnoseProvider(ProviderFactory::dialogueForSlot($this->providerConfig,$slot),$diagnostics);
     }
 
     /** Run one explicitly requested Core Profile connector check and return only its redacted outcome. */
@@ -2451,13 +2454,21 @@ final class ManagementRouter
     }
 
     /** Validate one dialogue provider against the common utterance contract without saving its output. */
-    private function diagnoseProvider(Provider $provider):string
+    private function diagnoseProvider(Provider $provider,?array &$diagnostics=null):string
     {
         $identity=['kind'=>'npc','display_name'=>'LORKHAN Test NPC','record_id'=>'lorkhan_test_npc','content_file'=>'LORKHAN'];
         $player=['kind'=>'player','display_name'=>'Player','record_id'=>'player'];$started=microtime(true);
-        $result=$provider->complete(['payload'=>[
+        $turn=['payload'=>[
             'input'=>['mode'=>'text','text'=>'Reply with one brief in-character greeting.'],'speaker'=>$player,'target'=>$identity,'audience'=>[$identity],
-        ]],new NeverCancelledToken());
+        ]];
+        if($diagnostics!==null&&$provider instanceof \LorkhanServer\Application\OpenAiCompatibleProvider){
+            $result=$provider->completeStreaming($turn,new NeverCancelledToken(),static function(string $delta):void{},
+                static function(string $stage,array $body)use(&$diagnostics):void{$diagnostics[$stage]=$body;});
+            $diagnostics['usage']=$provider->reportedUsage();
+        }else{
+            $result=$provider->complete($turn,new NeverCancelledToken());
+            if($diagnostics!==null){$diagnostics['input']=$turn;$diagnostics['response']=\LorkhanServer\Security\Redactor::value($result);}
+        }
         $utterances=$result['utterances']??null;
         if(!is_array($utterances)||$utterances===[]||count($utterances)>4||!is_string($utterances[0]['text']??null)||trim($utterances[0]['text'])==='')
             throw new RuntimeException('provider_invalid_output');

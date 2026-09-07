@@ -3935,3 +3935,32 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
 - Local rollback /var/backups/lorkhanserver-code.O1ESk3; all 789 runtime files match,
   no extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
   credentials and voices preserved. Full remaining page/editor matrix stays open.
+
+## LLM Test request and response diagnostic panels — 2026-09-07
+
+- Replaced the placeholder debug panel with reference-style saved connector,
+  validated response/actions, actual request payload and usage panels. JSON is
+  rendered as text, with explicit unavailable/mock states, not synthetic raw data.
+- OpenAiCompatibleProvider accepts an optional diagnostic observer on the existing
+  streaming method. It captures the final request body before transport and the
+  validated normalized result, only for the explicitly requested management test.
+  Ordinary dialogue calls do not collect/copy diagnostics. Transport headers and
+  raw internal buffers remain absent; no returned action is executed.
+- Diagnostic copies use existing sensitive-key/Bearer redaction plus removal of the
+  selected API key from nested array/object string values. Objects remain objects,
+  including empty YAML mappings. Each diagnostic body is capped at 128 KiB with
+  an explicit truncation marker. The actual provider request is not modified.
+- Existing HTTP mock-server test compares the diagnostic request with the body the
+  server actually received and checks response text plus key/header exclusion.
+  Existing unit coverage tests nested-object key redaction and preserved JSON shape.
+  Passed 511 server checks, 98 protocol files, PHP lint, HTTP forms, integration,
+  migrations and durable jobs; JavaScript syntax/whitespace passed. No schema change.
+- Actual disposable browser test showed mock response data and correctly reported
+  no remote request. A direct connector to unused loopback port 9 retained its
+  real request on failure and showed response/usage as not captured. Long request
+  text wrapped within the scrolling panel; Close remained accessible. Temporary
+  server stopped. No live provider request, production edit or game control.
+- Local rollback /var/backups/lorkhanserver-code.aglY8H; all 789 runtime hashes match,
+  no extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
+  credentials and voices preserved. Reference autosave-on-Test behavior, full import
+  interactions and remaining page matrix items are not claimed complete here.

@@ -365,6 +365,18 @@ try {
     putenv($runtimeKeyBefore===false?'LORKHAN_TEST_RUNTIME_API_KEY':'LORKHAN_TEST_RUNTIME_API_KEY='.$runtimeKeyBefore);
     putenv($selectedKeyBefore===false?'LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY':'LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY='.$selectedKeyBefore);
 }
+$diagnosticProvider=new OpenAiCompatibleProvider('http://127.0.0.1:9/v1/chat/completions',['127.0.0.1'],'fixture','diagnostic-fixture-key',
+    options:['extra_parameters_enabled'=>true,'extra_parameters_yaml'=>"metadata:\n  label: diagnostic-fixture-key\nlogit_bias: {}",'json_schema'=>true],allowLoopbackHttp:true);
+try {
+    $diagnosticProvider->completeStreaming(['payload'=>['input'=>['text'=>'Hello']]],new NeverCancelledToken(),static function(string $delta):void{},
+        static function(string $stage,array $body)use($check):void{
+            $check($stage==='request'&&$body['metadata']->label==='[REDACTED]'&&$body['logit_bias'] instanceof \stdClass
+                &&isset($body['messages'],$body['response_format'])&&!str_contains(json_encode($body),'diagnostic-fixture-key'),
+                'explicit diagnostic observer captures request shape and redacts nested object values without headers');
+            throw new RuntimeException('diagnostic-observed');
+        });
+    $check(false,'diagnostic observer did not run');
+}catch(RuntimeException $error){if($error->getMessage()!=='diagnostic-observed')throw$error;}
 $pinned=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
 $check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
     'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');

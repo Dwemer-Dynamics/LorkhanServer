@@ -1812,6 +1812,12 @@ assert 'local-parity-test-key' not in direct_key_editor and 'id="llm_key_notice"
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
 assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)
+r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test,accept='application/json'); diagnostic_result=json.load(r)
+assert r.status==200 and diagnostic_result['ok'] is True
+assert diagnostic_result['diagnostics']['request']==VoiceProvider.llm_requests[-1][1]
+assert diagnostic_result['diagnostics']['response']['utterances']==[{'text':'Greetings, traveller.'}]
+assert diagnostic_result['diagnostics']['connector']['model']==direct_values['model']
+assert 'local-parity-test-key' not in json.dumps(diagnostic_result) and 'Authorization' not in json.dumps(diagnostic_result)
 direct_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
 assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
 assert direct_export['content']['options']['provider_order']==['together','google-vertex/us-east5'],direct_export
