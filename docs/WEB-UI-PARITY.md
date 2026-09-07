@@ -3989,3 +3989,17 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
   credentials and voices preserved. Read-only live editor shows the new notice.
   Import interactions and the remaining full page matrix are still open.
+
+## Embedded LLM editor follow-up — 2026-09-07
+
+- Compared the deployed Lorkhan Configuration > LLM > GLM 5 editor with the
+  read-only Herika counterpart in the same 1280 x 720 browser surface.
+- Header, sidebar/editor start, two-column boundary, service icons and advanced
+  settings panel follow the reference geometry. The Lorkhan gold accent,
+  explicit inherited defaults, protected assigned-connector Delete state and
+  truthful save-before-Test notice remain intentional differences.
+- The hub retains the release exclusions (ITT and Server Plugins); its tab groups
+  therefore wrap differently from Herika. No controls or settings were changed
+  in either live installation and no provider test was executed.
+- This is populated desktop embedded evidence only. File-picker import/export,
+  remaining narrow/editor states and other incomplete matrix rows remain open.
