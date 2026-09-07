@@ -15,7 +15,7 @@
         catch(_error){message.textContent=`Copy unavailable. Voice name: ${button.dataset.copyVoice}`;}
     }));
     const audio = document.createElement('audio'); audio.controls = true; audio.hidden = true; audio.preload = 'none';
-    const status = document.createElement('p'); status.setAttribute('role', 'status');
+    const status = document.createElement('p'); status.className = 'voice-preview-status'; status.setAttribute('role', 'status');
     root.prepend(status, audio);
     let request = null, url = '';
     const stop = () => {

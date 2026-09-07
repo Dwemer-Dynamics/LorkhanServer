@@ -4366,3 +4366,26 @@ Screenshots remain private in Temp/lorkhan-config-hub-review and
 Temp/{herika,lorkhan}-matching-llm-{1280,390}.png. The live products select
 different speech providers, so TTS Studio controls still need matching-provider
 comparison rather than treating these entry screenshots as full acceptance.
+
+
+### TTS Studio matching-provider upload view (2026-09-07)
+
+Compared Inworld in both products at desktop/narrow widths. Removed hard-coded
+provider-tab minimum widths so the reference's content-sized tab packing can
+work. Restored the green upload action and file-selector styling, and made
+the upload description specific to cloud generation versus local sync. Real
+Lorkhan file limits, protected local storage, optional naming and explicit
+cloud-generation consent remain unchanged. Active status is not relabelled
+Connected without a connectivity probe.
+
+The persistent 16px top gap was not header padding: voice-preview.js prepended
+an empty status paragraph. Added a class and hid that paragraph only while
+empty; actual status messages still render. Both 1280 and 390 fixture renders
+now start the header at 20px, matching Herika. File chooser and custom name
+interaction checked without submitting an upload. PHP/JS syntax and diff
+checks passed. Screenshots visually compared in Temp as
+{herika,lorkhan}-studio-inworld-{1280,390}.png and
+lorkhan-studio-aligned-{1280,390}.png. No new upload/clone/generation claim;
+provider cache/batch and OmniVoice language states still need their remaining
+comparisons. Reference ui/xtts_clone.php at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344.

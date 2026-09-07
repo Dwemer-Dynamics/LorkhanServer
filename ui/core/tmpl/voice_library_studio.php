@@ -404,9 +404,9 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
     ?>
         <section class="content-section">
             <h1>Voice Sample Upload</h1>
-            <p>Upload voice samples to LORKHAN's persistent voice library. Compatible local connectors can sync the same bounded sample explicitly.</p>
+            <p>Upload voice samples to LORKHAN's persistent voice library. <?php if($cloudClone): ?>Files will be available for generating voices in <?php echo lorkhan_ui_h($providerLabel); ?>.<?php else: ?>Files will be available to sync with <?php echo lorkhan_ui_h($providerLabel); ?>.<?php endif; ?></p>
             <span class="visually-hidden">Add WAV voice samples</span>
-            <form method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
+            <form class="voice-upload-form" method="post" enctype="multipart/form-data" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="upload"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
                 <div class="voice-upload-field"><label for="voice-sample">Select .wav files or .zip archives to upload:</label><input id="voice-sample" name="voice_sample[]" type="file" accept="audio/wav,.wav,application/zip,.zip" multiple required></div><details class="voice-upload-name"><summary>Custom voice name (optional)</summary><label for="voice-name">Voice name for a single WAV</label><input type="text" id="voice-name" name="voice_name" maxlength="80" placeholder="Leave blank to use the filename"><p>Leave this blank when selecting multiple files.</p></details>
                 <input type="hidden" name="upload_count" value="">

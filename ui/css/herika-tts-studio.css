@@ -19,7 +19,7 @@ body.tts-studio-page-shell > main.tts-studio-page {
 body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; }
 
 .tts-studio-page .page-header {
-    margin-bottom: 30px;
+    margin: 0 0 30px;
     padding: 20px;
     border: 1px solid #3a3a3a;
     border-radius: 10px;
@@ -63,14 +63,6 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 
 .tts-studio-page .tab-btn:hover { border-color: rgba(188, 157, 90, .3); background: linear-gradient(180deg, rgba(58, 58, 58, .9), rgba(48, 48, 48, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); color: rgb(188, 157, 90); }
 .tts-studio-page .tab-btn.active { position: relative; z-index: 1; border-color: rgba(188, 157, 90, .5); border-bottom: 2px solid rgba(42, 42, 42, .95); background: linear-gradient(180deg, rgba(42, 42, 42, .95), rgba(34, 34, 34, .98)); box-shadow: 0 4px 8px rgba(188, 157, 90, .2); color: rgb(188, 157, 90); }
-.tts-studio-page .tab-xtts,
-.tts-studio-page .tab-chatterbox,
-.tts-studio-page .tab-omnivoice { min-width: 137.734px; }
-.tts-studio-page .tab-pockettts { min-width: 168.156px; }
-.tts-studio-page .tab-cartesia,
-.tts-studio-page .tab-inworld { min-width: 142.109px; }
-.tts-studio-page .tab-fallbacks { min-width: 123.484px; }
-.tts-studio-page .tab-pronunciations { min-width: 137.734px; }
 .tts-studio-page .tab-label { line-height: 1.1; }
 .tts-studio-page .tab-status { display: inline-block; padding: 2px 8px; border: 1px solid transparent; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: .05em; line-height: 1.1; text-transform: uppercase; }
 .tts-studio-page .tab-status.connected { border-color: rgba(76, 175, 80, .35); background: rgba(76, 175, 80, .16); color: #7ee08a; }
@@ -96,8 +88,8 @@ body.tts-studio-page-shell > main.tts-studio-page.embedded { padding-top: 20px; 
 .tts-studio-page .field-row > div { min-width: 0; }
 .tts-studio-page label { display: block; margin-bottom: 6px; color: #fff; font-weight: 700; }
 .tts-studio-page input[type="text"], .tts-studio-page input[type="file"], .tts-studio-page select { width: 100%; box-sizing: border-box; padding: 9px 10px; border: 1px solid #4a4a4a; border-radius: 5px; background: #191919; color: #f8f9fa; }
-.tts-studio-page input[type="file"] { min-width: 0; max-width: 100%; padding: 0; overflow: hidden; color: #cfd8e3; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
-.tts-studio-page input[type="file"]::file-selector-button { min-height: 38px; margin-right: 10px; padding: 0 12px; border: 0; border-right: 1px solid #4a4a4a; background: #333; color: #f8f9fa; cursor: pointer; }
+body .tts-studio-page input[type="file"] { background:#4a4a4a!important; min-width: 0; max-width: 100%; padding: 0; overflow: hidden; color: #cfd8e3; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+body .tts-studio-page input[type="file"]::file-selector-button { min-height: 38px; margin-right: 10px; padding: 0 12px; border: 0; border-right: 1px solid #4a4a4a; border-radius:4px; background: #6c757d; color: #f8f9fa; cursor: pointer; }
 .tts-studio-page input[type="file"]:focus-visible { outline: 2px solid rgba(188, 157, 90, .8); outline-offset: 2px; }
 .tts-studio-page .requirements { margin-top: 20px; padding: 15px; border: 1px solid #4a8ab6; border-radius: 6px; background: rgba(74, 138, 182, .1); }
 .tts-studio-page .requirements strong { color: #4a8ab6; }
@@ -279,3 +271,8 @@ body.tts-studio-page-shell .voice-status-item .voice-actions button:disabled{opa
 body.tts-studio-page-shell .tts-studio-page form[enctype="multipart/form-data"] button,body.tts-studio-page-shell .tts-studio-page [data-voice-batch] button{background:#383838!important;border:1px solid #505050!important;border-radius:6px;color:#ddd!important;box-shadow:none!important;padding:7px 12px!important;min-height:36px;font-size:13.12px;line-height:1.1}
 body.tts-studio-page-shell [data-voice-batch] button:hover,body.tts-studio-page-shell [data-voice-batch] button:focus-visible{border-color:#bc9d5a!important}
 @media(prefers-reduced-motion:reduce){.tts-studio-page [data-voice-batch-bar]{transition:none}}
+
+/* The reference upload action uses the shared green save treatment. */
+body .tts-studio-page .voice-upload-form .button-group .btn-primary{background:#2d714c!important;border:1px solid #439465!important;color:#fff!important}
+
+.tts-studio-page > .voice-preview-status:empty{display:none}
