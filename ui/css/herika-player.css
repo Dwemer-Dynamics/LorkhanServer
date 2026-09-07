@@ -169,6 +169,7 @@ body.player-page-shell.embedded-page { padding-top: 0; }
 .player-page .status-field-value { color: #e9efff; font-size: 14px; font-weight: 600; }
 .player-page .status-field-source { margin-top: 2px; color: #999; font-size: 12px; line-height: 1.4; }
 .player-page .speech-style-tools { display: grid; gap: 8px; margin-top: 10px; }
+.player-page .speech-style-tools label { margin-top:4px; font-family:'MagicCards',serif; color:#bc9d5a; font-size:1.1em; word-spacing:4px; }
 
 .player-page .stats-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .player-page .stat-card,

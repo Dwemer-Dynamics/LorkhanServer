@@ -497,7 +497,7 @@ final class ManagementRouter
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->playerContent($v)]),
             'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->playerContent($v),$this->need($v,'change_reason')),
             'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
-            'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id')),
+            'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id'),$v['speech_style_guidance']??''),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]
                 +(trim((string)($v['core_profile_id']??''))===''?[]:['core_profile_id'=>$v['core_profile_id']])),

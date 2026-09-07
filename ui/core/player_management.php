@@ -199,6 +199,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <span class="hint">A concise speech profile used by NPCs to understand how the player communicates.</span>
                         <span class="hint">Profile generation uses the connector selected in <a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/global_settings.php">Global Settings</a>.</span>
                         <div class="speech-style-tools">
+                            <label for="player-speech-style-guidance">AI Generation</label>
+                            <textarea id="player-speech-style-guidance" name="speech_style_guidance" form="player-speech-ai-form" maxlength="4000" placeholder="Optional: mention traits or tone to prioritize when generating your speech style paragraph."></textarea>
                             <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
                                 <button type="submit" form="player-speech-ai-form" class="btn-ai-generate">AI Generate From Last 200 Inputs</button>
                                 <span class="hint">Generate Speech Style with AI from <?php echo lorkhan_ui_h($profile['input_count']); ?> observed player messages without replacing the rest of the player profile.</span>
