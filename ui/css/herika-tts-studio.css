@@ -276,3 +276,5 @@ body.tts-studio-page-shell [data-voice-batch] button:hover,body.tts-studio-page-
 body .tts-studio-page .voice-upload-form .button-group .btn-primary{background:#2d714c!important;border:1px solid #439465!important;color:#fff!important}
 
 .tts-studio-page > .voice-preview-status:empty{display:none}
+
+.tts-studio-page .voice-batch-estimate{color:#aaa;font-size:.9em}

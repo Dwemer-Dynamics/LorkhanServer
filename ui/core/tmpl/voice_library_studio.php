@@ -400,6 +400,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         if($selectedProviderId!=='')foreach($products->connectorVoiceCatalog($selectedProviderId)as$knownVoice){if($activeTab==='omnivoice'&&($knownVoice['language']??'en')!==$discoverLanguage)continue;$syncedSamples[mb_strtolower($knownVoice['id'])]=true;$syncedSamples[mb_strtolower($knownVoice['display'])]=true;$syncedSampleIds[mb_strtolower($knownVoice['display'])]=$knownVoice['id'];}
         $missingCount=count(array_filter($samples,static fn(array$sample):bool=>!isset($syncedSamples[mb_strtolower($sample['name'])])));
         $batchVerb=$cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Upload');
+        $batchDelayMs=match($activeTab){'inworld'=>3000,'cartesia'=>2000,default=>0};
         $catalogMatchesTab = is_array($discoveredPreset) && in_array((string) ($discoveredPreset['content']['driver'] ?? ''), $tab['drivers'], true);
     ?>
         <section class="content-section">
@@ -459,7 +460,8 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <h1>Batch <?php echo $cloudClone?'Generate':($activeTab==='omnivoice'?'Import':'Process'); ?> Missing Voices</h1>
             <p><?php echo $batchVerb; ?> missing local samples to <?php echo lorkhan_ui_h($providerLabel); ?>. Existing provider voices are skipped.</p>
             <?php if($canSync&&$missingCount>0): ?><p class="voice-missing-count">Found <?php echo $missingCount; ?> voice(s) not yet <?php echo $cloudClone?'generated':'synced'; ?> in the cached provider library.</p>
-            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch data-voice-batch-delay="<?php echo $activeTab==='inworld'?3000:($activeTab==='cartesia'?2000:0); ?>">
+            <?php if($batchDelayMs>0&&$missingCount>1): ?><p class="voice-batch-estimate">Estimated time: <?php echo (int)(($missingCount-1)*$batchDelayMs/1000); ?> seconds of request spacing, plus provider processing. Browser batches wait <?php echo $batchDelayMs/1000; ?> seconds between voices.</p><?php endif; ?>
+            <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-voice-batch data-voice-batch-delay="<?php echo $batchDelayMs; ?>">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="batch_sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>">
                 <label><input type="checkbox" name="consent" value="1" required> Upload these samples to the selected provider<?php echo $cloudClone?' and create cloud voices (provider charges may apply)':''; ?>.</label>
                 <div class="button-group"><button class="btn-primary" type="submit">Batch <?php echo $batchVerb; ?> Missing Voices (<?php echo $missingCount; ?>)</button><button class="btn-danger" type="button" data-voice-batch-stop hidden title="Stop after the current voice finishes">Cancel</button></div>

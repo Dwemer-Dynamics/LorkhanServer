@@ -4389,3 +4389,25 @@ lorkhan-studio-aligned-{1280,390}.png. No new upload/clone/generation claim;
 provider cache/batch and OmniVoice language states still need their remaining
 comparisons. Reference ui/xtts_clone.php at
 529364c4c12b3a8bd4cc12a481f400ce19b3a344.
+
+
+### Inworld cache and pre-batch estimate review (2026-09-07)
+
+Visually compared populated Inworld voice-cache and batch sections at 1280
+and 390 pixels. The cache uses the reference three-column/card hierarchy,
+with native provider selection and upload consent retained. Reference has
+additional regenerate/provider-copy-removal actions for cached cloud voices;
+native cached rows currently expose preview but need a separate action audit.
+Do not mark cloud cache actions fully accepted from layout alone.
+
+Added the missing pre-start estimate in the reference batch-section position,
+using the same delay variable as the browser queue: (cached missing count - 1)
+times 3 seconds for Inworld or 2 for Cartesia. It describes request spacing
+separately from unknown provider processing, rather than claiming a measured
+completion time. No delay for local providers and no spacing estimate for a
+single voice. Deployed Inworld with 21 cached missing voices showed 60 seconds
+and retained consent/button controls at both widths. No batch was started,
+no voices uploaded/generated/deleted. PHP lint and diff checks passed;
+screenshots remain private in Temp/{herika,lorkhan}-inworld-{cache,batch}-
+{1280,390}.png. Reference ui/xtts_clone.php at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344.
