@@ -44,10 +44,10 @@
 .calendar-scroll,.calendar-event-scroll{overflow:auto;max-width:100%}
 .calendar{width:100%;border-collapse:collapse;margin:20px 0;table-layout:fixed}
 .calendar th,.calendar td{border:1px solid #555;padding:10px;text-align:center;width:14.28%;vertical-align:middle}
-.calendar th{background:#3a3a3a;color:#f8f9fa;overflow:hidden;text-overflow:ellipsis}.calendar td{height:100px}
+.calendar th{background:#3a3a3a;color:#f8f9fa;overflow:hidden;text-overflow:ellipsis}.calendar td{height:100px;position:relative}
 .calendar td a{color:#f8f9fa!important;text-decoration:none;display:flex;flex-direction:column;justify-content:center;align-items:center;width:100%;height:100%;box-sizing:border-box}
 .calendar td.has-event a{background:#bc9d5a;color:#141414!important;border:2px solid #9d8045;border-radius:5px}
-.calendar td a small{font-size:11px;color:inherit!important}.calendar td.selected-date a{outline:2px solid #fff;outline-offset:2px}
+.calendar td.selected-date a{outline:2px solid #fff;outline-offset:2px}
 .calendar td.current-date a{background:#28a745;color:#fff!important;border:2px solid #1e7e34;border-radius:5px}
 .calendar-event-table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:14px}
 .calendar-event-table th{background:#3a3a3a;color:#bc9d5a;padding:12px;text-align:left}.calendar-event-table td{border:1px solid #444;padding:12px;vertical-align:top;overflow-wrap:anywhere}
@@ -61,7 +61,7 @@
 .diary-entry-modal>.diary-close{position:sticky;top:0;z-index:3}
 body .roleplay-reader .roleplay-button.danger{background:#8b3038!important;border-color:#b44b56!important;color:#fff!important}
 .reader-audio-help{font-size:13px;color:#aaa;margin:10px 0}.reader-audio-help summary{cursor:pointer}
-@media(max-width:650px){.calendar-navigation{gap:6px}.calendar-navigation span{font-size:16px;min-width:0;width:auto;padding:0 6px}.calendar-navigation a{min-width:0;padding:8px}.calendar th{font-size:10px;padding:6px 1px}.calendar td{padding:3px;height:65px}.calendar td a small{font-size:9px}.calendar-event-table{min-width:670px}}
+@media(max-width:650px){.calendar-navigation{gap:6px}.calendar-navigation span{font-size:16px;min-width:0;width:auto;padding:0 6px}.calendar-navigation a{min-width:0;padding:8px}.calendar th{font-size:10px;padding:6px 1px}.calendar td{padding:10px;height:100px}.calendar-event-table{min-width:670px}}
 
 .memory-overview{background:#252525;border:1px solid #444;border-radius:8px;padding:16px;margin-bottom:16px}
 .memory-overview>summary{font-size:17px;color:#bc9d5a;cursor:pointer}.memory-overview .memory-policy-columns{margin-top:15px}
@@ -112,3 +112,8 @@ body .roleplay-log-page:not(.book-log-page) .ai-response-table th{width:auto;ver
 body .roleplay-log-page:not(.book-log-page) .ai-response-table td{overflow-wrap:break-word;hyphens:auto;line-height:1.5}
 body .roleplay-log-page .log-pagination nav{color:#aaa;font-weight:normal}
 body .ai-response-table [data-log-open]{white-space:nowrap}
+
+/* Reference calendar counts appear on interaction, not inside every day cell. */
+.calendar td.has-event a:hover::after,.calendar td.has-event a:focus-visible::after{content:attr(data-event-count) " entries";position:absolute;top:0;left:50%;transform:translateX(-50%);background:#333;color:#f5f1e8;padding:5px 10px;border-radius:5px;font-size:12px;white-space:nowrap;z-index:4}
+.diary-log-page .calendar-mode-toggle{flex-wrap:nowrap}
+.diary-log-page .calendar-mode-toggle .roleplay-button{min-width:0;white-space:normal;text-align:center}

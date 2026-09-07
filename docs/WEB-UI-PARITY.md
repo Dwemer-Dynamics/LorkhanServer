@@ -4237,3 +4237,24 @@ in Temp because they contain private live dialogue. Browser comparison used
 read-only live records with the candidate stylesheet intercepted locally; PHP
 lint and git diff --check passed. This does not complete the other page matrix
 rows or claim populated Books/Diaries equivalence from empty data.
+
+
+### Calendar visible-state follow-up (2026-09-07)
+
+Compared Adventure Log and Diaries against the pinned Herika calendar source
+and live 1280px/390px screenshots. Restored 100px calendar rows at narrow
+widths and removed permanent entry counters inside day cells. Counts now use
+the reference interaction hint, also exposed on keyboard focus and in each
+date link's accessible name. Diary Regular/Tamrielic/Person controls remain
+together in one row with wrapping labels. Kept working Morrowind month
+navigation rather than reproducing the reference's clipped narrow heading.
+
+Reference-derived files: ui/tmpl/roleplay_calendar.php and
+ui/css/roleplay-logs.css; reference ui/css/diary_adventure.css at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344. PHP lint and diff check pass.
+Read-only deployed browser proof at 1280 and 390 pixels covers populated
+Adventure dates, empty Diaries, focus count hints, date selection, Tamrielic
+mode, and Diary person mode. Screenshots were visually reviewed and remain
+in Temp (lorkhan-calendar-{adventure,diaries}-{1280,390}.png). No live data,
+provider calls or game controls were changed. Populated diary entry-reader
+comparison remains open; this is not full page-matrix acceptance.
