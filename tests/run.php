@@ -1382,6 +1382,24 @@ foreach(['inworld','cartesia']as$badgeDriver){
     $check(count($badgeCalls)===2,$badgeDriver.' selected-badge cache does not repeat the upload');
 }
 $noKeyCalls=0;
+$workspaceCalls=[];
+$workspaceLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+    static function(string $driver,string $path,array|string|null $body)use(&$workspaceCalls):array{
+        $workspaceCalls[]=$path;
+        return $body===null?['voices'=>[['voiceId'=>'elsewhere__voice','displayName'=>'mw_dark_elf_male']]]
+            :['voice'=>['voiceId'=>'fixture__clone']];
+    },['inworld'=>$ttsReference],'workspaces/fixture');
+$workspaceResolver=new \LorkhanServer\Application\InworldVoiceResolver($workspaceLibrary,$inworldCredentials,$inworldRoot,'inworld',$ttsReference,'fixture');
+$check($workspaceResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken())==='fixture__clone'
+    &&$workspaceCalls===['/voices/v1/voices?pageSize=100','/voices/v1/workspaces/fixture/voices:clone'],
+    'Inworld workspace excludes another workspace voice and routes cloning to the selected workspace');
+$workspaceResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+$check(count($workspaceCalls)===2&&is_file($inworldRoot.'/.inworld-cache/'.hash_hmac('sha256',"fixture\nmw_dark_elf_male",'selected-tts-fixture-key').'.json'),
+    'Inworld workspace reuses its own cache without reusing the account-default clone');
+foreach(['../wrong','workspaces/fixture/extra','https://other.invalid', ['fixture']]as$invalidWorkspace){
+    try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','options'=>['workspace'=>$invalidWorkspace]]);$check(false,'invalid workspace rejected');}
+    catch(InvalidArgumentException){$check(true,'Inworld workspace rejects paths, URLs and non-string values before save');}
+}
 $noKeyLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
     static function()use(&$noKeyCalls):array{++$noKeyCalls;return[];},['inworld'=>'none']);
 try{$noKeyLibrary->discover('inworld');$check(false,'None badge must not use the global voice key');}

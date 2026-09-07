@@ -11,7 +11,20 @@ use RuntimeException;
 final class CloudVoiceLibrary
 {
     public function __construct(private readonly CredentialStore $credentials, private readonly ?\Closure $transport = null,
-        private readonly array $credentialReferences = []) {}
+        private readonly array $credentialReferences = [], private readonly string $inworldWorkspace = '')
+    {
+        self::normalizeWorkspace($inworldWorkspace);
+    }
+
+    /** Accept an Inworld workspace ID, never an arbitrary URL or path. Empty keeps existing account routing. */
+    public static function normalizeWorkspace(string $workspace): string
+    {
+        $workspace = preg_replace('#^workspaces/#', '', trim($workspace));
+        if ($workspace !== '' && preg_match('/^[a-zA-Z0-9_-]{1,128}$/D', $workspace) !== 1) {
+            throw new InvalidArgumentException('invalid_inworld_workspace');
+        }
+        return $workspace;
+    }
 
     public function discover(string $driver, ?CancellationToken $cancellation = null): array
     {
@@ -24,6 +37,12 @@ final class CloudVoiceLibrary
             if(!is_array($rows)||!array_is_list($rows))throw new RuntimeException('voice_discovery_failed');
             foreach($rows as$row){if(!is_array($row))continue;
                 $id=(string)($row['voiceId']??$row['id']??'');if($id==='')continue;
+                $workspace = self::normalizeWorkspace($this->inworldWorkspace);
+                if ($driver === 'inworld' && $workspace !== ''
+                    && !str_starts_with($id, $workspace . '__')
+                    && !str_starts_with((string)($row['name'] ?? ''), 'workspaces/' . $workspace . '/')
+                    && array_intersect([$workspace, 'workspaces/' . $workspace], array_filter(
+                        [$row['workspace'] ?? '', $row['workspaceId'] ?? '', $row['workspace_id'] ?? ''], 'is_string')) === []) continue;
                 $voices[]=['voice_id'=>$id,'display_name'=>(string)($row['displayName']??$row['name']??$id),
                     'language'=>str_replace('_','-',strtolower((string)($row['languageCode']??$row['language']??$row['langCode']??'en'))),
                     'custom_voice'=>$driver==='cartesia'?($row['is_owner']??!($row['is_public']??true)):($row['source']??'')==='IVC'];
@@ -52,7 +71,9 @@ final class CloudVoiceLibrary
             $languageCode=['EN'=>'EN_US','ZH'=>'ZH_CN','KO'=>'KO_KR','JA'=>'JA_JP','RU'=>'RU_RU',
                 'IT'=>'IT_IT','ES'=>'ES_ES','PT'=>'PT_BR','DE'=>'DE_DE','FR'=>'FR_FR','AR'=>'AR_SA',
                 'PL'=>'PL_PL','NL'=>'NL_NL','HI'=>'HI_IN','HE'=>'HE_IL'][$languageCode]??$languageCode;
-            $payload=$this->request($driver,'/voices/v1/voices:clone',json_encode(['displayName'=>$name,
+            $workspace = self::normalizeWorkspace($this->inworldWorkspace);
+            $clonePath = '/voices/v1/' . ($workspace === '' ? '' : 'workspaces/' . $workspace . '/') . 'voices:clone';
+            $payload=$this->request($driver,$clonePath,json_encode(['displayName'=>$name,
                 'langCode'=>$languageCode,'voiceSamples'=>[$sample],
                 'description'=>'Lorkhan voice sample'],JSON_THROW_ON_ERROR),$cancellation);
             $voice=$payload['voice']??[];

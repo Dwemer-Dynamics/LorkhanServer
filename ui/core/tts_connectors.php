@@ -208,31 +208,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </div>
                         </section>
 
-                        <section class="meta-group active runtime-settings">
-                            <h3 data-tts-settings-heading><?php echo lorkhan_ui_h($drivers[$currentDriver] ?? 'Provider'); ?> Settings</h3>
-                            <div class="inline-two">
-                                <div class="field-block"><label for="tts_model">Model</label><input type="text" id="tts_model" name="model" value="<?php echo lorkhan_ui_h($content['model'] ?? $defaults['model'] ?? 'default'); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"></div>
-                                <div class="field-block"><label for="tts_voice">Default Voice</label><input type="text" id="tts_voice" name="voice" value="<?php echo lorkhan_ui_h($content['voice'] ?? $defaults['voice'] ?? 'default'); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"></div>
-                                <div class="field-block"><label for="tts_language">Language</label><input type="text" id="tts_language" name="language" value="<?php echo lorkhan_ui_h($content['language'] ?? $defaults['language'] ?? 'en'); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"></div>
-                                <div class="field-block"><label for="tts_timeout">Timeout (ms)</label><input type="number" id="tts_timeout" min="1000" max="120000" name="timeout_ms" value="<?php echo (int) ($content['timeout_ms'] ?? 30000); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"></div>
-                            </div>
-                            <div class="connector-option-editor" data-connector-options data-driver-control="tts_driver" data-connector-defaults="<?php echo lorkhan_ui_h(json_encode($connectorDefaults, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES)); ?>">
-                                <?php foreach ($optionCatalog as $catalogDriver => $optionFields): $activeDriver = $catalogDriver === $currentDriver; ?>
-                                    <div class="inline-two" data-connector-driver="<?php echo lorkhan_ui_h($catalogDriver); ?>"<?php echo $activeDriver ? '' : ' hidden'; ?>>
-                                        <?php foreach ($optionFields as $field): $name = (string) $field['name']; $type = (string) $field['type']; $value = $activeDriver ? ($options[$name] ?? '') : ''; $fieldId = 'tts-option-' . preg_replace('/[^a-z0-9_-]+/i', '-', $catalogDriver . '-' . $name); ?>
-                                            <div class="field-block"><label for="<?php echo lorkhan_ui_h($fieldId); ?>"><?php echo lorkhan_ui_h($field['label']); ?></label>
-                                                <?php if ($type === 'boolean'): ?><label class="boolean-field"><input name="option__<?php echo lorkhan_ui_h($name); ?>" type="checkbox" value="1"<?php echo $value === true ? ' checked' : ''; ?><?php echo $activeDriver ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>"> Enabled</label>
-                                                <?php elseif ($type === 'select'): ?><select id="<?php echo lorkhan_ui_h($fieldId); ?>" name="option__<?php echo lorkhan_ui_h($name); ?>"<?php echo $activeDriver ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>"><option value="">Connector default</option><?php foreach ($field['values'] as $choice): ?><option value="<?php echo lorkhan_ui_h($choice); ?>"<?php echo (string) $value === (string) $choice ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($choice); ?></option><?php endforeach; ?></select>
-                                                <?php elseif (in_array($type, ['number', 'integer'], true)): ?><input id="<?php echo lorkhan_ui_h($fieldId); ?>" name="option__<?php echo lorkhan_ui_h($name); ?>" type="number" step="<?php echo $type === 'integer' ? '1' : 'any'; ?>" min="<?php echo lorkhan_ui_h($field['minimum']); ?>" max="<?php echo lorkhan_ui_h($field['maximum']); ?>" value="<?php echo lorkhan_ui_h($value); ?>"<?php echo $activeDriver ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                                <?php else: ?><input id="<?php echo lorkhan_ui_h($fieldId); ?>" name="option__<?php echo lorkhan_ui_h($name); ?>" maxlength="512" value="<?php echo lorkhan_ui_h($value); ?>"<?php echo $activeDriver ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>"><?php endif; ?>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php endforeach; ?>
-                                <p class="settings-empty-note" data-connector-options-empty<?php echo ($optionCatalog[$currentDriver] ?? []) === [] ? '' : ' hidden'; ?>>This TTS provider does not have any additional connector-level settings.</p>
-                            </div>
-                            <details class="advanced-json"><summary>Advanced connector options</summary><div id="tts_advanced_endpoint"><?php if (in_array($currentDriver, $cloudDrivers, true)) lorkhan_tts_endpoint_field($content, $defaults, $formId); ?></div><div class="field-block"><label for="tts_options_json">Connector options (JSON)</label><textarea id="tts_options_json" name="options_json" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo lorkhan_ui_h(json_encode($options === [] ? (object) [] : $options, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></textarea></div></details>
-                        </section>
+                        <?php include __DIR__ . '/tmpl/tts_provider_settings.php'; ?>
                         </form>
 
                         <?php if (!$creating): ?>

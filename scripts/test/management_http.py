@@ -710,6 +710,14 @@ assert tts_export_response.status==200 and tts_export['schema']=='lorkhan.connec
 assert tts_export['content']['options']['fallback_male']=='TestMale' and tts_export['content']['options']['fallback_female']=='TestFemale',tts_export
 assert tts_export['content']['options']['speed']==1.25 and tts_export['content']['options']['temperature']==0.7,tts_export
 assert tts_export['content']['credential']=='none' and 'fixture-tts-badge-key' not in json.dumps(tts_export)
+# Provider controls round-trip the typed connector, including custom model and language values.
+inworld_values=dict(values,driver='inworld',model='inworld-custom-snapshot',language='en-GB',option__workspace='workspaces/fixture',option__temperature='0.8',option__speed='1.1')
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',inworld_values); assert r.status==200
+inworld_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+inworld_form=next(f for f in inworld_page.forms if f['action'].endswith('/forms/connector-revise'))
+assert inworld_form['fields']['model']=='inworld-custom-snapshot' and inworld_form['fields']['language']=='en-GB'
+assert inworld_form['fields']['option__workspace']=='fixture' and inworld_form['fields']['option__temperature']=='0.8'
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(inworld_form['fields'],_csrf=csrf,option__workspace='../wrong')); assert r.status==422
 bad_tts_values=dict(values,credential='DATABASE_PASSWORD')
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',bad_tts_values); assert r.status==422
 tts_badge_html=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode()

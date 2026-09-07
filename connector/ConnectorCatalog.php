@@ -169,7 +169,7 @@ final class ConnectorCatalog
         '11labs'=>[['stability','Stability','number',0.0,1.0],['similarity_boost','Similarity boost','number',0.0,1.0],['style','Style','number',0.0,1.0],['use_speaker_boost','Use speaker boost','boolean']],
         'cartesia'=>[['speed','Speed','select',['slowest','slow','normal','fast','fastest']]],
         'coqui-ai'=>[['speed','Speed','number',0.25,4.0]],
-        'inworld'=>[['speed','Speed','number',0.5,1.5],['temperature','Temperature','number',0.0,2.0]],
+        'inworld'=>[['workspace','Workspace','string'],['temperature','Temperature','number',0.0,2.0],['speed','Speed','number',0.5,1.5]],
         'zonos_gradio'=>[['pitch_std','Pitch standard deviation','number',0.0,200.0],['speaking_rate','Speaking rate','number',1.0,40.0],['cfg_scale','CFG scale','number',0.0,20.0]],
         'xvasynth'=>[['game','Game ID','string'],['voice_prefix','Voice prefix','string'],['model_type','Model type','string'],['version','Model version','string'],['distro','WSL distro','string'],['pace','Pace','number',0.25,4.0],['vocoder','Vocoder','string'],['waveglow_path','WaveGlow path','string']],
     ];
@@ -255,6 +255,10 @@ final class ConnectorCatalog
         $options = $content['options'] ?? [];
         if (!is_array($options) || ($options !== [] && array_is_list($options)) || strlen(json_encode($options, JSON_THROW_ON_ERROR)) > 16_384) {
             throw new InvalidArgumentException('invalid_connector_options');
+        }
+        if ($kind === 'tts_provider' && $driver === 'inworld' && isset($options['workspace'])) {
+            if (!is_string($options['workspace'])) throw new InvalidArgumentException('invalid_inworld_workspace');
+            $options['workspace'] = CloudVoiceLibrary::normalizeWorkspace($options['workspace']);
         }
         $result = [
             'driver' => $driver,

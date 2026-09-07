@@ -1,9 +1,30 @@
 /* Connector tests use the existing bounded preview API; opening or closing never saves the editor. */
 (() => {
     const driver = document.getElementById('tts_driver');
-    const heading = document.querySelector('[data-tts-settings-heading]');
-    if (driver && heading) {
-        driver.addEventListener('change', () => { heading.textContent = driver.selectedOptions[0].textContent + ' Settings'; });
+    const providerEditor = document.querySelector('[data-tts-provider-editor]');
+    if (driver && providerEditor) {
+        const defaults = JSON.parse(providerEditor.dataset.connectorDefaults || '{}');
+        const endpoint = document.getElementById('tts_endpoint');
+        const endpointDrafts = new Map();
+        let previous = providerEditor.dataset.selectedDriver;
+        const updateProvider = () => {
+            if (endpoint && previous !== driver.value) {
+                endpointDrafts.set(previous, endpoint.value);
+                const wasDefault = endpoint.value === '' || endpoint.value === defaults[previous]?.endpoint;
+                endpoint.value = endpointDrafts.get(driver.value) ?? (wasDefault ? defaults[driver.value]?.endpoint || '' : endpoint.value);
+            }
+            providerEditor.querySelectorAll('[data-tts-provider-fields]').forEach((section) => {
+                const active = section.dataset.ttsProviderFields === driver.value;
+                section.hidden = !active;
+                section.classList.toggle('active', active);
+                section.querySelectorAll('input, select, textarea').forEach(control => { control.disabled = !active; });
+            });
+            // The URL is moved between sections by the badge editor; it must remain submitted.
+            if (endpoint) endpoint.disabled = false;
+            previous = driver.value;
+        };
+        driver.addEventListener('change', updateProvider);
+        updateProvider();
     }
     const badgeBlock = document.getElementById('tts_api_badge_block');
     const badge = document.getElementById('tts_credential');
@@ -28,7 +49,7 @@
             const endpointBlock = document.getElementById('tts_endpoint_block');
             if (endpointBlock) {
                 if (badgeBlock.hidden) document.getElementById('tts_endpoint_anchor').before(endpointBlock);
-                else document.getElementById('tts_advanced_endpoint').append(endpointBlock);
+                else document.querySelector(`[data-tts-advanced-endpoint="${driver.value}"]`).append(endpointBlock);
             }
         };
         driver.addEventListener('change', updateBadge);

@@ -15,8 +15,10 @@ final class InworldVoiceResolver
         private readonly string $voiceRoot,
         private readonly string $driver = 'inworld',
         private readonly ?string $credentialReference = null,
+        private readonly string $workspace = '',
     ) {
         if(!in_array($driver,['inworld','cartesia'],true))throw new \InvalidArgumentException('voice_sync_unsupported');
+        CloudVoiceLibrary::normalizeWorkspace($workspace);
     }
 
     public function resolve(string $name,string $language,CancellationToken $cancellation):string
@@ -34,7 +36,8 @@ final class InworldVoiceResolver
         $cache=$root.'/.'.$this->driver.'-cache';
         if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
         if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
-        $cacheId=hash_hmac('sha256',strtolower($name),$key);
+        $workspace = $this->driver === 'inworld' ? CloudVoiceLibrary::normalizeWorkspace($this->workspace) : '';
+        $cacheId=hash_hmac('sha256',($workspace === '' ? '' : $workspace . "\n") . strtolower($name),$key);
         $path=$cache.'/'.$cacheId.'.json';
         $lock=fopen($cache.'/'.$cacheId.'.lock','c');
         if($lock!==false&&(fileperms($cache.'/'.$cacheId.'.lock')&0777)!==0660

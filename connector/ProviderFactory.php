@@ -169,7 +169,8 @@ final class ProviderFactory
             $resolveVoice=null;
             if(in_array($driver,['inworld','cartesia'],true)){
                 $credentials=new CredentialStore((string)($config['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
-                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials,null,[$driver=>$credentialVariable]),$credentials,$voiceReferenceRoot,$driver,$credentialVariable);
+                $workspace = $driver === 'inworld' ? (string)($content['options']['workspace'] ?? '') : '';
+                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials,null,[$driver=>$credentialVariable],$workspace),$credentials,$voiceReferenceRoot,$driver,$credentialVariable,$workspace);
                 $resolveVoice=$resolver->resolve(...);
             }
             return new CloudSpeechConnectorProvider($endpoint,$driver,(string)$content['model'],

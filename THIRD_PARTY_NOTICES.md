@@ -298,3 +298,9 @@ and `ui/js/tts-connector-test.js` follows the same pinned Herika TTS editor:
 configured-first labels, missing-key divider, status notice and cloud-only field.
 Lorkhan stores only allowlisted server credential references and applies the same
 selection to synthesis, discovery, cloning and account-scoped voice caches.
+
+The provider-specific field order, labels, descriptions and choices in
+`ui/core/tmpl/tts_provider_settings.php` derive from the same pinned Herika
+`conf/conf_schema.json` and `ui/core/tts_connectors.php`. Inworld workspace
+normalization, scoped discovery and clone routing adapt `tts/tts-inworld.php`
+to the existing private credential library and bounded local voice cache.

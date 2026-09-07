@@ -77,7 +77,7 @@ do not use an exception to excuse a generic substitute layout.
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
-| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; complete provider field mapping remains |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
@@ -3140,3 +3140,66 @@ Remaining Core Profile requirements identified from the pinned source and live e
   preserved, private routes remain 403, session creation without auth is 401 and
   health/NPC reader checks passed. Browser fixtures and local mock transports
   were used for interaction/provider tests; no paid service or game was called.
+
+
+### TTS provider-field structure and Inworld workspace checkpoint
+
+- Replaced the shared Model / Default Voice / Language / Timeout grid with
+  provider-specific primary grids. Inworld follows Workspace/Language,
+  Model Id/Temperature, then Speed; PocketTTS shows Model; Cartesia follows
+  Language/Model Id, then Speed. Labels, choices, descriptions and section
+  titles derive from pinned Herika `529364c` and map to native typed fields.
+- Existing extra runtime controls, default voices, timeouts and raw options are
+  retained under Advanced. Existing custom model/language values are retained
+  as selected choices rather than silently replaced. No saved connector was
+  migrated or edited during verification; the live Inworld connector retains
+  its saved `inworld-tts-1` model.
+- Each service owns its unsaved field draft. Browser switching across all 22
+  supported services proved exactly one active group, no duplicate enabled
+  field names and one enabled URL. Inworld workspace/model/language and Cartesia
+  model drafts survived switching away and back. Endpoint and badge drafts
+  remain per-service. Only active fields participate in submission.
+- Added the Inworld Workspace field with strict ID normalization. Discovery
+  ignores another workspace's voices, cloning uses the selected workspace path,
+  and cache identity includes workspace plus the already selected credential.
+  Blank workspace preserves the existing account-default route/cache. Explicit
+  provider voice IDs remain explicit; no existing clone is deleted or changed.
+- Existing tests cover wrong-workspace discovery, selected-workspace clone
+  routing, cache reuse/separation and invalid path/URL/non-string rejection.
+  Management HTTP verifies normalization, custom model/language round trips,
+  rejected edits and driver switching. All provider calls use mock transports.
+- Visually compared Inworld and PocketTTS against live Herika and the pinned
+  source. Compared Cartesia field order/choices and corrected its help text to
+  the pinned counterpart. Narrow Inworld at 390px has 375px content/scroll width,
+  readable wrapped help and stacked controls. These are scoped comparisons,
+  not proof that every remaining TTS provider is complete.
+
+Remaining TTS provider work is concrete, not a product exception:
+
+| Provider | Missing counterpart controls / review |
+| --- | --- |
+| Chatterbox, XTTS | Paralinguistic tags enable/prompt/list and prompt-to-speech wiring |
+| OmniVoice | Prepared-language selector, preparation workflow and language library states |
+| OpenAI | Instructions textarea and request wiring |
+| ElevenLabs | Streaming latency, speed, normalization switches, v3 audio tags and full field defaults/help |
+| Azure | Mood, region, volume, rate, contour and valid moods with SSML wiring |
+| Mimic3 | Volume and default/help review |
+| Kokoro | Speed and request wiring |
+| Deepgram | Bitrate versus native WAV transport semantics; explicit comparison needed |
+| Zonos | Language choices, dynamic tones, cache-path ownership and full defaults/help |
+| xVASynth, Piper, Melo | Remaining labels/defaults/help and visual/interactive state review |
+| Native extra drivers | Keep supported XTTS/Coqui/Convai/GCP/StyleTTS behavior; finish presentation review against applicable reference schemas |
+
+The full page matrix and goal remain open. No game, live TTS request, paid
+provider operation or live settings save was performed in this checkpoint.
+
+Verification: 455 server checks, PHP lint, JavaScript syntax, management HTTP,
+integration, migrations and durable jobs passed. Schema stays at 170 relations
+with the existing inventory hash. Final local deployment rollback is
+`/var/backups/lorkhanserver-code.qECBfs`; all 780 runtime files match source,
+with no extra or legacy paths. Persistent configuration, credential and voice
+hashes are unchanged. Private routes return 403, unauthenticated session
+creation returns 401, and health/NPC-reader probes pass. The final Cartesia
+screenshot includes the full reference help text and the native effective
+`normal` speed default rather than replacing it with an unsaved form's first
+choice. No provider synthesis was invoked.
