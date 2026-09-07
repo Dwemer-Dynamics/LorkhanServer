@@ -69,9 +69,9 @@ do not use an exception to excuse a generic substitute layout.
 | --- | --- | --- |
 | `home.php` | `home.php` | Widgets, tables, word cloud, observed world/player statistics and drilldowns aligned; read-only worker indicator verified; populated/empty, desktop/narrow and whole-page review completed with OpenMW exceptions below |
 | `quickstart.php` | `quickstart.php` | Header/980px shell, editable Player, speech sections, four-card model recap and protected OpenRouter/Deepgram quick keys implemented; Setup/Local LLM, MiniMe probe, service provisioning and Player2 still pending |
-| `core/config_hub.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
+| `core/config_hub.php` | Same path | Shared geometry corrected; Oghma, Global Settings, Profiles, Player and Narration embedded entry views compared. Unsaved Player/Narration switches survive shared and ordinary tab changes in isolated rendered fixtures. Remaining children and full embedded interactions still pending |
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
-| `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; presets and additional profile fields remain |
+| `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
@@ -2688,3 +2688,52 @@ Remaining Core Profile requirements identified from the pinned source and live e
   SHA-256: `a161992b70ea8daca2229fe70f097b09c1c267327f1093ddd9e4adb51850f4c3`.
   Backup: `C:/Users/reece/AppData/Local/Temp/lorkhan-journal-stage-backup-7925957.lua`.
   A normal game restart loads the new Lua; no engine rebuild or game launch occurred.
+
+### Embedded settings and Profile Slots checkpoint
+
+- Compared the actual Configuration hub and its Oghma, Profiles, Global Settings,
+  Player and Narration entry views against pinned Herika `529364c`. The Oghma
+  iframe geometry is identical at 1280 × 720: x=12, y=189.234375, width=1256,
+  height=520.765625. This is entry-view evidence, not a pass for every child state.
+- Profiles now puts Profile Slots inside the same scrolling list as the cards.
+  Removed the additional sidebar disclosure that displaced the reference layout;
+  the settings-only portability warning remains beside the Import fields and in
+  Import/Export help. The larger profile import/export semantic gap is still open.
+- Assigned slots are native keyboard-accessible links to the corresponding editor,
+  preserving installation and embed query parameters. Empty slots are dimmed to
+  the reference opacity, and anchor hover/focus states remain visible. Clicked the
+  deployed Default slot and verified the matching editor and Save All control;
+  no profile was saved. Toolbar anchor margins and the information marker font
+  now match the reference button and span metrics.
+- Player and Narration inherited a 1.5 line-height unlike Herika's normal line
+  height. Labels measured 19.6875px versus 15px, despite identical font sizes.
+  Scoped the corrected inheritance to those pages. Restored the reference toggle
+  row box model so its 38px content minimum includes the same padding/border.
+  Provider choices, identity, stored settings and event semantics are unchanged.
+- Rendered the actual hub markup and JavaScript with existing synthetic Player
+  and Narration forms. Unsaved Player Diary changed from unchecked to checked
+  and stayed checked through Narration and Global Settings. Unsaved Narrator
+  enablement changed from checked to unchecked and stayed unchecked through
+  Player and Profiles. No form submission, provider call or live write occurred.
+  The browser's iframe text-fill operation failed; checkbox state was verified
+  directly instead, and text-entry retention is not claimed from that failed call.
+- Responsive browser override calls did not alter the measured 1280px viewport.
+  Used explicit 390 × 844 iframe documents for the narrow comparison instead.
+  Lorkhan correctly disallows cross-origin framing, so its side uses source-
+  rendered fixture markup and a current Profiles response with CSRF values and
+  scripts removed. Security headers were not changed. Narrow Player cards and
+  toolbar wrap without horizontal overflow (344px child client/scroll width).
+  Profiles stacks its editor at this width while Herika retains a horizontal
+  sidebar/editor. Full narrow hub/child-state parity remains open.
+- Existing PHP lint, 98-file protocol manifest, 379 server checks, browser-like
+  management HTTP forms, integration, migrations and durable job tests passed.
+  Schema remains 170 relations / 1,587 columns with hash
+  `b8099463e3d26547c1467feef76847ede606e1c49b3135ec6d760ecdc878b795`.
+- Local server deployed; configuration, credential and voice hashes preserved.
+  Final deployment/hash verification follows this checkpoint. No client changes,
+  game launch or game interaction were needed. The all-pages goal remains active.
+- Final live measurements: Profile Slots top=180.984375px, height=165px and
+  title height=29px in both products; Player labels=15px and toggle rows=54px.
+  Final rollback: `/var/backups/lorkhanserver-code.tJ392E`. All 752 runtime files
+  match source, with no extra files or old paths. Private files return 403 on
+  8090/8088/8083, unauthenticated sessions return 401 and health is valid.

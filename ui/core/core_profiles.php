@@ -108,19 +108,18 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <button class="btn-primary" id="profile-connector-test-open" type="button" data-profile-test-open aria-haspopup="dialog" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.profiles.test')['description']); ?>">Test</button>
                 </div>
 
-                <details class="profile-preset-note">
-                    <summary>What a settings preset contains</summary>
-                    <p>Import and Export move Core Profile <strong>settings overrides only</strong>. A preset excludes prompt text, connector routing, identifiers, slots, default status, revision history, and NPC assignments.</p>
-                </details>
-
-                <div class="connector-card profile-slots">
-                    <div class="connector-title" title="Can be assigned to NPCs in game through LORKHAN profile controls">Profile Slots <span class="profile-info">&#x24D8;</span></div>
-                    <?php foreach (range(1, 4) as $slot): $slotted = null; foreach ($profiles as $profile) if ((int) ($profile['slot'] ?? 0) === $slot) $slotted = $profile; ?>
-                        <div class="slot-row"><span class="slot-key">Slot <?php echo $slot; ?></span><span class="slot-val"><?php echo lorkhan_ui_h($slotted['label'] ?? '— Empty —'); ?></span></div>
-                    <?php endforeach; ?>
-                </div>
-
                 <div class="conn-list" aria-label="Core Profiles">
+                    <div class="connector-card profile-slots">
+                        <div class="connector-title" title="Can be assigned to NPCs in game through LORKHAN profile controls">Profile Slots <span class="profile-info">&#x24D8;</span></div>
+                        <?php foreach (range(1, 4) as $slot): $slotted = null; foreach ($profiles as $profile) if ((int) ($profile['slot'] ?? 0) === $slot) $slotted = $profile; ?>
+                            <?php if ($slotted !== null): ?>
+                                <a class="slot-row" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $slotted['core_profile_id']])); ?>" title="Open <?php echo lorkhan_ui_h($slotted['label']); ?>"><span class="slot-key">Slot <?php echo $slot; ?></span><span class="slot-val"><?php echo lorkhan_ui_h($slotted['label']); ?></span></a>
+                            <?php else: ?>
+                                <div class="slot-row slot-empty"><span class="slot-key">Slot <?php echo $slot; ?></span><span class="slot-val">— Empty —</span></div>
+                            <?php endif; ?>
+                        <?php endforeach; ?>
+                    </div>
+
                     <?php foreach ($profiles as $profile):
                         $active = $selected !== null && $selected['core_profile_id'] === $profile['core_profile_id'];
                         $defaultNpc = filter_var($profile['default_npc'] ?? false, FILTER_VALIDATE_BOOL);
