@@ -94,7 +94,7 @@ body .tts-studio-page input[type="file"]::file-selector-button { min-height: 38p
 .tts-studio-page .requirements { margin-top: 20px; padding: 15px; border: 1px solid #4a8ab6; border-radius: 6px; background: rgba(74, 138, 182, .1); }
 .tts-studio-page .requirements strong { color: #4a8ab6; }
 .tts-studio-page .voice-status-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; margin-top: 20px; }
-.tts-studio-page .voice-status-item { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; border: 1px solid #3a3a3a; border-radius: 8px; background: linear-gradient(135deg, rgba(58, 58, 58, .8), rgba(48, 48, 48, .9)); box-shadow: 0 2px 4px rgba(0, 0, 0, .1); color: #f8f9fa; }
+.tts-studio-page .voice-status-item { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 0; padding: 12px 16px; border: 1px solid #3a3a3a; border-radius: 8px; background: linear-gradient(135deg, rgba(58, 58, 58, .8), rgba(48, 48, 48, .9)); box-shadow: 0 2px 4px rgba(0, 0, 0, .1); color: #f8f9fa; }
 .tts-studio-page .voice-status-item:hover { border-color: rgba(188, 157, 90, .5); background: linear-gradient(135deg, rgba(74, 74, 74, .9), rgba(64, 64, 64, 1)); box-shadow: 0 4px 8px rgba(0, 0, 0, .2); }
 .tts-studio-page .voice-name { min-width: 0; flex: 1; overflow: hidden; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
 .tts-studio-page .status-icon { font-size: 18px; }
@@ -244,17 +244,17 @@ body.tts-studio-page-shell .tts-studio-page .pron-field{font-size:13.44px;line-h
 .tts-studio-page .voice-cache-caption{font-size:.9em;color:#aaa;margin-top:18px}
 .tts-studio-page .voice-status-item .status-icon{margin:0 12px;flex:none}.tts-studio-page .status-icon.unknown{color:#aaa}
 .tts-studio-page .voice-status-item .voice-id{font-size:11px;color:#aaa;margin-right:8px;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-body.tts-studio-page-shell .voice-status-item button.voice-copy{display:block;flex:1;min-width:0;min-height:32px;padding:0!important;margin:0;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;text-align:left;font:inherit;font-weight:500;cursor:pointer}
-body.tts-studio-page-shell .voice-status-item .voice-actions button{background:#383838!important;border:1px solid #505050!important;border-radius:6px;box-shadow:none!important;color:#ddd!important;padding:7px 10px!important;font-size:13.12px;min-height:36px;opacity:.4}
+body.tts-studio-page-shell .voice-status-item button.voice-copy{display:block;flex:1 1 auto;min-width:0;min-height:0!important;padding:0!important;margin:0!important;font-size:15px!important;line-height:22.5px!important;border:0!important;background:transparent!important;box-shadow:none!important;color:inherit!important;text-align:left;font:inherit;font-weight:500;cursor:pointer}
+body.tts-studio-page-shell .voice-status-item .voice-actions button{min-width:0;margin:2px!important;background:#383838!important;border:1px solid #505050!important;border-radius:6px;box-shadow:none!important;color:#ddd!important;padding:7px 12px!important;font-size:13.12px;min-height:36px;opacity:.4}
 body.tts-studio-page-shell .voice-status-item .voice-actions button:hover,body.tts-studio-page-shell .voice-status-item .voice-actions button:focus-visible{opacity:1}
 body.tts-studio-page-shell .voice-status-item .voice-actions button:disabled{opacity:.25;cursor:not-allowed}
 .tts-studio-page .voice-cloud-consent{display:flex;gap:8px;align-items:flex-start;font-size:.85em;color:#aaa;margin-top:14px}.tts-studio-page .voice-cloud-consent input{flex:none;margin-top:4px}
 .tts-studio-page .voice-info{padding:16px;margin:20px 0;border:2px solid #4a8ab6;border-radius:8px;background:rgba(74,138,182,.1)}.tts-studio-page .voice-info strong{color:#4a8ab6}.tts-studio-page .voice-info p{margin:8px 0 0}
 .tts-studio-page .voice-missing-count{color:#4a8ab6}.tts-studio-page .voice-ready{color:#4caf50}
-@media(max-width:600px){.tts-studio-page .voice-status-item{gap:4px;padding:10px}.tts-studio-page .voice-status-item .status-icon{margin:0 4px}.tts-studio-page .voice-status-item .voice-id{max-width:70px}}
+
 
 .tts-studio-page .voice-identity{flex:1;min-width:0}.tts-studio-page .voice-identity .voice-name{width:100%}
-.tts-studio-page .voice-status-item .voice-identity .voice-id{display:block;max-width:100%;margin:0}
+
 .tts-studio-page .voice-upload-field{margin-top:20px;margin-bottom:15px}.tts-studio-page .voice-upload-field label{display:block;margin-bottom:8px}
 .tts-studio-page .voice-upload-field input[type=file]{width:100%;max-width:500px;padding:8px}
 .tts-studio-page .voice-upload-name{margin-bottom:14px;color:#aaa;font-size:.9em}.tts-studio-page .voice-upload-name summary{cursor:pointer}.tts-studio-page .voice-upload-name input{max-width:500px}
@@ -278,3 +278,7 @@ body .tts-studio-page .voice-upload-form .button-group .btn-primary{background:#
 .tts-studio-page > .voice-preview-status:empty{display:none}
 
 .tts-studio-page .voice-batch-estimate{color:#aaa;font-size:.9em}
+
+/* Keep ordinary sample names readable; provider IDs take the remaining inline space. */
+.tts-studio-page .voice-status-item:has(> .voice-id) .voice-copy{flex:0 1 auto}
+.tts-studio-page .voice-status-item > .voice-id{flex:1 1 0;min-width:0}

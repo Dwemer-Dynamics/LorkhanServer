@@ -4541,3 +4541,27 @@ remaining Studio presentation differences and other provider states stay open.
 The management HTTP suite passed after the reference guard. An additional
 isolated form POST verified that an explicit connector voice-ID binding rejects
 remote deletion. The browser fixture was stopped and cleaned up.
+
+
+### Voice-card inline structure and typography (2026-09-07)
+
+Replaced the stacked voice-identity wrapper with Herika's sibling sequence:
+name, status, abbreviated provider ID, then action group. The name remains a
+keyboard-accessible copy button; IDs retain their full value in the title while
+displaying the reference 15-character abbreviation. Removed the obsolete wrapper
+CSS and narrow-screen padding override. Corrected the shared button theme's
+13.12px name font to the reference 15px/22.5px and removed its extra margins/min
+height. Action buttons now use the reference 12px horizontal padding and 2px
+margins. Native and reference cards measure 66px tall with 12px/16px padding at
+1280 and 390; three-action groups measure 127.984px wide and 40px tall.
+
+Normal names retain priority over the inline ID; very long names clip without
+pushing actions beyond the card. Full names remain in the copy payload/title.
+Isolated owned/external/uncached and long-name sample states visually compared at
+1280/390. Keyboard Enter passed through the real copy handler to a fixture-only
+clipboard stub (no operating-system clipboard change claimed). Consent, CSRF,
+stale/external deletion rejection, cancel and cache forgetting checks passed again.
+PHP lint and diff checks passed. No backend behavior changed and no new cloud
+request was made. Screenshots: private Temp/lorkhan-card-aligned-{inworld,cartesia}-
+{1280,390,forgotten-390}.png; reference source stays pinned at 529364c. Other Studio
+provider states and the rest of the page matrix remain open.
