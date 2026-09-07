@@ -80,6 +80,36 @@ function lorkhan_voice_can_sync(array $preset):bool
     return$driver!=='pockettts'||(!str_contains($endpoint,':8086')&&!str_ends_with($endpoint,'/v1/audio/speech'));
 }
 
+/** Use the selected connector's account and workspace for every Studio cache lifecycle operation. */
+function lorkhan_voice_cloud_resolver(array $preset,CloudVoiceLibrary $library,array $config):\LorkhanServer\Application\InworldVoiceResolver
+{
+    $content=$preset['content'];$driver=(string)$content['driver'];
+    $definition=ConnectorCatalog::definition('tts_provider',$driver);
+    return new \LorkhanServer\Application\InworldVoiceResolver($library->forPreset($content),
+        new CredentialStore((string)$config['credential_storage_path']),
+        (string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices'),$driver,
+        (string)($content['credential']??$definition['credential_environment']),
+        $driver==='inworld'?(string)($content['options']['workspace']??''):'');
+}
+
+/** Validate a fresh clone with the selected TTS configuration before publishing its playback mapping. */
+function lorkhan_voice_generate(array $preset,string $name,string $language,CloudVoiceLibrary $library,array $config,array $references):array
+{
+    $resolver=lorkhan_voice_cloud_resolver($preset,$library,$config);
+    $priorId=(string)($resolver->cachedVoice($name)['id']??'');
+    $deletePrevious=$priorId===''||lorkhan_voice_references($priorId,$references)===[];
+    return $resolver->rebuild($name,$language,static function(string $id)use($preset,$config,$language):array{
+        $content=$preset['content'];$driver=(string)$content['driver'];
+        $definition=ConnectorCatalog::definition('tts_provider',$driver);
+        $reference=(string)($content['credential']??$definition['credential_environment']);
+        $credentials=new CredentialStore((string)$config['credential_storage_path']);
+        $provider=new \LorkhanServer\Application\CloudSpeechConnectorProvider((string)$content['endpoint'],$driver,
+            (string)$content['model'],$id,$language,(array)($content['options']??[]),
+            in_array($reference,['','none'],true)?'':$credentials->resolve($reference),(int)$content['timeout_ms']);
+        return $provider->synthesize('Voice synchronization test.',new \LorkhanServer\Application\NeverCancelledToken());
+    },$deletePrevious);
+}
+
 /** Fetch one bounded JSON document from an explicitly configured local voice service. */
 function lorkhan_voice_fetch_json(string $endpoint,string $path):array
 {
@@ -287,10 +317,15 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
                 if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
                 $catalog=$products->connectorVoiceCatalog($configurationId);
-                $catalog[]=$cloudLibrary->forPreset($preset['content'])->clone($preset['content']['driver'],$path,pathinfo($filename,PATHINFO_FILENAME),$language);
+                $generated=lorkhan_voice_generate($preset,pathinfo($filename,PATHINFO_FILENAME),$language,$cloudLibrary,$config,$voiceReferenceIndex);
+                $catalog=array_values(array_filter($catalog,static fn(array $row):bool=>$row['id']!==$generated['id']&&$row['id']!==$generated['previous_id']&&mb_strtolower($row['display'])!==mb_strtolower($generated['display'])));
+                $catalog[]=$generated;
                 $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             }else lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),$language);
+            $selectedDiscoveryId=$configurationId;
             $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
+            if(!empty($generated['previous_kept']))$notice.=' The previous remote voice was kept because profiles or connectors still use its ID.';
+            if(!empty($generated['cleanup_failed']))$notice.=' The new voice is active, but the old remote clone could not be deleted.';
         }elseif($action==='batch_sync'){
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             if(!is_array($preset)||!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_sync_unsupported');
@@ -311,37 +346,43 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             }
             // The browser freezes one plan and submits each named voice once, even if discovery lags.
             $requested=$ajax&&$phase==='voice'?pathinfo(lorkhan_voice_filename($voice),PATHINFO_FILENAME):($pending[0]??'');
-            $count=0;$failed=0;$skipped=0;$rateLimited=false;
+            $count=0;$failed=0;$skipped=0;$rateLimited=false;$cleanupFailed=false;$previousKept=false;
             if($requested!==''&&isset($known[strtolower($requested)]))$skipped=1;
             elseif($requested!==''){
                 $name=$requested;$path=$voiceRoot.DIRECTORY_SEPARATOR.lorkhan_voice_filename($name);
                 try{lorkhan_voice_validate_wav($path);
                     if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
-                        $catalog[]=$cloudLibrary->forPreset($preset['content'])->clone($preset['content']['driver'],$path,$name,$language);
+                        $generated=lorkhan_voice_generate($preset,$name,$language,$cloudLibrary,$config,$voiceReferenceIndex);
+                        $cleanupFailed=$generated['cleanup_failed'];$previousKept=$generated['previous_kept'];
+                        $catalog=array_values(array_filter($catalog,static fn(array $row):bool=>$row['id']!==$generated['id']&&$row['id']!==$generated['previous_id']&&mb_strtolower($row['display'])!==mb_strtolower($generated['display'])));
+                        $catalog[]=$generated;
                         $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
                     }else lorkhan_voice_sync_connector($preset,$path,$name,$language);
                     $count++;
                 }catch(Throwable $exception){$failed++;$rateLimited=$exception->getMessage()==='voice_provider_http_429';}
             }
             $notice=$count.' voices uploaded; '.$failed.' failed. Run again for remaining voices.';
-            if($ajax){header('Content-Type: application/json');echo json_encode(['voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count)],JSON_THROW_ON_ERROR);exit;}
-        }elseif($action==='unsync'){
+            if($previousKept)$notice.=' The previous remote voice was kept because profiles or connectors still use its ID.';
+            if($cleanupFailed)$notice.=' The new voice is active, but the old remote clone could not be deleted.';
+            if($ajax){header('Content-Type: application/json');echo json_encode(['previous_kept'=>$previousKept,'cleanup_failed'=>$cleanupFailed,'voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count)],JSON_THROW_ON_ERROR);exit;}
+        }elseif(in_array($action,['unsync','delete_managed'],true)){
             $filename=lorkhan_voice_filename($voice);$name=pathinfo($filename,PATHINFO_FILENAME);
             $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
             $content=is_array($preset)?$preset['content']:[];$driver=(string)($content['driver']??'');
             if(!in_array($driver,['cartesia','inworld'],true))throw new InvalidArgumentException('voice_sync_unsupported');
             if(!is_file($voiceRoot.DIRECTORY_SEPARATOR.$filename))throw new InvalidArgumentException('voice_sample_not_found');
-            $definition=ConnectorCatalog::definition('tts_provider',$driver);
-            $resolver=new \LorkhanServer\Application\InworldVoiceResolver($cloudLibrary->forPreset($content),
-                new CredentialStore((string)$config['credential_storage_path']),$voiceRoot,$driver,
-                (string)($content['credential']??$definition['credential_environment']),
-                $driver==='inworld'?(string)($content['options']['workspace']??''):'');
-            $resolver->forget($name);
+            $resolver=lorkhan_voice_cloud_resolver($preset,$cloudLibrary,$config);
+            $removedId=(string)($resolver->cachedVoice($name)['id']??'');
+            if($action==='delete_managed'){
+                if(lorkhan_voice_references((string)($_POST['voice_id']??''),$voiceReferenceIndex)!==[])throw new InvalidArgumentException('voice_remote_in_use');
+                $resolver->deleteManaged($name,(string)($_POST['voice_id']??''));
+            }
+            else $resolver->forget($name);
             $catalog=array_values(array_filter($products->connectorVoiceCatalog($configurationId),
-                static fn(array $row):bool=>mb_strtolower($row['display'])!==mb_strtolower($name)&&mb_strtolower($row['id'])!==mb_strtolower($name)));
+                static fn(array $row):bool=>$row['id']!==$removedId&&mb_strtolower($row['display'])!==mb_strtolower($name)&&mb_strtolower($row['id'])!==mb_strtolower($name)));
             $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             $selectedDiscoveryId=$configurationId;
-            $notice='Cached voice ID forgotten. The local sample and remote voice were not deleted.';
+            $notice=$action==='delete_managed'?'Managed remote voice deleted. The local sample was kept.':'Cached voice ID forgotten. The local sample and remote voice were not deleted.';
         }elseif($action==='delete'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
@@ -362,7 +403,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['voice_registration_busy','voice_cache_unavailable','invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['voice_remote_in_use','voice_not_managed','voice_validation_failed','voice_validation_cleanup_failed','voice_clone_reused_id','voice_registration_busy','voice_cache_unavailable','invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 

@@ -1635,6 +1635,10 @@ foreach(['inworld','cartesia'] as $managedDriver){
     $replacement=$lifecycleResolver->rebuild('managed_fixture','en',$validate);
     $check(!$replacement['cleanup_failed']&&count($lifecycleCalls)===$deleteCount+1,
         $managedDriver.' replacing an external voice never deletes the external predecessor');
+    $deleteCount=count($lifecycleCalls);
+    $replacement=$lifecycleResolver->rebuild('managed_fixture','en',$validate,false);
+    $check($replacement['previous_kept']&&count($lifecycleCalls)===$deleteCount+1&&$lifecycleResolver->isManaged('managed_fixture',$replacement['id']),
+        $managedDriver.' retains an explicitly referenced predecessor while publishing the new sample mapping');
 }
 foreach(['../wrong','workspaces/fixture/extra','https://other.invalid', ['fixture']]as$invalidWorkspace){
     try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','options'=>['workspace'=>$invalidWorkspace]]);$check(false,'invalid workspace rejected');}

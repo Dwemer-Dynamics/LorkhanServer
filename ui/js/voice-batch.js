@@ -55,6 +55,8 @@ document.querySelectorAll('[data-voice-batch]').forEach((form) => {
                 uploaded += result.uploaded; failed += result.failed; skipped += result.skipped; completed++;
                 row.className = result.failed ? 'voice-batch-failed' : 'voice-batch-succeeded';
                 row.textContent = result.failed ? `✗ ${voice}: upload failed` : result.skipped ? `✓ ${voice}: already available` : `✓ ${voice}`;
+                if(result.previous_kept)row.textContent+=' — previous voice kept because profiles or connectors still use its ID';
+                if(result.cleanup_failed)row.textContent+=' — new voice active; old remote clone cleanup failed';
                 current.textContent = String(completed);
                 const percentage = Math.round(completed / plan.voices.length * 100);
                 bar.style.width = `${percentage}%`; bar.parentElement.setAttribute('aria-valuenow', String(percentage));

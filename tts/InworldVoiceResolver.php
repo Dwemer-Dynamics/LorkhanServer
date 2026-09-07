@@ -52,7 +52,7 @@ final class InworldVoiceResolver
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
     /** Publish a replacement only after its validation audio succeeds; preserve the old mapping on failure. */
-    public function rebuild(string $name,string $language,\Closure $validate):array
+    public function rebuild(string $name,string $language,\Closure $validate,bool $deletePrevious=true):array
     {
         [$root,$cache,$path,$lock]=$this->lockCache($name);
         try{
@@ -74,8 +74,10 @@ final class InworldVoiceResolver
                 catch(\Throwable){throw new RuntimeException('voice_validation_cleanup_failed',0,$error);}
                 throw $error;
             }
+            $voice['previous_id']=$oldId;
             $voice['cleanup_failed']=false;
-            if($oldManaged){
+            $voice['previous_kept']=$oldManaged&&!$deletePrevious;
+            if($oldManaged&&$deletePrevious){
                 try{$this->library->delete($this->driver,$oldId);}
                 catch(\Throwable){$voice['cleanup_failed']=true;}
             }
@@ -124,10 +126,19 @@ final class InworldVoiceResolver
     /** A legacy or discovered cache entry is not evidence that this installation owns the remote voice. */
     public function isManaged(string $name,string $voiceId):bool
     {
+        $saved=$this->cachedVoice($name);
+        return ($saved['managed']??false)===true&&($saved['id']??'')===$voiceId;
+    }
+
+    /** Expose a bounded mapping to Studio without discovery, cloning, or filesystem mutation. */
+    public function cachedVoice(string $name):array
+    {
         [,, $path]=$this->cacheLocation($name);
-        if(!is_file($path)||filesize($path)>=4096)return false;
+        if(!is_file($path)||filesize($path)>=4096)return [];
         $saved=json_decode((string)file_get_contents($path),true);
-        return is_array($saved)&&($saved['managed']??false)===true&&($saved['voice_id']??'')===$voiceId;
+        $id=is_array($saved)?($saved['voice_id']??''):'';
+        if(!is_string($id)||preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$id)!==1)return [];
+        return ['id'=>$id,'managed'=>($saved['managed']??false)===true];
     }
 
     /** Recheck ownership under the playback lock before deleting a remote clone, then forget its mapping. */

@@ -4500,3 +4500,44 @@ validation-provider wiring and catalog reconciliation still need integration and
 visual/interactive acceptance. Do not mark their matrix rows accepted yet.
 
 Existing isolated management HTTP forms also passed for this backend checkpoint.
+
+
+### Studio lifecycle controls and cache reconciliation (2026-09-07)
+
+Wired cloud sample cards to the lifecycle backend: Play, Forget ID, Regenerate,
+and owned-remote Delete in reference order. Regenerate is also present for cached
+voices, with upload consent available even when no samples are missing. Owned
+remote deletion is separate from forgetting; the cloud card no longer offers the
+unrelated local-WAV delete (local-provider tabs retain local sample management).
+Studio reads credential/workspace runtime mappings without creating cache files
+or contacting providers, so automatically created clones are visible and only
+matching owned IDs receive the remote-delete action.
+
+Single and batch generation now validate through the selected cloud TTS connector
+before publishing the runtime mapping, then replace prior ID/name catalog entries.
+The validator uses the new ID directly, without calling the automatic resolver
+again. Failed old-clone cleanup is shown in the single-action notice or per-voice
+batch result. Forget/Delete remove the old ID from the selected catalog as well
+as the runtime mapping, including renamed provider display names.
+
+Compatibility constraint discovered during wiring: Lorkhan profiles and connector
+defaults may reference a remote ID directly. Regeneration retains a predecessor
+that still has explicit ID references and reports why; manual remote deletion
+rejects referenced IDs. Otherwise switching a sample's cache could invalidate an
+unrelated configured voice. This is a backend binding constraint, not a visual
+exception. Two additional existing-suite checks cover retaining such predecessors;
+561 server checks pass. Existing mock lifecycle tests cover positive replacement,
+delete and failure behavior for both cloud providers.
+
+Isolated browser checks for both providers passed at 1280/390: owned/external/
+forgotten states, regeneration consent on client and server, CSRF and stale or
+external deletion rejection, cancel, and successful cache forgetting. Reference
+cache button structure was inspected at pinned 529364c. Screenshots in private
+Temp/lorkhan-lifecycle-{inworld,cartesia}-{1280,390,forgotten-390}.png were reviewed.
+No paid provider upload, synthesis or remote deletion was performed. Positive
+cloud operations are mock-backend verified, not live-provider browser acceptance;
+remaining Studio presentation differences and other provider states stay open.
+
+The management HTTP suite passed after the reference guard. An additional
+isolated form POST verified that an explicit connector voice-ID binding rejects
+remote deletion. The browser fixture was stopped and cleaned up.
