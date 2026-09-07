@@ -214,6 +214,11 @@
     // Show the current direct service without inventing an endpoint for inherited runtimes.
     const endpoint = document.getElementById('llm_endpoint');
     const serviceButtons = Array.from(document.querySelectorAll('[data-llm-service]'));
+    const signupUrls = {
+        openrouter: 'https://openrouter.ai/keys', openai: 'https://platform.openai.com/signup',
+        google: 'https://ai.google.dev/', groq: 'https://console.groq.com/keys',
+        nanogpt: 'https://nano-gpt.com/',
+    };
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
             ? (Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
@@ -224,6 +229,17 @@
         if (label) label.textContent = 'Service: ' + (active?.title || (driver.value === 'mock' ? 'Deterministic mock' : 'Configured runtime'));
         const endpointRow = document.getElementById('llm_endpoint_row');
         if (endpointRow) endpointRow.hidden = driver.value !== 'openai-compatible' || service !== 'custom';
+        const signup = document.getElementById('llm-service-signup');
+        if (signup) {
+            signup.hidden = !signupUrls[service];
+            const link = signup.querySelector('a');
+            if (signupUrls[service]) link.href = signupUrls[service];
+            else link.removeAttribute('href');
+        }
+        const terms = document.getElementById('llm-service-terms');
+        if (terms) terms.hidden = !['openrouter', 'openai', 'google'].includes(service);
+        const custom = document.getElementById('llm-service-custom');
+        if (custom) custom.hidden = service !== 'custom';
     };
     driver.addEventListener('change', () => { apply(); updateService(); });
     endpoint?.addEventListener('input', updateService);

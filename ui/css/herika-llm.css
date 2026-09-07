@@ -437,6 +437,8 @@ body.llm-page-shell > main.llm-page {
 .orm-item:hover, .orm-item[aria-selected="true"] { background:#1a1f29; }
 .orm-head { padding:8px 10px; font-weight:bold; position:sticky; top:0; background:#0c0f14; border-bottom:1px solid rgba(138,155,182,.3); }
 .orm-note { padding:6px 10px; font-size:12px; color:#97a6ba; border-bottom:1px dashed rgba(138,155,182,.25); background:#0c0f14; }
+.llm-service-note { margin:4px 0 8px; }
+.llm-service-note a { color:#bc9d5a; text-decoration:underline; }
 .orm-muted { color:#97a6ba; }
 .orm-err { color:#ff6b6b; padding:8px 10px; }
 .orm-empty { padding:8px 10px; }

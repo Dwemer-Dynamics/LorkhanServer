@@ -196,6 +196,9 @@ function lorkhan_llm_service_picker(string $webRoot): void
             <button type="button" data-llm-service="<?php echo lorkhan_ui_h($file); ?>" aria-pressed="false" title="<?php echo lorkhan_ui_h($label); ?>"><img class="llm-service-icon" src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/core/icons/<?php echo lorkhan_ui_h($file); ?>.jpg" alt="<?php echo lorkhan_ui_h($label); ?>"></button>
             <?php endforeach; ?>
         </div>
+        <div id="llm-service-signup" class="orm-note llm-service-note" hidden><a target="_blank" rel="noopener noreferrer">Sign up here</a> to get your API key for this service.</div>
+        <div id="llm-service-terms" class="orm-note llm-service-note" hidden>Check your provider's terms for content restrictions before use. <a href="https://openrouter.ai/terms#_6_-prohibited-conduct_" target="_blank" rel="noopener noreferrer">More info here.</a></div>
+        <div id="llm-service-custom" class="orm-note llm-service-note" hidden>Enter the full chat completions endpoint for your OpenAI-compatible service below.</div>
     </div>
     <?php
 }

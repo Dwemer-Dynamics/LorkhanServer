@@ -3417,3 +3417,27 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   files/legacy paths, private routes 403, unauthenticated session 401, health valid.
 - No game launched or commanded; no live settings, provider calls or deletion.
   Full page matrix remains incomplete and the goal stays active.
+
+## LLM service guidance checkpoint — 2026-09-07
+
+- Compared the live reference full LLM editor with Lorkhan's Config Hub populated
+  editor and fresh unsaved connector. Header, sidebar, provider icons, primary
+  fields, advanced sampling controls and YAML editor were visually inspected.
+- Added the missing service signup and guidance panels directly below the icons,
+  using the reference note styling and gold link colour. Signup URLs follow the
+  pinned reference's five online providers. Custom shows endpoint guidance;
+  Player2 and unknown/runtime services do not invent signup URLs.
+- Kept terms guidance factual and neutral instead of copying the reference's
+  time-sensitive claim of recently stricter enforcement. Its reference terms
+  link remains unchanged. No external link was opened and no key was transmitted.
+- Deployed UI checks switched OpenRouter, Groq, Custom and Player2 without saving:
+  links and notice visibility updated correctly; hidden signup links lose href.
+  A populated LLM name draft survived switching to Prompts Manager and back.
+  After a subsequent create-form navigation the browser tool lost iframe access;
+  a fresh standalone editor was used for the deployed full-page/notice checks.
+  This is not proof of all embedded editor interactions; final review remains open.
+- 487 existing server checks, JavaScript syntax and diff whitespace checks passed.
+  Local deploy preserved configuration, credentials and voice contents. Rollback
+  `/var/backups/lorkhanserver-code.rzRMij`; all 781 runtime hashes matched, no extra
+  files/legacy paths, private routes 403, unauthenticated session 401, health valid.
+  No live connector save/test, game launch or game command was performed.
