@@ -4258,3 +4258,22 @@ mode, and Diary person mode. Screenshots were visually reviewed and remain
 in Temp (lorkhan-calendar-{adventure,diaries}-{1280,390}.png). No live data,
 provider calls or game controls were changed. Populated diary entry-reader
 comparison remains open; this is not full page-matrix acceptance.
+
+
+### Populated diary reader comparison (2026-09-07)
+
+Compared the live Herika 2026-08-02 diary reader with a long synthetic diary
+in disposable PostgreSQL/HTTP ports 55464/58464 at 1280x900 and 390x900.
+Removed the native mobile-only top/padding/height override: parchment now
+uses the reference 80px top offset, 98% width, 40px padding and fixed audio
+footer at both sizes. Visually inspected both populated readers. The native
+long entry scrolls within the paper; Export Text preserved its exact content
+and Close dismissed the dialog. No TTS requests were made. Existing Export
+and accessible Close actions were preserved. Diff check passed.
+
+Screenshots are local-only Temp/{herika,lorkhan}-populated-diary-{1280,390}.png.
+Fixture content is synthetic; reference screenshots are private. This closes
+the populated paper-layout comparison, not all Diary workflows. Author-view
+search and the reference's Open The Diary book/print reader still need review
+and implementation where absent. Reference: ui/css/diary_adventure.css at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344.

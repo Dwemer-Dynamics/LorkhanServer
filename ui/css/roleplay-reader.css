@@ -41,7 +41,7 @@ body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-co
 .roleplay-reader .diary-entry-modal .reader-entry-actions{flex-shrink:0;margin:0;gap:10px}
 .roleplay-reader .diary-entry-modal audio{width:min(400px,100%);margin:0}
 .roleplay-reader .diary-entry-modal .reader-status{margin:0}
-@media(max-width:768px){.roleplay-reader .diary-entry-modal{top:20px;height:calc(100dvh - 40px);width:calc(100% - 24px)}.roleplay-reader .diary-entry-modal .reader-prose{padding:24px}}
+
 .roleplay-reader .reader-prose{white-space:pre-wrap}
 .roleplay-reader .diary-editor-modal{font-family:'Futura CondensedLight',Arial,sans-serif}
 .roleplay-reader .calendar-event-table:has(.log-empty){min-width:0}
