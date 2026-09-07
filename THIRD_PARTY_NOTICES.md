@@ -202,3 +202,10 @@ runtime knowledge-access decisions.
 under the same MIT license. `ui/provider_attempts.php`, `ui/jobs.php` and
 `ui/css/operational-log.css` retain Lorkhan-specific monitoring data and
 column sizing while reusing the already attributed Request Logs stylesheet.
+
+`ui/narrative_manager.php`, `ui/tmpl/narrative_manager.html.php`,
+`ui/css/narrative-manager.css` and `ui/js/narrative-manager.js` adapt the entry
+table and content editor presentation from pinned HerikaServer `ui/diarylog.php`
+and `ui/css/diary_adventure.css` under the same MIT license. Lorkhan retains its
+native narrator/diary/summary kinds, scoped creation and diary generation, with
+accessible native dialogs and the existing authenticated mutation endpoints.

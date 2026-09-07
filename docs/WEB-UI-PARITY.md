@@ -108,7 +108,7 @@ do not use an exception to excuse a generic substitute layout.
 | `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Header, tools, backup cards and migration table replaced and visually compared. Native configuration backup create/download/restore verified; full SQL backup/import, automatic backups, database access, maintenance/reset and version-reset controls remain missing, not accepted product exceptions. |
 | `diagnostics.php` | Shared operational style | Pending structural and populated-state comparison |
 | `backup_health.php` | Shared operational style | Pending structural and populated-state comparison |
-| `narrative_manager.php` | Herika narrative/diary styling | Pending structural and populated-state comparison |
+| `narrative_manager.php` | Herika `diarylog.php` entry table/editor; native create/generate extension | Replaced inline forms/cards with a compact searchable paged table, content-first editor, create/generate dialogs and separate delete confirmation. Source/reference editor and table styling compared; CRUD and generation refusal covered by existing HTTP tests. No equivalent standalone manual narrative manager exists in Herika. |
 
 Redirects `core/character_manager.php` and `core/global_settings.php` resolve to
 their canonical pages. Media routes (`cache_audio.php`, `core/profile_portrait.php`),
@@ -2278,3 +2278,43 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - This is a presentation checkpoint. CHIM's full SQL backup/import, automatic
   backups, database access, maintenance/reset and version-reset controls remain
   missing. They are tracked as outstanding parity work, not product exceptions.
+
+### Narrative Manager — diary-style entry table and dialogs
+
+- Replaced the always-expanded generation/create forms and narrative cards with
+  a compact Author/Content/Time/Actions table. Author, title/content, installation,
+  period and kind can be searched/filtered before 50-row server pagination;
+  metadata-backed entries no longer disappear behind a latest-100 view limit.
+- Pinned Herika `diarylog.php` and `diary_adventure.css` supplied the table/editor
+  reference. Herika has no exact standalone manual narrator/summary manager:
+  Lorkhan's existing kinds and scoped create/generate controls remain as dialogs.
+  Editing starts with the content; title/kind/provenance stay in expandable
+  metadata. Delete has a separate confirmation initially focused on Cancel.
+- Source-template populated/empty/no-scope fixtures and actual reference editor
+  markup were rendered without reference controllers. Compared 800px desktop
+  editor width, y80 placement, 400px textarea, 26px heading, 13.44px textarea font,
+  dark panel/border and right-aligned footer. Native bounded scrolling keeps the
+  footer visible where the reference dialog extends below a 720px viewport.
+- Tested Cancel and Escape focus restoration, discarded-edit reset on reopen,
+  literal script-looking text, metadata expansion, keyboard focus wrap and
+  browser validation reopening a collapsed required Title field. Two-installation
+  fixtures verified that creation and diary generation both restrict profile and
+  playthrough choices to the selected installation. No mutation/provider calls
+  were made through these browser fixtures.
+- At 390px the populated table remains in a horizontal scroll region, while
+  metadata and provenance fields and save/cancel remain reachable inside the
+  editor. The empty-table minimum width is removed so its message wraps instead
+  of requiring horizontal scrolling. Missing-scope create/generate buttons are
+  disabled. The main table retains native title/kind information and omits a
+  fabricated Tamrielic timestamp; the dedicated diary calendar retains that view.
+- Existing HTTP tests verified create/edit, kind/title search, diary calendar
+  visibility/export, and disabled-diary generation refusal without provider calls.
+  PHP lint, 370 server checks, 98 protocol files, management HTTP, integration and
+  migration/durable-job checks passed. No database migration was introduced.
+- Deployment verified 740 files, no mismatches/extras/old paths, 403 for protected
+  files and 401 for unauthenticated session creation. Configuration, credentials
+  and voices were preserved. Final rollback: `/var/backups/lorkhanserver-code.EVCOTZ`.
+  Live page correctly showed no entries; generation/create dialogs exposed one
+  installation, 13 available profiles and one playthrough, then were cancelled.
+  No live narrative was created/deleted, no generation was queued, and no game
+  was launched or controlled. The remaining all-page goal is still active.

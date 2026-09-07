@@ -185,7 +185,8 @@ assert r.status==200 and 'status=embedding-backfill-empty' in r.geturl() and 'No
 relationships,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=relationships-tab')); assert relationships.current==1 and '<strong>Morrowind Journal:</strong>' in text and '<th scope="col">Journal ID</th>' in text and 'id="journal-tab" class="tab-content active"' in text and 'Add relationship' not in text
 narratives_tab,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=narratives-tab')); assert narratives_tab.current==1 and '>Adventure Log</h1>' in text and 'id="adventure-tab" class="tab-content active"' in text and 'Regular Calendar' in text and 'calendar-event-table' in text and 'Create / Generate Entry' not in text
 diaries,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=diaries')); assert 'Diary Log</h1>' in text and 'Filter by Person' in text and 'calendar-event-table' in text
-narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1 class="lorkhan-page-head-title">Narratives</h1>' in text and 'Create narrative' in text
+narratives_page,text=parse(request('/LorkhanServer/ui/narrative_manager.php')); assert narratives_page.current==1 and '<h1>📝 Narratives</h1>' in text and 'Create narrative' in text
+assert 'data-open-narrative="narrative-create"' in text and 'No narratives match these filters.' in text
 cache,text=parse(request('/LorkhanServer/ui/cache_browser.php'))
 assert cache.current==1 and '<h1 class="cache-title">Audio Cache</h1>' in text and 'class="cache-panel"' in text and 'No cached audio files found.' in text
 assert cache.forms[0]['fields']['state']=='available' and cache.forms[0]['fields']['period']=='all' and 'Expired and deleted entries' in text
@@ -777,6 +778,11 @@ values=dict(create_narrative['fields'],_csrf=csrf,installation_id=valid['install
 r=request(create_narrative['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/narrative_manager.php?status=saved') and narrative_title in body,(r.status,r.geturl(),body)
 narrative_match=re.search(re.escape(narrative_title)+r'.*?name="narrative_id" value="([0-9a-f-]{36})"',body,re.S); assert narrative_match,body
 narrative_id=narrative_match.group(1); narratives,_=parse(request('/LorkhanServer/ui/narrative_manager.php'))
+assert 'id="narrative-edit-'+narrative_id+'"' in body and 'class="event-table"' in body
+_,narrative_filtered=parse(request('/LorkhanServer/ui/narrative_manager.php?state=summary'))
+assert narrative_title not in narrative_filtered
+_,narrative_filtered=parse(request('/LorkhanServer/ui/narrative_manager.php?q='+urllib.parse.quote(narrative_title)))
+assert narrative_title in narrative_filtered and '1 entries · Page 1 of 1' in narrative_filtered
 # A real diary must appear in the calendar and escaped modal, and stay playthrough-scoped.
 diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
 diary_page,diary_html=parse(request(diary_url))
