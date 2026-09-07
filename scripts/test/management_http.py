@@ -2076,11 +2076,16 @@ if create_player is not None:
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
     values=dict(revise['fields'],_csrf=csrf,profile_id=player_id,biography='Arrived in Morrowind by prison ship.',biography_known_by_all='0',personality='Patient',goals='Find Fargoth.',
+        player_elevenlabs_present='1',tts_elevenlabs_model_id='eleven_v3',tts_elevenlabs_speed='1.1',tts_elevenlabs_use_speaker_boost='false',tts_elevenlabs_v3_audio_tags='[curious]',
         diary_enabled='1',auto_diary_enabled='1',auto_diary_wait_enabled='1',diary_interval_seconds='90',change_reason='HTTP parity test')
     r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'Player profile saved.' in body and 'Patient' in body,(r.status,r.geturl())
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))
     assert revise['fields'].get('biography_known_by_all')=='0' and 'id="player-biography-known-by-all"' in body
+    assert revise['fields'].get('tts_elevenlabs_model_id')=='eleven_v3' and revise['fields'].get('tts_elevenlabs_speed')=='1.1'
+    assert revise['fields'].get('tts_elevenlabs_use_speaker_boost')=='false' and re.search(r'<textarea[^>]*name="tts_elevenlabs_v3_audio_tags"[^>]*>\[curious\]</textarea>',body)
+    invalid_voice=request(revise['action'],'POST',dict(revise['fields'],_csrf=csrf,tts_elevenlabs_speed='0'))
+    assert invalid_voice.status==422,invalid_voice.read().decode()
     assert revise['fields'].get('diary_enabled')=='1' and revise['fields'].get('auto_diary_enabled')=='1'
     assert revise['fields'].get('auto_diary_wait_enabled')=='1' and revise['fields'].get('diary_interval_seconds')=='90'
     player_import=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-settings-import'))

@@ -25,6 +25,7 @@ $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
+$playerEleven = is_array($content['player_elevenlabs'] ?? null) ? $content['player_elevenlabs'] : [];
 $latestContext = is_array($profile['latest_context'] ?? null) ? $profile['latest_context'] : [];
 $effectivePlayer=$installationId===''?[]:$productRepository->effectiveSettingsForProfile($installationId,$profile['profile_id']??null);
 $diaryConnectorId=(string)($effectivePlayer['routing']['diary_generation_configuration_id']??'');
@@ -173,7 +174,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <select id="player-tts" name="tts_configuration_id" aria-describedby="player-tts-help">
                                 <option value="__disabled__"<?php echo array_key_exists('tts_configuration_id', $routing) && (string) $routing['tts_configuration_id'] === '' ? ' selected' : ''; ?>>Disabled</option>
                                 <?php foreach ($ttsRows as $tts): if ((string) ($tts['installation_id'] ?? '') !== $installationId) continue; ?>
-                                    <option value="<?php echo lorkhan_ui_h($tts['configuration_id']); ?>"<?php echo (string) ($routing['tts_configuration_id'] ?? '') === (string) $tts['configuration_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($tts['name']); ?></option>
+                                    <option value="<?php echo lorkhan_ui_h($tts['configuration_id']); ?>" data-driver="<?php echo lorkhan_ui_h($tts['content']['driver'] ?? ''); ?>"<?php echo (string) ($routing['tts_configuration_id'] ?? '') === (string) $tts['configuration_id'] ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($tts['name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                             <span class="hint" id="player-tts-help">Enables spoken playback of typed player messages through this connector.</span>
@@ -187,6 +188,50 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <label for="player-voice-language">Voice Language</label>
                             <input id="player-voice-language" name="voice_language" type="text" maxlength="35" value="<?php echo lorkhan_ui_h($voice['language'] ?? 'en-US'); ?>">
                         </div></details>
+                        <input type="hidden" name="player_elevenlabs_present" value="1">
+                <div id="player_tts_elevenlabs_panel" class="player-provider-panel">
+                    <h3>ElevenLabs Player Overrides</h3>
+                    <span class="hint">Only used when the selected Player TTS connector is ElevenLabs. Leave a field blank to inherit the connector default.</span>
+                    <div class="player-provider-grid">
+                        <div>
+                            <label for="tts_elevenlabs_model_id">Model ID</label>
+                            <input type="text" id="tts_elevenlabs_model_id" name="tts_elevenlabs_model_id" maxlength="256" value="<?php echo lorkhan_ui_h(($playerEleven['model_id'] ?? '')); ?>" placeholder="eleven_v3">
+                            <span class="hint">Examples: <code>eleven_multilingual_v2</code>, <code>eleven_v3</code>.</span>
+                        </div>
+                        <div>
+                            <label for="tts_elevenlabs_speed">Speed</label>
+                            <input type="number" step="0.05" id="tts_elevenlabs_speed" name="tts_elevenlabs_speed" min="0.25" max="4" value="<?php echo lorkhan_ui_h(($playerEleven['speed'] ?? '')); ?>" placeholder="1.0">
+                            <span class="hint">Player-only speed override for ElevenLabs.</span>
+                        </div>
+                        <div>
+                            <label for="tts_elevenlabs_stability">Stability</label>
+                            <input type="number" step="0.05" id="tts_elevenlabs_stability" name="tts_elevenlabs_stability" min="0" max="1" value="<?php echo lorkhan_ui_h(($playerEleven['stability'] ?? '')); ?>" placeholder="0.75">
+                        </div>
+                        <div>
+                            <label for="tts_elevenlabs_similarity_boost">Similarity Boost</label>
+                            <input type="number" step="0.05" id="tts_elevenlabs_similarity_boost" name="tts_elevenlabs_similarity_boost" min="0" max="1" value="<?php echo lorkhan_ui_h(($playerEleven['similarity_boost'] ?? '')); ?>" placeholder="0.75">
+                        </div>
+                        <div>
+                            <label for="tts_elevenlabs_style">Style</label>
+                            <input type="number" step="0.05" id="tts_elevenlabs_style" name="tts_elevenlabs_style" min="0" max="1" value="<?php echo lorkhan_ui_h(($playerEleven['style'] ?? '')); ?>" placeholder="0.0">
+                        </div>
+                        <div>
+                            <label for="tts_elevenlabs_use_speaker_boost">Speaker Boost</label>
+                            <select id="tts_elevenlabs_use_speaker_boost" name="tts_elevenlabs_use_speaker_boost">
+                                <option value="" <?php echo (isset($playerEleven['use_speaker_boost']) ? ($playerEleven['use_speaker_boost'] ? 'true' : 'false') : '') === '' ? 'selected' : ''; ?>>Use Connector Default</option>
+                                <option value="true" <?php echo (isset($playerEleven['use_speaker_boost']) ? ($playerEleven['use_speaker_boost'] ? 'true' : 'false') : '') === 'true' ? 'selected' : ''; ?>>Enabled</option>
+                                <option value="false" <?php echo (isset($playerEleven['use_speaker_boost']) ? ($playerEleven['use_speaker_boost'] ? 'true' : 'false') : '') === 'false' ? 'selected' : ''; ?>>Disabled</option>
+                            </select>
+                            <span class="hint">Eleven v3 ignores Speaker Boost.</span>
+                        </div>
+                        <div class="player-provider-full-width">
+                            <label for="tts_elevenlabs_v3_audio_tags">V3 Enhancers</label>
+                            <textarea id="tts_elevenlabs_v3_audio_tags" name="tts_elevenlabs_v3_audio_tags" maxlength="1024" placeholder="[whispers] [curious]"><?php echo lorkhan_ui_h(($playerEleven['v3_audio_tags'] ?? '')); ?></textarea>
+                            <span class="hint">Prepended to the Player TTS input when the effective model is <code>eleven_v3</code>. Use ElevenLabs-style audio tags here.</span>
+                        </div>
+                    </div>
+                </div>
+
                         <div class="field-block">
                             <label for="player-autochat">Player Respeech Connector</label>
                             <select id="player-autochat" name="player_autochat_configuration_id" aria-describedby="player-autochat-help">

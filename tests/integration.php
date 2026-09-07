@@ -660,6 +660,15 @@ $playerSpeechContext=$products->speechContext($installationId,$session['playthro
 $assert(($playerSpeech['configuration_id']??null)===$profileTtsPreset['configuration_id']
     &&$playerSpeechContext===['voice'=>'MaleArgonian','language'=>'en-US'],
     'player profile did not supply its TTS connector and voice: '.json_encode($playerSpeechContext));
+$playerContent['player_elevenlabs']=['model_id'=>'eleven_v3','speed'=>1.1];
+$products->revise('profile',$playerProfile['profile_id'],$playerContent,'player voice overrides',$now);
+$playerOverrideContext=$products->speechContext($installationId,$session['playthrough_id'],$playerProfile['actor_identity'],$playerSpeech);
+$assert(($playerOverrideContext['player_elevenlabs']['model_id']??null)==='eleven_v3'
+    && ($playerOverrideContext['player_elevenlabs']['speed']??null)===1.1
+    && !isset($products->speechContext($installationId,$session['playthrough_id'],$speechTarget,$profileSpeech)['player_elevenlabs']),
+    'player overrides must be resolved for the player only');
+unset($playerContent['player_elevenlabs']);
+$products->revise('profile',$playerProfile['profile_id'],$playerContent,'restore player voice defaults',$now);
 $playerAutochat=$fixture('player-autochat');
 $playerAutochat['message_id']=$newUuid(714);$playerAutochat['request_id']=$newUuid(715);
 $playerAutochat['session_id']=$sessionId;$playerAutochat['generation']=7;$playerAutochat['created_at']=$now;

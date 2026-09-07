@@ -48,7 +48,7 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
         }
         if($this->voiceResolver!==null)$voice=($this->voiceResolver)($voice,$language,$cancellation);
         $cancellation->throwIfCancellationRequested();
-        [$url, $body, $headers] = $this->request($text, $voice, $language);
+        [$url, $body, $headers] = $this->request($text, $voice, $language, $context);
         $handle = curl_init(OutboundUrlPolicy::validate($url, [$this->host]));
         if ($handle === false) throw new RuntimeException('provider_unavailable');
         curl_setopt_array($handle, [
@@ -80,50 +80,71 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
             'duration_ms' => OpenAiCompatibleSpeechProvider::wavDurationMs($bytes)];
     }
 
+    /** Bound player-only overrides before persistence and again at the provider boundary. */
+    public static function validatePlayerOverrides(mixed $values): array
+    {
+        if (!is_array($values) || ($values !== [] && array_is_list($values))) throw new InvalidArgumentException('invalid_player_tts_overrides');
+        foreach ($values as $key => $value) {
+            $valid = match ($key) {
+                'model_id' => is_string($value) && trim($value) !== '' && strlen($value) <= 256 && mb_check_encoding($value, 'UTF-8'),
+                'v3_audio_tags' => is_string($value) && strlen($value) <= 1024 && mb_check_encoding($value, 'UTF-8'),
+                'use_speaker_boost' => is_bool($value),
+                'speed', 'stability', 'similarity_boost', 'style' => (is_int($value) || is_float($value)) && is_finite((float)$value)
+                    && $value >= ($key === 'speed' ? 0.25 : 0) && $value <= ($key === 'speed' ? 4 : 1),
+                default => false,
+            };
+            if (!$valid) throw new InvalidArgumentException('invalid_player_tts_overrides');
+        }
+        return $values;
+    }
+
     /** Build only the documented request shape for the selected cloud connector. */
-    private function request(string $text, string $voice, string $language): array
+    private function request(string $text, string $voice, string $language, array $context = []): array
     {
         $base = rtrim($this->endpoint, '/');
         if ($this->driver === '11labs') {
+            $overrides = self::validatePlayerOverrides($context['player_elevenlabs'] ?? []);
+            $options = array_replace($this->options, $overrides);
+            $model = $overrides['model_id'] ?? $this->model;
             $url = str_contains($base, '/v1/text-to-speech/') ? $base
                 : (str_ends_with($base, '/v1/text-to-speech') ? $base : $base . '/v1/text-to-speech') . '/' . rawurlencode($voice);
             $url .= (str_contains($url, '?') ? '&' : '?') . 'output_format=wav_22050';
-            $payload = ['text' => $text, 'model_id' => $this->model !== '' ? $this->model : 'eleven_multilingual_v2'];
+            $payload = ['text' => $text, 'model_id' => $model !== '' ? $model : 'eleven_multilingual_v2'];
             $v3 = strtolower($payload['model_id']) === 'eleven_v3';
-            if (isset($this->options['optimize_streaming_latency'])) {
-                $latency = $this->options['optimize_streaming_latency'];
+            if (isset($options['optimize_streaming_latency'])) {
+                $latency = $options['optimize_streaming_latency'];
                 if (!is_int($latency) || $latency < 0 || $latency > 4) throw new RuntimeException('provider_invalid_input');
                 $url .= '&optimize_streaming_latency=' . $latency;
             }
-            if ($v3 && isset($this->options['v3_audio_tags'])) {
-                $tags = $this->options['v3_audio_tags'];
+            if ($v3 && isset($options['v3_audio_tags'])) {
+                $tags = $options['v3_audio_tags'];
                 if (!is_string($tags) || strlen($tags) > 1024 || !mb_check_encoding($tags,'UTF-8')) throw new RuntimeException('provider_invalid_input');
                 if (trim($tags) !== '') $payload['text'] = trim($tags) . ' ' . ltrim($text);
                 if (mb_strlen($payload['text']) > 4096) throw new RuntimeException('provider_invalid_input');
             }
-            if (isset($this->options['apply_text_normalization'])) {
-                if (!in_array($this->options['apply_text_normalization'], ['auto','on','off'], true)) throw new RuntimeException('provider_invalid_input');
-                $payload['apply_text_normalization'] = $this->options['apply_text_normalization'];
+            if (isset($options['apply_text_normalization'])) {
+                if (!in_array($options['apply_text_normalization'], ['auto','on','off'], true)) throw new RuntimeException('provider_invalid_input');
+                $payload['apply_text_normalization'] = $options['apply_text_normalization'];
             }
-            if (isset($this->options['apply_language_text_normalization'])) {
-                if (!is_bool($this->options['apply_language_text_normalization'])) throw new RuntimeException('provider_invalid_input');
-                $payload['apply_language_text_normalization'] = $this->options['apply_language_text_normalization'];
+            if (isset($options['apply_language_text_normalization'])) {
+                if (!is_bool($options['apply_language_text_normalization'])) throw new RuntimeException('provider_invalid_input');
+                $payload['apply_language_text_normalization'] = $options['apply_language_text_normalization'];
             }
             $code = strtolower(substr($language, 0, 2));
             if (preg_match('/^[a-z]{2}$/D', $code) === 1) $payload['language_code'] = $code;
             $settings = [];
             foreach (['stability', 'similarity_boost', 'style'] as $key) {
-                if (isset($this->options[$key]) && (is_int($this->options[$key]) || is_float($this->options[$key]))) {
-                    $settings[$key] = max(0.0, min(1.0, (float) $this->options[$key]));
+                if (isset($options[$key]) && (is_int($options[$key]) || is_float($options[$key]))) {
+                    $settings[$key] = max(0.0, min(1.0, (float) $options[$key]));
                 }
             }
-            if (isset($this->options['speed'])) {
-                $speed = $this->options['speed'];
+            if (isset($options['speed'])) {
+                $speed = $options['speed'];
                 if ((!is_int($speed) && !is_float($speed)) || !is_finite((float)$speed) || $speed < 0.25 || $speed > 4) throw new RuntimeException('provider_invalid_input');
                 $settings['speed'] = $speed;
             }
-            if (!$v3 && isset($this->options['use_speaker_boost']) && is_bool($this->options['use_speaker_boost'])) {
-                $settings['use_speaker_boost'] = $this->options['use_speaker_boost'];
+            if (!$v3 && isset($options['use_speaker_boost']) && is_bool($options['use_speaker_boost'])) {
+                $settings['use_speaker_boost'] = $options['use_speaker_boost'];
             }
             if ($settings !== []) $payload['voice_settings'] = $settings;
             return [$url, json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),

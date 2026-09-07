@@ -40,6 +40,8 @@
     if (playerTts && playerTtsStatus) {
         const updatePlayerTtsStatus = () => {
             const enabled = playerTts.value !== '' && playerTts.value !== '__disabled__';
+            const elevenPanel = document.getElementById('player_tts_elevenlabs_panel');
+            if (elevenPanel) elevenPanel.hidden = playerTts.selectedOptions[0]?.dataset.driver !== '11labs';
             playerTtsStatus.classList.toggle('status-enabled', enabled);
             playerTtsStatus.classList.toggle('status-disabled', !enabled);
             playerTtsStatus.querySelector('[data-player-tts-status-text]').textContent = enabled ? 'Enabled' : 'Disabled';

@@ -519,6 +519,7 @@ final class ProductService
         if (array_key_exists('settings_overrides', $content)) {
             $content['settings_overrides'] = EffectiveSettingsResolver::validateSettingsOverrides($content['settings_overrides']);
         }
+        if(array_key_exists('player_elevenlabs',$content))$content['player_elevenlabs']=CloudSpeechConnectorProvider::validatePlayerOverrides($content['player_elevenlabs']);
         if(!array_key_exists('voice',$content))return$content;
         $voice=$content['voice'];if(!is_array($voice)||array_is_list($voice)||array_diff(array_keys($voice),['id','language'])!==[])
             throw new InvalidArgumentException('invalid_profile_voice');

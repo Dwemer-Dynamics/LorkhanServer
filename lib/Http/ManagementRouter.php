@@ -2159,6 +2159,20 @@ final class ManagementRouter
     private function playerContent(array $values):array
     {
         $content=$this->profileContent($values,true);
+        if(array_key_exists('player_elevenlabs_present',$values)){
+            $overrides=[];
+            foreach(['model_id','speed','stability','similarity_boost','style','use_speaker_boost','v3_audio_tags']as$field){
+                $value=trim((string)($values['tts_elevenlabs_'.$field]??''));if($value==='')continue;
+                if(in_array($field,['speed','stability','similarity_boost','style'],true)){
+                    if(!is_numeric($value))throw new InvalidArgumentException('invalid_player_tts_overrides');$value=(float)$value;
+                }elseif($field==='use_speaker_boost'){
+                    if(!in_array($value,['true','false'],true))throw new InvalidArgumentException('invalid_player_tts_overrides');$value=$value==='true';
+                }
+                $overrides[$field]=$value;
+            }
+            if($overrides===[])unset($content['player_elevenlabs']);
+            else $content['player_elevenlabs']=\LorkhanServer\Application\CloudSpeechConnectorProvider::validatePlayerOverrides($overrides);
+        }
         if(array_key_exists('biography_known_by_all',$values)){
             $value=$values['biography_known_by_all'];
             if(is_bool($value))$content['biography_known_by_all']=$value;

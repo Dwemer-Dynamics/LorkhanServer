@@ -465,6 +465,23 @@ foreach (['eleven_v3','eleven_multilingual_v2'] as $speechModel) {
         &&$speechPayload['apply_language_text_normalization']===true,
         $speechModel.' maps editor controls to the native query/body and applies model-specific tags and boost');
 }
+$playerElevenProvider = new CloudSpeechConnectorProvider('https://93.184.216.34','11labs','eleven_multilingual_v2','fixture','en',
+    ['speed'=>0.9,'stability'=>0.75,'use_speaker_boost'=>true],'fake-test-key');
+$playerElevenRequest = new ReflectionMethod($playerElevenProvider,'request');
+[, $playerElevenBody] = $playerElevenRequest->invoke($playerElevenProvider,'Hello.','fixture','en',
+    ['player_elevenlabs'=>['model_id'=>'eleven_v3','speed'=>1.1,'style'=>0.0,'v3_audio_tags'=>'[curious]']]);
+$playerElevenPayload=json_decode($playerElevenBody,true,512,JSON_THROW_ON_ERROR);
+$check($playerElevenPayload['model_id']==='eleven_v3' && $playerElevenPayload['text']==='[curious] Hello.'
+    && $playerElevenPayload['voice_settings']['speed']===1.1 && $playerElevenPayload['voice_settings']['stability']===0.75
+    && !isset($playerElevenPayload['voice_settings']['use_speaker_boost']), 'player overrides inherit unspecified options and apply v3 semantics');
+[, $defaultElevenBody] = $playerElevenRequest->invoke($playerElevenProvider,'Hello.','fixture','en');
+$defaultElevenPayload=json_decode($defaultElevenBody,true,512,JSON_THROW_ON_ERROR);
+$check($defaultElevenPayload['model_id']==='eleven_multilingual_v2' && $defaultElevenPayload['text']==='Hello.'
+    && $defaultElevenPayload['voice_settings']['speed']===0.9, 'player overrides do not mutate shared provider defaults');
+foreach ([['speed'=>0],['stability'=>2],['style'=>'0.5'],['model_id'=>''],['use_speaker_boost'=>'false'],['api_key'=>'secret']] as $invalidPlayerVoice) {
+    try { CloudSpeechConnectorProvider::validatePlayerOverrides($invalidPlayerVoice); $check(false,'invalid player voice override rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid player voice override rejected'); }
+}
 foreach ([null,8000,16000,24000,32000,48000] as $sampleRate) {
     $speechOptions = $sampleRate===null ? [] : ['bitrate'=>$sampleRate];
     ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','deepgram')+['driver'=>'deepgram','options'=>$speechOptions]);

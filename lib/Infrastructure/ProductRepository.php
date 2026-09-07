@@ -1398,6 +1398,8 @@ final class ProductRepository
             if($id===''&&$fallbackField!==null)$id=trim((string)($options[$fallbackField]??''));
         }
         if($id!==''&&strlen($id)<=512)$result['voice']=$id;if($language!==''&&strlen($language)<=35)$result['language']=$language;
+        if(($identity['kind']??'')==='player'&&isset($content['player_elevenlabs']))
+            $result['player_elevenlabs']=\LorkhanServer\Application\CloudSpeechConnectorProvider::validatePlayerOverrides($content['player_elevenlabs']);
         return$result;
     }
 

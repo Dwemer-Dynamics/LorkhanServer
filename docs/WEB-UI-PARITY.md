@@ -4003,3 +4003,36 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   in either live installation and no provider test was executed.
 - This is populated desktop embedded evidence only. File-picker import/export,
   remaining narrow/editor states and other incomplete matrix rows remain open.
+
+## Copy reference presentation, rewire native behavior — 2026-09-07
+
+The user explicitly confirmed the implementation method: use Herika page markup,
+styles and interactions as the starting point, then replace reads/saves with
+Lorkhan bindings. Do not keep approximating counterpart layouts component by
+component. Preserve native security, OpenMW semantics, branding and exclusions.
+
+### Player ElevenLabs overrides
+
+- Copied the pinned Herika Player provider-panel markup and CSS, including field
+  order, two-column grid, full-width V3 Enhancers and connector-default choices.
+  Adaptations are escaped Lorkhan values, validated limits, a CSS class instead
+  of the CSP-blocked inline grid span, gold border and narrow-width stacking.
+- The existing Player save writes bounded `player_elevenlabs` profile settings.
+  Blank fields remove overrides. The speech context supplies them for player
+  identity only; the ElevenLabs request builder applies them without changing
+  the shared connector or any other provider's request. Model-specific v3 tags
+  and Speaker Boost behavior use the existing adapter rules.
+- Existing unit, management HTTP and integration tests extended: 519 checks,
+  98 protocol files, forms, integration, migration/durable jobs all pass. Schema
+  remains 172 relations with unchanged hash. No new test file or migration.
+- Disposable PostgreSQL/HTTP fixture browser: created a synthetic ElevenLabs
+  connector without credentials or Test; selected it on Player; saved/reloaded
+  model, speed, disabled boost and tags; hid/reopened the panel by changing the
+  connector without losing values; keyboard-cleared overrides and saved/reloaded
+  blank inheritance. Populated screenshot caught and verified the full-width
+  enhancer correction. Live player configuration and providers were untouched.
+- Full Player-page completion is not claimed: remaining broad matrix work and
+  narrow/reference visual evidence stay open. No game was started or controlled.
+- Local deployment completed with rollback `/var/backups/lorkhanserver-code.aNbT3M`.
+  All 789 runtime files match source, with no extras or old paths; health and
+  protected-route checks passed. Configuration, credentials and voices preserved.

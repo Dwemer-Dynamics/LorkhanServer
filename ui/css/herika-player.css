@@ -314,3 +314,31 @@ body.player-page-shell.embedded-page { padding-top: 0; }
     .player-page .toggle-row + .hint { margin-left:0; }
     .player-page .player-save-row > * { flex: 1 1 auto; justify-content: center; text-align: center; }
 }
+
+/* Player provider panel copied from pinned Herika player_management.php. */
+    .player-provider-panel {
+        margin-top: 14px;
+        padding: 14px;
+        border-radius: 8px;
+        border: 1px solid rgba(188, 157, 90, 0.18);
+        background: rgba(18, 18, 18, 0.42);
+    }
+
+    .player-provider-panel h3 {
+        margin: 0 0 10px;
+        color: #f3d6a8;
+        font-size: 1em;
+        font-weight: 700;
+    }
+
+    .player-provider-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+    }
+
+
+.player-provider-panel[hidden] { display: none; }
+@media (max-width: 600px) { .player-provider-grid { grid-template-columns: minmax(0, 1fr); } }
+
+.player-provider-full-width { grid-column: 1 / -1; }
