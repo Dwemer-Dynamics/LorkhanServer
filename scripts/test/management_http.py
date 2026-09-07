@@ -20,6 +20,8 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
              +(16000).to_bytes(4,'little')+(32000).to_bytes(4,'little')+(2).to_bytes(2,'little')+(16).to_bytes(2,'little')+b'data'+len(samples).to_bytes(4,'little')+samples)
     omni_speakers=None
+    deletes=[]
+    delete_status=204
     def do_GET(self):
         if self.path=='/voice_libraries':
             payload=json.dumps([{'id':'en','name':'English'},{'id':'fr','name':'French'}]).encode()
@@ -29,6 +31,12 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
             payload=json.dumps({'speakers':speakers}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
+    def do_DELETE(self):
+        type(self).deletes.append(self.path)
+        if self.delete_status==204:
+            name=urllib.parse.unquote(urllib.parse.urlparse(self.path).path.rsplit('/',1)[-1])
+            type(self).omni_speakers=[row for row in self.omni_speakers if row.get('name')!=name]
+        self.send_response(self.delete_status); self.end_headers()
     def do_POST(self):
         if self.path=='/stt-test':
             self.transcription_requests.append(self.rfile.read(int(self.headers.get('Content-Length','0'))))
@@ -466,16 +474,26 @@ omni_values=dict(sync_values,name=omni_name,driver='omnivoice')
 r=request(create_sync_tts['action'],'POST',omni_values); omni_body=r.read().decode(); assert r.status==200
 omni_id=connector_editor_id(omni_body,omni_name)
 omni_url='/LorkhanServer/ui/core/voice_library.php?tab=omnivoice&embed=1&configuration_id='+omni_id+'&language=fr'
-VoiceProvider.omni_speakers=[{'name':'RemoteReady','status':'ready'},{'name':'RemoteNeedsText','status':'needs_reference_text'},
+VoiceProvider.omni_speakers=[{'name':'RemoteReady','status':'ready','can_delete':True},{'name':'RemoteNeedsText','status':'needs_reference_text'},
     {'name':'ReadyByFlag','status':'transcribing','runtime_ready':True},{'name':batch_voice,'status':'needs_reference_text','runtime_ready':False}]
 omni_page,omni_html=parse(request(omni_url))
 assert 'OmniVoice Language Library' in omni_html and 'French (fr)' in omni_html and re.search(r'<option value="fr" selected',omni_html)
 assert all(f['fields'].get('language')=='fr' for f in omni_page.forms if f['fields'].get('action') in ['sync','batch_sync','discover'])
-def omni_card(name,body): return next(row for row in re.findall(r'<article class="voice-status-item">.*?</article>',body,re.S) if 'data-copy-voice="'+name+'"' in row)
+def omni_card(name,body): return next(row for row in re.findall(r'<article class="voice-status-item[^"]*">.*?</article>',body,re.S) if 'data-copy-voice="'+name+'"' in row)
 assert 'server</span>' in omni_card('RemoteReady',omni_html) and 'title="Test voice"' in omni_card('RemoteReady',omni_html)
 assert 'needs text</span>' in omni_card('RemoteNeedsText',omni_html) and 'title="Test voice"' not in omni_card('RemoteNeedsText',omni_html)
 assert 'title="Test voice"' in omni_card('ReadyByFlag',omni_html)
 assert 'local</span>' in omni_card(batch_voice,omni_html) and 'title="Test voice"' not in omni_card(batch_voice,omni_html)
+delete_form=next(f for f in omni_page.forms if f['fields'].get('action')=='delete_provider')
+assert delete_form['fields']['voice_id']=='RemoteReady' and delete_form['fields']['language']=='fr'
+assert 'Remove custom voice' not in omni_card('ReadyByFlag',omni_html)
+VoiceProvider.delete_status=500
+r=request(delete_form['action'],'POST',delete_form['fields']); assert 'voice_delete_failed' in r.read().decode()
+VoiceProvider.delete_status=204
+r=request(delete_form['action'],'POST',delete_form['fields']); assert 'Provider voice removed. The local WAV was kept' in r.read().decode()
+assert VoiceProvider.deletes[-1]=='/voices/RemoteReady?language=fr'
+count_deletes=len(VoiceProvider.deletes)
+r=request(delete_form['action'],'POST',delete_form['fields']); assert 'voice_not_managed' in r.read().decode() and len(VoiceProvider.deletes)==count_deletes
 omni_batch=dict(batch_fields,configuration_id=omni_id,language='fr')
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',omni_batch); assert batch_voice in json.load(r)['voices']
 r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(omni_batch,_batch_phase='voice',voice_name=batch_voice)); result=json.load(r)

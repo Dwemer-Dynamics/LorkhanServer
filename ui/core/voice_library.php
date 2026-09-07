@@ -144,7 +144,7 @@ function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLangua
         elseif(is_array($item)){$id=trim((string)($item['voice_id']??$item['speaker']??$item['id']??$item['name']??''));
             $display=trim((string)($item['display_name']??$id));$language=trim((string)($item['language']??$fallbackLanguage));
             $status=trim((string)($item['status']??($requireReady?'not_ready':'available')));
-            if($requireReady&&filter_var($item['runtime_ready']??false,FILTER_VALIDATE_BOOL))$status='runtime_ready';$custom=($item['custom_voice']??false)===true;}
+            if($requireReady&&filter_var($item['runtime_ready']??false,FILTER_VALIDATE_BOOL))$status='runtime_ready';$custom=($item['custom_voice']??false)===true||($requireReady&&filter_var($item['can_delete']??false,FILTER_VALIDATE_BOOL));}
         else continue;
         if($id===''||strlen($id)>512||!mb_check_encoding($id,'UTF-8'))continue;
         if($display===''||strlen($display)>512||!mb_check_encoding($display,'UTF-8'))$display=$id;
@@ -395,6 +395,26 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             $selectedDiscoveryId=$configurationId;
             $notice=$action==='delete_managed'?'Managed remote voice deleted. The local sample was kept.':'Cached voice ID forgotten. The local sample and remote voice were not deleted.';
+        }elseif($action==='delete_provider'){
+            $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
+            if(!is_array($preset)||($preset['content']['driver']??'')!=='omnivoice')throw new InvalidArgumentException('voice_sync_unsupported');
+            $language=lorkhan_voice_language((string)($_POST['language']??'en'));
+            $id=trim((string)($_POST['voice_id']??''));
+            if(!preg_match('/^[A-Za-z0-9][A-Za-z0-9_.-]*$/D',$id))throw new InvalidArgumentException('invalid_voice_name');
+            $catalog=lorkhan_voice_discover($preset,$language,$cloudLibrary);$deletable=false;
+            foreach($catalog as$row)if($row['id']===$id&&$row['language']===$language&&$row['custom'])$deletable=true;
+            if(!$deletable)throw new RuntimeException('voice_not_managed');
+            $endpoint=rtrim((string)$preset['content']['endpoint'],'/');$host=(string)parse_url($endpoint,PHP_URL_HOST);
+            $url=OutboundUrlPolicy::validate($endpoint.'/voices/'.rawurlencode($id).'?language='.rawurlencode($language),[$host],true);
+            $handle=curl_init($url);if($handle===false)throw new RuntimeException('voice_delete_failed');
+            curl_setopt_array($handle,[CURLOPT_CUSTOMREQUEST=>'DELETE',CURLOPT_RETURNTRANSFER=>true,CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT_MS=>3000,CURLOPT_TIMEOUT_MS=>30000,CURLOPT_HTTPHEADER=>['Accept: application/json']]);
+            try{$result=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
+                if($result===false||$status<200||$status>=300)throw new RuntimeException('voice_delete_failed');
+            }finally{curl_close($handle);}
+            $catalog=array_values(array_filter($catalog,static fn(array $row):bool=>$row['id']!==$id));
+            $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
+            $selectedDiscoveryId=$configurationId;$discoverLanguage=$language;
+            $notice='Provider voice removed. The local WAV was kept for re-upload.';
         }elseif($action==='delete'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);

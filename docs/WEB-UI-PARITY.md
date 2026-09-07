@@ -4623,3 +4623,24 @@ This is not full Studio acceptance. OmniVoice direct upload/import, remote
 voice deletion, error states, connector-details placement and exact refresh
 button sizing still require comparison/implementation. All other open matrix
 rows remain open.
+
+
+### OmniVoice provider deletion contract (2026-09-07)
+
+Replaced OmniVoice's local-sample delete button with the reference's custom
+provider-voice delete action. Provider `can_delete`/`custom_voice` flags determine
+availability. The authenticated, CSRF-protected form preserves connector and
+language; the handler re-reads that library, rejects stale/non-custom IDs, and
+sends DELETE /voices/{id}?language={language} only to the configured endpoint.
+IDs follow the reference allowlist, redirects are disabled, and timeouts apply.
+Successful deletion removes the derived catalog entry but never the local WAV.
+The native POST response hides provider error bodies and reports failure without
+claiming removal. Other provider tabs are unchanged.
+
+PHP lint and the full management HTTP suite passed, including custom/non-custom
+button availability, selected French DELETE URL, provider 500 failure, successful
+204 deletion and stale second-submit rejection without another DELETE. The
+existing card assertion was updated to allow its added OmniVoice CSS class.
+These are mock HTTP results, not live-provider or browser confirmation-dialog
+proof. Final visual/interactive deletion review and direct-upload parity remain
+open, along with the full page matrix.
