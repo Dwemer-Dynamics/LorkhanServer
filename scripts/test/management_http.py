@@ -12,6 +12,7 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     llm_requests=[]
     embedding_requests=[]
     speech_requests=[]
+    openai_speech_requests=[]
     transcription_requests=[]
     transcription_auth=[]
     transcription_text='Ash drifts across the quiet road. A traveler stops at the inn, warms by the fire, and asks the keeper for a room until morning.'
@@ -50,6 +51,9 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
             else:
                 payload=json.dumps({'choices':[{'message':{'content':content}}]}).encode(); content_type='application/json'
             self.send_response(200); self.send_header('Content-Type',content_type); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
+        if self.path=='/v1/audio/speech':
+            body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.openai_speech_requests.append(body)
+            self.send_response(200); self.send_header('Content-Type','audio/wav'); self.send_header('Content-Length',str(len(self.silence))); self.end_headers(); self.wfile.write(self.silence); return
         if self.path=='/tts_to_audio':
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.speech_requests.append(body)
             self.send_response(200); self.send_header('Content-Type','audio/wav'); self.send_header('Content-Length',str(len(self.silence))); self.end_headers(); self.wfile.write(self.silence); return
@@ -69,6 +73,13 @@ embedding_probe=subprocess.run(['php','-r',
     str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)],capture_output=True,text=True,timeout=5)
 assert embedding_probe.returncode==0 and json.loads(embedding_probe.stdout)==[1,0,0,0,0,0,0,0] and VoiceProvider.embedding_requests==[{'text':'Vivec remembers Red Mountain.'}],(embedding_probe.returncode,embedding_probe.stdout,embedding_probe.stderr,VoiceProvider.embedding_requests)
 VoiceProvider.embedding_requests.clear()
+for speech_driver,speech_model,speech_options in [('openai','gpt-4o-mini-tts',{'instructions':'Speak softly.\nPause between sentences.'}),('openai','tts-1',{'instructions':'Not supported by this model.'}),('kokoro','kokoro',{'speed':1.2})]:
+    speech_content={'driver':speech_driver,'model':speech_model,'voice':'alloy','endpoint':'http://127.0.0.1:'+str(voice_provider.server_port)+'/v1/audio/speech','credential':'none','options':speech_options}
+    speech_probe=subprocess.run(['php','-r',"require $argv[1].'/lib/Autoload.php'; $p=LorkhanServer\\Application\\ProviderFactory::speechForPreset([],['content'=>json_decode($argv[2],true)]); echo $p->synthesize('Hello.',new LorkhanServer\\Application\\NeverCancelledToken())['duration_ms'];",str(repository_root),json.dumps(speech_content)],capture_output=True,text=True,timeout=5)
+    assert speech_probe.returncode==0 and int(speech_probe.stdout)>0,(speech_probe.returncode,speech_probe.stderr)
+assert VoiceProvider.openai_speech_requests[0]['instructions']=='Speak softly.\nPause between sentences.'
+assert 'instructions' not in VoiceProvider.openai_speech_requests[1] and VoiceProvider.openai_speech_requests[2]['speed']==1.2
+assert all(p['response_format']=='wav' for p in VoiceProvider.openai_speech_requests)
 
 class Page(html.parser.HTMLParser):
     def __init__(self,external_form=None):
@@ -710,6 +721,20 @@ assert tts_export_response.status==200 and tts_export['schema']=='lorkhan.connec
 assert tts_export['content']['options']['fallback_male']=='TestMale' and tts_export['content']['options']['fallback_female']=='TestFemale',tts_export
 assert tts_export['content']['options']['speed']==1.25 and tts_export['content']['options']['temperature']==0.7,tts_export
 assert tts_export['content']['credential']=='none' and 'fixture-tts-badge-key' not in json.dumps(tts_export)
+# Textareas and provider switches round-trip without leaking fields into a different driver.
+instructions='Read the text naturally.\n'+('Keep a steady pace. '*35)
+openai_values=dict(values,driver='openai',model='gpt-4o-mini-tts',option__instructions=instructions)
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',openai_values); assert r.status==200
+openai_page,openai_html=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
+openai_form=next(f for f in openai_page.forms if f['action'].endswith('/forms/connector-revise'))
+openai_fields=Page(external_form=openai_form['id']); openai_fields.feed(openai_html); openai_form['fields'].update(openai_fields.external_fields)
+assert openai_form['fields']['option__instructions']==instructions.strip()
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',dict(openai_form['fields'],_csrf=csrf,option__instructions='x'*4097)); assert r.status==422
+eleven_values=dict(values,driver='11labs',model='eleven_v3',option__optimize_streaming_latency='2',option__speed='0.9',option__apply_text_normalization='off',option__apply_language_text_normalization='true',option__v3_audio_tags='[whispers]\n[curious]')
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',eleven_values); assert r.status==200
+eleven_export=json.loads(request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json').read().decode())['content']['options']
+assert eleven_export['v3_audio_tags']=='[whispers]\n[curious]' and eleven_export['apply_language_text_normalization'] is True and eleven_export['optimize_streaming_latency']==2 and eleven_export['speed']==0.9
+assert 'instructions' not in eleven_export
 # Provider controls round-trip the typed connector, including custom model and language values.
 inworld_values=dict(values,driver='inworld',model='inworld-custom-snapshot',language='en-GB',option__workspace='workspaces/fixture',option__temperature='0.8',option__speed='1.1')
 r=request('/LorkhanServer/manage/forms/connector-revise','POST',inworld_values); assert r.status==200

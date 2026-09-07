@@ -89,6 +89,26 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                 : (str_ends_with($base, '/v1/text-to-speech') ? $base : $base . '/v1/text-to-speech') . '/' . rawurlencode($voice);
             $url .= (str_contains($url, '?') ? '&' : '?') . 'output_format=wav_22050';
             $payload = ['text' => $text, 'model_id' => $this->model !== '' ? $this->model : 'eleven_multilingual_v2'];
+            $v3 = strtolower($payload['model_id']) === 'eleven_v3';
+            if (isset($this->options['optimize_streaming_latency'])) {
+                $latency = $this->options['optimize_streaming_latency'];
+                if (!is_int($latency) || $latency < 0 || $latency > 4) throw new RuntimeException('provider_invalid_input');
+                $url .= '&optimize_streaming_latency=' . $latency;
+            }
+            if ($v3 && isset($this->options['v3_audio_tags'])) {
+                $tags = $this->options['v3_audio_tags'];
+                if (!is_string($tags) || strlen($tags) > 1024 || !mb_check_encoding($tags,'UTF-8')) throw new RuntimeException('provider_invalid_input');
+                if (trim($tags) !== '') $payload['text'] = trim($tags) . ' ' . ltrim($text);
+                if (mb_strlen($payload['text']) > 4096) throw new RuntimeException('provider_invalid_input');
+            }
+            if (isset($this->options['apply_text_normalization'])) {
+                if (!in_array($this->options['apply_text_normalization'], ['auto','on','off'], true)) throw new RuntimeException('provider_invalid_input');
+                $payload['apply_text_normalization'] = $this->options['apply_text_normalization'];
+            }
+            if (isset($this->options['apply_language_text_normalization'])) {
+                if (!is_bool($this->options['apply_language_text_normalization'])) throw new RuntimeException('provider_invalid_input');
+                $payload['apply_language_text_normalization'] = $this->options['apply_language_text_normalization'];
+            }
             $code = strtolower(substr($language, 0, 2));
             if (preg_match('/^[a-z]{2}$/D', $code) === 1) $payload['language_code'] = $code;
             $settings = [];
@@ -97,7 +117,12 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
                     $settings[$key] = max(0.0, min(1.0, (float) $this->options[$key]));
                 }
             }
-            if (isset($this->options['use_speaker_boost']) && is_bool($this->options['use_speaker_boost'])) {
+            if (isset($this->options['speed'])) {
+                $speed = $this->options['speed'];
+                if ((!is_int($speed) && !is_float($speed)) || !is_finite((float)$speed) || $speed < 0.25 || $speed > 4) throw new RuntimeException('provider_invalid_input');
+                $settings['speed'] = $speed;
+            }
+            if (!$v3 && isset($this->options['use_speaker_boost']) && is_bool($this->options['use_speaker_boost'])) {
                 $settings['use_speaker_boost'] = $this->options['use_speaker_boost'];
             }
             if ($settings !== []) $payload['voice_settings'] = $settings;

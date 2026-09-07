@@ -7,13 +7,14 @@ declare(strict_types=1);
 $primaryFields = [
     'pockettts'=>['model'], 'omnivoice'=>['language'], 'chatterbox'=>[], 'xtts-fastapi'=>[],
     'inworld'=>['option__workspace','language','model','option__temperature','option__speed'],
-    'cartesia'=>['language','model','option__speed'], 'openai'=>['model'],
-    '11labs'=>['model','option__stability','option__similarity_boost','option__style','option__use_speaker_boost'],
+    'cartesia'=>['language','model','option__speed'], 'openai'=>['model','option__instructions'],
+    '11labs'=>['option__optimize_streaming_latency','model','option__stability','option__similarity_boost','option__style','option__speed',
+        'option__use_speaker_boost','option__apply_text_normalization','option__apply_language_text_normalization','option__v3_audio_tags'],
     'melotts'=>['language','option__speed'], 'mimic3'=>['option__rate'],
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
     'zonos_gradio'=>['language','model','option__pitch_std','option__speaking_rate','option__cfg_scale'],
-    'deepgram'=>[], 'azure'=>[], 'kokoro'=>[], 'koboldcpp'=>[],
+    'deepgram'=>[], 'azure'=>[], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
     '11labs'=>'ElevenLabs Text-To-Speech','azure'=>'Azure Text-To-Speech','deepgram'=>'Deepgram TTS',
@@ -37,7 +38,21 @@ $fieldHelp = [
         'option__temperature'=>'Sampling temperature (0-2). Higher values make output more random. Default: 1.0',
         'option__speed'=>'Speaking rate/speed (0.5-1.5). Default: 1.0'],
     'cartesia'=>['language'=>'Language to use for TTS generation. Sonic 3 supports 42 languages.', 'model'=>'Cartesia model to use. sonic-3 is the latest model with 42 languages, volume/speed/emotion controls. Use sonic-3-2025-10-27 to pin a specific snapshot.', 'option__speed'=>'Speaking speed for the voice'],
-    'openai'=>['model'=>'Model'], 'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
+    'openai'=>['model'=>'Model','option__instructions'=>'Control the voice of your generated audio with additional instructions. Does not work with tts-1 or tts-1-hd.'],
+    '11labs'=>[
+        'option__optimize_streaming_latency'=>'Reduces response delay at some cost to quality and text handling. Use 0 for default behavior; higher values favor speed more aggressively.',
+        'model'=>'ElevenLabs model to use for this connector. Use eleven_v3 if you want V3 enhancers or audio tags.',
+        'option__stability'=>'Controls how consistent each generation sounds. Lower values are more expressive, while higher values are steadier and less varied.',
+        'option__similarity_boost'=>'Controls how closely the output sticks to the selected voice. Higher values usually sound more like the source voice, but can reduce flexibility.',
+        'option__style'=>'Adds extra stylization and exaggeration to the delivery. Higher values can sound more dramatic, but may increase latency.',
+        'option__speed'=>'Adjusts the speaking rate of the generated audio. 1.0 is normal speed.',
+        'option__use_speaker_boost'=>'Boosts resemblance to the original voice at a small latency cost. Ignored by eleven_v3.',
+        'option__apply_text_normalization'=>'Controls whether numbers, dates, abbreviations, and similar text are rewritten before speech. Auto lets ElevenLabs decide, on always normalizes, and off keeps the raw text.',
+        'option__apply_language_text_normalization'=>'Enables extra language-specific cleanup before synthesis. This is mainly useful for languages that need special text handling, such as Japanese.',
+        'option__v3_audio_tags'=>'Optional Eleven v3 prompt tags added before the text, such as [whispers] or [curious]. Only used when model_id is eleven_v3.',
+    ],
+    'kokoro'=>['option__speed'=>'Speed'],
+    'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
 ];
 
 /** Render one provider control in either the primary grid or the preserved advanced section. */
@@ -52,7 +67,9 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
             <?php foreach ($choices as $choice): ?><option value="<?php echo lorkhan_ui_h($choice); ?>"<?php echo (string)$value === $choice ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($choice === '' ? 'Connector default' : ($field['choice_labels'][$choice] ?? $choice)); ?></option><?php endforeach; ?>
         </select>
     <?php elseif ($type === 'boolean'): ?>
-        <select id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>><option value="false"<?php echo $value !== true ? ' selected' : ''; ?>>False</option><option value="true"<?php echo $value === true ? ' selected' : ''; ?>>True</option></select>
+        <select id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>><option value="true"<?php echo $value === true ? ' selected' : ''; ?>>Enabled</option><option value="false"<?php echo $value !== true ? ' selected' : ''; ?>>Disabled</option></select>
+    <?php elseif ($type === 'longstring'): ?>
+        <textarea id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" maxlength="<?php echo (int)$field['maxlength']; ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>><?php echo lorkhan_ui_h($value); ?></textarea>
     <?php else: ?>
         <input id="<?php echo lorkhan_ui_h($id); ?>" name="<?php echo lorkhan_ui_h($field['name']); ?>" type="<?php echo in_array($type, ['number','integer'], true) ? 'number' : 'text'; ?>" value="<?php echo lorkhan_ui_h($value); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $active ? '' : ' disabled'; ?>
             <?php if (in_array($type, ['number','integer'], true)): ?>step="<?php echo $type === 'integer' ? '1' : 'any'; ?>" min="<?php echo lorkhan_ui_h($field['minimum']); ?>" max="<?php echo lorkhan_ui_h($field['maximum']); ?>"<?php else: ?>maxlength="<?php echo (int)($field['maxlength'] ?? 512); ?>"<?php endif; ?>>
@@ -80,6 +97,8 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
         $field['name'] = 'option__' . $field['name'];
         $fields[$field['name']] = $field;
     }
+    // Herika presents latency as a text box; the native save path still validates the integer 0-4.
+    if ($providerDriver === '11labs') $fields['option__optimize_streaming_latency']['type'] = 'string';
     if ($providerDriver === 'xvasynth') foreach (['model_type'=>'Modeltype','waveglow_path'=>'Waveglowpath','distro'=>'Distroname'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     foreach ($fieldHelp[$providerDriver] ?? [] as $name=>$help) $fields[$name]['help']=$help;
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
@@ -88,6 +107,12 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     foreach ($providerOptions as $name=>$value) $values['option__'.$name]=$value;
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
+    if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];
+    if ($providerDriver === '11labs' && (!$activeDriver || $creating)) $values += [
+        'option__optimize_streaming_latency'=>0,'option__stability'=>0.75,'option__similarity_boost'=>0.75,
+        'option__style'=>0.0,'option__speed'=>1.0,'option__use_speaker_boost'=>true,
+        'option__apply_text_normalization'=>'auto','option__apply_language_text_normalization'=>false,
+    ];
 ?>
     <section class="meta-group<?php echo $activeDriver ? ' active' : ''; ?> runtime-settings" data-tts-provider-fields="<?php echo lorkhan_ui_h($providerDriver); ?>"<?php echo $activeDriver ? '' : ' hidden'; ?>>
         <h3><?php echo lorkhan_ui_h($providerTitles[$providerDriver] ?? $providerLabel); ?> Settings</h3>

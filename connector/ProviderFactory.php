@@ -159,7 +159,8 @@ final class ProviderFactory
         if(in_array($driver,['openai','kokoro','koboldcpp'],true)){
             $url=rtrim($endpoint,'/');
             return new OpenAiCompatibleSpeechProvider($url,[$host],(string)($content['model']?:'tts-1'),
-                (string)$content['voice'],$apiKey,(int)$content['timeout_ms'],$loopback);
+                (string)$content['voice'],$apiKey,(int)$content['timeout_ms'],$loopback,null,null,
+                array_intersect_key((array)$content['options'],array_flip($driver==='openai'?['instructions']:($driver==='kokoro'?['speed']:[]))));
         }
         if(in_array($driver,['melotts','mimic3','piper-tts','stylettsv2'],true)){
             return new LocalSpeechConnectorProvider($endpoint,$driver,(string)$content['voice'],

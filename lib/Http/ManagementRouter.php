@@ -903,7 +903,7 @@ final class ManagementRouter
             if($type==='integer'||$type==='number'){$valid=filter_var($raw,$type==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
                 if($valid===false||$valid<$field['minimum']||$valid>$field['maximum'])throw new InvalidArgumentException('invalid_connector_option_'.$name);
                 $options[$name]=$type==='integer'?(int)$valid:(float)$valid;continue;}
-            if(strlen($raw)>512||!mb_check_encoding($raw,'UTF-8'))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;
+            if(strlen($raw)>($field['maxlength']??512)||!mb_check_encoding($raw,'UTF-8'))throw new InvalidArgumentException('invalid_connector_option_'.$name);$options[$name]=$raw;
         }
         $content=['driver'=>$driver,'endpoint'=>$this->need($values,'endpoint'),
             'model'=>trim((string)($values['model']??'')),'voice'=>trim((string)($values['voice']??'')),

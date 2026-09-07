@@ -304,3 +304,9 @@ The provider-specific field order, labels, descriptions and choices in
 `conf/conf_schema.json` and `ui/core/tts_connectors.php`. Inworld workspace
 normalization, scoped discovery and clone routing adapt `tts/tts-inworld.php`
 to the existing private credential library and bounded local voice cache.
+
+OpenAI Instructions, Kokoro Speed and the complete ElevenLabs provider field
+presentation in `ui/core/tmpl/tts_provider_settings.php` follow that same pinned
+schema/editor. Their bounded native WAV request mappings adapt the matching
+`tts/tts-openai.php`, `tts/tts-kokoro.php` and `tts/tts-11labs.php` behavior,
+including Eleven v3 tags, normalization, latency and speaker-boost handling.

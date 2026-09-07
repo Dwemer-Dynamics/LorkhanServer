@@ -412,6 +412,32 @@ foreach (['inventory.inspect'=>0,'ai.approach'=>1,'ai.wait'=>1,'ai.travel'=>1,'a
 }
 $check(new OpenAiCompatibleSpeechProvider('https://api.openai.com/v1/audio/speech', ['api.openai.com'], 'tts-test', 'alloy') instanceof OpenAiCompatibleSpeechProvider,
     'OpenAI-compatible TTS accepts a vetted HTTPS endpoint');
+foreach (['gpt-4o-mini-tts','tts-1','tts-1-hd'] as $speechModel) {
+    $speechProvider = new OpenAiCompatibleSpeechProvider('http://127.0.0.1:8999/v1/audio/speech', ['127.0.0.1'], $speechModel, 'alloy', '', 30000, true, null, null, ['instructions'=>"Speak softly.\nTake your time."]);
+    $speechPayload = (new ReflectionMethod($speechProvider,'requestPayload'))->invoke($speechProvider,'Hello.','alloy');
+    $check(($speechPayload['instructions'] ?? null) === ($speechModel === 'gpt-4o-mini-tts' ? "Speak softly.\nTake your time." : null)
+        &&$speechPayload['response_format']==='wav', $speechModel.' only receives supported instructions and retains WAV output');
+}
+foreach (['eleven_v3','eleven_multilingual_v2'] as $speechModel) {
+    $speechProvider = new CloudSpeechConnectorProvider('https://93.184.216.34','11labs',$speechModel,'fixture','ja-JP',
+        ['optimize_streaming_latency'=>2,'speed'=>0.9,'use_speaker_boost'=>true,'apply_text_normalization'=>'off',
+            'apply_language_text_normalization'=>true,'v3_audio_tags'=>'[whispers]'],'fake-test-key');
+    [$speechUrl,$speechBody] = (new ReflectionMethod($speechProvider,'request'))->invoke($speechProvider,'Hello.','fixture','ja-JP');
+    $speechPayload = json_decode($speechBody,true,512,JSON_THROW_ON_ERROR);
+    $check(str_ends_with($speechUrl,'output_format=wav_22050&optimize_streaming_latency=2')
+        &&$speechPayload['text']===($speechModel==='eleven_v3'?'[whispers] Hello.':'Hello.')
+        &&isset($speechPayload['voice_settings']['use_speaker_boost'])===($speechModel!=='eleven_v3')
+        &&$speechPayload['voice_settings']['speed']===0.9&&$speechPayload['apply_text_normalization']==='off'
+        &&$speechPayload['apply_language_text_normalization']===true,
+        $speechModel.' maps editor controls to the native query/body and applies model-specific tags and boost');
+}
+foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions',['invalid']],
+    ['11labs','optimize_streaming_latency',5],['11labs','apply_text_normalization','invalid'],
+    ['11labs','apply_language_text_normalization','false'],['11labs','v3_audio_tags',str_repeat('x',1025)],
+    ['kokoro','speed',0]] as [$speechDriver,$speechField,$invalidValue]) {
+    try { ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider',$speechDriver)+['driver'=>$speechDriver,'options'=>[$speechField=>$invalidValue]]); $check(false,'invalid TTS field rejected'); }
+    catch (InvalidArgumentException) { $check(true,$speechDriver.' rejects invalid '.$speechField.' before saving'); }
+}
 $check(new OpenAiCompatibleSpeechToTextProvider('https://api.openai.com/v1/audio/transcriptions', ['api.openai.com'], 'stt-test') instanceof OpenAiCompatibleSpeechToTextProvider,
     'OpenAI-compatible STT accepts a vetted HTTPS endpoint');
 $check(ProviderFactory::dialogue([]) instanceof \LorkhanServer\Application\MockProvider

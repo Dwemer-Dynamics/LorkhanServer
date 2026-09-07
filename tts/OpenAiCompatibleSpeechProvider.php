@@ -23,6 +23,7 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         private readonly bool $allowLoopbackHttp = false,
         ?string $voiceReferenceRoot = null,
         private readonly ?string $language = null,
+        private readonly array $options = [],
     ) {
         OutboundUrlPolicy::validate($endpoint, $allowedHosts, $allowLoopbackHttp);
         if ($model === '' || strlen($model) > 200 || $voice === '' || strlen($voice) > 200
@@ -48,11 +49,7 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         if ($text === '' || mb_strlen($text) > 4096) throw new RuntimeException('provider_invalid_input');
         $voice = trim((string) ($context['voice'] ?? $this->voice));
         if ($voice === '' || strlen($voice) > 512) throw new RuntimeException('provider_invalid_input');
-        $payload = ['model' => $this->model, 'input' => $text, 'response_format' => 'wav'];
-        $voiceReference = $this->voiceReference($voice);
-        if ($voiceReference === null) $payload['voice'] = $voice;
-        else $payload['voice_ref'] = $voiceReference;
-        if ($this->language !== null) $payload['language'] = $this->language;
+        $payload = $this->requestPayload($text, $voice);
         $body = json_encode($payload, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         $handle = curl_init(OutboundUrlPolicy::validate($this->endpoint, $this->allowedHosts, $this->allowLoopbackHttp));
         if ($handle === false) throw new RuntimeException('provider_unavailable');
@@ -86,6 +83,27 @@ final class OpenAiCompatibleSpeechProvider implements SpeechProvider
         }
         $duration = self::wavDurationMs($bytes);
         return ['bytes' => $bytes, 'codec' => 'wav', 'mime_type' => 'audio/wav', 'duration_ms' => $duration];
+    }
+
+    /** Build the WAV request with only supported editor controls, never arbitrary option passthrough. */
+    private function requestPayload(string $text, string $voice): array
+    {
+        $payload = ['model' => $this->model, 'input' => $text, 'response_format' => 'wav'];
+        $voiceReference = $this->voiceReference($voice);
+        if ($voiceReference === null) $payload['voice'] = $voice;
+        else $payload['voice_ref'] = $voiceReference;
+        if ($this->language !== null) $payload['language'] = $this->language;
+        if (isset($this->options['speed'])) {
+            $speed = $this->options['speed'];
+            if ((!is_int($speed) && !is_float($speed)) || !is_finite((float)$speed) || $speed < 0.25 || $speed > 4) throw new RuntimeException('provider_invalid_input');
+            $payload['speed'] = $speed;
+        }
+        if ($this->model === 'gpt-4o-mini-tts' && isset($this->options['instructions'])) {
+            $instructions = $this->options['instructions'];
+            if (!is_string($instructions) || strlen($instructions) > 4096 || !mb_check_encoding($instructions,'UTF-8')) throw new RuntimeException('provider_invalid_input');
+            if (trim($instructions) !== '') $payload['instructions'] = $instructions;
+        }
+        return $payload;
     }
 
     /** Resolve a connector-owned voice ID to a readable sample without accepting arbitrary paths. */

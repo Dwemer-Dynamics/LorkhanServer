@@ -166,7 +166,15 @@ final class ConnectorCatalog
         'mimic3'=>[['rate','Rate','number',0.2,4.0]],
         'piper-tts'=>[['length_scale','Length scale','number',0.2,4.0],['noise_scale','Noise scale','number',0.0,2.0],['noise_w_scale','Noise width scale','number',0.0,2.0],['speaker','Speaker','string'],['speaker_id','Speaker ID','integer',0,2147483647]],
         'stylettsv2'=>[['alpha','Alpha','number',0.0,1.0],['beta','Beta','number',0.0,1.0],['diffusion_steps','Diffusion steps','integer',1,100],['embedding_scale','Embedding scale','number',0.0,10.0],['session_id','Session ID','integer',1,2147483647]],
-        '11labs'=>[['stability','Stability','number',0.0,1.0],['similarity_boost','Similarity boost','number',0.0,1.0],['style','Style','number',0.0,1.0],['use_speaker_boost','Use speaker boost','boolean']],
+        'openai'=>[['instructions','Instructions','longstring',4096]],
+        'kokoro'=>[['speed','Speed','number',0.25,4.0]],
+        '11labs'=>[['optimize_streaming_latency','Optimize Streaming Latency','integer',0,4],
+            ['stability','Stability','number',0.0,1.0],['similarity_boost','Similarity Boost','number',0.0,1.0],
+            ['style','Style','number',0.0,1.0],['speed','Speed','number',0.25,4.0],
+            ['use_speaker_boost','Use Speaker Boost','boolean'],
+            ['apply_text_normalization','Apply Text Normalization','select',['auto','on','off']],
+            ['apply_language_text_normalization','Apply Language Text Normalization','boolean'],
+            ['v3_audio_tags','V3 Audio Tags','longstring',1024]],
         'cartesia'=>[['speed','Speed','select',['slowest','slow','normal','fast','fastest']]],
         'coqui-ai'=>[['speed','Speed','number',0.25,4.0]],
         'inworld'=>[['workspace','Workspace','string'],['temperature','Temperature','number',0.0,2.0],['speed','Speed','number',0.5,1.5]],
@@ -260,6 +268,26 @@ final class ConnectorCatalog
             if (!is_string($options['workspace'])) throw new InvalidArgumentException('invalid_inworld_workspace');
             $options['workspace'] = CloudVoiceLibrary::normalizeWorkspace($options['workspace']);
         }
+        // Validate newly exposed controls on every ingress, including JSON imports and API revisions.
+        $typedFields = $kind === 'tts_provider' ? match ($driver) {
+            'openai'=>['instructions'], 'kokoro'=>['speed'],
+            '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
+            default=>[],
+        } : [];
+        foreach (self::optionFields($kind, $driver) as $field) {
+            $name = $field['name'];
+            if (!in_array($name, $typedFields, true) || !array_key_exists($name, $options)) continue;
+            $value = $options[$name];
+            $valid = match ($field['type']) {
+                'longstring'=>is_string($value) && strlen($value) <= $field['maxlength'] && mb_check_encoding($value, 'UTF-8'),
+                'select'=>is_string($value) && in_array($value, $field['values'], true),
+                'boolean'=>is_bool($value),
+                'integer'=>is_int($value) && $value >= $field['minimum'] && $value <= $field['maximum'],
+                'number'=>(is_int($value) || is_float($value)) && is_finite((float)$value) && $value >= $field['minimum'] && $value <= $field['maximum'],
+                default=>false,
+            };
+            if (!$valid) throw new InvalidArgumentException('invalid_connector_option_' . $name);
+        }
         $result = [
             'driver' => $driver,
             'endpoint' => $endpoint,
@@ -294,7 +322,7 @@ final class ConnectorCatalog
         self::definition($kind,$driver);
         $rows=($kind==='tts_provider'?self::TTS_OPTIONS:self::STT_OPTIONS)[$driver]??[];$result=[];
         foreach($rows as$row){$field=['name'=>$row[0],'label'=>$row[1],'type'=>$row[2]];
-            if($row[2]==='select')$field['values']=$row[3];elseif(in_array($row[2],['number','integer'],true)){$field['minimum']=$row[3];$field['maximum']=$row[4];}
+            if($row[2]==='select')$field['values']=$row[3];elseif($row[2]==='longstring')$field['maxlength']=$row[3];elseif(in_array($row[2],['number','integer'],true)){$field['minimum']=$row[3];$field['maximum']=$row[4];}
             $result[]=$field;}
         return$result;
     }

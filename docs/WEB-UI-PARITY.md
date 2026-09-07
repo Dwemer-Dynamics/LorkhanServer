@@ -3180,11 +3180,11 @@ Remaining TTS provider work is concrete, not a product exception:
 | --- | --- |
 | Chatterbox, XTTS | Paralinguistic tags enable/prompt/list and prompt-to-speech wiring |
 | OmniVoice | Prepared-language selector, preparation workflow and language library states |
-| OpenAI | Instructions textarea and request wiring |
-| ElevenLabs | Streaming latency, speed, normalization switches, v3 audio tags and full field defaults/help |
+| OpenAI | Instructions editor/request mapping completed below; automatic mood-to-instructions routing is still absent from the native speech context |
+| ElevenLabs | Editor controls and model-specific request mapping completed below; live provider synthesis remains untested |
 | Azure | Mood, region, volume, rate, contour and valid moods with SSML wiring |
 | Mimic3 | Volume and default/help review |
-| Kokoro | Speed and request wiring |
+| Kokoro | Speed editor/request mapping completed below; native endpoint and effective speed defaults preserved |
 | Deepgram | Bitrate versus native WAV transport semantics; explicit comparison needed |
 | Zonos | Language choices, dynamic tones, cache-path ownership and full defaults/help |
 | xVASynth, Piper, Melo | Remaining labels/defaults/help and visual/interactive state review |
@@ -3203,3 +3203,55 @@ creation returns 401, and health/NPC-reader probes pass. The final Cartesia
 screenshot includes the full reference help text and the native effective
 `normal` speed default rather than replacing it with an unsaved form's first
 choice. No provider synthesis was invoked.
+
+
+### OpenAI, ElevenLabs and Kokoro TTS controls checkpoint
+
+- Added OpenAI Instructions beside Model Id, with Herika's textarea, help text
+  and model choices. The saved text reaches gpt-4o-mini-tts; tts-1 and tts-1-hd
+  omit it. Kokoro now exposes the reference Speed field and sends its value in
+  the WAV request. Other OpenAI-compatible adapters receive no new options.
+- ElevenLabs now follows all ten visible reference fields in their original
+  two-column order: latency/model, stability/similarity, style/speed,
+  speaker boost/text normalization, language normalization/v3 audio tags.
+  Labels/help, Enabled/Disabled choices and the multiline textarea match the
+  pinned schema. New-service drafts use the reference voice-setting defaults;
+  existing connector values and the native model default are not migrated.
+- Latency goes into the query, speed into voice_settings, normalization into
+  the request body, and v3 tags only prefix eleven_v3 speech. V3 omits speaker
+  boost like Herika. No event/subtitle text is rewritten. WAV output remains
+  fixed and tags cannot expand the native request past its text bound.
+- Added typed validation for newly exposed options across forms, API revisions
+  and imports. Instructions are bounded to 4096 bytes and v3 tags to 1024;
+  invalid ranges, enums and boolean/string substitutions are rejected.
+- Existing HTTP fixtures now inspect actual OpenAI/Kokoro requests and WAV
+  responses through the factory, without credentials or remote calls. They
+  also save/reload multiline instructions longer than 512 bytes, reject an
+  oversized edit, round-trip ElevenLabs options and clear inactive-driver
+  options. The first run exposed a test-parser limitation: its ordinary form
+  reader ignored textareas. The test now uses its existing external-form
+  textarea reader; the saved UI and provider code were not bypassed.
+- Browser comparisons used live Herika unsaved forms and an isolated Lorkhan
+  fixture: empty OpenAI and populated ElevenLabs screenshots, full ElevenLabs
+  counterpart screenshot, and paired Kokoro screenshots. Instructions survive
+  switching away and back. ElevenLabs at 390px has 375px content/scroll width,
+  readable wrapped help, a 335px textarea, and keyboard Tab reaches Advanced.
+- Source audit identified a separate remaining speech-style gap: native
+  speechContext currently carries voice/language, not Herika's automatic mood
+  prefix. The explicit Instructions field works; automatic emotional routing
+  must not be inferred from that. This remains with the broader speech-style
+  audit and is not presented as a completed behavior.
+- Current official ElevenLabs documentation still lists latency optimization as
+  deprecated and optional. No latency improvement is claimed; tuning remains
+  user-selected. Reference: https://elevenlabs.io/docs/api-reference/text-to-speech/convert .
+
+467 server checks, PHP lint, JavaScript syntax, management HTTP, integration,
+migration and durable-job checks passed. Schema remains 170 relations with its
+existing inventory hash. No game, live provider test, user configuration edit
+or credential change was performed. Whole-page and whole-site parity remain
+open, including the other provider rows in the preceding table.
+
+Final deployment rollback: `/var/backups/lorkhanserver-code.IycZiR`. All 780
+runtime files match source, with no extra or legacy paths. Configuration,
+credential and voice hashes are preserved. Private routes remain 403,
+unauthenticated session creation is 401, and health/NPC-reader probes passed.
