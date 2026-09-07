@@ -846,12 +846,16 @@ $assert((int)$evolvedProfile['current_revision']===(int)$dynamicPayload['base_re
 $narratorDynamicContent=$narratorProfile['content'];$narratorDynamicContent['dynamic_profile']=true;
 $narratorDynamicContent['dynamic_profile_fields']=['goals'];$narratorDynamicContent['personality']='Narrator personality must remain unchanged.';
 $narratorDynamic=$products->revise('profile',$narratorProfile['profile_id'],$narratorDynamicContent,'enable narrator evolution fixture',$now);
+$inheritedHistoryCore=$products->getRevisioned('core_profile',$evolutionCore['core_profile_id']);
+$inheritedHistoryContent=$inheritedHistoryCore['content'];$inheritedHistoryContent['settings_overrides']['profile_evolution']['history_limit']=0;
+$inheritedHistoryContent['settings_overrides']['memory']['recent_turn_limit']=3;
+$products->revise('core_profile',$evolutionCore['core_profile_id'],$inheritedHistoryContent,'zero inherits regular history fixture',$now);
 $narratorEvolution=$products->maybeEnqueueDynamicProfileEvolution($narratorDynamic['profile_id'],$session['playthrough_id'],$sessionId);
 $narratorEvolutionJob=$db->prepare("SELECT job_id,state,payload FROM durable_jobs WHERE job_type='profile.generate' "
     ."AND payload->>'profile_id'=:profile AND payload->>'mode'='narrator_profile_evolution'");
 $narratorEvolutionJob->execute(['profile'=>$narratorDynamic['profile_id']]);$narratorEvolutionRow=$narratorEvolutionJob->fetch();
 $narratorEvolutionPayload=$narratorEvolutionRow?json_decode((string)$narratorEvolutionRow['payload'],true,64,JSON_THROW_ON_ERROR):[];
-$assert(count($narratorEvolutionPayload['source_turn_ids']??[])===3,'Narrator evolution ignored Core Profile history limit');
+$assert(count($narratorEvolutionPayload['source_turn_ids']??[])===3,'Narrator evolution did not inherit regular history for zero');
 $assert(($narratorEvolution['queued']??false)===true&&$narratorEvolutionRow
     &&($narratorEvolutionPayload['dynamic_fields']??null)===['goals']
     &&count($narratorEvolutionPayload['recent_events']??[])===3,

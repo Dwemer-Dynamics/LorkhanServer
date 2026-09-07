@@ -4741,3 +4741,23 @@ which was reverted. Full management HTTP checks passed save/reload at 20, preset
 export, and Copy to all at 12, including the existing authorization/revision tests.
 Built-in preset mappings, remaining Core fields and final visual acceptance are
 still open; this checkpoint does not certify full Core Profile parity.
+
+
+### Dynamic-history zero inheritance correction (2026-09-07)
+
+Pinned metadata_json_editor.php explicitly says zero inherits regular
+CONTEXT_HISTORY. Corrected the previous checkpoint's zero/no-history behavior:
+both evolution paths now fall back to effective memory.recent_turn_limit when
+the explicit dynamic-history limit is zero. The UI help is corrected too.
+Existing integration coverage proves NPC explicit limit 3 and Narrator zero
+inheriting regular history 3. Vertical slice, migration/job and backup-restore
+wrapper completed with the known regenerated inventory hash-only difference
+reverted; no migration was introduced.
+
+The deployed pre-correction field was inspected at 1280/390 and its number/range
+inputs were checked bidirectionally using keyboard arrows without saving a live
+profile. Private snapshots: Temp/lorkhan-core-dynamic-history-{1280,390}.png.
+The reference editor navigation resolved a profile list item but did not expose
+the expected metadata control to the probe, so a rendered counterpart comparison
+is still unproven; source label/range/help were inspected instead. Do not treat
+this as final visual acceptance or full Core Profile preset parity.
