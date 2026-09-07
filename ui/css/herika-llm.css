@@ -444,3 +444,12 @@ body.llm-page-shell > main.llm-page {
 /* A stationary pointer must not leave a second tooltip over the keyboard-focused field. */
 .llm-page:has(.llm-connection-field:focus-within, .llm-option-field:focus-within) .llm-connection-field:not(:focus-within) > .llm-field-tooltip,
 .llm-page:has(.llm-connection-field:focus-within, .llm-option-field:focus-within) .llm-option-field:not(:focus-within) > .llm-field-tooltip { display:none; }
+
+/* Herika distinguishes the provider test from save/export with its accent. */
+body.llm-page-shell main.llm-page .llm-editor-toolbar button.llm-test-button {
+    border-color: #bc9d5a !important;
+    background: #655229 !important;
+}
+body.llm-page-shell main.llm-page .llm-editor-toolbar button.llm-test-button:hover {
+    background: #806934 !important;
+}

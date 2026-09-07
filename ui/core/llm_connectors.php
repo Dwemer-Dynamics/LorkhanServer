@@ -44,6 +44,20 @@ const LORKHAN_LLM_DRIVERS = [
     'mock' => ['Deterministic mock', 'Mock'],
 ];
 
+/** Identify known services consistently in the list and editor without exposing endpoints. */
+function lorkhan_llm_endpoint_service(string $endpoint): string
+{
+    return match (rtrim($endpoint, '/')) {
+        'https://openrouter.ai/api/v1/chat/completions' => 'openrouter',
+        'https://api.openai.com/v1/chat/completions' => 'openai',
+        'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' => 'google',
+        'https://api.groq.com/openai/v1/chat/completions' => 'groq',
+        'https://nano-gpt.com/api/v1/chat/completions' => 'nanogpt',
+        'http://127.0.0.1:4315/v1/chat/completions' => 'player2',
+        default => '',
+    };
+}
+
 /** Server-held credential references a direct connector may point at; key values never reach this page. */
 $llmCredentials = [
     'none' => 'No API key',
@@ -253,10 +267,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     $inUse = (int) ($row['profile_usage'] ?? 0) > 0 || (int) ($row['active_session_usage'] ?? 0) > 0
                         || (int) ($row['queued_job_usage'] ?? 0) > 0 || (int) ($row['memory_policy_usage'] ?? 0) > 0;
                     $rowDriver = (string) ($content['driver'] ?? 'configured');
+                    $rowService = $rowDriver === 'mock' ? '' : lorkhan_llm_endpoint_service((string)($rowDriver === 'configured' ? ($config['provider']['endpoint'] ?? '') : ($content['endpoint'] ?? '')));
+                    $rowBadge = ['openrouter'=>'OpenRouter','openai'=>'OpenAI','google'=>'Google','groq'=>'Groq','nanogpt'=>'NanoGPT','player2'=>'Player2'][$rowService] ?? (LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver);
                 ?>
                 <div class="conn-li<?php echo $active ? ' active' : ''; ?>" data-configuration-id="<?php echo lorkhan_ui_h($row['configuration_id']); ?>">
                     <a class="conn-li-select" href="<?php echo lorkhan_ui_h($queryFor(['edit' => $row['configuration_id']])); ?>" aria-label="Edit <?php echo lorkhan_ui_h($row['name']); ?>">
-                        <span class="head"><span class="title"><?php echo lorkhan_ui_h($row['name']); ?></span><span class="badge"><?php echo lorkhan_ui_h(LORKHAN_LLM_DRIVERS[$rowDriver][1] ?? $rowDriver); ?></span></span>
+                        <span class="head"><span class="title"><?php echo lorkhan_ui_h($row['name']); ?></span><span class="badge" title="<?php echo lorkhan_ui_h(LORKHAN_LLM_DRIVERS[$rowDriver][0] ?? $rowDriver); ?>"><?php echo lorkhan_ui_h($rowBadge); ?></span></span>
                         <span class="sub"><?php echo lorkhan_ui_h($content['model'] ?? ''); ?></span>
                     </a>
                     <div class="actions">
@@ -314,15 +330,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $switchFields = array_column(LORKHAN_LLM_BOOLEAN_FIELDS, null, 0);
                 $runtimeDefaults = array_replace(['stream'=>true, 'json_mode'=>true, 'reasoning_model'=>false, 'json_schema'=>false, 'prefill_json'=>false,
                     'disable_reasoning'=>(bool)($config['provider']['disable_reasoning'] ?? false)], (array)($config['provider']['options'] ?? []));
-                $runtimeService = match (rtrim((string)($config['provider']['endpoint'] ?? ''), '/')) {
-                    'https://openrouter.ai/api/v1/chat/completions' => 'openrouter',
-                    'https://api.openai.com/v1/chat/completions' => 'openai',
-                    'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' => 'google',
-                    'https://api.groq.com/openai/v1/chat/completions' => 'groq',
-                    'https://nano-gpt.com/api/v1/chat/completions' => 'nanogpt',
-                    'http://127.0.0.1:4315/v1/chat/completions' => 'player2',
-                    default => '',
-                };
+                $runtimeService = lorkhan_llm_endpoint_service((string)($config['provider']['endpoint'] ?? ''));
                 // Inactive mode controls stay disabled so they neither submit nor block native validation.
                 $unless = static fn(bool $active): string => $active ? '' : ' disabled';
             ?>
@@ -337,7 +345,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="llm-editor-toolbar">
                                 <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo $creating ? 'Create' : 'Save'; ?></button>
                                 <?php if (!$creating): ?>
-                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Test</button></form>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary llm-test-button" type="submit">Test</button></form>
                                 <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
                                 <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
                                 <?php endif; ?>

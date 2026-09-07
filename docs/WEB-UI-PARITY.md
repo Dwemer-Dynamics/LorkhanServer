@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; per-player provider overrides and remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key override plus full hub/narrow/interaction review remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -3836,3 +3836,38 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   configuration, credentials and voices were preserved. No game launch/control.
   Provider overrides, network-outage browser proof and the full remaining page
   matrix are still open; this checkpoint does not claim overall completion.
+
+## LLM service badges and complete vertical comparison — 2026-09-07
+
+- Read-only live comparison of GLM 5 in Lorkhan and Herika covered the header,
+  selected connector list, toolbar, service icons, model/provider, request switches,
+  sampling controls and bottom YAML/editor/reset section. No Save, Test, Clone,
+  Delete or reference New action was used; no provider request was issued.
+- Found list badges describing every configured connector merely as Runtime.
+  Known endpoint services now use their actual display names, matching the reference
+  badge purpose without inventing Herika driver identifiers. The connection mode
+  remains in the badge tooltip; unknown/custom endpoints retain Direct or Runtime,
+  and mock remains Mock. Reused the editor's exact endpoint-service mapping.
+- Test now uses the Lorkhan accent rather than Save/Export green, matching the
+  reference action distinction. Sampling/YAML geometry was visually compared through
+  the footer; native revision history remains a secondary disclosure.
+- Newly explicit outstanding LLM gap: configured-runtime mode hides the API Key
+  selector while Herika presents it. A real fix needs an inherited-endpoint credential
+  override consumed by ProviderFactory and catalogue/test paths; exposing a disabled
+  or ignored select would not satisfy parity. Full hub/narrow/interactions remain open.
+- Player provider audit: reference fields are ElevenLabs Model ID, Speed, Stability,
+  Similarity Boost, Style, Speaker Boost and V3 Enhancers, shown only for ElevenLabs
+  with blank meaning inherit. Current profile voice validation accepts only id/language;
+  speech jobs construct the connector before obtaining actor speech context. Implement
+  a validated per-player override document and apply it before provider construction,
+  preserving other actors and default connectors, before adding the reference panel.
+- Passed 499 server checks, 98 protocol files, full PHP lint, HTTP, integration,
+  migrations and durable jobs; schema unchanged at 172 relations. Final CSS-only
+  specificity correction followed an observed global submit-button override.
+- Deployed browser confirms all five actual inherited connectors show OpenRouter,
+  with Configured runtime retained in the tooltip. Test computes rgb(101,82,41)
+  while Save remains rgb(47,113,75); screenshot confirms the distinction.
+- Final local rollback /var/backups/lorkhanserver-code.zwJMh4; all 789 files match,
+  no extras or old paths, private 403/session 401 and health/NPC checks passed.
+  Config, credentials and voices preserved. No game launch/control. No claim of
+  full LLM, Player or all-page completion; pending work is recorded above.
