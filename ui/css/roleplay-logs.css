@@ -30,7 +30,7 @@
 .prompt-modal-message>header{display:flex;justify-content:space-between;padding:9px 12px;background:#303030;color:#bc9d5a;font-size:12px}
 .prompt-modal-message-body{padding:14px;line-height:1.55;white-space:pre-wrap;overflow-wrap:anywhere;font-size:14px}
 .prompt-role-user>header{color:#8bbce8}.prompt-role-assistant>header{color:#91c89b}
-@media(max-width:700px){.roleplay-log-page{padding:12px}.log-table-container{max-height:65vh}.ai-response-table{min-width:0}.books-table{min-width:650px}.log-content-modal{width:94vw}.log-modal-body{padding:12px}}
+@media(max-width:700px){.roleplay-log-page{padding:12px}.log-table-container{max-height:65vh}.ai-response-table{min-width:0}.books-table{min-width:0}.log-content-modal{width:94vw}.log-modal-body{padding:12px}}
 
 /* Diary and Adventure Log calendar geometry follows Herika's diary_adventure.css. */
 .calendar-log-page{padding:20px 10px;max-width:none}
@@ -92,14 +92,16 @@ body .calendar-downloads .log-clear,body .roleplay-log-page .log-clear{backgroun
 .book-log-page .log-footer{display:none}
 .book-log-page .log-table-container{max-height:700px;min-height:0;padding:0;border:1px solid #aaa;border-radius:0;background:#1a1a1a}
 .book-log-page .books-table{table-layout:auto;font-weight:bold;font-size:13px;line-height:1.5}
-.book-log-page .books-table th{top:0;background:#202020;color:#f8f9fa;border:1px solid #3a3a3a;padding:12px 10px}
-.book-log-page .books-table td{border:1px solid #333;vertical-align:middle;padding:10px;line-height:1.5;color:#e6e6e6}
-.book-log-page .books-table tbody tr:nth-child(odd){background:#212529}
+body .book-log-page .books-table th{top:0;background:#202020!important;color:#f5f1e8!important;border:1px solid #3a3a3a;padding:12px 10px}
+.book-log-page .books-table td{border:1px solid #333;vertical-align:middle;padding:10px;line-height:1.5;color:#dee2e6;overflow-wrap:break-word}
+body .book-log-page .books-table tbody tr:nth-child(odd){background:#212529!important}
+body .book-log-page .books-table tbody tr:nth-child(even){background:#202020!important}
+body .book-log-page .books-table tbody td{background:transparent!important}
 .book-log-page .books-table th:nth-child(1){width:7%}.book-log-page .books-table th:nth-child(2){width:71%}
 .book-log-page .books-table th:nth-child(n+3){width:7%}
 body .book-log-page .log-content-link{color:#e6e6e6!important;font:inherit;white-space:normal;text-align:left}
 .book-log-page .log-content-link:hover{text-decoration:underline}
-.book-log-page .books-table th:nth-child(3){color:#bc9d5a}
+body .book-log-page .books-table th:nth-child(3){color:#bc9d5a!important}
 
 @media(max-width:480px){.calendar-log-page .reader-heading h1{font-size:26px}}
 
@@ -117,3 +119,6 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .calendar td.has-event a:hover::after,.calendar td.has-event a:focus-visible::after{content:attr(data-event-count) " entries";position:absolute;top:0;left:50%;transform:translateX(-50%);background:#333;color:#f5f1e8;padding:5px 10px;border-radius:5px;font-size:12px;white-space:nowrap;z-index:4}
 .diary-log-page .calendar-mode-toggle{flex-wrap:nowrap}
 .diary-log-page .calendar-mode-toggle .roleplay-button{min-width:0;white-space:normal;text-align:center}
+
+.book-log-page .log-table-container:has(.books-empty){padding:12px;border:1px solid #444;border-radius:10px;background:#14141440}
+.books-empty{text-align:center;color:#6c757d;padding:20px;margin:0}

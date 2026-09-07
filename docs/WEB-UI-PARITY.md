@@ -90,7 +90,8 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
-| Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated fixture and focus restoration checked |
+| Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
+| `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
@@ -4306,3 +4307,21 @@ OS print dialog was not opened. Visually compared real Herika author/book
 views against synthetic native entries and corrected row typography and
 title word spacing. Screenshots/PDFs remain in Temp, not Git. No live diary
 records, credentials or game state changed. Other page-matrix rows remain open.
+
+
+### Populated Books follow-up (2026-09-07)
+
+Compared live Herika Books and isolated native long/short books at 1280 and
+390 pixels. Shared theme important rules had overridden the neutral header
+and alternating row colors. Restored those with table-scoped selectors,
+matched text metrics, removed the forced 650px minimum and used natural
+word wrapping so timestamps remain intact. Replaced the empty table grid
+with Herika's empty panel; filtered emptiness is described as no matches.
+Reader preserves literal HTML-looking text and closes with Escape. Existing
+installation/playthrough filters and scoped export remain available.
+
+Reference ui/events-memories.php at 529364c4c12b3a8bd4cc12a481f400ce19b3a344.
+PHP lint, diff check and disposable browser interaction checks passed;
+screenshots visually inspected and retained privately in Temp as
+{herika,lorkhan}-books-populated-{1280,390}.png and lorkhan-books-empty-390.png.
+No live books or game data were modified.

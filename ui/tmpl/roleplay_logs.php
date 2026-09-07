@@ -29,6 +29,9 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
         </nav><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $recordLabel ?> Log</a></div></div>
         <p role="status" data-roleplay-maintenance-status></p>
         <div class="log-table-container" tabindex="0" role="region" aria-label="<?= $responses?'AI response':$recordLabel ?> log">
+            <?php if(!$responses&&!$journal&&$state['rows']===[]): ?>
+                <p class="books-empty"><?= $state['query']!==''?'No books match this filter.':'No books found. Read some books in-game to see them here!' ?></p>
+            <?php else: ?>
             <table class="<?= $responses?'ai-response-table':'books-table' ?>" data-log-table>
                 <thead><tr><?php foreach($responses?['Time (UTC)','AI Response','Oghma Topic','Prompt','HTTP Request','rowid']:[$journal?'Journal ID':'Title','Content','Tamrielic Time','Time (UTC)','TS'] as $column): ?><th scope="col"><?= lorkhan_ui_h($column) ?></th><?php endforeach; ?></tr></thead>
                 <tbody><?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
@@ -45,6 +48,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
                 <?php endforeach; ?>
                 <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty">No <?= $responses?'AI responses':($journal?'journal entries':'books') ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
             </table>
+            <?php endif; ?>
         </div>
         <p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
         <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>

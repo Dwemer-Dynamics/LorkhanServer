@@ -218,7 +218,7 @@ for removed_tab in ['backgroundlife','questgen','quests','soulgaze']:
     removed_page,removed_text=parse(request('/LorkhanServer/ui/events-memories.php?tab='+removed_tab))
     assert removed_page.current==1 and 'id="eventlog-app"' in removed_text and 'id="journal-tab" class="tab-content active"' not in removed_text,removed_tab
 journal,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=journal-tab')); assert journal.current==1 and 'Morrowind Journal' in text and 'id="journal-tab" class="tab-content active"' in text and 'events-memories.php?tab=journal' in text and 'events-memories.php?tab=quests' not in text and 'events-memories.php?tab=relationships' not in text and '>Morrowind</div>' not in text
-books,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=books-tab')); assert books.current==1 and 'class="books-table"' in text and 'id="books-tab" class="tab-content active"' in text
+books,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=books-tab')); assert books.current==1 and 'No books found.' in text and 'id="books-tab" class="tab-content active"' in text
 responses,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=responses-tab')); assert responses.current==1 and 'class="ai-response-table"' in text and 'Oghma Topic' in text and 'HTTP Request' in text and 'data-reader-play' not in text
 memories,text=parse(request('/LorkhanServer/ui/events-memories.php?tab=memories-tab')); assert memories.current==1 and '>Memories</h2>' in text and 'id="memory-tab" class="tab-content active"' in text and 'Add or rebuild memories' in text
 embedding_policy=next(f for f in memories.forms if f['action'].endswith('/forms/memory-embedding-policy'))
