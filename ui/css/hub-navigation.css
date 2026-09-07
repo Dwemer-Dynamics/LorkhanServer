@@ -152,6 +152,13 @@ body .config-navigation .tab-button {
     text-overflow: ellipsis;
 }
 
+/* Match the reference label itself; main.css assigns a separate font to spans. */
+.config-navigation .tab-button .tab-label {
+    font-family: 'MagicCards', sans-serif;
+    letter-spacing: 1.5px;
+    word-spacing: 5px;
+}
+
 /* LORKHAN addition. A tab whose feature is not live stacks the name over a
    compact state badge. The column stretches so the name still measures against
    the button width and can still ellipsise. */

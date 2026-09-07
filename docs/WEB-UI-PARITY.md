@@ -79,7 +79,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
-| `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
+| `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management and OmniVoice language/readiness/direct-import/provider-delete flows are implemented with mock HTTP/browser evidence below; exact remaining provider presentation, errors, batch states and hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
@@ -4666,3 +4666,28 @@ indentation and the upload label. Provider details placement, refresh sizing,
 remaining error presentation and other matrix pages are still open; this does
 not certify full TTS Studio or whole-site parity. No live voice mutation or game
 interaction occurred.
+
+
+### Shared hub label typography and current matrix review (2026-09-07)
+
+A fresh live Control Panel comparison found label spans inheriting Futura/Arial
+from main.css despite MagicCards on their buttons. Added the reference label-level
+font, 1.5px letter spacing and 5px word spacing to shared hub-navigation.css.
+Computed browser styles now match pinned Herika 529364c for the label. The rule
+covers Control Panel, Configuration and Roleplay without changing badge or emoji
+fonts, supported tabs, routing, gold accents or data.
+
+A browser-only stylesheet substitution tested current source at 1280 and 390px
+on all three live hubs: expected computed styles, no document-level horizontal
+overflow, and one selected tab after keyboard navigation. Screenshots are private
+Temp/lorkhan-hub-label-{control,config,roleplay}-{1280,390}.png. Control Panel
+reference screenshots are Temp/herika-control-review-{1280,390}.png. Narrow
+Control Panel and populated Roleplay screenshots were inspected. The reference
+Response Queue is empty, so its screenshot cannot validate populated row parity.
+No live forms that mutate data were submitted. This CSS-only checkpoint uses
+diff checks and browser proof, not a claim of a fresh backend test run.
+
+The priority-page rows retain their earlier populated/empty/reader evidence;
+Control Panel embedded child states, configuration children and remaining settings
+features still require completion. Updated the stale TTS Studio matrix row to
+point to completed lifecycle checkpoints without accepting remaining gaps.
