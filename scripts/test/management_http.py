@@ -807,6 +807,10 @@ assert narrative_title in narrative_filtered and '1 entries · Page 1 of 1' in n
 diary_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'diaries','installation_id':valid['installation_id'],'playthrough_id':playthrough_id})
 diary_page,diary_html=parse(request(diary_url))
 assert narrative_text in diary_html and 'id="entry-'+narrative_id+'"' in diary_html and 'has-event' in diary_html and 'data-reader-form' in diary_html
+assert 'Read / Edit' not in diary_html and 'id="edit-'+narrative_id+'"' in diary_html and 'id="delete-'+narrative_id+'"' in diary_html
+assert 'Save Changes' in diary_html and 'Edit the content of the diary entry below.' in diary_html
+diary_revise=next(f for f in diary_page.forms if f['action'].endswith('/forms/narrative-revise') and f['fields'].get('narrative_id')==narrative_id)
+assert diary_revise['fields']['title']==narrative_title and diary_revise['fields']['kind']=='diary'
 _,game_diary_html=parse(request(diary_url+'&calendar=tamrielic&game_year=427&game_month=8'))
 assert 'Last Seed, 3E 427' in game_diary_html and 'Fredas' in game_diary_html and 'Not recorded' in game_diary_html and 'game_month=9' in game_diary_html
 _,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
@@ -817,7 +821,7 @@ diary_export=request(diary_url+'&export=1')
 assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
 empty_export=request(diary_url+'&export=1&date=1900-01-01')
 assert narrative_text not in empty_export.read().decode()
-revise_narrative=next(f for f in narratives.forms if f['action'].endswith('/forms/narrative-revise') and f['fields'].get('narrative_id')==narrative_id)
+revise_narrative=diary_revise
 revised_title=narrative_title+' revised'; revised_text='Reached Balmora and found Caius.'
 r=request(revise_narrative['action'],'POST',dict(revise_narrative['fields'],_csrf=csrf,kind='summary',title=revised_title,content=revised_text,provenance='management-http edit')); body=r.read().decode()
 assert r.status==200 and revised_title in body and revised_text in body,(r.status,r.geturl(),body)

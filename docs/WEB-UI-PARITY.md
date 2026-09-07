@@ -89,7 +89,7 @@ do not use an exception to excuse a generic substitute layout.
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
-| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, paper entry editor, export and bulk delete implemented; populated/empty fixture and existing HTTP checks passed |
+| Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated fixture and focus restoration checked |
 | Roleplay `adventure` tab | Herika Adventure Log | Recorded game events, UTC/Tamrielic calendars and export implemented; live Tamrielic date selection verified against 21 matching events |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
@@ -2379,3 +2379,47 @@ Remaining Core Profile requirements identified from the pinned source and live e
   command history without feedback errors. This is read-only page verification,
   not proof of game-command execution. No game was launched or controlled, and
   no command/provider request was issued. Remaining page parity stays open.
+
+## Separate diary reader/editor checkpoint
+
+- Replaced the combined Read/Edit dialog with the actual diary row interaction:
+  click full content to read, with separate Play, Edit and Delete controls. Removed
+  the 700-character preview limit. Automatic column layout, 13px table text,
+  9px/10px cell padding and compact actions match the pinned diary row fixture.
+  Fixed doubled paragraph spacing caused by pre-wrap combined with HTML breaks.
+- Added a dedicated 800px content-first editor with 400px textarea, reference
+  typography and Save Changes/Cancel footer. Lorkhan's required title remains in
+  secondary Entry details; identity, kind, CSRF and revision provenance are kept.
+  Delete has a separate native confirmation with Cancel initially focused.
+- Paper reading no longer contains mutation forms. It uses the reference's
+  handwritten face, paper asset, 40px padding, internal scroll area and fixed
+  audio footer. Explicit Close and Export remain accessible Lorkhan controls.
+  At 390px the reader/editor remain within the viewport, and the empty table
+  wraps without horizontal scrolling. Long populated tables retain local scrolling.
+- Source-rendered populated/empty/long fixtures were compared with the pinned
+  diarylog.php edit/read markup and actual emitted row markup, not screenshots
+  of a generic substitute. Cancel discards drafts, Escape restores focus, Tab
+  wraps within dialogs, and validation reveals a missing required title inside
+  collapsed metadata. Save failure appears inside the editor and re-enables Save.
+- Table and modal Play controls use the existing authenticated sentence-preview
+  lane. Playback feedback is moved to the visible table dock or open reader;
+  closing restores the dock and cancels pending playback. Plain-text newlines
+  remain available while the reader is closed. Isolated non-audio endpoint
+  failures verified both feedback locations without calling a speech provider.
+- Existing HTTP coverage now reads the dedicated diary form and uses its identity
+  and scoped endpoint for the revision test. The first new assertion incorrectly
+  expected the existing test parser to collect textarea values; it was removed,
+  while browser value checks and actual revision HTTP coverage remain. PHP lint,
+  Node syntax, 98 protocol files, 370 server checks, management HTTP, integration,
+  migration and durable-job checks passed. The final HTTP rerun after the last
+  table markup changes also passed. No new test file or backend persistence change
+  was added.
+- Deployment verified 743 matching runtime files, no extras or old paths,
+  protected files returning 403 and unauthenticated session creation returning
+  401. Configuration, credentials and voices were preserved. Rollback:
+  `/var/backups/lorkhanserver-code.uAT5UB`. The live Diaries page rendered the
+  actual empty state with the new table layout. Populated edits and playback
+  feedback were verified in isolated fixtures, not through live data mutations.
+  No diary was generated, edited or deleted in the live server, no paid speech
+  provider was called, and no game was launched or controlled. All-page parity
+  remains open for the other rows in this matrix.

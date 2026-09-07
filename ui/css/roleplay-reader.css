@@ -13,3 +13,44 @@
 .reader-entry.is-reading{border-color:rgb(188,157,90);box-shadow:0 0 0 1px rgba(188,157,90,.25)}
 @media(max-width:700px){.roleplay-reader{padding:12px}.reader-heading h1{font-size:27px}.reader-filters label{flex:1 1 170px;min-width:0}.reader-entry{padding:15px}.reader-prose{font-size:16px}.reader-entry>header{align-items:start;flex-direction:column}.reader-heading>.roleplay-button{margin-top:6px}}
 @media print{.reader-filters,.reader-toolbar,.reader-audio-note,.reader-status,.reader-entry-actions,.reader-edit,.reader-entry>form,.reader-pagination,.roleplay-reader audio{display:none!important}.reader-entry{break-inside:avoid;border-color:#888;background:#fff;color:#111}.reader-prose,.reader-entry h2,.reader-person{color:#111}}
+/* Dedicated content editor derived from Herika diarylog.php and diary_adventure.css. */
+.roleplay-reader .diary-row-actions{display:flex;flex-wrap:wrap;gap:8px}
+.roleplay-reader .diary-editor-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);width:90%;max-width:800px;max-height:calc(100dvh - 110px);margin:0;border:1px solid #404040;border-radius:14px;padding:30px;background:#232323;color:#f8f9fa;box-shadow:0 2px 10px #0005;overflow:hidden}
+.roleplay-reader .diary-editor-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}
+.roleplay-reader .diary-editor-modal h2{color:#fff;margin:0 0 15px;font-size:26px}
+.roleplay-reader .diary-editor-modal form{display:flex;flex-direction:column;margin:0;max-height:calc(100dvh - 217px);min-height:0}
+.roleplay-reader .diary-editor-modal .modal-body{padding:0;overflow-y:auto;min-height:0}
+.roleplay-reader .diary-editor-modal label{display:block;margin-top:15px;color:#bc9d5a;font-weight:bold;font-size:inherit}
+.roleplay-reader .diary-editor-modal .modal-body>label:first-child{margin-top:0}
+.roleplay-reader .diary-editor-modal small{display:block;color:#aaa;margin-bottom:5px}
+.roleplay-reader .diary-editor-modal textarea,.roleplay-reader .diary-editor-modal input{width:100%;margin-bottom:15px;background:#252525;color:#fff;border:1px solid #666;border-radius:4px;padding:8px;font-size:16px}
+.roleplay-reader .diary-editor-modal textarea{height:400px;min-height:180px;resize:vertical;font-size:13.44px;line-height:1.45}
+.roleplay-reader .diary-entry-metadata{margin:12px 0}
+.roleplay-reader .diary-entry-metadata summary{cursor:pointer;padding:4px 0}
+.roleplay-reader .diary-editor-modal .modal-footer{flex-shrink:0;display:flex;justify-content:flex-end;gap:10px;padding:15px 0 0;background:#2b2b2b;border-top:1px solid #4a4a4a}
+.roleplay-reader .diary-delete-modal{max-width:600px}
+body .roleplay-reader .diary-save{background:#176529!important;border-color:#23843a!important;color:#fff!important}
+body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-color:#9d8045!important;color:#141414!important}
+@media(max-width:768px){.roleplay-reader .diary-editor-modal{top:20px;max-height:calc(100dvh - 40px);width:calc(100% - 24px);padding:20px}.roleplay-reader .diary-editor-modal form{max-height:calc(100dvh - 130px)}}
+/* Keep the paper reader separate from editing, with the reference's fixed audio footer. */
+.roleplay-reader .diary-entry-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);margin:0;padding:0;width:98%;max-width:1600px;height:calc(100dvh - 220px);min-height:0;background:transparent;border:0;box-shadow:none;overflow:hidden}
+.roleplay-reader .diary-entry-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}
+.roleplay-reader .diary-entry-modal .reader-entry{display:flex;flex-direction:column;height:100%;padding:0;margin:0;background:transparent;border:0}
+.roleplay-reader .diary-entry-modal .reader-entry>header{display:none}
+.roleplay-reader .diary-entry-modal .reader-prose{flex:1;min-height:0;margin:0;overflow-y:auto;overflow-x:hidden}
+.roleplay-reader .diary-entry-modal .reader-entry-actions{flex-shrink:0;margin:0;gap:10px}
+.roleplay-reader .diary-entry-modal audio{width:min(400px,100%);margin:0}
+.roleplay-reader .diary-entry-modal .reader-status{margin:0}
+@media(max-width:768px){.roleplay-reader .diary-entry-modal{top:20px;height:calc(100dvh - 40px);width:calc(100% - 24px)}.roleplay-reader .diary-entry-modal .reader-prose{padding:24px}}
+.roleplay-reader .reader-prose{white-space:pre-wrap}
+.roleplay-reader .diary-editor-modal{font-family:'Futura CondensedLight',Arial,sans-serif}
+.roleplay-reader .calendar-event-table:has(.log-empty){min-width:0}
+.diary-log-page .calendar-event-table{table-layout:auto;font-size:13px;margin-top:20px;border:1px solid #404040;border-radius:10px}
+.diary-log-page .calendar-event-table th:first-child,.diary-log-page .calendar-event-table th:nth-child(2){width:auto}
+.diary-log-page .calendar-event-table th,.diary-log-page .calendar-event-table td{padding:9px 10px;border:1px solid #343434;vertical-align:middle;color:#e0e0e0}
+.diary-log-page .calendar-event-table th{color:#bc9d5a;background:#292929}
+.diary-log-page .calendar-event-table tbody tr:nth-child(even){background:#3a3a3a}
+.diary-log-page .calendar-event-table .log-content-link{font:inherit;color:inherit!important;white-space:normal}
+.diary-log-page .diary-row-actions{min-width:190px}
+body .diary-log-page .diary-row-actions button.roleplay-button{font-size:13.12px!important;padding:7px 12px!important;min-height:0!important;margin:0!important;line-height:18px!important}
+.roleplay-reader .reader-status:empty,.roleplay-reader [data-roleplay-maintenance-status]:empty{display:none}

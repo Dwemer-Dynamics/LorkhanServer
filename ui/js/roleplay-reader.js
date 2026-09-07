@@ -5,6 +5,7 @@
     const audio = root.querySelector('[data-reader-audio]');
     const status = root.querySelector('[data-reader-status]');
     const stopButton = root.querySelector('[data-reader-stop]');
+    const dock = root.querySelector('[data-reader-dock]');
     const limit = Number(root.dataset.maxLength || 240);
     let active = null;
     let objectUrl = '';
@@ -61,11 +62,14 @@
 
     root.querySelectorAll('[data-reader-play]').forEach((button) => button.addEventListener('click', async () => {
         stop('');
-        const entry = button.closest('[data-reader-entry]');
+        const entry = button.dataset.readerTarget
+            ? document.getElementById(button.dataset.readerTarget)?.querySelector('[data-reader-entry]')
+            : button.closest('[data-reader-entry]');
+        if (!entry) return;
         // Dialog content is modal: keep playback and cancellation inside the active entry.
-        if (entry.closest('dialog')) {
+        if (entry.closest('dialog')?.open) {
             entry.querySelector('.reader-entry-actions').append(stopButton, status, audio);
-        }
+        } else dock?.append(stopButton, status, audio);
         const chunks = sentences(entry.querySelector('[data-reader-text]').innerText);
         if (!chunks.length) { announce('This entry has no text to read.'); return; }
         const run = { entry, controller: new AbortController() };
@@ -96,9 +100,44 @@
             if (active === run) stop(error.name === 'AbortError' ? 'Reading stopped.' : error.message);
         }
     }));
-    root.querySelectorAll('[data-calendar-open]').forEach(button => button.addEventListener('click', () => document.getElementById(button.dataset.calendarOpen)?.showModal()));
+    let modalTrigger = null;
+    let previousOverflow = '';
+    root.querySelectorAll('[data-calendar-open]').forEach(button => button.addEventListener('click', () => {
+        const modal = document.getElementById(button.dataset.calendarOpen);
+        if (!modal || modal.open) return;
+        stop('');
+        modalTrigger = button;
+        previousOverflow = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        modal.querySelector('form')?.reset();
+        modal.querySelectorAll('details').forEach(details => { details.open = false; });
+        modal.querySelectorAll('[data-reader-form-status]').forEach(message => { message.textContent = ''; });
+        modal.showModal();
+        const body = modal.querySelector('.modal-body');
+        if (body) body.scrollTop = 0;
+    }));
     root.querySelectorAll('[data-calendar-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
-    root.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('close', () => stop('')));
+    root.querySelectorAll('.diary-entry-modal,.diary-editor-modal').forEach(dialog => {
+        dialog.addEventListener('close', () => {
+            stop('');
+            dock?.append(stopButton, status, audio);
+            document.body.style.overflow = previousOverflow;
+            modalTrigger?.focus();
+        });
+        dialog.addEventListener('invalid', event => {
+            const details = event.target.closest('details');
+            if (details) details.open = true;
+        }, true);
+        // Keep keyboard traversal inside the reader/editor, including fields in expanded metadata.
+        dialog.addEventListener('keydown', event => {
+            if (event.key !== 'Tab') return;
+            const controls = [...dialog.querySelectorAll('button,input,textarea,summary,a[href],audio')]
+                .filter(control => !control.disabled && control.type !== 'hidden' && control.getClientRects().length);
+            const first = controls[0], last = controls.at(-1);
+            if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
+            else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+        });
+    });
     stopButton.addEventListener('click', () => stop());
     window.addEventListener('pagehide', () => stop(''));
     document.addEventListener('visibilitychange', () => { if (document.hidden && active) stop(); });
@@ -121,13 +160,15 @@
     }));
     root.querySelectorAll('[data-reader-form]').forEach((form) => form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (form.hasAttribute('data-reader-delete') && !window.confirm('Delete this entry from this playthrough?')) return;
+        if (form.hasAttribute('data-reader-delete') && !form.closest('dialog')?.open) return;
         stop('Saving entry…');
+        const formStatus = form.querySelector('[data-reader-form-status]');
+        if (formStatus) formStatus.textContent = 'Saving entry…';
         const submit = form.querySelector('[type="submit"]'); submit.disabled = true;
         try {
             const response = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body: new FormData(form) });
             if (!response.ok || !response.redirected) throw new Error('The entry could not be saved. Reload the page and try again.');
             window.location.reload();
-        } catch (error) { announce(error.message); submit.disabled = false; }
+        } catch (error) { announce(error.message); if (formStatus) formStatus.textContent = error.message; submit.disabled = false; }
     }));
 })();

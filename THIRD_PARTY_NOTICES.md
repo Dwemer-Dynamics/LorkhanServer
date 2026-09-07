@@ -222,3 +222,10 @@ only recorded metadata and database counts are presented.
 attributed Herika Request Logs header, compact buttons, table and status-pill
 presentation. The fixed OpenMW command groups remain native Lorkhan controls;
 HerikaServer has no equivalent game-command page.
+
+`ui/tmpl/roleplay_reader.php`, `ui/tmpl/diary_entry_editor.php`,
+`ui/css/roleplay-reader.css` and `ui/js/roleplay-reader.js` adapt the diary row,
+separate content editor and paper/audio reader from pinned HerikaServer
+`ui/diarylog.php` and `ui/css/diary_adventure.css` under the same MIT license.
+Lorkhan retains scoped revisioned forms, escaped plain-text entries, native
+accessible dialogs and the existing authenticated sentence-preview audio lane.
