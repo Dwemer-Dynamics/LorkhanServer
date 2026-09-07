@@ -985,9 +985,9 @@ final class PromptAssembler
     private function playerName(array $turn): string
     {
         foreach ([
-            $turn['payload']['speaker']['display_name'] ?? null,
             $turn['_player_profile']['actor_identity']['display_name'] ?? null,
             $turn['_player_profile']['name'] ?? null,
+            $turn['payload']['speaker']['display_name'] ?? null,
             $turn['payload']['speaker']['record_id'] ?? null,
         ] as $value) {
             if (is_string($value) && trim($value) !== '') return $this->truncateUtf8(trim($value), 256);

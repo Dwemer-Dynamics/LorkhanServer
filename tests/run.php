@@ -742,11 +742,11 @@ foreach($automaticCues as$source=>$expectedCue){$automaticTurn=$promptTurn;$auto
 foreach (\LorkhanServer\Application\NarratorEventPrompts::SOURCES as $source => $key) {
     $narratorTurn = $promptTurn; $narratorTurn['payload']['ui_source'] = $source;
     $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
-    $expected = strtr(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$key]['default_prompt'], ['{PLAYER_NAME}' => 'RANGROO']);
+    $expected = strtr(\LorkhanServer\Application\NarratorEventPrompts::definitions()[$key]['default_prompt'], ['{PLAYER_NAME}' => 'Nerevarine']);
     $check($messages[array_key_last($messages)]['content'] === $expected, $key.' preserves the prior event instruction by default');
     $narratorTurn['_narrator_event_prompts'] = [$key => 'Observe the scene for {PLAYER_NAME}, without inventing events.'];
     $messages = $assembler->assemble($narratorTurn, $promptSelection)['provider_input']['_messages'];
-    $check($messages[array_key_last($messages)]['content'] === 'Observe the scene for RANGROO, without inventing events.', $key.' applies the frozen custom instruction');
+    $check($messages[array_key_last($messages)]['content'] === 'Observe the scene for Nerevarine, without inventing events.', $key.' applies the frozen custom instruction');
 }
 $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Player Character')
     &&str_contains($assembled['provider_input']['_assembled_prompt'],'Freed from the Imperial prison.')
@@ -765,18 +765,20 @@ $check(str_contains($assembled['provider_input']['_assembled_prompt'],'### Recor
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'not prompt-safe either'),
     'server-owned record descriptions are included with an explicit field allowlist');
 $check(str_contains((string)$systemMessage['content'],'Curious & wary <Bosmer>.')
-    &&str_contains((string)$systemMessage['content'],'- **Name:** RANGROO')
-    &&!str_contains((string)$systemMessage['content'],'- **Name:** Nerevarine')
+    &&str_contains((string)$systemMessage['content'],'- **Name:** Nerevarine')
+    &&!str_contains((string)$systemMessage['content'],'- **Name:** RANGROO')
     &&!str_contains((string)$systemMessage['content'],'DISABLED NARRATOR SENTINEL'),
-    'Markdown presentation, live player identity, and disabled narrator filtering are stable');
+    'Markdown presentation uses the configured player name and preserves disabled narrator filtering');
+$unconfiguredPlayer=$promptTurn;unset($unconfiguredPlayer['_player_profile']);
+$check(str_contains($assembler->assemble($unconfiguredPlayer,$promptSelection)['provider_input']['_assembled_prompt'],'RANGROO'),'player name falls back to the game identity without a configured persona');
 $moodPromptTurn=$promptTurn;$moodPromptTurn['payload']['input']['mood']=['kind'=>'playful'];
 $moodPromptSelection=$promptSelection;$moodPromptSelection['prompt']['content']['player_mood_prompts']=$editableMoodPrompts;
 $moodAssembled=(new PromptAssembler(4096,1024))->assemble($moodPromptTurn,$moodPromptSelection);
 $moodPrompt=$moodAssembled['provider_input'];
-$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (RANGROO sounds playful.)')
+$check(str_contains($moodPrompt['_assembled_prompt'],'Hello (Nerevarine sounds playful.)')
     &&($moodPrompt['payload']['input']['text']??null)==='Hello'
     &&($moodPrompt['payload']['input']['mood']['kind']??null)==='playful'
-    &&($moodAssembled['trace']['player_mood_cue']??null)==='(RANGROO sounds playful.)',
+    &&($moodAssembled['trace']['player_mood_cue']??null)==='(Nerevarine sounds playful.)',
     'player mood cues decorate the model prompt, freeze the resolved cue, and keep authored input intact');
 $contextTurn=$promptTurn;
 $contextTurn['payload']['context']=[
@@ -1031,7 +1033,7 @@ $check(!str_contains($budgetedHistory['provider_input']['_assembled_prompt'],'RE
 $largeContextTurn=$promptTurn;$largeContextTurn['payload']['context']=['inventory'=>str_repeat('X',2048)];
 $currentTurnSelection=$promptSelection;$currentTurnSelection['memory']=[];$currentTurnSelection['recent_action_results']=[];
 $budgetedTurn=(new PromptAssembler(2048,1024))->assemble($largeContextTurn,$currentTurnSelection);
-$check(($budgetedTurn['provider_input']['_messages'][array_key_last($budgetedTurn['provider_input']['_messages'])]['content']??null)==="RANGROO: Hello\n\nRespond as Fargoth. Write Fargoth's next dialogue line; do not write dialogue for RANGROO."
+$check(($budgetedTurn['provider_input']['_messages'][array_key_last($budgetedTurn['provider_input']['_messages'])]['content']??null)==="Nerevarine: Hello\n\nRespond as Fargoth. Write Fargoth's next dialogue line; do not write dialogue for Nerevarine."
     &&!str_contains($budgetedTurn['provider_input']['_assembled_prompt'],str_repeat('X',128)),
     'current input was displaced by the large OpenMW context snapshot');
 $roleHistory=$promptSelection;$roleHistory['memory']=[];$roleHistory['recent_action_results']=[];

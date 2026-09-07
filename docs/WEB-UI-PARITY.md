@@ -73,7 +73,7 @@ do not use an exception to excuse a generic substitute layout.
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
-| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing, per-player provider overrides and remaining generation edge states remain pending |
+| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; per-player provider overrides and remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
@@ -3808,3 +3808,31 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   no extras/old paths, private 403 and session 401 verified. Configuration, credentials
   and voices preserved. No game control. Browser network-outage recovery remains
   unverified; the remaining Player and all-pages matrix remains open.
+
+## Player editable name and embedded save parity — 2026-09-07
+
+- Removed the read-only Player Name field to match the reference editor. Saving
+  atomically revises the selected installation player name, display identity and
+  edited content, guarded by the displayed profile revision. Other installations,
+  non-player profiles and stale forms cannot use this path to overwrite a player.
+- Configured player profile names now take precedence over incoming speaker names
+  during prompt substitution. This includes the saved default Player persona name;
+  with no saved profile name, incoming game identity remains the fallback. Historical
+  source events are not rewritten. Quickstart retains its existing rename path.
+- Embedded Save retains embed=1 and installation scope rather than rendering a
+  second navigation bar inside Configuration Hub.
+- Disposable browser/SQL checks verified editable name and content saved together,
+  a stale second form failed with revision_conflict without overwriting the name,
+  and an embedded save retained its clean embedded layout. No live profile edit or
+  real provider call occurred. The isolated process has exited.
+- Passed 499 server checks, 98 protocol manifest checks, PHP lint, HTTP forms,
+  integration, migrations and durable jobs. Schema remains 172 relations with
+  summary hash fe70674a3ec53cfb7e41a1e94cba64acd690d2fa5650b63a83727ebffaec9afb.
+  Existing tests cover atomic revision, discovery preservation, stale saves,
+  cross-installation refusal and prompt name precedence/fallback.
+- Local deployment rollback: /var/backups/lorkhanserver-code.ubtSfT. All 789 runtime
+  files match source, no extra files or old paths, protected routes return 403 and
+  unauthenticated sessions return 401. Health/NPC route checks passed. Existing
+  configuration, credentials and voices were preserved. No game launch/control.
+  Provider overrides, network-outage browser proof and the full remaining page
+  matrix are still open; this checkpoint does not claim overall completion.

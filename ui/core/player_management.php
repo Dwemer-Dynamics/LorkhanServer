@@ -119,12 +119,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <?php endif; ?>
 
             <form id="player-profile-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/<?php echo $profile === null ? 'player-profile-create' : 'player-profile-revise'; ?>" data-track-dirty>
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                 <?php if ($profile !== null): ?>
                     <input type="hidden" name="profile_id" value="<?php echo lorkhan_ui_h($profile['profile_id']); ?>">
                     <input type="hidden" name="base_content_json" value="<?php echo lorkhan_ui_h(json_encode($content, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE)); ?>">
                     <input type="hidden" name="change_reason" value="Management player update">
+                    <input type="hidden" name="expected_revision" value="<?php echo (int)$profile['current_revision']; ?>">
                 <?php endif; ?>
 
                 <div class="player-save-row settings-page-actions"><button type="submit" class="btn-save"<?php if($profile!==null): ?> title="Revision <?php echo (int)$profile['current_revision']; ?> · <?php echo (int)$profile['input_count']; ?> observed player messages"<?php endif; ?>>Save Player Settings</button>
@@ -136,7 +138,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <section class="content-section">
                         <h2>&#x1F3F7;&#xFE0F; Player Information</h2>
                         <label for="player-name">Player Name</label>
-                        <input id="player-name" name="name" type="text" required maxlength="256" value="<?php echo lorkhan_ui_h($profile['name'] ?? ''); ?>"<?php echo $profile === null ? '' : ' readonly'; ?>>
+                        <input id="player-name" name="name" type="text" required maxlength="256" value="<?php echo lorkhan_ui_h($profile['name'] ?? ''); ?>">
                         <span class="hint">Your character's name.</span>
                         <?php if ($playerIdentity !== []): ?><span class="hint"><?php echo lorkhan_ui_h(ucfirst((string) ($playerIdentity['gender'] ?? '')) . ' ' . ucfirst((string) ($playerIdentity['race'] ?? '')) . ' ' . ucfirst((string) ($playerIdentity['class'] ?? ''))); ?></span><?php endif; ?>
                     </section>

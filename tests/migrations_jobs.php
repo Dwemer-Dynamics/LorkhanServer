@@ -1166,6 +1166,15 @@ $freshStyle=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profil
 $check($freshStyle['job_id']!==$queuedPlayerStyle['job_id'],'new user generation request reused a terminal job');
 $freshStyleStats=(new Worker($jobs,$firstPartyRegistry,'player-style-fresh-request',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $check($freshStyleStats['succeeded']===1,'fresh player generation request did not finish');
+$renamedPlayer=$service->revisePlayer($legacyInstallation,$playerProfile['profile_id'],'Renamed Nerevarine',$playerStyleContent,'Player editor test',1);
+$check($renamedPlayer['name']==='Renamed Nerevarine'&&(int)$renamedPlayer['current_revision']===2
+    &&$renamedPlayer['content']===$playerStyleContent,'player editor rename did not preserve content in one revision');
+$ensuredPlayer=$products->ensurePlayerProfile($legacyInstallation,$clock->iso());
+$check($ensuredPlayer['profile_id']===$playerProfile['profile_id']&&$ensuredPlayer['name']==='Renamed Nerevarine','player discovery replaced the edited persona');
+try{$service->revisePlayer($legacyInstallation,$playerProfile['profile_id'],'Stale rename',$playerStyleContent,'Stale editor test',1);throw new RuntimeException('stale player editor accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='revision_conflict','unexpected stale player editor error');}
+try{$service->revisePlayer(Uuid::v4(),$playerProfile['profile_id'],'Wrong scope',$playerStyleContent,'Scope test',2);throw new RuntimeException('cross-installation player rename accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='not_found','unexpected player editor scope error');}
 $narratorProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Narrator',
     'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'Test Narrator'],
     'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','biography'=>'Existing narrator background.',

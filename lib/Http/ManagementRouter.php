@@ -503,7 +503,7 @@ final class ManagementRouter
             'core-profile-delete'=>$this->service->deleteRevisioned('core_profile',$this->need($v,'core_profile_id')),
             'player-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->playerContent($v)]),
-            'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->playerContent($v),$this->need($v,'change_reason')),
+            'player-profile-revise'=>$this->service->revisePlayer($this->need($v,'installation_id'),$this->need($v,'profile_id'),$this->need($v,'name'),$this->playerContent($v),$this->need($v,'change_reason'),(int)($v['expected_revision']??0)),
             'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]
@@ -599,6 +599,8 @@ final class ManagementRouter
         if(in_array($domain,['relationships','relationship-delete'],true))return $this->redirect($this->relationshipPageLocation($v,'saved'));
         if($domain==='narrative-generate')return$this->redirect($this->uiPath('narrative-autonomy').'?status=diary-requested');
         if($domain==='quickstart-save')return$this->redirect($this->webRoot().'/ui/quickstart.php?'.http_build_query(['installation_id'=>$scope['installation_id'],'core_profile_id'=>$this->need($v,'core_profile_id'),'status'=>'saved']));
+        if(in_array($domain,['player-profile-create','player-profile-revise'],true)&&($v['embed']??'')==='1')
+            return$this->redirect($this->uiPath('player').'?'.http_build_query(['status'=>'saved','embed'=>'1','installation_id'=>$scope['installation_id']]));
         if($domain==='profile-reset-biography')return$this->redirect($this->characterPageLocation($v,'saved'));
         if($domain==='profile-revise'&&trim((string)($v['npc_relationship_edits']??''))!==''){
             $batch=$this->jsonField($v,'npc_relationship_edits');
