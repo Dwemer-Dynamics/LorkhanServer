@@ -7,6 +7,7 @@
     if (!form || !button || !field || !status) return;
     button.disabled = false;
     let busy = false;
+    let pendingRequest = null;
     form.addEventListener('submit', async event => {
         event.preventDefault();
         if (busy || !form.reportValidity()) return;
@@ -27,15 +28,25 @@
         try {
             const submission = new URLSearchParams(new FormData(form));
             submission.set('current_speech_style', originalStyle);
+            const signature = submission.toString();
+            if (!pendingRequest || pendingRequest.signature !== signature) {
+                // getRandomValues also works on HTTP LAN installations, unlike randomUUID.
+                const bytes = crypto.getRandomValues(new Uint8Array(16));
+                bytes[6] = (bytes[6] & 15) | 64; bytes[8] = (bytes[8] & 63) | 128;
+                const hex = Array.from(bytes, value => value.toString(16).padStart(2,'0')).join('');
+                pendingRequest = {signature, id:hex.replace(/^(........)(....)(....)(....)(............)$/, '$1-$2-$3-$4-$5')};
+            }
+            submission.set('request_id', pendingRequest.id);
             const result = await request(submission);
             const poll = new URLSearchParams({_csrf:form.elements.namedItem('_csrf').value,
                 installation_id:form.elements.namedItem('installation_id').value,
                 profile_id:form.elements.namedItem('profile_id').value, operation:'status', job_id:result.job_id});
             for (let attempt=0; attempt<300; attempt++) {
                 const draft = await request(poll);
-                if (draft.state === 'stale') throw new Error('The saved player profile changed. Reload before generating again');
-                if (draft.state === 'dead') throw new Error('Generation failed. Check provider logs');
+                if (draft.state === 'stale') { pendingRequest = null; throw new Error('The saved player profile changed. Reload before generating again'); }
+                if (draft.state === 'dead') { pendingRequest = null; throw new Error('Generation failed. Check provider logs, then try again'); }
                 if (draft.state === 'succeeded') {
+                    pendingRequest = null;
                     if (typeof draft.speech_style !== 'string' || !draft.speech_style.trim()) throw new Error('No speech style was generated');
                     if (field.value !== originalStyle) throw new Error('Speech style was edited while generating. Your edits were kept');
                     field.value = draft.speech_style;

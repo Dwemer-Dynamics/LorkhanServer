@@ -736,12 +736,13 @@ final class ProductRepository
     }
 
     /** Queue a revision-safe player speech-style analysis only when real player inputs exist. */
-    public function enqueuePlayerSpeechStyleGeneration(string $profileId,mixed $guidance='',mixed $currentStyle=null):array
+    public function enqueuePlayerSpeechStyleGeneration(string $profileId,mixed $guidance='',mixed $currentStyle=null,mixed $requestId=null):array
     {
         if(!is_string($guidance)||strlen($guidance)>4000||!mb_check_encoding($guidance,'UTF-8'))throw new \InvalidArgumentException('invalid_speech_style_guidance');
         $guidance=trim($guidance);
         if($currentStyle!==null&&(!is_string($currentStyle)||strlen($currentStyle)>8192||!mb_check_encoding($currentStyle,'UTF-8')))throw new InvalidArgumentException('invalid_current_speech_style');
-        return$this->transaction(function()use($profileId,$guidance,$currentStyle):array{
+        if($requestId!==null&&(!is_string($requestId)||!Uuid::isValid($requestId)))throw new InvalidArgumentException('invalid_generation_request_id');
+        return$this->transaction(function()use($profileId,$guidance,$currentStyle,$requestId):array{
             $select=$this->db->prepare('SELECT p.installation_id,p.current_revision,p.actor_identity FROM profiles p WHERE p.profile_id=:id AND p.deleted_at IS NULL FOR UPDATE');
             $select->execute(['id'=>$profileId]);$row=$select->fetch();if(!$row)throw new RuntimeException('not_found');
             $identity=$this->json($row['actor_identity']);if(($identity['kind']??null)!=='player')throw new \InvalidArgumentException('profile_not_player');
@@ -750,6 +751,7 @@ final class ProductRepository
             $payload=$this->profileGenerationPayload((string)$row['installation_id'],$profileId,$revision,'player_speech_style');
             if($guidance!==''){$payload['speech_style_guidance']=$guidance;$key.=':guidance:'.hash('sha256',$guidance);}
             if($currentStyle!==null){$payload['current_speech_style']=$currentStyle;$key.=':style:'.hash('sha256',$currentStyle);}
+            if($requestId!==null)$key.=':request:'.$requestId;
             $insert=$this->db->prepare("INSERT INTO durable_jobs(job_id,job_type,schema_version,idempotency_key,payload,max_attempts,priority) VALUES(:job,'profile.generate',1,:key,CAST(:payload AS jsonb),3,60) ON CONFLICT(job_type,idempotency_key) DO NOTHING RETURNING job_id,state");
             $insert->execute(['job'=>$jobId,'key'=>$key,'payload'=>$this->encode($payload)]);$job=$insert->fetch();
             if(!$job){$existing=$this->db->prepare("SELECT job_id,state FROM durable_jobs WHERE job_type='profile.generate' AND idempotency_key=:key");$existing->execute(['key'=>$key]);$job=$existing->fetch();}

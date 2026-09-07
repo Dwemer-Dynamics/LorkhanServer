@@ -3788,3 +3788,23 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   no extras/old paths, private 403/session 401 and health checks passed. Configuration,
   credentials and voices preserved; no game launch/control. Provider/network-failure
   browser states and the remaining Player/all-page matrix items are still open.
+
+## Player generation failure and deliberate retry — 2026-09-07
+
+- Found that deterministic input-only job keys trapped an unchanged request on its
+  terminal failed job. Added optional validated request UUIDs: the editor retains
+  one across ambiguous network errors/poll timeouts, but starts a new explicit
+  request after a terminal result. UUID generation uses getRandomValues, including
+  on HTTP LAN pages. Changed inputs start a separate request; polling only reads.
+- Existing worker tests now cover same-request deduplication and distinct explicit
+  requests. Passed 498 checks, 98 protocol files, full HTTP/integration/migration/job
+  checks, JS syntax and whitespace. Schema remains 172 relations.
+- Actual isolated browser test used a deliberately throwing test provider with a
+  one-attempt fixture limit. The terminal failure re-enabled Generate and preserved
+  the style. A second click with identical inputs created a new queued job beside
+  the failed one; the mock worker succeeded and the editor showed an unsaved draft.
+  No real provider call or production profile save. The isolated server was stopped.
+- Local rollback /var/backups/lorkhanserver-code.7EnqUo; 789 runtime hashes match,
+  no extras/old paths, private 403 and session 401 verified. Configuration, credentials
+  and voices preserved. No game control. Browser network-outage recovery remains
+  unverified; the remaining Player and all-pages matrix remains open.
