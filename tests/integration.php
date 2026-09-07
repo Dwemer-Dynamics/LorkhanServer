@@ -1794,6 +1794,35 @@ $db->prepare("UPDATE eventlog_metadata SET suppressed_at=clock_timestamp() WHERE
 $hiddenIds=array_column($products->promptContext($bystanderProbe,$memoryNow)['memory'],'id');
 $assert(!in_array($sharedMemory['memory_id'],$hiddenIds,true),
     'suppressed source conversation remained accessible through a derived memory');
+// Use a reversible synthetic projection to distinguish canonical Narrator speech from world events and names.
+$db->exec('SAVEPOINT narrator_visibility_probe');
+$visibilityRow=$db->query("SELECT e.rowid FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE e.type='chat' AND m.turn_id=".$db->quote($turn['turn_id'])." LIMIT 1")->fetchColumn();
+$visibilityNarrator=['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'Renamed storyteller'];
+$db->prepare("UPDATE eventlog SET ts=(extract(epoch FROM clock_timestamp())*1000)::bigint+3600000 WHERE rowid=:id")->execute(['id'=>$visibilityRow]);
+$db->prepare("UPDATE eventlog_metadata SET speaker=CAST(:speaker AS jsonb),target=CAST(:target AS jsonb),suppressed_at=NULL WHERE rowid=:id")
+    ->execute(['speaker'=>json_encode($visibilityNarrator),'target'=>json_encode($turn['payload']['target']),'id'=>$visibilityRow]);
+$visibilityId='event:'.$visibilityRow;
+$assert(!in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'default Narrator visibility did not hide canonically identified speech from NPC history');
+$narratorVisibilityProfile=$products->getRevisioned('profile',$narratorProfile['profile_id']);
+$narratorVisibilityContent=$narratorVisibilityProfile['content'];$narratorVisibilityContent['hide_from_context']=false;
+$products->revise('profile',$narratorProfile['profile_id'],$narratorVisibilityContent,'allow Narrator history fixture',$memoryNow);
+$assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'explicit false Narrator visibility did not retain eligible speech');
+$narratorVisibilityContent['hide_from_context']=true;
+$products->revise('profile',$narratorProfile['profile_id'],$narratorVisibilityContent,'hide Narrator history fixture',$memoryNow);
+$narratorVisibilityTurn=$memoryProbe;$narratorVisibilityTurn['payload']['target']=$visibilityNarrator;
+$assert(in_array($visibilityId,array_column($products->promptContext($narratorVisibilityTurn,$memoryNow)['history'],'id'),true),
+    'Narrator visibility hid the Narrator own history');
+$db->prepare("UPDATE eventlog SET type='narration' WHERE rowid=:id")->execute(['id'=>$visibilityRow]);
+$assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'Narrator speech visibility removed a world narration event');
+$db->prepare("UPDATE eventlog SET type='chat' WHERE rowid=:id")->execute(['id'=>$visibilityRow]);
+$namedNpc=$turn['payload']['target'];$namedNpc['display_name']='The Narrator';
+$db->prepare('UPDATE eventlog_metadata SET speaker=CAST(:speaker AS jsonb) WHERE rowid=:id')->execute(['speaker'=>json_encode($namedNpc),'id'=>$visibilityRow]);
+$assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'Narrator visibility must use identity, not an NPC display name');
+$db->exec('ROLLBACK TO SAVEPOINT narrator_visibility_probe');
 $narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
     ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");
 for($i=0;$i<12;$i++)$narrativeInsert->execute(['id'=>$newUuid(3940+$i),'installation'=>$installationId,

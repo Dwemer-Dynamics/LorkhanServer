@@ -129,6 +129,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_toggle('enabled', 'Enable Narrator', ($content['enabled'] ?? false) === true, 'Enable or disable the narrator system entirely.');
                         echo '<span class="narrator-hint">Book event summaries and Read Aloud use the Narrator profile. Read Aloud is enabled separately in the in-game Sound settings.</span>';
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
+                        echo '<input type="hidden" name="narrator_visibility_present" value="1">';
+                        lorkhan_narrator_toggle('hide_from_context', 'Hide Narrator from NPC Context', ($content['hide_from_context'] ?? true) === true, 'Hide Narrator-spoken dialogue lines from NPC context.');
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
                         lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
                         lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
