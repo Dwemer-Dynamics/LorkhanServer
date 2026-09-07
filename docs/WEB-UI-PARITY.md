@@ -3616,3 +3616,46 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   Configuration, credentials, voices and existing profile data preserved. No game.
   This is backend groundwork; no new visual parity or finished preset workflow is
   claimed. Core Profile and the all-pages goal remain open.
+
+## Core Profile custom preset workflow — 2026-09-07
+
+- Added CSRF-protected /forms/core-profile-preset operations: catalogue, save_new,
+  overwrite, import, export and apply. Installation scope is explicit. Catalogue
+  changes never alter profiles. Apply requires confirmation, a matching preset
+  revision and expected profile revision; one content revision preserves saved name,
+  slot, default status, prompt and connector IDs. Preset payload/revision are read
+  together, and concurrent overwrites retain the repository revision fence.
+- Added the reference Profile Preset toolbar directly below the editor header:
+  selector, Apply, Save as new, Overwrite, Export and Import. Only existing custom
+  presets are exposed for now. Named file import stores a preset; the separate
+  profile-level import still creates an unassigned Core Profile. The named file
+  schema is lorkhan.named-core-preset-file.v1 with exact name/preset/schema keys.
+- Added native confirmation/name dialog modes, initial name selection, busy/error
+  feedback, focus restoration and narrow wrapping. Dropdown/file selection does not
+  mark the profile dirty. Apply explicitly discards the draft only after confirmed
+  server success, using a dedicated draft event rather than synthetic form submit.
+  Save/overwrite captures draft controls; other requests omit unnecessary draft data.
+- Existing browser-like HTTP suite covers rejected CSRF, saved/unsaved separation,
+  catalogue HTML, all five toolbar controls, export/import round-trip, excluded
+  connector/prompt data, required confirmation, stale preset/profile revisions,
+  cross-installation reads, and preserved target identity/routing after Apply.
+- Visual comparison: inspected Herika's actual Save as new dialog without saving;
+  compared desktop Lorkhan rendered-copy toolbar/dialog and 390px populated fixture.
+  Verified empty-catalogue disabled actions, selection, Save failure feedback,
+  cancel/focus restoration and no dirty marker, plus Apply/Overwrite/Save modes at
+  narrow width. Offline fixtures block fetch/submission. Their sanitiser initially
+  rewrote data-action attributes; corrected it to match only actual form action
+  attributes and repeated checks. No production preset/profile mutation or provider
+  request was submitted from the browser. Populated screenshot is an explicit
+  fixture, not a claim that a real user preset was created.
+- Passed 498 server checks, 98-file protocol manifest, PHP lint, full HTTP/integration/
+  migration suite and a final HTTP rerun with toolbar assertions. JS syntax and
+  whitespace passed. Schema stays 171 relations with hash
+  23877dfce7525e35984ac9fad0a90035f6da6a988f010d17c4d33062e41a6908.
+- Final local rollback /var/backups/lorkhanserver-code.zKeQ4a. All 786 runtime files
+  match; no extras/old paths. Private 403, unauthenticated session 401, health valid;
+  configuration, credentials and voice contents preserved. No game launch/control.
+- Remaining before preset parity closes: four built-ins and their missing runtime
+  setting mappings from the preceding audit; actual browser file-picker/download
+  round-trip and successful browser-save/Apply navigation (HTTP success is already
+  covered). Overall Core Profile/all-pages goal remains open.

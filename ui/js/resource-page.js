@@ -123,6 +123,7 @@
             control.addEventListener('change', handleChange);
         });
         form.addEventListener('submit', (event) => { if (!event.defaultPrevented) clearDirty(); });
+        form.addEventListener('lorkhan:discard-draft', clearDirty);
         form.addEventListener('reset', () => window.setTimeout(clearDirty, 0));
     });
 

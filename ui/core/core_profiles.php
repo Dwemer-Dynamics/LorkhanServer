@@ -190,6 +190,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                         <input type="hidden" name="core_profile_id" value="<?php echo lorkhan_ui_h($selected['core_profile_id']); ?>">
                         <div class="profile-editor-toolbar"><div><div class="profile-editor-toolbar-label">Editing Profile</div><div class="profile-editor-toolbar-name"><?php echo lorkhan_ui_h($selected['label']); ?></div></div><div class="profile-editor-actions"><span class="unsaved-indicator" data-dirty-indicator hidden>Unsaved changes</span><button type="submit" class="btn-save">Save All</button></div></div>
+                        <?php include __DIR__ . '/tmpl/core_profile_presets.php'; ?>
                         <?php lorkhan_ui_effective_settings_summary($effectiveCoreSettings, 'Effective Core Profile settings and sources'); ?>
                         <?php include __DIR__ . '/tmpl/core_profile_fields.php'; ?>
                         <div class="connector-card profile-revision-card"><div class="connector-title">Revision Note</div><label>Change reason<input name="change_reason" required maxlength="512" value="Management Core Profile update"></label></div>
@@ -329,4 +330,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-connector-tests.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-connector-tests.js'); ?>" defer></script><?php endif; ?>
 <?php if ($installations !== []): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/profile-assignment-rules.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/profile-assignment-rules.js'); ?>" defer></script><?php endif; ?>
+<?php if ($selected !== null): ?><script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/core-profile-presets.js?v=<?php echo (string) filemtime(dirname(__DIR__) . '/js/core-profile-presets.js'); ?>" defer></script><?php endif; ?>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

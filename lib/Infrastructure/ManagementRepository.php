@@ -109,12 +109,19 @@ final class ManagementRepository
 
     public function coreProfilePreset(string $installation, string $id): array
     {
+        return $this->coreProfilePresetRecord($installation, $id)['payload'];
+    }
+
+    /** Read the payload and its revision together so an Apply cannot mix catalogue versions. */
+    public function coreProfilePresetRecord(string $installation, string $id): array
+    {
         if (!Uuid::isValid($installation) || !Uuid::isValid($id)) throw new \InvalidArgumentException('invalid_core_profile_preset');
-        $query = $this->db->prepare('SELECT payload FROM lorkhan_internal.core_profile_presets WHERE installation_id=:installation AND preset_id=:id');
+        $query = $this->db->prepare('SELECT preset_id,name,revision,payload FROM lorkhan_internal.core_profile_presets WHERE installation_id=:installation AND preset_id=:id');
         $query->execute(['installation' => $installation, 'id' => $id]);
-        $payload = $query->fetchColumn();
-        if ($payload === false) throw new RuntimeException('not_found');
-        return \LorkhanServer\Application\CoreProfilePreset::validate(json_decode($payload, true, 32, JSON_THROW_ON_ERROR));
+        $record = $query->fetch(PDO::FETCH_ASSOC);
+        if ($record === false) throw new RuntimeException('not_found');
+        $record['payload'] = \LorkhanServer\Application\CoreProfilePreset::validate(json_decode($record['payload'], true, 32, JSON_THROW_ON_ERROR));
+        return $record;
     }
 
     /** Serialize catalogue writes per installation and reject stale overwrites without touching runtime settings. */

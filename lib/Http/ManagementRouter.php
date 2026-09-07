@@ -352,6 +352,7 @@ final class ManagementRouter
             return Response::json(200, ['ok' => true, 'revision' => (int)$result['current_revision']]);
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
+        if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
         if($domain==='relationship-clear'){
@@ -1804,6 +1805,54 @@ final class ManagementRouter
             $scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$limit);
     }
 
+    /** Keep named preset catalogue changes separate from confirmed, revision-fenced profile Apply. */
+    private function namedCoreProfilePreset(array $values,array $scope):Response
+    {
+        $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');
+        $operation=$this->need($values,'operation');
+        if($operation==='catalogue')return Response::json(200,['presets'=>$this->management->coreProfilePresets($installation)]);
+        if(!in_array($operation,['export','import','save_new','overwrite','apply'],true))throw new InvalidArgumentException('invalid_preset_operation');
+        $record=null;
+        if(in_array($operation,['export','overwrite','apply'],true)){
+            $record=$this->management->coreProfilePresetRecord($installation,$this->need($values,'preset_id'));
+            if($operation!=='export'){
+                $revision=filter_var($values['preset_revision']??null,FILTER_VALIDATE_INT);
+                if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_preset_revision');
+                if($revision!==(int)$record['revision'])throw new RuntimeException('revision_conflict');
+            }
+        }
+        if($operation==='export')return Response::json(200,['schema'=>'lorkhan.named-core-preset-file.v1',
+            'name'=>$record['name'],'preset'=>$record['payload']]);
+        if($operation==='import'){
+            $document=$this->jsonField($values,'preset_json');$keys=array_keys($document);sort($keys);
+            if($keys!==['name','preset','schema']||($document['schema']??null)!=='lorkhan.named-core-preset-file.v1'
+                ||!is_string($document['name'])||!is_array($document['preset']))throw new InvalidArgumentException('invalid_named_core_preset');
+            $payload=\LorkhanServer\Application\CoreProfilePreset::validate($document['preset']);
+            $name=$values['preset_name']??$document['name'];
+            if(!is_string($name))throw new InvalidArgumentException('invalid_preset_name');
+            $id=$this->management->saveCoreProfilePreset($installation,$name,$payload);
+        }else{
+            $profileId=$this->need($values,'core_profile_id');$this->uuid($profileId,'core_profile_id');
+            $profile=$this->repository->getRevisioned('core_profile',$profileId);
+            if(($profile['installation_id']??null)!==$installation)throw new InvalidArgumentException('core_profile_scope_mismatch');
+            if($operation==='apply'){
+                if(($values['confirm']??'')!=='Apply')throw new InvalidArgumentException('confirmation_mismatch');
+                $revision=filter_var($values['expected_revision']??null,FILTER_VALIDATE_INT);
+                if($revision===false||$revision<1)throw new InvalidArgumentException('invalid_profile_revision');
+                $content=\LorkhanServer\Application\CoreProfilePreset::apply($record['payload'],$profile['content']);
+                $updated=$this->repository->revise('core_profile',(string)$profile['core_profile_id'],$content,
+                    'Apply named Core Profile preset',gmdate(DATE_ATOM),$revision);
+                return Response::json(200,['applied'=>true,'revision'=>(int)$updated['current_revision']]);
+            }
+            if($operation==='overwrite'&&($values['confirm']??'')!=='Overwrite')throw new InvalidArgumentException('confirmation_mismatch');
+            $payload=\LorkhanServer\Application\CoreProfilePreset::capture($this->coreProfileContent($values));
+            $id=$this->management->saveCoreProfilePreset($installation,
+                $operation==='overwrite'?$record['name']:$this->need($values,'preset_name'),$payload,
+                $operation==='overwrite'?$record['preset_id']:null,$operation==='overwrite'?(int)$record['revision']:0);
+        }
+        return Response::json(200,['preset_id'=>$id,'presets'=>$this->management->coreProfilePresets($installation)]);
+    }
+
     /** Named presets capture unsaved controls; only confirmed Apply mutates active settings. */
     private function namedGlobalSettingsPreset(array $values,array $scope):Response
     {
@@ -2531,7 +2580,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
-        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))
+        &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>
 :root{--bg:#100f12;--surface:#19171c;--surface-2:#211e24;--line:#3a3237;--line-hot:#856c36;--text:#e8e2d8;--muted:#9e978f;--accent:#bc9d5a;--accent-soft:rgba(188,157,90,.15);--good:#79bf87;--bad:#df7777;color-scheme:dark}

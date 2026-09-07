@@ -332,3 +332,8 @@ Core Profile Dynamic Profile toggle, Editable Fields card and field chips derive
 from the pinned `ui/core/core_profiles.php`. Native discovery defaults seed NPC
 content once and the existing bounded evolution worker supports all five fields;
 Lorkhan branding and the OpenMW controls contract are preserved.
+
+Core Profile named-preset toolbar, confirmation/name dialog presentation and
+selection/save/overwrite/import/export flow derive from the same pinned
+ui/core/core_profiles.php and ui/api/chim_profile_manager.php. Native CSRF,
+installation scope, revision fences and strict portable payloads are retained.
