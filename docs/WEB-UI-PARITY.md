@@ -3390,3 +3390,30 @@ No deletion, AI call, live save or game control occurred.
 This closes the matrix's outstanding native-management placement review for
 Relationship Logs. Runtime source is unchanged; the previous 487-check deployed
 checkpoint remains the code under review. Other page/editor gaps remain open.
+
+## Control Panel embedding checkpoint — 2026-09-07
+
+- Opened all 12 live Control Panel tabs and inspected their expected headings:
+  Server Logs, Request Logs, Oghma Audit, Relationship Logs, Cost Breakdown,
+  Response Queue, Provider Attempts, Workers & Jobs, Game Debug, Audio Cache,
+  Playthrough Manager and Database Manager. Desktop screenshots inspected for
+  the 11 non-default entry views; their iframe bodies had no horizontal overflow.
+- A temporary Server Logs search value survived the complete tab cycle without
+  submission or changes to live configuration. Prior Relationship Logs disclosure
+  retention evidence remains applicable. This does not close unfinished child-page
+  features or establish every child's interactive-state parity.
+- Compared live Herika Control Panel Request Logs at 1280x720. Both products
+  inherited the standalone `100vh - 450px` table cap inside a roughly 500px iframe,
+  leaving almost no visible rows. Lorkhan now uses `max(200px,100vh - 240px)` only
+  for embedded desktop request-style readers. Standalone and <=900px rules are
+  unchanged; table columns, typography, colours and payload readers are unchanged.
+- Deployed Request Logs table measured 279px high instead of roughly 70px.
+  Visually inspected populated rows and opened/closed its Request Payload reader.
+  Provider Attempts and Workers & Jobs inherit the same scoped reader CSS.
+- 487 existing server checks and `git diff --check` passed. CSS-only checkpoint;
+  the prior full PHP/HTTP/integration/migration run remains the latest full suite.
+  Deployment preserved configuration, credentials and voice contents; rollback:
+  `/var/backups/lorkhanserver-code.aL6YbQ`. All 781 runtime hashes matched, no extra
+  files/legacy paths, private routes 403, unauthenticated session 401, health valid.
+- No game launched or commanded; no live settings, provider calls or deletion.
+  Full page matrix remains incomplete and the goal stays active.

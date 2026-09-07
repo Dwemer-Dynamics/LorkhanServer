@@ -44,6 +44,10 @@ body.embedded-page main.request-log-page { padding:20px 12px 40px; }
 .request-log-filters .control-reader-filters { margin-top:12px; }
 .request-log-page :focus-visible { outline:2px solid #bc9d5a; outline-offset:3px; }
 .request-log-page .clear-log-dialog { width:min(600px,calc(100% - 48px)); }
+/* Embedded readers have no standalone navbar: do not subtract its space twice. */
+@media(min-width:901px) {
+    body.embedded-page .request-log-page .table-container { max-height:max(200px,calc(100vh - 240px)); }
+}
 @media(max-width:900px) {
     main.request-log-page { padding-top:100px; }
     body.embedded-page main.request-log-page { padding-top:10px; }
