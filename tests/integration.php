@@ -1804,6 +1804,30 @@ $narrativePrompt=(new PromptAssembler())->assemble($memoryProbe,$narrativeSelect
 $assert(array_column($narrativeSelection['narrative'],'narrative_id')===array_map($newUuid,range(3951,3942))
     &&str_contains($narrativePrompt,'NARRATIVE RECENCY 11')&&!str_contains($narrativePrompt,'NARRATIVE RECENCY 0'),
     'prompt narrative budget must select the latest entries before the ten-record cap, not UUID order');
+$latestCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);
+$latestContent=$latestCore['content'];$latestContent['settings_overrides']['diary']['latest_entry_in_context']=true;
+$latestContent['settings_overrides']['diary']['include_in_context']=false;
+$products->revise('core_profile',$actorCoreProfile['core_profile_id'],$latestContent,'latest diary prompt probe',$memoryNow);
+foreach([3960,3961]as$diaryId)$narrativeInsert->execute(['id'=>$newUuid($diaryId),'installation'=>$installationId,
+    'profile'=>$actorProfile['profile_id'],'playthrough'=>$turn['playthrough_id'],'content'=>'AUTHOR LATEST DIARY '.$diaryId,
+    'now'=>(new \DateTimeImmutable($memoryNow))->modify('+'.($diaryId-3960).' seconds')->format('Y-m-d\TH:i:sP')]);
+$latestProbe=$memoryProbe;$latestProbe['_selected_profile_id']=$actorProfile['profile_id'];
+$latestSelection=$products->promptContext($latestProbe,$memoryNow);
+$latestAssembled=(new PromptAssembler())->assemble($latestProbe,$latestSelection);
+$latestSources=array_values(array_filter($latestAssembled['trace']['sources'],static fn(array$row):bool=>$row['source_id']===$newUuid(3961)));
+$assert(array_column($latestSelection['latest_diary'],'narrative_id')===[$newUuid(3961)]
+    &&str_contains($latestAssembled['provider_input']['_assembled_prompt'],'AUTHOR LATEST DIARY 3961')
+    &&!str_contains($latestAssembled['provider_input']['_assembled_prompt'],'AUTHOR LATEST DIARY 3960')
+    &&count($latestSources)===1&&$latestSources[0]['section_key']==='npc_context'&&$latestSources[0]['included']===true,
+    'latest author diary must be selected separately from newer session diaries and attributed to character context');
+$assert($products->promptContext($bystanderProbe,$memoryNow)['latest_diary']===[],
+    'an unprofiled bystander must not inherit the session author diary');
+$db->prepare('UPDATE narrative_records SET deleted_at=clock_timestamp() WHERE narrative_id=:id')->execute(['id'=>$newUuid(3961)]);
+$assert(array_column($products->promptContext($latestProbe,$memoryNow)['latest_diary'],'narrative_id')===[$newUuid(3960)],
+    'deleted latest diary was selected');
+$db->prepare("UPDATE narrative_records SET content='   ' WHERE narrative_id=:id")->execute(['id'=>$newUuid(3960)]);
+$assert($products->promptContext($latestProbe,$memoryNow)['latest_diary']===[], 'empty latest diary must not create a character context block');
+
 $db->rollBack();
 $eventProjection=$db->prepare('SELECT e.type,e.data,e.utterance_id,e.delivery_state,m.turn_id,m.source_event_id,m.dialogue_message_id '
     .'FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.turn_id=:turn ORDER BY e.rowid');

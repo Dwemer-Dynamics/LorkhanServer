@@ -1482,6 +1482,7 @@ core_values=dict(core_form['fields'],_csrf=csrf,tts_configuration_id=tts_id,llm_
     setting_diary_automatic_interval_seconds='90',setting_diary_context_turn_limit='12',
     setting_diary_prompt='Record only witnessed events.')
 core_values.pop('setting_diary_include_in_context',None)
+core_values['setting_diary_latest_entry_in_context']='1'
 core_values.update(profile_evolution_enabled='1')
 core_values['profile_evolution_fields[]']=['occupation','skills']
 core_response=request(core_form['action'],'POST',core_values); assert core_response.status==200
@@ -1552,7 +1553,7 @@ assert core_preset['schema']=='lorkhan.core-profile-settings.v2' and core_preset
 assert core_preset['settings_overrides']['memory']=={'recent_turn_limit':24,'short_term_enabled':True,'mid_term_enabled':True,'long_term_enabled':True}
 assert core_preset['settings_overrides']['response']=={'max_words':60}
 assert core_preset['settings_overrides']['profile_evolution']=={'enabled':True,'fields':['occupation','skills']}
-assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':90,'include_in_context':False,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
+assert core_preset['settings_overrides']['diary']=={'enabled':True,'automatic_enabled':True,'automatic_wait_enabled':True,'automatic_interval_seconds':90,'include_in_context':False,'latest_entry_in_context':True,'context_turn_limit':12,'prompt':'Record only witnessed events.'}
 assert not any(key in core_preset for key in ['core_profile_id','installation_id','prompt','routing','slot','default_npc','revision','npc_assignments'])
 core_preset['name']='HTTP imported Core settings '+uuid.uuid4().hex
 r=request(core_import_form['action'],'POST',dict(core_import_form['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(core_preset)))
@@ -1575,6 +1576,7 @@ imported_form=next(f for f in imported_page.forms if f['action'].endswith('/form
 assert imported_form['fields']['label']==core_preset['name'] and '<textarea id="profile-prompt" name="prompt" maxlength="65536"></textarea>' in body
 assert imported_form['fields']['setting_behavior_rechat']=='1' and imported_form['fields']['setting_behavior_rechat_max_depth']=='5'
 assert imported_form['fields']['setting_behavior_rechat_probability_percent']=='65' and imported_form['fields']['setting_memory_recent_turn_limit']=='24'
+assert imported_form['fields']['setting_diary_latest_entry_in_context']=='1'
 assert imported_form['fields']['setting_diary_enabled']=='1' and 'setting_diary_include_in_context' not in imported_form['fields']
 assert imported_form['fields']['setting_diary_automatic_enabled']=='1' and imported_form['fields']['setting_diary_automatic_wait_enabled']=='1'
 assert imported_form['fields']['setting_diary_automatic_interval_seconds']=='90'
@@ -2174,21 +2176,24 @@ narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile
 narrator_preset=json.loads(narrator_preset_response.read().decode())
 assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
 assert narrator_preset['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','narration_filters','notes','oghma_knowledge_tags','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','inline_narration_mode','latest_diary_context_enabled','narration_filters','notes','oghma_knowledge_tags','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_narrator_profile_settings_preset' in invalid_body,(r.status,invalid_body)
 narrator_preset['settings']['personality']='Portable narrator persona'
 narrator_preset['settings']['inline_narration_mode']='Text Only'
+narrator_preset['settings']['latest_diary_context_enabled']=True
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset))); imported_body=r.read().decode()
 assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),imported_body)
 imported_narrator_page,imported_narrator_body=parse(request('/LorkhanServer/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
 assert 'Portable narrator settings imported as a new narrator profile revision.' in imported_narrator_body and 'Portable narrator persona' in imported_narrator_body,imported_narrator_body
 imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action'].endswith('/forms/narrator-profile-revise'))
 assert imported_narrator_form['fields'].get('oghma_knowledge_tags')=='knowall, Tribunal'
+assert imported_narrator_form['fields'].get('latest_diary_context_enabled')=='1'
 legacy_narrator_preset=dict(narrator_preset,settings=dict(narrator_preset['settings']))
 legacy_narrator_preset['settings'].pop('oghma_knowledge_tags')
+legacy_narrator_preset['settings'].pop('latest_diary_context_enabled')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(legacy_narrator_preset)))
 assert r.status==200,r.read().decode()
 embedded_narrator_page,embedded_narrator_html=parse(request('/LorkhanServer/ui/narrator_management.php?embed=1'))
@@ -2198,6 +2203,13 @@ r=request(embedded_narrator_form['action'],'POST',dict(embedded_narrator_form['f
 assert r.status==200 and '/ui/narrator_management.php?status=saved&embed=1&installation_id=' in r.geturl(),(r.status,r.geturl(),r.read().decode())
 legacy_narrator_export=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read().decode())
 assert legacy_narrator_export['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
+# Unchecking saves explicit false and does not revert to the Core Profile default.
+unchecked_narrator=dict(embedded_narrator_form['fields'],_csrf=csrf,inline_narration_mode='Text Only')
+unchecked_narrator.pop('latest_diary_context_enabled',None)
+r=request(embedded_narrator_form['action'],'POST',unchecked_narrator)
+assert r.status==200,r.read().decode()
+unchecked_preset=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read().decode())
+assert unchecked_preset['settings']['latest_diary_context_enabled'] is False
 assert '<option selected>Text Only</option>' in imported_narrator_body and 'profile_generation_configuration_id' not in imported_narrator_form['fields'],imported_narrator_form['fields']
 global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))

@@ -23,6 +23,11 @@ $installationId = $requested !== '' && array_filter(
 $profile = $byInstallation[$installationId] ?? null;
 $content = is_array($profile['content'] ?? null) ? $profile['content'] : [];
 $diary = is_array($content['diary'] ?? null) ? $content['diary'] : [];
+$latestDiaryContextInherited=!array_key_exists('latest_entry_in_context',$diary);
+$latestDiaryContextEnabled=$installationId!==''
+    ?($productRepository->effectiveSettingsForProfile($installationId,$profile['profile_id']??null)['settings']['diary']['latest_entry_in_context']??false)===true
+    :false;
+
 $routing = is_array($content['routing'] ?? null) ? $content['routing'] : [];
 $voice = is_array($content['voice'] ?? null) ? $content['voice'] : [];
 $narratorPromptRows = \LorkhanServer\Application\NarratorEventPrompts::rows($installationId, $uiRepository->rows('prompts'));
@@ -128,6 +133,17 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
                         lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
                         lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
+                        ?>
+                        <input type="hidden" name="latest_diary_context_present" value="1">
+                        <label class="narrator-toggle-row">
+                            <div class="narrator-toggle-switch">
+                                <input type="checkbox" id="latest_diary_context_enabled" name="latest_diary_context_enabled" value="1" <?php echo $latestDiaryContextEnabled ? 'checked' : ''; ?>>
+                                <span class="narrator-toggle-slider"></span>
+                            </div>
+                            <span class="narrator-toggle-label">&#x1F4D6; Include Latest Diary Entry</span>
+                        </label>
+                        <span class="narrator-hint">Add The Narrator's most recent diary entry to its context. Narrator only &mdash; NPCs sharing the same Core Profile are unaffected.<?php echo $latestDiaryContextInherited ? ' Currently inherited from the Core Profile until you save Narrator settings.' : ''; ?></span>
+                        <?php
                         lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 30, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
                         ?>
                     </section>
@@ -301,7 +317,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                                 <label for="narrator-preset-json">Preset JSON</label>
                                 <textarea id="narrator-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="narrator-portability-scope narrator-portability-help"></textarea>
                             </div>
-                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary controls.</p>
+                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary generation controls.</p>
                             <div class="narrator-portability-actions">
                                 <button type="button" class="narrator-transfer-button" data-narrator-import-close>Cancel</button><button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
                             </div>

@@ -2693,6 +2693,18 @@ SQL);
         $actorJson=$this->encode($actorKey);$audienceJson=$this->encode([$actorKey]);
         $ownsProfile=$selectedProfileId!==null || $this->actorKey($this->json($profile['actor_identity']))===$this->actorKey($actor);
         // Relationship records describe their owning NPC, never a shared session or witness pool.
+        $latestDiary=[];
+        if($ownsProfile&&($effective['settings']['diary']['latest_entry_in_context']??false)===true){
+            // Select the author's newest entry independently of the mixed narrative list and its limit.
+            $latestDiaryStatement=$this->db->prepare("SELECT * FROM narrative_records WHERE installation_id=:installation AND profile_id=:profile AND playthrough_id=:playthrough AND kind='diary' AND deleted_at IS NULL ORDER BY created_at DESC,narrative_id DESC LIMIT 1");
+            $latestDiaryStatement->execute(['installation'=>$turn['installation_id'],'profile'=>$activeProfileId,'playthrough'=>$turn['playthrough_id']]);
+            $latestDiaryRow=$latestDiaryStatement->fetch();
+            if($latestDiaryRow&&trim((string)$latestDiaryRow['content'])!==''){
+                $latestDiaryRow['provenance']=$this->json($latestDiaryRow['provenance']);$latestDiary=[$latestDiaryRow];
+                // Keep one copy of this entry when general narrative recall is also enabled.
+                $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>$row['narrative_id']!==$latestDiaryRow['narrative_id']));
+            }
+        }
         $relationshipScope=$scope;$relationshipScope['profile_id']=$activeProfileId;
         $relationships=$ownsProfile&&$contextSections['relationships']?$this->relationships($relationshipScope):[];
         usort($relationships,fn($a,$b)=>strcmp((string)$a['relationship_id'],(string)$b['relationship_id']));
@@ -2785,7 +2797,7 @@ SQL);
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
             'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],
-            'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
+            'latest_diary'=>$latestDiary,'narrative'=>array_slice($narratives,0,10),'recent_action_results'=>$recent];
     }
 
     /** Rank extracted and forced Oghma topics, enforce access classes, and retain every bounded decision. */

@@ -1195,6 +1195,7 @@ final class ManagementRouter
                 'automatic_wait_enabled'=>($overrides['diary']['automatic_wait_enabled']??false)===true,
                 'automatic_interval_seconds'=>(int)($overrides['diary']['automatic_interval_seconds']??$diary['automatic_interval_seconds']),
                 'include_in_context'=>($overrides['diary']['include_in_context']??true)===true,
+                'latest_entry_in_context'=>($overrides['diary']['latest_entry_in_context']??false)===true,
                 'context_turn_limit'=>(int)($overrides['diary']['context_turn_limit']??$diary['context_turn_limit']),
                 'prompt'=>(string)($overrides['diary']['prompt']??$diary['prompt'])]];
     }
@@ -1239,7 +1240,10 @@ final class ManagementRouter
         if($profile===null)throw new InvalidArgumentException($kind.'_profile_missing');
         $content=is_array($profile['content']??null)?$profile['content']:[];
         foreach($settings as$field=>$value){
-            if($field==='voice'){
+            if($field==='latest_diary_context_enabled'){
+                if($value===null)unset($content['diary']['latest_entry_in_context']);
+                else $content['diary']['latest_entry_in_context']=$value;
+            }elseif($field==='voice'){
                 if($value['id']==='')unset($content['voice']);else$content['voice']=$value;
             }elseif(is_string($value)&&$value==='')unset($content[$field]);else$content[$field]=$value;
         }
@@ -1266,6 +1270,7 @@ final class ManagementRouter
             $settings['inline_narration_mode']=$content['inline_narration_mode']??'Disabled';
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $settings['oghma_knowledge_tags']=$content['oghma_knowledge_tags']??'';
+            $settings['latest_diary_context_enabled']=$content['diary']['latest_entry_in_context']??null;
             $voice=is_array($content['voice']??null)?$content['voice']:[];
             $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
         }
@@ -1281,6 +1286,10 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2&&array_key_exists('latest_diary_context_enabled',$settings)){
+            if($settings['latest_diary_context_enabled']!==null&&!is_bool($settings['latest_diary_context_enabled']))throw new InvalidArgumentException($error);
+            $expected[]='latest_diary_context_enabled';
+        }
         if($narratorV2&&array_key_exists('oghma_knowledge_tags',$settings)){
             $tags=$settings['oghma_knowledge_tags'];
             if(!is_string($tags)||strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))throw new InvalidArgumentException($error);
@@ -1778,7 +1787,8 @@ final class ManagementRouter
         if(isset($values['narration_filters_present'])){
             foreach(\LorkhanServer\Application\NarrationTextPolicy::defaults()as$field=>$_)$content['narration_filters'][$field]=isset($values[$field]);
         }
-        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=$this->automaticDiaryFormContent($values);
+        if(array_key_exists('diary_interval_seconds',$values))$content['diary']=array_replace((array)($content['diary']??[]),$this->automaticDiaryFormContent($values));
+        if(isset($values['latest_diary_context_present']))$content['diary']['latest_entry_in_context']=isset($values['latest_diary_context_enabled']);
         return$content;
     }
 
@@ -2053,6 +2063,7 @@ final class ManagementRouter
                 'automatic_wait_enabled'=>isset($values['setting_diary_automatic_wait_enabled']),
                 'automatic_interval_seconds'=>$number($values,'setting_diary_automatic_interval_seconds',120),
                 'include_in_context'=>isset($values['setting_diary_include_in_context']),
+                'latest_entry_in_context'=>isset($values['setting_diary_latest_entry_in_context']),
                 'context_turn_limit'=>$number($values,'setting_diary_context_turn_limit',20),
                 'prompt'=>trim((string)($values['setting_diary_prompt']??DiaryGenerationPolicy::defaults()['prompt']))],
         ];
