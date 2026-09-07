@@ -2800,3 +2800,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   the dropdown. No connector was saved and no inference or game operation ran.
   The empty-catalogue fixture also rendered No matches without disabling manual
   input. The broader page-parity goal remains active.
+
+### LLM Provider preference and catalogue checkpoint
+
+- Added the Provider field directly below Model with Herika's label and empty
+  placeholder. OpenRouter gets the same provider-slug/name rows, Privacy/TOS
+  metadata, dropdown header, note, borders, padding and typography. Custom
+  compatible endpoints retain manual entry; incompatible services hide and
+  disable the field without clearing its unsaved value. Configured OpenRouter
+  runtimes now get both catalogues without exposing their endpoint or credential.
+- The ordered, comma-separated form value is stored as typed `provider_order`
+  and mapped to `provider.order` by the existing shared request-options path.
+  Save/export/import, clearing the preference and a real local HTTP adapter were
+  checked in the existing management suite. Empty direct preferences emit no
+  provider hint. Configured connectors retain the existing default/inheritance
+  rules. Fallback providers remain enabled, as in Herika's basic Provider field.
+- Deliberate correction to the pinned Herika picker: a model publisher prefix
+  is not assumed to be its hosting provider. The catalogue lists actual provider
+  slugs and model edits never overwrite a user's explicit preference. This uses
+  the documented OpenRouter `provider.order` contract:
+  https://openrouter.ai/docs/guides/routing/provider-selection .
+- `/manage/api/v1/llm-providers` shares the fixed, public, credential-free proxy
+  with model discovery. Authentication and query rejection remain mandatory;
+  no user URL, redirect, key or relaxation of `connect-src self` is involved.
+  Slugs and public display fields are bounded; provider text creates no markup
+  or navigable links. Existing tests cover malformed/oversized catalogues and
+  preferences, trimming, ordered mapping and absence of raw option keys on wire.
+- Visual evidence: captured the exact pinned provider-picker fixture and the
+  deployed editor. Live Herika and Lorkhan both inherit 15px/22.5px Futura
+  CondensedLight; headers, rows and metadata use the same spacing and sizes.
+  At a real 390px iframe viewport the dropdown spans x=8..367 in a 375px client
+  width, with no horizontal overflow. Keyboard filtering/selection, cached
+  discovery, model edits, service round trips, literal markup/URL text, empty
+  results, failed lookup/manual entry and delayed Escape dismissal were checked.
+  Fixture-only missing service icons are not evidence of a live asset problem;
+  the deployed screenshot shows all service icons loaded.
+- JavaScript syntax, PHP lint, 98 protocol files, 395 server checks, management
+  HTTP, integration, migrations and durable-job checks passed. Schema inventory
+  stayed at 170 relations with hash
+  `b8099463e3d26547c1467feef76847ede606e1c49b3135ec6d760ecdc878b795`.
+- Deployed with rollback `/var/backups/lorkhanserver-code.VNxnQQ`; all 752 runtime
+  files match, with no extra files or old paths. Private paths remain 403,
+  unauthenticated sessions 401, health valid. Configuration, credential and
+  voice-file hashes are preserved. Live public discovery returned 106 providers;
+  filtering and selecting Together populated the field and closed the picker.
+  No live connector was saved, no paid inference ran, and the game was untouched.
+- This closes the Provider preference gap only. Other service catalogues,
+  request controls, import-editor presentation and the wider page matrix remain
+  open; this is not a claim of full LLM or whole-site parity.

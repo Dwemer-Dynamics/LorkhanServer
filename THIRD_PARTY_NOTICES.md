@@ -251,7 +251,7 @@ speaker bands, calendar anchor and CSV presentation from pinned HerikaServer
 Recorded OpenMW dates and full cell names replace Skyrim-specific date/location
 parsing; source events remain unchanged.
 
-OpenRouter model catalogue dropdown and information-panel presentation in
+OpenRouter model/provider catalogue dropdown and information-panel presentation in
 `ui/js/llm-connectors.js` and `ui/css/herika-llm.css` derive from HerikaServer
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/core/llm_connectors.php`.
 Lorkhan retains its typed connector form, private credentials and explicit saves;

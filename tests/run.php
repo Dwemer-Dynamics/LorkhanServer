@@ -276,6 +276,11 @@ $check($validatedLlm['credential']==='none'&&$validatedLlm['timeout_ms']===30000
     &&LlmConnector::requestOptions([],null,false)===['response_format'=>['type'=>'json_object']],
     'explicit LLM connectors preserve zero and false while leaving absent sampling parameters to the provider');
 $directSlot=['configuration_id'=>'00000000-0000-4000-8000-000000000123','revision'=>1,'content'=>$directLlm];
+$providerOrder=['google-vertex', 'together', 'google-vertex/us-east5'];
+$check(LlmConnector::validateOptions(['provider_order'=>$providerOrder])===['provider_order'=>$providerOrder]
+    &&LlmConnector::requestOptions(['provider_order'=>$providerOrder,'json_mode'=>false],null,false)===['provider'=>['order'=>$providerOrder]]
+    &&LlmConnector::requestOptions(['provider_order'=>[],'json_mode'=>false],null,false)===[],
+    'provider preferences preserve order and map only to provider.order without disabling fallbacks');
 $auditProvider=new \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider('http://127.0.0.1:9/v1/chat/completions',
     ['127.0.0.1'],'fixture-model','fixture-secret',allowLoopbackHttp:true,directConnection:true);
 foreach(['relationship_evaluation','relationship_build']as$auditMode){
@@ -307,6 +312,10 @@ foreach([
     ['credential'=>'LORKHAN_PAIRING_TOKEN_HASH'],
     ['options'=>['temperature'=>'0']],['options'=>['temperature'=>INF]],['options'=>['stream'=>0]],
     ['options'=>['max_tokens'=>10,'max_completion_tokens'=>10]],['options'=>['messages'=>[]]],
+    ['options'=>['provider_order'=>'together']],['options'=>['provider_order'=>['a'=>'together']]],
+    ['options'=>['provider_order'=>array_fill(0,17,'together')]],['options'=>['provider_order'=>['']]],
+    ['options'=>['provider_order'=>[str_repeat('a',129)]]],['options'=>['provider_order'=>["bad\nslug"]]],
+    ['options'=>['provider_order'=>[' leading']]],['options'=>['provider_order'=>['a,b']]],
 ]as$invalidLlm){
     try{LlmConnector::validate(array_replace($directLlm,$invalidLlm));$check(false,'unsafe or untyped LLM connector rejected');}
     catch(InvalidArgumentException){$check(true,'unsafe or untyped LLM connector rejected');}
@@ -1043,6 +1052,19 @@ $check(array_column($planned,'text')===['*He bows.* Greetings.','Plain speech.']
     'missing narrator profile preserves Markdown dialogue');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
+$publicProviders=ConnectorCatalog::normalizeOpenRouterProviders(['data'=>[
+    ['slug'=>'together','name'=>'<img src=x>','privacy_policy_url'=>str_repeat('é',2050),'unknown'=>'discard'],
+    ['slug'=>''],['slug'=>str_repeat('a',129)],['slug'=>"bad\nslug"],['slug'=>'a,b'],['name'=>'Missing slug'],null,
+]]);
+$check(count($publicProviders['data'])===1 && $publicProviders['data'][0]['slug']==='together'
+    && $publicProviders['data'][0]['name']==='<img src=x>' && mb_strlen($publicProviders['data'][0]['privacy_policy_url'])===2048
+    && $publicProviders['data'][0]['terms_of_service_url']==='' && !isset($publicProviders['data'][0]['unknown'])
+    && ConnectorCatalog::normalizeOpenRouterProviders(['data'=>[]])===['data'=>[]],
+    'provider catalogue retains bounded public display text, rejects invalid slugs and permits an empty list');
+foreach ([[], ['data'=>array_fill(0,5001,[])]] as $invalidCatalogue) {
+    try { ConnectorCatalog::normalizeOpenRouterProviders($invalidCatalogue); $check(false,'invalid provider catalogue rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid provider catalogue rejected'); }
+}
 $publicModels=ConnectorCatalog::normalizeOpenRouterModels(['data'=>[
     ['id'=>'example/model','name'=>'<img src=x>','description'=>str_repeat('é',4001),
      'pricing'=>['prompt'=>'0','completion'=>'-1'],'top_provider'=>['context_length'=>64000],

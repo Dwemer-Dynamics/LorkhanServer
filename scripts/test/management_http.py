@@ -157,12 +157,13 @@ assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LOR
 assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
-try:
-    urllib.request.urlopen(base+'/LorkhanServer/manage/api/v1/llm-models')
-    raise AssertionError('Model catalogue requires a management session')
-except urllib.error.HTTPError as error:
-    assert error.code==401
-assert request('/LorkhanServer/manage/api/v1/llm-models?url=https%3A%2F%2Fexample.invalid').status==422
+for catalogue in ['llm-models','llm-providers']:
+    try:
+        urllib.request.urlopen(base+'/LorkhanServer/manage/api/v1/'+catalogue)
+        raise AssertionError('Catalogue requires a management session')
+    except urllib.error.HTTPError as error:
+        assert error.code==401
+    assert request('/LorkhanServer/manage/api/v1/'+catalogue+'?url=https%3A%2F%2Fexample.invalid').status==422
 for path,marker,title in [
     ('/LorkhanServer/ui/home.php','dashboard-container','Home'),
     ('/LorkhanServer/ui/events-memories.php','events-memories-navigation','Roleplay'),
@@ -1609,7 +1610,8 @@ r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'co
 direct_name='HTTP direct '+uuid.uuid4().hex
 direct_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':direct_name,'driver':'openai-compatible','model':'local-test',
     'endpoint':'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions','credential':'none','timeout_ms':'4000',
-    'option_temperature':'0','option_top_p':'0','option_max_completion_tokens':'64','option_stream':'false','option_json_mode':'false'}
+    'option_temperature':'0','option_top_p':'0','option_max_completion_tokens':'64','option_stream':'false','option_json_mode':'false',
+    'option_provider_order':' together , google-vertex/us-east5 '}
 r=request('/LorkhanServer/manage/forms/providers','POST',direct_values); body=r.read().decode(); assert r.status==200 and direct_name in body,(r.status,body)
 direct_id=connector_editor_id(body,direct_name)
 _,direct_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id))
@@ -1619,10 +1621,12 @@ llm_ranges=re.findall(r'<input type="range"[^>]+>',direct_editor)
 assert len(llm_ranges)==8 and all(' name=' not in tag for tag in llm_ranges),llm_ranges
 assert re.search(r'id="llm_option_presence_penalty"[^>]*value=""',direct_editor),direct_editor
 assert re.search(r'id="llm_option_temperature"[^>]*value="0"',direct_editor),direct_editor
+assert re.search(r'id="llm_provider"[^>]*value="together, google-vertex/us-east5"',direct_editor),direct_editor
 direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
 assert 'Authorization' not in headers and sent['temperature']==0 and sent['top_p']==0 and sent['max_completion_tokens']==64 and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+assert sent['provider']=={'order':['together','google-vertex/us-east5']} and 'provider_order' not in sent,sent
 r=request('/LorkhanServer/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'LORKHAN_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
 direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',option_reasoning_model='true',change_reason='Exercise explicit key, streaming, and reasoning cleanup')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
@@ -1631,14 +1635,20 @@ headers,sent=VoiceProvider.llm_requests[-1]
 assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)
 direct_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
 assert direct_export['content']['credential']=='none' and direct_export['content']['options']['reasoning_model'] is True and 'local-parity-test-key' not in json.dumps(direct_export),direct_export
+assert direct_export['content']['options']['provider_order']==['together','google-vertex/us-east5'],direct_export
 direct_export['name']=direct_name+' portable'; direct_export['content']['credential']='custom'
 r=request('/LorkhanServer/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(direct_export)}); body=r.read().decode(); assert r.status==200,(r.status,body)
 portable_id=connector_editor_id(body,direct_export['name'])
 r=request('/LorkhanServer/manage/forms/provider-test','POST',dict(direct_test,configuration_id=portable_id)); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 assert 'Authorization' not in VoiceProvider.llm_requests[-1][0],VoiceProvider.llm_requests[-1][0]
+assert VoiceProvider.llm_requests[-1][1]['provider']=={'order':['together','google-vertex/us-east5']}
 r=request('/LorkhanServer/manage/forms/provider-rollback','POST',dict(direct_test,revision='1')); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]; assert 'Authorization' not in headers and sent['stream'] is False and 'response_format' not in sent,(headers,sent)
+direct_values.update(option_provider_order='',change_reason='Restore default routing')
+r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
+assert 'provider' not in VoiceProvider.llm_requests[-1][1],VoiceProvider.llm_requests[-1][1]
 direct_values.update(model='invalid-output',credential='none',option_stream='false',option_json_mode='false',change_reason='Strict output still required')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert 'status=tested' not in r.geturl() and 'provider_invalid_output' in body,(r.status,body)

@@ -73,15 +73,18 @@
         });
     });
 
-    // Herika's OpenRouter catalogue picker; manual model IDs still work when discovery is unavailable.
-    const modelInput = document.getElementById('llm_model');
-    if (modelInput && endpoint) {
+    // Both Herika catalogue pickers share keyboard, sizing, caching and failure behavior.
+    ['model', 'provider'].forEach(kind => {
+        const modelInput = document.getElementById('llm_' + kind);
+        if (!modelInput || !endpoint) return;
+        const providers = kind === 'provider';
+        const heading = providers ? 'OpenRouter Providers' : 'OpenRouter Models';
         const dropdown = document.createElement('div');
-        dropdown.id = 'llm-model-catalogue';
+        dropdown.id = 'llm-' + kind + '-catalogue';
         dropdown.className = 'orm-dropdown';
         dropdown.hidden = true;
         dropdown.setAttribute('role', 'listbox');
-        dropdown.setAttribute('aria-label', 'OpenRouter Models');
+        dropdown.setAttribute('aria-label', heading);
         document.body.append(dropdown);
         const info = document.createElement('div');
         info.className = 'orm-info-box';
@@ -90,6 +93,7 @@
         let models = null, pending = null, opened = false, active = -1, matches = [];
 
         function isOpenRouter() {
+            if (driver.value === 'configured') return document.getElementById('llm_model')?.dataset.runtimeOpenrouter === 'true';
             if (driver.value !== 'openai-compatible') return false;
             try {
                 const url = new URL(endpoint.value);
@@ -110,6 +114,8 @@
                 ? 'N/A' : '$' + (number * 1000000).toFixed(4) + ' / 1M tokens';
         }
         function details(model) {
+            if (providers) return [model.privacy_policy_url ? 'Privacy: ' + model.privacy_policy_url : '',
+                model.terms_of_service_url ? 'TOS: ' + model.terms_of_service_url : ''].filter(Boolean).join(' • ');
             const context = Number(model.top_provider?.context_length || model.context_length);
             return 'Pricing (per 1M tokens): input ' + price(model.pricing?.prompt) + ' • output ' + price(model.pricing?.completion)
                 + (Number.isFinite(context) && context > 0 ? ' • context ' + context.toLocaleString('en-US') : '');
@@ -140,7 +146,7 @@
         }
         function updateInfo() {
             const id = modelInput.value.trim();
-            info.hidden = !isOpenRouter() || !id || !models;
+            info.hidden = providers || !isOpenRouter() || !id || !models;
             info.replaceChildren();
             if (info.hidden) return;
             const model = models.find(item => item.id === id);
@@ -162,12 +168,12 @@
             active = -1;
             modelInput.removeAttribute('aria-activedescendant');
             dropdown.replaceChildren();
-            line(dropdown, 'orm-head', 'OpenRouter Models');
-            line(dropdown, 'orm-note', 'Click to select. Pricing shown per 1M tokens.');
+            line(dropdown, 'orm-head', heading);
+            line(dropdown, 'orm-note', providers ? 'Click to select. Value set to provider slug.' : 'Click to select. Pricing shown per 1M tokens.');
             if (!matches.length) line(dropdown, 'orm-muted orm-empty', 'No matches');
             matches.forEach((model, index) => {
                 const item = line(dropdown, 'orm-item', '');
-                item.id = 'llm-model-option-' + index;
+                item.id = 'llm-' + kind + '-option-' + index;
                 item.setAttribute('role', 'option');
                 item.setAttribute('aria-selected', 'false');
                 item.title = model.description || model.name || model.id;
@@ -184,15 +190,17 @@
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), 10000);
                 try {
-                    const response = await fetch(modelInput.dataset.modelCatalogue, {
+                    const response = await fetch(providers ? modelInput.dataset.providerCatalogue : modelInput.dataset.modelCatalogue, {
                         credentials: 'same-origin', referrerPolicy: 'no-referrer', signal: controller.signal,
                     });
                     if (!response.ok) throw new Error('Catalogue unavailable');
                     const payload = await response.json();
                     if (!Array.isArray(payload.data) || payload.data.length > 5000) throw new Error('Invalid catalogue');
-                    models = payload.data.filter(model => model && typeof model.id === 'string' && model.id.length > 0 && model.id.length <= 256)
+                    models = payload.data.filter(model => model && typeof model === 'object')
+                        .map(model => providers ? {...model, id: model.slug} : model)
+                        .filter(model => typeof model.id === 'string' && model.id.length > 0 && model.id.length <= (providers ? 128 : 256))
                         .map(model => ({...model, name: String(model.name || '').slice(0, 512), description: String(model.description || '').slice(0, 4000)}))
-                        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+                        .sort((a, b) => providers ? a.id.localeCompare(b.id) : a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
                 } finally { clearTimeout(timer); }
             })();
             try { await pending; } finally { pending = null; }
@@ -203,7 +211,7 @@
             dropdown.hidden = false;
             modelInput.setAttribute('aria-expanded', 'true');
             dropdown.replaceChildren();
-            line(dropdown, 'orm-head', 'OpenRouter Models');
+            line(dropdown, 'orm-head', heading);
             line(dropdown, 'orm-note', 'Loading…');
             positionCatalogue();
             try {
@@ -214,8 +222,8 @@
             } catch (_) {
                 if (!opened || !isOpenRouter()) return;
                 dropdown.replaceChildren();
-                line(dropdown, 'orm-head', 'OpenRouter Models');
-                line(dropdown, 'orm-err', 'Failed to load models. Check network/CORS. You can still enter a model ID.');
+                line(dropdown, 'orm-head', heading);
+                line(dropdown, 'orm-err', providers ? 'Failed to load providers. You can still enter a provider slug.' : 'Failed to load models. Check network/CORS. You can still enter a model ID.');
                 positionCatalogue();
             }
         }
@@ -223,6 +231,13 @@
             closeCatalogue();
             updateInfo();
             const available = isOpenRouter();
+            if (providers) {
+                // Custom compatible gateways may accept explicit provider hints; standard services do not.
+                const custom = driver.value === 'openai-compatible' && !Object.values(services).some(preset => preset[0] && preset[0] === endpoint.value);
+                const visible = available || custom;
+                document.getElementById('llm_provider_row').hidden = !visible;
+                modelInput.disabled = !visible;
+            }
             const attributes = {role: 'combobox', 'aria-autocomplete': 'list', 'aria-controls': dropdown.id, 'aria-expanded': 'false'};
             Object.entries(attributes).forEach(([name, value]) => {
                 if (available) modelInput.setAttribute(name, value);
@@ -257,7 +272,7 @@
         });
         window.addEventListener('resize', positionCatalogue);
         window.addEventListener('scroll', positionCatalogue, true);
-    }
+    });
 
     // The server rejects both token limits at once, so say so before the round trip rather than after.
     const maxTokens = document.getElementById('llm_option_max_tokens');

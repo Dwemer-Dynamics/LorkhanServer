@@ -320,8 +320,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <div class="llm-connection-field">
                                 <label for="llm_model">Model</label>
-                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>">
+                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>" data-runtime-openrouter="<?php echo rtrim((string)($config['provider']['endpoint'] ?? ''), '/') === 'https://openrouter.ai/api/v1/chat/completions' ? 'true' : 'false'; ?>">
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
+                            </div>
+
+                            <div class="llm-connection-field" id="llm_provider_row" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                <label for="llm_provider">Provider</label>
+                                <input id="llm_provider" type="text" name="option_provider_order" maxlength="2078" value="<?php echo lorkhan_ui_h(implode(', ', $options['provider_order'] ?? [])); ?>" placeholder="(Optional) leave empty to use recommended provider" aria-describedby="llm_provider-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-provider-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-providers'); ?>"<?php echo $unless(!$isMock); ?>>
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_provider-help">Preferred OpenRouter provider slugs, separated by commas in priority order. Other providers can still handle the request if these are unavailable. Blank uses the default routing (or the configured runtime preference).</p>
                             </div>
 
                             <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>

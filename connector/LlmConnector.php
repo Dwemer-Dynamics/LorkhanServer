@@ -35,6 +35,7 @@ final class LlmConnector
         'json_mode' => ['type' => 'boolean'],
         'disable_reasoning' => ['type' => 'boolean'],
         'reasoning_model' => ['type' => 'boolean'],
+        'provider_order' => ['type' => 'string-list'],
     ];
 
     public static function validate(array $content): array
@@ -107,6 +108,16 @@ final class LlmConnector
             if ($rule === null) throw new InvalidArgumentException('invalid_provider_options');
             if ($rule['type'] === 'boolean') {
                 if (!is_bool($value)) throw new InvalidArgumentException('invalid_provider_option_' . $name);
+            } elseif ($rule['type'] === 'string-list') {
+                if (!is_array($value) || !array_is_list($value) || count($value) > 16) {
+                    throw new InvalidArgumentException('invalid_provider_option_' . $name);
+                }
+                foreach ($value as $slug) {
+                    if (!is_string($slug) || $slug === '' || strlen($slug) > 128 || trim($slug) !== $slug
+                        || !mb_check_encoding($slug, 'UTF-8') || preg_match('/[\x00-\x1f\x7f,]/', $slug)) {
+                        throw new InvalidArgumentException('invalid_provider_option_' . $name);
+                    }
+                }
             } elseif (($rule['type'] === 'integer' && !is_int($value)) || (!is_int($value) && !is_float($value))
                 || !is_finite((float) $value) || $value < $rule['minimum'] || $value > $rule['maximum']) {
                 throw new InvalidArgumentException('invalid_provider_option_' . $name);
@@ -122,7 +133,8 @@ final class LlmConnector
         $options = self::validateOptions($options);
         $request = [];
         if ($defaultTemperature !== null) $request['temperature'] = $defaultTemperature;
-        foreach ($options as $name => $value) if (self::OPTION_RULES[$name]['type'] !== 'boolean') $request[$name] = $value;
+        foreach ($options as $name => $value) if (in_array(self::OPTION_RULES[$name]['type'], ['number', 'integer'], true)) $request[$name] = $value;
+        if (!empty($options['provider_order'])) $request['provider'] = ['order' => $options['provider_order']];
         if ($options['json_mode'] ?? true) $request['response_format'] = ['type' => 'json_object'];
         if ($options['disable_reasoning'] ?? $disableReasoning) $request['reasoning'] = ['exclude' => true, 'enabled' => false];
         return $request;

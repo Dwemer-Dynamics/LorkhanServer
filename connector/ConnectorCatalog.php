@@ -8,6 +8,27 @@ use InvalidArgumentException;
 
 final class ConnectorCatalog
 {
+    /** Keep provider slugs and display text public and bounded, just like the model catalogue. */
+    public static function normalizeOpenRouterProviders(array $payload): array
+    {
+        if (!is_array($payload['data'] ?? null) || !array_is_list($payload['data']) || count($payload['data']) > 5000) {
+            throw new InvalidArgumentException('invalid_provider_catalogue');
+        }
+        $providers = [];
+        foreach ($payload['data'] as $provider) {
+            if (!is_array($provider)) continue;
+            $slug = $provider['slug'] ?? null;
+            if (!is_string($slug) || $slug === '' || strlen($slug) > 128 || trim($slug) !== $slug
+                || !mb_check_encoding($slug, 'UTF-8') || preg_match('/[\x00-\x1f\x7f,]/', $slug)) continue;
+            $row = ['slug' => $slug];
+            foreach (['name' => 512, 'privacy_policy_url' => 2048, 'terms_of_service_url' => 2048] as $field => $limit) {
+                $row[$field] = is_string($provider[$field] ?? null) ? mb_substr($provider[$field], 0, $limit) : '';
+            }
+            $providers[] = $row;
+        }
+        return ['data' => $providers];
+    }
+
     /** Return only bounded public model fields consumed by the OpenRouter picker. */
     public static function normalizeOpenRouterModels(array $payload): array
     {

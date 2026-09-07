@@ -123,12 +123,13 @@ final class ManagementRouter
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
-    /** Proxy one fixed public catalogue without weakening the UI's same-origin CSP. */
-    private function openRouterModels(): Response
+    /** Proxy fixed public catalogues without credentials or weakening the UI's same-origin CSP. */
+    private function openRouterCatalogue(bool $providers): Response
     {
-        if (!function_exists('curl_init')) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
-        $handle = curl_init('https://openrouter.ai/api/v1/models');
-        if ($handle === false) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+        $error = $providers ? 'provider_catalogue_unavailable' : 'model_catalogue_unavailable';
+        if (!function_exists('curl_init')) return Response::json(502, ['error'=>$error]);
+        $handle = curl_init($providers ? 'https://openrouter.ai/api/v1/providers' : 'https://openrouter.ai/api/v1/models');
+        if ($handle === false) return Response::json(502, ['error'=>$error]);
         $body = '';
         try {
             curl_setopt_array($handle, [
@@ -144,21 +145,22 @@ final class ManagementRouter
             ]);
             $success = curl_exec($handle);
             if ($success === false || curl_getinfo($handle, CURLINFO_RESPONSE_CODE) !== 200) {
-                return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+                return Response::json(502, ['error'=>$error]);
             }
             $payload = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
-            if (!is_array($payload)) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
-            return Response::json(200, ConnectorCatalog::normalizeOpenRouterModels($payload));
+            if (!is_array($payload)) return Response::json(502, ['error'=>$error]);
+            return Response::json(200, $providers ? ConnectorCatalog::normalizeOpenRouterProviders($payload) : ConnectorCatalog::normalizeOpenRouterModels($payload));
         } catch (Throwable) {
-            return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+            return Response::json(502, ['error'=>$error]);
         } finally { curl_close($handle); }
     }
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
-        if ($r->method === 'GET' && $path === '/api/v1/llm-models') {
-            if ($r->query !== []) throw new InvalidArgumentException('invalid_model_catalogue_query');
-            return $this->openRouterModels();
+        if ($r->method === 'GET' && in_array($path, ['/api/v1/llm-models', '/api/v1/llm-providers'], true)) {
+            $providers = $path === '/api/v1/llm-providers';
+            if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');
+            return $this->openRouterCatalogue($providers);
         }
         if($r->method==='POST'&&$path==='/api/v1/quickstart-key'){
             $body=$this->json($r);$keys=array_keys($body);sort($keys);
@@ -912,6 +914,9 @@ final class ManagementRouter
             if($rule['type']==='boolean'){
                 if(!in_array($raw,['true','false'],true))throw new InvalidArgumentException('invalid_provider_option_'.$name);
                 $options[$name]=$raw==='true';
+            }elseif($rule['type']==='string-list'){
+                if(!is_string($raw))throw new InvalidArgumentException('invalid_provider_option_'.$name);
+                $options[$name]=trim($raw)===''?[]:array_map('trim',explode(',',$raw));
             }else{
                 $value=filter_var($raw,$rule['type']==='integer'?FILTER_VALIDATE_INT:FILTER_VALIDATE_FLOAT);
                 if($value===false)throw new InvalidArgumentException('invalid_provider_option_'.$name);
