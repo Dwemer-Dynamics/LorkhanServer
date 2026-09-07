@@ -35,9 +35,12 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     $where = 'n.installation_id=:installation AND n.playthrough_id=:playthrough AND n.deleted_at IS NULL';
     if ($tab === 'diaries') $where .= " AND n.kind='diary'";
 
-    $statement = $database->prepare('SELECT DISTINCT n.profile_id,n.person AS name'.$from.' WHERE '.$where.' ORDER BY name,n.profile_id');
+    $statement = $database->prepare('SELECT n.profile_id,n.person AS name,count(*) AS entry_count'.$from.' WHERE '.$where.' GROUP BY n.profile_id,n.person ORDER BY name,n.profile_id');
     $statement->execute($params);
-    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) if ((string) $row['profile_id'] !== '') $state['people'][(string) $row['profile_id']] = (string) $row['name'];
+    foreach ($statement->fetchAll(PDO::FETCH_ASSOC) as $row) if ((string) $row['profile_id'] !== '') {
+        $state['people'][(string) $row['profile_id']] = (string) $row['name'];
+        $state['people_counts'][(string) $row['profile_id']] = (int) $row['entry_count'];
+    }
     $person = (string) ($_GET['person'] ?? '');
     if (isset($state['people'][$person])) { $state['person'] = $person; $where .= ' AND n.profile_id=:person'; $params['person'] = $person; }
     $state['month'] = gmdate('Y-m'); $state['calendar'] = [];

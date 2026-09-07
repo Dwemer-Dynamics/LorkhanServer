@@ -959,7 +959,13 @@ assert 'Last Seed, 3E 427' in game_diary_html and 'Fredas' in game_diary_html an
 _,empty_diary_html=parse(request(diary_url+'&date=1900-01-01'))
 assert narrative_text not in empty_diary_html and 'No entries match this date' in empty_diary_html
 _,person_diary_html=parse(request(diary_url+'&view=people&person='+profile_id))
-assert narrative_text in person_diary_html and 'calendar-people' in person_diary_html
+assert narrative_text in person_diary_html and 'data-diary-people-search' in person_diary_html
+book_url='/LorkhanServer/ui/diary_book.php?'+urllib.parse.urlencode({'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'person':profile_id})
+_,book_html=parse(request(book_url))
+assert narrative_text in book_html and 'Print / Save as PDF' in book_html
+assert request(book_url.replace(playthrough_id,str(uuid.uuid4()))).status==404
+assert request(book_url.replace(valid['installation_id'],str(uuid.uuid4()))).status==404
+assert request('/LorkhanServer/ui/diary_book.php').status==400
 diary_export=request(diary_url+'&export=1')
 assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
 # Isolated projection rows exercise chronological ordering, paging and Adventure CSV formatting.

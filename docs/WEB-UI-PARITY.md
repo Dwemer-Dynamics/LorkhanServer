@@ -4277,3 +4277,32 @@ the populated paper-layout comparison, not all Diary workflows. Author-view
 search and the reference's Open The Diary book/print reader still need review
 and implementation where absent. Reference: ui/css/diary_adventure.css at
 529364c4c12b3a8bd4cc12a481f400ce19b3a344.
+
+
+### Diary authors and printable book (2026-09-07)
+
+Replaced the loose author buttons with Herika's centered search/list/count
+presentation. Search is case-insensitive, has an accessible name and shows
+an empty result state. Counts include all active diary entries for that
+author in the selected installation/playthrough. Added Open The Diary and
+ui/diary_book.php with the reference sticky print action, MagicCards title,
+chronological parchment entries and print stylesheet. CSS and JavaScript are
+external for the existing strict content security policy. Source: Herika
+ui/diarylog.php, ui/diary_book.php and ui/css/diary_adventure.css at
+529364c4c12b3a8bd4cc12a481f400ce19b3a344.
+
+Book selection uses exact profile, installation and playthrough IDs, not the
+reference's substring name match. Missing/invalid scope returns 400/404.
+Entries are escaped, exclude soft-deleted/non-diary records, and are read in
+chronological order without the paginated calendar limit. Text uses pre-wrap
+without extra br elements so stored newlines are not doubled.
+
+Existing management HTTP suite passed, including book content, invalid scope
+and cross-installation/playthrough rejection. PHP and JS syntax/diff checks
+passed. Disposable browser checks at 1280 and 390 pixels covered search match,
+no match, author selection, count, opening the complete book, print-button
+handler and print-media control hiding; Chromium generated test PDFs. The
+OS print dialog was not opened. Visually compared real Herika author/book
+views against synthetic native entries and corrected row typography and
+title word spacing. Screenshots/PDFs remain in Temp, not Git. No live diary
+records, credentials or game state changed. Other page-matrix rows remain open.

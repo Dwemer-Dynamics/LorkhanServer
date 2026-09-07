@@ -35,7 +35,14 @@ function lorkhan_roleplay_calendar(array $state, callable $link, string $tab): v
         <?php if($tab==='diaries'): ?><a class="roleplay-button<?= $personMode?' active':'' ?>" href="<?= lorkhan_ui_h($link(['view'=>'people','date'=>'','game_date'=>'','reader_page'=>1])) ?>">Filter by Person</a><?php endif; ?>
     </div>
     <?php if($personMode): ?>
-        <div class="calendar-people"><?php foreach($state['people'] as $id=>$name): ?><a class="roleplay-button<?= $state['person']===$id?' active':'' ?>" href="<?= lorkhan_ui_h($link(['person'=>$id,'date'=>'','game_date'=>'','reader_page'=>1,'view'=>'people'])) ?>"><?= lorkhan_ui_h($name) ?></a><?php endforeach; ?><?php if($state['people']===[]): ?><p>No diary authors in this playthrough yet.</p><?php endif; ?></div>
+        <div class="diary-people-list" data-diary-people>
+            <input type="search" class="diary-people-search" placeholder="Search people..." aria-label="Search diary authors" data-diary-people-search>
+            <?php foreach($state['people'] as $id=>$name): ?><a class="diary-people-item<?= $state['person']===$id?' active':'' ?>" data-diary-person href="<?= lorkhan_ui_h($link(['person'=>$id,'date'=>'','game_date'=>'','reader_page'=>1,'view'=>'people'])) ?>"<?= $state['person']===$id?' aria-current="true"':'' ?>><span data-person-name><?= lorkhan_ui_h($name) ?></span><span class="diary-people-count" aria-label="Entry count"><?= (int)($state['people_counts'][$id]??0) ?></span></a><?php endforeach; ?>
+            <p data-diary-people-empty<?= $state['people']===[]?'':' hidden' ?>>No diary authors found.</p>
+        </div>
+        <?php if(isset($state['people'][$state['person']])): $bookPath=preg_replace('/events-memories\.php.*$/','diary_book.php',$link([])); ?>
+            <div class="diary-book-link"><a class="roleplay-button" target="_blank" rel="noopener" title="Open as book (print to PDF)" href="<?= lorkhan_ui_h($bookPath.'?'.http_build_query(['installation_id'=>$state['installation'],'playthrough_id'=>$state['playthrough'],'person'=>$state['person']])) ?>">📄 Open The Diary of <?= lorkhan_ui_h($state['people'][$state['person']]) ?></a></div>
+        <?php endif; ?>
     <?php else: ?>
         <nav class="calendar-navigation" aria-label="Calendar month">
             <a href="<?= lorkhan_ui_h($link($previous)) ?>">« <?= lorkhan_ui_h($previousName) ?></a>

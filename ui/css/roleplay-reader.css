@@ -65,3 +65,14 @@ body .roleplay-reader table.adventure-event-table tbody tr.speaker-even{backgrou
 .roleplay-reader .adventure-event-table .location-change-row td{background:#34495e;color:#ecf0f1;font-weight:bold;text-align:left;padding:9px 10px}
 .roleplay-reader .adventure-event-table .log-empty{text-align:center;padding:20px}
 .roleplay-reader .calendar-event-scroll:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
+
+/* Author picker derived from HerikaServer diary_adventure.css. */
+.diary-people-list{background:#3a3a3a;border-radius:8px;padding:20px;margin:20px auto;box-shadow:0 4px 8px #0003;max-width:400px;width:100%;box-sizing:border-box}
+.diary-people-search{width:100%;box-sizing:border-box;padding:12px;margin-bottom:20px;border:2px solid #555;border-radius:6px;background:#4a4a4a;color:#f8f9fa;font-size:16px}
+.diary-people-search:focus{outline:none;border-color:#bc9d5a}
+body .diary-people-item{display:flex;justify-content:space-between;align-items:center;gap:12px;width:100%;box-sizing:border-box;padding:7px 12px;background:#3b3b3b;border:2px solid #565656;border-radius:6px;color:#f5f1e8!important;text-decoration:none;font:700 13.12px/1.1 "Futura CondensedLight",Arial,sans-serif;text-align:left}
+body .diary-people-item[hidden]{display:none}
+body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5a}
+.diary-people-item:focus-visible{outline:2px solid #bc9d5a;outline-offset:2px}
+.diary-people-count{background:#bc9d5a;color:#141414;padding:4px 8px;border-radius:4px;font-size:14px;font-weight:bold}
+.diary-book-link{max-width:400px;margin:12px auto 0;display:flex;justify-content:center;text-align:center}

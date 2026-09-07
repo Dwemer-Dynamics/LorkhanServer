@@ -1,0 +1,13 @@
+/* Presentation derived from HerikaServer ui/diary_book.php at 529364c. */
+@font-face{font-family:MagicCards;src:url('font/MagicCardsNormal.ttf') format('truetype');font-display:swap}
+@font-face{font-family:SkyrimBooks_Handwritten_Bold;src:url('font/SkyrimBooks_Handwritten_Bold-Regular.ttf') format('truetype');font-display:swap}
+body{background:#1a1a1a;color:#f8f9fa;margin:0;font-family:Arial,sans-serif}
+.book{max-width:980px;margin:0 auto;padding:30px 16px 60px}
+.book-header{text-align:center;padding:20px 0 10px}
+.book-header h1{font-family:MagicCards,serif;color:#bc9d5a;text-shadow:2px 2px 4px #0008;margin:0;font-size:32px;font-weight:normal;word-spacing:8px;letter-spacing:1px;overflow-wrap:anywhere}
+.actions{position:sticky;top:0;background:#1a1a1aeb;padding:8px 0;border-bottom:1px solid #333;display:flex;gap:8px;justify-content:flex-end;z-index:2}
+.btn{background:#bc9d5a;color:#141414;border:2px solid #9d8045;padding:8px 12px;border-radius:6px;cursor:pointer;font-size:14px}
+.btn:hover{background:#9d8045}.btn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+.entry{page-break-inside:avoid;margin:18px auto;max-width:900px}
+.entry .paper{background:url('../images/paper.jpg') center/cover;padding:36px;border-radius:6px;box-shadow:0 4px 8px #0008;color:#000;font-family:SkyrimBooks_Handwritten_Bold,Arial,sans-serif;font-size:21.6px;line-height:1.75;white-space:pre-wrap;overflow-wrap:anywhere}
+@media print{.actions{display:none}body{background:#fff;color:#000}.entry .paper{box-shadow:none}}

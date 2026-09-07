@@ -2,6 +2,16 @@
 (() => {
     const root = document.querySelector('[data-reader]');
     if (!root) return;
+    const people = root.querySelector('[data-diary-people]');
+    people?.querySelector('[data-diary-people-search]')?.addEventListener('input', (event) => {
+        const query = event.target.value.toLocaleLowerCase();
+        let count = 0;
+        people.querySelectorAll('[data-diary-person]').forEach((item) => {
+            item.hidden = !item.querySelector('[data-person-name]').textContent.toLocaleLowerCase().includes(query);
+            if (!item.hidden) count++;
+        });
+        people.querySelector('[data-diary-people-empty]').hidden = count > 0;
+    });
     const audio = root.querySelector('[data-reader-audio]');
     const status = root.querySelector('[data-reader-status]');
     const stopButton = root.querySelector('[data-reader-stop]');
