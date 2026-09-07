@@ -4325,3 +4325,22 @@ PHP lint, diff check and disposable browser interaction checks passed;
 screenshots visually inspected and retained privately in Temp as
 {herika,lorkhan}-books-populated-{1280,390}.png and lorkhan-books-empty-390.png.
 No live books or game data were modified.
+
+
+### Event Log shared-theme correction (2026-09-07)
+
+Live populated Event Log comparison at 1280 and 390 pixels found the same
+shared-theme overrides as Books: headers and striped rows were repainted.
+Restored table-scoped neutral headings and alternating row backgrounds,
+with the gold game-time heading preserved. Restored the row-delete button
+boundary and kept preset/Delete controls together at narrow widths. Paging
+and Hide controls wrap as a group. No event behavior or source data changed.
+
+Visually reviewed candidate styles over live read-only data using an isolated
+Chromium stylesheet interception. Selected and unselected a row to verify
+Delete Selected visibility without submitting any deletion. No event filter
+preferences or live-refresh state were changed. Both widths retained scoped
+table scrolling and the preset/Delete controls shared one row. Diff check
+passed; no backend tests were claimed for this CSS-only change. Reference
+ui/events-memories.php at 529364c4c12b3a8bd4cc12a481f400ce19b3a344; local
+private screenshots: Temp/lorkhan-events-aligned-{1280,390}.png.

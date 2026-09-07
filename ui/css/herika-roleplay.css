@@ -25,7 +25,7 @@
    own result count, then kind-led cards whose long Morrowind prose wraps in place. */
 /* The live event renderer needs the same inset as the static Roleplay panels. */
 .events-memories-page #eventlog-app { padding: 10px 12px 12px; }
-body .events-memories-page .eventlog-row-delete { min-height: 24px !important; padding: 3px !important; border: 0 !important; background: transparent !important; color: #e05b68 !important; }
+body .events-memories-page .eventlog-row-delete { min-height: 24px !important; padding: 3px 7px !important; border: 1px solid #70282d !important; border-radius:4px; background: #401e22 !important; color: #ff3333 !important; white-space:nowrap; }
 .narrative-autonomy .narrative-records{margin:0 0 16px}
 .narrative-autonomy .narrative-records-head{display:flex;flex-wrap:wrap;align-items:baseline;justify-content:space-between;gap:8px 12px;margin:0 0 12px}
 .narrative-autonomy .narrative-records-head h2{margin:0}
@@ -47,12 +47,22 @@ body .events-memories-page .eventlog-row-delete { min-height: 24px !important; p
 #eventlog-app .eventlog-hide-controls{justify-content:flex-start}
 #eventlog-table-container.roleplay-data{padding:0;border:1px solid #aaa;border-radius:0;max-height:700px}
 #eventlog-app .eventlog-table{font-weight:bold}
-#eventlog-app .eventlog-table th{color:#e6e6e6;background:#202020;padding:12px 10px!important}
-#eventlog-app .eventlog-table th:nth-child(5){color:#bc9d5a}
+#eventlog-app .eventlog-table th{color:#f5f1e8!important;background:#202020!important;padding:12px 10px!important}
+#eventlog-app .eventlog-table th:nth-child(5){color:#bc9d5a!important}
 #eventlog-app .eventlog-table td{vertical-align:middle}
 #eventlog-app .eventlog-table th,#eventlog-app .eventlog-table td{border:1px solid #333!important}
-#eventlog-app .eventlog-table tbody tr:nth-child(odd){background:#212529}
+#eventlog-app .eventlog-table tbody tr:nth-child(odd){background:#212529!important}
+#eventlog-app .eventlog-table tbody tr:nth-child(even){background:#202020!important}
+#eventlog-app .eventlog-table tbody td{background:transparent!important}
 #eventlog-app .eventlog-table th:nth-child(2),#eventlog-app .eventlog-table td:nth-child(2){width:10%}
 #eventlog-app .eventlog-table th:nth-child(3),#eventlog-app .eventlog-table td:nth-child(3){width:38%}
 #eventlog-app .eventlog-table th:nth-child(4),#eventlog-app .eventlog-table td:nth-child(4){width:24%;min-width:200px}
 #eventlog-app .eventlog-table th:nth-child(5),#eventlog-app .eventlog-table td:nth-child(5),#eventlog-app .eventlog-table th:nth-child(6),#eventlog-app .eventlog-table td:nth-child(6){width:7%}
+
+/* Keep reference Event Log controls grouped at narrow viewport widths. */
+#eventlog-app .delete-controls{justify-content:flex-end;flex-wrap:wrap}
+#eventlog-app .delete-controls select{width:170px!important;min-width:0;max-width:100%;flex:0 1 170px}
+#eventlog-app .delete-controls [data-eventlog-delete]{flex:0 0 auto}
+#eventlog-app .roleplay-list-controls{flex-direction:row;align-items:center;flex-wrap:wrap}
+#eventlog-app .eventlog-hide-controls{width:auto}
+#eventlog-app .pagination-shape{flex-wrap:wrap}
