@@ -64,6 +64,40 @@
         number.form?.addEventListener('reset', () => window.setTimeout(() => { slider.value = number.value || slider.dataset.emptyPosition || ''; }, 0));
     });
 
+    // Lorkhan's round limit counts continuations, so include the initial reply before those probability rolls.
+    const rechatOutput = document.getElementById('rechat-calc-output');
+    const rechatRounds = document.getElementById('setting_behavior_rechat_max_depth');
+    const rechatChance = document.getElementById('setting_behavior_rechat_probability_percent');
+    if (rechatOutput && rechatRounds && rechatChance) {
+        const updateRechatCalculator = () => {
+            rechatOutput.replaceChildren();
+            if (rechatRounds.value === '' || rechatChance.value === '' || !rechatRounds.validity.valid || !rechatChance.validity.valid) {
+                rechatOutput.textContent = 'Enter valid rounds and probability to calculate responses.';
+                return;
+            }
+            const probability = rechatChance.valueAsNumber / 100;
+            for (let response = 0; response <= rechatRounds.valueAsNumber; response++) {
+                if (response > 0) {
+                    const separator = document.createElement('span');
+                    separator.className = 'rechat-calculator-separator';
+                    separator.textContent = ' | ';
+                    rechatOutput.append(separator);
+                }
+                const chance = 100 * Math.pow(probability, response);
+                const item = document.createElement('span');
+                item.className = 'rechat-chance ' + (chance >= 50 ? 'high' : chance >= 25 ? 'medium' : chance >= 10 ? 'low' : 'rare');
+                item.textContent = `Response ${response + 1}: ${chance.toFixed(1)}%`;
+                rechatOutput.append(item);
+            }
+        };
+        [rechatRounds, rechatChance].forEach(control => {
+            control.addEventListener('input', updateRechatCalculator);
+            control.addEventListener('change', updateRechatCalculator);
+        });
+        rechatRounds.form?.addEventListener('reset', () => window.setTimeout(updateRechatCalculator, 0));
+        updateRechatCalculator();
+    }
+
     /** Mark explicitly opted-in editors dirty without applying the guard to action or upload forms. */
     document.querySelectorAll('form[data-track-dirty]').forEach((form) => {
         const setDirty = () => {

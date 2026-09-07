@@ -3536,3 +3536,29 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   preserved. No game launch, game commands or live AI evolution proof.
 - Core Profile parity is still open: presets, other supported settings and their
   runtime mappings remain in the prior full-form audit. Overall goal remains active.
+
+## Core Profile Rechat calculator — 2026-09-07
+
+- Added the missing Rechat Response Calculator above the rounds/probability
+  controls. Card geometry, heading, inline percentages/separators and probability
+  colours derive from pinned Herika 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+  ui/core/core_profiles.php and ui/core/tmpl/metadata_json_editor.php. Gold replaces
+  the brand orange; semantic green/amber/red remain.
+- Native counting distinction is explicit: RechatCoordinator::preRollBudget rolls
+  each continuation, and rechat_max_depth counts continuations after the original
+  response. The calculator includes the original response plus that many rounds,
+  with probabilities 100, p, p^2, etc. Herika's UI treats its count as total replies.
+  No runtime settings, queue behavior, saved values or existing conversation changed.
+- Calculator listens to number edits, keyboard changes, sliders and form reset.
+  Zero remains zero (the reference's parseInt(value)||50 would incorrectly replace
+  0). Invalid/empty inputs produce guidance instead of invented probabilities.
+- Inspected populated deployed HTML through a write-disabled copy at desktop and
+  390px. Screenshots confirmed card layout/wrapping. Verified 50%, 0%, 100%, maximum
+  20 continuations (21 displayed replies), empty-input guidance, and slider Home-key
+  changes. Desktop document width/scrollWidth both 1265px. No live save/provider call.
+- 493 server checks, PHP template lint, JavaScript syntax and whitespace passed.
+  The preceding full integration/HTTP/migration run remains current for unchanged
+  backend behavior. Local rollback /var/backups/lorkhanserver-code.nbE53L; all 781
+  runtime hashes match. Private paths 403, unauthenticated session 401, health valid.
+  Secrets/config/voices preserved; no game launched or controlled. Overall parity
+  remains incomplete; the remaining Core Profile sections stay on the audit list.
