@@ -386,6 +386,14 @@ final class ManagementRouter
             $saved=$this->service->importKnowledge($inputs);
             return$this->redirect($this->uiPath('knowledge').'&status=imported&count='.count($saved));
         }
+        if($domain==='oghma-maintenance'){
+            $installation=$this->need($scope,'installation_id');$this->uuid($installation,'installation_id');
+            $action=$this->need($v,'action');
+            if(!in_array($action,['delete-all','delete-entry','factory-reset'],true)||($v['confirm']??'')!==($action==='factory-reset'?'Reset':'Delete'))throw new InvalidArgumentException('oghma_confirmation_required');
+            $document=$action==='delete-entry'?$this->need($v,'document_id'):null;if($document!==null)$this->uuid($document,'document_id');
+            $count=($this->oghmaCatalogImporter??throw new RuntimeException('not_found'))->maintainInstallation($installation,$action,$document);
+            return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query(['installation_id'=>$installation,'embed'=>($v['embed']??'')==='1'?'1':'0','status'=>$action==='factory-reset'?'factory-reset':'deleted','count'=>$count]));
+        }
         if($domain==='oghma-factory-sync'){
             $result=$this->syncBundledOghmaCatalog();$query=['status'=>'factory-synced','count'=>(int)($result['row_count']??0)];
             if(isset($scope['installation_id']))$query['installation_id']=$scope['installation_id'];

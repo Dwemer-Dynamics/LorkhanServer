@@ -83,6 +83,34 @@ final class OghmaCatalogImporter
         });
     }
 
+    /** Apply explicit catalog maintenance without touching profile/playthrough knowledge or other installations. */
+    public function maintainInstallation(string $installationId,string $action,?string $documentId=null):int
+    {
+        if(!in_array($action,['delete-all','delete-entry','factory-reset'],true))throw new InvalidArgumentException('invalid_oghma_action');
+        return$this->transaction(function()use($installationId,$action,$documentId):int{
+            $this->db->exec('SELECT pg_advisory_xact_lock('.self::LOCK_ID.')');
+            $installation=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id');
+            $installation->execute(['id'=>$installationId]);if(!$installation->fetchColumn())throw new InvalidArgumentException('invalid_installation_id');
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>'oghma-catalog:'.$installationId]);
+            $scope='installation_id=:installation AND profile_id IS NULL AND playthrough_id IS NULL AND deleted_at IS NULL';
+            $params=['installation'=>$installationId];
+            if($action==='delete-entry'){
+                $find=$this->db->prepare('SELECT topic FROM knowledge_documents WHERE '.$scope.' AND document_id=:document');
+                $find->execute($params+['document'=>$documentId]);$topic=$find->fetchColumn();
+                if($topic===false)throw new InvalidArgumentException('invalid_oghma_document');
+                $scope.=' AND lower(topic)=:topic';$params['topic']=mb_strtolower((string)$topic,'UTF-8');
+            }
+            if($action==='factory-reset'){
+                $catalog=$this->activeCatalog()??throw new RuntimeException('oghma_catalog_missing');
+                $this->db->prepare('DELETE FROM oghma_catalog_deletions WHERE installation_id=:installation')->execute($params);
+            }else{
+                $this->db->prepare('INSERT INTO oghma_catalog_deletions(installation_id,topic,deleted_at) SELECT DISTINCT installation_id,lower(topic),now() FROM knowledge_documents WHERE '.$scope.' ON CONFLICT(installation_id,topic) DO UPDATE SET deleted_at=excluded.deleted_at')->execute($params);
+            }
+            $delete=$this->db->prepare('UPDATE knowledge_documents SET deleted_at=now() WHERE '.$scope);$delete->execute($params);
+            return$action==='factory-reset'?$this->projectInstallation((string)$catalog['catalog_id'],$installationId):$delete->rowCount();
+        });
+    }
+
     /** Synchronize the bundled current dataset and repair installation projections idempotently. */
     public function provision(string $articlesPath,string $manifestPath,string $catalogVersion):array
     {
@@ -173,19 +201,23 @@ final class OghmaCatalogImporter
 
     private function projectInstallation(string $catalogId,string $installationId):int
     {
+        $suppressed=$this->db->prepare('SELECT topic FROM oghma_catalog_deletions WHERE installation_id=:installation');$suppressed->execute(['installation'=>$installationId]);
+        $deletedTopics=array_fill_keys($suppressed->fetchAll(PDO::FETCH_COLUMN),true);
         $delete=$this->db->prepare('DELETE FROM knowledge_documents d USING oghma_factory_documents f WHERE f.installation_id=:installation AND f.document_id=d.document_id');$delete->execute(['installation'=>$installationId]);
         $entries=$this->entries($catalogId);$insertDocument=$this->db->prepare("INSERT INTO knowledge_documents(document_id,installation_id,profile_id,playthrough_id,title,content,content_sha256,lexical_terms,provenance,created_at,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category) VALUES(:id,:installation,NULL,NULL,:title,:content,:sha,CAST(:terms AS text[]),CAST(:provenance AS jsonb),:now,:topic,:aliases,:basic,:advanced_class,:basic_class,:tags,:category)");
         $insertOwner=$this->db->prepare('INSERT INTO oghma_factory_documents(installation_id,topic,document_id,catalog_id) VALUES(:installation,:topic,:document,:catalog)');$now=gmdate('Y-m-d\TH:i:s\Z');
         $catalog=$this->catalogById($catalogId)??throw new RuntimeException('oghma_catalog_missing');
-        foreach($entries as$row){$id=Uuid::v4();$search=implode(' ',[$row['topic'],$row['title'],$row['aliases'],$row['topic_desc'],$row['topic_desc_basic'],$row['tags']]);
+        $projected=0;
+        foreach($entries as$row){if(isset($deletedTopics[mb_strtolower($row['topic'],'UTF-8')]))continue;
+            $id=Uuid::v4();$search=implode(' ',[$row['topic'],$row['title'],$row['aliases'],$row['topic_desc'],$row['topic_desc_basic'],$row['tags']]);
             $provenance=['source'=>'factory-oghma','catalog_id'=>$catalogId,'catalog_version'=>$catalog['catalog_version'],'category'=>$row['category'],'temporal_anchor'=>'3E 427'];
             if($row['mod_source']!==null)$provenance['mod_source']=$row['mod_source'];
             $provenance=json_encode($provenance,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES);
             $insertDocument->execute(['id'=>$id,'installation'=>$installationId,'title'=>$row['title'],'content'=>$row['topic_desc'],'sha'=>hash('sha256',$row['topic_desc']),
                 'terms'=>$this->pgArray(DeterministicRetrieval::terms($search)),'provenance'=>$provenance,'now'=>$now,'topic'=>$row['topic'],'aliases'=>$row['aliases'],
                 'basic'=>$row['topic_desc_basic'],'advanced_class'=>$row['knowledge_class'],'basic_class'=>$row['knowledge_class_basic'],'tags'=>$row['tags'],'category'=>$row['category']]);
-            $insertOwner->execute(['installation'=>$installationId,'topic'=>$row['topic'],'document'=>$id,'catalog'=>$catalogId]);}
-        return count($entries);
+            $insertOwner->execute(['installation'=>$installationId,'topic'=>$row['topic'],'document'=>$id,'catalog'=>$catalogId]);$projected++;}
+        return $projected;
     }
 
     private function entries(string $catalogId):array

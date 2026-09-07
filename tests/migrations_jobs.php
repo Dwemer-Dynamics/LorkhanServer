@@ -928,6 +928,40 @@ $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$ex
     &&$factorySyncVersion==='morrowind-official-3e427-v5.21'&&$factorySyncRows===3741&&$factorySyncCustomRows===1,
     'Oghma factory sync control did not install the current dataset while preserving custom knowledge');
 $home=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/quickstart',['Cookie'=>$cookie]));
+$db->beginTransaction();
+try{
+    $maintenance=static fn(array $values)=>$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/oghma-maintenance',['Cookie'=>$cookie],[],http_build_query($values)));
+    $maintenanceValues=['_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1','action'=>'delete-all','confirm'=>'Delete'];
+    $factoryTopic=$db->query("SELECT document_id,topic FROM knowledge_documents WHERE installation_id='{$installation}' AND provenance->>'source'='factory-oghma' AND deleted_at IS NULL ORDER BY topic LIMIT 1")->fetch();
+    $otherCount=(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE installation_id<>'{$installation}' AND deleted_at IS NULL")->fetchColumn();
+    $scopedKnowledge=$products->createKnowledge(['installation_id'=>$installation,'profile_id'=>$profile['profile_id'],'playthrough_id'=>$playthrough['playthrough_id'],
+        'title'=>'Private maintenance fixture','topic'=>'private_maintenance_fixture','content'=>'This NPC and playthrough knowledge survives catalog maintenance.',
+        'provenance'=>['source'=>'management'],'aliases'=>'','topic_desc_basic'=>'Private fixture','knowledge_class'=>'scholar','knowledge_class_basic'=>'common','tags'=>'','category'=>'lore'],['private','fixture'],$clock->iso());
+    $eventsBefore=(int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn();
+    $denied=$maintenance(array_replace($maintenanceValues,['_csrf'=>'invalid']));
+    $check($denied->status===303&&($denied->headers['Location']??'')==='/LorkhanServer/ui/home.php','Oghma maintenance accepted invalid CSRF');
+    foreach([['confirm'=>''],['action'=>'unknown'],['installation_id'=>'30000000-0000-4000-8000-000000000999'],['action'=>'delete-entry','document_id'=>$scopedKnowledge['document_id']]]as$invalid)
+        $check($maintenance(array_replace($maintenanceValues,$invalid))->status===422,'Oghma maintenance accepted invalid confirmation, scope or action');
+    $check((int)$db->query('SELECT count(*) FROM oghma_catalog_deletions')->fetchColumn()===0,'rejected Oghma maintenance changed deletion state');
+    $single=$maintenance(array_replace($maintenanceValues,['action'=>'delete-entry','document_id'=>$factoryTopic['document_id']]));
+    $check($single->status===303&&str_contains($single->headers['Location']??'','embed=1&status=deleted'),'single factory-topic delete failed or lost embedded state');
+    $factorySyncAgain=$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/oghma-factory-sync',['Cookie'=>$cookie],[],http_build_query(['_csrf'=>$csrf,'installation_id'=>$installation])));
+    $topicCheck=$db->prepare('SELECT count(*) FROM knowledge_documents WHERE installation_id=:installation AND lower(topic)=lower(:topic) AND deleted_at IS NULL');
+    $topicCheck->execute(['installation'=>$installation,'topic'=>$factoryTopic['topic']]);
+    $check($factorySyncAgain->status===303&&(int)$topicCheck->fetchColumn()===0,'factory sync restored an explicitly deleted topic');
+    $all=$maintenance($maintenanceValues);
+    $catalogUi=new \LorkhanServer\Infrastructure\ManagementUiRepository($db);
+    $check($all->status===303&&$catalogUi->oghmaCatalog(['installation_id'=>$installation])['total']===0,'Delete All did not empty the effective shared catalog');
+    $oghmaImporter->provisionInstallation($installation);
+    $check($catalogUi->oghmaCatalog(['installation_id'=>$installation])['total']===0,'installation provisioning restored deleted topics');
+    $reset=$maintenance(array_replace($maintenanceValues,['action'=>'factory-reset','confirm'=>'Reset']));
+    $check($reset->status===303&&str_contains($reset->headers['Location']??'','status=factory-reset')
+        &&$catalogUi->oghmaCatalog(['installation_id'=>$installation])['total']===3741
+        &&(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE document_id='{$syncCustom['document_id']}' AND deleted_at IS NULL")->fetchColumn()===0,'Factory Reset did not restore the full factory catalog and remove custom entries');
+    $check($products->knowledge($scopedKnowledge['document_id'])['deleted_at']===null
+        &&(int)$db->query("SELECT count(*) FROM knowledge_documents WHERE installation_id<>'{$installation}' AND deleted_at IS NULL")->fetchColumn()===$otherCount
+        &&(int)$db->query('SELECT count(*) FROM eventlog')->fetchColumn()===$eventsBefore,'catalog maintenance changed protected knowledge or event history');
+}finally{$db->rollBack();}
 $check($home->status===303 && ($home->headers['Location']??'')==='/LorkhanServer/ui/home.php', 'authenticated legacy route did not preserve the PHP page redirect');
 $diagnostics=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/api/v1/diagnostics',['Cookie'=>$cookie]));
 $check($diagnostics->status===200 && !str_contains($diagnostics->body,'manage-secret'), 'management diagnostics auth or redaction failed');

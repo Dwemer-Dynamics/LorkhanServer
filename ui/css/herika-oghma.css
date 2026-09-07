@@ -328,6 +328,8 @@ body.oghma-page-shell .modal-backdrop .modal-body {max-height:calc(100vh - 300px
 body.oghma-page-shell .modal-backdrop .modal-title {font:21px/1.5 MagicCards,serif;word-spacing:6px}
 body.oghma-page-shell .modal-backdrop :is(input,textarea) {font-family:"Futura CondensedLight",Arial,sans-serif}
 body.oghma-page-shell .modal-backdrop :focus-visible {outline:2px solid #bc9d5a;outline-offset:2px}
+body.oghma-page-shell #oghmaMaintenanceModal .btn-danger {background:#963c3c!important;border-color:#b65757!important;color:#fff!important}
+body.oghma-page-shell .oghma-page .database-actions .btn-danger {font:700 13.12px/1.1 "Futura CondensedLight",Arial,sans-serif;background:#383838!important;border-color:#505050!important}
 @media(max-width:650px){
     .oghma-page .logic-section {padding:14px}
     .oghma-page .logic-step {padding:12px;gap:12px}

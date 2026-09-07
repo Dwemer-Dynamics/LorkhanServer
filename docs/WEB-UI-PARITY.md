@@ -83,7 +83,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
-| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category now match the reference form contract, including CSV. Dynamic Oghma and destructive catalog controls still require work. Latest migration/tests/deployment evidence below. |
+| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category match the reference form contract, including CSV. Delete All, Factory Reset and factory-entry Delete are implemented with explicit confirmation and persistent deletion choices; final evidence below. Dynamic Oghma still requires work. |
 | `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Name and Description are now optional in forms/save/CSV, with stable OpenMW plugin/record identity retained. Latest migration/tests/deployment evidence below. |
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
@@ -2578,3 +2578,48 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Core while name, record ID and content file remain required. No live import,
   export, reset, profile save, speech-provider call or game action was performed.
   This closes the biography batch checkpoint, not the remaining all-pages goal.
+
+## Oghma catalog maintenance checkpoint
+
+- Replaced the disabled Delete All placeholder and primary factory-sync button
+  with the reference's Delete All Entries / Factory Reset Database order. Routine
+  sync remains available in a secondary details section. Matched the reference's
+  36px toolbar buttons, 7px/12px padding and 700-weight 13.12px Futura typography.
+  Final destructive confirmation retains a red button and initially focuses Cancel.
+- Factory-entry editors now expose Delete, as the reference does. The confirmation
+  removes the complete effective topic, including older shared custom/factory
+  versions, rather than revealing an older article unexpectedly. Cancelling it
+  restores the unchanged editor and focuses Delete; Escape/backdrop close and
+  Tab wrapping use the same dialog lifecycle. Native scoped API deletion retains
+  its existing separate override-removal contract.
+- Delete All soft-deletes shared catalog records for the selected installation.
+  Factory Reset removes custom shared entries and restores the active verified
+  factory catalog. Both preserve profile/playthrough-scoped knowledge, immutable
+  event history and other installations. No live maintenance is used for testing.
+- Migration 091 stores canonical deleted topics separately from replaceable factory
+  projections. Routine sync, installation provisioning and catalog replacement
+  skip these topics; explicit Factory Reset clears the choices. Its downgrade
+  refuses to discard saved deletion choices silently. No credentials, voices or
+  game state are stored in the new table.
+- Source-rendered populated/empty fixtures and the pinned Herika toolbar were
+  compared. At 390px the full reset warning and both buttons fit with no horizontal
+  document overflow; focus wraps between Cancel and the destructive submit.
+  The native confirmation adds explicit ownership warnings absent from the
+  reference's browser confirm. Dynamic Oghma remains a separate unfinished row.
+- Validation passed: PHP lint, JavaScript syntax, 98 protocol files, 370 server
+  checks, browser-like management HTTP, integration vertical slice and migration /
+  durable-job tests. The maintenance regression checks reject invalid CSRF,
+  confirmation, installation, action and profile-scoped document IDs; they exercise
+  single factory-topic deletion, sync/provision persistence, Delete All and the
+  full 3,741-article reset inside an isolated transaction. One initial assertion
+  incorrectly used the active-only reader to inspect a deleted row; the corrected
+  SQL assertion and final integration/migration run passed. Schema inventory now
+  records 168 relations / 1,565 columns.
+- Deployed server-only with rollback `/var/backups/lorkhanserver-code.CnXM5a`.
+  All 748 runtime files match source; no extras or old paths remain. Private paths
+  return 403 on the three checked ports and unauthenticated sessions return 401.
+  Existing configuration, credential and voice file hashes are unchanged.
+- Live Oghma still shows 3,741 articles. Opened its reset dialog, confirmed the
+  warning and initial Cancel focus, then cancelled. The new deletion table has
+  zero live rows. No live delete/reset/import, provider call or game operation
+  was performed. The overall page-parity goal remains active.

@@ -111,7 +111,7 @@ function lorkhan_ui_feature_registry(): array
         'config.oghma' => ['title' => 'Oghma Infinium', 'state' => 'live', 'description' => 'Scoped world-knowledge documents and retrieval data.'],
         'config.oghma.dynamic' => ['title' => 'Dynamic Oghma', 'state' => 'excluded', 'description' => 'Background quest-stage knowledge mutation is excluded from the current bounded LORKHAN scope.'],
         'config.oghma.batch' => ['title' => 'Oghma CSV Batch', 'state' => 'live', 'description' => 'Installation-scoped typed CSV import and example export.'],
-        'config.oghma.destructive' => ['title' => 'Destructive Oghma Reset', 'state' => 'replaced', 'description' => 'LORKHAN uses bounded Database Manager backups and retention instead of unscoped delete-all or factory-reset controls.'],
+        'config.oghma.destructive' => ['title' => 'Destructive Oghma Reset', 'state' => 'live', 'description' => 'Confirmed, installation-scoped Delete All and Factory Reset controls preserve NPC/playthrough knowledge and other installations.'],
         'config.descriptions' => ['title' => 'Descriptions', 'state' => 'live', 'description' => 'Morrowind description records.'],
         'config.descriptions.batch' => ['title' => 'Description CSV Batch', 'state' => 'live', 'description' => 'Installation-scoped typed description import, example download, and custom export.'],
         'config.descriptions.reset' => ['title' => 'Description Factory Reset', 'state' => 'replaced', 'description' => 'LORKHAN preserves scoped records and uses individual deletion plus Database Manager backups instead of a destructive table reset.'],

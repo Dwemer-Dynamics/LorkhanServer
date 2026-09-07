@@ -127,6 +127,8 @@ $modalFields = static function (string $prefix, array $row = []): void {
         $noticeCount = (int) (is_string($_GET['count'] ?? null) ? $_GET['count'] : 0);
         $notice = match ($status) {
             'imported' => 'CSV validated and imported.',
+            'deleted' => 'Selected Oghma entries deleted. Routine factory sync will not restore deleted topics.',
+            'factory-reset' => 'Oghma reset to the factory catalog for this installation. Custom catalog entries were removed.',
             'factory-synced' => 'Factory catalog synced. '
                 . ($noticeCount > 0 ? $noticeCount . ' factory ' . ($noticeCount === 1 ? 'article was' : 'articles were') . ' refreshed' : 'Factory articles were refreshed')
                 . ' and your own articles were kept.',
@@ -169,15 +171,20 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <p>Article storage:<br><b>lorkhan_internal &rarr; knowledge_documents</b></p>
                 <p>View conversation usage:<br><b>Control Panel &rarr; Oghma Audit</b></p>
                 <div class="button-group database-actions">
+                    <button type="button" class="btn-danger" data-oghma-maintenance="delete-all"<?php echo $selectedInstallation === '' ? ' disabled' : ''; ?>>Delete All Entries</button>
+                    <button type="button" class="btn-danger" data-oghma-maintenance="factory-reset"<?php echo $selectedInstallation === '' ? ' disabled' : ''; ?>>Factory Reset Database</button>
+                </div>
+                <p>Changes apply only to this installation's shared Oghma catalog.</p>
+                <details class="oghma-tips">
+                    <summary>Refresh factory articles without resetting custom entries</summary>
                 <form class="factory-sync-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/oghma-factory-sync">
                     <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                     <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
                     <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
-                        <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Your custom articles are kept.">Sync Factory Catalog</button>
+                        <button type="submit" class="action-button sync-factory" aria-describedby="factory-sync-help" data-confirm="Sync the factory catalog for every local installation? Factory articles are refreshed from the shipped catalog. Custom articles and deleted-topic choices are kept.">Sync Factory Catalog</button>
                 </form>
-                    <span class="status-control"><button type="button" class="btn-danger" disabled aria-disabled="true">Delete All Entries</button><?php echo lorkhan_ui_feature_badge('config.oghma.destructive', true); ?></span>
-                </div>
-                <p id="factory-sync-help">Sync refreshes the shipped factory catalog across this server. Your custom articles are kept.</p>
+                <p id="factory-sync-help">Sync refreshes the shipped factory catalog across this server. Custom articles and deleted-topic choices are kept. Factory Reset restores deleted factory topics.</p>
+                </details>
             </div>
         </div>
 
@@ -306,20 +313,16 @@ $modalFields = static function (string $prefix, array $row = []): void {
             <h2 class="modal-title" id="edit-modal-title">Edit Oghma Entry</h2>
         </div>
         <div class="modal-body">
-            <p class="factory-edit-note" id="edit-factory-note" hidden>This is a factory article, so it is never changed here. Saving creates a custom article for this server that replaces it in the catalog. Delete that custom article later to bring the factory version back.</p>
+            <p class="factory-edit-note" id="edit-factory-note" hidden>Saving creates a custom article for this installation while retaining the factory source. Delete removes the topic from this installation's catalog; Factory Reset restores factory topics and removes custom entries.</p>
             <form id="oghma-edit-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge-revise">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="document_id" id="edit-document-id">
                 <?php $modalFields('edit'); ?>
                 <div class="modal-footer">
                     <button type="submit" class="btn-save" id="edit-save-button">Save Changes</button>
-                    <button type="submit" class="btn-danger" id="edit-delete-button" form="oghma-delete-form" data-confirm="Delete this Oghma entry?">Delete</button>
+                    <button type="button" class="btn-danger" id="edit-delete-button" data-oghma-maintenance="delete-entry">Delete</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
-            </form>
-            <form id="oghma-delete-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge-delete">
-                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                <input type="hidden" name="document_id" id="delete-document-id">
             </form>
         </div>
     </div>
@@ -335,6 +338,28 @@ $modalFields = static function (string $prefix, array $row = []): void {
                 <?php $modalFields('new'); ?>
                 <div class="modal-footer">
                     <button type="submit" class="btn-save">Save</button>
+                    <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<div id="oghmaMaintenanceModal" class="modal-backdrop" hidden aria-hidden="true">
+    <div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="oghma-maintenance-title">
+        <div class="modal-header"><h2 class="modal-title" id="oghma-maintenance-title">Oghma Database Management</h2></div>
+        <div class="modal-body">
+            <p id="oghma-maintenance-warning"></p>
+            <p>This affects only the selected installation's shared catalog. NPC-specific and playthrough knowledge, conversation history and other installations are preserved. Deleted custom articles require your own backup to recover.</p>
+            <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/oghma-maintenance">
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
+                <input type="hidden" name="embed" value="<?php echo $embedded ? '1' : '0'; ?>">
+                <input type="hidden" name="action" id="oghma-maintenance-action">
+                <input type="hidden" name="document_id" id="oghma-maintenance-document">
+                <input type="hidden" name="confirm" id="oghma-maintenance-confirm">
+                <div class="modal-footer">
+                    <button type="submit" class="btn-danger" id="oghma-maintenance-submit">Confirm</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>
                 </div>
             </form>

@@ -196,6 +196,9 @@ filters, table badges and regular Add/Edit dialogs from pinned HerikaServer
 factory override semantics remain Lorkhan's existing implementation.
 The topic/alias substring search and optional Basic Description/Category fields
 also follow this reference; runtime retrieval and knowledge access are unchanged.
+The Delete All / Factory Reset toolbar order and entry-editor Delete control also
+follow the reference. Confirmation dialogs, installation scope and persistent
+factory-topic deletion handling are native Lorkhan adaptations.
 
 `ui/oghma_knowledge.php` and `ui/css/herika-oghma-runtime.css` adapt the
 three-column knowledge reader, metadata chips, filter controls and typography
