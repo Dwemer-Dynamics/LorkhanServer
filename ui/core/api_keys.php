@@ -27,7 +27,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             $responseStatus = 401;
             throw new RuntimeException('unauthorized');
         }
-        foreach (['action','test_key','add_custom','custom_name','custom_credential','delete_custom','variable','credential'] as $field) {
+        foreach (['action','test_key','add_custom','custom_name','custom_credential','delete_custom','variable','credential','display_label'] as $field) {
             if (isset($_POST[$field]) && !is_string($_POST[$field])) throw new InvalidArgumentException('invalid_credentials');
         }
         if (isset($_POST['credentials']) && (!is_array($_POST['credentials'])
@@ -47,6 +47,9 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
             try{$ok=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);}finally{curl_close($handle);}
             if($ok!==false&&$status>=200&&$status<300)$notice='API key accepted. Test does not save an unsaved key.';
             else $error='API key test failed (HTTP '.$status.'). Check the key, permissions, and connection.';
+        } elseif ($action==='label') {
+            $variable=(string)($_POST['variable']??'');$assertEditable($variable);
+            $store->setLabel($variable,(string)($_POST['display_label']??''));$notice='Custom label saved. Connector references are unchanged.';
         } elseif (isset($_POST['add_custom'])) {
             $name=strtoupper(trim((string)($_POST['custom_name']??'')));
             if(preg_match('/^[A-Z][A-Z0-9_]{0,39}$/D',$name)!==1)throw new InvalidArgumentException('Use a key name containing letters, digits, or underscores.');
@@ -178,12 +181,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div id="custom-keys" class="provider-grid"><?php foreach($statuses as $variable=>$status): if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$variable,$match)!==1)continue; $environment=$status['source']==='environment'; ?>
                     <article class="custom-card has-key" data-key-card data-variable="<?php echo lorkhan_ui_h($variable); ?>">
                         <header class="provider-head"><div class="provider-title"><span class="provider-icon" aria-hidden="true">&#x1F9E9;</span><span>Custom Key</span></div><div class="key-actions"><button type="button" class="button btn-save" data-save-custom<?php echo $environment?' disabled':''; ?>>Save</button><button type="submit" class="button btn-delete btn-danger" name="delete_custom" value="<?php echo lorkhan_ui_h($variable); ?>"<?php echo $environment?' disabled':''; ?>>Delete</button></div></header>
-                        <label for="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>">Label</label><input id="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>" type="text" value="<?php echo lorkhan_ui_h($match[1]); ?>" readonly title="This identifier is referenced by saved connectors.">
+                        <label for="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>">Label</label><input id="custom-label-<?php echo lorkhan_ui_h($match[1]); ?>" type="text" value="<?php echo lorkhan_ui_h($status['label']??$match[1]); ?>" data-custom-display-label maxlength="80"<?php echo $environment?' readonly':''; ?> title="Display label; connector identifier stays unchanged.">
                         <label for="custom-<?php echo lorkhan_ui_h($match[1]); ?>">API Key</label><div class="provider-body"><input id="custom-<?php echo lorkhan_ui_h($match[1]); ?>" type="password" name="credentials[<?php echo lorkhan_ui_h($variable); ?>]" placeholder="Leave blank to keep saved key" autocomplete="new-password" maxlength="8192"<?php echo $environment?' disabled':''; ?>>
                         <button type="button" class="button" data-key-visibility<?php echo $environment?' disabled':''; ?>>Show</button></div><div class="key-status" role="status" aria-live="polite" data-key-status><?php echo $environment?'Managed by the server environment.':''; ?></div></article>
                 <?php endforeach; ?></div>
                 <button type="button" class="action-button add-new" id="add-custom-key">Add Custom Key</button>
-                <p class="keys-help">Custom labels are stable connector identifiers: letters, digits and underscores, starting with a letter. Existing labels cannot yet be renamed.</p>
+                <p class="keys-help">New keys use a stable identifier with letters, digits and underscores. You can edit their display labels without changing saved connector references.</p>
             </section>
         </div>
     </form>

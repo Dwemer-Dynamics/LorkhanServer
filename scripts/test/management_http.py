@@ -2482,9 +2482,17 @@ r=request(badge_path,'POST',custom_values,accept=ajax); result=r.read().decode()
 assert r.status==422 and 'already exists' in json.loads(result)['message'] and dummy_key not in result
 r=request(badge_path,'POST',{'_csrf':csrf,'action':'set','variable':custom_variable,'credential':dummy_key+'-replacement'},accept=ajax)
 assert r.status==200 and json.loads(r.read())['ok'] is True
+rename_values={'_csrf':csrf,'action':'label','variable':custom_variable,'display_label':'Renamed Voice & LLM'}
+r=request(badge_path,'POST',dict(rename_values,_csrf='invalid'),accept=ajax); assert r.status==401
+r=request(badge_path,'POST',dict(rename_values,display_label=''),accept=ajax); assert r.status==422
+r=request(badge_path,'POST',rename_values,accept=ajax); assert r.status==200 and json.load(r)['ok'] is True
 card_page,card_body=parse(request(badge_path))
+assert 'Renamed Voice &amp; LLM' in card_body and 'data-custom-display-label' in card_body
 assert 'custom-card has-key' in card_body and 'data-variable="'+custom_variable+'"' in card_body
 assert 'Preset Keys (Saves Automatically)' in card_body and 'id="apikey-test-dialog"' in card_body and dummy_key not in card_body
+for connector_page in ('llm_connectors', 'tts_connectors', 'stt_connectors'):
+    _, connector_body = parse(request('/LorkhanServer/ui/core/'+connector_page+'.php?create=1&installation_id='+valid['installation_id']))
+    assert 'Renamed Voice &amp; LLM' in connector_body and dummy_key not in connector_body, connector_page
 r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':custom_variable},accept=ajax)
 assert r.status==200 and json.loads(r.read())['ok'] is True
 _,card_body=parse(request(badge_path)); assert custom_variable not in card_body

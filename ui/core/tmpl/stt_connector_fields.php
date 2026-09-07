@@ -16,7 +16,7 @@ $badgeLabels = ['LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI speech key','LORKHAN_TTS_D
     'LORKHAN_TTS_INWORLD_API_KEY'=>'Inworld','LORKHAN_TTS_GCP_API_KEY'=>'Google',
     'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)','LORKHAN_STT_API_KEY'=>'Default STT key'];
 $badgeChoices = $credentialStatuses;
-foreach ($badgeChoices as $variable=>&$status) $status['label']=$badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$variable))));
+foreach ($badgeChoices as $variable=>&$status) $status['label']=$status['label']??$badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_',' ',preg_replace('/^LORKHAN_|_API_KEY$/','',$variable))));
 unset($status);
 uasort($badgeChoices,static fn(array $a,array $b):int=>($b['configured']<=>$a['configured'])?:strnatcasecmp($a['label'],$b['label']));
 foreach ($groups as $providers) foreach ($providers as [$panelDriver,$panelName,$panelBadge,$panelTitle]) {

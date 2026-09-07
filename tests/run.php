@@ -1383,6 +1383,15 @@ putenv('LORKHAN_TTS_GCP_API_KEY=environment-secret');
 $check($credentialStore->resolve('LORKHAN_TTS_GCP_API_KEY')==='environment-secret','process environment overrides browser-managed credentials');
 putenv('LORKHAN_TTS_GCP_API_KEY');$credentialStore->delete('LORKHAN_TTS_GCP_API_KEY');
 $check($credentialStore->resolve('LORKHAN_TTS_GCP_API_KEY')===''&&(fileperms($credentialPath)&0777)===0640,'credential deletion is persistent and store permissions are restrictive');
+$customLabelKey='LORKHAN_CUSTOM_LABEL_TEST_API_KEY';$credentialStore->set($customLabelKey,'hidden-custom-key');
+$credentialStore->setLabel($customLabelKey,'My Voice Service');
+$labelStatuses=$credentialStore->statuses();
+$labelRow=array_values(array_filter($labelStatuses,static fn(array $row):bool=>$row['variable']===$customLabelKey))[0];
+$check($labelRow['label']==='My Voice Service'&&$credentialStore->resolve($customLabelKey)==='hidden-custom-key'
+    &&!str_contains(json_encode($labelStatuses),'hidden-custom-key'),'display label preserves the stable key and secret redaction');
+putenv($customLabelKey.'=environment-custom-secret');
+$check(!str_contains(json_encode($credentialStore->statuses()),'environment-custom-secret'),'label metadata never resolves credential environment values');
+putenv($customLabelKey);$credentialStore->delete($customLabelKey);unlink($credentialPath.'.labels.json');
 $translationPolicy=array_replace(TranslationPolicy::defaults(),['provider'=>'deepl','translate_text'=>true,
     'save_translated_text'=>true,'source_language'=>'en','target_language'=>'de']);
 $translationPolicy=TranslationPolicy::validate($translationPolicy);

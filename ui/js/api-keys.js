@@ -24,6 +24,14 @@
             const input=keyInput(card),status=card.querySelector('[data-key-status]');
             if(!card.isConnected||input.disabled)return;
             const value=input.value,variable=card.dataset.variable,label=card.querySelector('[data-new-label]');
+            if(variable&&card.querySelector('[data-custom-display-label]')){
+                const display=card.querySelector('[data-custom-display-label]');
+                const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
+                try{await post({action:'label',variable,display_label:display.value},controller.signal);}
+                catch(error){status.textContent=error.name==='AbortError'?'Save timed out. Reload to check whether the label was saved.':error.message;throw error;}
+                finally{clearTimeout(timer);}
+                if(!value.trim()){status.textContent='Label saved. Saved key kept.';return;}
+            }
             if(!value.trim()&&variable){if(explicit)status.textContent='No replacement entered. Saved key kept.';return;}
             if(!variable&&!explicit)return;
             if(!variable&&(!label.value.trim()||!label.checkValidity()||!value.trim())){
@@ -31,14 +39,14 @@
             }
             const name=label?.value;
             if(!variable)label.readOnly=true;
-            status.textContent='Saving…';
+            status.textContent='Savingâ€¦';
             const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
             try{
                 const result=await post(variable?{action:'set',variable,credential:value}:{add_custom:'1',custom_name:name,custom_credential:value},controller.signal);
                 if(!variable){
                     if(typeof result.variable!=='string'||!/^LORKHAN_CUSTOM_[A-Z][A-Z0-9_]{0,39}_API_KEY$/.test(result.variable))throw new Error('Invalid saved-key response.');
-                    card.dataset.variable=result.variable;label.value=name.trim().toUpperCase();label.readOnly=true;
-                    label.title='This identifier is referenced by saved connectors.';
+                    card.dataset.variable=result.variable;label.value=name.trim().toUpperCase();label.readOnly=false;label.dataset.customDisplayLabel='';label.maxLength=80;label.removeAttribute('pattern');
+                    label.title='Display label; connector identifier stays unchanged.';
                     input.name='credentials['+result.variable+']';
                 }
                 const unchanged=input.value===value;
@@ -81,7 +89,7 @@
         if(!card.dataset.variable){card.remove();document.getElementById('add-custom-key').focus();return;}
         await serial(async()=>{
             const status=card.querySelector('[data-key-status]'),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
-            status.textContent='Deleting…';
+            status.textContent='Deletingâ€¦';
             try{await post({delete_custom:card.dataset.variable},controller.signal);card.remove();document.getElementById('add-custom-key').focus();}
             catch(_){status.textContent='Key was not removed. Check the server and try again.';}
             finally{clearTimeout(timer);}
@@ -113,7 +121,7 @@
         const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
         testRequest=controller;testOpener=button;
         document.getElementById('apikey-test-provider').textContent=card.querySelector('.provider-title').lastElementChild.textContent.trim();
-        status.textContent='Testing API key…';status.className='is-loading';
+        status.textContent='Testing API keyâ€¦';status.className='is-loading';
         dialog.showModal();button.disabled=true;
         try{
             const result=await post({test_key:button.value,['credentials['+button.value+']']:input.value},controller.signal);

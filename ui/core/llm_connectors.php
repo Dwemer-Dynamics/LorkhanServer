@@ -72,7 +72,7 @@ $llmKeyStatuses = [];
 foreach ((new \LorkhanServer\Application\CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
     $llmKeyStatuses[$status['variable']] = (bool)$status['configured'];
     if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$status['variable'],$match)===1)
-        $llmCredentials['custom:'.$match[1]]=$match[1];
+        $llmCredentials['custom:'.$match[1]]=$status['label']??$match[1];
 }
 // Match Herika's configured-first list using status metadata, never secret values.
 asort($llmCredentials, SORT_NATURAL | SORT_FLAG_CASE);

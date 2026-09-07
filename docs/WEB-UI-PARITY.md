@@ -75,7 +75,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
-| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
+| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
@@ -4852,3 +4852,25 @@ Implementation sequence:
 This is an implementation-ready dependency audit, not completion of the sections.
 The existing deployed runtime remains unchanged. Quest comment mappings and the
 rest of the full page matrix also remain open.
+
+
+### Custom API badge display labels
+
+Reference: HerikaServer 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+ui/core/api_badge.php custom card Label/Save editor. Native custom labels now
+remain editable after creation and reload, using that existing card structure.
+The private label sidecar changes display metadata only; LLM, TTS and STT keep
+their saved credential identifiers. Environment-owned credentials remain read-only.
+Native secret inputs deliberately stay blank rather than copying reference secret
+prefill behavior. Label writes share the existing serialized browser save queue
+and have a bounded timeout; deleting a managed key also removes its display label.
+
+Evidence: 567 unit checks passed, including unchanged credential resolution and
+no environment-secret leakage through labels. Isolated browser create, rename,
+reload retained the identifier and blank secret field. Desktop 1280 and narrow
+390 screenshots were inspected (private Temp/lorkhan-api-label-{width}.png).
+Rendered fixture LLM and TTS options showed My Voice & Chat with their original
+values. The browser fixture has no STT connector, so that browser check does not
+prove STT; the existing populated management HTTP suite covers its selector.
+No real credential edits or provider requests were made. Full API provider-badge
+consolidation and the remaining page matrix are still open.

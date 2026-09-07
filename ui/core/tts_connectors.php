@@ -51,7 +51,7 @@ $badgeLabels = ['LORKHAN_TTS_API_KEY'=>'Default TTS key', 'LORKHAN_STT_API_KEY'=
 $badgeChoices = [];
 foreach ((new CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
     $variable = $status['variable'];
-    $status['label'] = $badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_', ' ', preg_replace('/^LORKHAN_|_API_KEY$/', '', $variable))));
+    $status['label'] = $status['label'] ?? $badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_', ' ', preg_replace('/^LORKHAN_|_API_KEY$/', '', $variable))));
     $badgeChoices[$variable] = $status;
 }
 uasort($badgeChoices, static fn(array $a, array $b): int => ($b['configured'] <=> $a['configured']) ?: strnatcasecmp($a['label'], $b['label']));

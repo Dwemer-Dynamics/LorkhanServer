@@ -37,10 +37,12 @@ final class CredentialStore
     /** Return status metadata only; secret values never leave this class. */
     public function statuses(): array
     {
-        $stored=$this->read();$rows=[];
+        $stored=$this->read();$rows=[];$labels=(new self($this->path.'.labels.json'))->read();
         foreach(array_unique(array_merge(self::allowedVariables(),array_keys($stored)))as$variable){$environment=getenv($variable);
             $source=is_string($environment)&&$environment!==''?'environment':(isset($stored[$variable])?'managed store':'not configured');
-            $rows[]=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source];}
+            $row=['variable'=>$variable,'configured'=>$source!=='not configured','source'=>$source];
+            if(str_starts_with($variable,'LORKHAN_CUSTOM_')&&isset($labels[$variable]))$row['label']=$labels[$variable];
+            $rows[]=$row;}
         return$rows;
     }
 
@@ -56,6 +58,16 @@ final class CredentialStore
     public function delete(string $variable): void
     {
         $this->variable($variable);$values=$this->read();unset($values[$variable]);$this->write($values);
+        if(is_file($this->path.'.labels.json'))(new self($this->path.'.labels.json'))->delete($variable);
+    }
+
+    /** Rename display metadata only; connector identifiers and secrets remain unchanged. */
+    public function setLabel(string $variable,string $label): void
+    {
+        $this->variable($variable);$label=trim($label);
+        if(!str_starts_with($variable,'LORKHAN_CUSTOM_')||!isset($this->read()[$variable]))throw new InvalidArgumentException('invalid_credential_variable');
+        if($label===''||mb_strlen($label)>80||!mb_check_encoding($label,'UTF-8')||preg_match('/[\x00-\x1F\x7F]/',$label))throw new InvalidArgumentException('invalid_credential_label');
+        (new self($this->path.'.labels.json'))->set($variable,$label);
     }
 
     public static function isAllowed(string $variable): bool
