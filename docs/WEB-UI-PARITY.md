@@ -4597,3 +4597,29 @@ Temp/{herika,lorkhan}-omni-language-{1280,390}.png. Also corrected shared Studio
 section-heading line height and plain-paragraph margin/color to the reference,
 without overriding colored status messages. Mock service and fixture stopped;
 no live TTS generation and no game interaction.
+
+
+### OmniVoice readiness and combined library (2026-09-07)
+
+The main OmniVoice library now includes server-only voices and local samples,
+using provider readiness rather than catalog membership for the ready tick and
+Play control. Unready local voices remain eligible for individual and batch
+import; server-only voices needing reference text do not offer a broken Play or
+local-file deletion. Runtime-ready flags are recognized. Other providers retain
+their existing readiness behavior. The heading and selected-language description
+follow the reference; Refresh is visible outside connector details, and short
+readiness labels align beside the right-hand actions instead of the name.
+
+Evidence: 561 unit checks and the full management HTTP suite passed. Existing
+HTTP tests cover ready, runtime-ready flag, needs-reference-text, French batch
+import and the transition to ready. An isolated browser fixture repeated local
+import through the actual form, confirmed Play appears only after readiness,
+retained server-only voices after local sample deletion, and rendered the empty
+library. Desktop/narrow screenshots are in private Temp/lorkhan-omni-states-
+{1280,390}.png and lorkhan-omni-states-empty-390.png; compared against pinned
+Herika 529364c screenshots. No live provider generation or game interaction.
+
+This is not full Studio acceptance. OmniVoice direct upload/import, remote
+voice deletion, error states, connector-details placement and exact refresh
+button sizing still require comparison/implementation. All other open matrix
+rows remain open.

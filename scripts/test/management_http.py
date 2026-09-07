@@ -19,12 +19,14 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     samples=b'\x00'*160
     silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
              +(16000).to_bytes(4,'little')+(32000).to_bytes(4,'little')+(2).to_bytes(2,'little')+(16).to_bytes(2,'little')+b'data'+len(samples).to_bytes(4,'little')+samples)
+    omni_speakers=None
     def do_GET(self):
         if self.path=='/voice_libraries':
             payload=json.dumps([{'id':'en','name':'English'},{'id':'fr','name':'French'}]).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path.startswith('/speakers_list'):
-            payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
+            speakers=self.omni_speakers if self.path.startswith('/speakers_list_extended') and self.omni_speakers is not None else ['MockProviderVoice']
+            payload=json.dumps({'speakers':speakers}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         self.send_error(404)
     def do_POST(self):
@@ -331,7 +333,7 @@ assert 'Database Versioning Manager' in text and 'not a full database backup' in
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()
-    assert cache_html.count('<h1>'+provider_label+' Voice Cache</h1>')==1 and ' Local Voice Library</h1>' not in cache_html
+    assert cache_html.count('<h1>'+provider_label+' Voice '+('Library' if provider_tab=='omnivoice' else 'Cache')+'</h1>')==1 and ' Local Voice Library</h1>' not in cache_html
     assert 'Provider Voice Browser &amp; Connector Settings' in cache_html and 'Missing Voices</h1>' in cache_html
 fallback_page,fallback_html=parse(request('/LorkhanServer/ui/core/voice_library.php?tab=fallbacks'))
 fallback_form=next(f for f in fallback_page.forms if f['fields'].get('action')=='fallback_save')
@@ -464,13 +466,28 @@ omni_values=dict(sync_values,name=omni_name,driver='omnivoice')
 r=request(create_sync_tts['action'],'POST',omni_values); omni_body=r.read().decode(); assert r.status==200
 omni_id=connector_editor_id(omni_body,omni_name)
 omni_url='/LorkhanServer/ui/core/voice_library.php?tab=omnivoice&embed=1&configuration_id='+omni_id+'&language=fr'
+VoiceProvider.omni_speakers=[{'name':'RemoteReady','status':'ready'},{'name':'RemoteNeedsText','status':'needs_reference_text'},
+    {'name':'ReadyByFlag','status':'transcribing','runtime_ready':True},{'name':batch_voice,'status':'needs_reference_text','runtime_ready':False}]
 omni_page,omni_html=parse(request(omni_url))
 assert 'OmniVoice Language Library' in omni_html and 'French (fr)' in omni_html and re.search(r'<option value="fr" selected',omni_html)
 assert all(f['fields'].get('language')=='fr' for f in omni_page.forms if f['fields'].get('action') in ['sync','batch_sync','discover'])
+def omni_card(name,body): return next(row for row in re.findall(r'<article class="voice-status-item">.*?</article>',body,re.S) if 'data-copy-voice="'+name+'"' in row)
+assert 'server</span>' in omni_card('RemoteReady',omni_html) and 'title="Test voice"' in omni_card('RemoteReady',omni_html)
+assert 'needs text</span>' in omni_card('RemoteNeedsText',omni_html) and 'title="Test voice"' not in omni_card('RemoteNeedsText',omni_html)
+assert 'title="Test voice"' in omni_card('ReadyByFlag',omni_html)
+assert 'local</span>' in omni_card(batch_voice,omni_html) and 'title="Test voice"' not in omni_card(batch_voice,omni_html)
+omni_batch=dict(batch_fields,configuration_id=omni_id,language='fr')
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',omni_batch); assert batch_voice in json.load(r)['voices']
+r=request('/LorkhanServer/ui/core/voice_library.php','POST',dict(omni_batch,_batch_phase='voice',voice_name=batch_voice)); result=json.load(r)
+assert result['uploaded']==1 and result['skipped']==0 and b'\r\n\r\nfr\r\n' in VoiceProvider.uploads[-1][1],result
+VoiceProvider.omni_speakers[-1]['status']='ready'
+omni_html=request(omni_url).read().decode(); assert 'title="Test voice"' in omni_card(batch_voice,omni_html)
+
 r=preview({'installation_id':tts_installation,'configuration_id':omni_id,'voice':batch_voice,'language':'fr','text':'Bonjour'}); clip=r.read()
 assert r.status==200 and clip.startswith(b'RIFF') and VoiceProvider.speech_requests[-1]['language']=='fr',(r.status,clip[:160],VoiceProvider.speech_requests[-1])
 r=preview({'installation_id':tts_installation,'configuration_id':omni_id,'voice':batch_voice,'language':'../bad','text':'Bonjour'}); assert r.status==422
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':omni_id,'kind':'tts_provider'}); assert r.status==200
+VoiceProvider.omni_speakers=None
 for _ in range(25):
     r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
     assert r.status==200 and clip.startswith(b'RIFF'),(r.status,clip[:160])

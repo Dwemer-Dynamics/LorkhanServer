@@ -290,3 +290,7 @@ body .tts-studio-page .voice-upload-form .button-group .btn-primary{background:#
 /* Match the reference section rhythm without overriding semantic status-message colors. */
 .tts-studio-page .content-section > h1{line-height:1.2}
 .tts-studio-page .content-section > p:not([class]){margin:0 0 10px;color:#bbb!important}
+
+/* OmniVoice has short readiness labels, not flexible cloud-provider IDs. */
+.tts-studio-page .voice-status-item.omnivoice-status-item .voice-copy{flex:1 1 auto}
+.tts-studio-page .voice-status-item.omnivoice-status-item > .voice-id{flex:0 0 auto}

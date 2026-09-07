@@ -132,7 +132,7 @@ function lorkhan_voice_fetch_json(string $endpoint,string $path):array
 }
 
 /** Normalize XTTS-family and OmniVoice speaker payloads into safe voice cards. */
-function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLanguage):array
+function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLanguage,bool $requireReady=false):array
 {
     if(isset($payload['speakers'])&&is_array($payload['speakers']))$payload=$payload['speakers'];
     elseif(!array_is_list($payload)){
@@ -140,10 +140,11 @@ function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLangua
         if($flattened!==[])$payload=$flattened;
     }
     $voices=[];foreach(array_slice($payload,0,512)as$item){
-        if(is_string($item)){$id=trim($item);$display=$id;$language=$fallbackLanguage;$status='available';$custom=false;}
+        if(is_string($item)){$id=trim($item);$display=$id;$language=$fallbackLanguage;$status=$requireReady?'ready':'available';$custom=false;}
         elseif(is_array($item)){$id=trim((string)($item['voice_id']??$item['speaker']??$item['id']??$item['name']??''));
             $display=trim((string)($item['display_name']??$id));$language=trim((string)($item['language']??$fallbackLanguage));
-            $status=trim((string)($item['status']??'available'));$custom=($item['custom_voice']??false)===true;}
+            $status=trim((string)($item['status']??($requireReady?'not_ready':'available')));
+            if($requireReady&&filter_var($item['runtime_ready']??false,FILTER_VALIDATE_BOOL))$status='runtime_ready';$custom=($item['custom_voice']??false)===true;}
         else continue;
         if($id===''||strlen($id)>512||!mb_check_encoding($id,'UTF-8'))continue;
         if($display===''||strlen($display)>512||!mb_check_encoding($display,'UTF-8'))$display=$id;
@@ -155,6 +156,12 @@ function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLangua
     $voices=array_values($voices);usort($voices,static fn(array$a,array$b):int=>strcasecmp($a['display'],$b['display']));return$voices;
 }
 
+/** OmniVoice library membership alone does not mean transcription and runtime import are ready. */
+function lorkhan_voice_omnivoice_ready(array $voice):bool
+{
+    return in_array(strtolower(trim((string)($voice['status']??''))),['runtime_ready','ready','ok'],true);
+}
+
 /** Query CHIM-compatible local speaker-list endpoints for a Studio request. */
 function lorkhan_voice_discover(array $preset,string $language,?CloudVoiceLibrary $cloud=null):array
 {
@@ -164,7 +171,7 @@ function lorkhan_voice_discover(array $preset,string $language,?CloudVoiceLibrar
     if(in_array($driver,['cartesia','inworld'],true))return lorkhan_voice_normalize_discovery(
         ($cloud??throw new RuntimeException('voice_sync_unavailable'))->forPreset($content)->discover($driver),$language);
     $path=$driver==='omnivoice'?'/speakers_list_extended?language='.rawurlencode($language):'/speakers_list';
-    return lorkhan_voice_normalize_discovery(lorkhan_voice_fetch_json((string)($content['endpoint']??''),$path),$language);
+    return lorkhan_voice_normalize_discovery(lorkhan_voice_fetch_json((string)($content['endpoint']??''),$path),$language,$driver==='omnivoice');
 }
 
 /** Import a bounded flat ZIP of WAV files without allowing traversal or partial batches. */
@@ -340,7 +347,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             $language=lorkhan_voice_language(trim((string)($_POST['language']??'en'))?:'en');
             $catalog=lorkhan_voice_discover($preset,$language,$cloudLibrary);
             $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
-            $known=[];foreach($catalog as$row){$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
+            $known=[];foreach($catalog as$row){if($preset['content']['driver']==='omnivoice'&&!lorkhan_voice_omnivoice_ready($row))continue;$known[strtolower($row['id'])]=true;$known[strtolower($row['display'])]=true;}
             $pending=[];
             foreach(glob($voiceRoot.DIRECTORY_SEPARATOR.'*.wav')?:[]as$path){
                 $name=pathinfo($path,PATHINFO_FILENAME);if(!isset($known[strtolower($name)]))$pending[]=$name;
