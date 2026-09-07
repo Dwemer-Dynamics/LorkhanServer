@@ -535,3 +535,8 @@ body.narrator-page-shell.embedded-page { padding-top: 0; }
 .narrator-voice-options { margin-top:14px; }
 .narrator-voice-options > summary { cursor:pointer; color:#bc9d5a; }
 .narrator-voice-options > label { display:block; margin:10px 0 4px; }
+
+/* Keep native-only controls available below the counterpart Core Settings sequence. */
+.narrator-additional-controls { margin-top:14px; }
+.narrator-additional-controls > summary { cursor:pointer; color:#bc9d5a; }
+.narrator-additional-controls > label:not(.narrator-toggle-row) { display:block; margin:14px 0 6px; color:#bc9d5a; font-size:13px; font-weight:600; }

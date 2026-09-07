@@ -131,12 +131,10 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_toggle('book_events', 'Narrate Book Events', ($content['book_events'] ?? false) === true, 'Allow the narrator to respond to supported book events.');
                         echo '<input type="hidden" name="narrator_visibility_present" value="1">';
                         lorkhan_narrator_toggle('hide_from_context', 'Hide Narrator from NPC Context', ($content['hide_from_context'] ?? true) === true, 'Hide Narrator-spoken dialogue lines from NPC context.');
-                        lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
-                        lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
+                        lorkhan_narrator_toggle('diary_enabled', 'Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
                         lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
                         echo '<input type="hidden" name="narrator_diary_access_present" value="1">';
                         lorkhan_narrator_toggle('only_diary_access', 'Narrator only diary access', ($content['only_diary_access'] ?? false) === true, 'Restrict the Narrator to diary entries written by The Narrator. When disabled, the Narrator may recall relevant diary entries from all NPCs.');
-                        lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
                         ?>
                         <input type="hidden" name="latest_diary_context_present" value="1">
                         <label class="narrator-toggle-row">
@@ -147,9 +145,14 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <span class="narrator-toggle-label">&#x1F4D6; Include Latest Diary Entry</span>
                         </label>
                         <span class="narrator-hint">Add The Narrator's most recent diary entry to its context. Narrator only &mdash; NPCs sharing the same Core Profile are unaffected.<?php echo $latestDiaryContextInherited ? ' Currently inherited from the Core Profile until you save Narrator settings.' : ''; ?></span>
-                        <?php
+                        <details class="narrator-additional-controls">
+                            <summary>Additional narration controls</summary>
+                            <?php
+                        lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
+                        lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
                         lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 30, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
-                        ?>
+                            ?>
+                        </details>
                     </section>
 
                     <section class="narrator-content-section">
