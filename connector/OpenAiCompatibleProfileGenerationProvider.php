@@ -52,10 +52,13 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
             'npc_profile_backfill'=>'Create a grounded Morrowind NPC roleplay profile using only the supplied actor identity, existing profile, and recent_events. Return one JSON object with exactly these string keys: appearance, biography, personality, speech_style, occupation, goals, relationships, notes. Treat recent dialogue as observed behavior rather than certain biography, do not add Markdown, and do not invent facts unsupported by the supplied context. Each value must be concise and no more than 2000 characters.',
             default=>'Create a grounded Morrowind NPC roleplay profile. Return one JSON object with exactly these string keys: appearance, biography, personality, speech_style, occupation, goals, relationships, notes. Do not add Markdown or invent certainty where the supplied identity and existing profile do not support it. Each value must be concise and no more than 2000 characters.',
         };
-        $request=LlmConnector::requestOptions($this->options,$this->directConnection?null:0.4,$this->disableReasoning)+['model'=>$this->model,'messages'=>[
+        $schema=$this->responseSchema($mode,$fields);
+        $request=LlmConnector::requestOptions($this->options,$this->directConnection?null:0.4,$this->disableReasoning,$schema)+['model'=>$this->model,'messages'=>[
             ['role'=>'system','content'=>$system],
             ['role'=>'user','content'=>$input],
         ]];
+        $prefix=LlmConnector::prefillMessages($request['messages'],$this->options,
+            $mode==='relationship_evaluation'?'disposition_delta':(in_array($mode,['relationship_build','relationship_text_conversion'],true)?'relationships':$fields[0]));
         // Optional audit observers receive the exact messages, never transport options or credentials.
         if($observeMessages!==null)$observeMessages($request['messages']);
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
@@ -74,7 +77,7 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         try{$decoded=json_decode($response,true,64,JSON_THROW_ON_ERROR);$content=$decoded['choices'][0]['message']['content']??null;
             if(!is_string($content)||$content==='')throw new RuntimeException('provider_invalid_output');
             $content=ReasoningOutputCleaner::clean($content,($this->options['reasoning_model']??false)===true);
-            $result=json_decode($content,true,16,JSON_THROW_ON_ERROR);
+            $result=LlmConnector::decodeResponse($content,$prefix,16);
         }catch(\JsonException){throw new RuntimeException('provider_invalid_output');}
         if(!is_array($result)||array_is_list($result)){throw new RuntimeException('provider_invalid_output');}
         if(in_array($mode,['relationship_build','relationship_text_conversion'],true))return RelationshipBuildPolicy::output($result);
@@ -84,5 +87,29 @@ final class OpenAiCompatibleProfileGenerationProvider implements ProfileGenerati
         if($mode==='memory_summary')MemorySummaryPolicy::summary($result);
         if($mode==='diary_generation')return DiaryGenerationPolicy::output($result);
         return$result;
+    }
+
+    /** Each generation job retains its own output contract, including optional relationship types. */
+    private function responseSchema(string $mode,array $fields):array
+    {
+        $build=in_array($mode,['relationship_build','relationship_text_conversion'],true);
+        if($build||$mode==='relationship_evaluation'){
+            $score=['type'=>'integer','minimum'=>$build?-100:-10,'maximum'=>$build?100:10];
+            $properties=$build?['target_key'=>['type'=>'string','pattern'=>'^[a-f0-9]{64}$'],
+                'disposition'=>$score,'affinity'=>$score,'reason'=>['type'=>'string','minLength'=>1,'maxLength'=>120]]:
+                ['disposition_delta'=>$score,'affinity_delta'=>$score,'reason'=>['type'=>'string','minLength'=>1,'maxLength'=>250]];
+            // Strict schemas require all declared properties: represent the optional type as two exact shapes.
+            $variants=['anyOf'=>[LlmConnector::objectSchema($properties),LlmConnector::objectSchema(
+                $properties+['relationship_type'=>['type'=>'string','maxLength'=>50]])]];
+            if($build)return LlmConnector::objectSchema(['relationships'=>['type'=>'array','maxItems'=>20,'items'=>$variants]]);
+            // Strict output needs a root object; empty type already means no change in RelationshipType::model.
+            return LlmConnector::objectSchema($properties+['relationship_type'=>['type'=>'string','maxLength'=>50,
+                'description'=>'Copy an available relationship type only for a justified change; otherwise use an empty string.']]);
+        }
+        $properties=[];
+        foreach($fields as$field)$properties[$field]=['type'=>'string','minLength'=>1,'maxLength'=>match($mode){
+            'memory_summary'=>1000,'diary_generation'=>$field==='title'?255:3999,'player_autochat'=>4095,default=>2000,
+        }];
+        return LlmConnector::objectSchema($properties);
     }
 }

@@ -43,7 +43,9 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         $cancellation->throwIfCancellationRequested();
         $this->reportedUsage=[];
         $messages = $this->promptMessages($turn);
-        $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning) + [
+        $prefix = LlmConnector::prefillMessages($messages, $this->options, 'utterances');
+        $request = LlmConnector::requestOptions($this->options,$this->directConnection?null:0.7,$this->disableReasoning,
+            ($this->options['json_schema'] ?? false) ? $this->responseSchema($turn) : null) + [
             'model' => $this->model,
             'stream' => $this->options['stream'] ?? true,
             'messages' => $messages,
@@ -168,17 +170,17 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         if (!is_string($content) || $content === '') throw new RuntimeException('provider_invalid_output');
         foreach ($visible->push('', true) as $text) $onDialogueDelta($text);
-        $result = $this->decodeStructuredContent($content);
+        $result = $this->decodeStructuredContent($content, $prefix);
         $this->validateResultShape($result);
         return $this->normalizeAction($result, $turn);
     }
 
     /** Decode the strict response while tolerating one common one-item transport wrapper. */
-    private function decodeStructuredContent(string $content): array
+    private function decodeStructuredContent(string $content, string $prefix = ''): array
     {
         $content = ReasoningOutputCleaner::clean($content, ($this->options['reasoning_model'] ?? false) === true);
         try {
-            $result = json_decode($content, true, 64, JSON_THROW_ON_ERROR);
+            $result = LlmConnector::decodeResponse($content, $prefix);
         } catch (\JsonException) {
             throw new RuntimeException('provider_invalid_output');
         }
@@ -188,6 +190,26 @@ final class OpenAiCompatibleProvider implements StreamingProvider
         }
         if (!is_array($result) || array_is_list($result)) throw new RuntimeException('provider_invalid_output');
         return $result;
+    }
+
+    /** Expose only negotiated actions; the normal action validator remains authoritative. */
+    private function responseSchema(array $turn): array
+    {
+        $actions = [['type'=>'null']];
+        foreach ($turn['_allowed_action_definitions'] ?? [] as $definition) {
+            $parameters = $definition['parameter_schema'];
+            $parameters['properties'] = (object)($parameters['properties'] ?? []);
+            $parameters['required'] ??= [];
+            $actions[] = LlmConnector::objectSchema([
+                'name'=>['type'=>'string', 'enum'=>[$definition['name']]],
+                'parameters'=>$parameters,
+            ]);
+        }
+        return LlmConnector::objectSchema([
+            'utterances'=>['type'=>'array', 'minItems'=>1, 'maxItems'=>4,
+                'items'=>LlmConnector::objectSchema(['text'=>['type'=>'string', 'minLength'=>1, 'maxLength'=>4096]])],
+            'action'=>count($actions) === 1 ? $actions[0] : ['anyOf'=>$actions],
+        ]);
     }
 
     /** Enforce the typed utterance envelope before a provider attempt can be marked successful. */

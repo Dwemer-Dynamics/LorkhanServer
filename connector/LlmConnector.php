@@ -33,6 +33,8 @@ final class LlmConnector
         'repetition_penalty' => ['type' => 'number', 'minimum' => 0, 'maximum' => 2],
         'stream' => ['type' => 'boolean'],
         'json_mode' => ['type' => 'boolean'],
+        'json_schema' => ['type' => 'boolean'],
+        'prefill_json' => ['type' => 'boolean'],
         'disable_reasoning' => ['type' => 'boolean'],
         'reasoning_model' => ['type' => 'boolean'],
         'provider_order' => ['type' => 'string-list'],
@@ -128,7 +130,7 @@ final class LlmConnector
     }
 
     /** Share bounded sampling/JSON hints across adapters while leaving their output contracts strict. */
-    public static function requestOptions(array $options, ?float $defaultTemperature, bool $disableReasoning): array
+    public static function requestOptions(array $options, ?float $defaultTemperature, bool $disableReasoning, ?array $responseSchema = null): array
     {
         $options = self::validateOptions($options);
         $request = [];
@@ -136,7 +138,39 @@ final class LlmConnector
         foreach ($options as $name => $value) if (in_array(self::OPTION_RULES[$name]['type'], ['number', 'integer'], true)) $request[$name] = $value;
         if (!empty($options['provider_order'])) $request['provider'] = ['order' => $options['provider_order']];
         if ($options['json_mode'] ?? true) $request['response_format'] = ['type' => 'json_object'];
+        if (($options['json_mode'] ?? true) && ($options['json_schema'] ?? false)) {
+            if ($responseSchema === null) throw new InvalidArgumentException('missing_provider_response_schema');
+            $request['response_format'] = ['type' => 'json_schema', 'json_schema' => [
+                'name' => 'response', 'strict' => true, 'schema' => $responseSchema,
+            ]];
+        }
         if ($options['disable_reasoning'] ?? $disableReasoning) $request['reasoning'] = ['exclude' => true, 'enabled' => false];
         return $request;
+    }
+
+    /** Construct an exact object contract without turning empty properties into a JSON array. */
+    public static function objectSchema(array $properties): array
+    {
+        return ['type'=>'object', 'properties'=>(object)$properties, 'required'=>array_keys($properties), 'additionalProperties'=>false];
+    }
+
+    /** Add a continuation prefix to the actual audited request, without changing ordinary connectors. */
+    public static function prefillMessages(array &$messages, array $options, string $firstField): string
+    {
+        if (!($options['prefill_json'] ?? false)) return '';
+        $prefix = '{' . json_encode($firstField, JSON_THROW_ON_ERROR) . ':';
+        $messages[] = ['role'=>'assistant', 'content'=>$prefix];
+        return $prefix;
+    }
+
+    /** Providers may continue the assistant prefix or return a complete JSON response instead. */
+    public static function decodeResponse(string $content, string $prefix = '', int $depth = 64): mixed
+    {
+        try {
+            return json_decode($content, true, $depth, JSON_THROW_ON_ERROR);
+        } catch (\JsonException $error) {
+            if ($prefix === '') throw $error;
+            return json_decode($prefix . $content, true, $depth, JSON_THROW_ON_ERROR);
+        }
     }
 }

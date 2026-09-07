@@ -1089,6 +1089,22 @@ $assert($relationships->enqueue($delivery['message_id'])['job_id']===$relationsh
     &&$relationshipWorker()['claimed']===0,'duplicate delivery reapplied relationship evaluation');
 $assert((int)$db->query("SELECT config_revision FROM provider_attempts WHERE operation='evaluate_relationship'")->fetchColumn()===1,
     'queued relationship job did not keep its frozen provider revision');
+$db->exec('SAVEPOINT prefill_relationship_audit');
+$prefillAuditId='00000000-0000-4000-8000-000000000991';
+(new ProviderAttemptRepository($db))->start($prefillAuditId,'llm','mock','evaluate_relationship',1);
+$prefillAuditMessages=[['role'=>'system','content'=>'Fixture contract'],['role'=>'user','content'=>'Fixture exchange'],
+    ['role'=>'assistant','content'=>'{"disposition_delta":']];
+(new ProviderAttemptRepository($db))->recordRelationshipRequest($prefillAuditId,$prefillAuditMessages);
+$prefillAuditQuery=$db->prepare('SELECT metadata FROM provider_attempts WHERE provider_attempt_id=:id');
+$prefillAuditQuery->execute(['id'=>$prefillAuditId]);
+$prefillAuditMetadata=json_decode($prefillAuditQuery->fetchColumn(),true);
+$assert($prefillAuditMetadata['relationship_request']['messages']===$prefillAuditMessages,
+    'relationship request audit discarded the actual assistant continuation prefix');
+$prefillAuditMessages[2]['content']='Unbounded assistant prompt';
+try{(new ProviderAttemptRepository($db))->recordRelationshipRequest($prefillAuditId,$prefillAuditMessages);
+    throw new RuntimeException('relationship audit accepted an unrelated assistant message');}
+catch(InvalidArgumentException $error){$assert($error->getMessage()==='invalid_relationship_log_request','unexpected assistant audit error');}
+$db->exec('ROLLBACK TO SAVEPOINT prefill_relationship_audit');
 $db->prepare("UPDATE durable_jobs SET state='queued',completed_at=NULL,next_run_at=clock_timestamp() WHERE job_id=:id")
     ->execute(['id'=>$relationshipJob['job_id']]);
 $assert($relationshipWorker()['succeeded']===1&&$relationshipProvider->calls===1

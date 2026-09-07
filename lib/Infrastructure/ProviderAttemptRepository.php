@@ -81,10 +81,14 @@ final class ProviderAttemptRepository
     /** Capture only message role/content; typed mock input is explicitly not an exact provider prompt. */
     public function recordRelationshipRequest(string $attempt,array $messages,bool $exact=true):void
     {
-        if(count($messages)<1||count($messages)>2)throw new \InvalidArgumentException('invalid_relationship_log_request');
+        if(!array_is_list($messages)||count($messages)<1||count($messages)>3)throw new \InvalidArgumentException('invalid_relationship_log_request');
+        if(count($messages)===3&&(array_column($messages,'role')!==['system','user','assistant']
+            ||!is_string($messages[2]['content']??null)
+            ||preg_match('/^\{"(?:relationships|disposition_delta)":$/D',$messages[2]['content'])!==1))
+            throw new \InvalidArgumentException('invalid_relationship_log_request');
         $safe=[];
-        foreach($messages as $message){
-            if(!is_array($message)||!in_array($message['role']??null,['system','user'],true)||!is_string($message['content']??null))
+        foreach($messages as $index=>$message){
+            if(!is_array($message)||!in_array($message['role']??null,$index===2?['assistant']:['system','user'],true)||!is_string($message['content']??null))
                 throw new \InvalidArgumentException('invalid_relationship_log_request');
             $safe[]=['role'=>$message['role'],'content'=>$message['content']];
         }

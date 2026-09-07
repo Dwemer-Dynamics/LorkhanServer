@@ -9,7 +9,9 @@
             if (event.key === 'Escape') field.classList.add('llm-help-dismissed');
         });
         field.addEventListener('focusout', () => field.classList.remove('llm-help-dismissed'));
-        field.addEventListener('mouseleave', () => field.classList.remove('llm-help-dismissed'));
+        field.addEventListener('mouseleave', () => {
+            if (!field.matches(':focus-within')) field.classList.remove('llm-help-dismissed');
+        });
     });
 
     const panels = Array.from(document.querySelectorAll('[data-llm-modes]'));
@@ -40,6 +42,8 @@
             checkbox.title = select.value === '' ? 'Uses the default. Connection options can reset overrides.' : 'Connector override. Connection options can restore the default.';
         };
         checkbox.addEventListener('change', () => {
+            // A completed toggle should not leave its help covering the next switch.
+            field.classList.add('llm-help-dismissed');
             const value = select.dataset.inverted === 'true' ? !checkbox.checked : checkbox.checked;
             select.value = String(value);
             select.dispatchEvent(new Event('change', {bubbles: true}));

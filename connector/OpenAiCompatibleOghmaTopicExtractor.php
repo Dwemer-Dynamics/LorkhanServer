@@ -25,10 +25,13 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
     {
         $cancellation->throwIfCancellationRequested();$limit=max(1,min(3,$limit));
         if(strlen($context)>16_384)$context=mb_strcut($context,0,16_384,'UTF-8');
-        $request=LlmConnector::requestOptions($this->options,$this->directConnection?null:0.0,$this->disableReasoning)+['model'=>$this->model,'messages'=>[
+        $schema=LlmConnector::objectSchema(['topics'=>['type'=>'array','maxItems'=>$limit,
+            'items'=>['type'=>'string','minLength'=>1,'maxLength'=>128]]]);
+        $request=LlmConnector::requestOptions($this->options,$this->directConnection?null:0.0,$this->disableReasoning,$schema)+['model'=>$this->model,'messages'=>[
             ['role'=>'system','content'=>'Extract up to '.$limit.' distinct Morrowind lore topics relevant to the supplied current conversation. Return exactly one JSON object with one key, topics, whose value is an array of short canonical topic names. Do not answer the conversation, explain, or invent topics.'],
             ['role'=>'user','content'=>$context],
         ]];
+        $prefix=LlmConnector::prefillMessages($request['messages'],$this->options,'topics');
         $body=json_encode($request,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES|JSON_UNESCAPED_UNICODE);
         $networkOptions=OutboundUrlPolicy::curlOptions($this->endpoint,$this->allowedHosts,$this->allowLoopbackHttp,$this->directConnection);
         $handle=curl_init($this->endpoint);if($handle===false)throw new RuntimeException('provider_unavailable');
@@ -45,7 +48,7 @@ final class OpenAiCompatibleOghmaTopicExtractor implements OghmaTopicExtractor
         try{$decoded=json_decode($response,true,32,JSON_THROW_ON_ERROR);$content=$decoded['choices'][0]['message']['content']??null;
             if(!is_string($content)||$content==='')throw new RuntimeException('provider_invalid_output');
             $content=ReasoningOutputCleaner::clean($content,($this->options['reasoning_model']??false)===true);
-            $result=json_decode($content,true,8,JSON_THROW_ON_ERROR);
+            $result=LlmConnector::decodeResponse($content,$prefix,8);
         }catch(\JsonException){throw new RuntimeException('provider_invalid_output');}
         if(!is_array($result)||array_keys($result)!==['topics']||!is_array($result['topics'])||!array_is_list($result['topics']))throw new RuntimeException('provider_invalid_output');
         $topics=[];$normalized=[];foreach($result['topics']as$topic){

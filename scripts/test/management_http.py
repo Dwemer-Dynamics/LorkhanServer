@@ -36,6 +36,15 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
         if self.path=='/llm/chat/completions':
             body=json.loads(self.rfile.read(int(self.headers.get('Content-Length','0')))); self.llm_requests.append((dict(self.headers),body))
             content=json.dumps({'utterances':[{'text':'Greetings, traveller.'}],'action':None} if body['model']!='invalid-output' else {'unexpected':'not dialogue'})
+            if body['model']=='prefill-continuation':
+                assert body['messages'][-1]=={'role':'assistant','content':'{"utterances":'},body
+                content=content[len('{"utterances":'):]
+            if body['model']=='structured-fixture':
+                fixture=json.loads(body['messages'][1]['content'])
+                content=json.dumps(fixture['fixture_response'],separators=(',',':'))
+                prefix=body['messages'][-1]['content']
+                assert body['messages'][-1]['role']=='assistant' and content.startswith(prefix),body
+                content=content[len(prefix):]
             if body.get('stream'):
                 payload=('data: '+json.dumps({'choices':[{'delta':{'content':content}}]})+'\n\ndata: [DONE]\n\n').encode(); content_type='text/event-stream'
             else:
@@ -1659,6 +1668,51 @@ direct_values.update(option_provider_order='',change_reason='Restore default rou
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
 assert 'provider' not in VoiceProvider.llm_requests[-1][1],VoiceProvider.llm_requests[-1][1]
+# Exercise the other real adapters with the same local provider, including operation-specific schemas.
+generation_cases=[
+    ({'generation_mode':'diary_generation'},{'title':'Fixture title','content':'A witnessed exchange.'}),
+    ({'generation_mode':'memory_summary'},{'summary':'A witnessed exchange.'}),
+    ({'generation_mode':'profile_evolution','dynamic_fields':['goals']},{'goals':'Reach Balmora.'}),
+    ({'generation_mode':'player_autochat'},{'text':'Where is the inn?'}),
+    ({'generation_mode':'relationship_build'},{'relationships':[]}),
+    ({'generation_mode':'relationship_evaluation'},{'disposition_delta':0,'affinity_delta':0,'reason':'An ordinary greeting.','relationship_type':''}),
+]
+for profile,expected in generation_cases:
+    profile['fixture_response']=expected
+    probe=subprocess.run(['php','-r',
+        r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->generate(json_decode($argv[3],true),new LorkhanServer\Application\NeverCancelledToken()));",
+        str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions',json.dumps(profile)],
+        capture_output=True,text=True,timeout=15)
+    assert probe.returncode==0 and json.loads(probe.stdout)==expected,(probe.stdout,probe.stderr)
+    schema=VoiceProvider.llm_requests[-1][1]['response_format']['json_schema']['schema']
+    assert set(schema['properties'])==set(expected) and schema['additionalProperties'] is False,schema
+topics_probe=subprocess.run(['php','-r',
+    r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->extract($argv[3],2,new LorkhanServer\Application\NeverCancelledToken()));",
+    str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions',json.dumps({'fixture_response':{'topics':['Balmora','Vivec']}})],
+    capture_output=True,text=True,timeout=15)
+assert topics_probe.returncode==0 and json.loads(topics_probe.stdout)==['Balmora','Vivec'],(topics_probe.stdout,topics_probe.stderr)
+assert VoiceProvider.llm_requests[-1][1]['response_format']['json_schema']['schema']['properties']['topics']['maxItems']==2
+
+# Both provider response styles work, streamed and buffered; saving the switches reaches the actual wire.
+for stream,model in [('true','prefill-continuation'),('false','prefill-continuation'),('true','local-test')]:
+    direct_values.update(option_json_schema='true',option_prefill_json='true',option_json_mode='true',
+        option_stream=stream,model=model,change_reason='Exercise schema and assistant continuation')
+    r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
+    r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode()
+    assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
+    sent=VoiceProvider.llm_requests[-1][1]
+    assert sent['response_format']['type']=='json_schema' and sent['response_format']['json_schema']['strict'] is True,sent
+    assert sent['response_format']['json_schema']['schema']['properties']['action']=={'type':'null'},sent
+    assert sent['messages'][-1]=={'role':'assistant','content':'{"utterances":'},sent
+    assert not any(field in sent for field in ['json_schema','prefill_json','json_mode']),sent
+schema_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
+assert schema_export['content']['options']['json_schema'] is True and schema_export['content']['options']['prefill_json'] is True,schema_export
+schema_editor=request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id).read().decode()
+assert schema_editor.index('for="llm_option_json_mode"') < schema_editor.index('for="llm_option_json_schema"') < schema_editor.index('for="llm_option_prefill_json"') < schema_editor.index('for="llm_option_stream"')
+direct_values.update(option_json_mode='false',change_reason='Preserve schema preference while JSON enforcement is disabled')
+r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
+r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
+assert 'response_format' not in VoiceProvider.llm_requests[-1][1]
 direct_values.update(model='invalid-output',credential='none',option_stream='false',option_json_mode='false',change_reason='Strict output still required')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert 'status=tested' not in r.geturl() and 'provider_invalid_output' in body,(r.status,body)

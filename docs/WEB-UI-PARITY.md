@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. Other service catalogues, import-editor presentation, JSON Schema, Prefill JSON, Remove Action Prompt, YAML body controls and Clear advanced settings remain |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON now wired to operation-specific requests; final evidence below. Other service catalogues, import-editor presentation, YAML body controls and Clear advanced settings remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -2923,3 +2923,44 @@ Remaining Core Profile requirements identified from the pinned source and live e
   unauthenticated sessions 401 and health is valid. The game was untouched.
 - The LLM page remains open for the specifically named missing controls/catalogues
   in the matrix. Neither this page nor the whole-site goal is marked complete.
+
+### LLM JSON Schema and Prefill JSON checkpoint
+
+- Added JSON Schema and Prefill JSON in the reference order between Enforce JSON
+  and Disable Streaming. Both retain native three-state fallback and runtime
+  inheritance; existing connectors do not acquire new overrides. Hover/focus help
+  explains provider support requirements. JSON Schema is sent only while Enforce
+  JSON is on; turning it off does not erase the stored schema preference.
+- Traced pinned Herika `connector/openrouterjson.php` and
+  `functions/json_response.php` before adapting request behavior. Dialogue schemas
+  contain only negotiated actions and exact utterance objects. Profile, diary,
+  memory, evolution, player chat, relationship and Oghma jobs retain their own
+  contracts. Relationship evaluation uses an empty type for no change, which the
+  existing RelationshipType policy already accepts. Runtime validators still run.
+- Prefill appends an assistant continuation to actual requests. Final decoding
+  accepts either continuation or full JSON without duplicating the prefix; raw
+  sentence streaming is unchanged. Relationship request auditing accepts only a
+  bounded trailing prefill after system/user messages and retains its active-attempt
+  fence. No transport options or credentials enter those recorded messages.
+- Reference Remove Action Prompt is saved metadata in the pinned editor only:
+  a repository-wide PHP search finds no runtime reader. No inert control was added,
+  and Lorkhan's negotiated action contract was not removed to simulate one.
+- Compared the reference lower editor and deployed create form visually. New
+  labels retain 13.44px/20.16px typography, 8px/6px vertical margins and 28.8px
+  checkbox boxes. Isolated browser checks covered adjacent mouse toggles, keyboard
+  Space/Tab, configured/direct/mock round trips, disabled mock controls, reset to
+  inheritance and a 390px frame (375px content/scroll width). The rendered narrow
+  controls were inspected, not inferred from overflow measurements. Fixture icon
+  images are absent; the actual deployed service icons load.
+- Browser testing found help reappearing over the next switch after pointer exit
+  from a focused toggle. Completed toggles now dismiss help until focus leaves,
+  fixing adjacent clicks while retaining hover/focus help and Escape dismissal.
+- Final checks: 403 server checks, PHP lint, JavaScript syntax, management HTTP
+  forms, integration vertical slice, migrations and durable jobs passed. The HTTP
+  suite uses local mocks for all adapters, streamed/buffered continuation and full
+  responses, schema gating, saved/exported switches and invalid-output rejection.
+  Schema inventory remains 170 relations with the existing summary hash.
+- Final code deployment rollback: `/var/backups/lorkhanserver-code.mREK5J`.
+  Configuration, credential and voice file hashes were preserved. No live form
+  saves, paid inference requests, game launch or game control were performed.
+  This is an LLM-editor checkpoint, not completion of the full page matrix.

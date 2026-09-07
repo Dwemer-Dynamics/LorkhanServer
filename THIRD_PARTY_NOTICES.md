@@ -260,3 +260,8 @@ The configured-first API-key list, missing-key divider, status markers and
 compact notice in the same LLM editor also adapt that pinned Herika source.
 Its common request-switch checkbox presentation and field ordering follow the
 same source while retaining Lorkhan's unchanged inherited option values.
+JSON Schema and Prefill JSON also follow that editor and the request behavior in
+pinned `connector/openrouterjson.php` and `functions/json_response.php`.
+Their Lorkhan implementations use operation-specific OpenMW response contracts,
+restore assistant continuations without duplicating full JSON responses, and
+retain the existing response/action validation and private request audit.

@@ -89,6 +89,8 @@ const LORKHAN_LLM_SAMPLING_FIELDS = [
 const LORKHAN_LLM_BOOLEAN_FIELDS = [
     ['stream', 'Disable Streaming', 'Default', 'Wait for the complete JSON response instead of streaming dialogue. Off by default; configured connectors inherit the runtime.'],
     ['json_mode', 'Enforce JSON', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. LORKHAN validates responses even when this is off.'],
+    ['json_schema', 'JSON Schema', 'Default', 'With Enforce JSON on, sends the exact response schema for dialogue or the current generation job. Requires a provider and model that support structured output. Off by default; configured connectors inherit the runtime.'],
+    ['prefill_json', 'Prefill JSON', 'Default', 'Starts the assistant response with the expected JSON field. Requires a provider and model that support assistant continuation. Off by default; configured connectors inherit the runtime. Streaming and response validation still apply.'],
     ['disable_reasoning', 'Disable reasoning', 'Inherit', 'Asks the provider to skip reasoning output. Configured connectors inherit the server runtime; direct connectors are off unless set. This does not clean reasoning tags out of a response.'],
     ['reasoning_model', 'Reasoning Model Fix', 'Inherit', 'Removes one leading <think>, <thinking>, or <reasoning> block from a response before LORKHAN parses the JSON. Off unless set, or unless a configured runtime supplies it. Disable reasoning is the separate setting that asks the provider not to produce reasoning at all; this one only cleans a block that was already returned, and JSON and result checks still apply.', 'config.llm.reasoning-fix'],
 ];
@@ -289,7 +291,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $isDirect = $driver === 'openai-compatible';
                 $isMock = $driver === 'mock';
                 $switchFields = array_column(LORKHAN_LLM_BOOLEAN_FIELDS, null, 0);
-                $runtimeDefaults = array_replace(['stream'=>true, 'json_mode'=>true, 'reasoning_model'=>false,
+                $runtimeDefaults = array_replace(['stream'=>true, 'json_mode'=>true, 'reasoning_model'=>false, 'json_schema'=>false, 'prefill_json'=>false,
                     'disable_reasoning'=>(bool)($config['provider']['disable_reasoning'] ?? false)], (array)($config['provider']['options'] ?? []));
                 $runtimeService = match (rtrim((string)($config['provider']['endpoint'] ?? ''), '/')) {
                     'https://openrouter.ai/api/v1/chat/completions' => 'openrouter',
@@ -372,7 +374,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </section>
 
                             <section class="llm-mode-panel llm-boolean-controls" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
-                                    <?php foreach (['reasoning_model', 'json_mode', 'stream'] as $name) lorkhan_llm_boolean_field($switchFields[$name], $options, $formId, !$isMock, $runtimeDefaults); ?>
+                                    <?php foreach (['reasoning_model', 'json_mode', 'json_schema', 'prefill_json', 'stream'] as $name) lorkhan_llm_boolean_field($switchFields[$name], $options, $formId, !$isMock, $runtimeDefaults); ?>
                             </section>
 
                             <details class="llm-help-details llm-connection-options"<?php echo $isMock || isset($options['max_completion_tokens']) ? ' open' : ''; ?>>

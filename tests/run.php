@@ -294,6 +294,28 @@ catch(RuntimeException $error){$check($error->getMessage()==='audit-observed-bef
     &&($auditMode!=='relationship_build'||str_contains($auditMessages[0]['content'],'user_direction')),
     'relationship request observer captures exact messages without credentials or network I/O');}
 }
+$schema=LlmConnector::objectSchema(['text'=>['type'=>'string']]);
+$check(LlmConnector::requestOptions(['json_schema'=>true],null,false,$schema)['response_format']['json_schema']['schema']===$schema
+    &&!isset(LlmConnector::requestOptions(['json_schema'=>true,'json_mode'=>false],null,false)['response_format']),
+    'schema output is opt-in and Enforce JSON off suppresses it without discarding the preference');
+$prefillMessages=[['role'=>'user','content'=>'Fixture input']];
+$prefix=LlmConnector::prefillMessages($prefillMessages,['prefill_json'=>true],'utterances');
+$check($prefix==='{"utterances":'&&$prefillMessages[1]===['role'=>'assistant','content'=>$prefix]
+    &&LlmConnector::decodeResponse('[{"text":"Hello."}],"action":null}',$prefix)===['utterances'=>[['text'=>'Hello.']],'action'=>null]
+    &&LlmConnector::decodeResponse('{"utterances":[{"text":"Hello."}],"action":null}',$prefix)===['utterances'=>[['text'=>'Hello.']],'action'=>null],
+    'prefill restores continuation JSON but does not duplicate a complete provider response');
+try{LlmConnector::decodeResponse('not JSON',$prefix);$check(false,'invalid prefilled response rejected');}
+catch(\JsonException){$check(true,'invalid prefilled response rejected');}
+$prefillProvider=new \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider('http://127.0.0.1:9/v1/chat/completions',
+    ['127.0.0.1'],'fixture-model','fixture-secret',options:['prefill_json'=>true,'json_schema'=>true],allowLoopbackHttp:true,directConnection:true);
+foreach(['relationship_evaluation'=>'disposition_delta','relationship_build'=>'relationships','diary_generation'=>'title']as$mode=>$field){
+    try{$prefillProvider->generate(['generation_mode'=>$mode],new NeverCancelledToken(),static function(array $messages)use($field,$check):void{
+        $check(array_column($messages,'role')===['system','user','assistant']&&$messages[2]['content']==='{'.json_encode($field).':'
+            &&!str_contains(json_encode($messages),'fixture-secret'),'generation observer includes the exact prefill before network without credentials');
+        throw new RuntimeException('observed-prefill');
+    });$check(false,'prefill observer did not run');}
+    catch(RuntimeException $error){if($error->getMessage()!=='observed-prefill')throw $error;}
+}
 $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof OpenAiCompatibleProvider
     &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor
     &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,
@@ -327,6 +349,9 @@ $check(implode(' ',$streamChunks)==='Hello there, traveler. Welcome to Balmora!'
     'streaming dialogue exposes only decoded utterance text in bounded deltas');
 $check($streamChunks===['Hello there, traveler.','Welcome to Balmora!'],
     'streaming dialogue releases complete CHIM-style sentence chunks without blank subtitle lines');
+$prefilledStream=new StreamingDialogueText();
+$check($prefilledStream->push('[{"text":"The first sentence arrives immediately. More words')===['The first sentence arrives immediately.'],
+    'assistant continuation streams its first complete sentence without waiting for the closing JSON');
 $shortParagraph=new StreamingDialogueText();
 $shortParagraphChunks=$shortParagraph->push('{"utterances":[{"text":"First line.\\n\\nSecond line."}],"action":null}',true);
 $check($shortParagraphChunks===['First line. Second line.'],
@@ -786,6 +811,14 @@ $check($continued['followup_enabled']===false&&$continued['followup_actions_allo
     'one extra action is the hard follow-up cap and required confirmations cannot be disabled');
 $actionTurn = $promptTurn;
 $actionTurn['_allowed_action_definitions'] = $allowedActions;
+$dialogueSchema=(new ReflectionMethod($actionProvider,'responseSchema'))->invoke($actionProvider,$actionTurn);
+$schemaActions=$dialogueSchema['properties']->action['anyOf'];
+$check(count($schemaActions)===3&&$schemaActions[0]===['type'=>'null']
+    &&$schemaActions[1]['properties']->name['enum']===['inspect.report']
+    &&$schemaActions[2]['properties']->name['enum']===['ai.follow']
+    &&$schemaActions[1]['properties']->parameters['properties'] instanceof stdClass
+    &&$schemaActions[1]['properties']->parameters['required']===[],
+    'structured dialogue exposes only negotiated actions and encodes empty parameters as an object');
 $actionTurn['_prompt'] = (new PromptAssembler())->assemble($actionTurn,$promptSelection)['provider_input'];
 $filteredMessages = (new ReflectionMethod($actionProvider,'promptMessages'))->invoke($actionProvider,$actionTurn);
 $check(str_contains($filteredMessages[0]['content'],'`ai.follow()`')
