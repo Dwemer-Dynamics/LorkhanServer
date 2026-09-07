@@ -3469,3 +3469,37 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   All 781 runtime file hashes match; private routes 403, unauthenticated session
   401 and health valid. Configuration, credentials and voice contents preserved.
   No live saves/provider tests or game commands. Full page parity remains open.
+
+## Core Profile full-form comparison — 2026-09-07
+
+- Live populated Default profile compared against Herika edit=1. Confirmed gaps,
+  rather than treating existing green tests as full profile parity:
+  - Profile Preset toolbar: Default/Local LLM/Follower/Passive, Apply, Save as new,
+    Overwrite, Export/Import and both confirmation/name dialogs are absent.
+  - Dynamic Profile toggle and editable-field chips are absent.
+  - RPG comment types/chance, STM maximum summaries, language controls, Bored
+    Event, Combat and Quest groups and Global Settings Overrides are absent.
+    Skyrim-only event types must not be imported as unsupported OpenMW controls.
+  - Formatter connector and Rechat calculator need native behavior mapping.
+    Physical Diary needs supported OpenMW behavior proof before an enabled switch.
+- Existing Diary context count moved into Context alongside regular history.
+  Diary Prompt now precedes Automatic Diary Cooldown, matching reference order.
+  Renamed Diary Instruction to Diary Prompt, including Copy to all's accessible
+  label and confirmation. Field names, values, validation and persistence unchanged.
+- Live deployed Context/Diary screenshot inspected. Copy Diary Prompt opened the
+  correct scoped confirmation and was cancelled; no profile change was submitted.
+- Implementation constraint for next profile work: EffectiveSettingsResolver only
+  merges Core Profile rechat fields, four memory fields, diary and response today.
+  ManagementRouter::coreProfileContent builds exactly that subset. Adding controls
+  alone would create inert overrides. Extend validation, save mapping, effective
+  layering and consumed worker/client behavior together for each supported field.
+- Named Global Settings presets already have revision-checked private persistence
+  in ManagementRepository and migration 087; reuse its pattern, not its global-only
+  payloads/table semantics, for installation-scoped Core Profile presets. Existing
+  profile import creates an unassigned profile; it is not Apply-to-current parity.
+- 487 server checks, template PHP lint and whitespace checks passed. The preceding
+  full HTTP/integration/migration suite is still the latest complete run.
+  Deployment rollback `/var/backups/lorkhanserver-code.pJlxY2`; 781 runtime hashes
+  matched, private routes 403, unauthenticated session 401, health valid. Secrets,
+  config and voices preserved. No game launch/commands or live provider tests.
+  Core Profile row and overall goal remain incomplete.
