@@ -1822,6 +1822,20 @@ $namedNpc=$turn['payload']['target'];$namedNpc['display_name']='The Narrator';
 $db->prepare('UPDATE eventlog_metadata SET speaker=CAST(:speaker AS jsonb) WHERE rowid=:id')->execute(['speaker'=>json_encode($namedNpc),'id'=>$visibilityRow]);
 $assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
     'Narrator visibility must use identity, not an NPC display name');
+$db->prepare("UPDATE eventlog SET type='inputtext' WHERE rowid=:id")->execute(['id'=>$visibilityRow]);
+$db->prepare('UPDATE eventlog_metadata SET speaker=CAST(:speaker AS jsonb),target=CAST(:target AS jsonb),audience=CAST(:audience AS jsonb) WHERE rowid=:id')
+    ->execute(['speaker'=>json_encode($turn['payload']['speaker']),'target'=>json_encode($visibilityNarrator),
+        'audience'=>json_encode([$turn['payload']['target']]),'id'=>$visibilityRow]);
+foreach([true,false]as$hideNarratorSpeech){
+    $narratorVisibilityContent['hide_from_context']=$hideNarratorSpeech;
+    $products->revise('profile',$narratorProfile['profile_id'],$narratorVisibilityContent,'Narrator addressed input fixture',$memoryNow);
+    $assert(!in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true)
+        &&in_array($visibilityId,array_column($products->promptContext($narratorVisibilityTurn,$memoryNow)['history'],'id'),true),
+        'Narrator-addressed input must stay in Narrator history only, independent of spoken-dialogue visibility');
+}
+$db->prepare('UPDATE eventlog_metadata SET target=CAST(:target AS jsonb) WHERE rowid=:id')->execute(['target'=>json_encode($namedNpc),'id'=>$visibilityRow]);
+$assert(in_array($visibilityId,array_column($products->promptContext($memoryProbe,$memoryNow)['history'],'id'),true),
+    'an input addressed to an ordinary NPC named The Narrator was hidden');
 $db->exec('ROLLBACK TO SAVEPOINT narrator_visibility_probe');
 $narrativeInsert=$db->prepare('INSERT INTO narrative_records(narrative_id,installation_id,profile_id,playthrough_id,kind,title,content,provenance,created_at,updated_at) '
     ."VALUES(:id,:installation,:profile,:playthrough,'diary','Recency probe',:content,'{\"source\":\"manual\"}',:now,:now)");

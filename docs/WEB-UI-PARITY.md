@@ -4175,3 +4175,17 @@ code, provider calls, live configuration or deployment changed in this audit.
 - Save and portable Narrator preset import/export carry a strictly boolean field; old presets without it preserve current values. Existing HTTP tests cover imported false and older preset shape, while integration probes cover default hiding, false, Narrator own history, world narration, and display-name independence.
 - Validation: 526 server checks, 98 protocol files, management HTTP forms, integration, migrations/durable jobs, PHP lint and unchanged 172-relation schema passed. Isolated browser default-on/off switch appearance inspected and Save exercised; fixture stopped normally. No live provider or game calls.
 - Remaining reference behavior is not claimed complete: handling player inputs addressed privately to the Narrator and diary-derived recall needs its own scoped audit. This control covers direct spoken-history visibility; it is not a deletion or comprehensive memory-isolation feature.
+
+### Strict response validation diagnosis and pending contract correction (2026-09-07)
+
+- Saved failed GitHub run 34156573898 showed all integration/migration checks passing before Draft 2020-12 validation rejected accepted gamedata type `journal`. The acknowledgement schema had four types while the request schema already had nine.
+- Pending schema correction references the request's type definition rather than duplicating its enum. All 119 freshly captured server responses pass jsonschema 4.23.0 with format checking. The full local suite also passes (526 checks, management HTTP, integration, migrations and unchanged schema inventory). Protocol byte counts/hashes were regenerated with LF bytes, matching Git attributes.
+- The pending Narrator-addressed input filter also passes: NPC histories omit typed Narrator-targeted input regardless of speech-visibility toggle, Narrator keeps its own input, and an ordinary NPC named The Narrator remains unaffected. Source rows are unchanged.
+- Neither pending change has been pushed or deployed. Shared protocol synchronization must be completed before publishing: current LORKHAN origin/main is 7925957b94ff8759a8decc7c87ef7e9456539de5, with its clean checkout at D:/wt/lorkhan-journal-stages. Other inspected local client worktrees were stale. The current client acknowledgement also has the four-type enum. Server manifest byte-parity status is temporarily not-revalidated, not an acceptance claim.
+- Do not restore deleted workflow runs or disable future workflows. User-requested cleanup removed 96 completed failed server runs; successful runs remained. No game was launched or controlled.
+
+### Shared contract correction verified (2026-09-07)
+
+- Reconciled the acknowledgement schema in isolated LORKHAN worktree D:/wt/lorkhan-gamedata-ack, based on current main 7925957. No engine or Lua changes.
+- Regenerated both MANIFEST.json and SHA256SUMS. Existing strict client validation passes 38 Draft 2020-12 schemas and 60 fixtures; the server comparison proves schemas, fixtures and manifests byte-identical. All 119 captured server responses pass strict response validation.
+- This supersedes the pending contract status above. Narrator-addressed input behavior retains the previously recorded full-suite evidence. These changes do not establish completion of the remaining visual page matrix.

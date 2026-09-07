@@ -2716,7 +2716,8 @@ SQL);
         $history=[];
         if($contextSections['conversation_history']&&$contextPolicy['event_types']!==[]){$typeParameters=[];$historyParameters=[];
         foreach($contextPolicy['event_types']as$index=>$eventType){$name='event_type_'.$index;$typeParameters[]=':'.$name;$historyParameters[$name]=$eventType;}
-        $hideNarratorDialogue=($turn['payload']['target']['kind']??'')!=='narrator'
+        $isNarratorTarget=($turn['payload']['target']['kind']??'')==='narrator';
+        $hideNarratorDialogue=!$isNarratorTarget
             &&($this->narratorProfileForInstallation((string)$turn['installation_id'])['content']['hide_from_context']??true)===true;
         $eventTypeSql=implode(',',$typeParameters);$historyStatement=$this->db->prepare(<<<SQL
 SELECT 'event:'||e.rowid::text AS id,
@@ -2753,6 +2754,7 @@ JOIN eventlog_metadata m ON m.rowid=e.rowid
 WHERE m.installation_id=:installation AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL
   AND m.turn_id IS DISTINCT FROM :current_turn
   AND e.type IN ($eventTypeSql)
+  AND (CAST(:is_narrator_target AS boolean) OR e.type<>'inputtext' OR COALESCE(m.target->>'kind','')<>'narrator')
   AND (NOT CAST(:hide_narrator_dialogue AS boolean) OR e.type<>'chat' OR COALESCE(m.speaker->>'kind','')<>'narrator')
   AND (e.type<>'chat' OR e.delivery_state IN ('emitted','pending','spoken','played'))
   AND (m.speaker @> CAST(:event_speaker AS jsonb)
@@ -2766,6 +2768,7 @@ SQL);
             'current_turn'=>$turn['turn_id']??null,
             'event_speaker'=>$actorJson,'event_target'=>$actorJson,'event_audience'=>$audienceJson,
             'hide_narrator_dialogue'=>$hideNarratorDialogue?'true':'false',
+            'is_narrator_target'=>$isNarratorTarget?'true':'false',
             'candidate_limit'=>min(500,max(40,$recentTurnLimit*5)),
         ]);
         // Count conversation turns, not individual input, response, and world-event rows.
