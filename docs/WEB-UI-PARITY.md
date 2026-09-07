@@ -4155,3 +4155,9 @@ code, provider calls, live configuration or deployment changed in this audit.
 - Assembly adds the bounded entry and its title to character context and records its existing narrative source in the NPC context trace. The same entry is removed from generic narrative recall to avoid repetition.
 - Evidence: 526 server checks, 98 protocol files, management HTTP saves/imports/exports, integration selection and source-attribution checks, migrations/durable jobs, PHP lint and unchanged 172-relation inventory passed. Browser fixture 58464 verified copied switch appearance and save/reopen; Core Profile checked-card rendering inspected. Reference Narrator page remained read-only. Fixture stopped normally.
 - This closes the previously absent latest-diary control/runtime path, not the whole Narrator or Core Profile parity row. Narrow layout, additional Narrator diary-access/history/book semantics, full Core built-in presets and the broader page matrix remain open. No paid provider or game calls were made.
+
+### Narrator switch row sizing correction (2026-09-07)
+
+- Live reference measurement: Herika switch row 40px high, border-box, 38px minimum height, 7px/10px padding. Lorkhan was 54px because its page stylesheet explicitly forced content-box.
+- Removed the divergent box-sizing override. Deployed browser measurement now matches 40px/border-box at 1280px, with no horizontal overflow; screenshot inspected. This fixes every Narrator switch without changing values or behavior.
+- CSS-only validation: diff check, deployed computed styles and visual review; prior 526-check full suite remains the latest backend evidence. No additional backend test claim for this one-line stylesheet deletion.
