@@ -31,8 +31,8 @@ final class ProductService
                 throw new InvalidArgumentException('invalid_core_profile_slot');
             }
         }
-        // LLM and STT credential references have exact typed validation; nested secret keys remain forbidden.
-        if ($kind !== 'provider') $this->assertNoSecrets($kind === 'stt_provider' ? array_diff_key($input['content'], ['credential'=>true]) : $input['content']);
+        // LLM and speech credential references have exact typed validation; nested secret keys remain forbidden.
+        if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($input['content'], ['credential'=>true]) : $input['content']);
         $input['content']=$this->validateConfiguration($kind,$input['content']);
         return $this->repository->createRevisioned($kind, $input, $this->clock->iso());
     }
@@ -43,7 +43,7 @@ final class ProductService
         $this->uuid($id);
         if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if ($reason === '' || strlen($reason) > 512) throw new InvalidArgumentException('invalid_reason');
-        if ($kind !== 'provider') $this->assertNoSecrets($kind === 'stt_provider' ? array_diff_key($content, ['credential'=>true]) : $content);
+        if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($content, ['credential'=>true]) : $content);
         $content=$this->validateConfiguration($kind,$content);
         if ($expectedRevision !== null && $expectedRevision < 1) throw new InvalidArgumentException('invalid_expected_revision');
         return $this->repository->revise($kind, $id, $content, $reason, $this->clock->iso(), $expectedRevision);
@@ -63,7 +63,7 @@ final class ProductService
         $this->uuid($id);$name=trim($name);$this->boundedString(['name'=>$name],'name',1,128);
         if(!in_array($kind,['provider','tts_provider','stt_provider'],true)||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         if($reason===''||strlen($reason)>512)throw new InvalidArgumentException('invalid_reason');
-        if($kind!=='provider')$this->assertNoSecrets($kind==='stt_provider'?array_diff_key($content,['credential'=>true]):$content);
+        if($kind!=='provider')$this->assertNoSecrets(in_array($kind,['tts_provider','stt_provider'],true)?array_diff_key($content,['credential'=>true]):$content);
         $content=$this->validateConfiguration($kind,$content);
         return $this->repository->reviseNamedConnector($kind,$id,$name,$content,$reason,$this->clock->iso());
     }
@@ -95,7 +95,7 @@ final class ProductService
         $this->uuid($id);if(!in_array($kind,['profile','core_profile','playthrough','prompt','provider','tts_provider','stt_provider','action_policy','global_settings','memory_policy','memory_embedding_policy','translation_policy'],true)
             ||$this->repository->resourceKind($id)!==$kind)throw new InvalidArgumentException('resource_kind_mismatch');
         $content=$this->repository->revisionContent($kind,$id,$revision);
-        if ($kind !== 'provider') $this->assertNoSecrets($kind === 'stt_provider' ? array_diff_key($content, ['credential'=>true]) : $content);
+        if ($kind !== 'provider') $this->assertNoSecrets(in_array($kind, ['tts_provider','stt_provider'], true) ? array_diff_key($content, ['credential'=>true]) : $content);
         $this->validateConfiguration($kind,$content);
         return $this->repository->rollback($kind, $id, $revision, $reason, $this->clock->iso());
     }

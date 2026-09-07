@@ -10,7 +10,8 @@ use RuntimeException;
 /** Explicit TTS Studio operations derived from Herika's Cartesia and Inworld voice libraries. */
 final class CloudVoiceLibrary
 {
-    public function __construct(private readonly CredentialStore $credentials, private readonly ?\Closure $transport = null) {}
+    public function __construct(private readonly CredentialStore $credentials, private readonly ?\Closure $transport = null,
+        private readonly array $credentialReferences = []) {}
 
     public function discover(string $driver, ?CancellationToken $cancellation = null): array
     {
@@ -65,13 +66,14 @@ final class CloudVoiceLibrary
     private function request(string $driver,string $path,array|string|null $body=null,?CancellationToken $cancellation=null): array
     {
         $cancellation?->throwIfCancellationRequested();
-        if($this->transport!==null)return ($this->transport)($driver,$path,$body);
         if(!in_array($driver,['cartesia','inworld'],true))throw new InvalidArgumentException('voice_sync_unsupported');
-        $key=$this->credentials->resolve($driver==='cartesia'?'LORKHAN_TTS_CARTESIA_API_KEY':'LORKHAN_TTS_INWORLD_API_KEY');
+        $reference=$this->credentialReferences[$driver]??($driver==='cartesia'?'LORKHAN_TTS_CARTESIA_API_KEY':'LORKHAN_TTS_INWORLD_API_KEY');
+        $key=in_array($reference,['','none'],true)?'':$this->credentials->resolve($reference);
         if($key==='')throw new RuntimeException('voice_credential_missing');
         $headers=['Accept: application/json','Authorization: '.($driver==='cartesia'?'Bearer ':'Basic ').$key];
         if($driver==='cartesia')$headers[]='Cartesia-Version: 2026-03-01';
         if(is_string($body))$headers[]='Content-Type: application/json';
+        if($this->transport!==null)return ($this->transport)($driver,$path,$body,$headers);
         $handle=curl_init('https://api.'.$driver.'.ai'.$path);
         if($handle===false)throw new RuntimeException('voice_sync_unavailable');
         $response='';

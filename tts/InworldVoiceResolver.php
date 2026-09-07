@@ -14,6 +14,7 @@ final class InworldVoiceResolver
         private readonly CredentialStore $credentials,
         private readonly string $voiceRoot,
         private readonly string $driver = 'inworld',
+        private readonly ?string $credentialReference = null,
     ) {
         if(!in_array($driver,['inworld','cartesia'],true))throw new \InvalidArgumentException('voice_sync_unsupported');
     }
@@ -25,7 +26,8 @@ final class InworldVoiceResolver
         // Explicit provider IDs (including existing Dagoth Ur/player clones) are already resolved.
         if(($this->driver==='inworld'&&str_contains($name,'__'))
             ||($this->driver==='cartesia'&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$name)===1))return $name;
-        $key=$this->credentials->resolve($this->driver==='inworld'?'LORKHAN_TTS_INWORLD_API_KEY':'LORKHAN_TTS_CARTESIA_API_KEY');
+        $reference=$this->credentialReference??($this->driver==='inworld'?'LORKHAN_TTS_INWORLD_API_KEY':'LORKHAN_TTS_CARTESIA_API_KEY');
+        $key=in_array($reference,['','none'],true)?'':$this->credentials->resolve($reference);
         if($key==='')throw new RuntimeException('voice_credential_missing');
         $root=realpath($this->voiceRoot);
         if($root===false||!is_dir($root))throw new RuntimeException('voice_storage_unavailable');

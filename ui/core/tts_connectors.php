@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use LorkhanServer\Application\ConnectorCatalog;
+use LorkhanServer\Application\CredentialStore;
 use LorkhanServer\Application\SpeechPreviewCatalog;
 
 $pageTitle = 'TTS Connectors';
@@ -29,12 +30,30 @@ $rows = array_values(array_filter(
 $drivers = [];
 $optionCatalog = [];
 $connectorDefaults = [];
+$credentialDefaults = [];
+$cloudDrivers = [];
 foreach (ConnectorCatalog::all('tts_provider') as $definition) {
     $driver = (string) $definition['driver'];
     $drivers[$driver] = (string) $definition['label'];
     $optionCatalog[$driver] = ConnectorCatalog::optionFields('tts_provider', $driver);
     $connectorDefaults[$driver] = ConnectorCatalog::defaults('tts_provider', $driver);
+    $credentialDefaults[$driver] = $definition['credential_environment'] ?: 'none';
+    if (!$definition['local']) $cloudDrivers[] = $driver;
 }
+
+// Only labels, references and configured/missing status reach the editor, never key values.
+$badgeLabels = ['LORKHAN_TTS_API_KEY'=>'Default TTS key', 'LORKHAN_STT_API_KEY'=>'Default STT key',
+    'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)', 'LORKHAN_TTS_OPENAI_API_KEY'=>'OpenAI',
+    'LORKHAN_TTS_ELEVENLABS_API_KEY'=>'ElevenLabs', 'LORKHAN_TTS_AZURE_API_KEY'=>'Azure',
+    'LORKHAN_TTS_CARTESIA_API_KEY'=>'Cartesia', 'LORKHAN_TTS_DEEPGRAM_API_KEY'=>'Deepgram',
+    'LORKHAN_TTS_GCP_API_KEY'=>'Google Cloud', 'LORKHAN_TTS_INWORLD_API_KEY'=>'Inworld'];
+$badgeChoices = [];
+foreach ((new CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
+    $variable = $status['variable'];
+    $status['label'] = $badgeLabels[$variable] ?? ucwords(strtolower(str_replace('_', ' ', preg_replace('/^LORKHAN_|_API_KEY$/', '', $variable))));
+    $badgeChoices[$variable] = $status;
+}
+uasort($badgeChoices, static fn(array $a, array $b): int => ($b['configured'] <=> $a['configured']) ?: strnatcasecmp($a['label'], $b['label']));
 
 $selectedId = trim((string) ($_GET['edit'] ?? $_GET['selected'] ?? ''));
 $selected = null;
@@ -59,6 +78,12 @@ if ($selected !== null && $mode === 'edit') {
 }
 $recommendedDrivers = array_intersect(['pockettts', 'chatterbox', 'xtts-fastapi', 'inworld', 'cartesia', 'omnivoice'], array_keys($drivers));
 $driverGroups = ['Recommended' => $recommendedDrivers, 'Others' => array_diff(array_keys($drivers), $recommendedDrivers)];
+
+/** Keep the same submitted URL field when cloud endpoints move into advanced settings. */
+function lorkhan_tts_endpoint_field(array $content, array $defaults, string $formId): void
+{
+    ?><div class="field-block" id="tts_endpoint_block"><label for="tts_endpoint">URL</label><input type="url" id="tts_endpoint" name="endpoint" required value="<?php echo lorkhan_ui_h($content['endpoint'] ?? $defaults['endpoint'] ?? ''); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div><?php
+}
 
 $additionalStylesheets = ['herika-tts.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-tts.css')];
 include dirname(__DIR__) . '/tmpl/head.html';
@@ -124,6 +149,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         $currentDriver = (string) ($content['driver'] ?? $defaultDriver);
                         $defaults = $connectorDefaults[$currentDriver] ?? [];
                         $options = is_array($content['options'] ?? null) ? $content['options'] : [];
+                        $selectedCredential = (string)($content['credential'] ?? $credentialDefaults[$currentDriver]);
+                        if ($selectedCredential !== 'none' && !isset($badgeChoices[$selectedCredential])) {
+                            $badgeChoices[$selectedCredential] = ['label'=>$selectedCredential, 'configured'=>false];
+                        }
                         $formId = $creating ? 'tts-create-form' : 'tts-revise-form';
                         $formAction = $creating ? 'tts-providers' : 'connector-revise';
                     ?>
@@ -155,8 +184,20 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <div class="editor-grid">
                             <div class="field-block"><label for="tts_name">Name</label><input type="text" id="tts_name" name="name" required maxlength="128" form="<?php echo lorkhan_ui_h($formId); ?>" value="<?php echo $creating ? '' : lorkhan_ui_h($selected['name']); ?>"><div class="field-help">This label appears in profile and player connector pickers.</div></div>
                             <div class="field-block"><label for="tts_driver">Service</label><select id="tts_driver" name="driver" form="<?php echo lorkhan_ui_h($formId); ?>" data-tts-driver><?php foreach ($driverGroups as $groupLabel => $groupDrivers): ?><optgroup label="<?php echo lorkhan_ui_h($groupLabel); ?>"><?php foreach ($groupDrivers as $driverId): ?><option value="<?php echo lorkhan_ui_h($driverId); ?>"<?php echo $currentDriver === $driverId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($drivers[$driverId]); ?></option><?php endforeach; ?></optgroup><?php endforeach; ?></select><div class="field-help">The provider driver this connector loads at runtime.</div></div>
-                            <div class="field-block"><label for="tts_endpoint">URL</label><input type="url" id="tts_endpoint" name="endpoint" required value="<?php echo lorkhan_ui_h($content['endpoint'] ?? $defaults['endpoint'] ?? ''); ?>" form="<?php echo lorkhan_ui_h($formId); ?>"><div class="field-help">Used for providers that expose a local or remote HTTP endpoint.</div></div>
-                            <div class="field-block" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.tts.api-key')['description']); ?>"><label>API Badge <?php echo lorkhan_ui_feature_badge('config.tts.api-key', true); ?></label><select disabled aria-disabled="true"><option>Server-owned credential</option></select><div class="field-help">Provider credentials are managed centrally through LORKHAN API Keys.</div></div>
+                            <?php if (!in_array($currentDriver, $cloudDrivers, true)) lorkhan_tts_endpoint_field($content, $defaults, $formId); ?>
+                            <span id="tts_endpoint_anchor" hidden></span>
+                            <div class="field-block" id="tts_api_badge_block" data-selected-driver="<?php echo lorkhan_ui_h($currentDriver); ?>" data-credential-defaults="<?php echo lorkhan_ui_h(json_encode($credentialDefaults, JSON_THROW_ON_ERROR)); ?>" data-cloud-drivers="<?php echo lorkhan_ui_h(json_encode($cloudDrivers, JSON_THROW_ON_ERROR)); ?>"<?php echo in_array($currentDriver, $cloudDrivers, true) ? '' : ' hidden'; ?>>
+                                <label for="tts_credential">API Badge</label>
+                                <select id="tts_credential" name="credential" form="<?php echo lorkhan_ui_h($formId); ?>" aria-describedby="tts_api_key_notice">
+                                    <option value="none"<?php echo $selectedCredential === 'none' ? ' selected' : ''; ?>>-- None --</option>
+                                    <?php $missingDivider = false; foreach ($badgeChoices as $reference=>$badge): ?>
+                                    <?php if (!$badge['configured'] && !$missingDivider): $missingDivider = true; ?><option disabled>— Missing Key —</option><?php endif; ?>
+                                    <option value="<?php echo lorkhan_ui_h($reference); ?>" data-empty="<?php echo $badge['configured'] ? '0' : '1'; ?>"<?php echo $selectedCredential === $reference ? ' selected' : ''; ?>><?php echo lorkhan_ui_h(($badge['configured'] ? '🟢 ' : '🔴 ') . $badge['label'] . ($badge['configured'] ? '' : ' — No key')); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <div id="tts_api_key_notice" class="api-key-notice" role="status"></div>
+                                <div class="field-help">Cloud TTS providers require an API key.</div>
+                            </div>
                         </div>
 
                         <section class="meta-group active">
@@ -190,7 +231,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <?php endforeach; ?>
                                 <p class="settings-empty-note" data-connector-options-empty<?php echo ($optionCatalog[$currentDriver] ?? []) === [] ? '' : ' hidden'; ?>>This TTS provider does not have any additional connector-level settings.</p>
                             </div>
-                            <details class="advanced-json"><summary>Advanced connector options</summary><div class="field-block"><label for="tts_options_json">Connector options (JSON)</label><textarea id="tts_options_json" name="options_json" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo lorkhan_ui_h(json_encode($options === [] ? (object) [] : $options, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></textarea></div></details>
+                            <details class="advanced-json"><summary>Advanced connector options</summary><div id="tts_advanced_endpoint"><?php if (in_array($currentDriver, $cloudDrivers, true)) lorkhan_tts_endpoint_field($content, $defaults, $formId); ?></div><div class="field-block"><label for="tts_options_json">Connector options (JSON)</label><textarea id="tts_options_json" name="options_json" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo lorkhan_ui_h(json_encode($options === [] ? (object) [] : $options, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES)); ?></textarea></div></details>
                         </section>
                         </form>
 

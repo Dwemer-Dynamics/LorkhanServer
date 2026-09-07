@@ -1363,6 +1363,38 @@ $check($cartesiaResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToke
 $inworldCredentials->set('LORKHAN_TTS_CARTESIA_API_KEY','cartesia-other-account');
 $cartesiaResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
 $check(count($cartesiaCalls)===4,'Cartesia clone cache is isolated by credential and from Inworld');
+$ttsReference='LORKHAN_CUSTOM_TTS_PARITY_API_KEY';
+$inworldCredentials->set($ttsReference,'selected-tts-fixture-key');
+foreach(['inworld','cartesia']as$badgeDriver){
+    $badgeCalls=[];
+    $badgeLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+        static function(string $driver,string $path,array|string|null $body,array $headers)use(&$badgeCalls,$cartesiaId):array{
+            $badgeCalls[]=$headers;
+            return $body===null?['data'=>[]]:($driver==='cartesia'?['id'=>$cartesiaId]:['voice'=>['voiceId'=>'badge__clone']]);
+        },[$badgeDriver=>$ttsReference]);
+    $badgeResolver=new \LorkhanServer\Application\InworldVoiceResolver($badgeLibrary,$inworldCredentials,$inworldRoot,$badgeDriver,$ttsReference);
+    $badgeResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $expectedHeader='Authorization: '.($badgeDriver==='cartesia'?'Bearer ':'Basic ').'selected-tts-fixture-key';
+    $check(count($badgeCalls)===2&&in_array($expectedHeader,$badgeCalls[0],true)&&in_array($expectedHeader,$badgeCalls[1],true)
+        &&is_file($inworldRoot.'/.'.$badgeDriver.'-cache/'.hash_hmac('sha256','mw_dark_elf_male','selected-tts-fixture-key').'.json'),
+        $badgeDriver.' uses the selected badge for discovery, cloning and credential-scoped cache identity');
+    $badgeResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
+    $check(count($badgeCalls)===2,$badgeDriver.' selected-badge cache does not repeat the upload');
+}
+$noKeyCalls=0;
+$noKeyLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+    static function()use(&$noKeyCalls):array{++$noKeyCalls;return[];},['inworld'=>'none']);
+try{$noKeyLibrary->discover('inworld');$check(false,'None badge must not use the global voice key');}
+catch(RuntimeException $error){$check($error->getMessage()==='voice_credential_missing'&&$noKeyCalls===0,'None badge never falls back to the global voice credential');}
+foreach(['openai','11labs','azure','cartesia','convai','coqui-ai','deepgram','gcp','inworld']as$badgeDriver){
+    $badgeContent=ConnectorCatalog::defaults('tts_provider',$badgeDriver)+['driver'=>$badgeDriver,'credential'=>$ttsReference];
+    $badgeContent['voice']='fixture-voice';
+    $badgeContent['endpoint']='https://93.184.216.34/fixture'; // Constructor only; no request or DNS dependency.
+    $badgeProvider=ProviderFactory::speechForPreset(['credential_storage_path'=>$inworldRoot.'/keys.json','voice_storage_path'=>$inworldRoot],['kind'=>'tts_provider','content'=>$badgeContent]);
+    $check((new \ReflectionProperty($badgeProvider,'apiKey'))->getValue($badgeProvider)==='selected-tts-fixture-key',$badgeDriver.' synthesis resolves the chosen private TTS badge');
+}
+try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','credential'=>'DATABASE_PASSWORD']);$check(false,'unrelated environment credential rejected');}
+catch(InvalidArgumentException){$check(true,'TTS badge cannot name an unrelated environment secret');}
 foreach(['pockettts','omnivoice','chatterbox','xtts-fastapi']as$driver){
     $localCalls=[];$registered=false;
     $localResolver=new \LorkhanServer\Application\LocalVoiceResolver('http://127.0.0.1:8999/prefix/tts_to_audio/',$driver,$inworldRoot,'',30000,

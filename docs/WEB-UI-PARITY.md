@@ -77,7 +77,7 @@ do not use an exception to excuse a generic substitute layout.
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
-| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
+| `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; complete provider field mapping remains |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
@@ -3094,3 +3094,49 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Live final GET confirmed a 120px editor, disabled default, loaded service icons
   and Escape focus transfer. No live form was saved or provider called.
 - Git whitespace warnings are confined to unchanged upstream Ace assets and their extracted CSS; authored product changes pass the whitespace check.
+
+### TTS API Badge checkpoint
+
+- Replaced the disabled badge placeholder with the pinned Herika selector:
+  configured-first choices, green/red status markers, Missing Key divider,
+  identical configured/missing/none notices and cloud-provider visibility.
+  Compared the live Herika Inworld editor without saving it. API Badge now sits
+  on the left under Name, as in the reference. Local URLs remain in the primary
+  grid; cloud URLs move into the existing Advanced connector options section,
+  preserving the one submitted endpoint field and custom endpoint support.
+- The browser remembers unsaved badge choices per service, initializes the proper
+  default even if the service changes before deferred initialization, and makes
+  no discovery or provider request when selecting a badge. Desktop configured,
+  missing and None states, local/cloud round trips, isolated submission and 390px
+  layout were checked. The narrow frame had 375px content/scroll width and a
+  fully visible warning. A final live saved Inworld GET retained its configured
+  default badge and used the advanced URL location; no live form was saved.
+- Speech connector validation now accepts the same allowlisted server credential
+  references as STT. Existing connectors without a reference still resolve the
+  same provider default. Explicit None sends no key and does not fall back.
+  ProviderFactory passes the selection into speech and Inworld/Cartesia discovery,
+  cloning and keyed sample-cache resolution. TTS Studio's standalone global
+  provider-library operations keep their existing global-account behavior.
+- CRUD, rename and rollback secret guards permit only the typed top-level
+  credential reference; nested credentials and raw keys remain rejected. Same-
+  installation cloning and private configuration backups retain the reference,
+  not its key value. Portable TTS export/import strips the reference to None,
+  including supplied import references, so imports cannot acquire local keys.
+- Existing tests cover all nine key-backed cloud synthesis adapters, selected-key
+  clone/discovery headers, cache separation, None refusing global fallback and
+  unrelated environment-variable rejection. HTTP checks cover saved selection,
+  configured-first ordering, clone preservation, import stripping, rejected
+  edits and private backup reference retention with secret-value exclusion.
+  A former backup assertion rejected the public name's API_KEY suffix; it now
+  distinguishes a credential reference from an actual key field/value.
+- Updated the feature registry to mark the implemented TTS badge and the already
+  deployed JSON Schema/Prefill/YAML controls live rather than planned/replaced.
+  Provider-specific field mapping is still open; this is not whole-page parity.
+- Final verification passed: PHP lint, JavaScript syntax, 449 server checks,
+  management HTTP, integration, migrations and durable jobs. Schema inventory is
+  unchanged at 170 relations. Deployment rollback is
+  `/var/backups/lorkhanserver-code.v1n3w4`; all 779 runtime files match source,
+  with no extras or legacy paths. Configuration, credential and voice hashes are
+  preserved, private routes remain 403, session creation without auth is 401 and
+  health/NPC reader checks passed. Browser fixtures and local mock transports
+  were used for interaction/provider tests; no paid service or game was called.

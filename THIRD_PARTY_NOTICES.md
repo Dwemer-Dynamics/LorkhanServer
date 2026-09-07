@@ -293,3 +293,8 @@ Assets are served locally, with workers disabled and no CDN dependency.
 The companion `editor-ambiance.css` contains the unmodified editor and Ambiance
 CSS strings extracted from those pinned Ace modules. Lorkhan enables Ace's
 strict-CSP mode and links this stylesheet instead of allowing injected styles.
+TTS API Badge presentation in `ui/core/tts_connectors.php`, `ui/css/herika-tts.css`
+and `ui/js/tts-connector-test.js` follows the same pinned Herika TTS editor:
+configured-first labels, missing-key divider, status notice and cloud-only field.
+Lorkhan stores only allowlisted server credential references and applies the same
+selection to synthesis, discovery, cloning and account-scoped voice caches.

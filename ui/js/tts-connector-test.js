@@ -5,6 +5,36 @@
     if (driver && heading) {
         driver.addEventListener('change', () => { heading.textContent = driver.selectedOptions[0].textContent + ' Settings'; });
     }
+    const badgeBlock = document.getElementById('tts_api_badge_block');
+    const badge = document.getElementById('tts_credential');
+    const badgeNotice = document.getElementById('tts_api_key_notice');
+    if (driver && badgeBlock && badge && badgeNotice) {
+        const defaults = JSON.parse(badgeBlock.dataset.credentialDefaults || '{}');
+        const cloudDrivers = JSON.parse(badgeBlock.dataset.cloudDrivers || '[]');
+        const drafts = new Map();
+        let previous = badgeBlock.dataset.selectedDriver || driver.value;
+        const updateBadge = () => {
+            if (previous !== driver.value) {
+                drafts.set(previous, badge.value);
+                badge.value = drafts.get(driver.value) || defaults[driver.value] || 'none';
+                previous = driver.value;
+            }
+            badgeBlock.hidden = !cloudDrivers.includes(driver.value);
+            const configured = badge.value !== 'none' && badge.selectedOptions[0]?.dataset.empty === '0';
+            badgeNotice.textContent = badge.value === 'none' ? 'No API key selected. Some services require a key.'
+                : configured ? 'Selected API badge is configured.' : 'Selected API badge does not have a configured key yet.';
+            badgeNotice.classList.toggle('warn', !configured);
+            badgeNotice.classList.toggle('ok', configured);
+            const endpointBlock = document.getElementById('tts_endpoint_block');
+            if (endpointBlock) {
+                if (badgeBlock.hidden) document.getElementById('tts_endpoint_anchor').before(endpointBlock);
+                else document.getElementById('tts_advanced_endpoint').append(endpointBlock);
+            }
+        };
+        driver.addEventListener('change', updateBadge);
+        badge.addEventListener('change', updateBadge);
+        updateBadge();
+    }
     const dialog = document.getElementById('tts-test-dialog');
     const opener = document.getElementById('tts-test-open');
     if (!dialog || !opener) return;

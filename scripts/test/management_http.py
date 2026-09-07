@@ -689,15 +689,19 @@ assert clone_export['name']==clone_name and clone_export['content']['biography']
 r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':clone_id}); assert r.status==200
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?create=1'))
 create_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/tts-providers'))
+r=request('/LorkhanServer/ui/core/api_keys.php','POST',{'_csrf':csrf,'add_custom':'1','custom_name':'TTS_HTTP','custom_credential':'fixture-tts-badge-key'})
+assert r.status==200 and 'fixture-tts-badge-key' not in r.read().decode()
 assert create_tts['fields'].get('option_fields_present')=='1' and 'option__speed' in create_tts['fields'] and 'option__temperature' not in create_tts['fields'],create_tts
 tts_name='HTTP TTS '+uuid.uuid4().hex
 values=dict(create_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],name=tts_name,driver='pockettts',endpoint='http://127.0.0.1:8021',model='default',voice='default',language='en',timeout_ms='30000',fallback_male='TestMale',fallback_female='TestFemale',option__speed='1.1',option__temperature='0.6',options_json='{}')
+values['credential']='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 r=request(create_tts['action'],'POST',values); body=r.read().decode(); assert r.status==200 and tts_name in body,(r.status,r.geturl(),body)
 tts_id=connector_editor_id(body,tts_name)
 tts_export_response=request('/LorkhanServer/manage/exports/connectors/'+tts_id+'.json'); tts_export=json.loads(tts_export_response.read().decode())
 assert tts_export['content']['options']['speed']==1.1 and tts_export['content']['options']['temperature']==0.6,tts_export
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
 revise_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-revise') and f['fields'].get('configuration_id')==tts_id)
+assert revise_tts['fields']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 assert 'option__speed' in revise_tts['fields'] and 'option__temperature' in revise_tts['fields'] and revise_tts['fields'].get('option_fields_present')=='1',revise_tts
 values=dict(revise_tts['fields'],_csrf=csrf,option__speed='1.25',option__temperature='0.7',change_reason='HTTP labelled TTS options')
 r=request(revise_tts['action'],'POST',values); body=r.read().decode(); assert r.status==200 and tts_name in body,(r.status,r.geturl(),body)
@@ -705,6 +709,12 @@ tts_export_response=request('/LorkhanServer/manage/exports/connectors/'+tts_id+'
 assert tts_export_response.status==200 and tts_export['schema']=='lorkhan.connector-export.v1' and tts_export['kind']=='tts_provider' and 'installation_id' not in tts_export and 'api_key' not in json.dumps(tts_export).lower()
 assert tts_export['content']['options']['fallback_male']=='TestMale' and tts_export['content']['options']['fallback_female']=='TestFemale',tts_export
 assert tts_export['content']['options']['speed']==1.25 and tts_export['content']['options']['temperature']==0.7,tts_export
+assert tts_export['content']['credential']=='none' and 'fixture-tts-badge-key' not in json.dumps(tts_export)
+bad_tts_values=dict(values,credential='DATABASE_PASSWORD')
+r=request('/LorkhanServer/manage/forms/connector-revise','POST',bad_tts_values); assert r.status==422
+tts_badge_html=request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id).read().decode()
+assert 'fixture-tts-badge-key' not in tts_badge_html and 'id="tts_credential"' in tts_badge_html
+assert tts_badge_html.index('🟢 Custom Tts Http') < tts_badge_html.index('— Missing Key —')
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id))
 revise_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-revise') and f['fields'].get('configuration_id')==tts_id)
 values=dict(revise_tts['fields'],_csrf=csrf,driver='omnivoice',option__speed='1.0',change_reason='HTTP connector driver switch')
@@ -716,12 +726,17 @@ clone_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connect
 clone_name=tts_name+' clone'; r=request(clone_tts['action'],'POST',dict(clone_tts['fields'],_csrf=csrf,name=clone_name)); body=r.read().decode()
 assert r.status==200 and clone_name in body,(r.status,r.geturl(),body)
 clone_tts_id=connector_editor_id(body,clone_name)
+clone_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+clone_tts_id))
+assert next(f for f in clone_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':clone_tts_id,'kind':'tts_provider'}); assert r.status==200
 tts_export['name']=tts_name+' imported'; tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?import=1'))
 import_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-import'))
+tts_export['content']['credential']='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 r=request(import_tts['action'],'POST',dict(import_tts['fields'],_csrf=csrf,installation_id=valid['installation_id'],kind='tts_provider',connector_json=json.dumps(tts_export))); body=r.read().decode()
 assert r.status==200 and tts_export['name'] in body,(r.status,r.geturl(),body)
 import_tts_id=connector_editor_id(body,tts_export['name'])
+imported_tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?edit='+import_tts_id))
+assert next(f for f in imported_tts_page.forms if f['action'].endswith('/forms/connector-revise'))['fields']['credential']=='none'
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':import_tts_id,'kind':'tts_provider'}); assert r.status==200
 tts_page,_=parse(request('/LorkhanServer/ui/core/tts_connectors.php?selected='+tts_id)); activate_tts=next(f for f in tts_page.forms if f['action'].endswith('/forms/connector-selection') and f['fields'].get('configuration_id')==tts_id)
 r=request(activate_tts['action'],'POST',dict(activate_tts['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200,(r.status,r.geturl(),body)
@@ -1331,7 +1346,9 @@ backup_response=request('/LorkhanServer/manage/exports/backups/'+configuration_b
 assert backup_response.status==200 and configuration_backup['schema']=='lorkhan.configuration-backup.v2' and configuration_backup['format_version']==2 and configuration_backup['installation_id']==valid['installation_id']
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
 assert all(row['core_profile_id'] in core_ids for row in configuration_backup['data']['profiles']),configuration_backup['data']['profiles']
-assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and 'api_key' not in json.dumps(configuration_backup).lower()
+assert configuration_backup['backup_id']==configuration_backup_id and 'portrait' not in json.dumps(configuration_backup).lower() and '"api_key"' not in json.dumps(configuration_backup).lower()
+assert 'fixture-tts-badge-key' not in json.dumps(configuration_backup)
+assert next(row for row in configuration_backup['data']['configurations'] if row['configuration_id']==tts_id)['content']['credential']=='LORKHAN_CUSTOM_TTS_HTTP_API_KEY'
 saved_policy=next(row for row in configuration_backup['data']['configurations'] if row['kind']=='memory_policy')
 assert saved_policy['content']['enabled'] is True and saved_policy['content']['provider_configuration_id']==summary_connector_id
 summary_values.pop('enabled'); r=request(summary_form['action'],'POST',summary_values); assert r.status==200

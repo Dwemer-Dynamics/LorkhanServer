@@ -181,3 +181,7 @@ body:has(.tts-test-dialog[open]) { overflow: hidden; }
     .tts-test-card { padding: 12px; }
     .tts-test-card h1 { font-size: 24px; }
 }
+.tts-page .field-block[hidden] { display:none; }
+.tts-page .api-key-notice { margin-top:6px; font-size:12px; }
+.tts-page .api-key-notice.warn { color:#ffb862; }
+.tts-page .api-key-notice.ok { color:#6dd19c; }

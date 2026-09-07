@@ -139,13 +139,14 @@ final class ProviderFactory
             max(1000,min(120_000,(int)($config['translation_timeout_ms']??30_000))));
     }
 
-    /** Build an installation-selected TTS preset while credentials remain fixed environment references. */
+    /** Build an installation-selected TTS preset with a private, allowlisted credential reference. */
     public static function speechForPreset(array $config,array $preset):SpeechProvider
     {
         $content=self::preset($preset,'tts_provider');$definition=ConnectorCatalog::definition('tts_provider',(string)$content['driver']);
         $endpoint=(string)$content['endpoint'];$driver=(string)$content['driver'];$parts=parse_url($endpoint);
         $host=is_array($parts)?(string)($parts['host']??''):'';$loopback=($parts['scheme']??null)==='http';
-        $apiKey=self::environment((string)$definition['credential_environment'],$config);
+        $credentialVariable=(string)($content['credential']??$definition['credential_environment']);
+        $apiKey=in_array($credentialVariable,['','none'],true)?'':self::environment($credentialVariable,$config);
         $voiceReferenceRoot=(string)($config['voice_storage_path']??'/var/lib/lorkhanserver/voices');
         if($driver==='pockettts')return new PocketTtsSpeechProvider($endpoint,(string)($content['model']?:'pocket-tts'),
             (string)$content['voice'],(string)$content['language'],(array)$content['options'],$apiKey,(int)$content['timeout_ms'],
@@ -168,7 +169,7 @@ final class ProviderFactory
             $resolveVoice=null;
             if(in_array($driver,['inworld','cartesia'],true)){
                 $credentials=new CredentialStore((string)($config['credential_storage_path']??'/var/lib/lorkhanserver/credentials/provider-keys.json'));
-                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials),$credentials,$voiceReferenceRoot,$driver);
+                $resolver=new InworldVoiceResolver(new CloudVoiceLibrary($credentials,null,[$driver=>$credentialVariable]),$credentials,$voiceReferenceRoot,$driver,$credentialVariable);
                 $resolveVoice=$resolver->resolve(...);
             }
             return new CloudSpeechConnectorProvider($endpoint,$driver,(string)$content['model'],
