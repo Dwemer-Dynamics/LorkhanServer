@@ -117,7 +117,6 @@ body.player-page-shell.embedded-page { padding-top: 0; }
 
 .player-page .hint { display: block; margin: 4px 0 6px; padding-left: 2px; color: #999; font-size: 12px; line-height: 1.4; }
 .player-page .toggle-row {
-    box-sizing: content-box;
     display: flex;
     align-items: center;
     gap: 12px;

@@ -4161,3 +4161,9 @@ code, provider calls, live configuration or deployment changed in this audit.
 - Live reference measurement: Herika switch row 40px high, border-box, 38px minimum height, 7px/10px padding. Lorkhan was 54px because its page stylesheet explicitly forced content-box.
 - Removed the divergent box-sizing override. Deployed browser measurement now matches 40px/border-box at 1280px, with no horizontal overflow; screenshot inspected. This fixes every Narrator switch without changing values or behavior.
 - CSS-only validation: diff check, deployed computed styles and visual review; prior 526-check full suite remains the latest backend evidence. No additional backend test claim for this one-line stylesheet deletion.
+
+### Embedded LLM comparison and Player switch correction (2026-09-07)
+
+- Compared populated GLM 4.7 editors inside both live Configuration hubs at 1280px. Header, list/editor column split, editor controls, service-icon row and right-hand parameter panel align. Native connector labels, saved values, release-excluded hub tabs, gold accents and the accurate save-before-Test note remain intentional differences. No connector settings were saved or tested during this read-only comparison.
+- Removed the same divergent content-box override from Player switch rows. Deployed browser inspection confirms all three Player diary switches are 40px border-box rows; populated Player screenshot reviewed. This is CSS-only and leaves Player settings untouched.
+- Full LLM narrow-layout and import/interaction acceptance remains open; this comparison is desktop populated-hub evidence only. No backend suite rerun was needed for the one-line stylesheet deletion; deployment hashes and browser sizing provide the focused proof.
