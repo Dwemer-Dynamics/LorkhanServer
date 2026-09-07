@@ -1528,6 +1528,29 @@ foreach(['inworld','cartesia']as$badgeDriver){
     $badgeResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
     $check(count($badgeCalls)===2,$badgeDriver.' selected-badge cache does not repeat the upload');
 }
+// Studio selects a connector independently of playback; every explicit operation must share its scope.
+foreach (['cartesia','inworld'] as $studioDriver) {
+    $studioCalls=[];
+    $studioLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+        static function(string $driver,string $path,array|string|null $body,array $headers)use(&$studioCalls):array{
+            $studioCalls[]=['path'=>$path,'headers'=>$headers];
+            return $body===null?['voices'=>[['voiceId'=>'fixture__voice','displayName'=>'Fixture'],['voiceId'=>'other__voice','displayName'=>'Other']]]
+                :($driver==='cartesia'?['id'=>'fixture-clone']:['voice'=>['voiceId'=>'fixture__clone']]);
+        });
+    $scopedStudio=$studioLibrary->forPreset(['driver'=>$studioDriver,'credential'=>$ttsReference,'options'=>['workspace'=>'workspaces/fixture']]);
+    $studioVoices=$scopedStudio->discover($studioDriver);
+    $scopedStudio->clone($studioDriver,$inworldRoot.'/mw_dark_elf_male.wav','fixture','en');
+    $expectedHeader='Authorization: '.($studioDriver==='cartesia'?'Bearer ':'Basic ').'selected-tts-fixture-key';
+    $check(count($studioCalls)===2&&in_array($expectedHeader,$studioCalls[0]['headers'],true)
+        &&in_array($expectedHeader,$studioCalls[1]['headers'],true)
+        &&($studioDriver!=='inworld'||(count($studioVoices)===1&&$studioCalls[1]['path']==='/voices/v1/workspaces/fixture/voices:clone')),
+        $studioDriver.' Studio discovery and upload use the selected badge and workspace');
+    foreach (['','none'] as $emptyBadge) {
+        try {$studioLibrary->forPreset(['driver'=>$studioDriver,'credential'=>$emptyBadge])->discover($studioDriver);$check(false,'Studio empty badge rejected');}
+        catch(RuntimeException $error){$check($error->getMessage()==='voice_credential_missing'&&count($studioCalls)===2,
+            $studioDriver.' Studio empty badge cannot fall back to the global account');}
+    }
+}
 $noKeyCalls=0;
 $workspaceCalls=[];
 $workspaceLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,

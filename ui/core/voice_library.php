@@ -127,7 +127,7 @@ function lorkhan_voice_discover(array $preset,string $language,?CloudVoiceLibrar
     if(!lorkhan_voice_can_sync($preset))throw new InvalidArgumentException('voice_discovery_unsupported');
     $language=lorkhan_voice_language($language);
     if(in_array($driver,['cartesia','inworld'],true))return lorkhan_voice_normalize_discovery(
-        ($cloud??throw new RuntimeException('voice_sync_unavailable'))->discover($driver),$language);
+        ($cloud??throw new RuntimeException('voice_sync_unavailable'))->forPreset($content)->discover($driver),$language);
     $path=$driver==='omnivoice'?'/speakers_list_extended?language='.rawurlencode($language):'/speakers_list';
     return lorkhan_voice_normalize_discovery(lorkhan_voice_fetch_json((string)($content['endpoint']??''),$path),$language);
 }
@@ -287,7 +287,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
                 if(($_POST['consent']??'')!=='1')throw new InvalidArgumentException('voice_upload_confirmation_required');
                 $catalog=$products->connectorVoiceCatalog($configurationId);
-                $catalog[]=$cloudLibrary->clone($preset['content']['driver'],$path,pathinfo($filename,PATHINFO_FILENAME),$language);
+                $catalog[]=$cloudLibrary->forPreset($preset['content'])->clone($preset['content']['driver'],$path,pathinfo($filename,PATHINFO_FILENAME),$language);
                 $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
             }else lorkhan_voice_sync_connector($preset,$path,pathinfo($filename,PATHINFO_FILENAME),$language);
             $notice='Voice sample synced to '.(string)($preset['name']??'the selected connector').'.';
@@ -317,7 +317,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 $name=$requested;$path=$voiceRoot.DIRECTORY_SEPARATOR.lorkhan_voice_filename($name);
                 try{lorkhan_voice_validate_wav($path);
                     if(in_array($preset['content']['driver'],['cartesia','inworld'],true)){
-                        $catalog[]=$cloudLibrary->clone($preset['content']['driver'],$path,$name,$language);
+                        $catalog[]=$cloudLibrary->forPreset($preset['content'])->clone($preset['content']['driver'],$path,$name,$language);
                         $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
                     }else lorkhan_voice_sync_connector($preset,$path,$name,$language);
                     $count++;

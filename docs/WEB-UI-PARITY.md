@@ -4411,3 +4411,29 @@ no voices uploaded/generated/deleted. PHP lint and diff checks passed;
 screenshots remain private in Temp/{herika,lorkhan}-inworld-{cache,batch}-
 {1280,390}.png. Reference ui/xtts_clone.php at
 529364c4c12b3a8bd4cc12a481f400ce19b3a344.
+
+
+### Cloud cache lifecycle audit and connector scope (2026-09-07)
+
+Pinned Herika tts/tts-inworld.php and tts/tts-cartesia.php distinguish forgetting
+an ID from deleting a remote managed voice. Rebuild clones and validates audio
+before publishing the replacement; it deletes the previous remote copy only
+when installation-owned metadata matches that exact ID. Native runtime uses a
+credential/workspace-scoped file cache, separate from Studio's connector catalog.
+A catalog-only delete or a second upload button would not provide that parity.
+Remaining: shared cache lifecycle, ownership metadata, validated replacement,
+managed remote deletion, and matching populated/empty button states and interactions.
+These remain open; no existing real remote voices were changed by this audit.
+
+Fixed a prerequisite found by this trace: Studio discovery, individual generation
+and each batch generation used global cloud credentials, ignoring the selected
+connector badge/workspace. They now construct a scoped CloudVoiceLibrary from
+that connector content, matching playback's credential defaults and explicit
+None behavior. Inworld discovery is workspace filtered and cloning uses the
+workspace endpoint. Local provider paths are unchanged. Six assertions added to
+the existing unit suite verify selected-account discovery/upload for both cloud
+providers, workspace routing/filtering, and blank/None refusing global fallback;
+532 server checks and PHP/diff checks passed. No visual structure changed here;
+this is necessary backend rewiring, not new screenshot or cache-action acceptance.
+
+The existing isolated management HTTP form suite also passed for this change.

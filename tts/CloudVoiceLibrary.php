@@ -16,6 +16,19 @@ final class CloudVoiceLibrary
         self::normalizeWorkspace($inworldWorkspace);
     }
 
+    /** Scope explicit Studio operations to the same credential badge and workspace as playback. */
+    public function forPreset(array $content): self
+    {
+        $driver = (string) ($content['driver'] ?? '');
+        if (!in_array($driver, ['cartesia', 'inworld'], true)) {
+            throw new InvalidArgumentException('voice_discovery_unsupported');
+        }
+        $definition = ConnectorCatalog::definition('tts_provider', $driver);
+        $reference = (string) ($content['credential'] ?? $definition['credential_environment']);
+        $workspace = $driver === 'inworld' ? (string) ($content['options']['workspace'] ?? '') : '';
+        return new self($this->credentials, $this->transport, [$driver => $reference], $workspace);
+    }
+
     /** Accept an Inworld workspace ID, never an arbitrary URL or path. Empty keeps existing account routing. */
     public static function normalizeWorkspace(string $workspace): string
     {
