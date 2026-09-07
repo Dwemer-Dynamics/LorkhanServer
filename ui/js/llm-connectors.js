@@ -73,6 +73,192 @@
         });
     });
 
+    // Herika's OpenRouter catalogue picker; manual model IDs still work when discovery is unavailable.
+    const modelInput = document.getElementById('llm_model');
+    if (modelInput && endpoint) {
+        const dropdown = document.createElement('div');
+        dropdown.id = 'llm-model-catalogue';
+        dropdown.className = 'orm-dropdown';
+        dropdown.hidden = true;
+        dropdown.setAttribute('role', 'listbox');
+        dropdown.setAttribute('aria-label', 'OpenRouter Models');
+        document.body.append(dropdown);
+        const info = document.createElement('div');
+        info.className = 'orm-info-box';
+        info.hidden = true;
+        modelInput.after(info);
+        let models = null, pending = null, opened = false, active = -1, matches = [];
+
+        function isOpenRouter() {
+            if (driver.value !== 'openai-compatible') return false;
+            try {
+                const url = new URL(endpoint.value);
+                return url.origin === 'https://openrouter.ai' && url.pathname.replace(/\/$/, '') === '/api/v1/chat/completions';
+            } catch (_) { return false; }
+        }
+        // Catalogue text is untrusted provider data, never markup or a navigation target.
+        function line(parent, className, text) {
+            const element = document.createElement('div');
+            element.className = className;
+            element.textContent = text;
+            parent.append(element);
+            return element;
+        }
+        function price(value) {
+            const number = Number(value);
+            return value === null || value === undefined || value === '' || !Number.isFinite(number) || number < 0
+                ? 'N/A' : '$' + (number * 1000000).toFixed(4) + ' / 1M tokens';
+        }
+        function details(model) {
+            const context = Number(model.top_provider?.context_length || model.context_length);
+            return 'Pricing (per 1M tokens): input ' + price(model.pricing?.prompt) + ' • output ' + price(model.pricing?.completion)
+                + (Number.isFinite(context) && context > 0 ? ' • context ' + context.toLocaleString('en-US') : '');
+        }
+        function closeCatalogue() {
+            opened = false;
+            dropdown.hidden = true;
+            active = -1;
+            modelInput.setAttribute('aria-expanded', 'false');
+            modelInput.removeAttribute('aria-activedescendant');
+        }
+        function positionCatalogue() {
+            if (!opened) return;
+            const rect = modelInput.getBoundingClientRect();
+            const viewportWidth = document.documentElement.clientWidth;
+            const viewportHeight = document.documentElement.clientHeight;
+            const minimumWidth = Math.min(Math.max(rect.width, 420), viewportWidth - 16);
+            const height = Math.min(360, Math.max(80, viewportHeight - 16));
+            dropdown.style.width = 'max-content';
+            dropdown.style.minWidth = minimumWidth + 'px';
+            dropdown.style.maxWidth = (viewportWidth - 16) + 'px';
+            dropdown.style.maxHeight = height + 'px';
+            const width = dropdown.getBoundingClientRect().width;
+            dropdown.style.left = (window.scrollX + Math.max(8, Math.min(rect.left, viewportWidth - width - 8))) + 'px';
+            const actualHeight = Math.min(dropdown.scrollHeight, height);
+            const top = rect.bottom + 4 + actualHeight <= viewportHeight - 8 ? rect.bottom + 4 : Math.max(8, rect.top - actualHeight - 4);
+            dropdown.style.top = (window.scrollY + top) + 'px';
+        }
+        function updateInfo() {
+            const id = modelInput.value.trim();
+            info.hidden = !isOpenRouter() || !id || !models;
+            info.replaceChildren();
+            if (info.hidden) return;
+            const model = models.find(item => item.id === id);
+            if (model) {
+                line(info, 'orm-info-title', 'OpenRouter model info');
+                line(info, 'orm-muted orm-detail', details(model));
+            } else line(info, 'orm-muted orm-detail', 'Model information not available');
+        }
+        function selectModel(model) {
+            closeCatalogue();
+            modelInput.value = model.id;
+            modelInput.dispatchEvent(new Event('input', {bubbles: true}));
+            modelInput.dispatchEvent(new Event('change', {bubbles: true}));
+        }
+        function renderModels() {
+            if (!opened || !models) return;
+            const query = modelInput.value.toLowerCase();
+            matches = models.filter(model => model.id.toLowerCase().includes(query) || model.name.toLowerCase().includes(query));
+            active = -1;
+            modelInput.removeAttribute('aria-activedescendant');
+            dropdown.replaceChildren();
+            line(dropdown, 'orm-head', 'OpenRouter Models');
+            line(dropdown, 'orm-note', 'Click to select. Pricing shown per 1M tokens.');
+            if (!matches.length) line(dropdown, 'orm-muted orm-empty', 'No matches');
+            matches.forEach((model, index) => {
+                const item = line(dropdown, 'orm-item', '');
+                item.id = 'llm-model-option-' + index;
+                item.setAttribute('role', 'option');
+                item.setAttribute('aria-selected', 'false');
+                item.title = model.description || model.name || model.id;
+                line(item, '', model.id + (model.name ? ' — ' + model.name : ''));
+                line(item, 'orm-muted orm-detail', details(model));
+                item.addEventListener('click', () => selectModel(model));
+            });
+            positionCatalogue();
+        }
+        // Cache public, credential-free discovery and share concurrent loads; failed reads can retry.
+        async function loadModels() {
+            if (models) return;
+            if (!pending) pending = (async () => {
+                const controller = new AbortController();
+                const timer = setTimeout(() => controller.abort(), 10000);
+                try {
+                    const response = await fetch(modelInput.dataset.modelCatalogue, {
+                        credentials: 'same-origin', referrerPolicy: 'no-referrer', signal: controller.signal,
+                    });
+                    if (!response.ok) throw new Error('Catalogue unavailable');
+                    const payload = await response.json();
+                    if (!Array.isArray(payload.data) || payload.data.length > 5000) throw new Error('Invalid catalogue');
+                    models = payload.data.filter(model => model && typeof model.id === 'string' && model.id.length > 0 && model.id.length <= 256)
+                        .map(model => ({...model, name: String(model.name || '').slice(0, 512), description: String(model.description || '').slice(0, 4000)}))
+                        .sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
+                } finally { clearTimeout(timer); }
+            })();
+            try { await pending; } finally { pending = null; }
+        }
+        async function openCatalogue() {
+            if (!isOpenRouter()) return;
+            opened = true;
+            dropdown.hidden = false;
+            modelInput.setAttribute('aria-expanded', 'true');
+            dropdown.replaceChildren();
+            line(dropdown, 'orm-head', 'OpenRouter Models');
+            line(dropdown, 'orm-note', 'Loading…');
+            positionCatalogue();
+            try {
+                await loadModels();
+                if (!opened || !isOpenRouter()) return;
+                renderModels();
+                updateInfo();
+            } catch (_) {
+                if (!opened || !isOpenRouter()) return;
+                dropdown.replaceChildren();
+                line(dropdown, 'orm-head', 'OpenRouter Models');
+                line(dropdown, 'orm-err', 'Failed to load models. Check network/CORS. You can still enter a model ID.');
+                positionCatalogue();
+            }
+        }
+        function updateCatalogueAvailability() {
+            closeCatalogue();
+            updateInfo();
+            const available = isOpenRouter();
+            const attributes = {role: 'combobox', 'aria-autocomplete': 'list', 'aria-controls': dropdown.id, 'aria-expanded': 'false'};
+            Object.entries(attributes).forEach(([name, value]) => {
+                if (available) modelInput.setAttribute(name, value);
+                else modelInput.removeAttribute(name);
+            });
+        }
+        updateCatalogueAvailability();
+        modelInput.autocomplete = 'off';
+        modelInput.addEventListener('focus', openCatalogue);
+        modelInput.addEventListener('click', () => { if (!opened) openCatalogue(); });
+        modelInput.addEventListener('input', () => { renderModels(); updateInfo(); });
+        modelInput.addEventListener('change', updateInfo);
+        modelInput.addEventListener('blur', closeCatalogue);
+        dropdown.addEventListener('mousedown', event => event.preventDefault());
+        modelInput.addEventListener('keydown', async event => {
+            if (event.key === 'Escape') { event.preventDefault(); closeCatalogue(); return; }
+            if (event.key === 'Enter' && opened && active >= 0) { event.preventDefault(); selectModel(matches[active]); return; }
+            if (!['ArrowDown', 'ArrowUp'].includes(event.key) || !isOpenRouter()) return;
+            event.preventDefault();
+            if (!opened) await openCatalogue();
+            if (!opened || !matches.length) return;
+            if (active < 0) active = event.key === 'ArrowDown' ? 0 : matches.length - 1;
+            else active = (active + (event.key === 'ArrowDown' ? 1 : -1) + matches.length) % matches.length;
+            dropdown.querySelectorAll('[role="option"]').forEach((item, index) => {
+                item.setAttribute('aria-selected', String(index === active));
+                if (index === active) { modelInput.setAttribute('aria-activedescendant', item.id); item.scrollIntoView({block: 'nearest'}); }
+            });
+        });
+        [driver, endpoint].forEach(control => {
+            control.addEventListener('change', updateCatalogueAvailability);
+            control.addEventListener('input', updateCatalogueAvailability);
+        });
+        window.addEventListener('resize', positionCatalogue);
+        window.addEventListener('scroll', positionCatalogue, true);
+    }
+
     // The server rejects both token limits at once, so say so before the round trip rather than after.
     const maxTokens = document.getElementById('llm_option_max_tokens');
     const maxCompletionTokens = document.getElementById('llm_option_max_completion_tokens');

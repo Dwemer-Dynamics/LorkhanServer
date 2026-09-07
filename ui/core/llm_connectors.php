@@ -320,7 +320,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <div class="llm-connection-field">
                                 <label for="llm_model">Model</label>
-                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>">
+                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>">
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
                             </div>
 

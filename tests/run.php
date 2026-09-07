@@ -1043,6 +1043,22 @@ $check(array_column($planned,'text')===['*He bows.* Greetings.','Plain speech.']
     'missing narrator profile preserves Markdown dialogue');
 
 $ttsCatalog=ConnectorCatalog::all('tts_provider');$sttCatalog=ConnectorCatalog::all('stt_provider');
+$publicModels=ConnectorCatalog::normalizeOpenRouterModels(['data'=>[
+    ['id'=>'example/model','name'=>'<img src=x>','description'=>str_repeat('é',4001),
+     'pricing'=>['prompt'=>'0','completion'=>'-1'],'top_provider'=>['context_length'=>64000],
+     'private_field'=>'must-not-leave-server'],
+    ['canonical_slug'=>'example/fallback','pricing'=>['prompt'=>'1e309']], ['id'=>str_repeat('x',257)], null,
+]]);
+$check(count($publicModels['data'])===2 && $publicModels['data'][0]['pricing']===['prompt'=>'0','completion'=>null]
+    && $publicModels['data'][0]['context_length']===64000 && $publicModels['data'][1]['pricing']['prompt']===null,
+    'public model catalogue retains free prices and rejects invalid entries and numeric metadata');
+$check($publicModels['data'][0]['name']==='<img src=x>' && mb_strlen($publicModels['data'][0]['description'])===4000
+    && !isset($publicModels['data'][0]['private_field']) && ConnectorCatalog::normalizeOpenRouterModels(['data'=>[]])===['data'=>[]],
+    'model catalogue limits Unicode text, drops unknown fields and permits an empty catalogue');
+foreach ([[], ['data'=>array_fill(0,5001,[])]] as $invalidCatalogue) {
+    try { ConnectorCatalog::normalizeOpenRouterModels($invalidCatalogue); $check(false,'invalid model catalogue rejected'); }
+    catch (InvalidArgumentException) { $check(true,'invalid model catalogue rejected'); }
+}
 $check(count($ttsCatalog)===22 && count($sttCatalog)===8
     &&in_array('none',array_column($sttCatalog,'driver'),true), 'CHIM-lineage TTS and STT connector catalogs are complete');
 $check(array_column(ConnectorCatalog::optionFields('tts_provider','xtts-fastapi'),'name')===

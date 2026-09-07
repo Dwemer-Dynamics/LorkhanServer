@@ -123,8 +123,43 @@ final class ManagementRouter
         catch(Throwable){return$this->htmlRequest($r)?$this->errorPage('internal_error',500):Response::json(500,['error'=>'internal_error']);}
     }
 
+    /** Proxy one fixed public catalogue without weakening the UI's same-origin CSP. */
+    private function openRouterModels(): Response
+    {
+        if (!function_exists('curl_init')) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+        $handle = curl_init('https://openrouter.ai/api/v1/models');
+        if ($handle === false) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+        $body = '';
+        try {
+            curl_setopt_array($handle, [
+                CURLOPT_FOLLOWLOCATION=>false, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
+                CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
+                CURLOPT_CONNECTTIMEOUT_MS=>3000, CURLOPT_TIMEOUT_MS=>8000,
+                CURLOPT_HTTPHEADER=>['Accept: application/json'],
+                CURLOPT_WRITEFUNCTION=>static function ($handle, string $chunk) use (&$body): int {
+                    if (strlen($body) + strlen($chunk) > 8_388_608) return 0;
+                    $body .= $chunk;
+                    return strlen($chunk);
+                },
+            ]);
+            $success = curl_exec($handle);
+            if ($success === false || curl_getinfo($handle, CURLINFO_RESPONSE_CODE) !== 200) {
+                return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+            }
+            $payload = json_decode($body, true, 32, JSON_THROW_ON_ERROR);
+            if (!is_array($payload)) return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+            return Response::json(200, ConnectorCatalog::normalizeOpenRouterModels($payload));
+        } catch (Throwable) {
+            return Response::json(502, ['error'=>'model_catalogue_unavailable']);
+        } finally { curl_close($handle); }
+    }
+
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if ($r->method === 'GET' && $path === '/api/v1/llm-models') {
+            if ($r->query !== []) throw new InvalidArgumentException('invalid_model_catalogue_query');
+            return $this->openRouterModels();
+        }
         if($r->method==='POST'&&$path==='/api/v1/quickstart-key'){
             $body=$this->json($r);$keys=array_keys($body);sort($keys);
             if($keys!==['credential','provider']||!is_string($body['provider'])||!is_string($body['credential']))

@@ -8,6 +8,34 @@ use InvalidArgumentException;
 
 final class ConnectorCatalog
 {
+    /** Return only bounded public model fields consumed by the OpenRouter picker. */
+    public static function normalizeOpenRouterModels(array $payload): array
+    {
+        if (!is_array($payload['data'] ?? null) || !array_is_list($payload['data']) || count($payload['data']) > 5000) {
+            throw new InvalidArgumentException('invalid_model_catalogue');
+        }
+        $models = [];
+        foreach ($payload['data'] as $model) {
+            if (!is_array($model)) continue;
+            $id = $model['id'] ?? $model['canonical_slug'] ?? null;
+            if (!is_string($id) || trim($id) === '' || strlen($id) > 256) continue;
+            $prices = [];
+            foreach (['prompt', 'completion'] as $key) {
+                $value = $model['pricing'][$key] ?? null;
+                $prices[$key] = is_numeric($value) && is_finite((float)$value * 1000000) && (float)$value >= 0 ? (string)$value : null;
+            }
+            $context = $model['top_provider']['context_length'] ?? $model['context_length'] ?? null;
+            $models[] = [
+                'id' => $id,
+                'name' => is_string($model['name'] ?? null) ? mb_substr($model['name'], 0, 512) : '',
+                'description' => is_string($model['description'] ?? null) ? mb_substr($model['description'], 0, 4000) : '',
+                'pricing' => $prices,
+                'context_length' => is_int($context) && $context > 0 ? $context : null,
+            ];
+        }
+        return ['data' => $models];
+    }
+
     private const TTS = [
         'pockettts' => ['PocketTTS', true, 'LORKHAN_TTS_POCKETTTS_API_KEY'],
         'omnivoice' => ['OmniVoice', true, 'LORKHAN_TTS_OMNIVOICE_API_KEY'],

@@ -157,6 +157,12 @@ assert re.search(r'<article class="widget">\s*<div class="widget-header"><h3>LOR
 assert all('/ui/images/'+asset in text for asset in ['youtube.png','discord.png','patreon.png'])
 assert 'Management secret' not in text and '/logout' not in text
 csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
+try:
+    urllib.request.urlopen(base+'/LorkhanServer/manage/api/v1/llm-models')
+    raise AssertionError('Model catalogue requires a management session')
+except urllib.error.HTTPError as error:
+    assert error.code==401
+assert request('/LorkhanServer/manage/api/v1/llm-models?url=https%3A%2F%2Fexample.invalid').status==422
 for path,marker,title in [
     ('/LorkhanServer/ui/home.php','dashboard-container','Home'),
     ('/LorkhanServer/ui/events-memories.php','events-memories-navigation','Roleplay'),

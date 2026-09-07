@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked; model browser, provider preference and additional request controls remain |
+| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked. OpenRouter model catalogue, filtering, selection and pricing/context panel implemented; other service catalogues, provider preference and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -2737,3 +2737,66 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Final rollback: `/var/backups/lorkhanserver-code.tJ392E`. All 752 runtime files
   match source, with no extra files or old paths. Private files return 403 on
   8090/8088/8083, unauthenticated sessions return 401 and health is valid.
+
+### OpenRouter model catalogue checkpoint
+
+- Ported the model-field dropdown and information panel from pinned Herika
+  `529364c`, retaining its dark header, list rows, pricing/context details and
+  selected-model recap. Manual model entry and the existing explicit Save form
+  remain authoritative; selecting a catalogue entry only edits that form's model
+  value and dispatches its normal input/change events.
+- Opens only for the direct OpenRouter chat-completions endpoint. Configured,
+  mock and other direct services retain an ordinary text field. No discovery is
+  performed on page load. The browser uses an authenticated same-origin route with a
+  ten-second timeout, shared pending request and cached successful results. The
+  server reads one fixed public URL without API credentials or redirects; TLS
+  verification stays enabled, with an eight-second timeout and 8 MiB response cap.
+  Errors permit manual IDs and later retries.
+  No account keys, model prompts or other connector settings enter this request.
+- Added Arrow Up/Down, Enter and Escape with combobox/listbox semantics, preserving
+  manual focus. Closing the list or changing service cannot be undone by a late
+  catalogue response. Provider strings are text nodes, never HTML or link targets.
+  Catalogue payloads over 5,000 entries are rejected, and model IDs keep the
+  existing 256-character form limit. Missing prices/context are not invented.
+- Compared the actual source editor against the exact reference dropdown script
+  and styles in isolated fixtures. Verified three-row population, ID/name search,
+  no matches, mouse selection, both keyboard directions, information panel,
+  zero-price display, malformed/missing prices and literal markup-like names.
+  The markup fixture created no image elements. Catalogue requests were zero on
+  initial load and one after repeated cached use; switching to OpenAI restored
+  ordinary textbox semantics and did not issue another catalogue request.
+- Failure fixture retained a manually entered model ID. A delayed response stayed
+  closed after Escape. The initial fixture had a JavaScript syntax error in its
+  fetch stub, so its first discovery reached the real public OpenRouter catalogue
+  successfully; no credentials or paid inference were sent. Corrected the fixture
+  before asserting mocked-data results. No live connector was saved.
+- The narrow fixture caught a scrollbar-width error in the first implementation.
+  Positioning now uses the document client width, not window innerWidth. At a
+  390px frame with a scrollbar, the popup fits x=8..367 in a 375px client/scroll
+  width, with no horizontal overflow. Desktop uses the reference content-based
+  minimum width; small screens clamp that width rather than clipping options.
+- Other service catalogues (including Groq), provider preference, additional
+  request controls and full connector import/editor parity remain open. This
+  completes the OpenRouter discovery workflow, not the entire LLM page or goal.
+- The first live-page probe exposed its strict `connect-src self` policy, which
+  correctly blocked direct browser discovery. Added authenticated GET
+  `/manage/api/v1/llm-models` rather than relaxing CSP. The endpoint accepts no
+  query parameters or provider URL, cannot attach stored provider keys, and
+  projects only bounded model IDs, names, descriptions, prices and context.
+  Added four existing-suite checks for Unicode bounds, free/invalid prices,
+  unknown-field removal, empty payloads and catalogue size/shape rejection.
+  The HTTP suite checks missing-session rejection and rejects caller-supplied
+  URLs before any network request. Final tests and live proxy evidence follow.
+- Final validation passed: JavaScript syntax, PHP lint, 98 protocol files,
+  383 server checks, management HTTP forms (including the new session/query
+  guards), integration, migrations and durable jobs. No schema change.
+- Deployed with rollback `/var/backups/lorkhanserver-code.AbUycS`. All 752 runtime
+  files match source, with no extra files or old paths. Configuration, credential
+  and voice hashes are preserved. Live unauthenticated catalogue access returns
+  401, and the page still uses `connect-src self`.
+- Live authenticated discovery returned 430 model choices through the proxy.
+  Filtering selected exactly one `deepseek/deepseek-chat-v3-0324` entry; clicking
+  it populated the existing Model input and its pricing/context panel and closed
+  the dropdown. No connector was saved and no inference or game operation ran.
+  The empty-catalogue fixture also rendered No matches without disabling manual
+  input. The broader page-parity goal remains active.
