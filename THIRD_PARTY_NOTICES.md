@@ -209,3 +209,11 @@ table and content editor presentation from pinned HerikaServer `ui/diarylog.php`
 and `ui/css/diary_adventure.css` under the same MIT license. Lorkhan retains its
 native narrator/diary/summary kinds, scoped creation and diary generation, with
 accessible native dialogs and the existing authenticated mutation endpoints.
+
+`ui/diagnostics.php`, `ui/backup_health.php`, `ui/tmpl/backup_retention.html.php`
+and `ui/js/backup-retention.js`
+reuse the attributed Herika Request Logs operational reader. Summary tiles and
+the retention instruction panel in `ui/css/operational-log.css` adapt the
+Dwemer-Dashboard `database_manager.php` presentation at the revision above.
+These are native Lorkhan diagnostic pages, not copies of a CHIM health API;
+only recorded metadata and database counts are presented.

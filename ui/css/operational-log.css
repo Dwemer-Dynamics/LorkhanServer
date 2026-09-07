@@ -7,3 +7,21 @@
 .operational-log-page .col-error_code, .operational-log-page .col-last_error_code { font-family:Consolas,"Courier New",monospace; }
 .operational-log-page .btn-row a[aria-current="true"] { outline:1px solid #bc9d5a; outline-offset:1px; }
 .operational-log-page .table-container:focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+.operational-log-page .col-audit_id,.operational-log-page .col-backup_id { width:155px; font-family:Consolas,"Courier New",monospace; }
+.operational-log-page .col-scope { width:220px; overflow-wrap:anywhere; }
+.operational-log-page .scope-identifiers { white-space:pre-line; }
+.operational-log-page .col-created_utc,.operational-log-page .col-restored_utc { width:145px; }
+/* Summary tiles and retention panel follow the actual CHIM-embedded Dashboard database tools. */
+.operational-log-page .operational-summary h2,.operational-log-page .operational-subtitle { font-size:22px; margin:20px 0 12px; }
+.operational-log-page .operational-stats { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:15px 0; }
+.operational-log-page .operational-stats>div { background:rgba(26,26,26,.8); border:1px solid #3a3a3a; padding:10px; border-radius:8px; text-align:center; }
+.operational-log-page .operational-stats dt { margin:0 0 5px; color:#f8f9fa; font-size:14px; font-weight:normal; }
+.operational-log-page .operational-stats dd { margin:0; color:#f8f9fa; font-size:16px; font-weight:bold; overflow-wrap:anywhere; }
+.operational-log-page .operational-retention { background:rgba(23,101,41,.1); border:1px solid #176529; border-radius:8px; padding:15px; margin:20px 0; }
+.operational-log-page .operational-retention summary { cursor:pointer; color:#f8f9fa; font-weight:bold; }
+.operational-log-page .operational-retention p { font-size:14px; margin:12px 0; }
+.operational-log-page .operational-retention form { display:flex; align-items:end; flex-wrap:wrap; gap:12px; margin:12px 0; }
+.operational-log-page .operational-retention label { display:grid; gap:6px; font-size:14px; }
+.operational-log-page .operational-retention input { max-width:160px; margin:0; }
+body .operational-log-page .operational-retention button.btn-danger { background:#8f1f2e !important; border-color:#a43846 !important; padding:7px 12px !important; margin:0 !important; min-height:0 !important; font-size:12px !important; }
+@media(max-width:768px) { .operational-log-page .operational-stats { grid-template-columns:repeat(2,minmax(0,1fr)); } }

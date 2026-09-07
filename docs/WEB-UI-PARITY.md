@@ -106,8 +106,8 @@ do not use an exception to excuse a generic substitute layout.
 | `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
 | `game_debug.php` | Shared operational style | Pending structural and populated-state comparison |
 | `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Header, tools, backup cards and migration table replaced and visually compared. Native configuration backup create/download/restore verified; full SQL backup/import, automatic backups, database access, maintenance/reset and version-reset controls remain missing, not accepted product exceptions. |
-| `diagnostics.php` | Shared operational style | Pending structural and populated-state comparison |
-| `backup_health.php` | Shared operational style | Pending structural and populated-state comparison |
+| `diagnostics.php` | Herika Request Logs operational layout + Dashboard summary tiles; native health data | Server-wide snapshot and paged audit with identifier-only scope. Populated/empty desktop and narrow source/reference style comparisons, HTTP redaction/UTC and deployed checks passed. Counts explicitly do not claim worker/provider connectivity. |
+| `backup_health.php` | Herika Request Logs operational layout + Dashboard instruction panel; native backup data | Explicit backup columns, paging, safe CSV and explained retention scope. Populated/empty desktop/narrow comparison, native confirmation keyboard checks, HTTP and local deployment passed. Backup metadata does not claim file-integrity verification. |
 | `narrative_manager.php` | Herika `diarylog.php` entry table/editor; native create/generate extension | Replaced inline forms/cards with a compact searchable paged table, content-first editor, create/generate dialogs and separate delete confirmation. Source/reference editor and table styling compared; CRUD and generation refusal covered by existing HTTP tests. No equivalent standalone manual narrative manager exists in Herika. |
 
 Redirects `core/character_manager.php` and `core/global_settings.php` resolve to
@@ -2318,3 +2318,35 @@ Remaining Core Profile requirements identified from the pinned source and live e
   installation, 13 available profiles and one playthrough, then were cancelled.
   No live narrative was created/deleted, no generation was queued, and no game
   was launched or controlled. The remaining all-page goal is still active.
+
+## Server Health and Backup Health checkpoint
+
+- Replaced generic output with the shared Herika Request Logs presentation:
+  compact toolbar, explicit columns, UTC timestamps, page navigation, filters and
+  displayed-page CSV. Audit scope exports only allowlisted identifier keys;
+  arbitrary scope/detail and backup paths/payloads are not rendered.
+- Dashboard-derived summary tiles report database connectivity and recorded
+  counts. Backup status is recorded metadata, not a filesystem integrity check.
+- Retention remains the existing server-wide operation. The panel explains that
+  days apply to request deduplication, while rate-limit/session cleanup has its
+  existing rules. Backups, narratives, memories, voices and saves are retained.
+  A native dialog requires explicit confirmation; no retention operation was run.
+- Compared source-rendered populated and empty states at desktop and 390px with
+  pinned operational styles and the actual Dashboard summary/panel CSS fixture.
+  Scope identifiers have no spurious leading line. Narrow tables scroll locally;
+  empty messages wrap. The confirmation displays edited days, initially focuses
+  Cancel, supports Tab and Escape, and restores focus. The earlier browser-native
+  confirmation stall was replaced with this verified in-page dialog.
+- PHP lint, 98 protocol files, 370 server checks, management HTTP, integration,
+  migrations and durable-job checks passed. After the dialog replacement, Node
+  syntax, PHP template lint and management HTTP were rerun successfully. Existing
+  HTTP coverage verifies safe audit CSV, historic UTC filtering, backup creation
+  visibility and retention markup without invoking retention.
+- Local deployment verified 742 matching runtime files, no extras/old paths,
+  protected paths returning 403 and unauthenticated session creation returning
+  401. Configuration, credentials and voices were preserved. Rollback:
+  `/var/backups/lorkhanserver-code.ORYbMF`. Live health and backup readers showed
+  their actual empty audit/backup states and database snapshot correctly.
+  No game launch/control, provider request or live retention was performed.
+  These native pages have no exact CHIM health counterpart; their presentation
+  follows the referenced operational components. The all-page goal remains open.

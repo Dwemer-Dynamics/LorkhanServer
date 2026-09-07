@@ -8,6 +8,8 @@ include __DIR__.'/head.html'; if (!$embedded) include __DIR__.'/navbar.php';
 ?>
 <main class="request-log-page operational-log-page"><div class="tab-content">
     <h1 id="page-title" class="page-title"><?= lorkhan_ui_h($pageTitle) ?></h1>
+    <?php if (isset($monitoringSummary)): ?><section class="operational-summary" aria-labelledby="operational-summary-title"><h2 id="operational-summary-title">Server-wide snapshot</h2><dl class="operational-stats"><?php foreach ($monitoringSummary as $label=>$value): ?><div><dt><?= lorkhan_ui_h($label) ?></dt><dd><?= lorkhan_ui_h($value) ?></dd></div><?php endforeach; ?></dl><p class="meta-line">Database connection and recorded counts at page load. Worker availability and provider connectivity are not probed.</p></section><h2 class="operational-subtitle">Operational audit</h2><?php endif; ?>
+    <?php if (isset($operationalPanel)) include $operationalPanel; ?>
     <div class="btn-row">
         <?php if ($state['page']>1): ?><a class="btn-base btn-primary" href="<?= lorkhan_ui_h(lorkhan_control_url($state,['page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
         <?php if ($state['page']<$state['pages']): ?><a class="btn-base btn-primary" href="<?= lorkhan_ui_h(lorkhan_control_url($state,['page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
@@ -22,7 +24,7 @@ include __DIR__.'/head.html'; if (!$embedded) include __DIR__.'/navbar.php';
             <input type="hidden" name="limit" value="<?= $state['limit'] ?>">
             <label>Installation<select name="installation_id"><option value="">All Installations</option><?php foreach ($state['installations'] as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['installation']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
             <label>Period<select name="period"><?php foreach ($state['periods'] as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['period']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
-            <label>Status<select name="state"><option value="">All States</option><?php foreach ($states as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['state']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label>
+            <?php if ($states!==[]): ?><label>Status<select name="state"><option value="">All States</option><?php foreach ($states as $id=>$name): ?><option value="<?= lorkhan_ui_h($id) ?>"<?= $id===$state['state']?' selected':'' ?>><?= lorkhan_ui_h($name) ?></option><?php endforeach; ?></select></label><?php endif; ?>
             <label class="control-reader-search">Search<input type="search" name="q" maxlength="200" value="<?= lorkhan_ui_h($state['query']) ?>" placeholder="<?= lorkhan_ui_h($searchPlaceholder) ?>"></label>
             <button type="submit" class="control-reader-button">Apply</button>
         </form>
@@ -33,8 +35,9 @@ include __DIR__.'/head.html'; if (!$embedded) include __DIR__.'/navbar.php';
     <?php else: ?><table><thead><tr><?php foreach ($columns as $key=>$label): ?><th scope="col" class="col-<?= lorkhan_ui_h($key) ?>"><?= lorkhan_ui_h($label) ?></th><?php endforeach; ?></tr></thead><tbody>
         <?php foreach ($state['rows'] as $row): ?><tr><?php foreach ($columns as $key=>$_label): ?>
             <td class="col-<?= lorkhan_ui_h($key) ?>">
-            <?php if ($key==='state'): $statusClass=match($row[$key]){'succeeded'=>'status-success','failed','dead'=>'status-error',default=>'status-unknown'}; ?>
+            <?php if ($key==='state'): $statusClass=match($row[$key]){'succeeded','created','restored'=>'status-success','failed','dead'=>'status-error',default=>'status-unknown'}; ?>
                 <span class="status-pill <?= $statusClass ?>"><?= lorkhan_ui_h($states[$row[$key]]??'Unknown') ?></span>
+            <?php elseif ($key==='scope'): ?><span class="scope-identifiers"><?= lorkhan_ui_h($row[$key]??'—') ?></span>
             <?php else: ?><?= lorkhan_ui_h($row[$key]??'—') ?><?php endif; ?>
             </td>
         <?php endforeach; ?></tr><?php endforeach; ?>

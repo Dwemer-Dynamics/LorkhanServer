@@ -54,6 +54,10 @@ FROM (VALUES
  ('unknown','2020-12-31 12:00:00+00','{"usage":{"cost_usd":-1}}'),
  ('unknown','2020-12-31 12:00:00+00','{"usage":{"cost_usd":"2"}}')
 ) fixture(operation,started,metadata);
+INSERT INTO lorkhan_internal.operational_audit(audit_id,category,action,scope,detail,created_at)
+VALUES (md5('health-reader-fixture')::uuid,'health-reader-fixture','safe_scope',
+    '{"installation_id":"00000000-0000-4000-8000-000000000001","profile_id":"00000000-0000-4000-8000-000000000099","api_key":"hidden-scope-fixture"}',
+    '{"raw_error":"hidden-audit-detail-fixture"}','2020-12-31 12:00:00+00');
 SQL
 PHP_CLI_SERVER_WORKERS=2 LORKHAN_CONFIG="$CONFIG" LORKHAN_TEST_DSN="$DSN" LORKHAN_TEST_PROVIDER_CONTROL="$TMP/control" \
  LORKHAN_PAIRING_TOKEN_HASH="$TOKEN_HASH" LORKHAN_MANAGEMENT_SECRET_HASH="$MANAGE_HASH" \

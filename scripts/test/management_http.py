@@ -251,6 +251,21 @@ for filters in ['q=diary','q=%25','state=failed','installation_id=00000000-0000-
     assert ('Showing 3 of 3 records.' in filtered) if filters=='q=diary' else ('No provider attempts match these filters.' in filtered)
 _,jobs_empty=parse(request('/LorkhanServer/ui/jobs.php?q=unmatched-operational-fixture'))
 assert 'No durable jobs match these filters.' in jobs_empty and 'operational-log-page' in jobs_empty
+_,health_reader=parse(request('/LorkhanServer/ui/diagnostics.php?q=health-reader-fixture'))
+assert 'Server-wide snapshot' in health_reader and 'Showing 1 of 1 records.' in health_reader
+assert 'safe_scope' in health_reader and '00000000-0000-4000-8000-000000000099' in health_reader
+assert 'hidden-scope-fixture' not in health_reader and 'hidden-audit-detail-fixture' not in health_reader
+health_export=request('/LorkhanServer/ui/diagnostics.php?q=health-reader-fixture&export=csv')
+health_rows=list(csv.DictReader(io.StringIO(health_export.read().decode('utf-8-sig'))))
+assert len(health_rows)==1 and health_rows[0]['Time (UTC)']=='31-12-2020 12:00:00'
+assert 'hidden-' not in str(health_rows) and set(health_rows[0])=={'Audit ID','Time (UTC)','Category','Action','Scope'}
+_,health_recent=parse(request('/LorkhanServer/ui/diagnostics.php?q=health-reader-fixture&period=24h'))
+assert 'No operational audit records match these filters.' in health_recent
+backup_health,backup_health_html=parse(request('/LorkhanServer/ui/backup_health.php'))
+assert 'No backups match these filters.' in backup_health_html and 'Operational retention' in backup_health_html
+assert 'Backups, NPC memories, narrative entries, voice files and game saves are retained.' in backup_health_html
+retention_form=next(f for f in backup_health.forms if f['action'].endswith('/forms/retention'))
+assert retention_form['fields']['days']=='30' and 'data-retention-confirm' in backup_health_html and 'id="operational-retention-confirm"' in backup_health_html
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
 assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
 assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
@@ -1177,6 +1192,12 @@ assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=sa
 assert 'class="server-file-list"' in body and 'name="backup_id"' in body and 'Type Restore to confirm' in body and 'Created ' in body and ' UTC' in body
 backup_ids_after=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body)); created_backup_ids=backup_ids_after-backup_ids_before; assert len(created_backup_ids)==1,(backup_ids_before,backup_ids_after)
 configuration_backup_id=created_backup_ids.pop()
+_,backup_health_html=parse(request('/LorkhanServer/ui/backup_health.php?q='+configuration_backup_id))
+assert 'Showing 1 of 1 records.' in backup_health_html and configuration_backup_id in backup_health_html
+backup_metadata=request('/LorkhanServer/ui/backup_health.php?q='+configuration_backup_id+'&export=csv')
+backup_metadata_rows=list(csv.DictReader(io.StringIO(backup_metadata.read().decode('utf-8-sig'))))
+assert len(backup_metadata_rows)==1 and backup_metadata_rows[0]['Status']=='created' and backup_metadata_rows[0]['Kind']=='configuration'
+assert valid['installation_id'] in backup_metadata_rows[0]['Scope']
 backup_response=request('/LorkhanServer/manage/exports/backups/'+configuration_backup_id+'.json'); configuration_backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and configuration_backup['schema']=='lorkhan.configuration-backup.v2' and configuration_backup['format_version']==2 and configuration_backup['installation_id']==valid['installation_id']
 core_ids={row['core_profile_id'] for row in configuration_backup['data']['core_profiles']}; assert len(core_ids)>=1 and sum(row['default_npc'] is True for row in configuration_backup['data']['core_profiles'])==1
