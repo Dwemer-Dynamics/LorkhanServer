@@ -32,7 +32,7 @@ final class DiaryGenerationPolicy
             ||$settings['automatic_interval_seconds']<30||$settings['automatic_interval_seconds']>86400))
             throw new InvalidArgumentException('invalid_settings_overrides');
         if(array_key_exists('context_turn_limit',$settings)&&(!is_int($settings['context_turn_limit'])
-            ||$settings['context_turn_limit']<1||$settings['context_turn_limit']>100))throw new InvalidArgumentException('invalid_settings_overrides');
+            ||$settings['context_turn_limit']<0||$settings['context_turn_limit']>400))throw new InvalidArgumentException('invalid_settings_overrides');
         if(array_key_exists('prompt',$settings)&&(!is_string($settings['prompt'])||trim($settings['prompt'])===''
             ||strlen($settings['prompt'])>8192||!mb_check_encoding($settings['prompt'],'UTF-8')))
             throw new InvalidArgumentException('invalid_settings_overrides');

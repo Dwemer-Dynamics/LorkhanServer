@@ -1319,6 +1319,11 @@ $db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id
     ->execute(['rowid'=>$diaryRowId,'installation'=>$installation,'playthrough'=>$playthrough['playthrough_id'],
         'profile'=>$diaryProfile['profile_id'],'turn'=>$diaryTurn,'key'=>'diary-test:'.$diaryTurn,
         'speaker'=>json_encode($diaryActor,JSON_THROW_ON_ERROR|JSON_UNESCAPED_SLASHES)]);
+$diaryEvent->execute(['data'=>'An older witnessed event outside inherited history.']);$olderDiaryRow=(int)$diaryEvent->fetchColumn();
+$db->prepare("INSERT INTO eventlog_metadata(rowid,installation_id,playthrough_id,profile_id,turn_id,projection_kind,projection_key,speaker,target,audience,payload,created_at) SELECT :older,installation_id,playthrough_id,profile_id,:turn,'diary_test',:key,speaker,target,audience,payload,created_at-interval '1 day' FROM eventlog_metadata WHERE rowid=:current")
+    ->execute(['older'=>$olderDiaryRow,'turn'=>Uuid::v4(),'key'=>'diary-test-older:'.Uuid::v4(),'current'=>$diaryRowId]);
+$diaryCoreContent['settings_overrides']['diary']['context_turn_limit']=0;
+$diaryCoreContent['settings_overrides']['memory']['recent_turn_limit']=1;
 $diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
 $service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'route future manual diaries for this profile');
 $diaryJob=$products->enqueueDiaryGeneration($diaryScope);

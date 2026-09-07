@@ -4761,3 +4761,25 @@ The reference editor navigation resolved a profile list item but did not expose
 the expected metadata control to the probe, so a rendered counterpart comparison
 is still unproven; source label/range/help were inspected instead. Do not treat
 this as final visual acceptance or full Core Profile preset parity.
+
+
+### Diary Context range and inheritance (2026-09-07)
+
+The pinned Core metadata editor permits diary context 0-400 and defines zero as
+inherit regular Context History. Native validation/UI previously allowed 1-100.
+Updated validation and the paired range/number control to 0-400; the diary job
+uses effective regular history for zero. Expanded the bounded candidate query
+from 300 to 1600 rows so a larger selected turn limit can be reached, while
+retaining the 64 KiB context budget and existing witnessed/delivered filters.
+Defaults remain unchanged. Named and portable presets use the same validation.
+
+565 unit checks and the full management HTTP suite passed, including saving,
+reopening and exporting/importing diary history 150. The existing diary job
+fixture exercises zero inheriting a one-turn regular limit, with an older eligible
+event excluded. No provider calls or game actions were made on the live runtime.
+
+Reference editor DOM inspection resolved edit=1 and found Context/Diary controls
+but no dynamic-history control in its live field inventory. Its absence differs
+from the pinned metadata source and explains the previous screenshot lookup
+failure; do not confuse that live-reference gap with a native navigation bug.
+The ordinary Context control's range and remaining preset mappings remain open.

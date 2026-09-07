@@ -920,7 +920,9 @@ final class ProductRepository
             foreach(['kind','record_id','content_file','refnum']as$field)if(array_key_exists($field,$identity))$actor[$field]=$identity[$field];
             if(!isset($actor['kind']))$actor['kind']='actor';
             $actorJson=$this->encode($actor);$audienceJson=$this->encode([$actor]);
-            $limit=(int)($diary['context_turn_limit']??20);$candidateLimit=min(300,max(20,$limit*4));
+            $limit=(int)($diary['context_turn_limit']??20);
+            if($limit===0)$limit=(int)($effective['settings']['memory']['recent_turn_limit']??20);
+            $candidateLimit=min(1600,max(20,$limit*4));
             $historyStatement=$this->db->prepare("SELECT m.turn_id,m.created_at,e.type,e.data,e.people,e.location,e.gamets,m.speaker,m.target "
                 ."FROM eventlog e JOIN eventlog_metadata m ON m.rowid=e.rowid WHERE m.installation_id=:installation "
                 ."AND m.playthrough_id=:playthrough AND m.suppressed_at IS NULL AND e.type IN ('inputtext','chat','location','weather','death','infoaction','rechat','narration','quest','book') "
