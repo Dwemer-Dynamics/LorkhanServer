@@ -1,6 +1,6 @@
 // Shows only the LLM connector fields the selected mode uses, without clearing any saved value.
 (() => {
-    // Keep the explicit saved-connector test in Herika's reader without navigating or saving drafts.
+    // Match Herika's save-then-test flow while retaining the editor and refusing tests after failed saves.
     const testForm = document.querySelector('[data-llm-test-form]');
     const testDialog = document.getElementById('llm-test-dialog');
     if (testForm && testDialog) {
@@ -17,17 +17,27 @@
         testForm.addEventListener('submit', async event => {
             event.preventDefault();
             if (pending) return;
+            const editor = document.getElementById('llm-revise-form');
+            if (!editor || !editor.reportValidity()) return;
+            const settings = new FormData(editor);
+            let saved = false;
             pending = true;
             button.disabled = true;
             result.className = '';
-            result.textContent = 'Testing saved settings… Closing this dialog does not cancel the server request.';
-            testDialog.querySelector('[data-llm-test-name]').textContent = testForm.dataset.connectorName;
+            result.textContent = 'Saving settings before testing… Closing this dialog does not cancel the server request.';
+            testDialog.querySelector('[data-llm-test-name]').textContent = settings.get('name') || testForm.dataset.connectorName;
             testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => { panel.textContent = 'Waiting for test…'; });
             loader.hidden = false;
             testDialog.showModal();
             const controller = new AbortController();
             const timeout = setTimeout(() => controller.abort(), 130000);
             try {
+                const saveResponse = await fetch(editor.action, {method:'POST', body:settings,
+                    headers:{Accept:'application/json'}, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
+                const saveResult = await saveResponse.json();
+                if (!saveResponse.ok || saveResult.ok !== true) throw new Error('save_failed');
+                saved = true;
+                result.textContent = 'Settings saved. Testing connector…';
                 const response = await fetch(testForm.action, {method:'POST', body:new FormData(testForm),
                     headers:{Accept:'application/json'}, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
                 const payload = await response.json();
@@ -43,7 +53,9 @@
                 result.textContent = payload.message;
                 result.className = 'llm-test-ok';
             } catch {
-                result.textContent = 'Test failed. Check the saved connector, API key and server logs. Your editor changes were not saved.';
+                result.textContent = saved
+                    ? 'Settings saved, but the test failed. Check the connector, API key and server logs.'
+                    : 'Save could not be confirmed. The test was not run. Reload to check the saved settings before retrying.';
                 result.className = 'llm-test-error';
                 testDialog.querySelectorAll('[data-llm-diagnostic]').forEach(panel => {
                     if (panel.textContent === 'Waiting for test…') panel.textContent = 'No diagnostic response was received.';

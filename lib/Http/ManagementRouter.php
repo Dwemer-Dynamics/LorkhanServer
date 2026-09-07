@@ -588,6 +588,7 @@ final class ManagementRouter
                 'installation_id'=>$memoryReturnScope['installation_id'],'playthrough_id'=>$memoryReturnScope['playthrough_id']]));
         }
         if($domain==='profile-bulk-switch'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]+$result);
+        if($domain==='provider-revise'&&!$this->htmlRequest($r))return Response::json(200,['ok'=>true]);
         if($domain==='configuration-revise'&&($v['prompt_text_editor']??'')==='1'&&!$this->htmlRequest($r))
             return Response::json(200,['ok'=>true,'revision'=>(int)$result['current_revision']]);
         if($domain==='global-settings-save')return$this->redirect($this->uiPath('world').'&status=saved');
@@ -2609,6 +2610,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/provider-revise')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/player-speech-style-generate')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))

@@ -3964,3 +3964,28 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   no extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
   credentials and voices preserved. Reference autosave-on-Test behavior, full import
   interactions and remaining page matrix items are not claimed complete here.
+
+## LLM Test save-first interaction parity — 2026-09-07
+
+- Matched the pinned Herika Test handler's save-then-test sequence. The visible
+  notice now explicitly says Test saves settings and may incur provider charges.
+  This supersedes the earlier saved-settings-only UI choice; standalone API test
+  calls still test saved records without implicitly revising them.
+- The editor validates native controls, snapshots its associated form, awaits an
+  explicit JSON save success and only then submits the existing provider test.
+  Save failures/ambiguous replies do not proceed to testing. The dialog distinguishes
+  an unconfirmed save from a saved configuration whose provider test failed.
+  The no-JavaScript notice instructs users to Save first before the fallback Test.
+- Existing provider revision endpoint now negotiates a minimal JSON success for
+  this flow, with the same validation/CSRF checks and unchanged HTML redirects.
+- Actual isolated browser changed name/model without clicking Save, then Test
+  reported the new name/model at revision 2. Invalid YAML entered in the actual
+  Ace editor was rejected and produced the save-unconfirmed/test-not-run state.
+  No production settings/provider request/game control. Fixture server stopped.
+- Passed 511 server checks, 98 protocol files, PHP lint, HTTP forms including JSON
+  save success/rejection, integration, migrations and durable jobs; JS syntax and
+  whitespace checks passed. Final additional markup only explains the JS-off case.
+- Local rollback /var/backups/lorkhanserver-code.GdvRuE; all 789 files match, no
+  extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
+  credentials and voices preserved. Read-only live editor shows the new notice.
+  Import interactions and the remaining full page matrix are still open.

@@ -1456,6 +1456,8 @@ assert 'id="llm-test-dialog"' in body and 'data-llm-test-loading' in body
 revise=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
 values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-v2',mock_prefix='[revised] ',change_reason='HTTP model-slot test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
+r=request(revise['action'],'POST',values,accept='application/json'); assert r.status==200 and json.load(r)=={'ok':True}
+r=request(revise['action'],'POST',dict(values,model=''),accept='application/json'); assert r.status==422 and 'error' in json.load(r)
 core_list,core_body=parse(request('/LorkhanServer/ui/core/core_profiles.php'))
 core_edit=re.search(r'core_profiles\.php\?edit=([0-9a-f-]{36})',core_body); assert core_edit,core_body
 assert '/exports/core-profile-settings/'+core_edit.group(1)+'.json' in core_body and '>Import</a>' in core_body

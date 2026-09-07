@@ -347,7 +347,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <?php if (!$creating): ?>
                                 <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test" data-llm-test-form data-connector-name="<?php echo lorkhan_ui_h($selected['name']); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary llm-test-button" type="submit">Test</button></form>
                                 <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
-                                <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
+                                <div class="llm-test-note">Test saves these settings first, then checks the connector. Provider charges may apply.</div>
+                                <noscript><div class="llm-test-note">With JavaScript off, save changes before pressing Test.</div></noscript>
                                 <?php endif; ?>
                                 <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                             </div>
@@ -498,7 +499,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <h2 id="llm-test-title">🔧 LLM Connector Test</h2>
             <div class="llm-test-panel"><strong>Connector:</strong> <span data-llm-test-name></span></div>
             <div class="llm-test-panel" role="status" aria-live="polite"><strong>Status:</strong> <span data-llm-test-result></span></div>
-            <div class="llm-test-panel"><strong>Test input:</strong><pre>Reply with one brief in-character greeting.</pre><p>Uses saved connector settings. Does not queue game dialogue or change this editor.</p></div>
+            <div class="llm-test-panel"><strong>Test input:</strong><pre>Reply with one brief in-character greeting.</pre><p>Tests the settings saved by this click. Does not queue game dialogue.</p></div>
             <div class="llm-test-panel"><strong>Saved connector:</strong><pre data-llm-diagnostic="connector">Not tested yet.</pre></div>
             <div class="llm-test-panel"><strong>Validated response / Actions:</strong><pre data-llm-diagnostic="response">Not tested yet.</pre></div>
             <div class="llm-test-panel"><strong>Request payload:</strong><pre data-llm-diagnostic="request">Not tested yet.</pre></div>
