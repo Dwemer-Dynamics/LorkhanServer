@@ -7,6 +7,8 @@
     const session=app.querySelector('[data-debug-session]');
     const feedback=app.querySelector('[data-debug-feedback]');
     const history=app.querySelector('[data-debug-history]');
+    const historyTable=app.querySelector('[data-debug-table]');
+    const emptyHistory=app.querySelector('[data-debug-empty]');
     const count=app.querySelector('[data-debug-count]');
     const connection=document.querySelector('[data-debug-connection]');
     let busy=false;
@@ -21,21 +23,24 @@
         const enabled=Boolean(selected()&&supported()&&!busy);
         app.querySelectorAll('[data-debug-command],[data-debug-refresh]').forEach(button=>{button.disabled=!enabled;});
         if(connection){connection.textContent=!selected()?'Game offline':supported()?'Game connected':'Client update required';
-            connection.className='lorkhan-state-pill '+(supported()?'is-success':selected()?'is-warning':'is-neutral');}
+            connection.className='status-pill '+(supported()?'status-success':'status-unknown');}
     };
     const cell=(text)=>{const td=document.createElement('td');td.textContent=text;return td;};
     const render=(items)=>{
         history.replaceChildren();
-        if(!items.length){const row=document.createElement('tr');const empty=cell('No debug commands have been sent.');empty.colSpan=5;row.append(empty);history.append(row);}
+        historyTable.hidden=items.length===0;
+        emptyHistory.hidden=items.length!==0;
         for(const item of items){
             const row=document.createElement('tr');
             row.append(cell(item.name||'Unknown'));
             row.append(cell(JSON.stringify(item.parameters||{})));
-            const status=cell('');const pill=document.createElement('span');pill.className='lorkhan-state-pill '+
-                (item.state==='succeeded'?'is-success':item.state==='queued'||item.state==='delivered'?'is-warning':item.state==='failed'||item.state==='rejected'||item.state==='expired'?'is-danger':'is-neutral');
+            const status=cell('');const pill=document.createElement('span');pill.className='status-pill '+
+                (item.state==='succeeded'?'status-success':['failed','rejected','expired'].includes(item.state)?'status-error':'status-unknown');
             pill.textContent=String(item.state||'unknown').replaceAll('_',' ');status.append(pill);row.append(status);
             const result=item.observed&&Object.keys(item.observed).length?JSON.stringify(item.observed):item.reason_code||'—';
-            row.append(cell(result));row.append(cell(item.created_at||'—'));history.append(row);
+            const created=new Date(item.created_at||'');
+            const timestamp=Number.isNaN(created.getTime())?'—':created.toLocaleString('en-GB',{timeZone:'UTC',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',second:'2-digit',hour12:false}).replaceAll('/','-').replace(',','');
+            row.append(cell(result));row.append(cell(timestamp));history.append(row);
         }
         if(count)count.textContent=`${items.length} command${items.length===1?'':'s'}`;
     };

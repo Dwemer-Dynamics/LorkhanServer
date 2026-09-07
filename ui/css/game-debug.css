@@ -1,1 +1,34 @@
-.game-debug-page{gap:1rem}.debug-session-card,.debug-history-card{margin-bottom:1rem}.debug-session-row{display:grid;grid-template-columns:auto minmax(14rem,1fr) auto;align-items:end;gap:.75rem}.debug-session-row label{grid-column:1/-1;margin:0}.debug-session-row select{min-width:0}.debug-feedback{min-height:1.5rem;margin:.5rem 1rem 0;color:var(--color-text-muted,#b7b7b7)}.debug-feedback.is-error{color:#ff9f9f}.debug-command-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem;margin-bottom:1rem}.debug-command-card:last-child{grid-column:1/-1}.debug-switch-list{display:grid;gap:.65rem}.debug-switch-row{display:flex;align-items:center;justify-content:space-between;gap:1rem;padding:.5rem 0;border-bottom:1px solid rgba(188,157,90,.2)}.debug-switch-row:last-child{border-bottom:0}.debug-button-pair,.debug-button-grid{display:flex;flex-wrap:wrap;gap:.5rem}.debug-button-pair .btn-base{min-width:4rem}.debug-button-grid .btn-base{flex:1 1 8rem}.debug-help{margin:.75rem 0 0;color:var(--color-text-muted,#b7b7b7)}.debug-history-card table{width:100%}.debug-history-card td{vertical-align:top;max-width:26rem;overflow-wrap:anywhere}@media(max-width:760px){.debug-command-grid{grid-template-columns:1fr}.debug-command-card:last-child{grid-column:auto}.debug-session-row{grid-template-columns:1fr}.debug-switch-row{align-items:flex-start;flex-direction:column}}
+/* OpenMW-only controls in the pinned Herika Request Logs operational presentation. */
+.game-debug-page .debug-page-header,.game-debug-page .debug-history-heading { display:flex; align-items:baseline; justify-content:space-between; flex-wrap:wrap; gap:8px; }
+.game-debug-page .debug-notes { font-size:12px; color:#aaa; margin:10px 0; }
+.game-debug-page .debug-notes summary { cursor:pointer; }
+.game-debug-page .debug-notes p { margin:10px 0 0; }
+.game-debug-page .debug-session-row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:20px 0 0; }
+.game-debug-page .debug-session-row label { font-size:12px; }
+.game-debug-page .debug-session-row select { flex:1; min-width:180px; width:auto; margin:0; padding:7px 10px; font-size:12px; background:#222; border:1px solid #555; border-radius:6px; color:#ddd; }
+body .game-debug-page button.btn-base { background:#3a3a3a !important; color:#f8f9fa !important; border:1px solid #595959 !important; padding:7px 12px !important; min-height:0 !important; margin:0 !important; font-size:12px !important; line-height:18px !important; }
+.game-debug-page .debug-feedback { margin:8px 0; font-size:12px; color:#aaa; }
+.game-debug-page .debug-feedback:empty { display:none; }
+.game-debug-page .debug-feedback.is-error { color:#ffb0b0; }
+.game-debug-page .debug-command-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:20px; margin:20px 0; }
+.game-debug-page .debug-command-card { padding:16px; border:1px solid #3a3a3a; border-radius:8px; background:rgba(26,26,26,.35); }
+.game-debug-page h2 { font-size:18px; margin:0 0 12px; }
+.game-debug-page .debug-switch-row { display:flex; align-items:center; justify-content:space-between; gap:10px; padding:6px 0; border-bottom:1px solid #ffffff0d; font-size:13px; }
+.game-debug-page .debug-switch-row:last-child { border-bottom:0; }
+.game-debug-page .debug-button-pair { display:flex; gap:6px; }
+.game-debug-page .debug-button-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:8px; }
+.game-debug-page .debug-reload-title { margin:20px 0 10px; }
+.game-debug-page .debug-history-heading h2 { margin:0; }
+.game-debug-page .table-container { max-height:50vh; margin-top:12px; }
+.game-debug-page table { min-width:800px; }
+.game-debug-page table[hidden] { display:none; }
+.game-debug-page th:nth-child(1) { width:160px; }
+.game-debug-page th:nth-child(3) { width:115px; }
+.game-debug-page th:nth-child(5) { width:145px; }
+.game-debug-page td:not(:nth-child(3)) { font-family:Consolas,"Courier New",monospace; overflow-wrap:anywhere; }
+.game-debug-page button:focus-visible,.game-debug-page select:focus-visible,.game-debug-page summary:focus-visible,.game-debug-page .table-container:focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+@media(max-width:768px) {
+    .game-debug-page .debug-command-grid { grid-template-columns:1fr; gap:12px; }
+    .game-debug-page .debug-session-row label { flex-basis:100%; }
+    .game-debug-page .debug-session-row select { width:100%; flex-basis:100%; min-width:0; }
+}

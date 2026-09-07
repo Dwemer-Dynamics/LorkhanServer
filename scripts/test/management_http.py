@@ -266,6 +266,11 @@ assert 'No backups match these filters.' in backup_health_html and 'Operational 
 assert 'Backups, NPC memories, narrative entries, voice files and game saves are retained.' in backup_health_html
 retention_form=next(f for f in backup_health.forms if f['action'].endswith('/forms/retention'))
 assert retention_form['fields']['days']=='30' and 'data-retention-confirm' in backup_health_html and 'id="operational-retention-confirm"' in backup_health_html
+_,game_debug_html=parse(request('/LorkhanServer/ui/game_debug.php?embed=1'))
+assert 'request-log-page game-debug-page' in game_debug_html and 'Created (UTC)' in game_debug_html
+assert 'data-debug-table hidden' in game_debug_html and 'data-debug-empty' in game_debug_html
+assert game_debug_html.count('data-debug-command=')==19
+assert 'aria-label="God Mode on"' in game_debug_html and 'Refresh state queues a read-only game snapshot' in game_debug_html
 server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
 assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
 assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])

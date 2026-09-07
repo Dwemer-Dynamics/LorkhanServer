@@ -217,3 +217,8 @@ the retention instruction panel in `ui/css/operational-log.css` adapt the
 Dwemer-Dashboard `database_manager.php` presentation at the revision above.
 These are native Lorkhan diagnostic pages, not copies of a CHIM health API;
 only recorded metadata and database counts are presented.
+
+`ui/game_debug.php`, `ui/css/game-debug.css` and `ui/js/game-debug.js` use the
+attributed Herika Request Logs header, compact buttons, table and status-pill
+presentation. The fixed OpenMW command groups remain native Lorkhan controls;
+HerikaServer has no equivalent game-command page.

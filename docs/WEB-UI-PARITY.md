@@ -104,7 +104,7 @@ do not use an exception to excuse a generic substitute layout.
 | `provider_usage.php` | `audit.php` (Cost Breakdown) | Date/week header/filter/pie layout aligned; desktop and narrow populated/empty/unknown-cost states compared. Whole-range request-type totals, scoped UTC boundaries and CSV coverage checked; token/provider details remain collapsed. See Cost Breakdown checkpoint below. |
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
 | `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
-| `game_debug.php` | Shared operational style | Pending structural and populated-state comparison |
+| `game_debug.php` | Herika Request Logs operational components; no equivalent OpenMW command page | Generic widgets replaced with compact session controls, grouped commands and a shared status/UTC history table. Desktop/narrow populated, offline and outdated-client fixtures compared; command names/parameters preserved. Existing checks and local deployment passed; no live commands issued. |
 | `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Header, tools, backup cards and migration table replaced and visually compared. Native configuration backup create/download/restore verified; full SQL backup/import, automatic backups, database access, maintenance/reset and version-reset controls remain missing, not accepted product exceptions. |
 | `diagnostics.php` | Herika Request Logs operational layout + Dashboard summary tiles; native health data | Server-wide snapshot and paged audit with identifier-only scope. Populated/empty desktop and narrow source/reference style comparisons, HTTP redaction/UTC and deployed checks passed. Counts explicitly do not claim worker/provider connectivity. |
 | `backup_health.php` | Herika Request Logs operational layout + Dashboard instruction panel; native backup data | Explicit backup columns, paging, safe CSV and explained retention scope. Populated/empty desktop/narrow comparison, native confirmation keyboard checks, HTTP and local deployment passed. Backup metadata does not claim file-integrity verification. |
@@ -2350,3 +2350,32 @@ Remaining Core Profile requirements identified from the pinned source and live e
   No game launch/control, provider request or live retention was performed.
   These native pages have no exact CHIM health counterpart; their presentation
   follows the referenced operational components. The all-page goal remains open.
+
+## Game Debug checkpoint
+
+- Replaced specialist widgets with the shared operational header, compact session
+  row, paired command sections and readable command history. Help is collapsible;
+  On/Off controls have distinct accessible names. All 19 existing command buttons
+  retain their command/parameter attributes and existing authenticated dispatch.
+- History uses the attributed Request Logs table and status pills, explicit UTC
+  display and a wrapping empty state outside the wide populated table. DOM text
+  rendering still treats script-looking result text literally.
+- Actual PHP/JavaScript fixtures used a synthetic local GET-only history endpoint,
+  never the game server. Populated success/queued/failure/rejected/expired history,
+  offline and unsupported-client states were inspected. Both disabled states
+  disable all 19 commands and Refresh state. Help disclosure and narrow keyboard
+  table scrolling passed (40px movement in the 800px table inside its own region).
+- Compared desktop and 390px screenshots with the pinned Request Logs reference:
+  both use 30px headings, 12px table text and 9px/10px header padding. OpenMW command
+  groups are native extensions; no exact CHIM command page is claimed.
+- Node syntax, all PHP lint, 98 protocol files, 370 server checks, management HTTP,
+  integration, migration and durable-job checks passed. Existing HTTP coverage
+  now includes the actual debug page, preserved command count, accessible names,
+  empty markup and UTC label. No new test file or backend command change.
+- Server-only deployment verified 742 identical runtime files, no extras/old paths,
+  protected-file 403 and unauthenticated-session 401. Configuration, credentials
+  and voices were preserved. Rollback: `/var/backups/lorkhanserver-code.OpG6ZH`.
+  Live embedded Game Debug rendered its available session, 19 controls and empty
+  command history without feedback errors. This is read-only page verification,
+  not proof of game-command execution. No game was launched or controlled, and
+  no command/provider request was issued. Remaining page parity stays open.
