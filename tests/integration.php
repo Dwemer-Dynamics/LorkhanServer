@@ -1847,6 +1847,33 @@ $narrativePrompt=(new PromptAssembler())->assemble($memoryProbe,$narrativeSelect
 $assert(array_column($narrativeSelection['narrative'],'narrative_id')===array_map($newUuid,range(3951,3942))
     &&str_contains($narrativePrompt,'NARRATIVE RECENCY 11')&&!str_contains($narrativePrompt,'NARRATIVE RECENCY 0'),
     'prompt narrative budget must select the latest entries before the ten-record cap, not UUID order');
+// Narrator diary access must change author eligibility without changing world scope or NPC recall.
+$db->exec('SAVEPOINT narrator_diary_access_probe');
+foreach([3965=>$actorProfile['profile_id'],3966=>$narratorProfile['profile_id']]as$diaryId=>$authorId)
+    $narrativeInsert->execute(['id'=>$newUuid($diaryId),'installation'=>$installationId,'profile'=>$authorId,
+        'playthrough'=>$turn['playthrough_id'],'content'=>'NARRATOR DIARY ACCESS '.$diaryId,
+        'now'=>(new \DateTimeImmutable($memoryNow))->modify('+60 seconds')->format('Y-m-d\TH:i:sP')]);
+$diaryNarratorTurn=$memoryProbe;$diaryNarratorTurn['payload']['target']=$visibilityNarrator;
+$diaryNarratorTurn['_selected_profile_id']=$narratorProfile['profile_id'];
+$diaryNarratorContent=$products->getRevisioned('profile',$narratorProfile['profile_id'])['content'];
+$diaryNarratorContent['diary']['include_in_context']=true;
+foreach([false,true]as$onlyOwnDiary){
+    $diaryNarratorContent['only_diary_access']=$onlyOwnDiary;
+    $products->revise('profile',$narratorProfile['profile_id'],$diaryNarratorContent,'diary access fixture',$memoryNow);
+    $diarySelection=$products->promptContext($diaryNarratorTurn,$memoryNow);
+    $diaryIds=array_column($diarySelection['narrative'],'narrative_id');
+    $assert(in_array($newUuid(3966),$diaryIds,true)&&in_array($newUuid(3965),$diaryIds,true)===!$onlyOwnDiary,
+        'Narrator diary author eligibility did not follow only_diary_access');
+    $diaryPrompt=(new PromptAssembler())->assemble($diaryNarratorTurn,$diarySelection);
+    $assert(str_contains($diaryPrompt['provider_input']['_assembled_prompt'],'NARRATOR DIARY ACCESS 3966'),
+        'selected Narrator diary did not reach the assembled prompt');
+    foreach(['installation_id','playthrough_id']as$foreignField){
+        $foreignDiarySelection=$diarySelection;$foreignDiarySelection['narrative'][0][$foreignField]=$newUuid(3999);
+        try{(new PromptAssembler())->assemble($diaryNarratorTurn,$foreignDiarySelection);$assert(false,'Narrator accepted a foreign diary scope');}
+        catch(InvalidArgumentException$error){$assert($error->getMessage()==='prompt_source_scope_mismatch','wrong foreign diary rejection');}
+    }
+}
+$db->exec('ROLLBACK TO SAVEPOINT narrator_diary_access_probe');
 $latestCore=$products->getRevisioned('core_profile',$actorCoreProfile['core_profile_id']);
 $latestContent=$latestCore['content'];$latestContent['settings_overrides']['diary']['latest_entry_in_context']=true;
 $latestContent['settings_overrides']['diary']['include_in_context']=false;

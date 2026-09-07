@@ -2176,7 +2176,7 @@ narrator_preset_response=request('/LorkhanServer/manage/exports/narrator-profile
 narrator_preset=json.loads(narrator_preset_response.read().decode())
 assert narrator_preset_response.status==200 and sorted(narrator_preset)==['exported_at','schema','settings']
 assert narrator_preset['settings']['oghma_knowledge_tags']=='knowall, Tribunal'
-assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','hide_from_context','inline_narration_mode','latest_diary_context_enabled','narration_filters','notes','oghma_knowledge_tags','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
+assert narrator_preset['schema']=='lorkhan.narrator-profile-settings.v2' and sorted(narrator_preset['settings'])==['biography','book_events','bored_chance_percent','bored_events','context_visibility','core','enabled','goals','hide_from_context','inline_narration_mode','latest_diary_context_enabled','narration_filters','notes','oghma_knowledge_tags','only_diary_access','personality','prompt_head','quest_chance_percent','quest_cooldown_minutes','quest_events','random_chance_percent','random_cooldown_rounds','random_events','speech_style','voice','welcome_cooldown_minutes','welcome_events']
 assert not any(key in narrator_preset for key in ['name','actor_identity','installation_id','profile_id','revision','routing'])
 invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
@@ -2185,6 +2185,7 @@ narrator_preset['settings']['personality']='Portable narrator persona'
 narrator_preset['settings']['inline_narration_mode']='Text Only'
 narrator_preset['settings']['latest_diary_context_enabled']=True
 narrator_preset['settings']['hide_from_context']=False
+narrator_preset['settings']['only_diary_access']=True
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset))); imported_body=r.read().decode()
 assert r.status==200 and 'status=imported' in r.geturl(),(r.status,r.geturl(),imported_body)
 imported_narrator_page,imported_narrator_body=parse(request('/LorkhanServer/ui/narrator_management.php?installation_id='+valid['installation_id']+'&status=imported'))
@@ -2193,10 +2194,12 @@ imported_narrator_form=next(f for f in imported_narrator_page.forms if f['action
 assert imported_narrator_form['fields'].get('oghma_knowledge_tags')=='knowall, Tribunal'
 assert imported_narrator_form['fields'].get('latest_diary_context_enabled')=='1'
 assert 'hide_from_context' not in imported_narrator_form['fields']
+assert imported_narrator_form['fields'].get('only_diary_access')=='1'
 legacy_narrator_preset=dict(narrator_preset,settings=dict(narrator_preset['settings']))
 legacy_narrator_preset['settings'].pop('oghma_knowledge_tags')
 legacy_narrator_preset['settings'].pop('latest_diary_context_enabled')
 legacy_narrator_preset['settings'].pop('hide_from_context')
+legacy_narrator_preset['settings'].pop('only_diary_access')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(legacy_narrator_preset)))
 assert r.status==200,r.read().decode()
 embedded_narrator_page,embedded_narrator_html=parse(request('/LorkhanServer/ui/narrator_management.php?embed=1'))
@@ -2209,10 +2212,13 @@ assert legacy_narrator_export['settings']['oghma_knowledge_tags']=='knowall, Tri
 # Unchecking saves explicit false and does not revert to the Core Profile default.
 unchecked_narrator=dict(embedded_narrator_form['fields'],_csrf=csrf,inline_narration_mode='Text Only')
 unchecked_narrator.pop('latest_diary_context_enabled',None)
+unchecked_narrator.pop('only_diary_access',None)
 r=request(embedded_narrator_form['action'],'POST',unchecked_narrator)
 assert r.status==200,r.read().decode()
 unchecked_preset=json.loads(request('/LorkhanServer/manage/exports/narrator-profile-settings/'+narrator_id+'.json').read().decode())
 assert unchecked_preset['settings']['latest_diary_context_enabled'] is False
+assert unchecked_preset['settings']['only_diary_access'] is False
+assert legacy_narrator_export['settings']['only_diary_access'] is True
 assert '<option selected>Text Only</option>' in imported_narrator_body and 'profile_generation_configuration_id' not in imported_narrator_form['fields'],imported_narrator_form['fields']
 global_generation_page,_=parse(request('/LorkhanServer/ui/core/global_settings.php'))
 global_generation_form=next(f for f in global_generation_page.forms if f['action'].endswith('/forms/global-settings-save'))

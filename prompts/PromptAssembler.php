@@ -1408,6 +1408,9 @@ final class PromptAssembler
         foreach (['installation_id', 'profile_id', 'playthrough_id'] as $field) {
             if (!array_key_exists($field, $source) || $source[$field] === null) continue;
             $expected = $turn[$field];
+            // Narrator diary author eligibility is selected by the repository; world scope stays strict.
+            if ($field === 'profile_id' && $kind === 'narrative' && ($source['kind'] ?? null) === 'diary'
+                && ($turn['payload']['target']['kind'] ?? null) === 'narrator') continue;
             if ($field === 'profile_id' && $kind === 'memory'
                 && is_string($turn['_selected_profile_id'] ?? null)
                 && $source[$field] === $turn['_selected_profile_id']) continue;

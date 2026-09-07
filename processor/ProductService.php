@@ -491,6 +491,7 @@ final class ProductService
     /** Validate the editable CHIM-lineage NPC fields while preserving a compact OpenMW profile document. */
     private function validateProfile(array $content):array
     {
+        if(array_key_exists('only_diary_access',$content)&&!is_bool($content['only_diary_access']))throw new InvalidArgumentException('invalid_narrator_diary_access');
         if(array_key_exists('hide_from_context',$content)&&!is_bool($content['hide_from_context']))throw new InvalidArgumentException('invalid_narrator_visibility');
         if(array_key_exists('narration_filters',$content))$content['narration_filters']=NarrationTextPolicy::validate($content['narration_filters']);
         if(strlen(json_encode($content,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE))>131_072)throw new InvalidArgumentException('invalid_profile_content');

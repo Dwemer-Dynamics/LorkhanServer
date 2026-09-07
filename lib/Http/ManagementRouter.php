@@ -1271,6 +1271,7 @@ final class ManagementRouter
             foreach(['prompt_head','core','biography','personality','speech_style','goals','notes']as$field)$settings[$field]=$content[$field]??'';
             $settings['oghma_knowledge_tags']=$content['oghma_knowledge_tags']??'';
             $settings['latest_diary_context_enabled']=$content['diary']['latest_entry_in_context']??null;
+            $settings['only_diary_access']=($content['only_diary_access']??false)===true;
             $settings['hide_from_context']=($content['hide_from_context']??true)===true;
             $voice=is_array($content['voice']??null)?$content['voice']:[];
             $settings['voice']=['id'=>$voice['id']??'','language'=>$voice['language']??'en'];
@@ -1287,6 +1288,9 @@ final class ManagementRouter
         $expected=$textFields;
         if($kind==='player'&&$includeV2Fields)$expected[]='biography_known_by_all';
         $narratorV2=$kind==='narrator'&&$includeV2Fields;
+        if($narratorV2&&array_key_exists('only_diary_access',$settings)){
+            if(!is_bool($settings['only_diary_access']))throw new InvalidArgumentException($error);$expected[]='only_diary_access';
+        }
         if($narratorV2&&array_key_exists('hide_from_context',$settings)){
             if(!is_bool($settings['hide_from_context']))throw new InvalidArgumentException($error);$expected[]='hide_from_context';
         }
@@ -1774,6 +1778,7 @@ final class ManagementRouter
         if(!in_array($mode,['Disabled','Narrator','NPC','Text Only'],true))throw new InvalidArgumentException('invalid_inline_narration_mode');
         $content['enabled']=isset($values['enabled']);$content['inline_narration_mode']=$mode;
         $content['context_visibility']=isset($values['context_visibility']);
+        if(isset($values['narrator_diary_access_present']))$content['only_diary_access']=isset($values['only_diary_access']);
         if(isset($values['narrator_visibility_present']))$content['hide_from_context']=isset($values['hide_from_context']);
         $content['welcome_events']=isset($values['welcome_events']);$content['random_events']=isset($values['random_events']);
         $integer=static function(array$input,string$key,int$default,int$minimum,int$maximum):int{

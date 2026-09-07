@@ -2677,6 +2677,20 @@ SQL);
                 strcmp((string)$b['created_at'],(string)$a['created_at'])?:strcmp((string)$a['narrative_id'],(string)$b['narrative_id']));
             $narratives=array_slice($narratives,0,100);
         }
+        // Narrator diary access spans NPC authors only within this installation and playthrough.
+        if($contextSections['narratives']&&($turn['payload']['target']['kind']??null)==='narrator'&&$selectedProfileId!==null){
+            $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>$row['kind']!=='diary'));
+            $diaryStatement=$this->db->prepare("SELECT n.* FROM narrative_records n JOIN profiles p ON p.profile_id=n.profile_id
+                AND p.installation_id=n.installation_id WHERE n.installation_id=:installation AND n.playthrough_id=:playthrough
+                AND n.kind='diary' AND n.deleted_at IS NULL AND p.deleted_at IS NULL
+                AND (n.profile_id=:narrator OR (NOT CAST(:only_own AS boolean) AND COALESCE(p.actor_identity->>'kind','actor') IN ('actor','npc','creature')))
+                ORDER BY n.created_at DESC,n.narrative_id LIMIT 100");
+            $diaryStatement->execute(['installation'=>$turn['installation_id'],'playthrough'=>$turn['playthrough_id'],
+                'narrator'=>$selectedProfileId,'only_own'=>($profile['content']['only_diary_access']??false)===true?'true':'false']);
+            foreach($diaryStatement->fetchAll()as$row){$row['provenance']=$this->json($row['provenance']);$narratives[]=$row;}
+            usort($narratives,static fn(array$a,array$b):int=>strcmp((string)$b['created_at'],(string)$a['created_at'])?:strcmp($a['narrative_id'],$b['narrative_id']));
+            $narratives=array_slice($narratives,0,100);
+        }
         if(($effective['settings']['diary']['include_in_context']??true)!==true)
             $narratives=array_values(array_filter($narratives,static fn(array$row):bool=>($row['kind']??null)!=='diary'));
         $recent=[];

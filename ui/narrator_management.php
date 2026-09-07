@@ -134,6 +134,8 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
                         lorkhan_narrator_toggle('diary_enabled', 'Enable Narrator Diary', ($diary['enabled'] ?? false) === true, 'Allow manual and automatic diary generation for the narrator.');
                         lorkhan_narrator_toggle('auto_diary_enabled', 'Narrator Auto Diary', ($diary['automatic_enabled'] ?? false) === true, 'Generate a narrator diary on the configured timer and after sleeping.');
+                        echo '<input type="hidden" name="narrator_diary_access_present" value="1">';
+                        lorkhan_narrator_toggle('only_diary_access', 'Narrator only diary access', ($content['only_diary_access'] ?? false) === true, 'Restrict the Narrator to diary entries written by The Narrator. When disabled, the Narrator may recall relevant diary entries from all NPCs.');
                         lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
                         ?>
                         <input type="hidden" name="latest_diary_context_present" value="1">
