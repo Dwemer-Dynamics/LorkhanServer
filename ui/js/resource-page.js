@@ -2,7 +2,7 @@
     const dirtyForms = new Set();
 
     // Core Profile cards must describe the current checkbox state, including unsaved keyboard changes.
-    document.querySelectorAll('.profiles-page .profile-toggle-control input[type="checkbox"]').forEach(control => {
+    document.querySelectorAll('.profiles-page .profile-toggle-control input[type="checkbox"], .profiles-page .profile-inline-toggle input[type="checkbox"]').forEach(control => {
         const label = control.parentElement.querySelector('.toggle-text');
         if (!label) return;
         const sync = () => { label.textContent = control.checked ? 'On' : 'Off'; };

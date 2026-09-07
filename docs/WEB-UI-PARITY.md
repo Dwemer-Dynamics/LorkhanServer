@@ -4783,3 +4783,24 @@ but no dynamic-history control in its live field inventory. Its absence differs
 from the pinned metadata source and explains the previous screenshot lookup
 failure; do not confuse that live-reference gap with a native navigation bug.
 The ordinary Context control's range and remaining preset mappings remain open.
+
+
+### Core field icons, labels and Rechat toggle (2026-09-07)
+
+Compared the desktop Context/Diary area with Herika. Copied the metadata field
+icon pattern onto the nine existing native controls, including diary/book,
+context/brain and rechat icons. Rechat Response Rounds, Context History Event
+Count and Context History Diary Event Count now use the reference labels.
+Rechat Probability intentionally retains correct spelling. Rechat Allow Actions
+now has the reference larger green checkbox and On/Off state rather than a small
+checkbox labelled Enabled. Reused the existing change/reset label synchronizer.
+No field names, values, persistence or runtime behavior changed.
+
+PHP lint, JS syntax and full management HTTP suite passed. An isolated browser
+fixture verified all nine icons, Space-key On/Off label updates, and rendered
+1280/390 screenshots; the narrow screenshot was inspected. Files are private
+Temp/lorkhan-core-field-icons-{1280,390}.png. Reference desktop screenshots are
+Temp/herika-core-diary-history-1280.png. Lorkhan retains its usable stacked narrow
+layout; the observed reference narrow editor overflow is not copied. Bored Event,
+Combat, Quest and other missing settings still require runtime mapping, so the
+full paired-section structure and Core Profile acceptance remain open.
