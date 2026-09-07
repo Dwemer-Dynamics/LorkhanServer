@@ -48,7 +48,7 @@ function lorkhan_roleplay_calendar(array $state, callable $link, string $tab): v
         for($cell=0;$cell<$cells;$cell++): if($cell%7===0)echo '<tr>'; $number=$cell-$offset+1;
             if($number<1 || $number>$days): ?><td></td><?php else:
                 $date=$prefix.sprintf('%02d',$number);$count=$state['calendar'][$date]??0;
-            ?><td class="<?= $count>0?'has-event':'' ?><?= $date===$selectedDate?' selected-date':'' ?><?= !$game&&$date===gmdate('Y-m-d')?' current-date':'' ?>"><a href="<?= lorkhan_ui_h($link([$game?'game_date':'date'=>$date,'reader_page'=>1])) ?>" title="<?= $number ?>: <?= $count ?> entries"<?= $date===$selectedDate?' aria-current="date"':'' ?>><?= $number ?><?php if($count>0): ?><small><?= $count ?> entries</small><?php endif; ?></a></td><?php endif;
+            ?><td class="<?= $count>0?'has-event':'' ?><?= $date===$selectedDate?' selected-date':'' ?><?= !$game&&$date===gmdate('Y-m-d')?' current-date':'' ?>"><a href="<?= lorkhan_ui_h($link([$game?'game_date':'date'=>$date,'reader_page'=>1]).($tab==='adventure'?'#adventure-events':'')) ?>" title="<?= $number ?>: <?= $count ?> entries"<?= $date===$selectedDate?' aria-current="date"':'' ?>><?= $number ?><?php if($count>0): ?><small><?= $count ?> entries</small><?php endif; ?></a></td><?php endif;
             if($cell%7===6)echo '</tr>';endfor; ?>
         </tbody></table></div>
     <?php endif;

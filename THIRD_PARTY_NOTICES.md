@@ -229,3 +229,11 @@ separate content editor and paper/audio reader from pinned HerikaServer
 `ui/diarylog.php` and `ui/css/diary_adventure.css` under the same MIT license.
 Lorkhan retains scoped revisioned forms, escaped plain-text entries, native
 accessible dialogs and the existing authenticated sentence-preview audio lane.
+
+`ui/tmpl/adventure_log.php` and the Adventure-specific changes in
+`ui/tmpl/roleplay_reader.php`, `ui/tmpl/roleplay_calendar.php` and
+`ui/css/roleplay-reader.css` adapt the chronological table, location dividers,
+speaker bands, calendar anchor and CSV presentation from pinned HerikaServer
+`ui/adventurelog.php` and `ui/css/diary_adventure.css`, under the same MIT license.
+Recorded OpenMW dates and full cell names replace Skyrim-specific date/location
+parsing; source events remain unchanged.

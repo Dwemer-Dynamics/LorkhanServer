@@ -4,6 +4,7 @@ declare(strict_types=1);
 use LorkhanServer\Application\SpeechPreviewCatalog;
 use LorkhanServer\Application\MorrowindCalendar;
 require __DIR__.'/roleplay_calendar.php';
+require __DIR__.'/adventure_log.php';
 
 /** Read one scoped page before applying the limit, so older diaries remain reachable. */
 function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions, string $tab): array
@@ -80,12 +81,30 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     }
     $query = trim(mb_substr((string) ($_GET['q'] ?? ''), 0, 200));
     if ($query !== '') { $state['query'] = $query; $where .= " AND (n.title ILIKE :title_query OR n.content ILIKE :content_query)"; $params['title_query'] = '%'.$query.'%'; $params['content_query'] = '%'.$query.'%'; }
+    $export = ($_GET['export'] ?? '') === '1';
+    if ($tab === 'adventure' && $state['date'] === '' && $state['game_date'] === '') {
+        if (!$export) {
+            // The calendar stays populated, but the reference does not show events until a day is selected.
+            $where .= ' AND FALSE';
+        } elseif (($_GET['export_all'] ?? '') !== '1') {
+            // Download Current Date falls back to the latest recorded UTC day, not the entire log.
+            $latest = $database->prepare('SELECT max(n.created_at)'.$from.' WHERE '.$where);
+            $latest->execute($params);
+            $latestDate = $latest->fetchColumn();
+            if ($latestDate) {
+                $start = (new DateTimeImmutable((string) $latestDate))->setTimezone(new DateTimeZone('UTC'))->setTime(0, 0);
+                $where .= ' AND n.created_at>=CAST(:download_from AS timestamptz) AND n.created_at<CAST(:download_to AS timestamptz)';
+                $params['download_from'] = $start->format(DATE_ATOM);
+                $params['download_to'] = $start->modify('+1 day')->format(DATE_ATOM);
+            }
+        }
+    }
     $statement = $database->prepare('SELECT count(*)'.$from.' WHERE '.$where); $statement->execute($params);
     $state['total'] = (int) $statement->fetchColumn(); $pageSize = match($tab) { 'responselog'=>50, 'books','journal'=>150, default=>20 }; $state['pages'] = max(1, (int) ceil($state['total'] / $pageSize));
     $state['page'] = max(1, min($state['pages'], (int) ($_GET['reader_page'] ?? 1)));
     $extra = match ($tab) { 'responselog' => ',n.turn_id,n.request_id,n.prompt_messages,n.input_kind,n.input_text,n.turn_seconds', 'adventure' => ',n.location,n.gamets,n.calendar_data', 'diaries' => ',n.calendar_data', 'books','journal' => ',n.calendar_data,n.ts', default => '' };
-    $export = ($_GET['export'] ?? '') === '1';
-    $statement = $database->prepare('SELECT n.narrative_id,n.kind,n.title,n.content,n.created_at,n.person'.$extra.$from.' WHERE '.$where.' ORDER BY n.created_at DESC,n.narrative_id'.($export ? '' : ' LIMIT '.$pageSize.' OFFSET :offset'));
+    $orderBy = $tab === 'adventure' ? 'n.created_at ASC,n.narrative_id::bigint ASC' : 'n.created_at DESC,n.narrative_id';
+    $statement = $database->prepare('SELECT n.narrative_id,n.kind,n.title,n.content,n.created_at,n.person'.$extra.$from.' WHERE '.$where.' ORDER BY '.$orderBy.($export ? '' : ' LIMIT '.$pageSize.' OFFSET :offset'));
     foreach ($params as $key => $value) $statement->bindValue(':'.$key, $value, PDO::PARAM_STR);
     if (!$export) $statement->bindValue(':offset', ($state['page'] - 1) * $pageSize, PDO::PARAM_INT);
     $statement->execute();
@@ -95,9 +114,13 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
         header('Content-Disposition: attachment; filename="'.$tab.'-log.csv"');
         header('Cache-Control: private, no-store');
         $output = fopen('php://output', 'wb');
-        fputcsv($output, ['Time (UTC)', 'Person', 'Title', 'Content', 'State / Kind', 'ID', 'Tamrielic Time']);
+        fputcsv($output, $tab === 'adventure' ? ['Context', 'Nearby People', 'Location & Tamrielic Time', 'Time(UTC)'] : ['Time (UTC)', 'Person', 'Title', 'Content', 'State / Kind', 'ID', 'Tamrielic Time']);
         while ($record = $statement->fetch(PDO::FETCH_ASSOC)) {
             $values = [$record['created_at'], $record['person'], $record['title'], $record['content'], $record['kind'], $record['narrative_id'], MorrowindCalendar::parse($record['calendar_data']??null)['label']??'Not recorded'];
+            if ($tab === 'adventure') {
+                $entry = lorkhan_adventure_record($record);
+                $values = [$entry['context'], $entry['people'], ($entry['location'] !== '' ? $entry['location'] : 'Not recorded').' - '.$entry['game_time'], $entry['time_utc']];
+            }
             foreach ($values as &$value) { $value = (string) $value; if (preg_match('/^[\s]*[=+@-]/u', $value) === 1) $value = "'".$value; }
             unset($value); fputcsv($output, $values);
         }
@@ -134,7 +157,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
     ?>
     <div class="roleplay-reader<?= $calendar?' calendar-log-page':'' ?><?= $editable?' diary-log-page':'' ?>" data-reader data-preview-endpoint="<?= lorkhan_ui_h($managementBasePath.'/api/v1/tts-previews') ?>" data-installation="<?= lorkhan_ui_h($state['installation']) ?>" data-csrf="<?= lorkhan_ui_h($csrf) ?>" data-connector="<?= lorkhan_ui_h($preview['default_connector_id'] ?? '') ?>" data-voice="<?= lorkhan_ui_h($preview['default_voice'] ?? '') ?>" data-max-length="<?= SpeechPreviewCatalog::MAX_TEXT_LENGTH ?>">
         <header class="reader-heading"><div><h1><?= $tab==='diaries'?'<span aria-hidden="true">📝</span>':($tab==='adventure'?'<span aria-hidden="true">📆</span>':'') ?><?= lorkhan_ui_h($heading) ?></h1><p><?= lorkhan_ui_h($description) ?></p></div><?php if ($editable && !$calendar): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($webRoot.'/ui/narrative_manager.php') ?>">Create / Generate Entry</a><?php endif; ?></header>
-        <?php if($calendar): ?><div class="calendar-downloads"><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Download Current <?= $tab==='diaries'?'Diaries':'Date' ?></a><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['export'=>'1','date'=>'','game_date'=>'','person'=>'','q'=>''])) ?>">Download <?= $tab==='diaries'?'All Diary Entries':'Entire Adventure Log' ?></a><?php if($editable): lorkhan_roleplay_clear_button($state,'diaries',$managementBasePath,$csrf); ?><a class="roleplay-button" href="<?= lorkhan_ui_h($webRoot.'/ui/narrative_manager.php') ?>">Create / Generate Entry</a><?php endif; ?></div>
+        <?php if($calendar): ?><div class="calendar-downloads"><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Download Current <?= $tab==='diaries'?'Diaries':'Date' ?></a><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['export'=>'1','export_all'=>$tab==='adventure'?'1':null,'date'=>'','game_date'=>'','person'=>'','q'=>''])) ?>">Download <?= $tab==='diaries'?'All Diary Entries':'Entire Adventure Log' ?></a><?php if($editable): lorkhan_roleplay_clear_button($state,'diaries',$managementBasePath,$csrf); ?><a class="roleplay-button" href="<?= lorkhan_ui_h($webRoot.'/ui/narrative_manager.php') ?>">Create / Generate Entry</a><?php endif; ?></div>
         <?php lorkhan_roleplay_calendar($state,$link,$tab); ?><details class="log-scope"><summary>Filters and playthrough</summary><?php endif; ?>
         <form class="reader-filters" method="get">
             <?php foreach(['game_year','game_month','game_date'] as $filter): ?><input type="hidden" name="<?= $filter ?>" value="<?= lorkhan_ui_h((string)$state[$filter]) ?>"><?php endforeach; ?>
@@ -152,16 +175,15 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
         <?php if($tab!=='adventure'): ?><details class="reader-audio-help"><summary>Read Aloud help</summary><p class="reader-audio-note"><?= $ready ? 'Read Aloud uses the Narrator voice, or the available TTS default. Each sentence is generated only when it is ready to play. Your provider may charge for speech.' : 'To use Read Aloud, configure a TTS connector and voice in TTS Studio.' ?></p></details><?php endif; ?>
         <p role="status" data-roleplay-maintenance-status></p>
         <div data-reader-dock><p class="reader-status" role="status" aria-live="polite" data-reader-status></p><audio controls preload="none" data-reader-audio hidden></audio></div>
-        <?php if($calendar): ?>
-        <div class="calendar-event-scroll"><table class="calendar-event-table"><thead><tr><?php foreach($tab==='diaries'?['Author','Content','Tamrielic Time','Time (UTC)','Actions']:['Context','Nearby People','Location & Tamrielic Time','Time (UTC)'] as $label): ?><th scope="col"><?= lorkhan_ui_h($label) ?></th><?php endforeach; ?></tr></thead><tbody>
+        <?php if($tab==='adventure'): lorkhan_adventure_table($state['rows'],$state['date']!=='' || $state['game_date']!==''); elseif($calendar): ?>
+        <div class="calendar-event-scroll"><table class="calendar-event-table"><thead><tr><?php foreach(['Author','Content','Tamrielic Time','Time (UTC)','Actions'] as $label): ?><th scope="col"><?= lorkhan_ui_h($label) ?></th><?php endforeach; ?></tr></thead><tbody>
         <?php foreach($state['rows'] as $row): ?><tr>
-        <?php if($tab==='diaries'): ?><td><?= lorkhan_ui_h($row['person']) ?></td><td><button type="button" class="log-content-link" data-calendar-open="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"><?= nl2br(lorkhan_ui_h($row['content'])) ?></button></td><td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s',strtotime($row['created_at']))) ?></td><td><div class="diary-row-actions">
+        <td><?= lorkhan_ui_h($row['person']) ?></td><td><button type="button" class="log-content-link" data-calendar-open="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"><?= nl2br(lorkhan_ui_h($row['content'])) ?></button></td><td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s',strtotime($row['created_at']))) ?></td><td><div class="diary-row-actions">
             <button type="button" class="roleplay-button diary-audio-button" data-reader-play data-reader-target="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"<?= $ready?'':' disabled' ?> title="<?= $ready?'Uses the Narrator voice or TTS default. Your provider may charge.':'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play</button>
             <button type="button" class="roleplay-button" data-calendar-open="edit-<?= lorkhan_ui_h($row['narrative_id']) ?>">Edit</button>
             <button type="button" class="roleplay-button danger" data-calendar-open="delete-<?= lorkhan_ui_h($row['narrative_id']) ?>">Delete</button>
-        </div></td>
-        <?php else: ?><td><span class="calendar-event-kind"><?= lorkhan_ui_h($row['kind']) ?></span><?= nl2br(lorkhan_ui_h($row['content'])) ?></td><td><?= lorkhan_ui_h(str_replace('|',', ',trim($row['person'],'|'))) ?></td><td><?= lorkhan_ui_h($row['location']??'') ?><?php if($row['game_date_label']!=='Not recorded'): ?><br><?= lorkhan_ui_h($row['game_date_label']) ?><?php elseif((int)$row['gamets']>0): ?><br>Day <?= intdiv((int)$row['gamets'],86400)+1 ?>, <?= sprintf('%02d:%02d',intdiv((int)$row['gamets']%86400,3600),intdiv((int)$row['gamets']%3600,60)) ?><?php endif; ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s',strtotime($row['created_at']))) ?></td><?php endif; ?></tr>
-        <?php endforeach; ?><?php if($state['rows']===[]): ?><tr><td colspan="<?= $tab==='diaries'?5:4 ?>" class="log-empty">No entries match this date, person or playthrough.</td></tr><?php endif; ?></tbody></table></div>
+        </div></td></tr>
+        <?php endforeach; ?><?php if($state['rows']===[]): ?><tr><td colspan="5" class="log-empty">No entries match this date, person or playthrough.</td></tr><?php endif; ?></tbody></table></div>
         <?php endif; ?>
         <div class="reader-entries">
         <?php foreach ($tab==='adventure'?[]:$state['rows'] as $row): $id = (string) $row['narrative_id']; ?>

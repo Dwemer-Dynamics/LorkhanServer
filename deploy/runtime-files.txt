@@ -33,3 +33,4 @@ ui/tmpl/narrative_manager.html.php
 ui/tmpl/backup_retention.html.php
 ui/js/backup-retention.js
 ui/tmpl/diary_entry_editor.php
+ui/tmpl/adventure_log.php

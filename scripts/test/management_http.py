@@ -819,6 +819,47 @@ _,person_diary_html=parse(request(diary_url+'&view=people&person='+profile_id))
 assert narrative_text in person_diary_html and 'calendar-people' in person_diary_html
 diary_export=request(diary_url+'&export=1')
 assert diary_export.headers.get('Content-Type','').startswith('text/csv') and narrative_text in diary_export.read().decode()
+# Isolated projection rows exercise chronological ordering, paging and Adventure CSV formatting.
+adventure_scope=str(uuid.uuid4())
+adventure_sql=f"""
+INSERT INTO lorkhan_internal.playthroughs(playthrough_id,installation_id,profile_id,name,created_at)
+VALUES ('{adventure_scope}','{valid['installation_id']}','{profile_id}','Adventure UI fixture','1900-01-01');
+WITH events AS (
+ INSERT INTO public.eventlog(type,data,people,location,localts,gamets)
+ SELECT 'chat',CASE WHEN n<3 THEN 'Fargoth' ELSE 'Caius' END||': Adventure fixture '||lpad(n::text,2,'0')||' <script>literal</script> (Context location: duplicate)',
+ '|Fargoth| Caius|',CASE WHEN n<3 THEN 'Seyda Neen' ELSE 'Balmora, South Wall Cornerclub' END,CASE WHEN n=25 THEN 1609502400 ELSE 1609416000 END,0
+ FROM generate_series(1,25) n ORDER BY n RETURNING rowid
+)
+INSERT INTO lorkhan_internal.eventlog_metadata(rowid,installation_id,playthrough_id,projection_kind,projection_key,payload)
+SELECT rowid,'{valid['installation_id']}','{adventure_scope}','ui_fixture','adventure-ui-'||rowid,
+ '{{"calendar":{{"year":427,"month":7,"day":16}}}}'::jsonb FROM events;
+"""
+adventure_psql=['psql','-h','127.0.0.1','-p',sys.argv[3] if len(sys.argv)>3 else '55463','-d','lorkhan_management_http','-v','ON_ERROR_STOP=1']
+subprocess.run(adventure_psql,input=adventure_sql,text=True,capture_output=True,check=True)
+adventure_url='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'adventure','installation_id':valid['installation_id'],'playthrough_id':adventure_scope,'date':'2020-12-31'})
+_,adventure_page_html=parse(request(adventure_url))
+adventure_html=re.search(r'<table class="calendar-event-table adventure-event-table".*?</table>',adventure_page_html,re.S).group(0)
+assert adventure_html.count('data-adventure-row=')==20 and adventure_html.index('Adventure fixture 01')<adventure_html.index('Adventure fixture 02')<adventure_html.index('Adventure fixture 10'),(adventure_html.count('data-adventure-row='),re.findall(r'Adventure fixture \d+',adventure_html))
+assert 'Current Location: Seyda Neen' in adventure_html and 'Location Change: Balmora, South Wall Cornerclub' in adventure_html
+assert 'speaker-even' in adventure_html and 'speaker-odd' in adventure_html and '&lt;script&gt;literal&lt;/script&gt;' in adventure_html and 'Context location: duplicate' not in adventure_html
+_,adventure_last_page=parse(request(adventure_url+'&reader_page=2'))
+adventure_last=re.search(r'<table class="calendar-event-table adventure-event-table".*?</table>',adventure_last_page,re.S).group(0)
+assert adventure_last.count('data-adventure-row=')==4 and 'Adventure fixture 21' in adventure_last and 'Adventure fixture 20' not in adventure_last
+adventure_csv=list(csv.DictReader(io.StringIO(request(adventure_url+'&export=1').read().decode())))
+assert len(adventure_csv)==24 and list(adventure_csv[0])==['Context','Nearby People','Location & Tamrielic Time','Time(UTC)']
+assert 'fixture 01' in adventure_csv[0]['Context'] and 'fixture 24' in adventure_csv[-1]['Context'] and adventure_csv[0]['Nearby People']=='Fargoth, Caius'
+assert adventure_csv[0]['Time(UTC)']=='31-12-2020 12:00:00' and '16 Last Seed' in adventure_csv[0]['Location & Tamrielic Time']
+adventure_unselected=adventure_url.replace('&date=2020-12-31','')
+_,adventure_unselected_html=parse(request(adventure_unselected))
+assert 'Select a date to view events.' in adventure_unselected_html and 'data-adventure-row=' not in adventure_unselected_html and 'export_all=1' in adventure_unselected_html
+latest_adventure=list(csv.DictReader(io.StringIO(request(adventure_unselected+'&export=1').read().decode())))
+all_adventure=list(csv.DictReader(io.StringIO(request(adventure_unselected+'&export=1&export_all=1').read().decode())))
+assert len(latest_adventure)==1 and 'fixture 25' in latest_adventure[0]['Context'] and len(all_adventure)==25
+_,adventure_other=parse(request(adventure_url.replace(adventure_scope,playthrough_id)))
+assert 'Adventure fixture' not in adventure_other
+_,adventure_empty=parse(request(adventure_url.replace('2020-12-31','1900-01-01')))
+assert 'No events found for this date.' in adventure_empty and 'data-adventure-row=' not in adventure_empty
+subprocess.run(adventure_psql,input=f"DELETE FROM public.eventlog WHERE rowid IN (SELECT rowid FROM lorkhan_internal.eventlog_metadata WHERE playthrough_id='{adventure_scope}'); DELETE FROM lorkhan_internal.playthroughs WHERE playthrough_id='{adventure_scope}';",text=True,capture_output=True,check=True)
 empty_export=request(diary_url+'&export=1&date=1900-01-01')
 assert narrative_text not in empty_export.read().decode()
 revise_narrative=diary_revise

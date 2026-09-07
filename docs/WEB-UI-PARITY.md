@@ -91,7 +91,7 @@ do not use an exception to excuse a generic substitute layout.
 | Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and interaction comparisons, existing tests and local deployment passed. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated fixture and focus restoration checked |
-| Roleplay `adventure` tab | Herika Adventure Log | Recorded game events, UTC/Tamrielic calendars and export implemented; live Tamrielic date selection verified against 21 matching events |
+| Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
 | `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
@@ -2423,3 +2423,57 @@ Remaining Core Profile requirements identified from the pinned source and live e
   No diary was generated, edited or deleted in the live server, no paid speech
   provider was called, and no game was launched or controlled. All-page parity
   remains open for the other rows in this matrix.
+
+## Adventure Log chronological presentation checkpoint
+
+- Replaced generic event-kind rows with the actual Adventure Log structure:
+  Context, Nearby People, Tamrielic Time and Time (UTC), with initial/current
+  location and location-change dividers and contiguous speaker bands. Removed
+  duplicate location-context suffixes only in presentation/export; immutable
+  source data remains untouched. OpenMW-only recorded event types remain usable.
+- The query now orders Adventure rows oldest-first before paging, with numeric
+  event IDs as the deterministic tie-breaker. Other readers keep their existing
+  sort order. CSV uses the counterpart's four columns and shares formatting with
+  the table, retaining the full location plus recorded game date and formula-safe
+  values. Entire-scope export is not restricted to the displayed page.
+- Native Morrowind dates and full cell names are preserved, including names such
+  as Balmora, South Wall Cornerclub. Missing location/date stays explicit rather
+  than parsing Skyrim-specific location strings or inventing dates. Calendar day
+  links jump to the table after filtering, and the calendar reference link is kept.
+- Compared actual source-rendered populated, empty and long rows with the pinned
+  Adventure row markup and diary_adventure.css. Both use 13px table text,
+  9px/10px cells and 55/20/15/10 column proportions. Fixed an inherited 47% people
+  column conflict and ensured ordinary zebra striping cannot override speaker
+  grouping. The reference's subtle #232323/#202020 speaker bands and left-aligned
+  location dividers are retained. Lorkhan's accent remains gold.
+- At 390px the table scrolls within its keyboard-focusable region (40px ArrowRight
+  movement), with no document overflow. Empty messages wrap in the viewport;
+  1,869-character event content remains complete and script-looking text stays
+  text. Calendar and native scope controls remain available.
+- Existing HTTP coverage seeds 25 isolated projection rows across two UTC days and verifies numeric
+  chronological ordering across two pages, location grouping, escaped content,
+  complete four-column CSV, UTC/game dates, other-playthrough exclusion and an
+  empty selected date. The first ordering assertion incorrectly included the
+  hidden Events tab, whose newest-first order is intentional; the assertion now
+  inspects the Adventure table itself. Fixture projections are cleaned afterward.
+  No new test file or live database mutation was introduced.
+- The initial view now follows Herika's date-selection contract: calendar counts
+  remain visible, but the table asks the user to select a date. Current Date
+  download uses the selected day, falling back to the latest recorded UTC day
+  when none is selected. Entire Adventure Log explicitly selects the full scope.
+  Tests distinguish the 24-row selected day, one-row latest day and 25-row full
+  export. No-date and selected-empty states are separate, with matching messages.
+- Final full check passed: PHP lint, 98 protocol files, 370 server checks,
+  management HTTP and integration/migration checks. The generated schema evidence
+  was restored because this checkpoint makes no schema change.
+- Final deployment rollback is `/var/backups/lorkhanserver-code.7fZ2m1`.
+  All 744 runtime files match source, with no extra files or old paths; protected
+  files return 403 on all three checked Apache ports and an unauthenticated
+  session returns 401. Configuration, credentials and voice files were preserved.
+- Live browser verification confirmed the unselected-date instruction, then
+  followed an observed calendar URL for 16 Last Seed, 3E 427. The selected date
+  contains 93 entries across five pages; the first page renders 20 events in
+  ascending UTC order, with the full `Dagoth Ur, Facility Cavern` cell name and
+  contiguous speaker bands. The document stays within the 1280px viewport.
+  No live data was changed, no speech provider was called and no game was launched
+  or controlled. The remaining all-page matrix stays open.
