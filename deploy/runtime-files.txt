@@ -25,3 +25,5 @@ scripts/provision-default-oghma.php
 ui/tmpl/npc_relationships.html.php
 ui/tmpl/operational_log.html.php
 ui/css/operational-log.css
+ui/css/database-manager.css
+ui/tmpl/database_manager.html.php

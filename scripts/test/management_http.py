@@ -254,7 +254,9 @@ server_logs,text=parse(request('/LorkhanServer/ui/server_logs.php'))
 assert server_logs.current==1 and '<h1>Server Logs</h1>' in text and 'bounded to 256 KiB and redacted' in text
 assert text.count('class="log-section"')==3 and all(label in text for label in ['Download Logs','Timezone: UTC','Filter by Level:','Search expanded log','data-expand-log'])
 assert '/var/log/' not in text and 'chim.log' not in text
-database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1 class="lorkhan-page-head-title">Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
+database,text=parse(request('/LorkhanServer/ui/database_manager.php')); assert database.current==1 and '<h1>Database Manager</h1>' in text and 'schema migrations' in text and 'Installation Configuration Backups' in text
+assert 'server-file-list' not in text and 'No configuration backups are available.' in text
+assert 'Database Versioning Manager' in text and 'not a full database backup' in text
 studio,text=parse(request('/LorkhanServer/ui/core/voice_library.php')); assert studio.current==1 and 'Add WAV voice samples' in text and 'flat ZIP batch' in text and 'Voice Library' in text and 'Configured TTS Connectors' in text and 'Provider Voice Browser' in text and 'never contacts a provider automatically' in text
 for provider_tab,provider_label in [('xtts','XTTS'),('chatterbox','Chatterbox'),('pockettts','PocketTTS'),('omnivoice','OmniVoice'),('cartesia','Cartesia'),('inworld','Inworld')]:
     cache_html=request('/LorkhanServer/ui/core/voice_library.php?tab='+provider_tab).read().decode()
@@ -1166,6 +1168,7 @@ values=dict(create_backup['fields'],_csrf=csrf,installation_id=valid['installati
 r=request(create_backup['action'],'POST',values); body=r.read().decode(); assert r.status==422 and 'confirmation_mismatch' in body,(r.status,r.geturl(),body)
 values['confirm']='Backup'; r=request(create_backup['action'],'POST',values); body=r.read().decode()
 assert r.status==200 and r.geturl().endswith('/ui/database_manager.php?status=saved') and 'Download backup' in body,(r.status,r.geturl(),body)
+assert 'class="server-file-list"' in body and 'name="backup_id"' in body and 'Type Restore to confirm' in body and 'Created ' in body and ' UTC' in body
 backup_ids_after=set(re.findall(r'/exports/backups/([0-9a-f-]{36})\.json',body)); created_backup_ids=backup_ids_after-backup_ids_before; assert len(created_backup_ids)==1,(backup_ids_before,backup_ids_after)
 configuration_backup_id=created_backup_ids.pop()
 backup_response=request('/LorkhanServer/manage/exports/backups/'+configuration_backup_id+'.json'); configuration_backup=json.loads(backup_response.read().decode())

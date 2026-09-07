@@ -105,7 +105,7 @@ do not use an exception to excuse a generic substitute layout.
 | `provider_attempts.php` | `request_logs.php` operational presentation; no exact all-provider CHIM page | Explicit safe metadata columns, toolbar, status pills, scoped filters, full pagination and page CSV. Populated/empty source-rendered comparison and narrow keyboard scrolling checked. |
 | `jobs.php` | `request_logs.php` operational presentation; no exact durable-job CHIM page | Same shared reader, native queued/running/success/dead-letter states and retry/schedule metadata. Populated/empty comparison checked; no invented worker actions or exposed payloads. |
 | `game_debug.php` | Shared operational style | Pending structural and populated-state comparison |
-| `database_manager.php` | Herika database tooling style | Pending structural and populated-state comparison |
+| `database_manager.php` | Dwemer-Dashboard `database_manager.php`, embedded by Herika Control Panel | Header, tools, backup cards and migration table replaced and visually compared. Native configuration backup create/download/restore verified; full SQL backup/import, automatic backups, database access, maintenance/reset and version-reset controls remain missing, not accepted product exceptions. |
 | `diagnostics.php` | Shared operational style | Pending structural and populated-state comparison |
 | `backup_health.php` | Shared operational style | Pending structural and populated-state comparison |
 | `narrative_manager.php` | Herika narrative/diary styling | Pending structural and populated-state comparison |
@@ -2243,3 +2243,38 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Next opened page two on each; failed attempts returned 107 records, dead-letter
   jobs returned 29, and Refresh retained the selected job filter. This completes
   these two presentation rows, not the remaining all-page parity goal.
+
+### Database Manager — actual embedded counterpart and native backup layout
+
+- Herika Control Panel embeds Dwemer-Dashboard `database_manager.php`; the old
+  `conf_wizardbackup.php` is a configuration editor, not its database page.
+  Reference dashboard remained clean at `7c19d3ddb7fa7aaf9cbd71abc41a1cdb4b7f9758`.
+- Replaced generic Lorkhan cards and auto-generated migration columns with the
+  reference header, tool panels, stat tiles, selectable backup-file cards,
+  restore guidance, empty state and version table. Preserved the actual native
+  configuration-only JSON format, typed Backup/Restore confirmations and
+  authenticated fixed-ID downloads. Full database backup is not claimed.
+- Configuration backup kind is filtered before 25-row paging, rather than after
+  a generic latest-100 query; all applied migrations are accessible in the bounded
+  scroll region. Dates are explicitly formatted in UTC. No schema changes.
+- Compared actual source-template populated/empty/no-installation fixtures with
+  extracted reference markup and CSS without executing either reference controller.
+  Corrected inherited subtitle alignment, heading sizes and button typography:
+  32px title, 22px panel headings, 15px buttons, 14px stat labels, 20px card padding
+  and 20px/24px header padding. Restore cards retain reference selection indicators.
+- At 390px the tools stack in a 351px column without body overflow. Clicking the
+  second backup selected it; ArrowUp returned selection to the first radio with
+  keyboard focus intact. Restore guidance expanded; the 307px migration region
+  scrolled 40px horizontally by keyboard across its 760px table. No live restore,
+  backup creation, maintenance or provider/game action was performed.
+- Existing HTTP tests passed backup create/download, wrong-confirmation rejection
+  and restoration of settings/Core Profile assignments. PHP lint, 370 server
+  checks, 98 protocol files, HTTP forms, integration and migration checks passed.
+- Local deployment verified 737 manifest files without mismatches, extras or old
+  paths; protected routes returned 403 and unauthenticated session creation 401.
+  Configuration, credentials and voice files were preserved. Rollback:
+  `/var/backups/lorkhanserver-code.dKfzjD`. Live embedded page showed schema 89,
+  all 89 migration rows and zero configuration backups, matching its empty state.
+- This is a presentation checkpoint. CHIM's full SQL backup/import, automatic
+  backups, database access, maintenance/reset and version-reset controls remain
+  missing. They are tracked as outstanding parity work, not product exceptions.

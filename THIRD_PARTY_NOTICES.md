@@ -35,6 +35,13 @@ reader presentation derive from Dwemer-Dashboard `7c19d3ddb7fa7aaf9cbd71abc41a1c
 used by HerikaServer's Control Panel. Only Lorkhan log sources are read; the
 dashboard's cross-product navigation, MCP chat and credential helpers are not imported.
 
+`ui/database_manager.php`, `ui/tmpl/database_manager.html.php` and
+`ui/css/database-manager.css` derive their header, tool panels, selectable backup
+cards and version table presentation from that same Dwemer-Dashboard revision's
+`database_manager.php`, the Database Manager embedded by HerikaServer. Lorkhan's
+configuration-only backup format, typed confirmations and migration history remain
+native; dashboard database credentials and cross-product operations are not copied.
+
 Audio Cache's heading, panel, file-list columns and inline player sizing derive from
 HerikaServer `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/cache_browser.php`.
 Lorkhan keeps authenticated opaque media access and expiry, omits the excluded
