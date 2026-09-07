@@ -25,7 +25,9 @@
             return result;
         };
         try {
-            const result = await request(new URLSearchParams(new FormData(form)));
+            const submission = new URLSearchParams(new FormData(form));
+            submission.set('current_speech_style', originalStyle);
+            const result = await request(submission);
             const poll = new URLSearchParams({_csrf:form.elements.namedItem('_csrf').value,
                 installation_id:form.elements.namedItem('installation_id').value,
                 profile_id:form.elements.namedItem('profile_id').value, operation:'status', job_id:result.job_id});

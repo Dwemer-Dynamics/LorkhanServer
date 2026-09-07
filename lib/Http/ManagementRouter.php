@@ -359,7 +359,7 @@ final class ManagementRouter
             if(($profile['installation_id']??null)!==$installation)throw new RuntimeException('not_found');
             if(($v['operation']??'generate')==='status')return Response::json(200,$this->repository->playerSpeechStyleDraft($installation,$profileId,$this->need($v,'job_id')));
             if(($v['operation']??'generate')!=='generate')throw new InvalidArgumentException('invalid_generation_operation');
-            return Response::json(202,$this->repository->enqueuePlayerSpeechStyleGeneration($profileId,$v['speech_style_guidance']??''));
+            return Response::json(202,$this->repository->enqueuePlayerSpeechStyleGeneration($profileId,$v['speech_style_guidance']??'',$v['current_speech_style']??null));
         }
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');

@@ -1138,14 +1138,18 @@ $playerProfile=$service->createRevisioned('profile',['installation_id'=>$legacyI
 $playerTurn=Uuid::v4();$playerRequest=Uuid::v4();$playerMessage=Uuid::v4();
 $db->prepare("INSERT INTO turns (turn_id,request_id,message_id,session_id,generation,input_kind,input_language,input_text,speaker,target,audience,context,state,accepted_at) VALUES (:turn,:request,:message,:session,1,'text','en','Can you tell me where the nearest guild is?',CAST(:speaker AS jsonb),'{}'::jsonb,'[]'::jsonb,'{}'::jsonb,'complete','2026-01-01T00:00:01Z')")
     ->execute(['turn'=>$playerTurn,'request'=>$playerRequest,'message'=>$playerMessage,'session'=>$legacySession,'speaker'=>json_encode(['kind'=>'player','record_id'=>'player','content_file'=>'Morrowind.esm'],JSON_THROW_ON_ERROR)]);
-$queuedPlayerStyle=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],'Prioritize concise phrasing.');
+$queuedPlayerStyle=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],'Prioritize concise phrasing.','An unsaved style draft.');
 $stylePayload=json_decode((string)$db->query("SELECT payload FROM durable_jobs WHERE job_id='{$queuedPlayerStyle['job_id']}'")->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
-$check(($stylePayload['speech_style_guidance']??null)==='Prioritize concise phrasing.','player guidance was not frozen in the job');
-$styleDuplicate=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],'Prioritize concise phrasing.');
+$check(($stylePayload['speech_style_guidance']??null)==='Prioritize concise phrasing.'&&($stylePayload['current_speech_style']??null)==='An unsaved style draft.','player generation inputs were not frozen in the job');
+$styleDuplicate=$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],'Prioritize concise phrasing.','An unsaved style draft.');
 $check($styleDuplicate['job_id']===$queuedPlayerStyle['job_id'],'identical player guidance was not idempotent');
 foreach([str_repeat('x',4001),['invalid']]as$invalidGuidance){
     try{$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],$invalidGuidance);throw new RuntimeException('invalid player guidance accepted');}
     catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_speech_style_guidance','unexpected player guidance validation error');}
+}
+foreach([str_repeat('x',8193),['invalid']]as$invalidStyle){
+    try{$products->enqueuePlayerSpeechStyleGeneration($playerProfile['profile_id'],'',$invalidStyle);throw new RuntimeException('invalid current style accepted');}
+    catch(InvalidArgumentException $error){$check($error->getMessage()==='invalid_current_speech_style','unexpected current style validation error');}
 }
 $playerStyleStats=(new Worker($jobs,$firstPartyRegistry,'player-speech-style-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $playerStyleRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$playerProfile['profile_id']}'")->fetch();

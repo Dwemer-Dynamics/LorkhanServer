@@ -3766,3 +3766,25 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   credentials and voices preserved. No game launch/control. Remaining generation
   edge-state browser checks and current unsaved style as generation context remain
   open alongside Player name/provider overrides and the full page matrix.
+
+## Player current-editor generation input and races — 2026-09-07
+
+- Added Herika's current_speech_style request input from the actual editor value,
+  including unsaved text. The queue and worker validate UTF-8/string type and an
+  8192-byte limit. Explicit empty text remains distinct from an omitted legacy input.
+  The snapshot participates in job idempotency and is passed to the provider as
+  existing wording to refine, not witnessed dialogue or higher-priority instructions.
+- Extended existing durable-job tests for frozen draft input, identical-request
+  deduplication and rejection of oversized/non-string values. Full checks passed:
+  498 server checks, 98 protocol files, PHP lint, HTTP/integration/migrations/jobs,
+  JS syntax and whitespace. No schema change from migration 094.
+- Isolated browser/MockProfileGenerationProvider test confirmed the job stored the
+  unsaved pre-generation text. Editing that field while the job ran kept the newer
+  text and displayed the edit-preservation message when the worker finished.
+  A second request followed by an isolated repository-state revision change showed
+  the stale-profile reload warning, again retaining the editor draft. No live
+  generation request or production profile change was made. Test server stopped.
+- Local rollback /var/backups/lorkhanserver-code.LUaX7v; all 789 runtime files match,
+  no extras/old paths, private 403/session 401 and health checks passed. Configuration,
+  credentials and voices preserved; no game launch/control. Provider/network-failure
+  browser states and the remaining Player/all-page matrix items are still open.
