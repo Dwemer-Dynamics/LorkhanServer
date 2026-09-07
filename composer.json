@@ -7,6 +7,7 @@
     "php": ">=8.2",
     "ext-json": "*",
     "ext-curl": "*",
+    "ext-ctype": "*",
     "ext-mbstring": "*",
     "ext-pdo": "*",
     "ext-pdo_pgsql": "*"

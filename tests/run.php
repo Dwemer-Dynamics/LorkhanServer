@@ -295,6 +295,29 @@ catch(RuntimeException $error){$check($error->getMessage()==='audit-observed-bef
     'relationship request observer captures exact messages without credentials or network I/O');}
 }
 $schema=LlmConnector::objectSchema(['text'=>['type'=>'string']]);
+$bodyYaml="temperature: 0.25\nprovider:\n  order: [together, google-vertex]\nstop: [END, 'a,b']\nlogit_bias: {}\nmetadata:\n  label: 'literal <img src=x>'\n";
+$bodyOptions=['extra_parameters_yaml'=>$bodyYaml,'extra_parameters_enabled'=>true,'json_mode'=>false];
+$bodyRequest=LlmConnector::requestOptions($bodyOptions,0.7,false);
+$check($bodyRequest['temperature']===0.25&&$bodyRequest['provider']->order===['together','google-vertex']
+    &&$bodyRequest['stop']===['END','a,b']&&$bodyRequest['logit_bias'] instanceof \stdClass
+    &&$bodyRequest['metadata']->label==='literal <img src=x>','YAML body parameters retain nested maps, lists, empty objects and literal text');
+$check(LlmConnector::requestOptions(array_replace($bodyOptions,['extra_parameters_enabled'=>false]),0.7,false)===['temperature'=>0.7]
+    &&LlmConnector::validateOptions($bodyOptions)['extra_parameters_yaml']===$bodyYaml,
+    'disabled YAML is retained verbatim without request injection');
+$check(LlmConnector::requestOptions(['extra_parameters_yaml'=>'temperature: 0','json_mode'=>false],0.7,false)===['temperature'=>0.7]
+    &&LlmConnector::requestOptions(['extra_parameters_enabled'=>true,'extra_parameters_yaml'=>'','json_mode'=>false],null,false)===[],
+    'YAML is opt-in and an empty document adds no parameters');
+$check(\LorkhanServer\Application\LlmBodyParameters::parse("# A saved note\n  # More notes\n")===[], 'comment-only YAML is an empty body extension');
+$check(LlmConnector::requestOptions(['extra_parameters_enabled'=>true,'extra_parameters_yaml'=>"response_format: {type: text}\nreasoning: {enabled: true}",'json_schema'=>true,'disable_reasoning'=>true],null,false,$schema)
+    ===['response_format'=>['type'=>'json_schema','json_schema'=>['name'=>'response','strict'=>true,'schema'=>$schema]],'reasoning'=>['exclude'=>true,'enabled'=>false]],
+    'Enforce JSON and Disable reasoning override YAML as in the reference request flow');
+foreach(["key: [broken",'- list',"!!php/object 'O:8:stdClass:0:{}'",'key: !php/const PHP_VERSION',
+    "a: &a [1, 2]\nb: *a",'key: .inf','key: .nan','null',str_repeat('a',16385),
+    'messages: []','stream: false','tools: []','n: 2',"provider:\n  api_key: never-store-this",'headers: {Authorization: hidden}',
+    'url: https://example.invalid',"a: null\na: 1",implode("\n",array_map(static fn(int $i):string=>str_repeat(' ',2*$i).'a:',range(0,20)))]as$invalidYaml){
+    try{LlmConnector::validateOptions(['extra_parameters_yaml'=>$invalidYaml]);$check(false,'unsafe or malformed YAML rejected');}
+    catch(InvalidArgumentException $error){$check(in_array($error->getMessage(),['invalid_provider_body_yaml','reserved_provider_body_parameter'],true),'unsafe or malformed YAML rejected without echoing input');}
+}
 $check(LlmConnector::requestOptions(['json_schema'=>true],null,false,$schema)['response_format']['json_schema']['schema']===$schema
     &&!isset(LlmConnector::requestOptions(['json_schema'=>true,'json_mode'=>false],null,false)['response_format']),
     'schema output is opt-in and Enforce JSON off suppresses it without discarding the preference');

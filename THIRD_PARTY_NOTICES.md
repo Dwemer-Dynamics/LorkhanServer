@@ -273,3 +273,23 @@ Groq model-picker presentation follows the same editor's standalone Groq
 dropdown and `ui/cmd/action_groq_get_models.php`: model ID, owner, context,
 filtering and key selection. Lorkhan keeps a fixed authenticated discovery URL,
 server-only credentials, bounded response fields and text-only rendering.
+
+YAML body-parameter controls derive from the same pinned Herika editor and
+`lib/core/llm_connector.class.php`. Lorkhan retains native message/delivery/action
+ownership, JSON validation, CSRF and private credential storage.
+
+Bundled YAML parser: Symfony Yaml v7.4.18, MIT, under
+`lib/ThirdParty/SymfonyYaml`, with Symfony Deprecation Contracts v3.7.1
+`function.php` and MIT license under `lib/ThirdParty/SymfonyDeprecation`.
+Upstream: https://github.com/symfony/yaml/tree/v7.4.18 and
+https://github.com/symfony/deprecation-contracts/tree/v3.7.1 .
+Files are unmodified; native ext-ctype supplies character classification.
+Parsing rejects aliases and unsafe tags and bounds input size, nesting and nodes.
+
+Bundled editor: Ace Builds v1.23.4, BSD 3-Clause, matching the pinned reference's
+Ace version. `ui/js/ace` contains unmodified ace.js, mode-yaml.js,
+theme-ambiance.js and LICENSE from https://github.com/ajaxorg/ace-builds/tree/v1.23.4 .
+Assets are served locally, with workers disabled and no CDN dependency.
+The companion `editor-ambiance.css` contains the unmodified editor and Ambiance
+CSS strings extracted from those pinned Ace modules. Lorkhan enables Ace's
+strict-CSP mode and links this stylesheet instead of allowing injected styles.

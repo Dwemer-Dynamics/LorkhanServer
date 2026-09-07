@@ -38,6 +38,8 @@ final class LlmConnector
         'disable_reasoning' => ['type' => 'boolean'],
         'reasoning_model' => ['type' => 'boolean'],
         'provider_order' => ['type' => 'string-list'],
+        'extra_parameters_yaml' => ['type' => 'yaml'],
+        'extra_parameters_enabled' => ['type' => 'boolean'],
     ];
 
     public static function validate(array $content): array
@@ -108,7 +110,10 @@ final class LlmConnector
         foreach ($options as $name => $value) {
             $rule = self::OPTION_RULES[$name] ?? null;
             if ($rule === null) throw new InvalidArgumentException('invalid_provider_options');
-            if ($rule['type'] === 'boolean') {
+            if ($rule['type'] === 'yaml') {
+                if (!is_string($value)) throw new InvalidArgumentException('invalid_provider_body_yaml');
+                LlmBodyParameters::parse($value);
+            } elseif ($rule['type'] === 'boolean') {
                 if (!is_bool($value)) throw new InvalidArgumentException('invalid_provider_option_' . $name);
             } elseif ($rule['type'] === 'string-list') {
                 if (!is_array($value) || !array_is_list($value) || count($value) > 16) {
@@ -137,6 +142,9 @@ final class LlmConnector
         if ($defaultTemperature !== null) $request['temperature'] = $defaultTemperature;
         foreach ($options as $name => $value) if (in_array(self::OPTION_RULES[$name]['type'], ['number', 'integer'], true)) $request[$name] = $value;
         if (!empty($options['provider_order'])) $request['provider'] = ['order' => $options['provider_order']];
+        if ($options['extra_parameters_enabled'] ?? false) {
+            $request = array_replace($request, LlmBodyParameters::parse($options['extra_parameters_yaml'] ?? ''));
+        }
         if ($options['json_mode'] ?? true) $request['response_format'] = ['type' => 'json_object'];
         if (($options['json_mode'] ?? true) && ($options['json_schema'] ?? false)) {
             if ($responseSchema === null) throw new InvalidArgumentException('missing_provider_response_schema');

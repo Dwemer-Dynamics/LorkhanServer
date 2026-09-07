@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body controls remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -3047,3 +3047,50 @@ Remaining Core Profile requirements identified from the pinned source and live e
   statuses 200/404. No game was started or controlled.
 - This closes the Groq picker gap only. YAML controls and the other open matrix
   rows remain; this is not full-page or whole-goal completion.
+
+### YAML body-parameter editor checkpoint
+
+- Added Include Body Parameters (YAML), Enable YAML Body Parameters and the
+  counterpart 120px Ace/Ambiance editor below the seven sampling controls.
+  Compared populated and empty source panels with the pinned reference's editor
+  markup/theme, plus a 390px source frame. The editor retains line numbers,
+  syntax highlighting, internal scrolling and its separate enable switch.
+  Escape moves focus to Clear advanced settings; that reset only clears sampling
+  fields, preserving YAML and its switch. Mock/direct/runtime switching preserves
+  unsaved YAML; the isolated submit receipt confirmed the edited value and switch.
+- Ace is bundled locally at the reference's 1.23.4 version, with its BSD license.
+  Its unmodified editor/theme CSS is linked as a local file, and strict-CSP mode
+  prevents injected styles. Live default editor rendering passed with the existing
+  content-security policy unchanged. If Ace is unavailable, the labelled native
+  textarea remains editable and submits through the same server validation.
+- The raw YAML and enable preference use the existing revisioned connector options
+  and portable exports. Off is the default and disabled YAML is retained, not sent.
+  An untouched absent YAML override stays absent; editing and clearing explicitly
+  stores an empty override. Existing configured-runtime inheritance is preserved.
+- Enabled parameters feed the shared request builder for dialogue, profile jobs
+  and Oghma extraction. They replace sampling/provider body values before Enforce
+  JSON and Disable reasoning, which retain precedence. YAML cannot replace native
+  messages, model, stream, tools/actions, response count/audio, credentials or
+  transport controls. These protect the existing OpenMW audited response/delivery
+  contract, rather than creating unsupported alternate provider pipelines.
+- Symfony Yaml 7.4.18 is bundled with its MIT license and deprecation dependency;
+  native ext-ctype is declared. Parsing is bounded to 16 KiB, 16 nesting levels
+  and 1,024 nodes. Unsafe tags, aliases, non-finite values, invalid root types,
+  duplicate keys and protected parameter names are rejected without exposing the
+  input in an error. Comments, quoted commas, nested maps/lists and empty maps are
+  preserved; HTML-like values remain literal text in the editor.
+- Browser fixtures made no live writes or paid provider calls. Existing HTTP
+  tests exercise actual requests against their disposable local provider, not a
+  paid service. No game was launched or controlled. This checkpoint does not close
+  the overall page matrix; final full-editor/hub comparison and other rows remain.
+- Final verification: PHP lint, JavaScript syntax, 434 server checks, management
+  HTTP (including dialogue/profile/Oghma wire assertions, failed-save preservation
+  and credential-stripped YAML import), integration, migrations and durable jobs
+  passed. Schema inventory remains 170 relations with unchanged summary hash.
+  Final deployment rollback: `/var/backups/lorkhanserver-code.r6ly9V`. All 779
+  runtime files match source with no extras or legacy paths; configuration,
+  credentials and voice hashes are unchanged. Private routes remain 403,
+  unauthenticated session creation 401, health valid and NPC reader states 200/404.
+  Live final GET confirmed a 120px editor, disabled default, loaded service icons
+  and Escape focus transfer. No live form was saved or provider called.
+- Git whitespace warnings are confined to unchanged upstream Ace assets and their extracted CSS; authored product changes pass the whitespace check.

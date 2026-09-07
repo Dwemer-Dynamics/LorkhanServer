@@ -94,6 +94,37 @@
     const panels = Array.from(document.querySelectorAll('[data-llm-modes]'));
     if (panels.length === 0) return;
     const timeout = document.getElementById('llm_timeout_ms');
+    const yamlText = document.getElementById('llm_body_yaml');
+    const yamlContainer = document.getElementById('llm_body_editor');
+    yamlText?.addEventListener('input', () => {
+        const present = document.getElementById('llm_body_present');
+        if (present) present.value = '1';
+    });
+    let yamlEditor = null;
+    if (yamlText && yamlContainer && window.ace) {
+        // Keep the native textarea as the submitted value and no-JavaScript fallback.
+        window.ace.config.set('useStrictCSP', true);
+        yamlContainer.hidden = false;
+        yamlEditor = window.ace.edit(yamlContainer);
+        yamlEditor.session.setUseWorker(false);
+        yamlEditor.setTheme('ace/theme/ambiance');
+        yamlEditor.session.setMode('ace/mode/yaml');
+        yamlEditor.setOptions({cursorStyle:'ace', tabSize:2, useSoftTabs:true});
+        yamlEditor.setValue(yamlText.value, -1);
+        yamlEditor.textInput.getElement().setAttribute('aria-label', 'Include Body Parameters (YAML)');
+        yamlEditor.textInput.getElement().setAttribute('aria-describedby', 'llm_body_help');
+        yamlEditor.textInput.getElement().setAttribute('aria-description', 'Press Escape to leave the code editor.');
+        yamlEditor.commands.addCommand({name:'leaveBodyParameters', bindKey:{win:'Esc',mac:'Esc'}, readOnly:true,
+            exec:() => document.querySelector('[data-llm-clear-advanced]')?.focus()});
+        yamlText.hidden = true;
+        document.querySelector('label[for="llm_body_yaml"]')?.addEventListener('click', event => {
+            event.preventDefault(); yamlEditor.focus();
+        });
+        yamlEditor.session.on('change', () => {
+            yamlText.value = yamlEditor.getValue();
+            yamlText.dispatchEvent(new Event('input', {bubbles:true}));
+        });
+    }
     const clearAdvanced = document.querySelector('[data-llm-clear-advanced]');
     if (clearAdvanced) {
         clearAdvanced.hidden = false;
@@ -165,6 +196,10 @@
             timeout.placeholder = mode === 'configured' ? 'Inherit runtime timeout' : '30000';
         }
         switches.forEach(({update}) => update());
+        if (yamlEditor) {
+            yamlEditor.setReadOnly(mode === 'mock');
+            yamlEditor.resize();
+        }
     };
 
     const services = {

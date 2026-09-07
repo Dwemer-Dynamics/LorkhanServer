@@ -3,6 +3,13 @@
 declare(strict_types=1);
 
 spl_autoload_register(static function (string $class): void {
+    $yamlPrefix = 'Symfony\\Component\\Yaml\\';
+    if (str_starts_with($class, $yamlPrefix)) {
+        require_once __DIR__ . '/ThirdParty/SymfonyDeprecation/function.php';
+        $path = __DIR__ . '/ThirdParty/SymfonyYaml/' . str_replace('\\', '/', substr($class, strlen($yamlPrefix))) . '.php';
+        if (is_file($path)) require $path;
+        return;
+    }
     $prefix = 'LorkhanServer\\';
     if (!str_starts_with($class, $prefix)) {
         return;
@@ -28,6 +35,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\JobHandler' => '/service/JobHandler.php',
         'Application\\JobHandlerRegistry' => '/service/JobHandlerRegistry.php',
         'Application\\LlmConnector' => '/connector/LlmConnector.php',
+        'Application\\LlmBodyParameters' => '/connector/LlmBodyParameters.php',
         'Application\\LocalSpeechConnectorProvider' => '/tts/LocalSpeechConnectorProvider.php',
         'Application\\LocalVoiceResolver' => '/tts/LocalVoiceResolver.php',
         'Application\\MemoryDeriveJobHandler' => '/service/MemoryDeriveJobHandler.php',

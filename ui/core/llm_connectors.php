@@ -92,6 +92,7 @@ const LORKHAN_LLM_BOOLEAN_FIELDS = [
     ['json_mode', 'Enforce JSON', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. LORKHAN validates responses even when this is off.'],
     ['json_schema', 'JSON Schema', 'Default', 'With Enforce JSON on, sends the exact response schema for dialogue or the current generation job. Requires a provider and model that support structured output. Off by default; configured connectors inherit the runtime.'],
     ['prefill_json', 'Prefill JSON', 'Default', 'Starts the assistant response with the expected JSON field. Requires a provider and model that support assistant continuation. Off by default; configured connectors inherit the runtime. Streaming and response validation still apply.'],
+    ['extra_parameters_enabled', 'Enable YAML Body Parameters', 'Default', 'When off, saved YAML remains stored but is not injected into requests. Off by default; configured connectors inherit the runtime. Body parameters can override sampling and provider preferences. Native messages, model, streaming, actions and credentials remain managed by LORKHAN. Enforce JSON and Disable reasoning take precedence.'],
     ['disable_reasoning', 'Disable reasoning', 'Inherit', 'Asks the provider to skip reasoning output. Configured connectors inherit the server runtime; direct connectors are off unless set. This does not clean reasoning tags out of a response.'],
     ['reasoning_model', 'Reasoning Model Fix', 'Inherit', 'Removes one leading <think>, <thinking>, or <reasoning> block from a response before LORKHAN parses the JSON. Off unless set, or unless a configured runtime supplies it. Disable reasoning is the separate setting that asks the provider not to produce reasoning at all; this one only cleans a block that was already returned, and JSON and result checks still apply.', 'config.llm.reasoning-fix'],
 ];
@@ -199,7 +200,7 @@ function lorkhan_llm_service_picker(string $webRoot): void
     <?php
 }
 
-$additionalStylesheets = ['herika-llm.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-llm.css')];
+$additionalStylesheets = ['herika-llm.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-llm.css'), '../js/ace/editor-ambiance.css'];
 include dirname(__DIR__) . '/tmpl/head.html';
 if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 ?>
@@ -445,6 +446,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <div class="llm-option-grid">
                                         <?php foreach (LORKHAN_LLM_SAMPLING_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
                                     </div>
+                                    <div class="llm-body-parameters">
+                                        <label for="llm_body_yaml">Include Body Parameters (YAML)</label>
+                                        <?php lorkhan_llm_boolean_field($switchFields['extra_parameters_enabled'], $options, $formId, !$isMock, $runtimeDefaults); ?>
+                                        <div id="llm_body_editor" class="extra_parameters_editor_container" hidden></div>
+                                        <input id="llm_body_present" type="hidden" name="body_yaml_present" value="<?php echo array_key_exists('extra_parameters_yaml', $options) ? '1' : '0'; ?>" form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <textarea id="llm_body_yaml" name="option_extra_parameters_yaml" maxlength="16384" spellcheck="false" aria-describedby="llm_body_help" form="<?php echo lorkhan_ui_h($formId); ?>"<?php echo $unless(!$isMock); ?>><?php echo lorkhan_ui_h($options['extra_parameters_yaml'] ?? ''); ?></textarea>
+                                        <p id="llm_body_help">Enter additional request body parameters in YAML format. (Advanced users only.)</p>
+                                    </div>
                                     <button type="button" class="btn-danger" data-llm-clear-advanced hidden>Clear advanced settings</button>
                                 </section>
                             </section>
@@ -467,5 +476,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     <?php endif; ?>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/ace/ace.js" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/ace/mode-yaml.js" defer></script>
+<script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/ace/theme-ambiance.js" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/llm-connectors.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/llm-connectors.js')); ?>" defer></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

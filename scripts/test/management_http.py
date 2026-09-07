@@ -1700,22 +1700,26 @@ generation_cases=[
 for profile,expected in generation_cases:
     profile['fixture_response']=expected
     probe=subprocess.run(['php','-r',
-        r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->generate(json_decode($argv[3],true),new LorkhanServer\Application\NeverCancelledToken()));",
+        r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true,'extra_parameters_enabled'=>true,'extra_parameters_yaml'=>'metadata: {yaml_fixture: true}'],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->generate(json_decode($argv[3],true),new LorkhanServer\Application\NeverCancelledToken()));",
         str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions',json.dumps(profile)],
         capture_output=True,text=True,timeout=15)
     assert probe.returncode==0 and json.loads(probe.stdout)==expected,(probe.stdout,probe.stderr)
     schema=VoiceProvider.llm_requests[-1][1]['response_format']['json_schema']['schema']
     assert set(schema['properties'])==set(expected) and schema['additionalProperties'] is False,schema
+    assert VoiceProvider.llm_requests[-1][1]['metadata']=={'yaml_fixture':True}
 topics_probe=subprocess.run(['php','-r',
-    r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->extract($argv[3],2,new LorkhanServer\Application\NeverCancelledToken()));",
+    r"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor($argv[2],['127.0.0.1'],'structured-fixture','',options:['json_schema'=>true,'prefill_json'=>true,'extra_parameters_enabled'=>true,'extra_parameters_yaml'=>'metadata: {yaml_fixture: true}'],allowLoopbackHttp:true,directConnection:true); echo json_encode($p->extract($argv[3],2,new LorkhanServer\Application\NeverCancelledToken()));",
     str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/llm/chat/completions',json.dumps({'fixture_response':{'topics':['Balmora','Vivec']}})],
     capture_output=True,text=True,timeout=15)
 assert topics_probe.returncode==0 and json.loads(topics_probe.stdout)==['Balmora','Vivec'],(topics_probe.stdout,topics_probe.stderr)
 assert VoiceProvider.llm_requests[-1][1]['response_format']['json_schema']['schema']['properties']['topics']['maxItems']==2
+assert VoiceProvider.llm_requests[-1][1]['metadata']=={'yaml_fixture':True}
 
 # Both provider response styles work, streamed and buffered; saving the switches reaches the actual wire.
 for stream,model in [('true','prefill-continuation'),('false','prefill-continuation'),('true','local-test')]:
     direct_values.update(option_json_schema='true',option_prefill_json='true',option_json_mode='true',
+        option_extra_parameters_yaml="metadata:\n  parity_fixture: true\nlogit_bias: {}\nstop: [END, 'a,b']\n",
+        option_extra_parameters_enabled='true',
         option_stream=stream,model=model,change_reason='Exercise schema and assistant continuation')
     r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
     r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode()
@@ -1725,14 +1729,36 @@ for stream,model in [('true','prefill-continuation'),('false','prefill-continuat
     assert sent['response_format']['json_schema']['schema']['properties']['action']=={'type':'null'},sent
     assert sent['messages'][-1]=={'role':'assistant','content':'{"utterances":'},sent
     assert not any(field in sent for field in ['json_schema','prefill_json','json_mode']),sent
+    assert sent['metadata']=={'parity_fixture':True} and sent['logit_bias']=={} and sent['stop']==['END','a,b'],sent
+    assert 'extra_parameters_yaml' not in sent and 'extra_parameters_enabled' not in sent,sent
 schema_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read().decode())
 assert schema_export['content']['options']['json_schema'] is True and schema_export['content']['options']['prefill_json'] is True,schema_export
+assert schema_export['content']['options']['extra_parameters_yaml']==direct_values['option_extra_parameters_yaml'],schema_export
 schema_editor=request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id).read().decode()
 assert schema_editor.index('for="llm_option_json_mode"') < schema_editor.index('for="llm_option_json_schema"') < schema_editor.index('for="llm_option_prefill_json"') < schema_editor.index('for="llm_option_stream"')
+assert 'Include Body Parameters (YAML)' in schema_editor and 'Enable YAML Body Parameters' in schema_editor and 'ui/js/ace/ace.js' in schema_editor
+before_yaml_revision=schema_export['content']
+invalid_yaml_values=dict(direct_values,option_extra_parameters_yaml='headers: {Authorization: never-echo-this}')
+invalid_yaml_response=request('/LorkhanServer/manage/forms/provider-revise','POST',invalid_yaml_values)
+invalid_yaml_body=invalid_yaml_response.read().decode()
+assert invalid_yaml_response.status==422 and 'never-echo-this' not in invalid_yaml_body,(invalid_yaml_response.status,invalid_yaml_body)
+assert json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read())['content']==before_yaml_revision
+direct_values.update(option_extra_parameters_enabled='false')
 direct_values.update(option_json_mode='false',change_reason='Preserve schema preference while JSON enforcement is disabled')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); assert r.status==200 and 'status=tested' in r.geturl()
 assert 'response_format' not in VoiceProvider.llm_requests[-1][1]
+assert 'metadata' not in VoiceProvider.llm_requests[-1][1]
+disabled_yaml_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+direct_id+'.json').read())
+assert disabled_yaml_export['content']['options']['extra_parameters_yaml']==direct_values['option_extra_parameters_yaml'] and disabled_yaml_export['content']['options']['extra_parameters_enabled'] is False
+disabled_yaml_export['name']=direct_name+' YAML portable'
+r=multipart_request('/LorkhanServer/manage/forms/provider-import',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(disabled_yaml_export)})
+assert r.status==200
+yaml_portable_id=connector_editor_id(r.read().decode(),disabled_yaml_export['name'])
+yaml_portable_export=json.loads(request('/LorkhanServer/manage/exports/providers/'+yaml_portable_id+'.json').read())
+assert yaml_portable_export['content']['options']==disabled_yaml_export['content']['options']
+assert yaml_portable_export['content']['credential']=='none'
+r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':yaml_portable_id}); assert r.status==200
 direct_values.update(model='invalid-output',credential='none',option_stream='false',option_json_mode='false',change_reason='Strict output still required')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert 'status=tested' not in r.geturl() and 'provider_invalid_output' in body,(r.status,body)

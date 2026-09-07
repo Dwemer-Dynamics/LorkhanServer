@@ -928,9 +928,13 @@ final class ManagementRouter
         }
         $options=[];
         foreach(LlmConnector::OPTION_RULES as$name=>$rule){
-            $key='option_'.$name;if(!array_key_exists($key,$values)||$values[$key]==='')continue;
+            $key='option_'.$name;if(!array_key_exists($key,$values)||($values[$key]===''&&$rule['type']!=='yaml'))continue;
             $raw=$values[$key];
-            if($rule['type']==='boolean'){
+            if($rule['type']==='yaml'){
+                if(!is_string($raw))throw new InvalidArgumentException('invalid_provider_body_yaml');
+                if($raw===''&&($values['body_yaml_present']??'1')==='0')continue;
+                $options[$name]=$raw;
+            }elseif($rule['type']==='boolean'){
                 if(!in_array($raw,['true','false'],true))throw new InvalidArgumentException('invalid_provider_option_'.$name);
                 $options[$name]=$raw==='true';
             }elseif($rule['type']==='string-list'){
