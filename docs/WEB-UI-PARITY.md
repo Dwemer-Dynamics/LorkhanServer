@@ -3692,3 +3692,22 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   no extra files or old paths. Private routes returned 403 and unauthenticated
   session returned 401. Configuration, credentials and voice files were preserved.
   No provider request, live settings save or game control was performed.
+
+## LLM creation toolbar and YAML row — 2026-09-07
+
+- Compared the populated DeepSeek editor and lower advanced/YAML sections in both
+  live products. Aligned the YAML enable control to the right edge of its label
+  row, matching the reference. Inspected the deployed result visually.
+- Aligned the unsaved connector toolbar with Herika's create-form template: Create
+  replaces Save, and unavailable Test/Export plus their testing note are absent.
+  Existing connectors retain Save/Test/Export. Removed unused placeholder CSS.
+  Herika's New action creates a blank database row immediately; did not invoke it
+  on the reference server. Lorkhan still creates only on authenticated POST.
+- Extended the existing HTTP create workflow with toolbar assertions; its existing
+  create/test/revise checks passed. Also passed 498 server checks, 98 protocol
+  files, PHP lint, full HTTP/integration/migration tests and whitespace checks.
+- Local deployment verified 786 matching runtime files, no extras/old paths,
+  protected private routes and unauthenticated session rejection. Configuration,
+  credentials and voice files were preserved. No provider requests or live saves
+  were made through the browser; no game launch/control. Full LLM interaction and
+  all-pages parity remain open.

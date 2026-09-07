@@ -335,15 +335,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                     <div class="two-col-llm">
                         <div class="llm-column">
                             <div class="llm-editor-toolbar">
-                                <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>">Save</button>
+                                <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo $creating ? 'Create' : 'Save'; ?></button>
                                 <?php if (!$creating): ?>
                                 <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary" type="submit">Test</button></form>
                                 <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
-                                <?php else: ?>
-                                <span class="llm-toolbar-placeholder"><button class="btn-primary" type="button" disabled aria-disabled="true" title="Save this connector before testing it.">Test</button></span>
-                                <span class="llm-toolbar-placeholder"><button class="btn-save" type="button" disabled aria-disabled="true" title="Save this connector before exporting it.">Export</button></span>
-                                <?php endif; ?>
                                 <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
+                                <?php endif; ?>
                                 <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                             </div>
 

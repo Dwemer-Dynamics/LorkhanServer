@@ -1438,7 +1438,9 @@ r=request('/LorkhanServer/manage/forms/description-reset','POST',{'_csrf':csrf,'
 llm_page,body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected=runtime'))
 runtime_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-runtime-test'))
 r=request(runtime_test['action'],'POST',dict(runtime_test['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and 'Test completed: 1 valid utterance' in body,(r.status,r.geturl(),body)
-llm_create_page,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?create=1'))
+llm_create_page,llm_create_body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?create=1'))
+create_toolbar=re.search(r'<div class="llm-editor-toolbar">(.*?)</div>',llm_create_body,re.S).group(1)
+assert '>Create</button>' in create_toolbar and '>Test</button>' not in create_toolbar and '>Export</' not in create_toolbar
 llm_form=next(f for f in llm_create_page.forms if f['action'].endswith('/forms/providers'))
 slot_name='HTTP model slot '+uuid.uuid4().hex
 values=dict(llm_form['fields'],_csrf=csrf,name=slot_name,driver='mock',model='deterministic-mock-v1',mock_prefix='[http] ')

@@ -174,8 +174,7 @@ body.llm-page-shell > main.llm-page {
 .llm-page .llm-editor-toolbar form { margin: 0; }
 .llm-page .llm-editor-toolbar > button,
 .llm-page .llm-editor-toolbar > a,
-.llm-page .llm-editor-toolbar form > button,
-.llm-page .llm-toolbar-placeholder > button {
+.llm-page .llm-editor-toolbar form > button {
     display: inline-flex;
     min-height: 36px;
     box-sizing: border-box;
@@ -187,17 +186,6 @@ body.llm-page-shell > main.llm-page {
     color: #fff;
     font-size: 13px;
     text-decoration: none;
-}
-
-.llm-page .llm-toolbar-placeholder { position: relative; display: inline-flex; }
-.llm-page .llm-toolbar-placeholder .feature-state-badge {
-    position: absolute;
-    top: -7px;
-    right: -7px;
-    z-index: 1;
-    white-space: nowrap;
-    transform: scale(.78);
-    transform-origin: top right;
 }
 
 .llm-page .llm-test-note {
@@ -447,6 +435,7 @@ body.llm-page-shell > main.llm-page {
 .llm-page .llm-body-parameters { margin-top:18px; }
 .llm-page .llm-body-parameters > label { font-weight:600; color:#e9efff; display:block; margin-bottom:6px; }
 .llm-page .llm-body-parameters .llm-boolean-field { margin-bottom:8px; }
+.llm-page .llm-body-parameters .llm-switch-field > .label-with-toggle { display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .llm-page .extra_parameters_editor_container,
 .llm-page #llm_body_yaml { height:120px; width:100%; border-radius:6px; border:1px solid #4a4a4a; background:#181a20; color:#e9efff; }
 .llm-page #llm_body_yaml { font-family:monospace; resize:vertical; }
