@@ -353,6 +353,14 @@ final class ManagementRouter
         }
         if($domain==='global-settings-preset')return $this->namedGlobalSettingsPreset($v,$scope);
         if($domain==='core-profile-preset')return $this->namedCoreProfilePreset($v,$scope);
+        if($domain==='player-speech-style-generate'){
+            $installation=$this->need($v,'installation_id');$profileId=$this->need($v,'profile_id');
+            $profile=$this->repository->getRevisioned('profile',$profileId);
+            if(($profile['installation_id']??null)!==$installation)throw new RuntimeException('not_found');
+            if(($v['operation']??'generate')==='status')return Response::json(200,$this->repository->playerSpeechStyleDraft($installation,$profileId,$this->need($v,'job_id')));
+            if(($v['operation']??'generate')!=='generate')throw new InvalidArgumentException('invalid_generation_operation');
+            return Response::json(202,$this->repository->enqueuePlayerSpeechStyleGeneration($profileId,$v['speech_style_guidance']??''));
+        }
         $content=$domain==='relationships'&&(!empty($v['actor_profile_id'])||!empty($v['relationship_id']))?[]:$this->jsonField($v,'content_json');
         if($domain==='autonomy')throw new RuntimeException('not_found');
         if($domain==='relationship-clear'){
@@ -497,7 +505,6 @@ final class ManagementRouter
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->playerIdentity($v),'content'=>$this->playerContent($v)]),
             'player-profile-revise'=>$this->service->revise('profile',$this->need($v,'profile_id'),$this->playerContent($v),$this->need($v,'change_reason')),
             'player-profile-settings-import'=>$this->importSpecialProfileSettings($v,$scope,'player'),
-            'player-speech-style-generate'=>$this->repository->enqueuePlayerSpeechStyleGeneration($this->need($v,'profile_id'),$v['speech_style_guidance']??''),
             'narrator-profile-create'=>$this->service->createRevisioned('profile',['installation_id'=>$scope['installation_id'],
                 'name'=>$this->need($v,'name'),'actor_identity'=>$this->narratorIdentity($v),'content'=>$this->narratorContent($v)]
                 +(trim((string)($v['core_profile_id']??''))===''?[]:['core_profile_id'=>$v['core_profile_id']])),
@@ -2580,6 +2587,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/player-speech-style-generate')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}
     private function style():string{return'<style>

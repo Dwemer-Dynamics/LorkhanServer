@@ -1150,9 +1150,13 @@ foreach([str_repeat('x',4001),['invalid']]as$invalidGuidance){
 $playerStyleStats=(new Worker($jobs,$firstPartyRegistry,'player-speech-style-test',5,1,1,0,10,['profile.generate'],static fn(int $microseconds):mixed=>null))->run();
 $playerStyleRow=$db->query("SELECT p.current_revision,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{$playerProfile['profile_id']}'")->fetch();
 $playerStyleContent=json_decode((string)$playerStyleRow['content'],true,64,JSON_THROW_ON_ERROR);
+$playerStyleDraft=$products->playerSpeechStyleDraft($legacyInstallation,$playerProfile['profile_id'],$queuedPlayerStyle['job_id']);
 $check(($queuedPlayerStyle['mode']??null)==='player_speech_style'&&$playerStyleStats['succeeded']===1
-    &&(int)$playerStyleRow['current_revision']===2&&str_contains((string)$playerStyleContent['speech_style'],'1 recent player input')
+    &&(int)$playerStyleRow['current_revision']===1&&$playerStyleContent['speech_style']==='Not analyzed.'
+    &&$playerStyleDraft['state']==='succeeded'&&str_contains((string)$playerStyleDraft['speech_style'],'1 recent player input')
     &&$playerStyleContent['biography']==='Arrived by prison ship.','player speech-style generation did not preserve non-style fields');
+try{$products->playerSpeechStyleDraft(Uuid::v4(),$playerProfile['profile_id'],$queuedPlayerStyle['job_id']);throw new RuntimeException('cross-installation draft read accepted');}
+catch(RuntimeException $error){$check($error->getMessage()==='not_found','unexpected draft scope error');}
 $narratorProfile=$service->createRevisioned('profile',['installation_id'=>$legacyInstallation,'name'=>'Test Narrator',
     'actor_identity'=>['kind'=>'narrator','record_id'=>'lorkhan:narrator','content_file'=>'LORKHAN','display_name'=>'Test Narrator'],
     'content'=>['enabled'=>true,'inline_narration_mode'=>'Narrator','biography'=>'Existing narrator background.',

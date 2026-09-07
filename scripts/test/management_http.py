@@ -2038,7 +2038,7 @@ if create_player is not None:
     player_page,_=parse(request('/LorkhanServer/ui/core/player_management.php'))
     generate_style=next((f for f in player_page.forms if f['action'].endswith('/forms/player-speech-style-generate')),None)
     if generate_style is not None:
-        r=request(generate_style['action'],'POST',dict(generate_style['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/player_management.php?status=saved'),(r.status,r.geturl(),body)
+        r=request(generate_style['action'],'POST',dict(generate_style['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==202 and 'job_id' in json.loads(body),(r.status,r.geturl(),body)
     player_id=match.group(1)
     edit_page,body=parse(request('/LorkhanServer/ui/core/player_management.php'))
     revise=next(f for f in edit_page.forms if f['action'].endswith('/forms/player-profile-revise'))

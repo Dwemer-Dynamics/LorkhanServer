@@ -73,7 +73,7 @@ do not use an exception to excuse a generic substitute layout.
 | `global_settings.php` | Same path | Prompt/preset toolbar, grouped context selections, Oghma, connector cards/test dialog and blacklist browsers aligned; profile-affecting built-ins pending |
 | `core/core_profiles.php` | Same path | In progress: response word limit, profile memory grouping, stacked settings/range controls, Copy to all and visible sticky toolbar; scrolling slot summary, linked assigned slots and toolbar spacing aligned. Presets and additional profile fields remain |
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI-result staging, remaining General/Info and full editor/list review remain |
-| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance now rendered and passed through bounded revision-safe speech-style jobs. Player name editing, generated-result staging and per-player provider overrides remain pending |
+| `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing, per-player provider overrides and remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; final full-editor/hub review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
@@ -3733,3 +3733,36 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   credentials and voices preserved; no player settings save or game control.
 - Player name editing, generated-result staging and per-player provider overrides
   remain open. This does not close the Player page or all-pages goal.
+
+## Player generated speech-style review — 2026-09-07
+
+- Replaced automatic player-profile revision on generation with private draft
+  storage (migration 094). The worker stores only a bounded speech_style result,
+  fenced by job attempt, active lease and queued profile/revision. Drafts follow
+  job/profile deletion; rollback refuses to discard existing drafts.
+- Added installation/profile/job-scoped status responses behind the existing CSRF
+  form route. Responses expose state and successful draft text only, not job payloads.
+  A changed saved revision returns stale. The editor polls the same job, displays
+  generating/error/success feedback and places the result in the existing textarea
+  with an input event to mark it dirty. It preserves edits made during generation.
+  Save Player Settings remains the only step that persists the reviewed text.
+- New ui/js/player-speech-style.js follows the pinned Herika Player generation
+  interaction, adapted to the existing durable queue. JavaScript-disabled users
+  receive an explicit explanation; the generation button cannot silently autosave.
+- Actual browser/worker round trip used disposable PostgreSQL 55464 and HTTP58464,
+  synthetic player input and an explicit MockProfileGenerationProvider. Before Save,
+  database revision stayed 2 and speech_style stayed empty; the browser displayed
+  generated text and Unsaved changes. Browser Save advanced to revision 3 and stored
+  that text while preserving the biography. The isolated server was stopped cleanly.
+  Initial synthetic session insertion lacked its required playthrough; added that
+  fixture record and reran successfully. No production settings/provider calls occurred.
+- Passed 498 server checks, 98 protocol files, full HTTP/integration/migration/durable
+  job checks and a second isolated HTTP run; JS syntax/whitespace passed. Existing
+  worker tests assert unchanged profile plus stored draft and cross-installation
+  refusal. Schema: 172 relations, summary hash
+  fe70674a3ec53cfb7e41a1e94cba64acd690d2fa5650b63a83727ebffaec9afb.
+- Local rollback /var/backups/lorkhanserver-code.RjLDKo; all 789 runtime hashes match,
+  no extras/old paths, private 403 and unauthenticated session 401. Configuration,
+  credentials and voices preserved. No game launch/control. Remaining generation
+  edge-state browser checks and current unsaved style as generation context remain
+  open alongside Player name/provider overrides and the full page matrix.

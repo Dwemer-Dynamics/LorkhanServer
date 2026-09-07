@@ -755,6 +755,36 @@ final class ProductRepository
         });
     }
 
+    /** Store a worker result for review without changing the player's saved profile. */
+    public function storePlayerSpeechStyleDraft(string $jobId,int $attempt,string $profileId,int $baseRevision,string $speechStyle):void
+    {
+        if(trim($speechStyle)===''||strlen($speechStyle)>8192||!mb_check_encoding($speechStyle,'UTF-8'))throw new InvalidArgumentException('invalid_speech_style_draft');
+        $query=$this->db->prepare("INSERT INTO lorkhan_internal.player_speech_style_drafts(job_id,profile_id,base_revision,speech_style)
+            SELECT j.job_id,p.profile_id,:revision,:style FROM durable_jobs j JOIN profiles p ON p.profile_id=:profile
+            WHERE j.job_id=:job AND j.state='leased' AND j.attempt_count=:attempt AND j.lease_expires_at>clock_timestamp()
+            AND j.payload->>'profile_id'=p.profile_id::text AND j.payload->>'mode'='player_speech_style'
+            AND (j.payload->>'base_revision')::integer=:base_revision
+            AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player'
+            ON CONFLICT(job_id) DO UPDATE SET speech_style=EXCLUDED.speech_style");
+        $query->execute(['revision'=>$baseRevision,'base_revision'=>$baseRevision,'style'=>$speechStyle,'profile'=>$profileId,'job'=>$jobId,'attempt'=>$attempt]);
+        if($query->rowCount()!==1)throw new RuntimeException('lease_lost');
+    }
+
+    /** Return only one installation's player draft and safe job status, never raw job payloads. */
+    public function playerSpeechStyleDraft(string $installationId,string $profileId,string $jobId):array
+    {
+        if(!Uuid::isValid($installationId)||!Uuid::isValid($profileId)||!Uuid::isValid($jobId))throw new InvalidArgumentException('invalid_player_draft_scope');
+        $query=$this->db->prepare("SELECT j.state,j.payload->>'base_revision' AS base_revision,p.current_revision,d.speech_style
+            FROM durable_jobs j JOIN profiles p ON p.profile_id::text=j.payload->>'profile_id'
+            LEFT JOIN lorkhan_internal.player_speech_style_drafts d ON d.job_id=j.job_id AND d.profile_id=p.profile_id
+            WHERE j.job_id=:job AND j.job_type='profile.generate' AND j.payload->>'mode'='player_speech_style'
+            AND p.profile_id=:profile AND p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='player'");
+        $query->execute(['job'=>$jobId,'profile'=>$profileId,'installation'=>$installationId]);$row=$query->fetch();
+        if(!$row)throw new RuntimeException('not_found');
+        $state=(int)$row['base_revision']!==(int)$row['current_revision']?'stale':(string)$row['state'];
+        return ['state'=>$state,'speech_style'=>$state==='succeeded'?$row['speech_style']:null];
+    }
+
     /** Freeze the inherited generation route as IDs only; no endpoint or key material enters a job payload. */
     private function profileGenerationPayload(string $installationId,string $profileId,int $revision,?string $mode=null):array
     {

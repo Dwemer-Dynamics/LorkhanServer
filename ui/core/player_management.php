@@ -112,6 +112,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
             <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
                 <form id="player-speech-ai-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/player-speech-style-generate">
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
                     <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                     <input type="hidden" name="profile_id" value="<?php echo lorkhan_ui_h($profile['profile_id']); ?>">
                 </form>
@@ -202,13 +203,15 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <label for="player-speech-style-guidance">AI Generation</label>
                             <textarea id="player-speech-style-guidance" name="speech_style_guidance" form="player-speech-ai-form" maxlength="4000" placeholder="Optional: mention traits or tone to prioritize when generating your speech style paragraph."></textarea>
                             <?php if ($profile !== null && (int) ($profile['input_count'] ?? 0) > 0): ?>
-                                <button type="submit" form="player-speech-ai-form" class="btn-ai-generate">AI Generate From Last 200 Inputs</button>
+                                <button type="submit" form="player-speech-ai-form" class="btn-ai-generate" disabled data-player-generate>AI Generate From Last 200 Inputs</button>
                                 <span class="hint">Generate Speech Style with AI from <?php echo lorkhan_ui_h($profile['input_count']); ?> observed player messages without replacing the rest of the player profile.</span>
                             <?php else: ?>
                                 <button type="button" class="btn-ai-generate" disabled>AI Generate From Last 200 Inputs</button>
                                 <span class="hint">Speech-style generation becomes available after OpenMW records a player message.</span>
                             <?php endif; ?>
                         </div>
+                        <p class="hint" id="player-generation-status" role="status" aria-live="polite"></p>
+                        <noscript><p class="hint">Enable JavaScript to review generated speech style before saving.</p></noscript>
                     </section>
 
                     <section class="content-section">
@@ -301,4 +304,5 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     </div>
 </main>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>"></script>
+<script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/player-speech-style.js?v=<?php echo (int)filemtime(dirname(__DIR__).'/js/player-speech-style.js'); ?>"></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>
