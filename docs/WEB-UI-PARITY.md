@@ -4344,3 +4344,25 @@ table scrolling and the preset/Delete controls shared one row. Diff check
 passed; no backend tests were claimed for this CSS-only change. Reference
 ui/events-memories.php at 529364c4c12b3a8bd4cc12a481f400ce19b3a344; local
 private screenshots: Temp/lorkhan-events-aligned-{1280,390}.png.
+
+
+### Config Hub connector comparison (2026-09-07)
+
+Captured 28 live read-only Config Hub states across Profiles, NPCs, LLM, TTS,
+TTS Studio, STT and API Keys at 1280/390 pixels. Capturing is not acceptance:
+visually reviewed LLM and TTS desktop entry views, TTS Studio desktop and
+STT narrow views. Remaining captured pages still need visual inspection.
+The reference has excluded ITT/Server Plugins buttons; these stay absent.
+
+Compared the same DeepSeek Chat V3.2 OpenRouter editor in both products at
+1280/390. Desktop form hierarchy, service icons, model/provider/API-key rows
+and advanced settings columns match; saved values were not changed. Native
+mobile stacking stays usable where reference's side-by-side editor clips.
+Removed the extra native No connector selected card; retained its instruction
+for screen readers. New/import/edit branches are unchanged. PHP lint and diff
+check passed. No connector test, key update or provider generation occurred.
+
+Screenshots remain private in Temp/lorkhan-config-hub-review and
+Temp/{herika,lorkhan}-matching-llm-{1280,390}.png. The live products select
+different speech providers, so TTS Studio controls still need matching-provider
+comparison rather than treating these entry screenshots as full acceptance.

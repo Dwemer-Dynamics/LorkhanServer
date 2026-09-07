@@ -296,9 +296,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
         <section class="llm-right">
             <?php if ($mode === 'none'): ?>
-                <div class="form-container wide-centered">
-                    <div class="connector-placeholder"><strong>No connector selected</strong><div>Select a connector from the list on the left to view and edit its settings.</div></div>
-                </div>
+                <p class="visually-hidden">No connector selected. Select a connector from the list to view and edit its settings.</p>
             <?php elseif ($mode === 'import'): ?>
                 <div class="form-container wide-centered llm-import-panel">
                     <div class="llm-editor-toolbar"><a class="btn-base" href="<?php echo lorkhan_ui_h($queryFor([])); ?>">Cancel</a></div>
