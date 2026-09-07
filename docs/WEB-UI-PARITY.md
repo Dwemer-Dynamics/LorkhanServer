@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed; other service catalogues, import-editor presentation and additional request controls remain |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. Other service catalogues, import-editor presentation, JSON Schema, Prefill JSON, Remove Action Prompt, YAML body controls and Clear advanced settings remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -2876,3 +2876,50 @@ Remaining Core Profile requirements identified from the pinned source and live e
   runtime files match source; no extra files or old paths. Configuration, key and
   voice hashes are unchanged; private paths remain 403, unauthenticated sessions
   401 and health valid. No game, live save or paid inference operation ran.
+
+### LLM common editor structure and request-switch checkpoint
+
+- Removed the prominent Direct connection panel and moved its common API Key
+  field directly below Provider. Endpoint URL appears above Model for Custom
+  endpoints; fixed service endpoints remain unchanged submitted values. Runtime
+  service identity is displayed from a bounded public service code, without
+  rendering the inherited endpoint or credential. Choosing a service still only
+  edits the form until Save.
+- Reordered common switches to Reasoning Model Fix, Enforce JSON and Disable
+  Streaming, with the pinned Herika checkbox presentation. The existing native
+  three-state selects remain the no-JavaScript fallback and submitted controls.
+  Enhancement leaves untouched values blank; checking Disable Streaming maps
+  to `option_stream=false`. Runtime and direct defaults are displayed correctly
+  without materializing overrides. Reset request switches restores inheritance.
+- Moved Mode, inherited connection explanation, timeout, Disable reasoning,
+  endpoint rules and mock prefix into Connection options. The alternative
+  Max completion tokens field is also secondary, while Max Tokens and Temperature
+  head the right column as in Herika. Existing alternative-token connectors open
+  those options automatically. These controls retain native capabilities; they
+  do not claim that missing Herika request controls are implemented.
+- Actual reference/source desktop measurements now match: 440px/411px columns
+  with a 16px gap, 56px service icons, 13.44px/20.16px switch labels, 8px/6px label
+  margins, 22.15625px label boxes and 28.8px scaled checkboxes. A global 2px button
+  margin was shrinking icons to 52px; the service row now explicitly removes it
+  and matches the reference's 8px corner radius. Sampling labels use Herika's
+  220px column where space permits, and the editor stacks at 1000px.
+- Intermediate-width review caught a 26px numeric input at a 1120px viewport.
+  The label column now yields enough width to retain a 100px input there. At
+  960px the editor stacks, and at 390px the input remains 101px wide. Client and
+  scroll widths match (945/945, 1105/1105 and 375/375 respectively). This responsive
+  guard preserves usable inputs rather than reproducing reference compression.
+- Isolated browser checks covered inherited defaults, explicit false values,
+  model/service and configured/direct/mock round trips, inactive-field disabling,
+  reset to actual runtime/direct defaults, exact custom endpoint preservation and
+  the existing two-token-limit conflict. The deployed create form still has four
+  blank submitted switch values, hidden fixed-service endpoint and loaded icons;
+  its live desktop columns match the reference. No live form was saved.
+- PHP lint, JavaScript syntax, diff whitespace, all 395 server checks and the
+  final management HTTP suite passed. Existing HTTP coverage also verifies switch
+  ordering, inverted stream metadata and automatic opening of alternative-token
+  controls. Final deployment rollback is `/var/backups/lorkhanserver-code.yIhehf`.
+  All 752 runtime files match source, with no extra files or old paths; configuration,
+  credentials and voice hashes remain unchanged. Private paths return 403,
+  unauthenticated sessions 401 and health is valid. The game was untouched.
+- The LLM page remains open for the specifically named missing controls/catalogues
+  in the matrix. Neither this page nor the whole-site goal is marked complete.

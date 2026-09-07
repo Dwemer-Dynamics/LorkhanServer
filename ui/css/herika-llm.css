@@ -213,7 +213,7 @@ body.llm-page-shell > main.llm-page {
     line-height: 1.35;
 }
 
-.llm-page .two-col-llm { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.llm-page .two-col-llm { display: grid; grid-template-columns: minmax(440px, 1fr) minmax(0, 1fr); gap: 16px; }
 
 .llm-page .form-container label,
 .llm-page .llm-group-heading {
@@ -301,7 +301,7 @@ body.llm-page-shell > main.llm-page {
 
 .llm-page .llm-option-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; }
 .llm-page .llm-option-field { min-width: 0; }
-.llm-page .llm-option-field > label { margin: 6px 0; font-size: 13px; }
+.llm-page .llm-option-field > label { margin: 6px 0; font-size: 13.44px; }
 .llm-page .llm-option-field > .llm-help { margin-bottom: 8px; }
 
 .llm-page .llm-advanced-panel {
@@ -341,22 +341,30 @@ body.llm-page-shell > main.llm-page {
 .llm-page .llm-service-block { margin: 8px 0; padding: 0; border: 0; }
 .llm-page .llm-service-icons { display: flex; flex-wrap: nowrap; gap: 8px; margin: 12px 0; }
 .llm-page .llm-service-icons button {
-    display: inline-flex; width: 56px; height: 56px; flex: 1 1 0; max-width: 56px; min-width: 0; min-height: 0; padding: 0 !important; margin: 0;
-    border: 1px solid #4a4a4a; border-radius: 6px; background: transparent;
+    display: inline-flex; width: 56px; height: 56px; flex: 1 1 0; max-width: 56px; min-width: 0; min-height: 0; padding: 0 !important; margin: 0 !important;
+    border: 1px solid rgba(138,155,182,.3) !important; border-radius: 8px !important; background: transparent;
 }
-.llm-page .llm-service-icon { width: 100%; height: 100%; border-radius: 5px; object-fit: cover; opacity: .85; }
+.llm-page .llm-service-icon { width: 100%; height: 100%; border-radius: 7px; object-fit: cover; opacity: .8; }
 .llm-page .llm-service-icons button:hover .llm-service-icon,
 .llm-page .llm-service-icons button[aria-pressed="true"] .llm-service-icon { opacity: 1; }
-.llm-page .llm-service-icons button[aria-pressed="true"] { outline: 2px solid #bc9d5a; outline-offset: 1px; }
+.llm-page .llm-service-icons button[aria-pressed="true"] { outline: 2px solid #bc9d5a; outline-offset: 0; }
 .llm-page .llm-service-icons button:focus-visible { outline: 2px solid #fff; outline-offset: 3px; }
 
 /* Reference key/value rows retain unnamed sliders and explicit blank/default values. */
-.llm-page .llm-sampling-field { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; align-items: center; }
+/* Keep Herika's 220px label column, but reserve readable inputs in narrower editor columns. */
+.llm-page .llm-sampling-field { display: grid; grid-template-columns: minmax(0, min(220px, calc(100% - 112px))) minmax(0, 1fr); gap: 12px; align-items: center; }
 .llm-page .llm-option-control { min-width: 0; }
 .llm-page .llm-option-control input[type="range"] { display: block; width: 100%; margin: 0; padding: 0; min-height: 18px; accent-color: #bc9d5a; }
 .llm-page .llm-option-control input[type="number"] { margin-top: 6px; }
 .llm-page .llm-boolean-field { display: grid; grid-template-columns: minmax(0, 1fr) 100px; align-items: center; gap: 8px; }
 .llm-page .llm-boolean-field select { margin: 0; padding: 6px 8px; }
+.llm-page .llm-switch-field { display:block; }
+.llm-page .llm-switch-field select[hidden] { display:none; }
+.llm-page .llm-switch-field > .label-with-toggle { display:inline-block; margin:8px 0 6px; font-size:13.44px; line-height:20.16px; }
+.llm-page .label-with-toggle input[type="checkbox"] { appearance:auto; width:16px; height:16px; min-width:16px; padding:0; margin:0 0 0 8px; accent-color:#176529; transform:scale(1.8); transform-origin:center; cursor:pointer; }
+.llm-page .label-with-toggle input[type="checkbox"]:focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
+.llm-page .llm-connection-options { margin-top:16px; }
+.llm-page .llm-connection-options [data-llm-reset-switches] { margin:8px 0; }
 .llm-page .llm-boolean-controls { margin: 12px 0; }
 .llm-page .llm-boolean-controls .llm-option-field { margin: 6px 0; }
 .llm-page .llm-column { min-width: 0; }
@@ -390,7 +398,8 @@ body.llm-page-shell > main.llm-page {
 
 }
 
-@media (max-width: 900px) {
+@media (max-width: 1000px) {
+    .llm-page .two-col-llm { grid-template-columns: minmax(0, 1fr); }
     .llm-page .llm-option-grid { grid-template-columns: minmax(0, 1fr); }
 }
 

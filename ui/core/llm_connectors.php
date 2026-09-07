@@ -70,7 +70,7 @@ foreach ($llmCredentials as $reference => $label) {
 
 /** Numeric override fields: name, label, type, minimum, maximum, step, help. */
 const LORKHAN_LLM_GENERATION_FIELDS = [
-    ['max_tokens', 'Max tokens', 'integer', 1, 32768, '1', 'Upper bound on the tokens one response may generate. Set this or Max completion tokens, never both.'],
+    ['max_tokens', 'Max Tokens', 'integer', 1, 32768, '1', 'Upper bound on the tokens one response may generate. Set this or Max completion tokens, never both.'],
     ['max_completion_tokens', 'Max completion tokens', 'integer', 1, 32768, '1', 'Alternative token limit for models that require this parameter. Set only one token limit.'],
     ['temperature', 'Temperature', 'number', 0, 2, '0.01', 'Higher values make wording more varied.'],
 ];
@@ -87,8 +87,8 @@ const LORKHAN_LLM_SAMPLING_FIELDS = [
 
 /** Boolean override fields: name, label, inherit-option label, help, optional feature id. */
 const LORKHAN_LLM_BOOLEAN_FIELDS = [
-    ['stream', 'Streaming', 'Default', 'Dialogue only. Default is on for direct connectors; configured connectors inherit the runtime.'],
-    ['json_mode', 'JSON mode', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. LORKHAN validates responses even when this is off.'],
+    ['stream', 'Disable Streaming', 'Default', 'Wait for the complete JSON response instead of streaming dialogue. Off by default; configured connectors inherit the runtime.'],
+    ['json_mode', 'Enforce JSON', 'Default', 'Requests JSON from the provider. Default is on for direct connectors; configured connectors inherit the runtime. LORKHAN validates responses even when this is off.'],
     ['disable_reasoning', 'Disable reasoning', 'Inherit', 'Asks the provider to skip reasoning output. Configured connectors inherit the server runtime; direct connectors are off unless set. This does not clean reasoning tags out of a response.'],
     ['reasoning_model', 'Reasoning Model Fix', 'Inherit', 'Removes one leading <think>, <thinking>, or <reasoning> block from a response before LORKHAN parses the JSON. Off unless set, or unless a configured runtime supplies it. Disable reasoning is the separate setting that asks the provider not to produce reasoning at all; this one only cleans a block that was already returned, and JSON and result checks still apply.', 'config.llm.reasoning-fix'],
 ];
@@ -141,22 +141,25 @@ function lorkhan_llm_number_field(array $field, array $options, string $formId, 
     <?php
 }
 
-/** Render one boolean override as an explicit inherit / on / off choice instead of an ambiguous checkbox. */
-function lorkhan_llm_boolean_field(array $field, array $options, string $formId, bool $active): void
+/** Keep a three-state form fallback; JavaScript adds Herika's checkbox without losing inheritance. */
+function lorkhan_llm_boolean_field(array $field, array $options, string $formId, bool $active, array $runtimeDefaults): void
 {
     [$name, $label, $inheritLabel, $help] = $field;
     $featureId = (string) ($field[4] ?? '');
     $stored = $options[$name] ?? null;
     $current = $stored === true ? 'true' : ($stored === false ? 'false' : '');
     $id = 'llm_option_' . $name;
+    $inverted = $name === 'stream';
     ?>
     <div class="llm-option-field llm-boolean-field">
         <label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($label); ?><?php if ($featureId !== '') echo ' ' . lorkhan_ui_feature_badge($featureId, true); ?></label>
         <select id="<?php echo lorkhan_ui_h($id); ?>" name="option_<?php echo lorkhan_ui_h($name); ?>"
+                data-direct-default="<?php echo in_array($name, ['stream', 'json_mode'], true) ? 'true' : 'false'; ?>"
+                data-runtime-default="<?php echo !empty($runtimeDefaults[$name]) ? 'true' : 'false'; ?>" data-inverted="<?php echo $inverted ? 'true' : 'false'; ?>"
                 aria-describedby="<?php echo lorkhan_ui_h($id); ?>-help"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
             <option value=""<?php echo $current === '' ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($inheritLabel); ?></option>
-            <option value="true"<?php echo $current === 'true' ? ' selected' : ''; ?>>On</option>
-            <option value="false"<?php echo $current === 'false' ? ' selected' : ''; ?>>Off</option>
+            <option value="true"<?php echo $current === 'true' ? ' selected' : ''; ?>><?php echo $inverted ? 'Off' : 'On'; ?></option>
+            <option value="false"<?php echo $current === 'false' ? ' selected' : ''; ?>><?php echo $inverted ? 'On' : 'Off'; ?></option>
         </select>
         <p class="llm-help llm-field-tooltip" role="tooltip" id="<?php echo lorkhan_ui_h($id); ?>-help"><?php echo lorkhan_ui_h($help); ?></p>
     </div>
@@ -285,6 +288,18 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $timeout = is_int($storedTimeout) ? (string) $storedTimeout : (is_string($storedTimeout) ? $storedTimeout : '');
                 $isDirect = $driver === 'openai-compatible';
                 $isMock = $driver === 'mock';
+                $switchFields = array_column(LORKHAN_LLM_BOOLEAN_FIELDS, null, 0);
+                $runtimeDefaults = array_replace(['stream'=>true, 'json_mode'=>true, 'reasoning_model'=>false,
+                    'disable_reasoning'=>(bool)($config['provider']['disable_reasoning'] ?? false)], (array)($config['provider']['options'] ?? []));
+                $runtimeService = match (rtrim((string)($config['provider']['endpoint'] ?? ''), '/')) {
+                    'https://openrouter.ai/api/v1/chat/completions' => 'openrouter',
+                    'https://api.openai.com/v1/chat/completions' => 'openai',
+                    'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions' => 'google',
+                    'https://api.groq.com/openai/v1/chat/completions' => 'groq',
+                    'https://nano-gpt.com/api/v1/chat/completions' => 'nanogpt',
+                    'http://127.0.0.1:4315/v1/chat/completions' => 'player2',
+                    default => '',
+                };
                 // Inactive mode controls stay disabled so they neither submit nor block native validation.
                 $unless = static fn(bool $active): string => $active ? '' : ' disabled';
             ?>
@@ -309,7 +324,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <?php if (!$creating): ?><span class="visually-hidden"><?php echo (int) ($selected['profile_usage'] ?? 0); ?> profiles</span><?php if ((int) ($selected['profile_usage'] ?? 0) > 0 || (int) ($selected['active_session_usage'] ?? 0) > 0 || (int) ($selected['queued_job_usage'] ?? 0) > 0 || (int) ($selected['memory_policy_usage'] ?? 0) > 0): ?><span class="visually-hidden">Connector is in use.</span><?php endif; ?><?php endif; ?>
                             </div>
 
-
                             <div class="llm-connection-field">
                                 <label for="llm_name">Name</label>
                                 <input id="llm_name" type="text" aria-describedby="llm_name-help" name="name" required maxlength="128" form="<?php echo lorkhan_ui_h($formId); ?>" value="<?php echo $creating ? '' : lorkhan_ui_h($selected['name']); ?>">
@@ -318,19 +332,17 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                             <?php lorkhan_llm_service_picker($webRoot); ?>
 
-                            <div class="llm-connection-field">
-                                <label for="llm_driver">Mode</label>
-                                <select id="llm_driver" name="driver" aria-describedby="llm_driver-help" form="<?php echo lorkhan_ui_h($formId); ?>">
-                                <?php foreach (LORKHAN_LLM_DRIVERS as $driverId => $driverLabels): ?>
-                                <option value="<?php echo lorkhan_ui_h($driverId); ?>"<?php echo $driver === $driverId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($driverLabels[0]); ?></option>
-                                <?php endforeach; ?>
-                                </select>
-                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
+                            <div class="llm-mode-panel llm-connection-field" id="llm_endpoint_row" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
+                                <label for="llm_endpoint">Endpoint URL</label>
+                                <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
+                                       value="<?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
+                                       aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_endpoint-help">Paste the complete chat-completions URL. LORKHAN stores it verbatim and never appends or rewrites a path.</p>
                             </div>
 
                             <div class="llm-connection-field">
                                 <label for="llm_model">Model</label>
-                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>" data-runtime-openrouter="<?php echo rtrim((string)($config['provider']['endpoint'] ?? ''), '/') === 'https://openrouter.ai/api/v1/chat/completions' ? 'true' : 'false'; ?>">
+                                <input id="llm_model" type="text" name="model" required maxlength="256" value="<?php echo lorkhan_ui_h($content['model'] ?? ''); ?>" aria-describedby="llm_model-help" form="<?php echo lorkhan_ui_h($formId); ?>" data-model-catalogue="<?php echo lorkhan_ui_h($managementBasePath . '/api/v1/llm-models'); ?>" data-runtime-service="<?php echo lorkhan_ui_h($runtimeService); ?>" data-runtime-openrouter="<?php echo $runtimeService === 'openrouter' ? 'true' : 'false'; ?>">
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_model-help">Required in every mode. Up to 256 characters, spelled exactly as the provider expects.</p>
                             </div>
 
@@ -340,29 +352,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_provider-help">Preferred OpenRouter provider slugs, separated by commas in priority order. Other providers can still handle the request if these are unavailable. Blank uses the default routing (or the configured runtime preference).</p>
                             </div>
 
-                            <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
-                                <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
-                                <p class="llm-help">The endpoint and the API key come from the LorkhanServer runtime. This mode has no per-connector endpoint or credential of its own.</p>
-                            </section>
-
-                            <section class="llm-mode-panel llm-connection-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
-                                <div class="llm-group-heading"><span>Direct connection</span><?php echo lorkhan_ui_feature_badge('config.llm.endpoint', true); ?></div>
-                                <div class="llm-connection-field">
-                                    <label for="llm_endpoint">Endpoint URL</label>
-                                    <input id="llm_endpoint" type="url" name="endpoint" required maxlength="2048" inputmode="url" spellcheck="false"
-                                           value="<?php echo lorkhan_ui_h($content['endpoint'] ?? ''); ?>" placeholder="http://127.0.0.1:1234/v1/chat/completions"
-                                           aria-describedby="llm_endpoint-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_endpoint-help">Paste the complete chat-completions URL. LORKHAN stores it verbatim and never appends or rewrites a path.</p>
-                                </div>
-                                <details class="llm-help-details">
-                                    <summary>Endpoint rules</summary>
-                                    <ul>
-                                        <li>Give the whole path, for example <code>http://127.0.0.1:1234/v1/chat/completions</code>.</li>
-                                        <li>Plain HTTP is accepted for loopback hosts only (<code>127.*</code> or <code>localhost</code>). Any other host must use HTTPS.</li>
-                                        <li>No query string, no fragment, and no <code>user:password@</code> userinfo.</li>
-                                        <li>Nothing is normalised or guessed from a provider preset, so a wrong path fails at Test rather than being silently corrected.</li>
-                                    </ul>
-                                </details>
+                            <section class="llm-mode-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
 
                                 <div class="llm-connection-field">
                                     <label for="llm_credential">API Key</label>
@@ -382,32 +372,61 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             </section>
 
                             <section class="llm-mode-panel llm-boolean-controls" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
-                                    <?php foreach (LORKHAN_LLM_BOOLEAN_FIELDS as $field) lorkhan_llm_boolean_field($field, $options, $formId, !$isMock); ?>
+                                    <?php foreach (['reasoning_model', 'json_mode', 'stream'] as $name) lorkhan_llm_boolean_field($switchFields[$name], $options, $formId, !$isMock, $runtimeDefaults); ?>
                             </section>
 
-                            <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                            <details class="llm-help-details llm-connection-options"<?php echo $isMock || isset($options['max_completion_tokens']) ? ' open' : ''; ?>>
+                                <summary>Connection options</summary>
                                 <div class="llm-connection-field">
-                                    <label for="llm_timeout_ms">Request timeout (ms)</label>
-                                    <input id="llm_timeout_ms" type="number" name="timeout_ms" min="1000" max="120000" step="1" inputmode="numeric"
-                                           value="<?php echo lorkhan_ui_h($timeout); ?>" placeholder="<?php echo $isDirect ? '30000' : 'Inherit runtime timeout'; ?>"
-                                           aria-describedby="llm_timeout_ms-help"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_timeout_ms-help">1000 to 120000 milliseconds. Blank on a configured connector inherits the runtime timeout; blank on a direct connector uses 30000.</p>
+                                    <label for="llm_driver">Mode</label>
+                                    <select id="llm_driver" name="driver" aria-describedby="llm_driver-help" form="<?php echo lorkhan_ui_h($formId); ?>">
+                                    <?php foreach (LORKHAN_LLM_DRIVERS as $driverId => $driverLabels): ?>
+                                    <option value="<?php echo lorkhan_ui_h($driverId); ?>"<?php echo $driver === $driverId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($driverLabels[0]); ?></option>
+                                    <?php endforeach; ?>
+                                    </select>
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
                                 </div>
-                            </section>
-
-                            <section class="llm-mode-panel" data-llm-modes="mock"<?php echo $isMock ? '' : ' hidden'; ?>>
-                                <div class="llm-connection-field">
-                                    <label for="llm_mock_prefix">Mock prefix</label>
-                                    <input id="llm_mock_prefix" type="text" name="mock_prefix" maxlength="256" value="<?php echo lorkhan_ui_h($content['mock_prefix'] ?? ''); ?>" aria-describedby="llm_mock_prefix-help"<?php echo $unless($isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_mock_prefix-help">Prepended to every deterministic mock response, up to 256 characters. Saving in mock mode keeps whatever is written here.</p>
-                                </div>
-                            </section>
+                                <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
+                                    <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
+                                    <p class="llm-help">The endpoint and the API key come from the LorkhanServer runtime. This mode has no per-connector endpoint or credential of its own.</p>
+                                </section>
+                                <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                    <div class="llm-connection-field">
+                                        <label for="llm_timeout_ms">Request timeout (ms)</label>
+                                        <input id="llm_timeout_ms" type="number" name="timeout_ms" min="1000" max="120000" step="1" inputmode="numeric"
+                                               value="<?php echo lorkhan_ui_h($timeout); ?>" placeholder="<?php echo $isDirect ? '30000' : 'Inherit runtime timeout'; ?>"
+                                               aria-describedby="llm_timeout_ms-help"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_timeout_ms-help">1000 to 120000 milliseconds. Blank on a configured connector inherits the runtime timeout; blank on a direct connector uses 30000.</p>
+                                    </div>
+                                </section>
+                                <section data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
+                                    <?php foreach (LORKHAN_LLM_GENERATION_FIELDS as $field) if ($field[0] === 'max_completion_tokens') lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
+                                    <?php lorkhan_llm_boolean_field($switchFields['disable_reasoning'], $options, $formId, !$isMock, $runtimeDefaults); ?>
+                                    <button type="button" class="btn-primary" data-llm-reset-switches hidden>Reset request switches to defaults</button>
+                                </section>
+                                <details class="llm-help-details">
+                                    <summary>Endpoint rules</summary>
+                                    <ul>
+                                        <li>Give the whole path, for example <code>http://127.0.0.1:1234/v1/chat/completions</code>.</li>
+                                        <li>Plain HTTP is accepted for loopback hosts only (<code>127.*</code> or <code>localhost</code>). Any other host must use HTTPS.</li>
+                                        <li>No query string, no fragment, and no <code>user:password@</code> userinfo.</li>
+                                        <li>Nothing is normalised or guessed from a provider preset, so a wrong path fails at Test rather than being silently corrected.</li>
+                                    </ul>
+                                </details>
+                                <section class="llm-mode-panel" data-llm-modes="mock"<?php echo $isMock ? '' : ' hidden'; ?>>
+                                    <div class="llm-connection-field">
+                                        <label for="llm_mock_prefix">Mock prefix</label>
+                                        <input id="llm_mock_prefix" type="text" name="mock_prefix" maxlength="256" value="<?php echo lorkhan_ui_h($content['mock_prefix'] ?? ''); ?>" aria-describedby="llm_mock_prefix-help"<?php echo $unless($isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_mock_prefix-help">Prepended to every deterministic mock response, up to 256 characters. Saving in mock mode keeps whatever is written here.</p>
+                                    </div>
+                                </section>
+                            </details>
                         </div>
 
                         <div class="llm-column">
                             <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
                                 <div class="llm-option-grid">
-                                    <?php foreach (LORKHAN_LLM_GENERATION_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
+                                    <?php foreach (LORKHAN_LLM_GENERATION_FIELDS as $field) if ($field[0] !== 'max_completion_tokens') lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
                                 </div>
 
                                 <section class="llm-advanced-panel">
@@ -423,7 +442,6 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <div class="llm-group-heading"><span>Deterministic mock</span></div>
                                 <p class="llm-help">Mock connectors never contact a provider. Switching modes keeps unsaved field values, but Save stores only fields for the selected mode. Earlier saved settings remain in revision history.</p>
                             </section>
-
 
                         </div>
                     </div>

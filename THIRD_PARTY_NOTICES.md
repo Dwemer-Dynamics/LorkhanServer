@@ -258,3 +258,5 @@ Lorkhan retains its typed connector form, private credentials and explicit saves
 keyboard selection and viewport bounds are added to the shared presentation.
 The configured-first API-key list, missing-key divider, status markers and
 compact notice in the same LLM editor also adapt that pinned Herika source.
+Its common request-switch checkbox presentation and field ordering follow the
+same source while retaining Lorkhan's unchanged inherited option values.

@@ -1622,6 +1622,10 @@ assert len(llm_ranges)==8 and all(' name=' not in tag for tag in llm_ranges),llm
 assert re.search(r'id="llm_option_presence_penalty"[^>]*value=""',direct_editor),direct_editor
 assert re.search(r'id="llm_option_temperature"[^>]*value="0"',direct_editor),direct_editor
 assert re.search(r'id="llm_provider"[^>]*value="together, google-vertex/us-east5"',direct_editor),direct_editor
+assert direct_editor.index('for="llm_option_reasoning_model"') < direct_editor.index('for="llm_option_json_mode"') < direct_editor.index('for="llm_option_stream"') < direct_editor.index('<summary>Connection options</summary>') < direct_editor.index('for="llm_driver"'),direct_editor
+assert re.search(r'name="option_stream"\s+data-direct-default="true"\s+data-runtime-default="(?:true|false)" data-inverted="true"',direct_editor),direct_editor
+assert 'class="llm-help-details llm-connection-options" open' in direct_editor and direct_editor.index('<summary>Connection options</summary>') < direct_editor.index('id="llm_option_max_completion_tokens"'),direct_editor
+assert 'Enforce JSON' in direct_editor and 'Disable Streaming' in direct_editor and '<span>Direct connection</span>' not in direct_editor
 assert 'No API key selected. Some services require a key.' in direct_editor
 assert re.search(r'<option value="custom" data-empty="1">🔴 Custom LLM key — No key</option>',direct_editor),direct_editor
 direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}

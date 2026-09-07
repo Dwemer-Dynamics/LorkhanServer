@@ -18,6 +18,44 @@
 
     const modesOf = (panel) => (panel.dataset.llmModes || '').split(' ').filter(Boolean);
 
+    // Enhance native three-state selects without materializing inherited values on Save.
+    const switches = Array.from(document.querySelectorAll('.llm-boolean-field select')).map(select => {
+        const field = select.closest('.llm-boolean-field');
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.id = select.id;
+        checkbox.setAttribute('aria-describedby', select.getAttribute('aria-describedby'));
+        select.id += '-stored';
+        select.hidden = true;
+        select.tabIndex = -1;
+        const label = field.querySelector('label');
+        label.classList.add('label-with-toggle');
+        label.append(document.createTextNode(' '), checkbox);
+        field.classList.add('llm-switch-field');
+        const update = () => {
+            const defaultValue = driver.value === 'configured' ? select.dataset.runtimeDefault : select.dataset.directDefault;
+            const value = (select.value || defaultValue) === 'true';
+            checkbox.checked = select.dataset.inverted === 'true' ? !value : value;
+            checkbox.disabled = select.disabled;
+            checkbox.title = select.value === '' ? 'Uses the default. Connection options can reset overrides.' : 'Connector override. Connection options can restore the default.';
+        };
+        checkbox.addEventListener('change', () => {
+            const value = select.dataset.inverted === 'true' ? !checkbox.checked : checkbox.checked;
+            select.value = String(value);
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+        });
+        select.addEventListener('change', update);
+        return {select, update};
+    });
+    const resetSwitches = document.querySelector('[data-llm-reset-switches]');
+    if (resetSwitches) {
+        resetSwitches.hidden = false;
+        resetSwitches.addEventListener('click', () => switches.forEach(({select}) => {
+            select.value = '';
+            select.dispatchEvent(new Event('change', {bubbles: true}));
+        }));
+    }
+
     const apply = () => {
         const mode = driver.value;
         panels.forEach((panel) => {
@@ -32,6 +70,7 @@
         if (timeout) {
             timeout.placeholder = mode === 'configured' ? 'Inherit runtime timeout' : '30000';
         }
+        switches.forEach(({update}) => update());
     };
 
     const services = {
@@ -48,11 +87,14 @@
     const serviceButtons = Array.from(document.querySelectorAll('[data-llm-service]'));
     const updateService = () => {
         const service = driver.value === 'openai-compatible'
-            ? (Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom') : '';
+            ? (Object.keys(services).find((key) => key !== 'custom' && services[key][0] === endpoint?.value) || 'custom')
+            : (driver.value === 'configured' ? document.getElementById('llm_model')?.dataset.runtimeService || '' : '');
         serviceButtons.forEach((button) => button.setAttribute('aria-pressed', String(button.dataset.llmService === service)));
         const label = document.getElementById('llm-service-label');
         const active = serviceButtons.find((button) => button.dataset.llmService === service);
         if (label) label.textContent = 'Service: ' + (active?.title || (driver.value === 'mock' ? 'Deterministic mock' : 'Configured runtime'));
+        const endpointRow = document.getElementById('llm_endpoint_row');
+        if (endpointRow) endpointRow.hidden = driver.value !== 'openai-compatible' || service !== 'custom';
     };
     driver.addEventListener('change', () => { apply(); updateService(); });
     endpoint?.addEventListener('input', updateService);
