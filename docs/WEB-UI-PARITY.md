@@ -94,7 +94,7 @@ do not use an exception to excuse a generic substitute layout.
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
 | Roleplay `adventure` tab | Herika Adventure Log | Chronological context/people/game-time/UTC rows, location dividers, contiguous speaker bands and counterpart CSV formatting implemented. Desktop/narrow populated, empty and long fixtures compared; date-selection, selected/latest-day and full exports checked. Full checks and 744-file deployment passed; live populated calendar/table verified. Native dates and complete OpenMW cell names retained. |
 | Roleplay `journal` tab | Morrowind-only Journal using Herika's record table | Full-content striped table, Journal ID, game/UTC/TS columns and content dialog implemented; three live records, reader and focus restoration verified |
-| `control_panel.php` | Same path | Shared geometry corrected; embedded child state comparisons pending |
+| `control_panel.php` | Same path | Shared geometry and label typography corrected; all 12 embedded tabs load at desktop/narrow widths and retain mounted frames on switches. Request reader Escape/focus and unsaved filter retention verified. Remaining child feature/interaction comparisons are tracked in their rows; see embedded checkpoint below |
 | `request_logs.php` | Same path | Nine-column LLM-attempt table, toolbar, page sizes and separate payload readers aligned; populated/empty, keyboard and narrow fixture states compared. Safe scoped Clear preserves accounting/history/pending work; URL and unretained raw provider payloads remain explicit data limitations. See Request Logs evidence below. |
 | `response_queue.php` | Control Panel -> `index.php?table=responselog` | Actual queued-message projection and seven-column striped table aligned; populated/empty, narrow, confirmation, playback details, pagination, CSV and live hub embedding checked. Row removal preserves native delivery/history and protects pending work. |
 | `cache_browser.php` | Same path, audio portion | Compact file-list panel, typography and inline players aligned; populated/empty, expired/unavailable, keyboard, narrow and live hub states checked. Private authenticated media replaces public paths; excluded Soulgaze image panel stays absent. |
@@ -4691,3 +4691,27 @@ The priority-page rows retain their earlier populated/empty/reader evidence;
 Control Panel embedded child states, configuration children and remaining settings
 features still require completion. Updated the stale TTS Studio matrix row to
 point to completed lifecycle checkpoints without accepting remaining gaps.
+
+
+### Control Panel embedded loading and reader state (2026-09-07)
+
+Read-only browser checks against deployed 4e1f33c visited all twelve Control Panel
+tabs at 1280 and 390px. Each reached its actual child URL and loaded content;
+child document widths remained within the frame, and a temporary in-memory
+marker survived switching away and back. The initial probe observed about:blank
+before navigation settled and was corrected to await the real child URL; this
+was a probe race, not evidence of a product reload defect.
+
+The populated Request Logs reader opened inside the frame at both widths,
+closed with Escape, and restored focus to its View button. An unsaved search
+field survived a switch to Response Queue and back. No filter was submitted,
+no clear/delete/backup/game action was executed, and no provider was generated.
+Snapshots: private Temp/lorkhan-control-embedded-{tab}-{1280,390}.png and
+lorkhan-control-request-reader-{1280,390}.png. Narrow Database Manager,
+desktop Request Logs and narrow request-reader screenshots were inspected.
+
+This proves embedded loading and the specified retained/reader states, not all
+child functionality or visual parity of all captured screenshots. Database and
+Playthrough Manager feature gaps, other child interactions and the full matrix
+remain open. No product code change or runtime deploy was needed for this
+verification checkpoint.
