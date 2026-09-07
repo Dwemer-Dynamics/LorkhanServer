@@ -195,6 +195,15 @@
         if (timeout) {
             timeout.placeholder = mode === 'configured' ? 'Inherit runtime timeout' : '30000';
         }
+        const keySelect = document.getElementById('llm_credential');
+        const inheritedKey = keySelect?.querySelector('option[value="__inherit__"]');
+        if (inheritedKey) {
+            inheritedKey.hidden = inheritedKey.disabled = mode !== 'configured';
+            if (mode === 'openai-compatible' && keySelect.value === '__inherit__') {
+                keySelect.value = 'none';
+                keySelect.dispatchEvent(new Event('change', {bubbles: true}));
+            }
+        }
         switches.forEach(({update}) => update());
         if (yamlEditor) {
             yamlEditor.setReadOnly(mode === 'mock');
@@ -306,7 +315,7 @@
         }
         function catalogueKey() {
             const service = catalogueService();
-            return service + (service === 'groq' ? ':' + (driver.value === 'configured' ? 'runtime' : credentialSelect?.value || 'none') : '');
+            return service + (service === 'groq' ? ':' + driver.value + ':' + (credentialSelect?.value || 'none') : '');
         }
         // Catalogue text is untrusted provider data, never markup or a navigation target.
         function line(parent, className, text) {
@@ -401,8 +410,8 @@
         async function loadModels(key, service) {
             if (cache.has(key)) return cache.get(key);
             if (!pending.has(key)) pending.set(key, (async () => {
-                const credential = driver.value === 'configured' ? '' : credentialSelect?.value || 'none';
-                if (service === 'groq' && driver.value !== 'configured' && credential === 'none') throw new Error('groq_api_key_required');
+                const credential = credentialSelect?.value === '__inherit__' && driver.value === 'configured' ? '' : credentialSelect?.value || 'none';
+                if (service === 'groq' && credential === 'none') throw new Error('groq_api_key_required');
                 const controller = new AbortController();
                 const timer = setTimeout(() => controller.abort(), 10000);
                 try {

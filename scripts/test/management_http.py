@@ -1730,6 +1730,27 @@ assert not {'profile_generation_configuration_id','relationship_configuration_id
 global_route_values['profile_generation_configuration_id']=''; global_route_values['relationship_configuration_id']=''
 assert request(global_route_form['action'],'POST',global_route_values).status==200
 r=request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':routing_profile_id}); assert r.status==200
+# Configured endpoints expose editable key bindings, while portable files cannot bind recipient keys.
+configured_name='HTTP inherited key '+uuid.uuid4().hex
+configured_values={'_csrf':csrf,'installation_id':valid['installation_id'],'name':configured_name,'driver':'configured','model':'fixture','credential':'openrouter'}
+r=request('/LorkhanServer/manage/forms/providers','POST',configured_values); configured_body=r.read().decode(); assert r.status==200
+configured_id=connector_editor_id(configured_body,configured_name)
+configured_page,configured_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+configured_id))
+configured_form=next(f for f in configured_page.forms if f['action'].endswith('/forms/provider-revise'))
+assert re.search(r'<option value="openrouter"[^>]* selected',configured_editor)
+configured_export=json.load(request('/LorkhanServer/manage/exports/providers/'+configured_id+'.json'))
+assert configured_export['content']['driver']=='configured' and configured_export['content']['credential']=='none'
+configured_export['content']['credential']='openrouter'; configured_export['name']=configured_name+' imported'
+r=request('/LorkhanServer/manage/forms/provider-import','POST',{'_csrf':csrf,'installation_id':valid['installation_id'],'provider_json':json.dumps(configured_export)})
+assert r.status==200
+configured_import_id=connector_editor_id(r.read().decode(),configured_export['name'])
+configured_import_page,configured_import_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+configured_import_id))
+assert '<option value="none" selected>' in configured_import_editor
+r=request(configured_form['action'],'POST',dict(configured_values,configuration_id=configured_id,change_reason='Restore inheritance',credential='__inherit__')); assert r.status==200
+configured_page,configured_editor=parse(request('/LorkhanServer/ui/core/llm_connectors.php?edit='+configured_id))
+assert '<option value="__inherit__" selected>' in configured_editor
+for unused_id in [configured_id,configured_import_id]:
+    assert request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':unused_id}).status==200
 provider_export_response=request('/LorkhanServer/manage/exports/providers/'+slot_id+'.json'); provider_export=json.loads(provider_export_response.read().decode())
 assert provider_export_response.status==200 and provider_export['schema']=='lorkhan.provider-export.v1' and 'installation_id' not in provider_export and 'endpoint' not in provider_export and 'api_key' not in json.dumps(provider_export).lower()
 llm_page,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected='+slot_id))

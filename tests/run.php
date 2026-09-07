@@ -343,6 +343,28 @@ $check(ProviderFactory::dialogueForSlot(['provider'=>['api_key_env'=>'UNRELATED_
     &&ProviderFactory::oghmaTopicExtractorForSlot([],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleOghmaTopicExtractor
     &&ProviderFactory::profileGenerationForSlot(['provider'=>['driver'=>'invalid-runtime','api_key_env'=>'UNRELATED_SECRET']],$directSlot) instanceof \LorkhanServer\Application\OpenAiCompatibleProfileGenerationProvider,
     'dialogue, Oghma and profile generation resolve explicit connectors without inheriting runtime credentials');
+$runtimeKeyBefore=getenv('LORKHAN_TEST_RUNTIME_API_KEY');$selectedKeyBefore=getenv('LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY');
+putenv('LORKHAN_TEST_RUNTIME_API_KEY=runtime-fixture-key');putenv('LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY=selected-fixture-key');
+try {
+    $keyConfig=['provider'=>['driver'=>'openai-compatible','endpoint'=>'http://127.0.0.1:9/v1/chat/completions',
+        'allowed_hosts'=>['127.0.0.1'],'allow_loopback_http'=>true,'model'=>'runtime-model','api_key_env'=>'LORKHAN_TEST_RUNTIME_API_KEY']];
+    foreach ([null=>'runtime-fixture-key','none'=>'','custom:PARITY_FIXTURE'=>'selected-fixture-key'] as $reference=>$expectedKey) {
+        $keyContent=['driver'=>'configured','model'=>'selected-model'];if($reference!=='')$keyContent['credential']=$reference;
+        $keySlot=array_replace($directSlot,['content'=>LlmConnector::validate($keyContent)]);
+        foreach (['dialogueForSlot','profileGenerationForSlot','oghmaTopicExtractorForSlot'] as $factory) {
+            $keyProvider=ProviderFactory::$factory($keyConfig,$keySlot);
+            $check((new \ReflectionProperty($keyProvider,'apiKey'))->getValue($keyProvider)===$expectedKey,
+                $factory.' respects inherited, explicit None and selected configured credentials');
+        }
+    }
+    foreach (['UNRELATED_SECRET',42] as $badReference) {
+        try { LlmConnector::validate(['driver'=>'configured','model'=>'fixture','credential'=>$badReference]);$check(false,'invalid configured key rejected'); }
+        catch(InvalidArgumentException){$check(true,'invalid configured key rejected');}
+    }
+} finally {
+    putenv($runtimeKeyBefore===false?'LORKHAN_TEST_RUNTIME_API_KEY':'LORKHAN_TEST_RUNTIME_API_KEY='.$runtimeKeyBefore);
+    putenv($selectedKeyBefore===false?'LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY':'LORKHAN_CUSTOM_PARITY_FIXTURE_API_KEY='.$selectedKeyBefore);
+}
 $pinned=\LorkhanServer\Security\OutboundUrlPolicy::curlOptions('http://localhost:1234/v1/chat/completions',['localhost'],true,true);
 $check($pinned[CURLOPT_RESOLVE]===['localhost:1234:127.0.0.1']&&$pinned[CURLOPT_PROXY]==='',
     'explicit connector requests pin validated addresses and bypass unchecked proxy resolution');

@@ -52,6 +52,7 @@ final class ProviderFactory
             $section=self::section($config,'provider');$section['model']=$content['model'];
             if(isset($content['timeout_ms']))$section['timeout_ms']=$content['timeout_ms'];
             if(isset($content['options']))$section['options']=array_replace((array)($section['options']??[]),$content['options']);
+            if(array_key_exists('credential',$content))$section['credential']=$content['credential'];
             return$section;
         }
         return$content+['allowed_hosts'=>[(string)parse_url($content['endpoint'],PHP_URL_HOST)],

@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; per-player provider overrides and remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key override plus full hub/narrow/interaction review remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -3871,3 +3871,39 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   no extras or old paths, private 403/session 401 and health/NPC checks passed.
   Config, credentials and voices preserved. No game launch/control. No claim of
   full LLM, Player or all-page completion; pending work is recorded above.
+
+## LLM inherited-endpoint API Key selection — 2026-09-07
+
+- Moved the real API Key selector into both non-mock connection modes at the
+  reference position below Provider. Old configured slots retain runtime inheritance;
+  explicit None or a named key now overrides only the credential, not the endpoint.
+  Key values remain private. Direct mode cannot inherit a runtime key and switches
+  an inherited selection to None; mock controls remain inactive.
+- LlmConnector validates configured credential references. ProviderFactory applies
+  them through the shared slot section used by dialogue, profile generation and
+  Oghma extraction. Groq catalogue requests and cache identity use the chosen key
+  while retaining the fixed runtime endpoint guard and existing CSRF checks.
+- Portable exports and imports reset non-mock key bindings to None, including
+  configured endpoints, so receiving a file never picks up a recipient's saved key.
+  This intentionally also affects legacy configured connector files without a binding;
+  ordinary existing saved connectors are not changed.
+- Actual disposable browser save/reload preserved configured mode with OpenRouter
+  selected; restoring Inherit saved/reloaded correctly. Switching to Direct changed
+  the key to None and disabled the Inherit option. Screenshot verified the dropdown
+  and missing-key notice in the reference position. No live settings changed and
+  no real provider request issued. Isolated server was stopped cleanly.
+- Existing unit coverage now checks inherited/None/explicit credentials across three
+  adapters and rejects invalid references. Extended existing HTTP cases check save,
+  re-open, sanitized export/import and restoring inheritance. The first new HTTP
+  assertion used the fixture parser on externally associated form controls; adjusted
+  it to inspect selected options and submit explicit fields, matching existing tests.
+- Final pass: 510 server checks, 98 protocol files, PHP lint, JavaScript syntax,
+  HTTP forms (including the new cases), integration, migrations and durable jobs.
+  Schema remains 172 relations and the previous summary hash. Initial misplaced
+  validation edit was caught by unit checks and corrected before any deployment.
+- Live GLM 5 editor shows the API Key selector in the reference position, retaining
+  Inherit runtime API key, with configured/missing choices listed and no secrets.
+  No live Save or Test was clicked. Local rollback /var/backups/lorkhanserver-code.DCETAL;
+  all 789 deployed files match, no extras/old paths, private 403/session 401 and
+  health/NPC checks passed. Config, credentials and voices preserved. No game control.
+  Full hub/narrow/interactive editor review and the remaining page matrix stay open.

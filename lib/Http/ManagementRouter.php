@@ -163,9 +163,13 @@ final class ManagementRouter
                 || !in_array($body['driver'], ['configured','openai-compatible'], true)) throw new InvalidArgumentException('invalid_groq_catalogue_request');
             if ($body['driver'] === 'configured') {
                 $provider = $this->providerConfig['provider'] ?? [];
-                if ($body['credential'] !== '' || ($provider['driver'] ?? '') !== 'openai-compatible'
+                if (($provider['driver'] ?? '') !== 'openai-compatible'
                     || rtrim((string)($provider['endpoint'] ?? ''), '/') !== 'https://api.groq.com/openai/v1/chat/completions') {
                     throw new InvalidArgumentException('groq_runtime_not_configured');
+                }
+                if ($body['credential'] !== '') {
+                    if (LlmConnector::credentialVariable($body['credential']) === null) throw new InvalidArgumentException('invalid_groq_credential');
+                    $provider['credential'] = $body['credential'];
                 }
             } else {
                 if (LlmConnector::credentialVariable($body['credential']) === null) throw new InvalidArgumentException('invalid_groq_credential');
@@ -929,6 +933,7 @@ final class ManagementRouter
         $driver=$this->need($values,'driver');$model=$this->need($values,'model');
         if($driver==='mock')return['driver'=>'mock','model'=>$model,'mock_prefix'=>trim((string)($values['mock_prefix']??''))];
         $content=['driver'=>$driver,'model'=>$model];
+        if($driver==='configured'&&isset($values['credential'])&&$values['credential']!=='__inherit__')$content['credential']=$values['credential'];
         if($driver==='openai-compatible')$content+=['endpoint'=>$this->need($values,'endpoint'),
             'credential'=>$values['credential']??'none'];
         if(isset($values['timeout_ms'])&&$values['timeout_ms']!==''){
@@ -1404,7 +1409,7 @@ final class ManagementRouter
         $content=is_array($row['content']??null)?$row['content']:[];
         if($this->containsSecretKey($content))throw new RuntimeException('provider_export_rejected');
         $content=LlmConnector::validate($content);
-        if($content['driver']==='openai-compatible')$content['credential']='none';
+        if($content['driver']!=='mock')$content['credential']='none';
         $document=['schema'=>'lorkhan.provider-export.v1','exported_at'=>gmdate('Y-m-d\TH:i:s\Z'),
             'name'=>(string)$row['name'],'content'=>$content===[]?(object)[]:$content];
         $filename=trim((string)preg_replace('/[^A-Za-z0-9._-]+/','-',(string)$row['name']),'-_.');if($filename==='')$filename='lorkhan-model-slot';
@@ -1429,7 +1434,7 @@ final class ManagementRouter
             ||!$this->objectArray($document['content']??null)||$this->containsSecretKey($document))throw new InvalidArgumentException('invalid_provider_export');
         $content=LlmConnector::validate($document['content']);
         // Imported endpoints must not silently acquire an existing local API key.
-        if($content['driver']==='openai-compatible')$content['credential']='none';
+        if($content['driver']!=='mock')$content['credential']='none';
         $name=trim((string)($document['name']??''));if($name===''||strlen($name)>128||!mb_check_encoding($name,'UTF-8'))throw new InvalidArgumentException('invalid_provider_export');
         return$this->service->createRevisioned('provider',['installation_id'=>$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),
             'name'=>$name,'content'=>$content]);

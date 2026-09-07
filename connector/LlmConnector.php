@@ -54,8 +54,8 @@ final class LlmConnector
         }
         $allowed = ['driver', 'model', 'timeout_ms'];
         if ($driver === 'mock') $allowed[] = 'mock_prefix';
-        else $allowed[] = 'options';
-        if ($driver === 'openai-compatible') $allowed = array_merge($allowed, ['endpoint', 'credential']);
+        else $allowed = array_merge($allowed, ['options', 'credential']);
+        if ($driver === 'openai-compatible') $allowed[] = 'endpoint';
         if (array_diff(array_keys($content), $allowed) !== []) throw new InvalidArgumentException('invalid_provider_content');
         $result = ['driver' => $driver, 'model' => $model];
         if ($driver === 'mock') {
@@ -92,6 +92,11 @@ final class LlmConnector
                 throw new InvalidArgumentException('invalid_provider_credential');
             }
             $result += ['endpoint' => $endpoint, 'credential' => $credential, 'timeout_ms' => 30000];
+        }
+        if (array_key_exists('credential', $content)) {
+            if (!is_string($content['credential']) || self::credentialVariable($content['credential']) === null)
+                throw new InvalidArgumentException('invalid_provider_credential');
+            $result['credential'] = $content['credential'];
         }
         return $result;
     }

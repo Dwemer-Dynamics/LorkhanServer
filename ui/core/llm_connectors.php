@@ -321,8 +321,8 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 $formAction = $creating ? 'providers' : 'provider-revise';
                 $driver = (string) ($content['driver'] ?? 'configured');
                 if (!isset(LORKHAN_LLM_DRIVERS[$driver])) $driver = 'configured';
-                $credential = (string) ($content['credential'] ?? 'none');
-                if (!isset($llmCredentials[$credential])) $credential = 'none';
+                $credential = (string) ($content['credential'] ?? ($driver === 'configured' ? '__inherit__' : 'none'));
+                if ($credential !== '__inherit__' && !isset($llmCredentials[$credential])) $credential = 'none';
                 $storedTimeout = $content['timeout_ms'] ?? null;
                 $timeout = is_int($storedTimeout) ? (string) $storedTimeout : (is_string($storedTimeout) ? $storedTimeout : '');
                 $isDirect = $driver === 'openai-compatible';
@@ -380,11 +380,12 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                 <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_provider-help">Preferred OpenRouter provider slugs, separated by commas in priority order. Other providers can still handle the request if these are unavailable. Blank uses the default routing (or the configured runtime preference).</p>
                             </div>
 
-                            <section class="llm-mode-panel" data-llm-modes="openai-compatible"<?php echo $isDirect ? '' : ' hidden'; ?>>
+                            <section class="llm-mode-panel" data-llm-modes="configured openai-compatible"<?php echo $isMock ? ' hidden' : ''; ?>>
 
                                 <div class="llm-connection-field">
                                     <label for="llm_credential">API Key</label>
-                                    <select id="llm_credential" name="credential" aria-describedby="llm_credential-help llm_key_notice"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                    <select id="llm_credential" name="credential" aria-describedby="llm_credential-help llm_key_notice"<?php echo $unless(!$isMock); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <option value="__inherit__"<?php echo $credential === '__inherit__' ? ' selected' : ''; ?><?php echo $driver !== 'configured' ? ' disabled hidden' : ''; ?>>Inherit runtime API key</option>
                                         <option value="none"<?php echo $credential === 'none' ? ' selected' : ''; ?>>No API key</option>
                                         <?php foreach ($llmCredentialGroups as $group => $groupCredentials): ?>
                                         <?php if ($group === 'missing' && $groupCredentials !== []): ?><option value="" disabled>— Missing Key —</option><?php endif; ?>
@@ -395,7 +396,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     </select>
                                     <?php $keyNotice = $credential === 'none' ? 'No API key selected. Some services require a key.' : (isset($llmCredentialGroups['missing'][$credential]) ? 'Selected API key is empty. Add it on the API Keys page.' : ''); ?>
                                     <div id="llm_key_notice" class="api-key-notice warn" role="status"><?php echo lorkhan_ui_h($keyNotice); ?></div>
-                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_credential-help">Chooses which server-held key this connector sends. Key values live on the API Keys page and never appear in this form, in a revision, or in an export; an export resets this choice to No API key. New connectors start at No API key, which suits a local endpoint.</p>
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_credential-help">Chooses which server-held key this connector sends. Inherit keeps the configured runtime key; No API key explicitly sends none. Exports reset this choice to No API key. Secret values never appear in this form, a revision or an export.</p>
                                 </div>
                             </section>
 
@@ -412,7 +413,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <option value="<?php echo lorkhan_ui_h($driverId); ?>"<?php echo $driver === $driverId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($driverLabels[0]); ?></option>
                                     <?php endforeach; ?>
                                     </select>
-                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_driver-help">Configured runtime inherits the server endpoint and credential. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
+                                    <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_driver-help">Configured runtime inherits the server endpoint and uses the selected API key or runtime inheritance. Direct calls one complete endpoint you supply. Deterministic mock never contacts a provider.</p>
                                 </div>
                                 <section class="llm-mode-panel llm-connection-panel" data-llm-modes="configured"<?php echo $driver === 'configured' ? '' : ' hidden'; ?>>
                                     <div class="llm-group-heading"><span>Inherited connection</span><?php echo lorkhan_ui_feature_badge('config.llm.service', true); ?></div>
