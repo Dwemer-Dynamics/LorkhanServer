@@ -109,7 +109,7 @@ function lorkhan_ui_feature_registry(): array
         'config.globals.conversation-cooldown' => ['title' => 'End Conversation Cooldown', 'state' => 'live', 'description' => 'Herika-compatible cooldown before another playback rechat chain may begin.'],
         'config.globals.translation' => ['title' => 'Translation', 'state' => 'live', 'description' => 'Server-only DeepL translation of NPC subtitles and NPC speech audio. The policy is stored per installation, frozen for each turn, and saving it never calls DeepL.'],
         'config.oghma' => ['title' => 'Oghma Infinium', 'state' => 'live', 'description' => 'Scoped world-knowledge documents and retrieval data.'],
-        'config.oghma.dynamic' => ['title' => 'Dynamic Oghma', 'state' => 'excluded', 'description' => 'Background quest-stage knowledge mutation is excluded from the current bounded LORKHAN scope.'],
+        'config.oghma.dynamic' => ['title' => 'Dynamic Oghma', 'state' => 'live', 'description' => 'Quest-stage CSV rules update knowledge for the observed playthrough before its first response, with blank/clearall patch semantics and replay protection.'],
         'config.oghma.batch' => ['title' => 'Oghma CSV Batch', 'state' => 'live', 'description' => 'Installation-scoped typed CSV import and example export.'],
         'config.oghma.destructive' => ['title' => 'Destructive Oghma Reset', 'state' => 'live', 'description' => 'Confirmed, installation-scoped Delete All and Factory Reset controls preserve NPC/playthrough knowledge and other installations.'],
         'config.descriptions' => ['title' => 'Descriptions', 'state' => 'live', 'description' => 'Morrowind description records.'],

@@ -27,6 +27,9 @@ $catalogPage = min(max(1, (int) $catalog['page']), $catalogPages);
 $catalogFirst = $rows === [] ? 0 : (($catalogPage - 1) * $catalogPageSize) + 1;
 $catalogLast = $rows === [] ? 0 : $catalogFirst + count($rows) - 1;
 $categories = $uiRepository->oghmaCategories();
+$dynamicActive=($_GET['tab']??'')==='dynamic';
+$dynamicCategory=is_string($_GET['dynamic_cat']??null)?$_GET['dynamic_cat']:'';
+$dynamicCatalog=$uiRepository->dynamicOghmaCatalog($selectedInstallation,['category'=>$dynamicCategory,'page'=>$_GET['dynamic_page']??1]);
 $additionalStylesheets = ['herika-oghma.css?v=' . (string) filemtime(__DIR__ . '/css/herika-oghma.css')];
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) {
@@ -96,10 +99,10 @@ $modalFields = static function (string $prefix, array $row = []): void {
     <div class="page-header">
         <h1 id="page-title">
             <img src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/images/oghma_infinium.png" alt="" aria-hidden="true" width="32" height="32">
-            <span id="title-text">Oghma Infinium</span>
+            <span id="title-text"><?php echo $dynamicActive?'Dynamic Oghma':'Oghma Infinium'; ?></span>
         </h1>
         <div id="header-content">
-            <div id="oghma-header-content">
+            <div id="oghma-header-content"<?php echo $dynamicActive?' hidden':''; ?>>
                 <p>The <b>Oghma Infinium</b> is a Morrowind encyclopedia that AI NPCs use to help them roleplay.</p>
                 <p>It detects topics during conversations and injects the appropriate information into the AI's prompt.</p>
                 <h3><strong>Ensure all topic titles are lowercase and spaces are replaced with underscores (_).</strong></h3>
@@ -115,11 +118,18 @@ $modalFields = static function (string $prefix, array $row = []): void {
                     </div>
                 </div>
             </div>
+            <div id="dynamic-header-content"<?php echo $dynamicActive?'':' hidden'; ?>>
+                <p>Entries in the <b>Dynamic Oghma</b> table update Oghma knowledge whenever their quest ID and stage are observed.</p>
+                <p>Changes override the matching topic for the owning playthrough.</p>
+                <p>Leave cells empty to keep the existing value. Use <b>clearall</b> to clear a cell.</p>
+                <p>Rules can also introduce new topics. This table is empty by default.</p>
+            </div>
         </div>
     </div>
 
     <div class="tab-navigation" role="tablist" aria-label="Oghma pages">
-        <button type="button" class="tab-button active" role="tab" aria-selected="true"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
+        <button type="button" class="tab-button<?php echo $dynamicActive?'':' active'; ?>" role="tab" aria-selected="<?php echo $dynamicActive?'false':'true'; ?>" aria-controls="oghma-tab" data-oghma-tab="regular"><span aria-hidden="true">&#x1F4DA;</span>&#160;Oghma Infinium</button>
+        <button type="button" class="tab-button<?php echo $dynamicActive?' active':''; ?>" role="tab" aria-selected="<?php echo $dynamicActive?'true':'false'; ?>" aria-controls="dynamic-tab" data-oghma-tab="dynamic"><span aria-hidden="true">&#x26A1;</span>&#160;Dynamic Oghma</button>
     </div>
 
     <?php if (isset($_GET['status'])):
@@ -129,6 +139,9 @@ $modalFields = static function (string $prefix, array $row = []): void {
             'imported' => 'CSV validated and imported.',
             'deleted' => 'Selected Oghma entries deleted. Routine factory sync will not restore deleted topics.',
             'factory-reset' => 'Oghma reset to the factory catalog for this installation. Custom catalog entries were removed.',
+            'dynamic-saved' => 'Dynamic Oghma entry saved.',
+            'dynamic-imported' => $noticeCount.' Dynamic Oghma entries imported.',
+            'dynamic-deleted' => 'Dynamic Oghma rules deleted. Previously applied story knowledge is retained.',
             'factory-synced' => 'Factory catalog synced. '
                 . ($noticeCount > 0 ? $noticeCount . ' factory ' . ($noticeCount === 1 ? 'article was' : 'articles were') . ' refreshed' : 'Factory articles were refreshed')
                 . ' and your own articles were kept.',
@@ -138,7 +151,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
         <div class="oghma-notice" role="status"><?php echo lorkhan_ui_h($notice); ?></div>
     <?php endif; ?>
 
-    <div id="oghma-tab" class="tab-content active">
+    <div id="oghma-tab" class="tab-content<?php echo $dynamicActive?'':' active'; ?>"<?php echo $dynamicActive?' hidden':''; ?>>
         <div class="content-grid">
             <div class="content-section">
                 <h2>Batch Upload</h2>
@@ -305,6 +318,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
             </nav>
         </div>
     </div>
+    <?php require __DIR__.'/tmpl/oghma_dynamic.php'; ?>
 </main>
 
 <div id="editModal" class="modal-backdrop" hidden aria-hidden="true">

@@ -29,6 +29,8 @@ final class ProductRepository
 
     public function __construct(private readonly PDO $db) {}
 
+    public function dynamicOghma():DynamicOghmaRepository{return new DynamicOghmaRepository($this->db);}
+
     /** @param array<string,mixed> $input */
     public function createRevisioned(string $kind, array $input, string $now): array
     {
@@ -1875,7 +1877,7 @@ SQL);
     public function deleteKnowledge(string $id,string $now):void{$row=$this->knowledge($id);if(($row['provenance']['source']??null)==='factory-oghma')throw new \InvalidArgumentException('factory_knowledge_read_only');$this->db->prepare('UPDATE knowledge_documents SET deleted_at=:now WHERE document_id=:id')->execute(['now'=>$now,'id'=>$id]);}
     public function knowledgeCandidates(array $scope,?array $loadedContentFiles=null):array
     {
-        $sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category',$loadedContentFiles!==null);
+        $sql=$this->effectiveKnowledgeSql('document_id AS id,title,content,content_sha256,lexical_terms,provenance,topic,aliases,topic_desc_basic,knowledge_class,knowledge_class_basic,tags,category,(profile_id IS NOT NULL AND playthrough_id IS NOT NULL) AS story_profile_override',$loadedContentFiles!==null);
         $parameters=['installation'=>$scope['installation_id'],'profile'=>$scope['profile_id']??null,'playthrough'=>$scope['playthrough_id']??null];
         if($loadedContentFiles!==null){$normalized=[];foreach(array_slice($loadedContentFiles,0,256)as$file){
             if(!is_string($file))continue;$file=strtolower(trim($file));if($file!=='')$normalized[$file]=true;
@@ -1891,7 +1893,18 @@ SQL);
         $profileStatement->execute(['profile'=>$profileId,'installation'=>$installationId]);$profile=$profileStatement->fetch();if(!$profile)throw new RuntimeException('not_found');
         $effective=$this->effectiveSettingsForProfile($installationId,$profileId);$tags=$this->knowledgeValues((string)($effective['settings']['memory']['oghma_knowledge_tags']??''));
         $profile['actor_identity']=$this->json($profile['actor_identity']);
-        return ['profile'=>$profile+['profile_id'=>$profileId]]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>null],$tags,$filters,true);
+        $playthroughId=trim((string)($filters['playthrough_id']??''));
+        if($playthroughId!==''){
+            if(!Uuid::isValid($playthroughId))throw new RuntimeException('not_found');
+            $story=$this->db->prepare('SELECT playthrough_id,name FROM playthroughs WHERE installation_id=:installation AND playthrough_id=:playthrough AND deleted_at IS NULL');
+            $story->execute(['installation'=>$installationId,'playthrough'=>$playthroughId]);
+            $playthrough=$story->fetch();if(!$playthrough)throw new RuntimeException('not_found');
+        }else{
+            // Match the active game first, retaining the last played story when the game is closed.
+            $story=$this->db->prepare("SELECT p.playthrough_id,p.name FROM sessions s JOIN playthroughs p ON p.playthrough_id=s.playthrough_id AND p.installation_id=s.installation_id WHERE s.installation_id=:installation AND p.deleted_at IS NULL ORDER BY (s.state='active') DESC,s.created_at DESC,s.session_id DESC LIMIT 1");
+            $story->execute(['installation'=>$installationId]);$playthrough=$story->fetch()?:null;
+        }
+        return ['profile'=>$profile+['profile_id'=>$profileId],'playthrough'=>$playthrough]+$this->oghmaKnowledgeForTags(['installation_id'=>$installationId,'profile_id'=>$profileId,'playthrough_id'=>$playthrough['playthrough_id']??null],$tags,$filters,true);
     }
 
     /** Preview a biography's own tags against the installation catalog without activating an NPC. */
@@ -2525,11 +2538,11 @@ SQL);
     {
         $selected=$this->selectedActorProfileId((string)$turn['installation_id'],(string)$turn['playthrough_id'],
             (array)($turn['payload']['target']??[]));
-        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category',true));
+        $statement=$this->db->prepare($this->effectiveKnowledgeSql('topic,aliases,tags,category,(profile_id IS NOT NULL AND playthrough_id IS NOT NULL) AS story_profile_override',true));
         $statement->execute(['installation'=>(string)$turn['installation_id'],
             'profile'=>$selected??(string)$turn['profile_id'],'playthrough'=>(string)$turn['playthrough_id'],
             'loaded_content_files'=>$this->pgArray(array_keys($this->contentFilesForTurn($turn)))]);
-        return$statement->fetchAll();
+        return DynamicOghmaRepository::overlay($statement->fetchAll(),$turn['_dynamic_oghma_plan']??[]);
     }
 
     /** Select one effective row per canonical topic, preferring the most specific custom override. */
@@ -2587,7 +2600,7 @@ SQL);
         }
         $knowledgeScope=$scope;$knowledgeScope['profile_id']=$activeProfileId;
         $knowledgeSelection=$contextSections['oghma']?$this->selectPromptKnowledge($turn,$profile,$knowledgeScope,
-            $this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),
+            DynamicOghmaRepository::overlay($this->knowledgeCandidates($knowledgeScope,array_keys($this->contentFilesForTurn($turn))),$turn['_dynamic_oghma_plan']??[]),
             (string)($effective['settings']['memory']['oghma_knowledge_tags']??''),
             (int)($effective['settings']['oghma']['result_limit']??3),(array)($effective['settings']['oghma']??[]),$oghmaExtraction,$now)
             :['rows'=>[],'trace'=>['status'=>'disabled','reason'=>'disabled_by_global_context','result_ids'=>[]]];
@@ -2722,7 +2735,7 @@ SQL);
             foreach($sourceSignals as$signal){$ranked=[];foreach($rows as$row){$score=$this->knowledgeRelevance($signal,$row);if($score<$minimum)continue;$row['_prompt_score']=$score;$ranked[]=$row;}
                 usort($ranked,static fn(array$a,array$b):int=>($b['_prompt_score']<=>$a['_prompt_score'])?:strcmp((string)$a['topic'],(string)$b['topic'])?:strcmp((string)$a['id'],(string)$b['id']));
                 if(($ranked[0]['_prompt_score']??0.0)>=0.95)$ranked=array_values(array_filter($ranked,static fn(array$row):bool=>$row['_prompt_score']>=0.95));
-                foreach(array_slice($ranked,0,10)as$row){$id=(string)$row['id'];$score=(float)$row['_prompt_score'];$scores[$id]=max((float)($scores[$id]??0),$score);$accessDecision=OghmaGroundedRetriever::accessDecision($row,$knowledgeTags);$access=$accessDecision['level'];$rank++;
+                foreach(array_slice($ranked,0,10)as$row){$id=(string)$row['id'];$score=(float)$row['_prompt_score'];$scores[$id]=max((float)($scores[$id]??0),$score);$accessDecision=OghmaGroundedRetriever::accessDecision($row+['topic_desc'=>$row['content']],$knowledgeTags);$access=$accessDecision['level'];$rank++;
                     if(isset($selectedIds[$id])){$reasons[$id]['additional_signals'][]=['signal'=>$signal,'source'=>$source,'score'=>$score];continue;}
                     if($access==='denied'){$reasons[$id]=['rank'=>$rank,'topic'=>$row['topic'],'signal'=>$signal,'source'=>$source,'selected'=>false,'access_level'=>'denied','score'=>$scores[$id],'reason'=>$accessDecision['reason']];
                         if(count($selected)<$limit){$row['content']='';$row['access_level']='denied';$row['source']=$source;$row['access_reason']=$accessDecision['reason'];unset($row['_prompt_score']);

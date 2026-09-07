@@ -199,6 +199,10 @@ also follow this reference; runtime retrieval and knowledge access are unchanged
 The Delete All / Factory Reset toolbar order and entry-editor Delete control also
 follow the reference. Confirmation dialogs, installation scope and persistent
 factory-topic deletion handling are native Lorkhan adaptations.
+The Dynamic Oghma tab, batch/category/table structure and quest-stage
+Add/Edit fields in `ui/tmpl/oghma_dynamic.php` also derive from the same pinned
+`ui/oghma_upload.php`. Native scope, revisions, confirmations and persistence do
+not import Herika's database credentials or global quest ownership assumptions.
 
 `ui/oghma_knowledge.php` and `ui/css/herika-oghma-runtime.css` adapt the
 three-column knowledge reader, metadata chips, filter controls and typography

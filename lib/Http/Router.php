@@ -175,6 +175,8 @@ final class Router
                     $m['payload']['input']['text']=(string)$continuation['prompt'];
             }
 
+            $dynamicPlan=$this->products?->dynamicOghma()->plan($m)??[];
+            $knowledgeTurn=$m+['_dynamic_oghma_plan'=>$dynamicPlan];
             $directAction = $m['payload']['action_request'] ?? null;
             $providerInput = $directAction === null ? $m : null;
             if ($providerInput !== null) {
@@ -196,8 +198,8 @@ final class Router
                 if(in_array($target['kind']??null,['creature','npc'],true)){
                     $this->repository->session((string)$m['session_id'],(int)$m['generation']);
                     $this->products->ensureMorrowindActorProfile($m,$resolvedVoice,gmdate('Y-m-d\TH:i:s\Z'));}
-                $oghmaExtraction=$this->oghmaExtraction($m);$semanticMemory=$this->semanticMemory($m);
-                $selection = $this->products->promptContext($m,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
+                $oghmaExtraction=$this->oghmaExtraction($knowledgeTurn);$semanticMemory=$this->semanticMemory($m);
+                $selection = $this->products->promptContext($knowledgeTurn,gmdate('Y-m-d\TH:i:s\Z'),$oghmaExtraction,$semanticMemory);
                 $providerInput['_selected_profile_id']=$selection['selected_profile_id'];
                 if(is_array($selection['player_profile']??null))$providerInput['_player_profile']=$selection['player_profile'];
                 if(is_array($selection['narrator_profile']??null))$providerInput['_narrator_profile']=$selection['narrator_profile'];
@@ -216,7 +218,7 @@ final class Router
             }
             $body = ['schema' => 'lorkhan.turn.accepted.v1', 'message_id' => $m['message_id'], 'turn_id' => $m['turn_id'],
                 'request_id' => $m['request_id'], 'session_id' => $m['session_id'], 'generation' => $m['generation']];
-            $accepted = $this->repository->acceptTurn($m, $providerInput, $assembled['trace'] ?? null, $hash, $body, $directAction);
+            $accepted = $this->repository->acceptTurn($m, $providerInput, $assembled['trace'] ?? null, $hash, $body, $directAction, $dynamicPlan);
             $body['event_cursor']=$accepted['sequence'];
             return Response::json(202, $body);
         });

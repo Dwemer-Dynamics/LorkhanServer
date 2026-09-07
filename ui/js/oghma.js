@@ -2,16 +2,54 @@ document.addEventListener('DOMContentLoaded',()=>{
     const editModal=document.getElementById('editModal');
     const newModal=document.getElementById('newEntryModal');
     const maintenanceModal=document.getElementById('oghmaMaintenanceModal');
-    const modals=[editModal,newModal,maintenanceModal];
+    const dynamicEditor=document.getElementById('dynamicEditorModal');
+    const dynamicDelete=document.getElementById('dynamicDeleteModal');
+    const modals=[editModal,newModal,maintenanceModal,dynamicEditor,dynamicDelete].filter(Boolean);
     const origins=new WeakMap();
     // Keep keyboard focus inside the active reader and return it to its trigger on close.
-    const openModal=(modal,trigger)=>{const previous=modals.find(item=>!item.hidden);origins.set(modal,{trigger,previous});if(previous){previous.hidden=true;previous.setAttribute('aria-hidden','true');}modal.hidden=false;modal.setAttribute('aria-hidden','false');document.body.classList.add('oghma-modal-open');modal.querySelector('.modal-body').scrollTop=0;modal.querySelector(modal===maintenanceModal?'[data-oghma-modal-close]':'input:not([type="hidden"]),textarea')?.focus();};
+    const openModal=(modal,trigger)=>{const previous=modals.find(item=>!item.hidden);origins.set(modal,{trigger,previous});if(previous){previous.hidden=true;previous.setAttribute('aria-hidden','true');}modal.hidden=false;modal.setAttribute('aria-hidden','false');document.body.classList.add('oghma-modal-open');modal.querySelector('.modal-body').scrollTop=0;modal.querySelector([maintenanceModal,dynamicDelete].includes(modal)?'[data-oghma-modal-close]':'input:not([type="hidden"]),textarea')?.focus();};
     const closeModal=(modal)=>{modal.hidden=true;modal.setAttribute('aria-hidden','true');const origin=origins.get(modal);if(origin?.previous){origin.previous.hidden=false;origin.previous.setAttribute('aria-hidden','false');}if(modals.every(item=>item.hidden))document.body.classList.remove('oghma-modal-open');if(origin?.trigger.isConnected)origin.trigger.focus();};
 
     const editTitle=document.getElementById('edit-modal-title');
     const factoryNote=document.getElementById('edit-factory-note');
     const saveButton=document.getElementById('edit-save-button');
     const deleteButton=document.getElementById('edit-delete-button');
+
+    const tabs=Array.from(document.querySelectorAll('[data-oghma-tab]'));
+    const switchTab=(tab)=>{
+        const dynamic=tab.dataset.oghmaTab==='dynamic';
+        tabs.forEach(item=>{const active=item===tab;item.classList.toggle('active',active);item.setAttribute('aria-selected',String(active));item.tabIndex=active?0:-1;});
+        ['oghma','dynamic'].forEach(name=>{const active=(name==='dynamic')===dynamic;const panel=document.getElementById(name+'-tab');panel.hidden=!active;panel.classList.toggle('active',active);document.getElementById(name+'-header-content').hidden=!active;});
+        document.getElementById('title-text').textContent=dynamic?'Dynamic Oghma':'Oghma Infinium';
+        const url=new URL(window.location.href);url.searchParams.set('tab',dynamic?'dynamic':'regular');history.replaceState(null,'',url);
+    };
+    tabs.forEach((tab,index)=>{
+        tab.tabIndex=tab.getAttribute('aria-selected')==='true'?0:-1;
+        tab.addEventListener('click',()=>switchTab(tab));
+        tab.addEventListener('keydown',event=>{if(!['ArrowLeft','ArrowRight','Home','End'].includes(event.key))return;event.preventDefault();const next=event.key==='Home'?0:event.key==='End'?tabs.length-1:(index+(event.key==='ArrowRight'?1:tabs.length-1))%tabs.length;switchTab(tabs[next]);tabs[next].focus();});
+    });
+    const dynamicFields=['id_quest','stage','topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category'];
+    const editDynamic=(row,trigger)=>{
+        const existing=!!row.id;
+        document.getElementById('dynamic-editor-title').textContent=existing?'Edit Dynamic Oghma Entry':'Add New Dynamic Oghma Entry';
+        document.getElementById('dynamic-editor-save').textContent=existing?'Save Changes':'Save';
+        document.getElementById('dynamic-editor-id').value=row.id??'';document.getElementById('dynamic-editor-revision').value=row.revision??'';
+        dynamicFields.forEach(field=>{document.getElementById('dynamic-field-'+field).value=row[field]??(field==='stage'?'0':'');});
+        document.getElementById('dynamic-editor-delete').hidden=!existing;
+        openModal(dynamicEditor,trigger);
+    };
+    document.querySelector('[data-dynamic-new]')?.addEventListener('click',event=>editDynamic({},event.currentTarget));
+    document.querySelectorAll('[data-dynamic-edit]').forEach(button=>button.addEventListener('click',()=>editDynamic(JSON.parse(button.dataset.dynamicEdit),button)));
+    const deleteDynamic=(all,trigger)=>{
+        document.getElementById('dynamic-delete-mode').value=all?'all':'single';
+        document.getElementById('dynamic-delete-id').value=all?'':document.getElementById('dynamic-editor-id').value;
+        document.getElementById('dynamic-delete-revision').value=all?'':document.getElementById('dynamic-editor-revision').value;
+        document.getElementById('dynamic-delete-title').textContent=all?'Delete All Dynamic Entries':'Delete Dynamic Oghma Entry';
+        document.getElementById('dynamic-delete-submit').textContent=all?'Delete All Dynamic Entries':'Delete';
+        openModal(dynamicDelete,trigger);
+    };
+    document.querySelector('[data-dynamic-delete-all]')?.addEventListener('click',event=>deleteDynamic(true,event.currentTarget));
+    document.getElementById('dynamic-editor-delete')?.addEventListener('click',event=>deleteDynamic(false,event.currentTarget));
 
     document.querySelector('[data-oghma-new-open]')?.addEventListener('click',event=>openModal(newModal,event.currentTarget));
     document.querySelectorAll('[data-oghma-edit]').forEach((button)=>button.addEventListener('click',()=>{

@@ -261,10 +261,10 @@ final class Repository
 
     /** @param array<string,mixed>|null $providerInput @param array<string,mixed>|null $promptTrace */
     public function acceptTurn(array $m, ?array $providerInput = null, ?array $promptTrace = null,
-        ?string $idempotencyHash = null, ?array $idempotencyResponse = null, ?array $directAction = null): array
+        ?string $idempotencyHash = null, ?array $idempotencyResponse = null, ?array $directAction = null, ?array $dynamicPlan = null): array
     {
         return $this->transaction(function () use (
-            $m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse, $directAction
+            $m, $providerInput, $promptTrace, $idempotencyHash, $idempotencyResponse, $directAction, $dynamicPlan
         ): array {
             $session = $this->session($m['session_id'], $m['generation'], true);
             foreach (['installation_id' => 'installation_id', 'profile_id' => 'profile_id', 'playthrough_id' => 'playthrough_id',
@@ -334,6 +334,8 @@ final class Repository
                 ?$promptTrace['player_mood_cue']:''];
             $this->source($m['message_id'], $m['installation_id'], $m['session_id'], $m['generation'], $sourceKind, $m['created_at'],
                 $m['schema'], $m['request_id'], $m['turn_id'], null, $m, $projectionContext);
+            $dynamicOghma=new DynamicOghmaRepository($this->db);
+            $dynamicOghma->apply((string)$m['installation_id'],(string)$m['playthrough_id'],(string)$m['message_id'],$dynamicPlan??$dynamicOghma->plan($m));
             $event = $this->event($m['session_id'], $m['generation'], $m['request_id'], $m['turn_id'], 'turn.accepted', ['status' => 'accepted']);
             if ($providerInput !== null) {
                 $providerInput['_negotiated_capabilities']=$session['capabilities'];
@@ -393,6 +395,10 @@ final class Repository
                 (string) $message['session_id'], (int) $message['generation'], 'gamedata.' . (string) $message['type'],
                 (string) $message['observed_at'], (string) $message['schema'], (string) $message['request_id'],
                 null, null, $message);
+            if($message['type']==='journal'){
+                $dynamicOghma=new DynamicOghmaRepository($this->db);
+                $dynamicOghma->apply((string)$message['installation_id'],(string)$message['playthrough_id'],(string)$message['request_id'],$dynamicOghma->plan($message,true));
+            }
         });
     }
 

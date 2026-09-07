@@ -442,6 +442,22 @@ $creatureActorProfile['payload']['race']='Creature';$creatureActorProfile['paylo
 $creatureActorProfile['payload']['gender']='none';$creatureActorProfile['payload']['disposition']=0;
 $validator->validate($creatureActorProfile,'lorkhan.gamedata.v1');
 $check(true,'auto-activated creature profile snapshot validates');
+$journalData=$actorProfileGameData;$journalData['type']='journal';
+$journalEntry=['journal_id'=>'test_quest','title'=>'Test quest','stage'=>10,'status'=>'active','text'=>'An observed journal entry.'];
+$journalData['payload']=['entries'=>[$journalEntry]];
+$validator->validate($journalData,'lorkhan.gamedata.v1');$check(true,'typed journal stage observation validates');
+$privateStoryArticle=['topic'=>'test_topic','content'=>'Private NPC story.','story_profile_override'=>true];
+$storyOverlay=\LorkhanServer\Infrastructure\DynamicOghmaRepository::overlay([$privateStoryArticle],
+    [['document'=>['topic'=>'test_topic','content'=>'Shared story.']]]);
+$check($storyOverlay===[$privateStoryArticle],'Dynamic Oghma preview preserves the more specific NPC story override');
+foreach([['stage'=>'10'],['stage'=>-1],['stage'=>2147483648],['stage'=>1.5],['status'=>'invented'],['extra'=>'field']]as$invalidJournal){
+    $badJournal=$journalData;$badJournal['payload']['entries']=[array_replace($journalEntry,$invalidJournal)];
+    try{$validator->validate($badJournal,'lorkhan.gamedata.v1');$check(false,'invalid typed journal entry rejected');}
+    catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','invalid typed journal entry rejected');}
+}
+$journalData['payload']['entries']=[$journalEntry,$journalEntry];
+try{$validator->validate($journalData,'lorkhan.gamedata.v1');$check(false,'duplicate journal entry rejected');}
+catch(ValidationException $exception){$check($exception->getMessage()==='invalid_schema','duplicate journal entry rejected');}
 $menuDialogueRequest = [
     'schema' => 'lorkhan.menu-dialogue-tts.v1',
     'message_id' => '00000000-0000-4000-8000-000000000031',

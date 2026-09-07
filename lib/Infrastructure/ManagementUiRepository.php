@@ -10,6 +10,8 @@ final class ManagementUiRepository
 {
     public function __construct(private readonly PDO $db) {}
 
+    public function dynamicOghmaCatalog(string $installation,array $filters=[]):array{return(new DynamicOghmaRepository($this->db))->catalog($installation,$filters);}
+
     /** Return the effective Oghma catalog with bounded server-side search, category, order, and pagination. */
     public function oghmaCatalog(array $filters=[]):array
     {

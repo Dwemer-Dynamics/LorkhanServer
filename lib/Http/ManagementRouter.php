@@ -103,6 +103,7 @@ final class ManagementRouter
             if($r->method==='GET'&&$path==='/exports/biographies/example.csv')return$this->exampleBiographiesCsv();
             if($r->method==='GET'&&$path==='/exports/biographies/custom.csv')return$this->exportBiographiesCsv($this->queryUuid($r,'installation_id'));
             if($r->method==='GET'&&$path==='/exports/oghma/example.csv')return$this->exampleOghmaCsv();
+            if($r->method==='GET'&&$path==='/exports/oghma-dynamic/example.csv')return$this->exampleOghmaCsv(true);
             if(in_array($r->method,['POST','PUT','PATCH','DELETE'],true))$this->csrf($r,$session);
             if($r->method==='POST'&&$path==='/logout'){$this->management->revoke($session);return$this->redirect($this->uiPath('quickstart'),['Set-Cookie'=>['lorkhan_management=; Path='.$this->webRoot().'; Max-Age=0; HttpOnly; SameSite=Strict','lorkhan_csrf=; Path='.$this->webRoot().'; Max-Age=0; SameSite=Strict']]);}
             if(str_starts_with($path,'/api/v1/'))return$this->api($r,$path,$session);
@@ -385,6 +386,20 @@ final class ManagementRouter
             foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
             $saved=$this->service->importKnowledge($inputs);
             return$this->redirect($this->uiPath('knowledge').'&status=imported&count='.count($saved));
+        }
+        if(in_array($domain,['oghma-dynamic-save','oghma-dynamic-import','oghma-dynamic-delete'],true)){
+            $installation=$this->need($scope,'installation_id');$rules=$this->repository->dynamicOghma();
+            if($domain==='oghma-dynamic-delete'){
+                if(($v['confirm']??'')!=='Delete')throw new InvalidArgumentException('oghma_confirmation_required');
+                $mode=$this->need($v,'mode');if(!in_array($mode,['single','all'],true))throw new InvalidArgumentException('invalid_dynamic_oghma_action');
+                $id=$mode==='single'?$this->need($v,'id'):'';if($id!=='')$this->uuid($id,'id');
+                $revision=filter_var($v['revision']??null,FILTER_VALIDATE_INT,['options'=>['min_range'=>1]]);
+                if($id!==''&&$revision===false)throw new InvalidArgumentException('invalid_dynamic_oghma_revision');
+                $count=$rules->delete($installation,$id===''?null:$id,$revision===false?null:$revision);$status='dynamic-deleted';
+            }else{
+                $csv=$domain==='oghma-dynamic-import';$count=$rules->save($installation,$csv?$this->oghmaCsvRows($r,true):[$v],$csv);$status=$csv?'dynamic-imported':'dynamic-saved';
+            }
+            return$this->redirect($this->webRoot().'/ui/worldknowledge_upload.php?'.http_build_query(['installation_id'=>$installation,'embed'=>($v['embed']??'')==='1'?'1':'0','tab'=>'dynamic','status'=>$status,'count'=>$count]).'#dynamic');
         }
         if($domain==='oghma-maintenance'){
             $installation=$this->need($scope,'installation_id');$this->uuid($installation,'installation_id');
@@ -725,7 +740,7 @@ final class ManagementRouter
     }
 
     /** Parse one bounded UTF-8 CSV using CHIM's exact static Oghma column order. */
-    private function oghmaCsvRows(Request $request):array
+    private function oghmaCsvRows(Request $request,bool $dynamic=false):array
     {
         $file=$request->files['csv_file']??null;if(!is_array($file)||($file['error']??UPLOAD_ERR_NO_FILE)!==UPLOAD_ERR_OK)throw new InvalidArgumentException('oghma_csv_missing');
         $size=(int)($file['size']??0);if($size<1||$size>$this->maxJsonBytes)throw new InvalidArgumentException('oghma_csv_size');
@@ -733,22 +748,22 @@ final class ManagementRouter
         $handle=fopen((string)$file['tmp_name'],'rb');if($handle===false)throw new InvalidArgumentException('oghma_csv_unreadable');$rows=[];
         try{$header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('oghma_csv_header');
             if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0]);
-            $expected=['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'];
+            $expected=$dynamic?\LorkhanServer\Infrastructure\DynamicOghmaRepository::CSV_FIELDS:['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'];
             if($header!==$expected)throw new InvalidArgumentException('oghma_csv_header');
-            while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){if($values===[null]||count($values)===0)continue;if(count($values)!==8)throw new InvalidArgumentException('oghma_csv_columns');
+            while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){if($values===[null]||count($values)===0)continue;if(count($values)!==count($expected))throw new InvalidArgumentException('oghma_csv_columns');
                 if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('oghma_csv_encoding');
-                $rows[]=['topic'=>(string)$values[0],'title'=>str_replace('_',' ',(string)$values[0]),'content'=>(string)$values[1],
+                $rows[]=$dynamic?array_combine($expected,array_map('strval',$values)):['topic'=>(string)$values[0],'title'=>str_replace('_',' ',(string)$values[0]),'content'=>(string)$values[1],
                     'knowledge_class'=>(string)$values[2],'topic_desc_basic'=>(string)$values[3],'knowledge_class_basic'=>(string)$values[4],
                     'tags'=>(string)$values[5],'category'=>(string)$values[6],'aliases'=>(string)$values[7]];
-                if(count($rows)>5000)throw new InvalidArgumentException('oghma_csv_rows');}
+                if(count($rows)>($dynamic?1000:5000))throw new InvalidArgumentException('oghma_csv_rows');}
         }finally{fclose($handle);}if($rows===[])throw new InvalidArgumentException('oghma_csv_empty');return$rows;
     }
 
-    private function exampleOghmaCsv():Response
+    private function exampleOghmaCsv(bool $dynamic=false):Response
     {
         $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');fwrite($stream,"\xEF\xBB\xBF");
-        fputcsv($stream,['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'],',','"','\\');
-        fputcsv($stream,['vivec_city','Advanced article.','scholar,dunmer','Basic article.','common','Vivec,Cantons','settlements','Vivec City'],',','"','\\');
+        fputcsv($stream,$dynamic?\LorkhanServer\Infrastructure\DynamicOghmaRepository::CSV_FIELDS:['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases'],',','"','\\');
+        fputcsv($stream,$dynamic?['a1_1_findspymaster','10','caius_cosades','Caius has received the package.','','','','','main_quest']:['vivec_city','Advanced article.','scholar,dunmer','Basic article.','common','Vivec,Cantons','settlements','Vivec City'],',','"','\\');
         rewind($stream);$body=stream_get_contents($stream);fclose($stream);return new Response(200,(string)$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="example_oghma.csv"','X-Content-Type-Options'=>'nosniff']);
     }
 

@@ -83,7 +83,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
-| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category match the reference form contract, including CSV. Delete All, Factory Reset and factory-entry Delete are implemented with explicit confirmation and persistent deletion choices; final evidence below. Dynamic Oghma still requires work. |
+| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category match the reference form contract, including CSV. Delete All, Factory Reset and factory-entry Delete are implemented with explicit confirmation and persistent deletion choices; final evidence below. Dynamic Oghma UI and runtime verified and deployed; evidence below. |
 | `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Name and Description are now optional in forms/save/CSV, with stable OpenMW plugin/record identity retained. Latest migration/tests/deployment evidence below. |
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
@@ -2623,3 +2623,68 @@ Remaining Core Profile requirements identified from the pinned source and live e
   warning and initial Cancel focus, then cancelled. The new deletion table has
   zero live rows. No live delete/reset/import, provider call or game operation
   was performed. The overall page-parity goal remains active.
+
+## Dynamic Oghma UI and runtime — verified and deployed
+
+- Added the real second tab, contextual header, paired upload/database panels,
+  category filters, ten-column table, pagination and Add/Edit/Delete dialogs.
+  Nine-column CSV matches Herika's quest/stage/topic patch fields. CRUD is scoped
+  by installation, stale editor revisions fail, CSV upserts are atomic, and bulk
+  deletion requires explicit confirmation. Blank preserves a field; `clearall`
+  clears it. Deleting rules stops future changes without erasing story knowledge.
+- Compared populated/empty/no-installation fixtures and the actual pinned Herika
+  editor. The 800px editor, 42.156px fields, 119.422px textareas, Futura typography
+  and 36px footer buttons match measured reference geometry. At 390px the header
+  stacks and body scrolls; nested Delete cancellation preserves values and focus.
+- Migration 092 stores rules and per-playthrough application receipts. Each rule
+  revision applies once, after its immutable source is persisted. The Router uses
+  a read-only frozen patch plan before prompt assembly and acceptance persists
+  that same plan; neither replay nor repeated snapshots overwrite later edits.
+  New topics and clearing advanced content are supported. Shared/factory records
+  and other playthroughs remain untouched.
+- A read-only live journal check caught a false assumption in the earlier plan:
+  `id` is an oversized journal-line identifier, not a quest stage. The client fix
+  matches it to the pinned OpenMW quest record's info ID and reads `questStage`.
+  It adds optional `stage` to the existing bounded context; missing record data
+  omits the stage. The server never interprets `id` as a stage. Standalone typed
+  `gamedata.journal` is now accepted by the PHP validator as its schema specifies.
+- NPC Oghma Knowledge resolves the active/last-played story by default, accepts a
+  validated same-installation playthrough and retains it across filters/pages.
+  This exposes applied story knowledge without mixing playthroughs. Biography
+  previews and the regular catalog continue to use shared knowledge.
+- Fixed an existing advanced-access mapping defect: native knowledge rows store
+  `content`, but the access decision expected `topic_desc`. Prompt selection now
+  uses the same mapping already used by the NPC reader. The new first-turn test
+  caught this because its advanced article had no basic fallback.
+- Runtime integration and migration tests passed before the final reader changes:
+  first-prompt visibility, replay/repeated snapshots, clearall, new topics and
+  playthrough isolation. The expanded final suite also covers typed journal
+  validation and the scoped reader. Final full-suite/deployment results follow.
+- Client: `D:/wt/lorkhan-journal-stages`, `codex/journal-stages`, based on current
+  main `2275873`. All 67 Lua tests pass. The structural Python check's one failure
+  is pre-existing: its three-panel literal omits the `settings=true` already on
+  main. No engine code changed and no game was launched or controlled.
+- The page-parity goal remains active. This is one checkpoint, not proof that
+  every page or every outstanding editor state has reached parity.
+
+- Final validation passed: PHP lint, 98 protocol files, 379 server checks,
+  browser-like HTTP forms, integration, migrations and durable jobs. Schema:
+  170 relations / 1,587 columns, inventory hash
+  `b8099463e3d26547c1467feef76847ede606e1c49b3135ec6d760ecdc878b795`.
+  The preview also retains higher-priority NPC-specific story overrides, matching
+  the SQL resolver used after persistence.
+- Deployed server-only with rollback `/var/backups/lorkhanserver-code.lgY3Ce`.
+  All 752 runtime files match source; no extras or old paths remain. Private files
+  return 403 on all three checked ports; unauthenticated sessions return 401.
+  Existing configuration, credential and voice file hashes remain unchanged.
+- Live Dynamic Oghma opens directly with the correct selected tab and empty table.
+  Opened Add and cancelled; initial focus was Quest ID. No live rules or
+  application receipts were created (both counts remain zero). The NPC reader
+  shows the current playthrough, and a read-only search retains that scope in
+  filter/navigation links. No provider or game operation was performed.
+- Client commit `7925957b94ff8759a8decc7c87ef7e9456539de5` is pushed to main.
+  The deployed adapter matched the old main blob before replacement; only that
+  Lua file was copied to `C:/Modlists/LORKHAN/Data/scripts/LORKHAN/adapters/openmw.lua`.
+  SHA-256: `a161992b70ea8daca2229fe70f097b09c1c267327f1093ddd9e4adb51850f4c3`.
+  Backup: `C:/Users/reece/AppData/Local/Temp/lorkhan-journal-stage-backup-7925957.lua`.
+  A normal game restart loads the new Lua; no engine rebuild or game launch occurred.

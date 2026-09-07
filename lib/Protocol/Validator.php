@@ -142,7 +142,7 @@ final class Validator
             'runtime_generation','observed_at','game','type','payload']);
         $type=$message['type']??null;
         if(($message['schema']??null)!=='lorkhan.gamedata.v1'||($message['game']??null)!=='tes3'
-            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event'],true)
+            ||!in_array($type,['actor_profile','automatic_diary','captured_dialogue','rpg_event','journal'],true)
             ||!is_int($message['generation'])||$message['generation']<1
             ||$message['generation']>9_007_199_254_740_991||!is_int($message['runtime_generation'])
             ||$message['runtime_generation']<1||$message['runtime_generation']>9_007_199_254_740_991)
@@ -151,6 +151,24 @@ final class Validator
         $this->timestamp($message['observed_at']??null);
         $payload=$message['payload']??null;
         if(!is_array($payload)||array_is_list($payload))throw new ValidationException('invalid_schema');
+        if($type==='journal'){
+            $this->keys($payload,['entries']);
+            if(!is_array($payload['entries']??null)||!array_is_list($payload['entries'])||count($payload['entries'])>128)
+                throw new ValidationException('invalid_schema');
+            $seen=[];foreach($payload['entries']as$entry){
+                if(!is_array($entry))throw new ValidationException('invalid_schema');
+                $this->keys($entry,['journal_id','title','status','stage','text']);
+                foreach(['journal_id'=>256,'title'=>512,'text'=>4096]as$field=>$limit){
+                    if(!is_string($entry[$field]??null)||$entry[$field]===''||!mb_check_encoding($entry[$field],'UTF-8')
+                        ||mb_strlen($entry[$field],'UTF-8')>$limit)throw new ValidationException('invalid_schema');
+                }
+                if(!is_int($entry['stage']??null)||$entry['stage']<0||$entry['stage']>2147483647
+                    ||!in_array($entry['status']??null,['active','completed','failed','mentioned'],true))throw new ValidationException('invalid_schema');
+                ksort($entry);$key=json_encode($entry,JSON_THROW_ON_ERROR);
+                if(isset($seen[$key]))throw new ValidationException('invalid_schema');$seen[$key]=true;
+            }
+            return;
+        }
         if($type==='rpg_event'){
             $this->keys($payload,['kind','player','game_time','text']);$this->identity($payload['player']??null);
             if(!in_array($payload['kind']??null,['levelup','combat_end','sleep','wait'],true)

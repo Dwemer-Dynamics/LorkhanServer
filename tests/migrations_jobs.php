@@ -930,6 +930,29 @@ $check($factorySync->status===303&&($factorySync->headers['Location']??'')===$ex
 $home=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/quickstart',['Cookie'=>$cookie]));
 $db->beginTransaction();
 try{
+    $db->exec('SAVEPOINT dynamic_crud');
+    $dynamicOther='30000000-0000-4000-8000-000000000998';
+    $db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$dynamicOther,'token'=>hash('sha256','dynamic-oghma-other-installation')]);
+    $dynamicRules=$products->dynamicOghma();
+    $dynamicRow=['id_quest'=>'A1_1_FindSpymaster','stage'=>'10','topic'=>'Caius_Cosades','topic_desc'=>'Caius received the package.','knowledge_class'=>'','topic_desc_basic'=>'clearall','knowledge_class_basic'=>'','tags'=>'','category'=>'main_quest'];
+    $dynamicPost=static fn(string $domain,array $values)=>$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/'.$domain,['Cookie'=>$cookie],[],http_build_query(['_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1']+$values)));
+    $dynamicSaved=$dynamicPost('oghma-dynamic-save',$dynamicRow);
+    $dynamicCatalog=$dynamicRules->catalog($installation);$savedDynamic=$dynamicCatalog['rows'][0];
+    $check($dynamicSaved->status===303&&str_contains($dynamicSaved->headers['Location']??'','tab=dynamic')&&$dynamicCatalog['total']===1
+        &&$savedDynamic['id_quest']==='a1_1_findspymaster'&&$savedDynamic['topic']==='caius_cosades'&&$savedDynamic['topic_desc_basic']==='clearall'
+        &&$savedDynamic['knowledge_class']==='','Dynamic Oghma save lost fields, blank/clearall values or tab state');
+    $check($dynamicPost('oghma-dynamic-save',$dynamicRow)->status===422,'duplicate Dynamic Oghma editor entry was silently overwritten');
+    $dynamicRules->save($installation,[array_replace($dynamicRow,['topic_desc'=>'CSV update'])],true);
+    $check($dynamicPost('oghma-dynamic-save',$dynamicRow+['id'=>$savedDynamic['id'],'revision'=>$savedDynamic['revision']])->status===422,'Dynamic Oghma accepted a stale editor revision');
+    $check($dynamicPost('oghma-dynamic-save',array_replace($dynamicRow,['stage'=>'10.5']))->status===422,'Dynamic Oghma accepted a fractional quest stage');
+    $check($dynamicPost('oghma-dynamic-delete',['confirm'=>'Delete'])->status===422,'Dynamic Oghma deletion accepted an ambiguous empty identity');
+    $check($dynamicRules->catalog($installation,['category'=>'unrelated'])['total']===0,'Dynamic Oghma category filter did not narrow results');
+    $dynamicRules->save($dynamicOther,[$dynamicRow]);
+    $dynamicDeleted=$dynamicPost('oghma-dynamic-delete',['confirm'=>'Delete','mode'=>'all']);
+    $check($dynamicDeleted->status===303&&$dynamicRules->catalog($installation)['total']===0&&$dynamicRules->catalog($dynamicOther)['total']===1,'Dynamic Oghma Delete All crossed installation scope');
+    $dynamicExample=$managementRouter->dispatch(new Request('GET','/LorkhanServer/manage/exports/oghma-dynamic/example.csv',['Cookie'=>$cookie]));
+    $check($dynamicExample->status===200&&str_contains($dynamicExample->body,implode(',',\LorkhanServer\Infrastructure\DynamicOghmaRepository::CSV_FIELDS)),'Dynamic Oghma CSV example lost the reference header');
+    $db->exec('ROLLBACK TO SAVEPOINT dynamic_crud');
     $maintenance=static fn(array $values)=>$managementRouter->dispatch(new Request('POST','/LorkhanServer/manage/forms/oghma-maintenance',['Cookie'=>$cookie],[],http_build_query($values)));
     $maintenanceValues=['_csrf'=>$csrf,'installation_id'=>$installation,'embed'=>'1','action'=>'delete-all','confirm'=>'Delete'];
     $factoryTopic=$db->query("SELECT document_id,topic FROM knowledge_documents WHERE installation_id='{$installation}' AND provenance->>'source'='factory-oghma' AND deleted_at IS NULL ORDER BY topic LIMIT 1")->fetch();

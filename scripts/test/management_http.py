@@ -543,7 +543,7 @@ assert multipart_request('/LorkhanServer/manage/forms/description-import',{'_csr
 assert request(description_form['action'],'POST',dict(description_values,record_id='')).status!=200
 assert request('/LorkhanServer/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':description_values['installation_id'],'description_id':description_entry['description_id']}).status==200
 assert 'No descriptions found.' in request('/LorkhanServer/ui/description_manager.php?search='+description_record).read().decode()
-oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
+oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'data-oghma-tab="dynamic"' in text
 oghma_page,_=parse(request('/LorkhanServer/ui/worldknowledge_upload.php'))
 oghma_form=next(form for form in oghma_page.forms if form['action'].endswith('/forms/knowledge'))
 oghma_topic='partialcatalog'+uuid.uuid4().hex
@@ -569,6 +569,20 @@ assert 'CSV advanced content.' not in basic_knowledge_raw
 basic_knowledge=json.loads(basic_knowledge_raw)
 assert basic_knowledge['total']==0 and basic_knowledge['counts']['denied']==biography_knowledge['counts']['denied']+1,basic_knowledge
 assert request(oghma_form['action'],'POST',dict(oghma_values,content='')).status!=200
+dynamic_headers=['id_quest','stage','topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category']
+dynamic_csv=io.StringIO(); dynamic_writer=csv.writer(dynamic_csv); dynamic_writer.writerow(dynamic_headers); dynamic_writer.writerow(['ui_parity_quest','10','ui_parity_topic','Updated after the quest.','','clearall','','','ui_parity'])
+dynamic_fields={'_csrf':csrf,'installation_id':oghma_values['installation_id'],'embed':'1'}
+dynamic_upload=multipart_request('/LorkhanServer/manage/forms/oghma-dynamic-import',dynamic_fields,'csv_file','dynamic.csv','text/csv',dynamic_csv.getvalue().encode())
+assert dynamic_upload.status==200 and 'tab=dynamic' in dynamic_upload.url
+dynamic_page=request(oghma_url+'&tab=dynamic&dynamic_cat=ui_parity').read().decode()
+dynamic_rows=[json.loads(html.unescape(value)) for value in re.findall(r"data-dynamic-edit='([^']+)'",dynamic_page)]
+assert len(dynamic_rows)==1 and dynamic_rows[0]['topic_desc_basic']=='clearall' and dynamic_rows[0]['knowledge_class']==''
+dynamic_values=dict(dynamic_fields,**dynamic_rows[0]); dynamic_values['topic_desc']='Edited through the dynamic form.'
+assert request('/LorkhanServer/manage/forms/oghma-dynamic-save','POST',dynamic_values).status==200
+assert request('/LorkhanServer/manage/forms/oghma-dynamic-save','POST',dynamic_values).status==422
+dynamic_latest=json.loads(html.unescape(re.search(r"data-dynamic-edit='([^']+)'",request(oghma_url+'&tab=dynamic&dynamic_cat=ui_parity').read().decode()).group(1)))
+assert request('/LorkhanServer/manage/forms/oghma-dynamic-delete','POST',dict(dynamic_fields,mode='single',confirm='Delete',id=dynamic_latest['id'],revision=dynamic_latest['revision'])).status==200
+assert 'No dynamic entries found.' in request(oghma_url+'&tab=dynamic&dynamic_cat=ui_parity').read().decode()
 assert request('/LorkhanServer/ui/server_plugins.php').status==404
 assert request('/LorkhanServer/manage/server-plugins').status==404
 assert request('/LorkhanServer/ui/itt_connectors.php').status==404

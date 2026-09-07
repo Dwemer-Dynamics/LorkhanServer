@@ -2338,6 +2338,60 @@ $assert(is_array($auditRow) && is_array($auditRow['result_ids']) && count($audit
 $assert($oghmaWorker===['claimed'=>1,'succeeded'=>1,'retried'=>0,'dead'=>0],
     'grounded Oghma turn did not complete through the normal response pipeline');
 
+$db->beginTransaction();
+try{
+    $dynamic=$products->dynamicOghma();
+    $dynamicRule=['id_quest'=>'parity_dynamic_quest','stage'=>10,'topic'=>'vivec','topic_desc'=>'Vivec acknowledges the completed parity quest.',
+        'knowledge_class'=>'','topic_desc_basic'=>'clearall','knowledge_class_basic'=>'','tags'=>'','category'=>''];
+    $dynamic->save($installationId,[$dynamicRule,array_replace($dynamicRule,['stage'=>20,'topic_desc'=>'clearall','topic_desc_basic'=>'Vivec has a new public account of the quest.','knowledge_class_basic'=>'common','tags'=>'clearall']),
+        array_replace($dynamicRule,['stage'=>30,'topic'=>'parity_new_lore','topic_desc'=>'New lore appeared after the final quest stage.','topic_desc_basic'=>''])]);
+    $dynamicTurn=$oghmaTurn;$dynamicTurn['message_id']=$newUuid(996001);$dynamicTurn['request_id']=$newUuid(996002);$dynamicTurn['turn_id']=$newUuid(996003);
+    $dynamicTurn['payload']['input']['text']='Tell me about Vivec.';
+    $dynamicTurn['payload']['context']['journal']=['items'=>[['quest_id'=>'PARITY_DYNAMIC_QUEST','id'=>'31540100981975929470','stage'=>10,'text'=>'The quest reached stage ten.']],'truncated'=>false];
+    $legacyJournalTurn=$dynamicTurn;unset($legacyJournalTurn['payload']['context']['journal']['items'][0]['stage']);
+    $assert($dynamic->plan($legacyJournalTurn)===[],'journal entry identifiers must never be interpreted as quest stages');
+    $beforeDynamicSources=(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn();
+    $preview=$dynamic->plan($dynamicTurn);
+    $assert(count($preview)===1&&$preview[0]['document']['topic_desc_basic']===''&&$preview[0]['document']['category']==='lore'
+        &&(int)$db->query('SELECT count(*) FROM source_events')->fetchColumn()===$beforeDynamicSources
+        &&(int)$db->query('SELECT count(*) FROM oghma_dynamic_applications')->fetchColumn()===0,'Dynamic Oghma preview wrote state or lost blank/clearall semantics');
+    [$dynamicStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $oghmaSnapshotStatement->execute(['turn'=>$dynamicTurn['turn_id']]);$dynamicSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+    $dynamicPrompt=(string)($dynamicSnapshot['message']['_prompt']['_assembled_prompt']??'');
+    $dynamicDocument=$products->knowledge($preview[0]['document']['id']);
+    $assert($dynamicStatus===202&&str_contains($dynamicPrompt,$dynamicRule['topic_desc'])
+        &&$dynamicDocument['content']===$dynamicRule['topic_desc']&&$dynamicDocument['topic_desc_basic']===''
+        &&$dynamicDocument['provenance']['source_event_id']===$dynamicTurn['message_id'], 'first Dynamic Oghma response did not use and persist the exact preview');
+    $applicationSource=$db->query('SELECT a.source_event_id FROM oghma_dynamic_applications a JOIN source_events e ON e.source_event_id=a.source_event_id')->fetchColumn();
+    $assert($applicationSource===$dynamicTurn['message_id'],'Dynamic Oghma did not retain its accepted immutable source');
+    $db->prepare('UPDATE knowledge_documents SET content=:content,content_sha256=:sha WHERE document_id=:id')->execute(['content'=>'A later manual story edit.','sha'=>hash('sha256','A later manual story edit.'),'id'=>$dynamicDocument['id']]);
+    [$repeatStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $dynamicTurn['message_id']=$newUuid(996004);$dynamicTurn['request_id']=$newUuid(996005);$dynamicTurn['turn_id']=$newUuid(996006);
+    [$snapshotRepeatStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $assert($repeatStatus===202&&$snapshotRepeatStatus===202&&count($dynamic->plan($dynamicTurn))===0
+        &&$products->knowledge($dynamicDocument['id'])['content']==='A later manual story edit.'
+        &&(int)$db->query('SELECT count(*) FROM oghma_dynamic_applications')->fetchColumn()===1,'duplicate turns or repeated journal snapshots reapplied an old stage');
+    $dynamicGameData=['schema'=>'lorkhan.gamedata.v1','installation_id'=>$installationId,'playthrough_id'=>$dynamicTurn['playthrough_id'],
+        'session_id'=>$sessionId,'request_id'=>$newUuid(996007),'generation'=>7,'runtime_generation'=>7,'observed_at'=>$now,'game'=>'tes3','type'=>'journal',
+        'payload'=>['entries'=>[['journal_id'=>'parity_dynamic_quest','stage'=>20,'status'=>'active','title'=>'Parity quest','text'=>'The next stage was reached.']]]];
+    [$gameDataStatus,$gameDataResult]=$call($router,'POST',$base.'/gamedata',$headers($dynamicGameData['request_id']),[],$dynamicGameData);
+    $storyQuery=$db->prepare("SELECT content,topic_desc_basic,tags FROM knowledge_documents WHERE installation_id=:installation AND playthrough_id=:playthrough AND topic='vivec' AND deleted_at IS NULL");
+    $storyQuery->execute(['installation'=>$installationId,'playthrough'=>$dynamicTurn['playthrough_id']]);$story=$storyQuery->fetch();
+    $assert($gameDataStatus===202&&$story['content']===''&&$story['topic_desc_basic']==='Vivec has a new public account of the quest.'&&$story['tags']==='', 'standalone journal observation did not clear advanced content and update basic knowledge: '.json_encode(['status'=>$gameDataStatus,'result'=>$gameDataResult,'story'=>$story]));
+    $dynamicTurn['message_id']=$newUuid(996008);$dynamicTurn['request_id']=$newUuid(996009);$dynamicTurn['turn_id']=$newUuid(996010);
+    $dynamicTurn['payload']['input']['text']='Tell me about parity new lore.';$dynamicTurn['payload']['context']['journal']['items'][0]['stage']=30;
+    [$newTopicStatus]=$call($router,'POST',$base.'/turns',$headers($dynamicTurn['message_id']),[],$dynamicTurn);
+    $oghmaSnapshotStatement->execute(['turn'=>$dynamicTurn['turn_id']]);$newTopicSnapshot=json_decode((string)$oghmaSnapshotStatement->fetchColumn(),true,64,JSON_THROW_ON_ERROR);
+    $assert($newTopicStatus===202&&str_contains((string)($newTopicSnapshot['message']['_prompt']['_assembled_prompt']??''),'New lore appeared after the final quest stage.'),'a new Dynamic Oghma topic was missing from its first response');
+    $otherStory=$products->createRevisioned('playthrough',['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'name'=>'Dynamic isolation','content'=>[]],$now);
+    $storyReader=$products->oghmaKnowledgeForProfile($installationId,$dynamicTurn['profile_id'],['playthrough_id'=>$dynamicTurn['playthrough_id'],'search'=>'parity_new_lore']);
+    $otherReader=$products->oghmaKnowledgeForProfile($installationId,$dynamicTurn['profile_id'],['playthrough_id'=>$otherStory['playthrough_id'],'search'=>'parity_new_lore']);
+    $assert($storyReader['total']===1&&$otherReader['total']===0&&$storyReader['playthrough']['playthrough_id']===$dynamicTurn['playthrough_id'],'NPC Oghma reader lost the selected story knowledge or leaked it into another playthrough');
+    $otherKnowledge=$products->knowledgeCandidates(['installation_id'=>$installationId,'profile_id'=>$turn['profile_id'],'playthrough_id'=>$otherStory['playthrough_id']]);
+    $assert(!in_array('parity_new_lore',array_column($otherKnowledge,'topic'),true)
+        &&count(array_filter($otherKnowledge,static fn(array $row):bool=>$row['topic']==='vivec'&&$row['content']==='Vivec is one of the living gods of the Tribunal.'))===1,'Dynamic Oghma leaked one playthrough into another');
+}finally{$db->rollBack();}
+
 $historySourceId=$newUuid(843);$historyRequestId=$newUuid(844);$historyTurnId=$newUuid(845);
 $historyPayload=['speaker'=>$turn['payload']['speaker'],'target'=>$turn['payload']['target'],
     'input'=>['text'=>'[oghma: Vivec]'],'context'=>$turn['payload']['context']];

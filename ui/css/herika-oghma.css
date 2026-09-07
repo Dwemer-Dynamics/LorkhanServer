@@ -330,6 +330,10 @@ body.oghma-page-shell .modal-backdrop :is(input,textarea) {font-family:"Futura C
 body.oghma-page-shell .modal-backdrop :focus-visible {outline:2px solid #bc9d5a;outline-offset:2px}
 body.oghma-page-shell #oghmaMaintenanceModal .btn-danger {background:#963c3c!important;border-color:#b65757!important;color:#fff!important}
 body.oghma-page-shell .oghma-page .database-actions .btn-danger {font:700 13.12px/1.1 "Futura CondensedLight",Arial,sans-serif;background:#383838!important;border-color:#505050!important}
+body.oghma-page-shell #dynamicEditorModal input[type=number] {padding:10px 12px}
+body.oghma-page-shell :is(#dynamicEditorModal,#dynamicDeleteModal) .modal-footer button {font:500 13.12px/1.2 "Futura CondensedLight",Arial,sans-serif}
+body.oghma-page-shell #dynamicEditorModal .modal-header p {margin:0;font:14.4px/1.5 "Futura CondensedLight",Arial,sans-serif;color:#bdbdbd}
+body.oghma-page-shell #dynamicDeleteModal .btn-danger {background:#963c3c!important;border-color:#b65757!important;color:#fff!important}
 @media(max-width:650px){
     .oghma-page .logic-section {padding:14px}
     .oghma-page .logic-step {padding:12px;gap:12px}
@@ -339,4 +343,8 @@ body.oghma-page-shell .oghma-page .database-actions .btn-danger {font:700 13.12p
     body.oghma-page-shell .modal-backdrop .modal-header {padding:15px}
     body.oghma-page-shell .modal-backdrop .modal-body {padding:15px;max-height:calc(100dvh - 190px)}
     body.oghma-page-shell .modal-backdrop .modal-footer {padding:12px;flex-wrap:wrap}
+    body.oghma-page-shell #dynamicEditorModal .modal-container {display:flex;flex-direction:column;max-height:calc(100dvh - 40px)}
+    body.oghma-page-shell #dynamicEditorModal .modal-header {display:block;flex:0 0 auto}
+    body.oghma-page-shell #dynamicEditorModal .modal-header p {margin-top:8px}
+    body.oghma-page-shell #dynamicEditorModal .modal-body {flex:1 1 auto;min-height:0;max-height:none}
 }
