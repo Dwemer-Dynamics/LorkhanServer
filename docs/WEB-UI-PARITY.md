@@ -3657,5 +3657,22 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   configuration, credentials and voice contents preserved. No game launch/control.
 - Remaining before preset parity closes: four built-ins and their missing runtime
   setting mappings from the preceding audit; actual browser file-picker/download
-  round-trip and successful browser-save/Apply navigation (HTTP success is already
-  covered). Overall Core Profile/all-pages goal remains open.
+  round-trip. Successful browser-save/Apply navigation is now covered below.
+  Overall Core Profile/all-pages goal remains open.
+
+## Core Profile preset successful browser workflow — 2026-09-07
+
+- Used the existing management HTTP fixture bootstrap with isolated PostgreSQL and
+  mock configuration on temporary ports 55464/58464. No production profile, preset,
+  provider credentials or game state was changed.
+- In the actual rendered editor, changed Max Words from 0 to 77 and saved a new
+  named preset. The catalogue refreshed to preset revision 1, the dialog closed,
+  the draft stayed at 77 and the profile stayed at revision 1.
+- Changed the draft to 88 and confirmed Overwrite. The catalogue refreshed to
+  preset revision 2 while profile revision remained 1 and the draft stayed at 88.
+- Changed the draft to 99, then confirmed Apply. Browser navigation completed with
+  status=preset-applied, the saved preset value 88 replaced the draft, the profile
+  advanced to revision 2, and the name remained Default. Inspected the resulting
+  desktop screenshot, including the success banner and preset toolbar.
+- No product code changed during this review. File chooser/download browser proof,
+  built-in preset mappings and the remaining all-page matrix items remain open.
