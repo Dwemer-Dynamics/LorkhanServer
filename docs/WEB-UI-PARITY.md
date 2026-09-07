@@ -3183,11 +3183,11 @@ Remaining TTS provider work is concrete, not a product exception:
 | OpenAI | Instructions editor/request mapping completed below; automatic mood-to-instructions routing is still absent from the native speech context |
 | ElevenLabs | Editor controls and model-specific request mapping completed below; live provider synthesis remains untested |
 | Azure | Fixed mood, region, volume, rate and contour now have matching primary fields and native SSML routing. Automatic mood/Validmoods remains open with the shared speech-style audit |
-| Mimic3 | Default/help review; reference Volume is only consumed by the legacy `ttsMimicOld` function, not the active provider, so an inert control is not copied |
+| Mimic3 | Primary Rate/default/help and paired desktop review completed. Reference Volume is only consumed by legacy `ttsMimicOld`, not the active provider, so an inert control is not copied |
 | Kokoro | Speed editor/request mapping completed below; native endpoint and effective speed defaults preserved |
 | Deepgram | Bitrate versus native WAV transport semantics; explicit comparison needed |
 | Zonos | Language choices, dynamic tones, cache-path ownership and full defaults/help |
-| xVASynth, Piper, Melo | Remaining labels/defaults/help and visual/interactive state review |
+| xVASynth, Piper, Melo | Primary labels/defaults/help and paired desktop review completed; narrow layouts and preserved provider drafts checked. Native optional values and Morrowind routing retained; no live provider synthesis claimed |
 | Native extra drivers | Keep supported XTTS/Coqui/Convai/GCP/StyleTTS behavior; finish presentation review against applicable reference schemas |
 
 The full page matrix and goal remain open. No game, live TTS request, paid
@@ -3284,3 +3284,30 @@ fixtures; no real connector was saved and no remote speech request was made.
 Local code deployment preserved configuration, credentials and voice files.
 Rollback: `/var/backups/lorkhanserver-code.sd45lb`. No game was launched or
 controlled. Whole-site goal remains active against the full matrix above.
+
+## Local TTS provider presentation checkpoint
+
+Piper and xVASynth now use the pinned reference's primary labels and help text.
+Mimic3 and MeloTTS show their effective native speed defaults. xVASynth displays
+its native model type, version, pace, distro and Morrowind game defaults;
+optional vocoder/model paths remain absent rather than copying unverified
+installation paths. Service labels now match Mimic3, Azure, KoboldCPP and Zonos.
+No provider request code or saved user configuration changed.
+
+Paired full-page screenshots compared Piper, xVASynth, MeloTTS and Mimic3 against
+Herika's unsaved editor. Piper's optional fields were reviewed empty, xVASynth
+and MeloTTS with effective defaults, and a populated Piper draft survived a
+provider round trip. All four narrow fixtures have 375px content/scroll width
+inside a 390px frame. The narrow Piper screenshot confirms wrapped descriptions
+and accessible controls. The documented inert Mimic3 Volume difference remains.
+
+474 server checks, PHP lint, management HTTP, integration, migrations and
+durable-job checks passed. Schema inventory remains 170 relations with the
+same hash. Deployment preserved configuration, credentials and voice contents;
+rollback is `/var/backups/lorkhanserver-code.VX1jac`. No live Save/Test action or
+game control was used. Full TTS-editor and whole-site parity remain open.
+
+Next source-audit finding: pinned `tts/tts-deepgram.php` calls its field `bitrate`
+but sends it as `sample_rate` with `linear16`, default 32000. This is a functional
+sample-rate control, not incompatible compressed-audio bitrate; its native
+mapping and matching primary field still need implementation/review.

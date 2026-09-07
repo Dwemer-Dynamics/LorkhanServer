@@ -56,6 +56,20 @@ $fieldHelp = [
         'option__region'=>'Region location of your API key. Leave blank to use the advanced endpoint.',
         'option__volume'=>'Volume', 'option__rate'=>'Talk speed', 'option__countour'=>'Voice contour'],
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
+    'mimic3'=>['option__rate'=>'Voice speed'],
+    'piper-tts'=>[
+        'option__length_scale'=>'speaking time scale. Use a value over 1.0 to play slower, a value under 1.0 is faster.',
+        'option__noise_scale'=>'speaking variability. Leave 0 to use voice model internal value. Experiment with values around 0.667',
+        'option__noise_w_scale'=>'phoneme width variability. Leave 0 to use voice model internal value. Experiment with values around 0.8',
+        'option__speaker'=>'Name of speaker for multi-speaker voices (if you have an .onnx voice file with multiple voices).',
+        'option__speaker_id'=>'Speaker id for multi-speaker voices, overrides speaker name if used. 0 is default (first) speaker.',
+    ],
+    'xvasynth'=>[
+        'language'=>'Base language','option__model_type'=>'Model Type',
+        'option__version'=>'xVASynth version (e.g. 3.0 is default. Older models are 1.0 or 2.0)',
+        'option__game'=>'xVASynth gameID (e.g. morrowind)','option__pace'=>'Pace',
+        'option__waveglow_path'=>'Wave Glow Path (relative)','option__vocoder'=>'Vocoder','option__distro'=>'Leave as default!',
+    ],
 ];
 
 /** Render one provider control in either the primary grid or the preserved advanced section. */
@@ -102,7 +116,8 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     }
     // Herika presents latency as a text box; the native save path still validates the integer 0-4.
     if ($providerDriver === '11labs') $fields['option__optimize_streaming_latency']['type'] = 'string';
-    if ($providerDriver === 'xvasynth') foreach (['model_type'=>'Modeltype','waveglow_path'=>'Waveglowpath','distro'=>'Distroname'] as $name=>$label) $fields['option__'.$name]['label']=$label;
+    if ($providerDriver === 'xvasynth') foreach (['model_type'=>'Modeltype','version'=>'Version','game'=>'Game','waveglow_path'=>'Waveglowpath','distro'=>'Distroname'] as $name=>$label) $fields['option__'.$name]['label']=$label;
+    if ($providerDriver === 'piper-tts') foreach (['length_scale'=>'Length Scale','noise_scale'=>'Noise Scale','noise_w_scale'=>'Noise W Scale','speaker_id'=>'Speaker Id'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     foreach ($fieldHelp[$providerDriver] ?? [] as $name=>$help) $fields[$name]['help']=$help;
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
     $advanced = array_diff(array_keys($fields), $primary);
@@ -111,6 +126,12 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
     if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];
+    // Display effective native defaults without inventing values for optional provider parameters.
+    if ($providerDriver === 'mimic3') $values += ['option__rate'=>1.0];
+    if ($providerDriver === 'melotts') $values += ['option__speed'=>1.0];
+    if ($providerDriver === 'piper-tts') $values += ['option__length_scale'=>1.0];
+    if ($providerDriver === 'xvasynth') $values += ['option__model_type'=>'xVAPitch','option__version'=>'3.0',
+        'option__game'=>'morrowind','option__pace'=>1.0,'option__distro'=>'DwemerAI4Skyrim3'];
     if ($providerDriver === 'azure' && (!$activeDriver || $creating)) $values += [
         'option__region'=>'westeurope','option__volume'=>20,'option__rate'=>1.25,
         'option__countour'=>'(11%, +15%) (60%, -23%) (80%, -34%)',

@@ -314,3 +314,7 @@ including Eleven v3 tags, normalization, latency and speaker-boost handling.
 Azure Fixedmood, Region, Volume, Rate and Countour presentation follows the same
 pinned schema/editor. The native SSML prosody and fixed-style mapping adapts
 `tts/tts-azure.php`, preserving escaped text and the existing WAV transport.
+
+Mimic3, MeloTTS, Piper and xVASynth field labels and descriptions in the same
+provider template derive from the pinned schema. xVASynth examples use
+Morrowind, and displayed defaults reflect the native Lorkhan adapters.

@@ -40,6 +40,7 @@ foreach (ConnectorCatalog::all('tts_provider') as $definition) {
     $credentialDefaults[$driver] = $definition['credential_environment'] ?: 'none';
     if (!$definition['local']) $cloudDrivers[] = $driver;
 }
+$drivers = array_replace($drivers, ['mimic3'=>'Mimic3','azure'=>'Azure','koboldcpp'=>'KoboldCPP','zonos_gradio'=>'Zonos']);
 
 // Only labels, references and configured/missing status reach the editor, never key values.
 $badgeLabels = ['LORKHAN_TTS_API_KEY'=>'Default TTS key', 'LORKHAN_STT_API_KEY'=>'Default STT key',
