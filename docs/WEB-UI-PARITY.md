@@ -4804,3 +4804,51 @@ Temp/herika-core-diary-history-1280.png. Lorkhan retains its usable stacked narr
 layout; the observed reference narrow editor overflow is not copied. Bored Event,
 Combat, Quest and other missing settings still require runtime mapping, so the
 full paired-section structure and Core Profile acceptance remain open.
+
+
+### Bored Event / Combat runtime dependency audit (2026-09-07)
+
+Authoritative inspected heads: LorkhanServer 7bf81ba and clean LORKHAN checkout
+D:/wt/lorkhan-gamedata-ack at 6daab0c, matching origin/main. Herika stays pinned
+at 529364c. Neither client code nor protocol was modified in this checkpoint.
+
+The missing sections cannot be completed by exposing the current settings under
+Herika labels:
+
+- BORED_EVENT is a 0-100 NPC conversation probability. The native client has
+  behavior.boredom and boredom_delay_seconds only. orchestrator.lua:513 checks
+  the idle delay, optionally routes to Narrator based on narrator.bored_chance_percent,
+  then always requests NPC boredom. Narrator routing probability is not the
+  missing NPC probability and must not be reused or relabelled for it.
+- COMBAT_BARK_COOLDOWN supports 10-600 in the reference UI. Native
+  client-settings.schema.json, SettingsCatalog, both protocol_response.cpp
+  settings decoders (703/787), and orchestrator.lua:504 use a 300 maximum.
+  A web-only range increase would be rejected or clamped by the current client.
+- player_state.applyTargetSettings writes one shared behavior snapshot. The
+  scheduler then chooses nextCombatActor/nextBoredActor independently. A profile
+  control cannot be claimed actor-specific without resolving the selected
+  automatic actor's policy and rejecting stale session/generation/target replies.
+- CoreProfilePreset currently captures Rechat but not these behaviors. Default,
+  Local LLM, Follower and Passive mappings must include the real supported
+  probability/cooldown policy before the built-in presets are called equivalent.
+
+Implementation sequence:
+1. Complete the client repository's required reading gate before client edits.
+2. Extend the synchronized typed settings contract, validation, DTO/decoder,
+   bridge and Lua state for a distinct NPC boredom probability; define omission
+   compatibility so the currently deployed client/server pair keeps working.
+3. Raise combat cooldown support together in server and client; preserve existing
+   saved values instead of silently changing defaults or re-enabling autonomy.
+4. Make autonomous candidate policy resolution actor-specific with session and
+   generation fencing. Apply the chance once per eligible idle interval, resetting
+   the attempt timer on a failed roll so it is not retried every frame.
+5. Add the reference Bored Event and Combat sections, safe save/copy/preset paths
+   and matched field help. Keep Narrator boredom routing separate.
+6. Extend existing native parser/Lua tests for probability 0/100, failed-roll
+   cadence, 600-second cooldown, two actors with different profiles and stale
+   candidate responses. Verify protocol manifests in both repos, build/deploy
+   without launching the game, then compare populated/empty and interactive UI.
+
+This is an implementation-ready dependency audit, not completion of the sections.
+The existing deployed runtime remains unchanged. Quest comment mappings and the
+rest of the full page matrix also remain open.
