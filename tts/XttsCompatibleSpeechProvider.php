@@ -42,6 +42,7 @@ final class XttsCompatibleSpeechProvider implements SpeechProvider
     public function synthesize(string $text,CancellationToken $cancellation,array $context=[]):array
     {
         $cancellation->throwIfCancellationRequested();$text=trim($text);
+        if (in_array($this->driver,['chatterbox','xtts-fastapi'],true)) $text=ParalinguisticSpeech::speech($text,$this->options);
         if($text===''||mb_strlen($text)>4096)throw new RuntimeException('provider_invalid_input');
         $voice=trim((string)($context['voice']??$this->voice));
         $language=trim((string)($context['language']??$this->language));

@@ -3178,7 +3178,7 @@ Remaining TTS provider work is concrete, not a product exception:
 
 | Provider | Missing counterpart controls / review |
 | --- | --- |
-| Chatterbox, XTTS | Paralinguistic tags enable/prompt/list and prompt-to-speech wiring |
+| Chatterbox, XTTS | Paralinguistic enable/prompt/list controls, selected-connector prompt wiring and case-insensitive speech filtering implemented and compared below; live expressiveness remains untested |
 | OmniVoice | Prepared-language selector, preparation workflow and language library states |
 | OpenAI | Instructions editor/request mapping completed below; automatic mood-to-instructions routing is still absent from the native speech context |
 | ElevenLabs | Editor controls and model-specific request mapping completed below; live provider synthesis remains untested |
@@ -3336,3 +3336,33 @@ absent-option behavior and invalid ingress without network calls. No live TTS
 request, live settings save or game control was used. Deployment preserved
 configuration, credentials and voice contents; rollback is
 `/var/backups/lorkhanserver-code.68nNSR`. Full page matrix and goal remain active.
+
+## Chatterbox and XTTS expressive-speech checkpoint
+
+The three paralinguistic controls now follow the reference's two-column
+Enabled/Prompt row and Tag List row, including descriptions, enabled/disabled
+choices, multiline prompt and default tag list. The selected actor's speech
+connector contributes only its public style options to prompt assembly. Its
+ID/revision are trace metadata; endpoints and credential references are omitted.
+Enabled prompt text participates in the existing bounded system-prompt assembly.
+
+Both adapters preserve configured bracket cues case-insensitively and strip
+other bracket cues before synthesis. Explicitly disabled settings strip bracket
+cues; existing connectors with no setting retain their prior behavior. Original
+history/subtitle text is not rewritten. Provider capability and chosen tags still
+determine audible expressiveness; no live provider result is claimed.
+
+487 server checks passed, including enabled/disabled prompt assembly and tag
+filtering. Existing HTTP tests exercised both actual adapters against a local
+WAV mock and confirmed filtered text in each request. PHP lint, management HTTP,
+integration, migrations and durable jobs passed. Schema remains 170 relations
+with its prior inventory hash. The existing option-catalog assertion was updated
+for the three new controls; no new test harness was introduced.
+
+Paired desktop screenshots compared empty Chatterbox and populated XTTS forms.
+The 4096-character multiline prompt survives driver switching. Narrow Chatterbox
+shows readable stacked fields and wrapped help, with 375px content/scroll width
+inside a 390px frame. Native endpoints and advanced tuning remain preserved.
+Deployment preserved configuration, credentials and voices; rollback is
+`/var/backups/lorkhanserver-code.jBEU6u`. No game, live settings save or paid
+provider call was used. The full-site matrix and goal remain open.

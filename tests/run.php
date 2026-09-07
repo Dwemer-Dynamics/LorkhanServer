@@ -665,6 +665,18 @@ $check($assembled===$repeat && ($systemMessage['role']??null)==='system'
     &&strpos((string)$systemMessage['content'],'## NPC Context')<strpos((string)$systemMessage['content'],'## Current Turn')
     &&($finalMessage['role']??null)==='user', 'compact Markdown prompt assembly is deterministic and role-separated');
 $globalPromptSelection=$promptSelection;
+$tagSelection=$promptSelection;
+$tagSelection['speech_style']=['installation_id'=>$promptTurn['installation_id'],'driver'=>'chatterbox',
+    'options'=>['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_prompt'=>'Use [sigh] sparingly.']];
+$tagPrompt=(new PromptAssembler())->assemble($promptTurn,$tagSelection);
+$check(str_contains($tagPrompt['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'selected expressive speech instructions reach the bounded system prompt');
+$tagSelection['speech_style']['options']['paralinguistic_tags_enabled']=false;
+$check(!str_contains((new PromptAssembler())->assemble($promptTurn,$tagSelection)['provider_input']['_assembled_prompt'],'Use [sigh] sparingly.'),'disabled expressive speech instructions are omitted');
+foreach ([
+    [[], '[SIGH] Hello [unknown].'],
+    [['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_list'=>'[sigh]'], '[SIGH] Hello .'],
+    [['paralinguistic_tags_enabled'=>false], 'Hello .'],
+] as [$tagOptions,$expectedSpeech]) $check(\LorkhanServer\Application\ParalinguisticSpeech::speech('[SIGH] Hello [unknown].',$tagOptions)===$expectedSpeech,'speech tag filtering preserves selected case-insensitive cues and legacy absence behavior');
 $wordSelection=$promptSelection;
 $wordSelection['core_profile']=['core_profile_id'=>'word-profile','revision'=>1,'content'=>['prompt'=>'','settings_overrides'=>['response'=>['max_words'=>60]]]];
 $wordPrompt=$assembler->assemble($promptTurn,$wordSelection)['provider_input']['_assembled_prompt'];
@@ -1213,7 +1225,7 @@ foreach ([[], ['data'=>array_fill(0,5001,[])]] as $invalidCatalogue) {
 $check(count($ttsCatalog)===22 && count($sttCatalog)===8
     &&in_array('none',array_column($sttCatalog,'driver'),true), 'CHIM-lineage TTS and STT connector catalogs are complete');
 $check(array_column(ConnectorCatalog::optionFields('tts_provider','xtts-fastapi'),'name')===
-    ['speed','temperature','top_p','top_k','repetition_penalty']
+    ['speed','temperature','top_p','top_k','repetition_penalty','paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list']
     &&array_column(ConnectorCatalog::optionFields('stt_provider','azure'),'name')===['profanity']
     &&array_column(ConnectorCatalog::optionFields('stt_provider','gemini'),'name')===['include_tone'],
     'connector catalog exposes labelled fields for every runtime-supported advanced option');

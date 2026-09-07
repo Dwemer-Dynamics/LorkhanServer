@@ -2705,7 +2705,15 @@ SQL);
         }
         $history=array_reverse($history);
         }
-        return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,
+        $speechConnector=$this->connectorForActor((string)$turn['installation_id'],(string)$turn['playthrough_id'],
+            (array)$turn['payload']['target'],'tts_provider')??$this->connectorForInstallation((string)$turn['installation_id'],'tts_provider');
+        // Include only public style options and provenance, never endpoint or credential references.
+        $speechStyle=$speechConnector===null?[]:['installation_id'=>$turn['installation_id'],
+            'configuration_id'=>$speechConnector['configuration_id'],'revision'=>$speechConnector['revision'],
+            'driver'=>$speechConnector['content']['driver']??'',
+            'options'=>array_intersect_key((array)($speechConnector['content']['options']??[]),array_flip([
+                'paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list']))];
+        return ['profile'=>$profile,'core_profile'=>$coreProfile,'selected_profile_id'=>$activeProfileId,'speech_style'=>$speechStyle,
             'effective_settings'=>['sha256'=>$effective['sha256'],'sources'=>$effective['sources'],'context'=>$contextPolicy,'prompt'=>$effective['prompt']],
             'player_profile'=>$this->playerProfileForInstallation($turn['installation_id']),
             'narrator_profile'=>$this->narratorProfileForInstallation($turn['installation_id']),

@@ -111,6 +111,8 @@ final class PromptAssembler
         $historyMessages = $this->historyMessages($history, $turn, $actorName, $playerName, $moodTemplates);
         $knowledgeStatus = (string)($selection['knowledge_retrieval']['status'] ?? 'grounded');
         $systemBudget = max(192, $this->maxInputBytes - strlen($final) - 256);
+        $speechStyle = is_array($selection['speech_style'] ?? null) ? $selection['speech_style'] : [];
+        $this->assertSourceScope($speechStyle, $turn, 'speech_style');
         $built = $this->systemPrompt(
             $turn,
             $profile,
@@ -128,6 +130,7 @@ final class PromptAssembler
             $systemBudget,
             $contextPolicy,
             $selection['effective_settings']['prompt'] ?? SettingsCatalog::globalDefaults()['prompt'],
+            ParalinguisticSpeech::prompt($speechStyle),
         );
 
         $system = $built['system'];
@@ -219,6 +222,8 @@ final class PromptAssembler
             'settings_sources' => $selection['effective_settings']['sources'] ?? [],
             'prompt_configuration_id' => $this->sourceId('prompt', $prompt),
             'prompt_revision' => $this->requiredRevision($prompt),
+            'speech_style_configuration_id' => $speechStyle['configuration_id'] ?? null,
+            'speech_style_revision' => $speechStyle['revision'] ?? null,
             'memory_retrieval' => $memoryRetrieval,
             'knowledge_retrieval' => $selection['knowledge_retrieval'] ?? null,
             'player_mood_cue' => $playerMoodCue,
@@ -274,6 +279,7 @@ final class PromptAssembler
         int $budget,
         array $contextPolicy,
         array $promptDefaults,
+        string $speechStylePrompt,
     ): array {
         $outputContract = 'Return one JSON object with exactly two keys: "utterances" and "action". '
             . '"utterances" must be a JSON array of one to four objects. Each utterance object must have exactly one key named "text", '
@@ -305,6 +311,7 @@ final class PromptAssembler
         if ($core !== '') $npc .= $this->xmlTag('core_profile_instructions', $core);
         $instruction = $this->fieldText($prompt['content'] ?? [], ['instruction', 'prompt', 'default_prompt', 'custom_prompt']);
         if ($instruction !== '') $npc .= $this->xmlTag('roleplay_prompt', $instruction);
+        if ($speechStylePrompt !== '') $npc .= $this->xmlTag('speech_style_instructions', $speechStylePrompt);
         $npc .= $this->xmlTag('general_instructions', $general);
 
         $context = $turn['payload']['context'] ?? [];

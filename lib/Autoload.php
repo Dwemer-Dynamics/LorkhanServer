@@ -23,6 +23,7 @@ spl_autoload_register(static function (string $class): void {
         'Application\\CloudSpeechToTextConnectorProvider' => '/stt/CloudSpeechToTextConnectorProvider.php',
         'Application\\CloudVoiceLibrary' => '/tts/CloudVoiceLibrary.php',
         'Application\\ConnectorCatalog' => '/connector/ConnectorCatalog.php',
+        'Application\\ParalinguisticSpeech' => '/tts/ParalinguisticSpeech.php',
         'Application\\DeepLTranslationProvider' => '/connector/DeepLTranslationProvider.php',
         'Application\\DialogueExpiryJobHandler' => '/service/DialogueExpiryJobHandler.php',
         'Application\\DialoguePlanner' => '/processor/DialoguePlanner.php',

@@ -80,6 +80,11 @@ for speech_driver,speech_model,speech_options in [('openai','gpt-4o-mini-tts',{'
 assert VoiceProvider.openai_speech_requests[0]['instructions']=='Speak softly.\nPause between sentences.'
 assert 'instructions' not in VoiceProvider.openai_speech_requests[1] and VoiceProvider.openai_speech_requests[2]['speed']==1.2
 assert all(p['response_format']=='wav' for p in VoiceProvider.openai_speech_requests)
+for tag_driver in ['chatterbox','xtts-fastapi']:
+    tag_probe=subprocess.run(['php','-r',"require $argv[1].'/lib/Autoload.php'; $p=new LorkhanServer\\Application\\XttsCompatibleSpeechProvider($argv[2],$argv[3],'fixture','en',['paralinguistic_tags_enabled'=>true,'paralinguistic_tags_list'=>'[sigh]']); echo $p->synthesize('[SIGH] Hello [unknown].',new LorkhanServer\\Application\\NeverCancelledToken())['duration_ms'];",str(repository_root),'http://127.0.0.1:'+str(voice_provider.server_port)+'/tts_to_audio',tag_driver],capture_output=True,text=True,timeout=5)
+    assert tag_probe.returncode==0 and int(tag_probe.stdout)>0,(tag_probe.returncode,tag_probe.stderr)
+assert [p['text'] for p in VoiceProvider.speech_requests]==['[SIGH] Hello .','[SIGH] Hello .']
+VoiceProvider.speech_requests.clear()
 
 class Page(html.parser.HTMLParser):
     def __init__(self,external_form=None):

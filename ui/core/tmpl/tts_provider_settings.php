@@ -5,7 +5,9 @@ declare(strict_types=1);
 // Provider field order derives from HerikaServer 529364c conf_schema.json and core/tts_connectors.php.
 // Names map to Lorkhan's existing typed connector document; non-counterpart runtime fields stay advanced.
 $primaryFields = [
-    'pockettts'=>['model'], 'omnivoice'=>['language'], 'chatterbox'=>[], 'xtts-fastapi'=>[],
+    'pockettts'=>['model'], 'omnivoice'=>['language'],
+    'chatterbox'=>['option__paralinguistic_tags_enabled','option__paralinguistic_tags_prompt','option__paralinguistic_tags_list'],
+    'xtts-fastapi'=>['option__paralinguistic_tags_enabled','option__paralinguistic_tags_prompt','option__paralinguistic_tags_list'],
     'inworld'=>['option__workspace','language','model','option__temperature','option__speed'],
     'cartesia'=>['language','model','option__speed'], 'openai'=>['model','option__instructions'],
     '11labs'=>['option__optimize_streaming_latency','model','option__stability','option__similarity_boost','option__style','option__speed',
@@ -131,10 +133,17 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === 'piper-tts') foreach (['length_scale'=>'Length Scale','noise_scale'=>'Noise Scale','noise_w_scale'=>'Noise W Scale','speaker_id'=>'Speaker Id'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     if ($providerDriver === 'zonos_gradio') foreach (['pitch_std'=>'Pitch Std','speaking_rate'=>'Speaking Rate','cfg_scale'=>'Cfg Scale'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     foreach ($fieldHelp[$providerDriver] ?? [] as $name=>$help) $fields[$name]['help']=$help;
+    if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) {
+        $fields['option__paralinguistic_tags_enabled']['help']='Enable paralinguistic tags like [laugh], [sigh] for expressive TTS output.';
+        $fields['option__paralinguistic_tags_prompt']['help']='Prompt snippet instructing the LLM to use paralinguistic tags. Added to system prompt when enabled.';
+        $fields['option__paralinguistic_tags_list']['help']='Comma-separated list of supported paralinguistic tags (e.g., [laugh],[sigh],[gasp]). Tags are case-insensitive.';
+    }
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
     $advanced = array_diff(array_keys($fields), $primary);
     $values = $providerContent + $connectorDefaults[$providerDriver] + ['timeout_ms'=>30000];
     foreach ($providerOptions as $name=>$value) $values['option__'.$name]=$value;
+    if (in_array($providerDriver,['chatterbox','xtts-fastapi'],true)) $values += [
+        'option__paralinguistic_tags_list'=>\LorkhanServer\Application\ParalinguisticSpeech::DEFAULT_TAGS];
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
     if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];

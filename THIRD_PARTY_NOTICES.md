@@ -322,3 +322,8 @@ Morrowind, and displayed defaults reflect the native Lorkhan adapters.
 Deepgram Bitrate presentation and sample-rate mapping derive from the pinned
 schema and `tts/tts-deepgram.php`. Zonos language choices, labels and descriptions
 derive from `TTS.ZONOS_GRADIO`; native bounds and connector scope are preserved.
+
+Chatterbox/XTTS paralinguistic controls derive from the pinned schema/editor.
+`tts/ParalinguisticSpeech.php` adapts the enabled prompt and case-insensitive tag
+allowlist behavior from Herika `main.php` and `lib/chat_helper_functions.php`;
+native prompt provenance, bounded fields and provider-only text handling remain.

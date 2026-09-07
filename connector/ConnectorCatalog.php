@@ -276,6 +276,7 @@ final class ConnectorCatalog
             'openai'=>['instructions'], 'kokoro'=>['speed'],
             'azure'=>['fixedMood','region','volume','rate','countour'],
             'deepgram'=>['bitrate'],
+            'chatterbox','xtts-fastapi'=>['paralinguistic_tags_enabled','paralinguistic_tags_prompt','paralinguistic_tags_list'],
             '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
             default=>[],
         } : [];
@@ -336,6 +337,11 @@ final class ConnectorCatalog
     {
         self::definition($kind,$driver);
         $rows=($kind==='tts_provider'?self::TTS_OPTIONS:self::STT_OPTIONS)[$driver]??[];$result=[];
+        if ($kind==='tts_provider' && in_array($driver,['chatterbox','xtts-fastapi'],true)) $rows=array_merge($rows,[
+            ['paralinguistic_tags_enabled','Paralinguistic Tags Enabled','boolean'],
+            ['paralinguistic_tags_prompt','Paralinguistic Tags Prompt','longstring',4096],
+            ['paralinguistic_tags_list','Paralinguistic Tags List','string'],
+        ]);
         foreach($rows as$row){$field=['name'=>$row[0],'label'=>$row[1],'type'=>$row[2]];
             if($row[2]==='select')$field['values']=$row[3];elseif($row[2]==='longstring')$field['maxlength']=$row[3];elseif(in_array($row[2],['number','integer'],true)){$field['minimum']=$row[3];$field['maximum']=$row[4];}
             $result[]=$field;}
