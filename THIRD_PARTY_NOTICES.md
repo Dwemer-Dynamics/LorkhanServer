@@ -318,3 +318,7 @@ pinned schema/editor. The native SSML prosody and fixed-style mapping adapts
 Mimic3, MeloTTS, Piper and xVASynth field labels and descriptions in the same
 provider template derive from the pinned schema. xVASynth examples use
 Morrowind, and displayed defaults reflect the native Lorkhan adapters.
+
+Deepgram Bitrate presentation and sample-rate mapping derive from the pinned
+schema and `tts/tts-deepgram.php`. Zonos language choices, labels and descriptions
+derive from `TTS.ZONOS_GRADIO`; native bounds and connector scope are preserved.

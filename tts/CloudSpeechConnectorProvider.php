@@ -132,6 +132,11 @@ final class CloudSpeechConnectorProvider implements SpeechProvider
         if ($this->driver === 'deepgram') {
             $url = str_contains($base, '/v1/speak') ? $base : $base . '/v1/speak';
             $query = ['model' => $voice, 'encoding' => 'linear16', 'container' => 'wav'];
+            // Herika names this field bitrate, but its linear16 request uses it as sample_rate.
+            if (isset($this->options['bitrate'])) {
+                if (!in_array($this->options['bitrate'], [8000,16000,24000,32000,48000], true)) throw new RuntimeException('provider_invalid_input');
+                $query['sample_rate'] = $this->options['bitrate'];
+            }
             return [$url . (str_contains($url, '?') ? '&' : '?') . http_build_query($query, '', '&', PHP_QUERY_RFC3986),
                 json_encode(['text' => $text], JSON_THROW_ON_ERROR | JSON_UNESCAPED_UNICODE),
                 ['Authorization: Token ' . $this->apiKey, 'Content-Type: application/json', 'Accept: audio/wav']];

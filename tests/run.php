@@ -431,6 +431,15 @@ foreach (['eleven_v3','eleven_multilingual_v2'] as $speechModel) {
         &&$speechPayload['apply_language_text_normalization']===true,
         $speechModel.' maps editor controls to the native query/body and applies model-specific tags and boost');
 }
+foreach ([null,8000,16000,24000,32000,48000] as $sampleRate) {
+    $speechOptions = $sampleRate===null ? [] : ['bitrate'=>$sampleRate];
+    ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','deepgram')+['driver'=>'deepgram','options'=>$speechOptions]);
+    $speechProvider = new CloudSpeechConnectorProvider('https://93.184.216.34','deepgram','default','fixture','en-US',$speechOptions,'fake-test-key');
+    [$speechUrl] = (new ReflectionMethod($speechProvider,'request'))->invoke($speechProvider,'Hello.','fixture','en-US');
+    parse_str((string)parse_url($speechUrl,PHP_URL_QUERY),$speechQuery);
+    $check(($speechQuery['sample_rate']??null)===($sampleRate===null?null:(string)$sampleRate)
+        &&$speechQuery['encoding']==='linear16'&&$speechQuery['container']==='wav','Deepgram maps configured sample rates while retaining WAV and absent-option behavior');
+}
 $azureContent = ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','azure')+['driver'=>'azure',
     'options'=>['region'=>' EastUS ','fixedMood'=>'angry','volume'=>20,'rate'=>1.25,'countour'=>'(11%, +15%)']]);
 $check($azureContent['endpoint']==='https://eastus.tts.speech.microsoft.com' && $azureContent['options']['region']==='eastus',
@@ -448,6 +457,7 @@ foreach ([$azureContent['options'],[]] as $azureOptions) {
 }
 foreach ([['openai','instructions',str_repeat('x',4097)],['openai','instructions',['invalid']],
     ['azure','region','eastus/../../evil'],['azure','rate',0],['azure','volume',101],['azure','fixedMood',[]],
+    ['deepgram','bitrate',22050],['deepgram','bitrate','32000'],
     ['11labs','optimize_streaming_latency',5],['11labs','apply_text_normalization','invalid'],
     ['11labs','apply_language_text_normalization','false'],['11labs','v3_audio_tags',str_repeat('x',1025)],
     ['kokoro','speed',0]] as [$speechDriver,$speechField,$invalidValue]) {

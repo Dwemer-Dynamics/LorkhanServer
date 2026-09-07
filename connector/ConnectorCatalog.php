@@ -168,6 +168,7 @@ final class ConnectorCatalog
         'stylettsv2'=>[['alpha','Alpha','number',0.0,1.0],['beta','Beta','number',0.0,1.0],['diffusion_steps','Diffusion steps','integer',1,100],['embedding_scale','Embedding scale','number',0.0,10.0],['session_id','Session ID','integer',1,2147483647]],
         'openai'=>[['instructions','Instructions','longstring',4096]],
         'kokoro'=>[['speed','Speed','number',0.25,4.0]],
+        'deepgram'=>[['bitrate','Bitrate','integer',8000,48000]],
         'azure'=>[['fixedMood','Fixedmood','string'],['region','Region','string'],
             ['volume','Volume','integer',0,100],['rate','Rate','number',0.5,2.0],['countour','Countour','string']],
         '11labs'=>[['optimize_streaming_latency','Optimize Streaming Latency','integer',0,4],
@@ -274,6 +275,7 @@ final class ConnectorCatalog
         $typedFields = $kind === 'tts_provider' ? match ($driver) {
             'openai'=>['instructions'], 'kokoro'=>['speed'],
             'azure'=>['fixedMood','region','volume','rate','countour'],
+            'deepgram'=>['bitrate'],
             '11labs'=>['optimize_streaming_latency','speed','apply_text_normalization','apply_language_text_normalization','v3_audio_tags'],
             default=>[],
         } : [];
@@ -292,6 +294,8 @@ final class ConnectorCatalog
             };
             if (!$valid) throw new InvalidArgumentException('invalid_connector_option_' . $name);
         }
+        if ($kind === 'tts_provider' && $driver === 'deepgram' && isset($options['bitrate'])
+            && !in_array($options['bitrate'], [8000,16000,24000,32000,48000], true)) throw new InvalidArgumentException('invalid_connector_option_bitrate');
         if ($kind === 'tts_provider' && $driver === 'azure' && trim($options['region'] ?? '') !== '') {
             $region = strtolower(trim($options['region']));
             if (!preg_match('/^[a-z][a-z0-9]{1,39}$/D', $region)) throw new InvalidArgumentException('invalid_connector_option_region');

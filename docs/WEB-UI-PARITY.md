@@ -3185,8 +3185,8 @@ Remaining TTS provider work is concrete, not a product exception:
 | Azure | Fixed mood, region, volume, rate and contour now have matching primary fields and native SSML routing. Automatic mood/Validmoods remains open with the shared speech-style audit |
 | Mimic3 | Primary Rate/default/help and paired desktop review completed. Reference Volume is only consumed by legacy `ttsMimicOld`, not the active provider, so an inert control is not copied |
 | Kokoro | Speed editor/request mapping completed below; native endpoint and effective speed defaults preserved |
-| Deepgram | Bitrate versus native WAV transport semantics; explicit comparison needed |
-| Zonos | Language choices, dynamic tones, cache-path ownership and full defaults/help |
+| Deepgram | Bitrate/sample-rate field and native WAV request mapping implemented and visually compared below; no live synthesis claimed |
+| Zonos | All 109 reference language choices and field labels/help implemented and compared; dynamic tones, cache-path ownership and full defaults remain open |
 | xVASynth, Piper, Melo | Primary labels/defaults/help and paired desktop review completed; narrow layouts and preserved provider drafts checked. Native optional values and Morrowind routing retained; no live provider synthesis claimed |
 | Native extra drivers | Keep supported XTTS/Coqui/Convai/GCP/StyleTTS behavior; finish presentation review against applicable reference schemas |
 
@@ -3311,3 +3311,28 @@ Next source-audit finding: pinned `tts/tts-deepgram.php` calls its field `bitrat
 but sends it as `sample_rate` with `linear16`, default 32000. This is a functional
 sample-rate control, not incompatible compressed-audio bitrate; its native
 mapping and matching primary field still need implementation/review.
+
+## Deepgram and Zonos selector checkpoint
+
+Deepgram now presents the reference Bitrate field in its primary grid and maps
+it to sample_rate, preserving linear16/WAV output. Five exact supported integer
+rates are accepted; unsupported values and numeric strings at JSON ingress are
+rejected. New editors use the reference runtime default 32000, while existing
+connectors without an option retain provider-default behavior. Help explains
+sample-rate units instead of copying the reference's incorrect 'Model' text.
+Official format reference: https://developers.deepgram.com/docs/tts-media-output-settings .
+
+Zonos now has the reference language selector, Pitch Std/Speaking Rate/Cfg Scale
+labels and help, with native bounds and connector-specific scope retained.
+Browser comparison verified all 109 reference choices and preservation of the
+existing custom 'en' value. Desktop screenshots compared both provider forms;
+48000 and en-gb-scotland survived switching away and back. Both narrow fixtures
+measure 375px content/scroll width in a 390px frame. Dynamic tones and cache-path
+presentation remain open; this is not complete Zonos or whole-editor parity.
+
+482 server checks, PHP lint, management HTTP, integration, migration and durable
+job checks passed. Request-shape tests cover every supported sample rate,
+absent-option behavior and invalid ingress without network calls. No live TTS
+request, live settings save or game control was used. Deployment preserved
+configuration, credentials and voice contents; rollback is
+`/var/backups/lorkhanserver-code.68nNSR`. Full page matrix and goal remain active.

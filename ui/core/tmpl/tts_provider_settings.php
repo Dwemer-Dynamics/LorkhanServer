@@ -14,7 +14,7 @@ $primaryFields = [
     'piper-tts'=>['option__length_scale','option__noise_scale','option__noise_w_scale','option__speaker','option__speaker_id'],
     'xvasynth'=>['language','option__model_type','option__version','option__game','option__pace','option__waveglow_path','option__vocoder','option__distro'],
     'zonos_gradio'=>['language','model','option__pitch_std','option__speaking_rate','option__cfg_scale'],
-    'deepgram'=>[], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
+    'deepgram'=>['option__bitrate'], 'azure'=>['option__fixedMood','option__region','option__volume','option__rate','option__countour'], 'kokoro'=>['option__speed'], 'koboldcpp'=>[],
 ];
 $providerTitles = ['inworld'=>'Inworld TTS','cartesia'=>'Cartesia TTS','openai'=>'OpenAI TTS',
     '11labs'=>'ElevenLabs Text-To-Speech','azure'=>'Azure Text-To-Speech','deepgram'=>'Deepgram TTS',
@@ -23,6 +23,12 @@ $languageChoices = [
     'inworld'=>['en-US','zh-CN','ko-KR','ja-JP','ru-RU','it-IT','es-ES','pt-BR','de-DE','fr-FR','ar-SA','pl-PL','nl-NL','hi-IN','he-IL'],
     'cartesia'=>['en','fr','de','es','pt','zh','ja','hi','it','ko','nl','pl','ru','sv','tr','tl','bg','ro','ar','cs','el','fi','hr','ms','sk','da','ta','uk','hu','no','vi','bn','th','he','ka','id','te','gu','kn','ml','mr','pa'],
     'melotts'=>['EN','ES','FR','ZH','JP','KR'],
+    'zonos_gradio'=>['af','am','an','ar','as','az','ba','bg','bn','bpy','bs','ca','cmn','cs','cy','da','de','el',
+        'en-029','en-gb','en-gb-scotland','en-gb-x-gbclan','en-gb-x-gbcwmd','en-gb-x-rp','en-us','eo','es','es-419','et','eu',
+        'fa','fa-latn','fi','fr-be','fr-ch','fr-fr','ga','gd','gn','grc','gu','hak','hi','hr','ht','hu','hy','hyw','ia','id','is',
+        'it','ja','jbo','ka','kk','kl','kn','ko','kok','ku','ky','la','lfn','lt','lv','mi','mk','ml','mr','ms','mt','my','nb',
+        'nci','ne','nl','om','or','pa','pap','pl','pt','pt-br','py','quc','ro','ru','ru-lv','sd','shn','si','sk','sl','sq','sr',
+        'sv','sw','ta','te','tn','tr','tt','ur','uz','vi','vi-vn-x-central','vi-vn-x-south','yue'],
 ];
 $modelChoices = [
     'inworld'=>['inworld-tts-1','inworld-tts-1-max','inworld-tts-1.5-mini','inworld-tts-1.5-max','inworld-tts-2'],
@@ -52,11 +58,16 @@ $fieldHelp = [
         'option__v3_audio_tags'=>'Optional Eleven v3 prompt tags added before the text, such as [whispers] or [curious]. Only used when model_id is eleven_v3.',
     ],
     'kokoro'=>['option__speed'=>'Speed'],
+    'deepgram'=>['option__bitrate'=>'Output sample rate (Hz): 8000, 16000, 24000, 32000 or 48000.'],
     'azure'=>['option__fixedMood'=>'Force mood (voice style)',
         'option__region'=>'Region location of your API key. Leave blank to use the advanced endpoint.',
         'option__volume'=>'Volume', 'option__rate'=>'Talk speed', 'option__countour'=>'Voice contour'],
     'melotts'=>['language'=>'Language Model. Should be EN if using default installation','option__speed'=>'Speech Speed'],
     'mimic3'=>['option__rate'=>'Voice speed'],
+    'zonos_gradio'=>['language'=>'Language','model'=>'Model to use.',
+        'option__pitch_std'=>'Pitch standard deviation [0-200]',
+        'option__speaking_rate'=>'Speaking rate. Higher is faster. [1-40]',
+        'option__cfg_scale'=>'CFG scale. Controls how closely the audio matches the sample voice. Higher numbers will be a closer match. [0-20]'],
     'piper-tts'=>[
         'option__length_scale'=>'speaking time scale. Use a value over 1.0 to play slower, a value under 1.0 is faster.',
         'option__noise_scale'=>'speaking variability. Leave 0 to use voice model internal value. Experiment with values around 0.667',
@@ -118,6 +129,7 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === '11labs') $fields['option__optimize_streaming_latency']['type'] = 'string';
     if ($providerDriver === 'xvasynth') foreach (['model_type'=>'Modeltype','version'=>'Version','game'=>'Game','waveglow_path'=>'Waveglowpath','distro'=>'Distroname'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     if ($providerDriver === 'piper-tts') foreach (['length_scale'=>'Length Scale','noise_scale'=>'Noise Scale','noise_w_scale'=>'Noise W Scale','speaker_id'=>'Speaker Id'] as $name=>$label) $fields['option__'.$name]['label']=$label;
+    if ($providerDriver === 'zonos_gradio') foreach (['pitch_std'=>'Pitch Std','speaking_rate'=>'Speaking Rate','cfg_scale'=>'Cfg Scale'] as $name=>$label) $fields['option__'.$name]['label']=$label;
     foreach ($fieldHelp[$providerDriver] ?? [] as $name=>$help) $fields[$name]['help']=$help;
     $primary = $primaryFields[$providerDriver] ?? array_keys($fields);
     $advanced = array_diff(array_keys($fields), $primary);
@@ -126,6 +138,7 @@ function lorkhan_tts_provider_field(array $field, mixed $value, string $driver, 
     if ($providerDriver === 'inworld') $values += ['option__temperature'=>1.0,'option__speed'=>1.0];
     if ($providerDriver === 'cartesia') $values += ['option__speed'=>'normal'];
     if ($providerDriver === 'kokoro') $values += ['option__speed'=>1.0];
+    if ($providerDriver === 'deepgram' && (!$activeDriver || $creating)) $values += ['option__bitrate'=>32000];
     // Display effective native defaults without inventing values for optional provider parameters.
     if ($providerDriver === 'mimic3') $values += ['option__rate'=>1.0];
     if ($providerDriver === 'melotts') $values += ['option__speed'=>1.0];
