@@ -125,6 +125,13 @@ function lorkhan_llm_number_field(array $field, array $options, string $formId, 
     $stored = $options[$name] ?? null;
     $value = is_int($stored) || is_float($stored) ? (string) $stored : (is_string($stored) ? $stored : '');
     $id = 'llm_option_' . $name;
+    // Reference thumb positions are presentation only; an empty numeric field still inherits.
+    $emptyPosition = match ($name) {
+        'temperature', 'repetition_penalty' => 1,
+        'top_p', 'min_p', 'top_a' => 0.5,
+        'top_k' => 50,
+        default => max(0, $minimum),
+    };
     ?>
     <div class="llm-option-field<?php echo str_contains($name, 'tokens') ? ' llm-token-field' : ' llm-sampling-field'; ?>">
         <label for="<?php echo lorkhan_ui_h($id); ?>"><?php echo lorkhan_ui_h($label); ?></label>
@@ -132,7 +139,7 @@ function lorkhan_llm_number_field(array $field, array $options, string $formId, 
         <?php if (!str_contains($name, 'tokens')): ?>
         <input type="range" aria-label="<?php echo lorkhan_ui_h($label); ?> slider" data-range-for="<?php echo lorkhan_ui_h($id); ?>"
                min="<?php echo lorkhan_ui_h($minimum); ?>" max="<?php echo lorkhan_ui_h($maximum); ?>" step="<?php echo lorkhan_ui_h($step); ?>"
-               value="<?php echo lorkhan_ui_h($value === '' ? ($name === 'temperature' ? 1 : max(0, $minimum)) : $value); ?>"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+               data-empty-position="<?php echo lorkhan_ui_h($emptyPosition); ?>" value="<?php echo lorkhan_ui_h($value === '' ? $emptyPosition : $value); ?>"<?php echo $active ? '' : ' disabled'; ?> form="<?php echo lorkhan_ui_h($formId); ?>">
         <?php endif; ?>
         <input id="<?php echo lorkhan_ui_h($id); ?>" name="option_<?php echo lorkhan_ui_h($name); ?>" type="number"
                inputmode="<?php echo $type === 'integer' ? 'numeric' : 'decimal'; ?>"

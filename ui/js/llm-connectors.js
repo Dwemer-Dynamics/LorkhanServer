@@ -134,7 +134,7 @@
                 number.dispatchEvent(new Event('input', {bubbles:true}));
                 number.dispatchEvent(new Event('change', {bubbles:true}));
                 const slider = document.querySelector('[data-range-for="' + number.id + '"]');
-                if (slider) slider.value = slider.min || '0';
+                if (slider) slider.value = slider.dataset.emptyPosition ?? slider.min ?? '0';
             });
         });
     }

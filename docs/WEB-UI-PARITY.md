@@ -3441,3 +3441,31 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   `/var/backups/lorkhanserver-code.rzRMij`; all 781 runtime hashes matched, no extra
   files/legacy paths, private routes 403, unauthenticated session 401, health valid.
   No live connector save/test, game launch or game command was performed.
+
+## LLM unset-slider checkpoint — 2026-09-07
+
+- Aligned empty numeric override thumb positions with the pinned reference:
+  temperature/repetition 1, top-p/min-p/top-a 0.5, top-k 50, penalties 0.
+  Numeric form values remain empty; these positions are not provider defaults.
+  Native validated ranges are retained (including top-k through 1000), so the
+  top-k thumb percentage differs from Herika's 0–100 slider.
+- Individual keyboard clearing and Clear advanced settings restore the empty
+  thumb positions. Existing shared sliders without the new optional attribute
+  retain their prior behavior. Numeric stored values and backend options unchanged.
+- Full checks passed: 98 protocol files, 487 server checks, PHP lint, management
+  HTTP forms, integration vertical slice, migration and durable jobs. Schema
+  inventory remains 170 relations and the prior inventory hash is unchanged.
+- Narrow write-disabled rendered fixture measured 375px body and scroll width;
+  primary/advanced stacking, tooltip and YAML placement inspected. Initial fixture
+  lacked provider images; its asset copy was corrected. Do not count those initial
+  broken-image screenshots as provider-icon parity proof (live icons were already
+  compared in the prior checkpoint). Cross-origin live embedding was refused,
+  as intended, so narrow rendering uses a local copy rather than relaxing headers.
+- Keyboard selection/backspace cleared top-p from 0.8 to an empty field with thumb
+  0.5. Clear advanced settings left all eight numeric values empty with the expected
+  thumb positions. The browser tool's empty-string fill did not clear the number;
+  keyboard clearing supplied actual evidence instead.
+- Deployed locally; rollback `/var/backups/lorkhanserver-code.pYBwIw`.
+  All 781 runtime file hashes match; private routes 403, unauthenticated session
+  401 and health valid. Configuration, credentials and voice contents preserved.
+  No live saves/provider tests or game commands. Full page parity remains open.

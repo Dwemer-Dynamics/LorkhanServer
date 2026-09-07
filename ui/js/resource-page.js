@@ -49,8 +49,9 @@
         });
         number.addEventListener('input', () => {
             if (number.value !== '' && Number.isFinite(number.valueAsNumber)) slider.value = number.value;
+            else if (number.value === '' && slider.dataset.emptyPosition !== undefined) slider.value = slider.dataset.emptyPosition;
         });
-        number.form?.addEventListener('reset', () => window.setTimeout(() => { slider.value = number.value; }, 0));
+        number.form?.addEventListener('reset', () => window.setTimeout(() => { slider.value = number.value || slider.dataset.emptyPosition || ''; }, 0));
     });
 
     /** Mark explicitly opted-in editors dirty without applying the guard to action or upload forms. */
