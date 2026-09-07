@@ -2,6 +2,7 @@
 (() => {
     const root = document.querySelector('[data-voice-preview-endpoint]');
     if (!root) return;
+    root.querySelector('[data-voice-language]')?.addEventListener('change',event=>event.target.form.requestSubmit());
     const consent=root.querySelector('[data-voice-cloud-consent]');
     const cloudForms=[...root.querySelectorAll('form')].filter(form=>form.querySelector('[data-voice-upload-consent]'));
     consent?.addEventListener('change',()=>cloudForms.forEach(form=>{
@@ -32,7 +33,7 @@
                 method: 'POST', credentials: 'same-origin', signal: run.signal,
                 headers: {'Content-Type':'application/json','X-CSRF-Token':data.get('_csrf'), Accept:'audio/*, application/json'},
                 body: JSON.stringify({installation_id:data.get('installation_id'), configuration_id:data.get('configuration_id'),
-                    voice:data.get('voice_id'), text:'Welcome to Morrowind. This is a preview of my voice.'})
+                    voice:data.get('voice_id'), language:data.get('language')||undefined, text:'Welcome to Morrowind. This is a preview of my voice.'})
             });
             if (!response.ok || !response.headers.get('content-type')?.startsWith('audio/')) throw new Error(response.status === 429
                 ? 'Preview limit reached. Please wait before trying again.' : 'Voice preview failed. Check the connector, credentials and discovered voice library.');

@@ -2477,9 +2477,15 @@ final class ManagementRouter
         if(!in_array($voice,$offered[$configuration],true))throw new InvalidArgumentException('invalid_tts_preview_voice');
         $preset=$this->repository->getRevisioned('tts_provider',$configuration);
         if(($preset['installation_id']??null)!==$installation)throw new InvalidArgumentException('invalid_provider_scope');
+        $context=['voice'=>$voice];
+        if(($preset['content']['driver']??'')==='omnivoice'&&isset($values['language'])){
+            $language=strtolower(trim((string)$values['language']));
+            if(preg_match('/^[a-z]{2,3}(?:-[a-z0-9]{2,8})?$/D',$language)!==1)throw new InvalidArgumentException('invalid_voice_language');
+            $context['language']=$language;
+        }
         try{
             $audio=ProviderFactory::speechForPreset($this->providerConfig,$preset)
-                ->synthesize($text,new NeverCancelledToken(),['voice'=>$voice]);
+                ->synthesize($text,new NeverCancelledToken(),$context);
             $bytes=(string)($audio['bytes']??'');
             if($bytes===''||strlen($bytes)>self::MAX_PREVIEW_AUDIO_BYTES)throw new RuntimeException('tts_preview_failed');
         }catch(Throwable){return Response::json(502,['error'=>'tts_preview_failed']);}

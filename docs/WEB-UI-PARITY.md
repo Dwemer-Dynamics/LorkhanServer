@@ -4565,3 +4565,35 @@ PHP lint and diff checks passed. No backend behavior changed and no new cloud
 request was made. Screenshots: private Temp/lorkhan-card-aligned-{inworld,cartesia}-
 {1280,390,forgotten-390}.png; reference source stays pinned at 529364c. Other Studio
 provider states and the rest of the page matrix remain open.
+
+
+### OmniVoice language-library selector and routing (2026-09-07)
+
+Added the dedicated OmniVoice Language Library section above upload, copying the
+reference heading, description, label, 420px form and 360px selector geometry.
+Choices come from the configured local service's /voice_libraries endpoint;
+invalid IDs are skipped and the selected/configured language remains available
+when offline. Switching language preserves the connector and embedded route.
+The OmniVoice tab now reads its selected speaker library automatically, as Herika
+does, using the existing bounded URL policy and JSON fetch; cloud tabs retain
+explicit discovery. This supersedes the older blanket no-provider-GET description
+for this local-service tab only. No sample data or credentials are sent by these
+GETs. The selected library replaces the connector's derived speaker catalog.
+
+Fixed language resetting to the first cached row. The selected value now reaches
+refresh, individual sync, batch import and JS preview; the preview endpoint accepts
+a validated override only for OmniVoice and retains existing rate limits. Other
+connectors keep their configured language. File upload still stages native local
+WAVs; reference direct-import/upload presentation and remaining library readiness/
+server-only voice states are not accepted by this checkpoint.
+
+Extended the existing HTTP mock with English/French library metadata. Existing
+form tests verified French selection and hidden action fields, successful French
+WAV preview at the mock provider, invalid language rejection, and the unchanged
+preview rate cap. The whole HTTP suite and 561 unit checks passed. A separate
+isolated browser fixture compared the selector at 1280/390 with pinned Herika
+529364c and verified selection/navigation; private screenshots are
+Temp/{herika,lorkhan}-omni-language-{1280,390}.png. Also corrected shared Studio
+section-heading line height and plain-paragraph margin/color to the reference,
+without overriding colored status messages. Mock service and fixture stopped;
+no live TTS generation and no game interaction.

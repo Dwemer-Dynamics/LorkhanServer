@@ -20,6 +20,9 @@ class VoiceProvider(http.server.BaseHTTPRequestHandler):
     silence=(b'RIFF'+(36+len(samples)).to_bytes(4,'little')+b'WAVEfmt '+(16).to_bytes(4,'little')+(1).to_bytes(2,'little')+(1).to_bytes(2,'little')
              +(16000).to_bytes(4,'little')+(32000).to_bytes(4,'little')+(2).to_bytes(2,'little')+(16).to_bytes(2,'little')+b'data'+len(samples).to_bytes(4,'little')+samples)
     def do_GET(self):
+        if self.path=='/voice_libraries':
+            payload=json.dumps([{'id':'en','name':'English'},{'id':'fr','name':'French'}]).encode()
+            self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
         if self.path.startswith('/speakers_list'):
             payload=json.dumps({'speakers':['MockProviderVoice']}).encode()
             self.send_response(200); self.send_header('Content-Type','application/json'); self.send_header('Content-Length',str(len(payload))); self.end_headers(); self.wfile.write(payload); return
@@ -456,11 +459,23 @@ r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'vo
 assert r.status==422 and json.loads(body)=={'error':'invalid_tts_preview_text'},(r.status,body)
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'},None)
 assert r.status==401 and len(VoiceProvider.speech_requests)==1,(r.status,VoiceProvider.speech_requests)
-for _ in range(27):
+omni_name='HTTP OmniVoice language '+uuid.uuid4().hex
+omni_values=dict(sync_values,name=omni_name,driver='omnivoice')
+r=request(create_sync_tts['action'],'POST',omni_values); omni_body=r.read().decode(); assert r.status==200
+omni_id=connector_editor_id(omni_body,omni_name)
+omni_url='/LorkhanServer/ui/core/voice_library.php?tab=omnivoice&embed=1&configuration_id='+omni_id+'&language=fr'
+omni_page,omni_html=parse(request(omni_url))
+assert 'OmniVoice Language Library' in omni_html and 'French (fr)' in omni_html and re.search(r'<option value="fr" selected',omni_html)
+assert all(f['fields'].get('language')=='fr' for f in omni_page.forms if f['fields'].get('action') in ['sync','batch_sync','discover'])
+r=preview({'installation_id':tts_installation,'configuration_id':omni_id,'voice':batch_voice,'language':'fr','text':'Bonjour'}); clip=r.read()
+assert r.status==200 and clip.startswith(b'RIFF') and VoiceProvider.speech_requests[-1]['language']=='fr',(r.status,clip[:160],VoiceProvider.speech_requests[-1])
+r=preview({'installation_id':tts_installation,'configuration_id':omni_id,'voice':batch_voice,'language':'../bad','text':'Bonjour'}); assert r.status==422
+r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':omni_id,'kind':'tts_provider'}); assert r.status==200
+for _ in range(25):
     r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); clip=r.read()
     assert r.status==200 and clip.startswith(b'RIFF'),(r.status,clip[:160])
 r=preview({'installation_id':tts_installation,'configuration_id':sync_tts_id,'voice':batch_voice,'text':'Vvardenfell'}); body=r.read().decode()
-assert r.status==429 and json.loads(body)=={'error':'tts_preview_rate_limited'} and len(VoiceProvider.speech_requests)==28,(r.status,body,len(VoiceProvider.speech_requests))
+assert r.status==429 and json.loads(body)=={'error':'tts_preview_rate_limited'} and len(VoiceProvider.speech_requests)==27,(r.status,body,len(VoiceProvider.speech_requests))
 r=request('/LorkhanServer/manage/forms/connector-delete','POST',{'_csrf':csrf,'configuration_id':sync_tts_id,'kind':'tts_provider'}); assert r.status==200,(r.status,r.geturl())
 assert 'MockProviderVoice' not in request('/LorkhanServer/ui/core/npc_master.php').read().decode()
 keys,text=parse(request('/LorkhanServer/ui/core/api_keys.php')); assert keys.current==1 and 'API Keys</h1>' in text and 'LORKHAN_LLM_API_KEY' in text and 'type="password"' in text

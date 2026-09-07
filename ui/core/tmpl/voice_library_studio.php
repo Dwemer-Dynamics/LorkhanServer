@@ -14,8 +14,8 @@ $studioTabs = [
 ];
 $activeContent = is_array($activeTts['content'] ?? null) ? $activeTts['content'] : [];
 $activeDriver = (string) ($activeContent['driver'] ?? '');
-$tabUrl = static function (string $tab) use ($webRoot, $embedded): string {
-    return $webRoot . '/ui/core/voice_library.php?' . http_build_query(array_filter(['tab' => $tab, 'embed' => $embedded ? '1' : null]));
+$tabUrl = static function (string $tab) use ($webRoot, $embedded, &$discoverLanguage, &$selectedDiscoveryId): string {
+    return $webRoot . '/ui/core/voice_library.php?' . http_build_query(array_filter(['tab' => $tab, 'embed' => $embedded ? '1' : null, 'language'=>$tab==='omnivoice'?$discoverLanguage:null, 'configuration_id'=>$tab==='omnivoice'?$selectedDiscoveryId:null]));
 };
 $presetsForTab = static function (string $tab) use ($studioTabs, $ttsPresets): array {
     $drivers = $studioTabs[$tab]['drivers'] ?? [];
@@ -396,6 +396,31 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $canSync = is_array($selectedProvider) && in_array($selectedProviderDriver, $sampleUploadDrivers, true) && lorkhan_voice_can_sync($selectedProvider);
         $cloudClone = in_array($activeTab, ['cartesia', 'inworld'], true);
         $localOnly=$selectedProviderDriver==='pockettts'&&!$canSync;
+        $omniLanguages=[];
+        if($activeTab==='omnivoice'){
+            if($requestedLanguage==='')$discoverLanguage=lorkhan_voice_language((string)($selectedProviderContent['language']??'en'));
+            if(is_array($selectedProvider)){
+                try{
+                    $libraries=lorkhan_voice_fetch_json((string)$selectedProviderContent['endpoint'],'/voice_libraries');
+                    foreach(array_slice($libraries,0,128)as$library){
+                        if(!is_array($library))continue;
+                        try{$id=lorkhan_voice_language((string)($library['id']??''));}catch(InvalidArgumentException){continue;}
+                        $label=trim((string)($library['name']??$library['display_name']??strtoupper($id)));
+                        $omniLanguages[$id]=mb_substr($label!==''?$label:strtoupper($id),0,128);
+                    }
+                }catch(Throwable){/* Offline services still allow the configured/current language to be selected. */}
+            }
+            $omniLanguages[$discoverLanguage]??=strtoupper($discoverLanguage);
+            if(is_array($selectedProvider)){
+                try{
+                    $discoveredVoices=lorkhan_voice_discover($selectedProvider,$discoverLanguage,$cloudLibrary);
+                    $products->replaceConnectorVoiceCatalog($selectedProviderId,$discoveredVoices,gmdate('Y-m-d\TH:i:s\Z'));
+                    $discoveredPreset=$selectedProvider;$catalogLoaded=true;
+                }catch(Throwable){
+                    $discoveredVoices=array_values(array_filter($discoveredVoices,static fn(array $row):bool=>($row['language']??'en')===$discoverLanguage));
+                }
+            }
+        }
         $syncedSamples=[];$syncedSampleIds=[];
         if($selectedProviderId!=='')foreach($products->connectorVoiceCatalog($selectedProviderId)as$knownVoice){if($activeTab==='omnivoice'&&($knownVoice['language']??'en')!==$discoverLanguage)continue;$syncedSamples[mb_strtolower($knownVoice['id'])]=true;$syncedSamples[mb_strtolower($knownVoice['display'])]=true;$syncedSampleIds[mb_strtolower($knownVoice['display'])]=$knownVoice['id'];}
         $managedSamples=[];
@@ -414,6 +439,17 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
         $batchDelayMs=match($activeTab){'inworld'=>3000,'cartesia'=>2000,default=>0};
         $catalogMatchesTab = is_array($discoveredPreset) && in_array((string) ($discoveredPreset['content']['driver'] ?? ''), $tab['drivers'], true);
     ?>
+        <?php if($activeTab==='omnivoice'): ?><section class="content-section">
+            <h1>OmniVoice Language Library</h1>
+            <p>Choose the language library that uploads, sync, and tests should use.</p>
+            <form method="get" action="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/voice_library.php" class="voice-language-form">
+                <input type="hidden" name="tab" value="omnivoice"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>">
+                <?php if($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                <label for="omnivoice-language">Language library:</label>
+                <select id="omnivoice-language" name="language" data-voice-language><?php foreach($omniLanguages as$id=>$label): ?><option value="<?php echo lorkhan_ui_h($id); ?>"<?php echo $id===$discoverLanguage?' selected':''; ?>><?php echo lorkhan_ui_h($label.' ('.$id.')'); ?></option><?php endforeach; ?></select>
+                <noscript><button type="submit">Select language</button></noscript>
+            </form>
+        </section><?php endif; ?>
         <section class="content-section">
             <h1>Voice Sample Upload</h1>
             <p>Upload voice samples to LORKHAN's persistent voice library. <?php if($cloudClone): ?>Files will be available for generating voices in <?php echo lorkhan_ui_h($providerLabel); ?>.<?php else: ?>Files will be available to sync with <?php echo lorkhan_ui_h($providerLabel); ?>.<?php endif; ?></p>
@@ -434,12 +470,12 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <?php if($cloudClone&&!is_array($selectedProvider)): ?><div class="voice-warning"><strong>⚠️ No <?php echo lorkhan_ui_h($providerLabel); ?> connector is configured</strong><p><a href="<?php echo lorkhan_ui_h($webRoot); ?>/ui/core/tts_connectors.php">Configure a TTS connector</a> before discovering or generating provider voices.</p></div><?php endif; ?>
             <?php if($cloudClone): ?><div class="voice-info"><strong>ℹ️ Automatic Voice Generation</strong><p>Voices are generated from local samples when needed for dialogue. You do not need to sync every voice before playing.</p></div><?php endif; ?>
             <details class="voice-provider-library"><summary>Provider Voice Browser &amp; Connector Settings</summary>
-            <p>Explicitly query the selected connector's speaker library. Opening TTS Studio never contacts a provider automatically.</p>
+            <p><?php echo $activeTab==='omnivoice'?'The selected language library and speaker list are read from OmniVoice. Refresh below to check again.':"Explicitly query the selected connector's speaker library. Opening TTS Studio never contacts a provider automatically."; ?></p>
             <?php if (is_array($selectedProvider)): ?><p><strong>Current connector default:</strong> <?php echo lorkhan_ui_h((string)($selectedProviderContent['voice'] ?? 'Connector default')); ?> <span class="status-badge"><?php echo lorkhan_ui_h((string)($selectedProviderContent['language'] ?? 'en')); ?></span></p><?php endif; ?>
             <?php if ($canBrowse): ?>
                 <form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>">
                     <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="discover"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>">
-                    <div class="field-row"><div><label for="voice-discovery-connector">TTS connector</label><select id="voice-discovery-connector" name="configuration_id"><?php foreach ($providerPresets as $preset): ?><option value="<?php echo lorkhan_ui_h($preset['configuration_id'] ?? ''); ?>"<?php echo $selectedProviderId === ($preset['configuration_id'] ?? '') ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name'] ?? $providerLabel); ?></option><?php endforeach; ?></select></div><div><label for="voice-discovery-language">Language</label><input type="text" id="voice-discovery-language" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>" maxlength="12"></div></div>
+                    <div class="field-row"><div><label for="voice-discovery-connector">TTS connector</label><select id="voice-discovery-connector" name="configuration_id"><?php foreach ($providerPresets as $preset): ?><option value="<?php echo lorkhan_ui_h($preset['configuration_id'] ?? ''); ?>"<?php echo $selectedProviderId === ($preset['configuration_id'] ?? '') ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($preset['name'] ?? $providerLabel); ?></option><?php endforeach; ?></select></div><div><?php if($activeTab!=='omnivoice'): ?><label for="voice-discovery-language">Language</label><?php endif; ?><input type="<?php echo $activeTab==='omnivoice'?'hidden':'text'; ?>" id="voice-discovery-language" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>" maxlength="12"></div></div>
                     <div class="button-group"><button class="btn-primary" type="submit">Refresh <?php echo lorkhan_ui_h($providerLabel); ?> Server Voices</button></div>
                 </form>
             <?php elseif ($cloudClone): ?>
@@ -449,7 +485,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
             <?php endif; ?>
 
             <?php if ($catalogMatchesTab && $catalogLoaded): ?>
-                <?php if ($discoveredVoices === []): ?><p>The provider returned no voices for this language.</p><?php else: ?><div class="voice-status-grid"><?php foreach ($discoveredVoices as $item): ?><article class="voice-status-item"><span class="voice-name"><?php echo lorkhan_ui_h($item['display']); ?></span><span class="status-icon synced">✓</span><div class="voice-actions"><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><button type="submit" title="Test voice">▶</button></form><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-default-voice"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($item['language']); ?>"><button class="btn-primary" type="submit" title="Set connector default">✓</button></form></div></article><?php endforeach; ?></div><?php endif; ?>
+                <?php if ($discoveredVoices === []): ?><p>The provider returned no voices for this language.</p><?php else: ?><div class="voice-status-grid"><?php foreach ($discoveredVoices as $item): ?><article class="voice-status-item"><span class="voice-name"><?php echo lorkhan_ui_h($item['display']); ?></span><span class="status-icon synced">✓</span><div class="voice-actions"><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><button type="submit" title="Test voice">▶</button></form><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-default-voice"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($discoveredPreset['configuration_id'] ?? ''); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($item['id']); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($item['language']); ?>"><button class="btn-primary" type="submit" title="Set connector default">✓</button></form></div></article><?php endforeach; ?></div><?php endif; ?>
             <?php endif; ?>
             </details>
             <p class="voice-cache-caption"><?php echo count($samples); ?> local voice samples<?php if(is_array($selectedProvider)): ?> · <?php echo lorkhan_ui_h($selectedProvider['name']); ?><?php endif; ?><?php if($activeTab==='omnivoice'): ?> · <?php echo lorkhan_ui_h($discoverLanguage); ?><?php endif; ?></p>
@@ -463,7 +499,7 @@ if (!$embedded) include $uiRootDir . '/tmpl/navbar.php';
                         <span class="status-icon <?php echo $isSynced||$localOnly?'synced':(is_array($selectedProvider)?'unsynced':'unknown'); ?>" title="<?php echo $isSynced?'Cached provider voice':($localOnly?'Available as a local sample':(is_array($selectedProvider)?'Not in the cached provider library':'No connector configured')); ?>"><?php echo $isSynced||$localOnly?'✓':(is_array($selectedProvider)?'✗':'—'); ?></span>
                         <?php if($cloudClone&&$remoteId!==''): ?><span class="voice-id" title="<?php echo lorkhan_ui_h($remoteId); ?>"><?php echo lorkhan_ui_h(substr($remoteId,0,15).(strlen($remoteId)>15?'...':'')); ?></span><?php endif; ?>
                         <div class="voice-actions">
-                        <?php if (is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($syncedSampleIds[mb_strtolower($sample['name'])]??$sample['name']); ?>"><button type="submit" title="Test voice">▶</button></form><?php endif; ?>
+                        <?php if (is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/connector-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="kind" value="tts_provider"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($syncedSampleIds[mb_strtolower($sample['name'])]??$sample['name']); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><button type="submit" title="Test voice">▶</button></form><?php endif; ?>
                         <?php if ($cloudClone&&$isSynced&&is_array($selectedProvider)): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-confirm="Forget this cached voice ID? The local sample and remote voice will not be deleted."><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="unsync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><button class="btn-danger" type="submit" title="Forget cached voice ID" aria-label="Forget cached voice ID for <?php echo lorkhan_ui_h($sample['name']); ?>">×</button></form><?php endif; ?>
                         <?php if ($canSync): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="sync"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><input type="hidden" name="language" value="<?php echo lorkhan_ui_h($discoverLanguage); ?>"><?php if($cloudClone): ?><input type="hidden" name="consent" value="0" data-voice-upload-consent><?php endif; ?><button class="btn-primary" type="submit"<?php echo $cloudClone?' disabled':''; ?> title="<?php echo $cloudClone?($isSynced?'Regenerate this voice':'Clone this voice'):'Sync this voice'; ?>">↻</button></form><?php endif; ?>
                         <?php if(isset($managedSamples[mb_strtolower($sample['name'])])): ?><form method="post" action="<?php echo lorkhan_ui_h($tabUrl($activeTab)); ?>" data-confirm="Delete this Lorkhan-managed remote voice? The local WAV will be kept. Using this sample again can create a new clone."><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="action" value="delete_managed"><input type="hidden" name="studio_tab" value="<?php echo lorkhan_ui_h($activeTab); ?>"><input type="hidden" name="voice_name" value="<?php echo lorkhan_ui_h($sample['name']); ?>"><input type="hidden" name="voice_id" value="<?php echo lorkhan_ui_h($remoteId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selectedProviderId); ?>"><button class="btn-danger" type="submit" title="Delete managed remote voice" aria-label="Delete managed remote voice for <?php echo lorkhan_ui_h($sample['name']); ?>">🗑</button></form><?php endif; ?>

@@ -34,6 +34,11 @@ $sampleUploadDrivers=array_merge(ConnectorCatalog::SAMPLE_LIBRARY_TTS_DRIVERS,['
 $voiceDiscoveryDrivers=$sampleUploadDrivers;
 $cloudLibrary=new CloudVoiceLibrary(new CredentialStore((string)$config['credential_storage_path']));
 $notice=($_GET['status']??'')==='saved'?'Connector default voice saved.':'';$error='';$errorReferences=[];$discoveredVoices=[];$discoveredPreset=null;$discoverLanguage='en';$catalogLoaded=false;$selectedDiscoveryId='';
+$requestedLanguage=trim((string)($_POST['language']??$_GET['language']??''));
+if($requestedLanguage!==''){
+    try{$discoverLanguage=lorkhan_voice_language($requestedLanguage);}
+    catch(InvalidArgumentException){$requestedLanguage='';$error='invalid_voice_language';}
+}
 $pronunciations=new TtsPronunciationRepository($database);$pronunciationEntries=[];$pronunciationNotice='';$pronunciationError='';
 // The Pronunciations tab narrows its editable list by one Oghma tag read straight from the URL.
 $pronunciationFilter=trim((string)($_GET['oghma_tag']??''));
@@ -150,7 +155,7 @@ function lorkhan_voice_normalize_discovery(array $payload,string $fallbackLangua
     $voices=array_values($voices);usort($voices,static fn(array$a,array$b):int=>strcasecmp($a['display'],$b['display']));return$voices;
 }
 
-/** Query only CHIM-compatible local speaker-list endpoints after an explicit browser action. */
+/** Query CHIM-compatible local speaker-list endpoints for a Studio request. */
 function lorkhan_voice_discover(array $preset,string $language,?CloudVoiceLibrary $cloud=null):array
 {
     $content=is_array($preset['content']??null)?$preset['content']:[];$driver=(string)($content['driver']??'');
@@ -416,7 +421,7 @@ if($discoveredPreset===null){
     }
     if($selectedDiscoveryId!==''&&isset($ttsPresetsById[$selectedDiscoveryId])){
         $cached=$products->connectorVoiceCatalog($selectedDiscoveryId);
-        if($cached!==[]){$discoveredPreset=$ttsPresetsById[$selectedDiscoveryId];$discoveredVoices=$cached;$discoverLanguage=(string)($cached[0]['language']??'en');$catalogLoaded=true;}
+        if($cached!==[]){$discoveredPreset=$ttsPresetsById[$selectedDiscoveryId];$discoveredVoices=$cached;if($requestedLanguage==='')$discoverLanguage=(string)($cached[0]['language']??'en');$catalogLoaded=true;}
     }
 }
 
