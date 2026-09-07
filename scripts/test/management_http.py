@@ -2083,4 +2083,30 @@ assert 'Preset Keys (Saves Automatically)' in card_body and 'id="apikey-test-dia
 r=request(badge_path,'POST',{'_csrf':csrf,'delete_custom':custom_variable},accept=ajax)
 assert r.status==200 and json.loads(r.read())['ok'] is True
 _,card_body=parse(request(badge_path)); assert custom_variable not in card_body
+# Full biography backup includes global overrides as well as selected-installation templates.
+biography_export_url='/LorkhanServer/manage/exports/biographies/custom.csv?installation_id='+biography_installation
+mixed_header=biography_header+['scope']; mixed=io.StringIO(); mixed_writer=csv.DictWriter(mixed,fieldnames=mixed_header); mixed_writer.writeheader()
+global_row=dict(zip(biography_header,biography_row),scope='global',content_file='',record_id='http_global_biography',name='HTTP Global Biography',core='',voice_id='global_voice')
+mixed_writer.writerow(global_row)
+assert multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation},'csv_file','global-biography.csv','text/csv',mixed.getvalue().encode()).status==200
+backup_csv=request(biography_export_url).read().decode('utf-8-sig'); backup_rows=list(csv.DictReader(io.StringIO(backup_csv)))
+assert next(row for row in backup_rows if row['name']=='HTTP Global Biography')['voice_id']=='global_voice'
+assert set(row['scope'] for row in backup_rows)=={'global','installation'} and 'Export Custom NPCs' in request('/LorkhanServer/ui/core/npc_biographies.php').read().decode()
+bad_mixed=io.StringIO(); bad_writer=csv.DictWriter(bad_mixed,fieldnames=mixed_header); bad_writer.writeheader()
+bad_writer.writerow(dict(zip(biography_header,biography_row),scope='installation',record_id='atomic_mixed_failure',name='Atomic Mixed Failure'))
+bad_writer.writerow(dict(global_row,name='G'*129))
+assert multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation},'csv_file','invalid-mixed.csv','text/csv',bad_mixed.getvalue().encode()).status!=200
+assert 'atomic_mixed_failure' not in request(biography_export_url).read().decode()
+reset_fields={'_csrf':csrf,'installation_id':biography_installation,'confirm':'Reset','embed':'1'}
+assert request('/LorkhanServer/manage/forms/biography-reset','POST',dict(reset_fields,confirm='')).status==422
+bad_reset_csrf=request('/LorkhanServer/manage/forms/biography-reset','POST',dict(reset_fields,_csrf='invalid'))
+assert bad_reset_csrf.geturl().endswith('/LorkhanServer/ui/home.php')
+assert request('/LorkhanServer/manage/forms/biography-reset','POST',dict(reset_fields,installation_id=str(uuid.uuid4()))).status!=200
+assert request(biography_export_url).read().decode('utf-8-sig')==backup_csv
+reset_result=request('/LorkhanServer/manage/forms/biography-reset','POST',reset_fields)
+assert reset_result.status==200 and 'status=reset' in reset_result.geturl() and 'embed=1' in reset_result.geturl()
+assert list(csv.DictReader(io.StringIO(request(biography_export_url).read().decode('utf-8-sig'))))==[]
+assert multipart_request(biography_import['action'],{'_csrf':csrf,'installation_id':biography_installation},'csv_file','restore-biographies.csv','text/csv',backup_csv.encode()).status==200
+restored_rows=list(csv.DictReader(io.StringIO(request(biography_export_url).read().decode('utf-8-sig'))))
+assert sorted(restored_rows,key=lambda r:(r['scope'],r['name']))==sorted(backup_rows,key=lambda r:(r['scope'],r['name']))
 print('browser-like management HTTP forms passed')

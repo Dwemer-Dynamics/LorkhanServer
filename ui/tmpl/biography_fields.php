@@ -29,7 +29,7 @@ function lorkhan_biography_fields(bool $create):void
         if($key==='biography')echo '<h3 class="biography-field-section">Extended Profile</h3>';
         if($key==='voice_id')echo '<h3 class="biography-field-section">Voice &amp; Meta</h3>';
         $id=$prefix.($create?$key:($editIds[$key]??$key));$name=$create?$key:($editNames[$key]??$key);
-        $required=in_array($key,$create?['name','core','record_id']:['core'],true);
+        $required=$create&&in_array($key,['name','record_id'],true);
         $readonly=!$create&&in_array($key,['name','record_id'],true);
         $limit=$key==='name'?128:($key==='oghma_tags'?4096:($type==='text'?256:16384));
         echo '<label for="'.lorkhan_ui_h($id).'">'.lorkhan_ui_h($label).'</label><small id="'.lorkhan_ui_h($id).'-help">'.lorkhan_ui_h($help).'</small>';

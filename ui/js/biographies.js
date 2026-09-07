@@ -5,7 +5,8 @@ function initializeBiographyPage() {
     const detailsModal = document.getElementById('biography-details-modal');
     const createModal = document.getElementById('biography-create-modal');
     const oghmaModal = document.getElementById('biography-oghma-modal');
-    const modals = [editModal, detailsModal, createModal, oghmaModal];
+    const resetModal = document.getElementById('biography-reset-modal');
+    const modals = [editModal, detailsModal, createModal, oghmaModal, resetModal];
     let oghmaRequest = null;
     let backgroundOverflow = '';
     const loadError = document.getElementById('biography-load-error');
@@ -224,6 +225,8 @@ function initializeBiographyPage() {
     oghmaPrevious.addEventListener('click', () => loadBiographyOghma(oghmaPage - 1));
     oghmaNext.addEventListener('click', () => loadBiographyOghma(oghmaPage + 1));
     document.querySelectorAll('[data-biography-oghma-close]').forEach(button => button.addEventListener('click', () => closeModal(oghmaModal)));
+    document.querySelector('[data-biography-reset]')?.addEventListener('click', event => openModal(resetModal,event.currentTarget,resetModal.querySelector('[data-biography-reset-close]')));
+    document.querySelector('[data-biography-reset-close]')?.addEventListener('click', () => closeModal(resetModal));
     modals.forEach(function (modal) {
         modal.addEventListener('click', function (event) {
             if (event.target === modal) closeModal(modal);

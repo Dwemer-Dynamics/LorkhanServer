@@ -80,7 +80,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
-| `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles and inline Oghma reader aligned; scoped import/edit wiring and full-catalog search/paging fixed. Factory reset, full custom export and batch-help presentation remain. |
+| `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles, inline Oghma and full-catalog search/paging aligned. Batch guidance, complete global/installation custom export and confirmed factory reset are implemented; ownership and native fallback protections are explicit. Final tests/deployment evidence below. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
 | `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category now match the reference form contract, including CSV. Dynamic Oghma and destructive catalog controls still require work. Latest migration/tests/deployment evidence below. |
@@ -2526,3 +2526,55 @@ Remaining Core Profile requirements identified from the pinned source and live e
   No live article or item was created, edited or deleted for these checks, no
   speech provider was called, and no game was launched or controlled. Dynamic
   Oghma, its destructive controls and other incomplete matrix rows remain open.
+
+## Biography batch, export and reset checkpoint
+
+- Compared the pinned `npc_upload.php` batch section and its actual custom-table
+  export/reset handlers. Restored the three-button Upload/Example/Export Custom
+  NPCs order, visible Relationships/import/export guidance and Factory Reset
+  control. Corrected the file picker to 55px, paragraph line-height to 20.88px
+  with 10px bottom margins, and button-group margins to 15px above/below. Native
+  OpenMW identity guidance replaces Skyrim underscore/FormID instructions.
+- Full custom export now includes every global custom override plus portable
+  templates for the selected installation, including extended fields and voice
+  IDs. An explicit final `scope` column preserves global vs installation storage;
+  global rows do not invent a content filename. Existing 16-column files and
+  the example remain installation-scoped. Imports accept either header and
+  restore both scopes atomically; duplicate or invalid rows cannot partially save.
+- The restore probe exposed existing templates with blank Core text. Herika
+  allows this field to be empty, so the shared Add/Edit fields and CSV/service
+  validation now do too. Names and native OpenMW identity stay required. Blank
+  Core values are preserved rather than replaced with generated text.
+- Factory Reset deletes global custom overrides and soft-deletes the selected
+  installation's portable biography templates. It preserves factory rows,
+  instantiated NPCs, revision/history data, other installations and legacy
+  fallback profiles without portable OpenMW identity. The dialog explains the
+  global effect and backup requirement. Cancel is initially focused; Escape,
+  backdrop close and Tab wrapping use the existing dialog behavior. The final
+  destructive button is red, not the inherited green submit style.
+- Browser fixtures covered populated, empty and no-installation states and
+  desktop/narrow confirmation layout. At 390px all warning text and both buttons
+  are visible with no horizontal document overflow; Cancel restores its trigger.
+  No-installation state omits import/reset controls and disables Add.
+- Existing HTTP tests cover complete mixed-scope CSV export/reset/restore, voice
+  preservation, atomic rollback after a late invalid global row, missing reset
+  confirmation, invalid CSRF, invalid installation and embedded redirect state.
+  Form CSRF rejection uses the existing redirect to Home, unlike the JSON API's
+  401 response; the test checks that redirect and unchanged backup data.
+- The existing integration suite separately checks that resetting one installation
+  preserves a live NPC's full content, another installation's template, factory
+  count and legacy fallback profiles, then restores both exported scopes inside
+  an isolated transaction. Upload-size and 1,000-row import bounds remain explicit.
+  No live reset/import/export or game operation is used as a test fixture.
+- Final checks passed: PHP lint, 98 protocol files, 370 server checks, management
+  HTTP, integration vertical slice and migration/durable-job tests. Schema
+  inventory remains 167 relations / 1,562 columns with its prior summary hash.
+- Deployed server-only with rollback `/var/backups/lorkhanserver-code.YJoe9A`.
+  All 746 runtime files match source; there are no extra files or old paths.
+  Private files return 403 on all three checked ports; unauthenticated sessions
+  return 401. Configuration, credential and voice contents remain unchanged.
+- Live browser verification confirmed the Export Custom NPCs label, reset warning,
+  initial Cancel focus and cancellation without submission. Add exposes optional
+  Core while name, record ID and content file remain required. No live import,
+  export, reset, profile save, speech-provider call or game action was performed.
+  This closes the biography batch checkpoint, not the remaining all-pages goal.

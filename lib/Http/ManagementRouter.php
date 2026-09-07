@@ -375,6 +375,11 @@ final class ManagementRouter
             $saved=$this->service->importBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),$this->biographyCsvRows($r));
             return$this->redirect($this->biographyPageLocation($v,'imported',count($saved)));
         }
+        if($domain==='biography-reset'){
+            if(($v['confirm']??'')!=='Reset')throw new InvalidArgumentException('confirmation_required');
+            $count=$this->repository->resetBiographyTemplates($scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id'),gmdate('c'));
+            return$this->redirect($this->biographyPageLocation($v,'reset',$count));
+        }
         if($domain==='knowledge-import'){
             $installation=$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id');$inputs=[];
             foreach($this->oghmaCsvRows($r)as$row)$inputs[]=['installation_id'=>$installation]+$row+['provenance'=>['source'=>'management-csv','category'=>$row['category']]];
@@ -658,13 +663,13 @@ final class ManagementRouter
             $header=fgetcsv($handle,131072,',','"','\\');if(!is_array($header))throw new InvalidArgumentException('biography_csv_header');
             if(isset($header[0]))$header[0]=preg_replace('/^\xEF\xBB\xBF/','',(string)$header[0])??(string)$header[0];
             $header=array_map(static fn(mixed$value):string=>strtolower(trim((string)$value)),$header);
-            if($header!==self::BIOGRAPHY_CSV_HEADER)throw new InvalidArgumentException('biography_csv_header');
+            if($header!==self::BIOGRAPHY_CSV_HEADER&&$header!==[...self::BIOGRAPHY_CSV_HEADER,'scope'])throw new InvalidArgumentException('biography_csv_header');
             $rows=[];
             while(($values=fgetcsv($handle,131072,',','"','\\'))!==false){
                 if($values===[null]||count($values)===0)continue;
-                if(count($values)!==count(self::BIOGRAPHY_CSV_HEADER))throw new InvalidArgumentException('biography_csv_columns');
+                if(count($values)!==count($header))throw new InvalidArgumentException('biography_csv_columns');
                 if(!mb_check_encoding(implode('',array_map('strval',$values)),'UTF-8'))throw new InvalidArgumentException('biography_csv_encoding');
-                $rows[]=array_combine(self::BIOGRAPHY_CSV_HEADER,array_map('strval',$values));
+                $rows[]=array_combine($header,array_map('strval',$values));
                 if(count($rows)>1000)throw new InvalidArgumentException('biography_csv_rows');
             }
         }finally{fclose($handle);}
@@ -687,15 +692,16 @@ final class ManagementRouter
     private function exportBiographiesCsv(string $installationId):Response
     {
         return$this->biographyCsvResponse('custom_biographies_export_'.gmdate('Y-m-d_H-i-s').'.csv',
-            $this->repository->customBiographyTemplates($installationId));
+            $this->repository->customBiographyTemplates($installationId),true);
     }
 
     /** Encode a round-trip-safe UTF-8 biography CSV in the exact LORKHAN field order. */
-    private function biographyCsvResponse(string $filename,array $rows):Response
+    private function biographyCsvResponse(string $filename,array $rows,bool $includeScope=false):Response
     {
         $stream=fopen('php://temp','w+b');if($stream===false)throw new RuntimeException('csv_unavailable');
-        fwrite($stream,"\xEF\xBB\xBF");fputcsv($stream,self::BIOGRAPHY_CSV_HEADER,',','"','\\');
-        foreach($rows as$row)fputcsv($stream,array_map(static fn(string$field):string=>(string)($row[$field]??''),self::BIOGRAPHY_CSV_HEADER),',','"','\\');
+        $header=$includeScope?[...self::BIOGRAPHY_CSV_HEADER,'scope']:self::BIOGRAPHY_CSV_HEADER;
+        fwrite($stream,"\xEF\xBB\xBF");fputcsv($stream,$header,',','"','\\');
+        foreach($rows as$row)fputcsv($stream,array_map(static fn(string$field):string=>(string)($row[$field]??''),$header),',','"','\\');
         rewind($stream);$body=stream_get_contents($stream);fclose($stream);if(!is_string($body))throw new RuntimeException('csv_unavailable');
         return new Response(200,$body,['Content-Type'=>'text/csv; charset=utf-8','Content-Disposition'=>'attachment; filename="'.$filename.'"','X-Content-Type-Options'=>'nosniff']);
     }

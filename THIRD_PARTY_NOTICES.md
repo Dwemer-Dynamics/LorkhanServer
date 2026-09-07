@@ -172,6 +172,9 @@ and stacked Extended Profiles reader from pinned HerikaServer `ui/npc_upload.php
 under the same MIT license. Lorkhan preserves stable OpenMW record identity and
 installation-owned imported templates instead of publishing those records into
 global factory overrides.
+The batch-upload guidance, complete custom-export control and factory-reset
+control also follow that reference. Lorkhan's CSV adds explicit global/installation
+ownership; its confirmation preserves active NPCs and non-template profile data.
 
 The same biography page now adapts the inline Oghma viewer and alphabet/search
 controls from pinned `ui/npc_upload.php`, with the article result shape described

@@ -56,15 +56,17 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 <main class="biography-page<?php echo $embedded ? ' embedded' : ''; ?>">
     <div class="page-header">
         <h1>NPC Biography Management</h1>
-        <p class="page-subtitle">Review the installed biography templates used to initialize AI NPC profiles</p>
+        <p class="page-subtitle">Create custom character profiles for AI NPCs during roleplay</p>
     </div>
     <p class="lorkhan-status" id="biography-load-error" role="alert" hidden></p>
 
     <?php if (isset($_GET['status'])):
         $importCount = (int) (is_string($_GET['count'] ?? null) ? $_GET['count'] : 0);
-        $statusText = (is_string($_GET['status']) ? $_GET['status'] : '') === 'imported'
-            ? $importCount . ' biography ' . ($importCount === 1 ? 'template' : 'templates') . ' imported.'
-            : 'Biography saved.';
+        $statusText = match(is_string($_GET['status']) ? $_GET['status'] : '') {
+            'imported' => $importCount . ' biography ' . ($importCount === 1 ? 'template' : 'templates') . ' imported.',
+            'reset' => $importCount . ' custom biography ' . ($importCount === 1 ? 'template' : 'templates') . ' removed. Factory templates and active NPC profiles were preserved.',
+            default => 'Biography saved.',
+        };
     ?><div class="lorkhan-status" role="status"><?php echo lorkhan_ui_h($statusText); ?></div><?php endif; ?>
 
     <section class="content-section">
@@ -104,21 +106,16 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                 <div class="button-group">
                     <button type="submit" class="action-button upload-csv">Upload CSV</button>
                     <a class="action-button download-csv" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/biographies/example.csv'); ?>">Download Example CSV</a>
-                    <a class="action-button export-csv" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/biographies/custom.csv?' . http_build_query(['installation_id' => $installationId])); ?>">Export Biography Templates</a>
+                    <a class="action-button export-csv" href="<?php echo lorkhan_ui_h($managementBasePath . '/exports/biographies/custom.csv?' . http_build_query(['installation_id' => $installationId])); ?>">Export Custom NPCs</a>
                 </div>
             </form>
-            <p id="biography-import-help">Each row is one reusable biography template for the selected installation, identified by <code>content_file</code> and <code>record_id</code>.</p>
-
-            <details class="biography-tips">
-                <summary>CSV format and what an import changes</summary>
-                <ul>
-                    <li><code>content_file</code> and <code>record_id</code> are the identity. Display names are never used as keys.</li>
-                    <li>A row creates a template or revises the matching custom one. NPCs already living in your game keep their own profiles.</li>
-                    <li>The whole file is validated and size-bounded first, so an import either applies completely or changes nothing.</li>
-                    <li><code>relationships</code> must be a JSON object such as <code>{"Player":{"aff":25,"type":"professional"}}</code>, or left empty.</li>
-                    <li>For a single NPC, LORKHAN NPCs still exports and imports the complete profile as JSON.</li>
-                </ul>
-            </details>
+            <p id="biography-import-help"><strong>Relationships column:</strong> Use a JSON object seed such as <code>{"Player":{"aff":25,"type":"professional"}}</code>, or leave it empty. Prose does not seed relationship affinity.</p>
+            <p>Check imported entries in the <b>NPC Bio Templates Database</b> below. Installation templates use <code>content_file</code> and <code>record_id</code> as their identity; they are saved as revisioned templates for the selected installation.</p>
+            <p>Global catalog edits are stored in <code>public.bio_templates_custom</code>. They override the factory template for every installation. The table below shows both global and selected-installation templates; NPCs already in game keep their own profiles.</p>
+            <p><strong>Export Custom NPCs:</strong> Download all global custom entries and the selected installation's templates, including extended profiles and voice overrides. The CSV <code>scope</code> column preserves ownership when re-imported. Global rows affect every installation.</p>
+            <button type="button" class="action-button danger" data-biography-reset>Factory Reset NPC Override Table</button>
+            <p>This removes global custom overrides and the selected installation's reusable templates. Factory defaults, active NPC profiles and other installations' templates remain. Export your custom NPCs before resetting.</p>
+            <details class="biography-tips"><summary>CSV ownership, limits and individual profiles</summary><p><code>global</code> rows use the original catalog name and leave <code>content_file</code> blank; <code>installation</code> rows use OpenMW record identity. The example and older files without <code>scope</code> import into the selected installation.</p><p>Imports are limited to 1,000 rows and the server's upload-size limit. The entire batch succeeds or no changes are saved. For a single active NPC, use LORKHAN NPCs to export or import the complete profile as JSON. Legacy fallback profiles without OpenMW record identity are not CSV templates and are preserved by reset.</p></details>
         <?php endif; ?>
 
     </section>
@@ -250,5 +247,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     </div>
 </div>
 
+<div class="biography-modal" id="biography-reset-modal" aria-hidden="true"><div class="modal-container" role="dialog" aria-modal="true" aria-labelledby="biography-reset-title">
+    <div class="modal-header"><h2 class="modal-title" id="biography-reset-title">Factory Reset NPC Override Table</h2></div>
+    <div class="modal-body"><p>This deletes <strong>all global custom biography overrides</strong>, affecting every installation, and removes reusable templates for the selected installation.</p><p>Factory templates, active NPC profiles, their history and other installations' reusable templates are preserved. Deleted global overrides can only be recovered from an export or backup.</p>
+        <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath.'/forms/biography-reset'); ?>">
+            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="embed" value="<?php echo $embedded?'1':'0'; ?>"><input type="hidden" name="confirm" value="Reset">
+            <div class="modal-footer"><button type="submit" class="action-button danger">Reset Custom Templates</button><button type="button" class="action-button" data-biography-reset-close>Cancel</button></div>
+        </form>
+    </div>
+</div></div>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/biographies.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/biographies.js')); ?>"></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

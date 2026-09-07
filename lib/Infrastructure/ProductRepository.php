@@ -1440,9 +1440,14 @@ final class ProductRepository
     }
 
     /** Save a complete custom override while retaining the immutable factory biography underneath. */
-    public function saveBiographyTemplate(array $input):array
+    public function saveBiographyTemplate(array $input,bool $allowCreate=false):array
     {
-        return$this->transaction(function()use($input):array{
+        return$this->transaction(function()use($input,$allowCreate):array{
+            if($allowCreate){
+                $installation=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id');
+                $installation->execute(['id'=>$input['installation_id']??null]);
+                if(!$installation->fetchColumn())throw new \InvalidArgumentException('invalid_installation_id');
+            }
             $name=trim((string)($input['npc_name']??''));
             if($name===''||strlen($name)>128||str_contains($name,"\0"))throw new RuntimeException('invalid_biography_template_name');
             $profileId=trim((string)($input['profile_id']??''));$profile=null;
@@ -1452,7 +1457,7 @@ final class ProductRepository
                 $identity=is_string($profile['actor_identity'])?$this->json($profile['actor_identity']):$profile['actor_identity'];
                 if(($identity['kind']??'')!=='template'||$profile['installation_id']!==($input['installation_id']??'')||$profile['name']!==$name)
                     throw new RuntimeException('biography_template_not_found');
-            }else{
+            }elseif(!$allowCreate){
                 $exists=$this->db->prepare('SELECT 1 FROM public.combined_bio_templates WHERE npc_name=:name');
                 $exists->execute(['name'=>$name]);
                 if($exists->fetchColumn()===false)throw new RuntimeException('biography_template_not_found');
@@ -1473,7 +1478,6 @@ final class ProductRepository
                 $values[$field]=$value===''?null:$value;
             }
             $values['oghma_knowledge_tags']=$this->npcKnowledgeTags($values['oghma_knowledge_tags']??'');
-            if($values['core']===null)throw new RuntimeException('invalid_biography_template_core');
             if($profile!==null){
                 if(($identity['record_id']??'')!==($values['refid']??''))throw new RuntimeException('invalid_biography_identity');
                 $content=$profile['content'];
@@ -3039,23 +3043,47 @@ SQL);
         });
     }
 
-    /** Return only reusable custom templates in the portable LORKHAN biography CSV field order. */
+    /** Export every global override plus this installation's templates, with explicit round-trip ownership. */
     public function customBiographyTemplates(string $installationId):array
     {
+        $installation=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id');
+        $installation->execute(['id'=>$installationId]);if(!$installation->fetchColumn())throw new \InvalidArgumentException('invalid_installation_id');
         $statement=$this->db->prepare("SELECT p.actor_identity->>'content_file' AS content_file,p.actor_identity->>'record_id' AS record_id,p.name,r.content FROM profiles p JOIN profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.installation_id=:installation AND p.deleted_at IS NULL AND p.actor_identity->>'kind'='template' AND btrim(COALESCE(p.actor_identity->>'content_file',''))<>'' AND btrim(COALESCE(p.actor_identity->>'record_id',''))<>'' ORDER BY lower(p.actor_identity->>'content_file'),lower(p.actor_identity->>'record_id'),p.created_at,p.profile_id");
         $statement->execute(['installation'=>$installationId]);$rows=[];
         foreach($statement->fetchAll()as$row){
             $content=$this->json($row['content']);$voice=$content['voice']??[];
             $relationships=$content['relationships']??'{}';if(is_array($relationships))$relationships=$this->encode($relationships);
             $tags=$content['oghma_knowledge_tags']??($content['oghma_tags']??'');if(is_array($tags))$tags=implode(', ',array_map('strval',$tags));
-            $rows[]=['content_file'=>(string)$row['content_file'],'record_id'=>(string)$row['record_id'],'name'=>(string)$row['name'],
+            $rows[]=['scope'=>'installation','content_file'=>(string)$row['content_file'],'record_id'=>(string)$row['record_id'],'name'=>(string)$row['name'],
                 'core'=>(string)($content['core']??''),'biography'=>(string)($content['biography']??''),'appearance'=>(string)($content['appearance']??''),
                 'personality'=>(string)($content['personality']??''),'relationships'=>(string)$relationships,'occupation'=>(string)($content['occupation']??''),
                 'skills'=>(string)($content['skills']??''),'speech_style'=>(string)($content['speech_style']??''),'goals'=>(string)($content['goals']??''),
                 'oghma_tags'=>(string)$tags,'voice_id'=>is_array($voice)?(string)($voice['id']??''):(string)$voice,
                 'gender'=>(string)($content['gender']??''),'race'=>(string)($content['race']??'')];
         }
+        foreach($this->db->query('SELECT npc_name,refid,core,npc_static_bio,appearance,personality,relationships,occupation,skills,speechstyle,goals,oghma_knowledge_tags,voiceid,gender,race FROM public.bio_templates_custom ORDER BY npc_name')->fetchAll()as$row){
+            $export=['scope'=>'global','content_file'=>''];
+            foreach(['npc_name'=>'name','refid'=>'record_id','core'=>'core','npc_static_bio'=>'biography',
+                'appearance'=>'appearance','personality'=>'personality','relationships'=>'relationships','occupation'=>'occupation',
+                'skills'=>'skills','speechstyle'=>'speech_style','goals'=>'goals','oghma_knowledge_tags'=>'oghma_tags',
+                'voiceid'=>'voice_id','gender'=>'gender','race'=>'race']as$from=>$to)$export[$to]=(string)($row[$from]??'');
+            $rows[]=$export;
+        }
         return$rows;
+    }
+
+    /** Reset reusable overrides only; instantiated NPCs, revisions, factory rows and other installations survive. */
+    public function resetBiographyTemplates(string $installationId,string $now):int
+    {
+        return$this->transaction(function()use($installationId,$now):int{
+            $installation=$this->db->prepare('SELECT 1 FROM installations WHERE installation_id=:id');
+            $installation->execute(['id'=>$installationId]);if(!$installation->fetchColumn())throw new \InvalidArgumentException('invalid_installation_id');
+            $this->db->prepare('SELECT pg_advisory_xact_lock(hashtextextended(:key,0))')->execute(['key'=>'biography-import:'.$installationId]);
+            $global=$this->db->exec('DELETE FROM public.bio_templates_custom');
+            $scoped=$this->db->prepare("UPDATE profiles SET deleted_at=:now WHERE installation_id=:installation AND deleted_at IS NULL AND actor_identity->>'kind'='template' AND btrim(COALESCE(actor_identity->>'content_file',''))<>'' AND btrim(COALESCE(actor_identity->>'record_id',''))<>''");
+            $scoped->execute(['now'=>$now,'installation'=>$installationId]);
+            return$global+$scoped->rowCount();
+        });
     }
 
     /** Soft-delete every active override for one installation so factory defaults become effective again. */

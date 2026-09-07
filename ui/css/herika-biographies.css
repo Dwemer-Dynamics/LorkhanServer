@@ -79,6 +79,12 @@ body.biography-page-shell.embedded-page { padding-top: 0; }
 .biography-page input:disabled,
 .biography-page button:disabled { cursor: not-allowed; opacity: .72; }
 .biography-page .button-group { display: flex; flex-wrap: wrap; gap: 15px; margin-top: 15px; }
+.biography-page .content-section .button-group {margin-bottom:15px}
+.biography-page .content-section p {font-size:14.4px;line-height:1.45;margin-bottom:10px}
+.biography-page .content-section h4 {font-size:1.1em}
+.biography-page #biography-csv-file {background:#4a4a4a}
+.biography-page #biography-csv-file::file-selector-button {height:37px;padding:8px 12px;border:0;border-radius:4px;background:#6c757d;color:#fff;margin-right:10px}
+#biography-reset-modal .action-button.danger {background:#963c3c!important;border-color:#b65757!important;color:#fff!important}
 .biography-page .action-button,
 .biography-page .btn-danger,
 .biography-page .alphabet-button {

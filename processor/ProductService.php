@@ -131,13 +131,17 @@ final class ProductService
     {
         $this->uuid($installationId);
         if($rows===[]||count($rows)>1000)throw new InvalidArgumentException('invalid_biography_batch');
-        $validated=[];$seen=[];
+        $validated=[];$global=[];$seen=[];
         foreach($rows as$row){
             if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_biography_row');
+            $scope=$row['scope']??'installation';
+            if(!in_array($scope,['installation','global'],true))throw new InvalidArgumentException('invalid_biography_scope');
             foreach(['content_file'=>256,'record_id'=>256,'name'=>256,'core'=>16384]as$field=>$limit){
-                $this->boundedString($row,$field,1,$limit);
-                if(trim($row[$field])===''||str_contains($row[$field],"\0"))throw new InvalidArgumentException('invalid_'.$field);
+                $optional=$field==='core'||($scope==='global'&&in_array($field,['content_file','record_id'],true));
+                $this->boundedString($row,$field,$optional?0:1,$limit);
+                if((!$optional&&trim($row[$field])==='')||str_contains($row[$field],"\0"))throw new InvalidArgumentException('invalid_'.$field);
             }
+            if($scope==='global'&&trim($row['content_file'])!=='')throw new InvalidArgumentException('invalid_global_biography_identity');
             foreach(['biography','appearance','personality','relationships','occupation','skills','speech_style','goals']as$field){
                 $value=$row[$field]??null;
                 if(!is_string($value)||strlen($value)>16384||!mb_check_encoding($value,'UTF-8')||str_contains($value,"\0"))
@@ -156,9 +160,17 @@ final class ProductService
                 throw new InvalidArgumentException('invalid_biography_relationships');
             $row['relationships']=json_encode($relationshipObject,JSON_THROW_ON_ERROR|JSON_UNESCAPED_UNICODE|JSON_UNESCAPED_SLASHES);
             $row['oghma_tags']=$this->normalizeProfileTags($row['oghma_tags']);
-            $key=mb_strtolower(trim($row['content_file']),'UTF-8')."\0".mb_strtolower(trim($row['record_id']),'UTF-8');
+            $key=$scope==='global'?'global:'.trim($row['name']):'installation:'.mb_strtolower(trim($row['content_file']),'UTF-8')."\0".mb_strtolower(trim($row['record_id']),'UTF-8');
             if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_biography_identity');
             $seen[$key]=true;
+            if($scope==='global'){
+                $values=[];
+                foreach(['name'=>'npc_name','record_id'=>'refid','core'=>'core','biography'=>'npc_static_bio',
+                    'appearance'=>'appearance','personality'=>'personality','relationships'=>'relationships',
+                    'occupation'=>'occupation','skills'=>'skills','speech_style'=>'speechstyle','goals'=>'goals',
+                    'oghma_tags'=>'oghma_knowledge_tags','voice_id'=>'voiceid','gender'=>'gender','race'=>'race']as$from=>$to)$values[$to]=$row[$from];
+                $global[]=$values;continue;
+            }
             $content=[];
             foreach(['core','biography','appearance','personality','relationships','occupation','skills','speech_style','goals','gender','race']as$field){
                 $value=trim($row[$field]);if($value!=='')$content[$field]=$value;
@@ -169,7 +181,11 @@ final class ProductService
             $validated[]=['content_file'=>trim($row['content_file']),'record_id'=>trim($row['record_id']),
                 'name'=>trim($row['name']),'content'=>$content];
         }
-        return$this->repository->saveBiographyTemplates($installationId,$validated,$this->clock->iso());
+        return$this->repository->transaction(function()use($installationId,$validated,$global):array{
+            $saved=$validated===[]?[]:$this->repository->saveBiographyTemplates($installationId,$validated,$this->clock->iso());
+            foreach($global as$row)$saved[]=$this->repository->saveBiographyTemplate($row+['installation_id'=>$installationId],true);
+            return$saved;
+        });
     }
 
     public function resetItemDescriptions(string $installationId): int

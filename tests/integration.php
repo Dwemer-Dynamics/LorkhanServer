@@ -273,6 +273,28 @@ $portableActorIdentity=json_decode((string)$portableProfile['actor_identity'],tr
 $assert($portableProfileId!==$portableTemplateId&&($portableProfile['content']['biography']??null)==='Portable biography v2.'
     &&($portableActorIdentity['kind']??null)==='npc',
     'first-seen OpenMW actor did not inherit the exact imported biography template');
+// Reset reusable biographies without deleting instantiated NPCs or another installation's templates.
+$db->beginTransaction();
+$biographyOtherInstallation=$newUuid(998878);$repo->ensureInstallation($biographyOtherInstallation,$tokenHash,$macKey);
+$otherBiography=$biographyService->importBiographyTemplates($biographyOtherInstallation,[$portableBiographyRow])[0];
+$globalBiography=array_replace($portableBiographyRow,['scope'=>'global','content_file'=>'','name'=>'Global Reset Fixture','record_id'=>'global_reset_fixture','voice_id'=>'global_voice']);
+$biographyService->importBiographyTemplates($installationId,[$globalBiography]);
+$combinedExport=$products->customBiographyTemplates($installationId);
+$globalExport=array_values(array_filter($combinedExport,static fn(array$row):bool=>$row['name']==='Global Reset Fixture'));
+$assert(count($globalExport)===1&&$globalExport[0]['scope']==='global'&&$globalExport[0]['voice_id']==='global_voice',
+    'full biography export omitted a global custom override or its voice');
+$factoryCount=(int)$db->query('SELECT count(*) FROM public.bio_templates')->fetchColumn();
+$products->resetBiographyTemplates($installationId,$now);
+$assert($products->customBiographyTemplates($installationId)===[]
+    &&(int)$db->query('SELECT count(*) FROM public.bio_templates')->fetchColumn()===$factoryCount
+    &&$products->getRevisioned('profile',$portableProfileId)['content']===$portableProfile['content']
+    &&(int)$db->query("SELECT count(*) FROM profiles WHERE name='Bosmer male biography template' AND deleted_at IS NULL")->fetchColumn()===1
+    &&$products->getRevisioned('profile',$otherBiography['profile_id'])['deleted_at']===null,
+    'biography reset changed factory data, active NPC content or another installation');
+$biographyService->importBiographyTemplates($installationId,$combinedExport);
+$assert(count($products->customBiographyTemplates($installationId))===count($combinedExport),
+    'complete biography export could not restore both scopes after reset');
+$db->rollBack();
 $resetCandidate=$portableProfile;$resetCandidate['content']['biography']='Manual biography';
 $resetCandidate['content']['voice']=['id'=>'PreservedVoice','language'=>'en'];
 $resetCandidate['content']['notes']='Preserved notes';
