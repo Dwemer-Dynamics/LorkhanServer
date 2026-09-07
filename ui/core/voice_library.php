@@ -325,6 +325,23 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
             }
             $notice=$count.' voices uploaded; '.$failed.' failed. Run again for remaining voices.';
             if($ajax){header('Content-Type: application/json');echo json_encode(['voice'=>$requested,'uploaded'=>$count,'failed'=>$failed,'skipped'=>$skipped,'rate_limited'=>$rateLimited,'remaining'=>max(0,count($pending)-$count)],JSON_THROW_ON_ERROR);exit;}
+        }elseif($action==='unsync'){
+            $filename=lorkhan_voice_filename($voice);$name=pathinfo($filename,PATHINFO_FILENAME);
+            $configurationId=(string)($_POST['configuration_id']??'');$preset=$ttsPresetsById[$configurationId]??null;
+            $content=is_array($preset)?$preset['content']:[];$driver=(string)($content['driver']??'');
+            if(!in_array($driver,['cartesia','inworld'],true))throw new InvalidArgumentException('voice_sync_unsupported');
+            if(!is_file($voiceRoot.DIRECTORY_SEPARATOR.$filename))throw new InvalidArgumentException('voice_sample_not_found');
+            $definition=ConnectorCatalog::definition('tts_provider',$driver);
+            $resolver=new \LorkhanServer\Application\InworldVoiceResolver($cloudLibrary->forPreset($content),
+                new CredentialStore((string)$config['credential_storage_path']),$voiceRoot,$driver,
+                (string)($content['credential']??$definition['credential_environment']),
+                $driver==='inworld'?(string)($content['options']['workspace']??''):'');
+            $resolver->forget($name);
+            $catalog=array_values(array_filter($products->connectorVoiceCatalog($configurationId),
+                static fn(array $row):bool=>mb_strtolower($row['display'])!==mb_strtolower($name)&&mb_strtolower($row['id'])!==mb_strtolower($name)));
+            $products->replaceConnectorVoiceCatalog($configurationId,$catalog,gmdate('Y-m-d\TH:i:s\Z'));
+            $selectedDiscoveryId=$configurationId;
+            $notice='Cached voice ID forgotten. The local sample and remote voice were not deleted.';
         }elseif($action==='delete'){
             $filename=lorkhan_voice_filename($voice);$path=$voiceRoot.DIRECTORY_SEPARATOR.$filename;
             $errorReferences=lorkhan_voice_references(pathinfo($filename,PATHINFO_FILENAME),$voiceReferenceIndex);
@@ -345,7 +362,7 @@ if(($_SERVER['REQUEST_METHOD']??'GET')==='POST'){
                 'unauthorized'=>'Your management session expired. Reload the page and try again.',
                 default=>'The pronunciation change could not be saved. Check for a duplicate term and scope.',
             };
-        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
+        }else{$error=preg_match('/^voice_provider_http_[0-9]{1,3}$/D',$exception->getMessage())?$exception->getMessage():(in_array($exception->getMessage(),['voice_registration_busy','voice_cache_unavailable','invalid_voice_fallbacks','invalid_voice_name','invalid_voice_language','invalid_voice_sample','invalid_voice_archive','invalid_voice_upload_selection','voice_sample_exists','voice_sample_in_use','voice_upload_failed','voice_sample_not_found','voice_sync_unsupported','voice_sync_unavailable','voice_sync_failed','voice_discovery_unsupported','voice_discovery_unavailable','voice_discovery_failed','voice_delete_failed','voice_upload_confirmation_required','voice_credential_missing','unauthorized'],true)?$exception->getMessage():'voice_action_failed');}
     }
 }
 

@@ -28,24 +28,8 @@ final class InworldVoiceResolver
         // Explicit provider IDs (including existing Dagoth Ur/player clones) are already resolved.
         if(($this->driver==='inworld'&&str_contains($name,'__'))
             ||($this->driver==='cartesia'&&preg_match('/^[a-f0-9]{8}(?:-[a-f0-9]{4}){3}-[a-f0-9]{12}$/iD',$name)===1))return $name;
-        $reference=$this->credentialReference??($this->driver==='inworld'?'LORKHAN_TTS_INWORLD_API_KEY':'LORKHAN_TTS_CARTESIA_API_KEY');
-        $key=in_array($reference,['','none'],true)?'':$this->credentials->resolve($reference);
-        if($key==='')throw new RuntimeException('voice_credential_missing');
-        $root=realpath($this->voiceRoot);
-        if($root===false||!is_dir($root))throw new RuntimeException('voice_storage_unavailable');
-        $cache=$root.'/.'.$this->driver.'-cache';
-        if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
-        if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
-        $workspace = $this->driver === 'inworld' ? CloudVoiceLibrary::normalizeWorkspace($this->workspace) : '';
-        $cacheId=hash_hmac('sha256',($workspace === '' ? '' : $workspace . "\n") . strtolower($name),$key);
-        $path=$cache.'/'.$cacheId.'.json';
-        $lock=fopen($cache.'/'.$cacheId.'.lock','c');
-        if($lock!==false&&(fileperms($cache.'/'.$cacheId.'.lock')&0777)!==0660
-            &&!chmod($cache.'/'.$cacheId.'.lock',0660)){fclose($lock);throw new RuntimeException('voice_cache_unavailable');}
-        if($lock===false)throw new RuntimeException('voice_cache_unavailable');
+        [$root,$cache,$path,$lock]=$this->lockCache($name);
         try{
-            // Never wait behind another upload on the dialogue thread; the durable speech job retries.
-            if(!flock($lock,LOCK_EX|LOCK_NB))throw new RuntimeException('voice_registration_busy');
             if(is_file($path)&&filesize($path)<4096){
                 $saved=json_decode((string)file_get_contents($path),true);
                 $id=is_array($saved)?($saved['voice_id']??''):'';
@@ -82,4 +66,37 @@ final class InworldVoiceResolver
             return $id;
         }finally{flock($lock,LOCK_UN);fclose($lock);}
     }
+    /** Forget only this account/workspace's cached mapping; leave sample and remote voice untouched. */
+    public function forget(string $name):void
+    {
+        if(preg_match('/^[\pL\pN_.+-]{1,512}$/uD',$name)!==1)throw new RuntimeException('invalid_voice_name');
+        [,, $path,$lock]=$this->lockCache($name);
+        try{
+            if(is_file($path)&&!unlink($path))throw new RuntimeException('voice_cache_unavailable');
+        }finally{flock($lock,LOCK_UN);fclose($lock);}
+    }
+
+    /** Share credential/workspace identity and locking between playback and Studio cache actions. */
+    private function lockCache(string $name):array
+    {
+        $reference=$this->credentialReference??($this->driver==='inworld'?'LORKHAN_TTS_INWORLD_API_KEY':'LORKHAN_TTS_CARTESIA_API_KEY');
+        $key=in_array($reference,['','none'],true)?'':$this->credentials->resolve($reference);
+        if($key==='')throw new RuntimeException('voice_credential_missing');
+        $root=realpath($this->voiceRoot);
+        if($root===false||!is_dir($root))throw new RuntimeException('voice_storage_unavailable');
+        $cache=$root.'/.'.$this->driver.'-cache';
+        if(!is_dir($cache)&&!mkdir($cache,0770)&&!is_dir($cache))throw new RuntimeException('voice_cache_unavailable');
+        if((fileperms($cache)&07777)!==02770&&!chmod($cache,02770))throw new RuntimeException('voice_cache_unavailable');
+        $workspace = $this->driver === 'inworld' ? CloudVoiceLibrary::normalizeWorkspace($this->workspace) : '';
+        $cacheId=hash_hmac('sha256',($workspace === '' ? '' : $workspace . "\n") . strtolower($name),$key);
+        $path=$cache.'/'.$cacheId.'.json';
+        $lock=fopen($cache.'/'.$cacheId.'.lock','c');
+        if($lock!==false&&(fileperms($cache.'/'.$cacheId.'.lock')&0777)!==0660
+            &&!chmod($cache.'/'.$cacheId.'.lock',0660)){fclose($lock);throw new RuntimeException('voice_cache_unavailable');}
+        if($lock===false)throw new RuntimeException('voice_cache_unavailable');
+        // Neither playback nor Studio may race an upload or wait behind one.
+        if(!flock($lock,LOCK_EX|LOCK_NB)){fclose($lock);throw new RuntimeException('voice_registration_busy');}
+        return [$root,$cache,$path,$lock];
+    }
+
 }

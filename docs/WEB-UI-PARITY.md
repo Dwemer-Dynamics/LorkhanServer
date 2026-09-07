@@ -4437,3 +4437,33 @@ providers, workspace routing/filtering, and blank/None refusing global fallback;
 this is necessary backend rewiring, not new screenshot or cache-action acceptance.
 
 The existing isolated management HTTP form suite also passed for this change.
+
+
+### Cloud cached-ID removal and confirmation wiring (2026-09-07)
+
+Added the reference cached-ID forget action to populated Inworld/Cartesia sample
+cards (x control beside preview). The confirmed POST removes the selected
+connector catalog mapping and the playback cache under the same credential,
+workspace and nonblocking lock as runtime registration. No cloud request, remote
+voice deletion or local WAV deletion occurs. Missing local samples and unsupported
+connectors are rejected; existing CSRF validation applies. Forgetting an ID can
+be followed by rediscovery on the next use, as in Herika; it is not a remote delete.
+
+Browser interaction exposed an existing duplicate lorkhan-management.js include
+in Studio (also included by the shared head). Removed the Studio include so
+confirmation fires once. Isolated browser checks for both providers exercised
+invalid CSRF, cancel, confirm, persisted uncached state, and retained local sample.
+Both credential-scoped JSON files and catalog entries were gone afterward; the
+WAV remained. Five assertions in the existing unit suite cover busy registration,
+idempotent removal, no provider calls, preserved samples and other workspaces,
+and selected workspace removal. All 537 server checks passed.
+
+Populated cards visually reviewed at 1280 and 390 pixels; uncached state reviewed
+at 390 against the prior pinned-reference cache captures. Screenshots are private
+Temp/lorkhan-unsync-{inworld,cartesia}-{1280,390,empty-390}.png. Cache actions are
+still not fully accepted: regenerate/validation/owned remote deletion remain
+open, as does their final action-row presentation. This change does not claim
+that the remaining cache controls or every Studio state matches Herika yet.
+
+The existing isolated management HTTP form suite passed after the cache action
+and duplicate-script fix. The browser fixture was stopped and cleaned up.

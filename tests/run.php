@@ -1566,6 +1566,24 @@ $check($workspaceResolver->resolve('mw_dark_elf_male','en',new NeverCancelledTok
 $workspaceResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken());
 $check(count($workspaceCalls)===2&&is_file($inworldRoot.'/.inworld-cache/'.hash_hmac('sha256',"fixture\nmw_dark_elf_male",'selected-tts-fixture-key').'.json'),
     'Inworld workspace reuses its own cache without reusing the account-default clone');
+foreach(['inworld','cartesia'] as $forgetDriver){
+    $forgetLibrary=$forgetDriver==='inworld'?$inworldLibrary:$cartesiaLibrary;
+    $forgetResolver=new \LorkhanServer\Application\InworldVoiceResolver($forgetLibrary,$inworldCredentials,$inworldRoot,$forgetDriver,$ttsReference);
+    $cacheBase=$inworldRoot.'/.'.$forgetDriver.'-cache/'.hash_hmac('sha256','mw_dark_elf_male','selected-tts-fixture-key');
+    $held=fopen($cacheBase.'.lock','c');flock($held,LOCK_EX);
+    try{$forgetResolver->forget('mw_dark_elf_male');$check(false,'Busy cache forget must fail');}
+    catch(RuntimeException $error){$check($error->getMessage()==='voice_registration_busy'&&is_file($cacheBase.'.json'),$forgetDriver.' forget cannot race a running registration');}
+    finally{flock($held,LOCK_UN);fclose($held);}
+    $beforeForgetCalls=count($inworldCalls)+count($cartesiaCalls)+count($workspaceCalls);
+    $forgetResolver->forget('mw_dark_elf_male');$forgetResolver->forget('mw_dark_elf_male');
+    $check(!is_file($cacheBase.'.json')&&file_get_contents($inworldRoot.'/mw_dark_elf_male.wav')===$wav
+        &&count($inworldCalls)+count($cartesiaCalls)+count($workspaceCalls)===$beforeForgetCalls
+        &&is_file($inworldRoot.'/.inworld-cache/'.hash_hmac('sha256',"fixture\nmw_dark_elf_male",'selected-tts-fixture-key').'.json'),
+        $forgetDriver.' forgetting is idempotent, preserves other workspaces and sample bytes, and never contacts the provider');
+}
+$workspaceResolver->forget('mw_dark_elf_male');
+$check(!is_file($inworldRoot.'/.inworld-cache/'.hash_hmac('sha256',"fixture\nmw_dark_elf_male",'selected-tts-fixture-key').'.json'),
+    'Studio can forget the selected workspace mapping as well as the account default');
 foreach(['../wrong','workspaces/fixture/extra','https://other.invalid', ['fixture']]as$invalidWorkspace){
     try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','options'=>['workspace'=>$invalidWorkspace]]);$check(false,'invalid workspace rejected');}
     catch(InvalidArgumentException){$check(true,'Inworld workspace rejects paths, URLs and non-string values before save');}
