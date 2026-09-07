@@ -8,6 +8,56 @@ use InvalidArgumentException;
 
 final class ConnectorCatalog
 {
+    /** Fetch only Groq's fixed discovery URL; the optional transport permits offline credential-boundary tests. */
+    public static function groqModels(string $apiKey, ?\Closure $transport = null): array
+    {
+        if ($apiKey === '' || strlen($apiKey) > 8192 || preg_match('/[\x00-\x1f\x7f]/', $apiKey)) {
+            throw new InvalidArgumentException('invalid_groq_api_key');
+        }
+        $url = 'https://api.groq.com/openai/v1/models';
+        $headers = ['Accept: application/json', 'Authorization: Bearer ' . $apiKey];
+        if ($transport !== null) $body = $transport($url, $headers);
+        else {
+            $handle = curl_init($url);
+            if ($handle === false) throw new \RuntimeException('groq_catalogue_unavailable');
+            $body = '';
+            try {
+                curl_setopt_array($handle, [
+                    CURLOPT_FOLLOWLOCATION=>false, CURLOPT_PROTOCOLS=>CURLPROTO_HTTPS,
+                    CURLOPT_SSL_VERIFYPEER=>true, CURLOPT_SSL_VERIFYHOST=>2,
+                    CURLOPT_CONNECTTIMEOUT_MS=>3000, CURLOPT_TIMEOUT_MS=>8000, CURLOPT_HTTPHEADER=>$headers,
+                    CURLOPT_WRITEFUNCTION=>static function ($handle, string $chunk) use (&$body): int {
+                        if (strlen($body) + strlen($chunk) > 1_048_576) return 0;
+                        $body .= $chunk;
+                        return strlen($chunk);
+                    },
+                ]);
+                if (curl_exec($handle) === false || curl_getinfo($handle, CURLINFO_RESPONSE_CODE) !== 200) {
+                    throw new \RuntimeException('groq_catalogue_unavailable');
+                }
+            } finally { curl_close($handle); }
+        }
+        if (!is_string($body) || strlen($body) > 1_048_576) throw new InvalidArgumentException('invalid_groq_catalogue');
+        $payload = json_decode($body, false, 32, JSON_THROW_ON_ERROR);
+        if (!$payload instanceof \stdClass || !is_array($payload->data ?? null) || count($payload->data) > 5000) {
+            throw new InvalidArgumentException('invalid_groq_catalogue');
+        }
+        $models = [];
+        foreach ($payload->data as $model) {
+            if (!$model instanceof \stdClass) continue;
+            $model = (array)$model;
+            $id = $model['id'] ?? null;
+            if (!is_string($id) || $id === '' || trim($id) !== $id || strlen($id) > 256
+                || !mb_check_encoding($id, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $id)) continue;
+            $owner = $model['owned_by'] ?? 'Groq';
+            $context = $model['context_window'] ?? null;
+            $models[] = ['id'=>$id, 'owned_by'=>is_string($owner) && mb_check_encoding($owner, 'UTF-8') ? mb_substr($owner, 0, 128) : 'Groq',
+                'context_window'=>is_int($context) && $context > 0 && $context <= 100_000_000 ? $context : null];
+        }
+        usort($models, static fn(array $a, array $b): int => strcmp($a['id'], $b['id']));
+        return ['data'=>$models];
+    }
+
     /** Keep provider slugs and display text public and bounded, just like the model catalogue. */
     public static function normalizeOpenRouterProviders(array $payload): array
     {

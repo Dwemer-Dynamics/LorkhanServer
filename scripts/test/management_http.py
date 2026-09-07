@@ -173,6 +173,21 @@ for catalogue in ['llm-models','llm-providers']:
     except urllib.error.HTTPError as error:
         assert error.code==401
     assert request('/LorkhanServer/manage/api/v1/'+catalogue+'?url=https%3A%2F%2Fexample.invalid').status==422
+groq_catalogue='/LorkhanServer/manage/api/v1/llm-groq-models'
+groq_empty={'driver':'openai-compatible','credential':'none'}
+try:
+    urllib.request.urlopen(urllib.request.Request(base+groq_catalogue,data=json.dumps(groq_empty).encode(),headers={'Content-Type':'application/json'}))
+    raise AssertionError('Groq catalogue requires a management session')
+except urllib.error.HTTPError as error: assert error.code==401
+assert json_request(groq_catalogue,'POST',groq_empty).status==401
+r=json_request(groq_catalogue,'POST',groq_empty,csrf); assert r.status==422 and json.load(r)['error']=='groq_api_key_required'
+for invalid_groq in [
+    dict(groq_empty,credential='DATABASE_PASSWORD'),dict(groq_empty,driver='mock'),
+    dict(groq_empty,url='https://example.invalid'),{'driver':'configured','credential':'groq'},
+    {'driver':'configured','credential':''},
+]:
+    assert json_request(groq_catalogue,'POST',invalid_groq,csrf).status==422
+assert json_request(groq_catalogue+'?url=https://example.invalid','POST',groq_empty,csrf).status==422
 for path,marker,title in [
     ('/LorkhanServer/ui/home.php','dashboard-container','Home'),
     ('/LorkhanServer/ui/events-memories.php','events-memories-navigation','Roleplay'),
@@ -1635,6 +1650,7 @@ assert direct_editor.index('for="llm_option_reasoning_model"') < direct_editor.i
 assert re.search(r'name="option_stream"\s+data-direct-default="true"\s+data-runtime-default="(?:true|false)" data-inverted="true"',direct_editor),direct_editor
 assert 'class="llm-help-details llm-connection-options" open' in direct_editor and direct_editor.index('<summary>Connection options</summary>') < direct_editor.index('id="llm_option_max_completion_tokens"'),direct_editor
 assert 'Enforce JSON' in direct_editor and 'Disable Streaming' in direct_editor and '<span>Direct connection</span>' not in direct_editor
+assert 'data-groq-catalogue="/LorkhanServer/manage/api/v1/llm-groq-models"' in direct_editor
 assert 'data-llm-import-open' in direct_editor and 'id="llm-import-picker"' in direct_editor and 'accept="application/json,.json" multiple hidden' in direct_editor
 assert 'data-llm-clear-advanced hidden>Clear advanced settings</button>' in direct_editor
 assert 'Imported 2 connectors.' in request('/LorkhanServer/ui/core/llm_connectors.php?imported=2').read().decode()

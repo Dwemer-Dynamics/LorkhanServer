@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import and Clear advanced settings now follow the reference; evidence below. Groq model catalogue and YAML body controls remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body controls remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -3012,3 +3012,38 @@ Remaining Core Profile requirements identified from the pinned source and live e
   hidden until invoked, the reset button is visible, and all six stored switch
   values remain blank/inherited. No live import, paid inference or game action
   was performed. Full-page parity remains open in the matrix.
+
+### Groq model catalogue checkpoint
+
+- Added the pinned Herika Groq dropdown presentation: model ID, owner/context
+  rows, selection hint, filtering and keyboard selection. Uses the existing
+  catalogue styles, with Lorkhan gold accents. Screenshots compared the actual
+  source dropdown with the pinned standalone reference script using mock data.
+  The 390px fixture also displayed all rows without clipping the dropdown.
+- Groq discovery uses a management-session and CSRF-protected POST. The browser
+  sends only the selected credential reference. Server credential resolution is
+  shared with the provider factory; runtime discovery requires the configured
+  endpoint to be Groq. The outbound URL is fixed, HTTPS verified, redirects
+  disabled, time/body limits bounded, and only public model fields returned.
+  Arbitrary endpoints, environment-variable names and malformed requests are
+  rejected. Upstream failures never return credentials or raw upstream bodies.
+- Browser fixtures covered direct and configured-runtime credentials, changed
+  key references, no-key selection, empty results, loading, provider failure,
+  manual entry after failure and keyboard selection. Switching to OpenRouter
+  during a delayed Groq response retained the OpenRouter results. Model and
+  provider selection were regression checked. All provider requests were mocked;
+  no live credentials, saves or paid provider calls were used.
+- Literal HTML-like owner text renders as text with zero injected images. The
+  same hostile fixture exposed an alert in the pinned reference implementation;
+  that behavior was not copied. A fresh safe reference fixture was used for the
+  visual comparison. Missing service icons in isolated fixtures are not live
+  asset failures.
+- PHP lint, JavaScript syntax, 411 server checks, management HTTP, full integration,
+  migrations and durable-job checks passed. The 170-relation schema inventory is
+  unchanged. Local deployment rollback: `/var/backups/lorkhanserver-code.wRmT65`.
+  All 752 deployed runtime files match source, with no extras or legacy paths.
+  Configuration, credentials and voice hashes were preserved. Private routes
+  remain 403, unauthenticated session creation 401, health valid and NPC reader
+  statuses 200/404. No game was started or controlled.
+- This closes the Groq picker gap only. YAML controls and the other open matrix
+  rows remain; this is not full-page or whole-goal completion.

@@ -269,3 +269,7 @@ The sidebar file-picker import flow and Clear advanced settings button also
 follow the same pinned editor. Lorkhan retains portable JSON documents and its
 credential-stripping import endpoint; browser feedback bounds file selections
 and reports partial or unconfirmed imports without automatic retries.
+Groq model-picker presentation follows the same editor's standalone Groq
+dropdown and `ui/cmd/action_groq_get_models.php`: model ID, owner, context,
+filtering and key selection. Lorkhan keeps a fixed authenticated discovery URL,
+server-only credentials, bounded response fields and text-only rendering.

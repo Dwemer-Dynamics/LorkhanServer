@@ -222,8 +222,8 @@ final class ProviderFactory
         return is_array($hosts) ? array_values(array_filter($hosts, 'is_string')) : [];
     }
 
-    /** @param array<string,mixed> $provider */
-    private static function apiKey(array $provider, string $defaultVariable, array $config): string
+    /** Resolve the same private credential for provider requests and authenticated model discovery; never serialize it. */
+    public static function apiKey(array $provider, string $defaultVariable, array $config): string
     {
         if(array_key_exists('credential',$provider)){
             $reference=$provider['credential'];

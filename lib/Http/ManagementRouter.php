@@ -157,6 +157,25 @@ final class ManagementRouter
 
     private function api(Request $r,string $path,string $browserSession):Response
     {
+        if ($r->method === 'POST' && $path === '/api/v1/llm-groq-models') {
+            $body = $this->json($r); $keys = array_keys($body); sort($keys);
+            if ($r->query !== [] || $keys !== ['credential','driver'] || !is_string($body['credential'])
+                || !in_array($body['driver'], ['configured','openai-compatible'], true)) throw new InvalidArgumentException('invalid_groq_catalogue_request');
+            if ($body['driver'] === 'configured') {
+                $provider = $this->providerConfig['provider'] ?? [];
+                if ($body['credential'] !== '' || ($provider['driver'] ?? '') !== 'openai-compatible'
+                    || rtrim((string)($provider['endpoint'] ?? ''), '/') !== 'https://api.groq.com/openai/v1/chat/completions') {
+                    throw new InvalidArgumentException('groq_runtime_not_configured');
+                }
+            } else {
+                if (LlmConnector::credentialVariable($body['credential']) === null) throw new InvalidArgumentException('invalid_groq_credential');
+                $provider = ['credential'=>$body['credential']];
+            }
+            $apiKey = ProviderFactory::apiKey($provider, 'LORKHAN_LLM_API_KEY', $this->providerConfig);
+            if ($apiKey === '') return Response::json(422, ['error'=>'groq_api_key_required']);
+            try { return Response::json(200, ConnectorCatalog::groqModels($apiKey)); }
+            catch (Throwable) { return Response::json(502, ['error'=>'groq_catalogue_unavailable']); }
+        }
         if ($r->method === 'GET' && in_array($path, ['/api/v1/llm-models', '/api/v1/llm-providers'], true)) {
             $providers = $path === '/api/v1/llm-providers';
             if ($r->query !== []) throw new InvalidArgumentException($providers ? 'invalid_provider_catalogue_query' : 'invalid_model_catalogue_query');

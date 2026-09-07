@@ -1098,6 +1098,27 @@ foreach ([[], ['data'=>array_fill(0,5001,[])]] as $invalidCatalogue) {
     try { ConnectorCatalog::normalizeOpenRouterProviders($invalidCatalogue); $check(false,'invalid provider catalogue rejected'); }
     catch (InvalidArgumentException) { $check(true,'invalid provider catalogue rejected'); }
 }
+$groqTransportCalls=[];
+$groqModels=ConnectorCatalog::groqModels('fixture-groq-secret',static function(string $url,array $headers)use(&$groqTransportCalls):string{
+    $groqTransportCalls[]=[$url,$headers];
+    return json_encode(['private'=>'fixture-groq-secret','data'=>[
+        ['id'=>'z-model','owned_by'=>'Groq','context_window'=>131072,'api_key'=>'fixture-groq-secret'],
+        ['id'=>'a-model','owned_by'=>'<img src=x>','context_window'=>'invalid'],
+        ['id'=>"invalid\nmodel"],['id'=>''],null,
+    ]],JSON_THROW_ON_ERROR);
+});
+$check($groqTransportCalls===[['https://api.groq.com/openai/v1/models',['Accept: application/json','Authorization: Bearer fixture-groq-secret']]]
+    &&$groqModels===['data'=>[['id'=>'a-model','owned_by'=>'<img src=x>','context_window'=>null],['id'=>'z-model','owned_by'=>'Groq','context_window'=>131072]]]
+    &&!str_contains(json_encode($groqModels),'fixture-groq-secret'),
+    'Groq discovery uses the fixed HTTPS URL and selected private key, returning only bounded public model fields');
+foreach(['{}','invalid','{"data":{}}',str_repeat('x',1048577),json_encode(['data'=>array_fill(0,5001,[])])]as$invalidGroq){
+    try{ConnectorCatalog::groqModels('fixture-key',static fn():string=>$invalidGroq);$check(false,'invalid Groq catalogue rejected');}
+    catch(InvalidArgumentException|\JsonException){$check(true,'invalid Groq catalogue rejected');}
+}
+try{ConnectorCatalog::groqModels("bad\r\nheader",static function():string{throw new RuntimeException('must not send invalid header');});$check(false,'invalid Groq header rejected');}
+catch(InvalidArgumentException){$check(true,'invalid Groq header rejected before transport');}
+$check(ConnectorCatalog::groqModels('fixture-key',static fn():string=>'{"data":[]}')===['data'=>[]],
+    'Groq empty catalogue remains a valid empty selection');
 $publicModels=ConnectorCatalog::normalizeOpenRouterModels(['data'=>[
     ['id'=>'example/model','name'=>'<img src=x>','description'=>str_repeat('é',4001),
      'pricing'=>['prompt'=>'0','completion'=>'-1'],'top_provider'=>['context_length'=>64000],
