@@ -18,6 +18,9 @@ body.llm-page-shell > main.llm-page {
 
 /* Page header is the shared compact inline row (.lorkhan-page-head in chim-theme.css). */
 .llm-page .page-subtitle { color: #bbb; }
+.llm-page #llm-import-status { margin: 8px 0; overflow-wrap: anywhere; }
+.llm-page #llm-import-status[role="alert"] { color: #ef9a9a; }
+.llm-page [data-llm-clear-advanced] { margin-top: 10px; }
 
 .llm-page .llm-toast-spacer {
     position: static;

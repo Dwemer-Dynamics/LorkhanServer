@@ -1,10 +1,87 @@
 // Shows only the LLM connector fields the selected mode uses, without clearing any saved value.
 (() => {
+    // Herika's sidebar Import opens a picker directly; the link remains a no-JavaScript paste fallback.
+    const importOpener = document.querySelector('[data-llm-import-open]');
+    const importPicker = document.getElementById('llm-import-picker');
+    const importForm = document.getElementById('llm-quick-import');
+    const importStatus = document.getElementById('llm-import-status');
+    if (importOpener && importPicker && importForm && importStatus) {
+        let importing = false;
+        importOpener.addEventListener('click', event => {
+            event.preventDefault();
+            if (!importing) importPicker.click();
+        });
+        importPicker.addEventListener('change', async () => {
+            const files = Array.from(importPicker.files || []);
+            if (importing || !files.length) return;
+            importing = true;
+            importOpener.setAttribute('aria-disabled', 'true');
+            importStatus.hidden = false;
+            importStatus.setAttribute('role', 'status');
+            let completed = 0;
+            let current = '';
+            try {
+                if (files.length > 20 || files.some(file => file.size > 1048576)) {
+                    throw new Error('Choose up to 20 JSON files, at most 1 MiB each.');
+                }
+                // Read and parse the entire selection before any import, so a broken JSON file makes no partial batch.
+                const documents = [];
+                for (const file of files) {
+                    current = file.name;
+                    importStatus.textContent = 'Reading ' + current + '…';
+                    const text = await file.text();
+                    const document = JSON.parse(text);
+                    if (!document || Array.isArray(document) || document.schema !== 'lorkhan.provider-export.v1') {
+                        throw new Error('Choose portable LORKHAN connector exports.');
+                    }
+                    documents.push(text);
+                }
+                for (let index = 0; index < documents.length; index++) {
+                    current = files[index].name;
+                    importStatus.textContent = 'Importing ' + (index + 1) + ' of ' + files.length + ': ' + current;
+                    const body = new FormData(importForm);
+                    body.set('provider_json', documents[index]);
+                    // No automatic retry: a lost response may follow an already committed import.
+                    const controller = new AbortController();
+                    const timer = setTimeout(() => controller.abort(), 30000);
+                    let response;
+                    try {
+                        response = await fetch(importForm.action, {method:'POST', body, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
+                    } finally { clearTimeout(timer); }
+                    if (!response.ok) throw new Error('The server rejected this connector (HTTP ' + response.status + '). Check its format and settings.');
+                    const receipt = new URL(response.url);
+                    if (!response.redirected || receipt.origin !== window.location.origin
+                        || !receipt.pathname.endsWith('/ui/core/llm_connectors.php') || receipt.searchParams.get('status') !== 'saved') {
+                        throw new Error('The server did not confirm the import. Reload to check the connector list before retrying.');
+                    }
+                    completed++;
+                }
+                const destination = new URL(importOpener.href);
+                destination.searchParams.delete('import');
+                destination.searchParams.set('imported', String(completed));
+                window.location.assign(destination.href);
+            } catch (error) {
+                const detail = error instanceof SyntaxError ? 'Invalid JSON; no files were imported.'
+                    : error instanceof TypeError || error.name === 'AbortError' ? 'The file could not be read or the server response was lost. Reload before retrying.'
+                    : error.message || 'Import failed.';
+                importStatus.textContent = (current ? current + ': ' : '') + detail
+                    + (completed ? ' ' + completed + ' confirmed imported; remaining files were not attempted.' : '');
+                importStatus.setAttribute('role', 'alert');
+            } finally {
+                importing = false;
+                importPicker.value = '';
+                importOpener.removeAttribute('aria-disabled');
+            }
+        });
+    }
     const driver = document.getElementById('llm_driver');
     if (!(driver instanceof HTMLSelectElement)) return;
 
     // Keep hover/focus help dismissible without changing the field or losing keyboard focus.
     document.querySelectorAll('.llm-connection-field, .llm-option-field').forEach((field) => {
+        field.addEventListener('input', () => {
+            if (field.matches(':focus-within')) field.classList.add('llm-help-dismissed');
+        });
         field.addEventListener('keydown', (event) => {
             if (event.key === 'Escape') field.classList.add('llm-help-dismissed');
         });
@@ -17,6 +94,19 @@
     const panels = Array.from(document.querySelectorAll('[data-llm-modes]'));
     if (panels.length === 0) return;
     const timeout = document.getElementById('llm_timeout_ms');
+    const clearAdvanced = document.querySelector('[data-llm-clear-advanced]');
+    if (clearAdvanced) {
+        clearAdvanced.hidden = false;
+        clearAdvanced.addEventListener('click', () => {
+            clearAdvanced.closest('.llm-advanced-panel').querySelectorAll('input[type="number"]').forEach(number => {
+                number.value = '';
+                number.dispatchEvent(new Event('input', {bubbles:true}));
+                number.dispatchEvent(new Event('change', {bubbles:true}));
+                const slider = document.querySelector('[data-range-for="' + number.id + '"]');
+                if (slider) slider.value = slider.min || '0';
+            });
+        });
+    }
 
     const modesOf = (panel) => (panel.dataset.llmModes || '').split(' ').filter(Boolean);
 

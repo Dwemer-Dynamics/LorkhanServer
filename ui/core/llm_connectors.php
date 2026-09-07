@@ -29,6 +29,7 @@ foreach ($rows as $row) {
     if ($selectedId !== '' && hash_equals((string) $row['configuration_id'], $selectedId)) $selected = $row;
 }
 $mode = isset($_GET['import']) ? 'import' : (isset($_GET['create']) ? 'create' : ($selected !== null ? 'edit' : 'none'));
+$importedCount = filter_var($_GET['imported'] ?? null, FILTER_VALIDATE_INT, ['options'=>['min_range'=>1, 'max_range'=>20]]) ?: 0;
 $pageUrl = $webRoot . '/ui/core/llm_connectors.php';
 $queryFor = static function (array $values) use ($pageUrl, $installationId, $embedded): string {
     if ($installationId !== '') $values['installation_id'] = $installationId;
@@ -208,9 +209,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <p class="page-subtitle lorkhan-page-head-note">Configure Language Model connectors for AI dialogue generation</p>
     </div>
 
-    <div id="toast" class="toast-notification llm-toast-spacer<?php echo isset($_GET['status']) ? ' show' : ''; ?>" role="status" aria-live="polite">
+    <div id="toast" class="toast-notification llm-toast-spacer<?php echo isset($_GET['status']) || $importedCount ? ' show' : ''; ?>" role="status" aria-live="polite">
         <span class="message"><?php
-            if (isset($_GET['status'])) echo lorkhan_ui_h($_GET['status'] === 'tested' ? 'Test completed: ' . ($_GET['detail'] ?? 'valid response') : 'LLM connector saved.');
+            if ($importedCount) echo 'Imported ' . $importedCount . ($importedCount === 1 ? ' connector.' : ' connectors.');
+            elseif (isset($_GET['status'])) echo lorkhan_ui_h($_GET['status'] === 'tested' ? 'Test completed: ' . ($_GET['detail'] ?? 'valid response') : 'LLM connector saved.');
         ?></span>
     </div>
 
@@ -225,8 +227,14 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <aside class="llm-left position-sticky">
             <div class="sidebar-action-grid">
                 <a class="btn-save" href="<?php echo lorkhan_ui_h($queryFor(['create' => '1'])); ?>">New</a>
-                <a class="btn-primary" href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.llm.import-format')['description']); ?>">Import</a>
+                <a class="btn-primary" href="<?php echo lorkhan_ui_h($queryFor(['import' => '1'])); ?>" data-llm-import-open title="Import portable LORKHAN connector files. No API keys are imported.">Import</a>
             </div>
+            <form id="llm-quick-import" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-import" hidden>
+                <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+            </form>
+            <input id="llm-import-picker" type="file" accept="application/json,.json" multiple hidden>
+            <p id="llm-import-status" class="llm-help" role="status" hidden></p>
             <div id="llm_list" class="conn-list" aria-label="LLM Connectors">
                 <?php foreach ($rows as $row):
                     $content = is_array($row['content'] ?? null) ? $row['content'] : [];
@@ -437,6 +445,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                                     <div class="llm-option-grid">
                                         <?php foreach (LORKHAN_LLM_SAMPLING_FIELDS as $field) lorkhan_llm_number_field($field, $options, $formId, !$isMock); ?>
                                     </div>
+                                    <button type="button" class="btn-danger" data-llm-clear-advanced hidden>Clear advanced settings</button>
                                 </section>
                             </section>
 

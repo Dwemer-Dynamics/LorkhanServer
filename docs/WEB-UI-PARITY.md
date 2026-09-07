@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON now wired to operation-specific requests; final evidence below. Other service catalogues, import-editor presentation, YAML body controls and Clear advanced settings remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import and Clear advanced settings now follow the reference; evidence below. Groq model catalogue and YAML body controls remain. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -2964,3 +2964,51 @@ Remaining Core Profile requirements identified from the pinned source and live e
   Configuration, credential and voice file hashes were preserved. No live form
   saves, paid inference requests, game launch or game control were performed.
   This is an LLM-editor checkpoint, not completion of the full page matrix.
+
+### LLM direct import and advanced reset checkpoint
+
+- The sidebar Import action now opens a file picker and processes selected
+  connector files, following pinned Herika's direct import flow. The existing
+  paste/import page remains the link fallback without JavaScript. Portable
+  Lorkhan JSON remains the data format; Herika's CSV is not presented as a
+  compatible Lorkhan slot. Imports still use the existing authenticated,
+  credential-stripping endpoint and never call an LLM.
+- Up to 20 files of 1 MiB each are read and JSON/schema-identifier checked before
+  the first request. Server validation remains authoritative. Imports are
+  sequential; a rejected or unconfirmed response stops the remaining requests.
+  Partial successes report their confirmed count. Lost responses/timeouts are
+  not retried because the server might already have committed the import.
+- Clear advanced settings matches the reference's seven sampling fields. It
+  blanks their submitted values and moves sliders to their minimum without
+  changing Temperature, Max Tokens, connection options or request switches.
+  Clearing edits the form only; Save is still required. Keyboard and pointer
+  use were exercised. Field help now dismisses after editing a focused input,
+  preventing the Top a tooltip from intercepting the reset button.
+- Actual browser file-selection fixtures covered two successful imports,
+  malformed JSON, wrong schema, oversized/count-limited selections, partial
+  failure, lost response, missing saved receipt and a literal HTML-like filename.
+  Requests were mocked and redirects stayed in the fixture. Malformed selections
+  made zero requests; a lost reply made exactly one with no retry. Both successful
+  requests retained the selected installation. No live connector was imported.
+- Desktop reset checks preserved Temperature 0.7 and Max Tokens 750 while all
+  seven overrides became blank. A 390px frame displayed wrapped error text and
+  the connector sidebar without horizontal overflow (375px content/scroll width);
+  the error state was inspected in a screenshot, with literal filename text and
+  no injected image. Existing fixture service icons remain absent, separate from
+  the live server's loaded assets.
+- Current pinned editor source has OpenRouter and Groq model pickers. OpenRouter
+  is implemented; the matrix now names Groq specifically instead of implying
+  catalogues for every other service. YAML body controls also remain unfinished.
+- Final checks passed: PHP lint, JavaScript syntax, 403 server checks, and the
+  management HTTP suite including a real multipart import into its disposable
+  database, saved redirect receipt and credential-stripping assertions. This UI
+  checkpoint makes no backend/schema changes; the previous checkpoint's full
+  integration/migration evidence is not claimed as a fresh run here.
+- Final local deployment rollback is `/var/backups/lorkhanserver-code.fLsnne`.
+  All 752 runtime files match source with no extras or legacy paths. Existing
+  configuration, credentials and voice hashes are unchanged; private routes
+  remain 403, unauthenticated session creation 401 and health is valid. The live
+  create form was inspected: seven service icons load, the multi-file picker is
+  hidden until invoked, the reset button is visible, and all six stored switch
+  values remain blank/inherited. No live import, paid inference or game action
+  was performed. Full-page parity remains open in the matrix.

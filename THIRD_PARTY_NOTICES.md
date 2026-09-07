@@ -265,3 +265,7 @@ pinned `connector/openrouterjson.php` and `functions/json_response.php`.
 Their Lorkhan implementations use operation-specific OpenMW response contracts,
 restore assistant continuations without duplicating full JSON responses, and
 retain the existing response/action validation and private request audit.
+The sidebar file-picker import flow and Clear advanced settings button also
+follow the same pinned editor. Lorkhan retains portable JSON documents and its
+credential-stripping import endpoint; browser feedback bounds file selections
+and reports partial or unconfirmed imports without automatic retries.
