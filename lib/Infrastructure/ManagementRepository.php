@@ -99,6 +99,61 @@ final class ManagementRepository
         }
     }
 
+    public function coreProfilePresets(string $installation): array
+    {
+        if (!Uuid::isValid($installation)) throw new \InvalidArgumentException('invalid_installation_id');
+        $query = $this->db->prepare('SELECT preset_id,name,revision FROM lorkhan_internal.core_profile_presets WHERE installation_id=:installation ORDER BY lower(name),preset_id');
+        $query->execute(['installation' => $installation]);
+        return $query->fetchAll(PDO::FETCH_ASSOC);
+    }
+
+    public function coreProfilePreset(string $installation, string $id): array
+    {
+        if (!Uuid::isValid($installation) || !Uuid::isValid($id)) throw new \InvalidArgumentException('invalid_core_profile_preset');
+        $query = $this->db->prepare('SELECT payload FROM lorkhan_internal.core_profile_presets WHERE installation_id=:installation AND preset_id=:id');
+        $query->execute(['installation' => $installation, 'id' => $id]);
+        $payload = $query->fetchColumn();
+        if ($payload === false) throw new RuntimeException('not_found');
+        return \LorkhanServer\Application\CoreProfilePreset::validate(json_decode($payload, true, 32, JSON_THROW_ON_ERROR));
+    }
+
+    /** Serialize catalogue writes per installation and reject stale overwrites without touching runtime settings. */
+    public function saveCoreProfilePreset(string $installation, string $name, array $payload, ?string $id = null, int $revision = 0): string
+    {
+        $name = trim($name);
+        if (!Uuid::isValid($installation) || ($id !== null && !Uuid::isValid($id))) throw new \InvalidArgumentException('invalid_core_profile_preset');
+        if ($name === '' || strlen($name) > 128 || !mb_check_encoding($name, 'UTF-8') || preg_match('/[\x00-\x1f\x7f]/', $name)
+            || in_array(mb_strtolower($name), ['default', 'local llm', 'follower', 'passive'], true)) throw new \InvalidArgumentException('invalid_preset_name');
+        $payload = \LorkhanServer\Application\CoreProfilePreset::validate($payload);
+        $json = json_encode($payload, JSON_THROW_ON_ERROR);
+        if (strlen($json) > 200000) throw new \InvalidArgumentException('preset_too_large');
+        $this->db->beginTransaction();
+        try {
+            $lock = $this->db->prepare('SELECT installation_id FROM installations WHERE installation_id=:installation FOR UPDATE');
+            $lock->execute(['installation' => $installation]);
+            if (!$lock->fetchColumn()) throw new \InvalidArgumentException('invalid_installation_id');
+            $existing = $this->coreProfilePresets($installation);
+            foreach ($existing as $row) if ($row['preset_id'] !== $id && mb_strtolower($row['name']) === mb_strtolower($name))
+                throw new \InvalidArgumentException('preset_name_exists');
+            if ($id === null) {
+                if (count($existing) >= 64) throw new \InvalidArgumentException('preset_limit_reached');
+                $id = Uuid::v4();
+                $query = $this->db->prepare('INSERT INTO lorkhan_internal.core_profile_presets(preset_id,installation_id,name,payload) VALUES (:id,:installation,:name,CAST(:payload AS jsonb))');
+                $query->execute(['id' => $id, 'installation' => $installation, 'name' => $name, 'payload' => $json]);
+            } else {
+                $query = $this->db->prepare('UPDATE lorkhan_internal.core_profile_presets SET name=:name,payload=CAST(:payload AS jsonb),revision=revision+1,updated_at=clock_timestamp() WHERE preset_id=:id AND installation_id=:installation AND revision=:revision');
+                $query->execute(['id' => $id, 'installation' => $installation, 'name' => $name, 'payload' => $json, 'revision' => $revision]);
+                if ($query->rowCount() !== 1) throw new RuntimeException('revision_conflict');
+            }
+            $this->audit('configuration', 'save_core_profile_preset', ['installation_id' => $installation], ['preset_id' => $id]);
+            $this->db->commit();
+            return $id;
+        } catch (\Throwable $error) {
+            if ($this->db->inTransaction()) $this->db->rollBack();
+            throw $error;
+        }
+    }
+
     public function createSession(int $ttlSeconds): array
     {
         $session=BrowserSession::token();$csrf=BrowserSession::token();

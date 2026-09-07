@@ -47,6 +47,20 @@ $tokenHash = PairingToken::hash($token);$macKey=hex2bin($tokenHash);$installatio
 $attempts = new ProviderAttemptRepository($db);
 $products = new ProductRepository($db);
 $repo->ensureInstallation($installationId,$tokenHash,$macKey);
+$presetStore=new \LorkhanServer\Infrastructure\ManagementRepository($db);
+$presetPayload=\LorkhanServer\Application\CoreProfilePreset::capture(['settings_overrides'=>['response'=>['max_words'=>60]]]);
+$presetId=$presetStore->saveCoreProfilePreset($installationId,'Custom companion',$presetPayload);
+if($presetStore->coreProfilePreset($installationId,$presetId)!=$presetPayload)throw new RuntimeException('Core preset round-trip failed');
+$presetPayload['settings_overrides']['response']['max_words']=80;
+$presetStore->saveCoreProfilePreset($installationId,'Custom companion',$presetPayload,$presetId,1);
+try{$presetStore->saveCoreProfilePreset($installationId,'Custom companion',$presetPayload,$presetId,1);throw new RuntimeException('stale Core preset overwrite accepted');}
+catch(RuntimeException $error){if($error->getMessage()!=='revision_conflict')throw $error;}
+try{$presetStore->saveCoreProfilePreset($installationId,'custom COMPANION',$presetPayload);throw new RuntimeException('duplicate Core preset name accepted');}
+catch(InvalidArgumentException $error){if($error->getMessage()!=='preset_name_exists')throw $error;}
+try{$presetStore->coreProfilePreset('00000000-0000-4000-8000-000000000002',$presetId);throw new RuntimeException('cross-installation Core preset read accepted');}
+catch(RuntimeException $error){if($error->getMessage()!=='not_found')throw $error;}
+if((int)$presetStore->coreProfilePresets($installationId)[0]['revision']!==2)throw new RuntimeException('Core preset catalogue revision mismatch');
+$db->prepare('DELETE FROM lorkhan_internal.core_profile_presets WHERE preset_id=:id')->execute(['id'=>$presetId]);
 (new DefaultConnectorProvisioner($db))->provision($installationId);
 $morrowindVoices=MorrowindVoiceCatalog::bundled();
 $rechatCoordinator = new RechatCoordinator($repo,$products);

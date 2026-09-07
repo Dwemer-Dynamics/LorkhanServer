@@ -684,6 +684,24 @@ $check(str_contains($wordPrompt,'Keep the combined spoken dialogue across all ut
     &&!str_contains($assembled['provider_input']['_assembled_prompt'],'combined spoken dialogue'),'profile word limit reaches compact prompt while absent limits preserve the prompt');
 $wordResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['response'=>['max_words'=>60]]],[]);
 $evolutionDefaults=['enabled'=>true,'fields'=>EffectiveSettingsResolver::DYNAMIC_PROFILE_FIELDS];
+$corePresetSource=['schema'=>'lorkhan.core-profile.v1','prompt'=>'Keep the profile prompt.',
+    'routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001','llm_randomizer_enabled'=>true],
+    'settings_overrides'=>['response'=>['max_words'=>70],'profile_evolution'=>$evolutionDefaults]];
+$corePreset=\LorkhanServer\Application\CoreProfilePreset::capture($corePresetSource);
+$check(!isset($corePreset['prompt'])&&!isset($corePreset['routing']['llm_configuration_id'])
+    &&$corePreset['routing']['llm_randomizer_enabled']===true,'Core presets exclude prompts and connector bindings');
+$corePreset['settings_overrides']['profile_evolution']['fields']=['skills'];
+$corePresetApplied=\LorkhanServer\Application\CoreProfilePreset::apply($corePreset,$corePresetSource);
+$check($corePresetApplied['prompt']===$corePresetSource['prompt']
+    &&$corePresetApplied['routing']['llm_configuration_id']===$corePresetSource['routing']['llm_configuration_id']
+    &&$corePresetApplied['settings_overrides']['profile_evolution']['fields']===['skills'],
+    'Applying a Core preset preserves identity-independent content and replaces field lists without leftover entries');
+foreach([array_replace($corePreset,['prompt'=>'forbidden']),
+    array_replace($corePreset,['routing'=>['llm_configuration_id'=>'00000000-0000-4000-8000-000000000001']]),
+    array_replace($corePreset,['settings_overrides'=>['behavior'=>['boredom'=>true]]])] as $invalidCorePreset){
+    try{\LorkhanServer\Application\CoreProfilePreset::validate($invalidCorePreset);$check(false,'nonportable Core preset rejected');}
+    catch(InvalidArgumentException){$check(true,'nonportable Core preset rejected');}
+}
 $evolutionResolved=(new EffectiveSettingsResolver())->resolve([],['settings_overrides'=>['profile_evolution'=>$evolutionDefaults]],[]);
 $check(EffectiveSettingsResolver::validateSettingsOverrides(['profile_evolution'=>$evolutionDefaults])['profile_evolution']===$evolutionDefaults
     &&!isset($evolutionResolved['settings']['profile_evolution'])

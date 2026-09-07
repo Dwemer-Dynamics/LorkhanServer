@@ -3562,3 +3562,57 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   runtime hashes match. Private paths 403, unauthenticated session 401, health valid.
   Secrets/config/voices preserved; no game launched or controlled. Overall parity
   remains incomplete; the remaining Core Profile sections stay on the audit list.
+
+## Core Profile named preset foundation and remaining implementation — 2026-09-07
+
+- Traced ui/core/core_profiles.php toolbar/dialogs and its JSON operations in
+  ui/api/chim_profile_manager.php, plus lib/core/settings_presets.php at the pinned
+  reference. Selecting only previews; Apply changes the selected saved profile;
+  Save as new/Overwrite capture unsaved editable metadata. Import stores a named
+  preset; Export exports the selected preset. These differ from Lorkhan's existing
+  profile-level Import, which creates a new unassigned Core Profile.
+- Added CoreProfilePreset capture/validate/apply policy. Its strict server-owned
+  payload permits only supported editable override fields and the randomizer/
+  fallback booleans. Profile prompts, connector bindings, IDs, slots and default
+  ownership are excluded. Applying preserves unrelated values and replaces field
+  lists as a whole, avoiding array-merge leftovers. No action route or UI calls it yet.
+- Added migration 093 and installation-scoped named preset storage in
+  ManagementRepository. Writes serialize per installation, names are unique without
+  case distinctions, four built-in names are reserved, catalogues are bounded to 64,
+  and overwrite requires a matching revision. Validation precedes persistence;
+  audit records contain IDs only. Down migration refuses to erase nonempty presets.
+- Extended existing tests: round-trip, stale overwrite, duplicate names, installation
+  isolation, connector/prompt exclusion, invalid keys, selected-field list replacement.
+  No new test file or live profile mutation.
+- Required next implementation, not completion claims:
+  1. Add a CSRF-protected, installation-scoped named Core Profile action endpoint.
+     Catalogue/read/export do not mutate profiles; save/overwrite/import mutate only
+     the named catalogue; Apply requires confirmation and expected profile revision,
+     invokes CoreProfilePreset::apply, and writes one profile revision. Reject stale
+     preset overwrites and conflicting profile Apply rather than losing edits.
+  2. Add reference toolbar above Profile Core: Profile Preset select, Apply, Save as
+     new, Overwrite, Export, Import. Preserve draft controls while selecting/cancelling.
+     Confirm Apply/Overwrite; use the separate name dialog for Save/import. Built-ins
+     cannot be overwritten. Native dialogs must escape the container and restore
+     focus, provide busy/error feedback, and remain usable at narrow widths.
+  3. Capture unsaved controls using coreProfileContent mapping; exclude label, slot,
+     default status, prompt and connector UUIDs. Catalogue import needs a strict
+     named-preset document; do not repurpose the profile-level import action.
+  4. Map built-ins only after consuming the remaining reference settings. Default,
+     Local LLM, Follower and Passive include more than currently supported overrides:
+     RPG comments/chance, boredom, combat cooldown and quest controls. Follower also
+     requests 150 diary context events (native limit currently 100), physical diary,
+     and dynamic-profile context length. Do not silently advertise partial built-ins
+     as full parity; extend supported runtime paths or document real game exceptions.
+  5. Add browser-like API/form tests for the complete workflow and visually compare
+     populated/empty catalogue, selection, both dialogs, cancel/error/busy states,
+     import/export and narrow/keyboard behavior before closing the preset matrix gap.
+- Passed 498 server checks, 98-file protocol manifest, PHP lint, browser-like HTTP,
+  database integration, migration/durable jobs and whitespace. Schema inventory now
+ 171 relations; hash 23877dfce7525e35984ac9fad0a90035f6da6a988f010d17c4d33062e41a6908.
+- Deployed locally: rollback /var/backups/lorkhanserver-code.GuD3mX; 784 runtime files
+  match, no extras/old paths, private 403, unauthenticated session 401, valid health.
+  Read-only live DB probe confirms core_profile_presets exists and has zero rows.
+  Configuration, credentials, voices and existing profile data preserved. No game.
+  This is backend groundwork; no new visual parity or finished preset workflow is
+  claimed. Core Profile and the all-pages goal remain open.
