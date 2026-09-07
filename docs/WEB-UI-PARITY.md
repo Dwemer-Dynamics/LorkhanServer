@@ -4467,3 +4467,36 @@ that the remaining cache controls or every Studio state matches Herika yet.
 
 The existing isolated management HTTP form suite passed after the cache action
 and duplicate-script fix. The browser fixture was stopped and cleaned up.
+
+
+### Validated cloud lifecycle backend (2026-09-07)
+
+Implemented the backend needed by the remaining regenerate and managed-delete
+controls, following pinned Herika tts/tts-inworld.php rebuildInworldVoice /
+deleteManagedInworldVoice and Cartesia counterparts. Newly auto-created clones
+now write managed=true with their cached ID atomically; discovered voices write
+false and legacy caches remain unowned. No existing cache is upgraded merely
+because its ID happens to be present. Ownership reads do not create cache files.
+
+The rebuild operation locks the same account/workspace cache, clones the local
+WAV using the existing Morrowind transcript, requires valid nonempty WAV audio
+from its validation callback, and only then publishes the new managed ID. Failed
+validation cleans up the candidate and preserves the previous mapping. A provider
+response repeating the live ID is never deleted as cleanup. Only an owned previous
+voice is removed after replacement; cleanup failure is returned separately while
+the validated replacement remains active. Managed deletion rechecks ownership and
+exact ID under the lock and leaves the mapping when the provider rejects deletion.
+The provider adapter uses the reference DELETE routes, pinned official hosts,
+existing selected credentials, no redirects, bounded responses and redacted errors;
+successful empty DELETE responses are accepted.
+
+Twenty-two assertions added within the existing provider test section cover both
+services: ownership, stale IDs, validated replacements, invalid audio, candidate
+cleanup failure, repeated live IDs, remote delete failure, old-clone cleanup
+failure, preserved WAVs, legacy-cache rejection and external predecessor safety.
+559 server checks pass. No live cloud requests were made. This checkpoint is
+backend implementation only: Studio's regenerate button, owned-delete button,
+validation-provider wiring and catalog reconciliation still need integration and
+visual/interactive acceptance. Do not mark their matrix rows accepted yet.
+
+Existing isolated management HTTP forms also passed for this backend checkpoint.

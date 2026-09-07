@@ -96,8 +96,16 @@ final class CloudVoiceLibrary
         return ['id'=>$id,'display'=>$name,'language'=>$language,'status'=>'available','custom'=>true];
     }
 
+    /** Delete a provider ID only after the caller has verified installation ownership. */
+    public function delete(string $driver,string $voiceId):void
+    {
+        if(preg_match('/^[a-zA-Z0-9_.+-]{1,512}$/D',$voiceId)!==1)throw new InvalidArgumentException('invalid_provider_voice_id');
+        $path=($driver==='cartesia'?'/voices/':'/voices/v1/voices/').rawurlencode($voiceId);
+        $this->request($driver,$path,null,null,'DELETE');
+    }
+
     /** Pin credential-bearing requests to official providers; never follow redirects or return their errors. */
-    private function request(string $driver,string $path,array|string|null $body=null,?CancellationToken $cancellation=null): array
+    private function request(string $driver,string $path,array|string|null $body=null,?CancellationToken $cancellation=null,string $method=''): array
     {
         $cancellation?->throwIfCancellationRequested();
         if(!in_array($driver,['cartesia','inworld'],true))throw new InvalidArgumentException('voice_sync_unsupported');
@@ -107,7 +115,8 @@ final class CloudVoiceLibrary
         $headers=['Accept: application/json','Authorization: '.($driver==='cartesia'?'Bearer ':'Basic ').$key];
         if($driver==='cartesia')$headers[]='Cartesia-Version: 2026-03-01';
         if(is_string($body))$headers[]='Content-Type: application/json';
-        if($this->transport!==null)return ($this->transport)($driver,$path,$body,$headers);
+        $method=$method!==''?$method:($body===null?'GET':'POST');
+        if($this->transport!==null)return ($this->transport)($driver,$path,$body,$headers,$method);
         $handle=curl_init('https://api.'.$driver.'.ai'.$path);
         if($handle===false)throw new RuntimeException('voice_sync_unavailable');
         $response='';
@@ -117,11 +126,13 @@ final class CloudVoiceLibrary
             CURLOPT_WRITEFUNCTION=>static function($handle,string $chunk)use(&$response):int{
                 if(strlen($response)+strlen($chunk)>32_000_000)return 0;$response.=$chunk;return strlen($chunk);
             }]);
+        if($method==='DELETE')curl_setopt($handle,CURLOPT_CUSTOMREQUEST,'DELETE');
         if($body!==null)curl_setopt_array($handle,[CURLOPT_POST=>true,CURLOPT_POSTFIELDS=>$body]);
         try{$ok=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);
             $cancellation?->throwIfCancellationRequested();
             if($ok===false||$status<200||$status>=300)throw new RuntimeException('voice_provider_http_'.$status);
         }finally{curl_close($handle);}
+        if($method==='DELETE')return [];
         try{$payload=json_decode($response,true,32,JSON_THROW_ON_ERROR);}catch(\JsonException){throw new RuntimeException('voice_provider_invalid_response');}
         if(!is_array($payload))throw new RuntimeException('voice_provider_invalid_response');
         return $payload;

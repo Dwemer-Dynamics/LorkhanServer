@@ -1584,6 +1584,58 @@ foreach(['inworld','cartesia'] as $forgetDriver){
 $workspaceResolver->forget('mw_dark_elf_male');
 $check(!is_file($inworldRoot.'/.inworld-cache/'.hash_hmac('sha256',"fixture\nmw_dark_elf_male",'selected-tts-fixture-key').'.json'),
     'Studio can forget the selected workspace mapping as well as the account default');
+// Cloud lifecycle checks use synthetic audio and an injected transport, never a real provider account.
+file_put_contents($inworldRoot.'/managed_fixture.wav',$wav);
+foreach(['inworld','cartesia'] as $managedDriver){
+    $lifecycleCalls=[];$cloneNumber=0;$deleteFails=false;$forcedClone='';
+    $lifecycleLibrary=new \LorkhanServer\Application\CloudVoiceLibrary($inworldCredentials,
+        static function(string $driver,string $path,array|string|null $body,array $headers,string $method)use(&$lifecycleCalls,&$cloneNumber,&$deleteFails,&$forcedClone):array{
+            $lifecycleCalls[]=[$method,$path];
+            if($method==='DELETE'){if($deleteFails)throw new RuntimeException('voice_provider_http_503');return [];}
+            if($method==='GET')return ['voices'=>[]];
+            $id=$forcedClone!==''?$forcedClone:($driver==='inworld'?'lifecycle__'.(++$cloneNumber):sprintf('12345678-1234-1234-1234-%012d',++$cloneNumber));
+            return $driver==='inworld'?['voice'=>['voiceId'=>$id]]:['id'=>$id];
+        },[$managedDriver=>$ttsReference],'lifecycle');
+    $lifecycleResolver=new \LorkhanServer\Application\InworldVoiceResolver($lifecycleLibrary,$inworldCredentials,$inworldRoot,$managedDriver,$ttsReference,'lifecycle');
+    $liveId=$lifecycleResolver->resolve('managed_fixture','en',new NeverCancelledToken());
+    $check($lifecycleResolver->isManaged('managed_fixture',$liveId),$managedDriver.' records installation ownership only after creating its clone');
+    $deleteCount=count($lifecycleCalls);
+    try{$lifecycleResolver->deleteManaged('managed_fixture','wrong-id');$check(false,'Managed deletion rejects stale ID');}
+    catch(RuntimeException $e){$check($e->getMessage()==='voice_not_managed'&&count($lifecycleCalls)===$deleteCount,$managedDriver.' rejects a mismatched remote delete before any network call');}
+    $validate=static fn(string $id):array=>['bytes'=>$wav];
+    $replacement=$lifecycleResolver->rebuild('managed_fixture','en',$validate);
+    $deletePrefix=$managedDriver==='inworld'?'/voices/v1/voices/':'/voices/';
+    $check($replacement['id']!==$liveId&&$lifecycleResolver->isManaged('managed_fixture',$replacement['id'])
+        &&end($lifecycleCalls)===['DELETE',$deletePrefix.$liveId]&&!$replacement['cleanup_failed'],
+        $managedDriver.' publishes a validated replacement then deletes its owned predecessor');
+    $liveId=$replacement['id'];
+    try{$lifecycleResolver->rebuild('managed_fixture','en',static fn():array=>['bytes'=>'invalid audio']);$check(false,'Invalid replacement audio rejected');}
+    catch(RuntimeException){$check($lifecycleResolver->isManaged('managed_fixture',$liveId)&&end($lifecycleCalls)[0]==='DELETE'
+        &&end($lifecycleCalls)[1]!==$deletePrefix.$liveId,$managedDriver.' failed validation deletes only the candidate and preserves the live mapping');}
+    $forcedClone=$liveId;$deleteCount=count($lifecycleCalls);
+    try{$lifecycleResolver->rebuild('managed_fixture','en',$validate);$check(false,'Repeated live clone ID rejected');}
+    catch(RuntimeException $e){$check($e->getMessage()==='voice_clone_reused_id'&&count($lifecycleCalls)===$deleteCount+1
+        &&$lifecycleResolver->isManaged('managed_fixture',$liveId),$managedDriver.' never cleans up a clone response that repeats the live ID');}
+    $forcedClone='';$deleteFails=true;
+    try{$lifecycleResolver->deleteManaged('managed_fixture',$liveId);$check(false,'Provider delete failure surfaced');}
+    catch(RuntimeException $e){$check($e->getMessage()==='voice_provider_http_503'&&$lifecycleResolver->isManaged('managed_fixture',$liveId),$managedDriver.' failed remote deletion retains its mapping');}
+    try{$lifecycleResolver->rebuild('managed_fixture','en',static fn():array=>['bytes'=>'invalid audio']);$check(false,'Failed validation cleanup surfaced');}
+    catch(RuntimeException $e){$check($e->getMessage()==='voice_validation_cleanup_failed'&&$lifecycleResolver->isManaged('managed_fixture',$liveId),
+        $managedDriver.' reports failed candidate cleanup while preserving the working mapping');}
+    $replacement=$lifecycleResolver->rebuild('managed_fixture','en',$validate);
+    $check($replacement['cleanup_failed']&&$lifecycleResolver->isManaged('managed_fixture',$replacement['id']),
+        $managedDriver.' reports old-clone cleanup failure without discarding the validated replacement');
+    $deleteFails=false;$lifecycleResolver->deleteManaged('managed_fixture',$replacement['id']);
+    $check(!$lifecycleResolver->isManaged('managed_fixture',$replacement['id'])&&file_get_contents($inworldRoot.'/managed_fixture.wav')===$wav,
+        $managedDriver.' successful managed deletion forgets the ID but preserves the local sample');
+    $legacyPath=$inworldRoot.'/.'.$managedDriver.'-cache/'.hash_hmac('sha256',($managedDriver==='inworld'?"lifecycle\n":'').'managed_fixture','selected-tts-fixture-key').'.json';
+    file_put_contents($legacyPath,json_encode(['voice_id'=>'external-voice']));$deleteCount=count($lifecycleCalls);
+    try{$lifecycleResolver->deleteManaged('managed_fixture','external-voice');$check(false,'Legacy voice must not be deleted');}
+    catch(RuntimeException $e){$check($e->getMessage()==='voice_not_managed'&&count($lifecycleCalls)===$deleteCount,$managedDriver.' legacy entries do not acquire ownership retroactively');}
+    $replacement=$lifecycleResolver->rebuild('managed_fixture','en',$validate);
+    $check(!$replacement['cleanup_failed']&&count($lifecycleCalls)===$deleteCount+1,
+        $managedDriver.' replacing an external voice never deletes the external predecessor');
+}
 foreach(['../wrong','workspaces/fixture/extra','https://other.invalid', ['fixture']]as$invalidWorkspace){
     try{ConnectorCatalog::validate('tts_provider',ConnectorCatalog::defaults('tts_provider','inworld')+['driver'=>'inworld','options'=>['workspace'=>$invalidWorkspace]]);$check(false,'invalid workspace rejected');}
     catch(InvalidArgumentException){$check(true,'Inworld workspace rejects paths, URLs and non-string values before save');}
@@ -1644,7 +1696,7 @@ try{$notReadyResolver->resolve('mw_dark_elf_male','en',new NeverCancelledToken()
 catch(RuntimeException $e){$check($e->getMessage()==='voice_registration_not_ready','incomplete OmniVoice registration is not reported as usable');}
 foreach(['.cartesia-cache','.local-voice-cache']as$directory){foreach(glob($inworldRoot.'/'.$directory.'/*')?:[]as$file)unlink($file);rmdir($inworldRoot.'/'.$directory);}
 foreach(glob($inworldRoot.'/.inworld-cache/*')?:[]as$file)unlink($file);
-rmdir($inworldRoot.'/.inworld-cache');unlink($inworldRoot.'/keys.json');unlink($inworldRoot.'/mw_dark_elf_male.wav');rmdir($inworldRoot);
+rmdir($inworldRoot.'/.inworld-cache');unlink($inworldRoot.'/keys.json');unlink($inworldRoot.'/mw_dark_elf_male.wav');unlink($inworldRoot.'/managed_fixture.wav');rmdir($inworldRoot);
 
 $cloudSttPreset=static fn(string $driver):array=>['kind'=>'stt_provider','content'=>['driver'=>$driver,
     'endpoint'=>'https://example.com','model'=>'default','voice'=>'default','language'=>'en-US','timeout_ms'=>30000,'options'=>[]]];
