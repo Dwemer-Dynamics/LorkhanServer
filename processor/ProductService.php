@@ -104,7 +104,7 @@ final class ProductService
     public function saveItemDescription(array $input): array
     {
         $this->requireUuid($input,'installation_id');
-        foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,1,$limit);
+        foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,in_array($field,['display_name','description'],true)?0:1,$limit);
         return$this->repository->saveItemDescription($input,$this->clock->iso());
     }
 
@@ -118,7 +118,7 @@ final class ProductService
             if(!is_array($row)||array_is_list($row))throw new InvalidArgumentException('invalid_description_row');
             $input=['installation_id'=>$installationId,'content_file'=>$row['plugin']??null,'record_id'=>$row['baseid']??null,
                 'display_name'=>$row['name']??null,'description'=>$row['description']??null];
-            foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,1,$limit);
+            foreach(['content_file'=>256,'record_id'=>256,'display_name'=>256,'description'=>8192]as$field=>$limit)$this->boundedString($input,$field,in_array($field,['display_name','description'],true)?0:1,$limit);
             $key=strtolower(trim((string)$input['content_file']))."\0".strtolower(trim((string)$input['record_id']));
             if(isset($seen[$key]))throw new InvalidArgumentException('duplicate_description_identity');
             $seen[$key]=true;$validated[]=$input;
@@ -412,7 +412,7 @@ final class ProductService
         $input['title']=trim((string)($input['title']??str_replace('_',' ',$input['topic'])));
         $input['content']=trim((string)($input['content']??$input['topic_desc']??''));
         $input['topic_desc_basic']=trim((string)($input['topic_desc_basic']??$input['content']));
-        foreach(['topic'=>256,'title'=>256,'content'=>131072,'topic_desc_basic'=>131072]as$field=>$max)$this->boundedString($input,$field,1,$max);
+        foreach(['topic'=>256,'title'=>256,'content'=>131072,'topic_desc_basic'=>131072]as$field=>$max)$this->boundedString($input,$field,$field==='topic_desc_basic'?0:1,$max);
         foreach(['aliases','knowledge_class','knowledge_class_basic','tags']as$field){$value=$input[$field]??'';
             if(is_array($value)){if(!array_is_list($value))throw new InvalidArgumentException('invalid_'.$field);$items=array_map(static fn(mixed$item):string=>trim((string)$item),$value);$value=implode($field==='aliases'?' | ':',',$items);}
             elseif($field==='aliases'&&is_string($value))$value=preg_replace('/\s*[|;]\s*/u',' | ',$value)??$value;
@@ -421,7 +421,7 @@ final class ProductService
             preg_split('/\s*[,|;]\s*/u',$input['knowledge_class'])?:[]),true))throw new InvalidArgumentException('invalid_knowledge_class');
         $input['knowledge_class_basic']=$input['knowledge_class_basic']===''?'common':$input['knowledge_class_basic'];
         $input['category']=trim((string)($input['category']??($input['provenance']['category']??'LORKHAN')));
-        if($input['category']===''||strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');
+        if(strlen($input['category'])>128||!mb_check_encoding($input['category'],'UTF-8'))throw new InvalidArgumentException('invalid_category');
         return$input;
     }
 

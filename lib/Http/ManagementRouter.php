@@ -451,7 +451,7 @@ final class ManagementRouter
             'connector-default-voice'=>$this->reviseConnectorDefaultVoice($v),
             'connector-clone'=>$this->cloneConnector($v),
             'connector-import'=>$this->importConnector($v,$scope),
-            'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>$this->need($v,'display_name'),'description'=>$this->need($v,'description')]),
+            'description-save'=>$this->service->saveItemDescription(['installation_id'=>$scope['installation_id'],'content_file'=>$this->need($v,'content_file'),'record_id'=>$this->need($v,'record_id'),'display_name'=>(string)($v['display_name']??''),'description'=>(string)($v['description']??'')]),
             'description-delete'=>$this->service->deleteItemDescription($this->need($v,'description_id'),$scope['installation_id']??throw new InvalidArgumentException('invalid_installation_id')),
             'description-reset'=>$this->resetDescriptions($v,$scope),
             'prompts'=>$this->service->createRevisioned('prompt',['installation_id'=>$scope['installation_id'],'name'=>$this->need($v,'name'),'content'=>$this->promptFormContent($v,$content,true)]),
@@ -2385,9 +2385,9 @@ final class ManagementRouter
         if($title==='')$title=str_replace('_',' ',$topic);
         return['topic'=>$topic,'title'=>$title,'aliases'=>(string)($values['aliases']??''),
             'content'=>$this->need($values,'content'),'knowledge_class'=>(string)($values['knowledge_class']??''),
-            'topic_desc_basic'=>$this->need($values,'topic_desc_basic'),'knowledge_class_basic'=>(string)($values['knowledge_class_basic']??''),
-            'tags'=>(string)($values['tags']??''),'category'=>$this->need($values,'category'),
-            'provenance'=>['source'=>$source,'category'=>$this->need($values,'category')]];
+            'topic_desc_basic'=>(string)($values['topic_desc_basic']??''),'knowledge_class_basic'=>(string)($values['knowledge_class_basic']??''),
+            'tags'=>(string)($values['tags']??''),'category'=>(string)($values['category']??''),
+            'provenance'=>['source'=>$source,'category'=>(string)($values['category']??'')]];
     }
 
     private function actionCatalog():string

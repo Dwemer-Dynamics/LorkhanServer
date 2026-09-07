@@ -120,6 +120,17 @@ $check($runner->up() === [$latestVersion], 'up did not restore reverted migratio
 $check($runner->rerun() === $latestVersion, 'rerun did not cycle latest migration');
 $check($runner->fresh() === $expectedVersions, 'fresh did not rebuild all migrations');
 
+// Optional catalog fields must not be filled with invented text by a downgrade.
+$db->beginTransaction();
+$optionalInstallation=Uuid::v4();
+$db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:id,:token)')->execute(['id'=>$optionalInstallation,'token'=>str_repeat('a',64)]);
+$db->prepare("INSERT INTO item_descriptions(description_id,installation_id,content_file,record_id,display_name,description) VALUES(:id,:installation,'Test.esp','blank_item','','')")->execute(['id'=>Uuid::v4(),'installation'=>$optionalInstallation]);
+$db->exec('SAVEPOINT optional_catalog_rollback');
+try {$db->exec((string)file_get_contents(dirname(__DIR__).'/data/migrations/090_catalog_optional_fields.down.sql'));$check(false,'blank catalog downgrade should be refused');}
+catch(PDOException $error) {$check(str_contains($error->getMessage(),'Cannot restore required catalog fields'),'unexpected optional catalog rollback failure');$db->exec('ROLLBACK TO SAVEPOINT optional_catalog_rollback');}
+$check($db->query("SELECT display_name='' AND description='' FROM item_descriptions WHERE record_id='blank_item'")->fetchColumn()===true,'refused downgrade changed blank fields');
+$db->rollBack();
+
 // Prove the latest data migration round-trips legacy sparse overrides into complete Herika action rows.
 $formatInstallation=Uuid::v4();$formatConfiguration=Uuid::v4();
 $db->prepare('INSERT INTO installations(installation_id,token_fingerprint) VALUES(:installation,:token)')
@@ -807,7 +818,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
     $coverageCatalogPages=[];
     foreach([1,2,3]as$coveragePage){
         $coverageCatalogPages[]=$uiDescriptions->oghmaCatalog([
-            'installation_id'=>$installation,'search'=>'coverage topic','page'=>$coveragePage,'page_size'=>999,
+            'installation_id'=>$installation,'search'=>'coverage_top','page'=>$coveragePage,'page_size'=>999,
         ]);
     }
     $coverageCatalogIds=array_merge(...array_map(
@@ -815,7 +826,7 @@ $check(array_column($oghmaSelection['rows'],'topic')===['Vivec','Tribunal','Balm
         $coverageCatalogPages
     ));
     $coveragePastEnd=$uiDescriptions->oghmaCatalog([
-        'installation_id'=>$installation,'search'=>'coverage topic','page'=>999,'page_size'=>999,
+        'installation_id'=>$installation,'search'=>'coverage_top','page'=>999,'page_size'=>999,
     ]);
     $check(
         array_map(static fn(array$page):int=>count($page['rows']),$coverageCatalogPages)===[500,500,300]

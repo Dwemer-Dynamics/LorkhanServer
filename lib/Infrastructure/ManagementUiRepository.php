@@ -17,7 +17,8 @@ final class ManagementUiRepository
         $order=strtolower((string)($filters['order']??'asc'))==='desc'?'DESC':'ASC';$page=max(1,(int)($filters['page']??1));$pageSize=max(1,min(500,(int)($filters['page_size']??50)));
         $scope=['d.deleted_at IS NULL','d.profile_id IS NULL','d.playthrough_id IS NULL'];$where=[];$params=[];$installation=trim((string)($filters['installation_id']??''));
         if($installation!==''){$scope[]='d.installation_id=:installation';$params['installation']=$installation;}
-        if($search!==''){$where[]="to_tsvector('simple',concat_ws(' ',d.topic,d.title,d.aliases,d.content,d.topic_desc_basic,d.tags)) @@ plainto_tsquery('simple',:search)";$params['search']=$search;}
+        // The editor searches topic names and aliases by substring; runtime knowledge retrieval is separate.
+        if($search!==''){$where[]="(d.topic ILIKE :topic_search OR COALESCE(d.aliases,'') ILIKE :alias_search)";$params['topic_search']=$params['alias_search']='%'.$search.'%';}
         if($category!==''){$where[]='d.category=:category';$params['category']=$category;}
         $columns='d.document_id,d.installation_id,d.profile_id,d.playthrough_id,d.topic,d.title,d.aliases,d.content,d.knowledge_class,d.topic_desc_basic,d.knowledge_class_basic,d.tags,d.category,d.provenance,d.created_at';
         // Custom articles override the factory catalog for the same canonical topic, newest custom row first,

@@ -83,8 +83,8 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_biographies.php` | `npc_upload.php` | Header, summary, Add/Edit, Extended Profiles and inline Oghma reader aligned; scoped import/edit wiring and full-catalog search/paging fixed. Factory reset, full custom export and batch-help presentation remain. |
 | `function_editor.php` | Same path | Summary, filters, editable rows, Behavior controls, scoped saves and both readers aligned; populated/empty and narrow states checked. Negotiated OpenMW parameters remain read-only; see Action Editor evidence below. |
 | `prompts_manager.php` | Same path | Full header/CSV/search/table/reader comparison completed; Default/Custom editing, safe Clear, CSV round trip and plain instruction creation implemented; desktop/narrow, populated/empty, search and keyboard controls checked; retained document tools and validation limits documented below |
-| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Factory/custom states, keyboard and narrow layouts checked. Dynamic Oghma, destructive catalog controls and remaining search/category contract differences still require work. |
-| `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Installation tools retained below the main table. Existing stricter Name/Description validation remains a contract difference. |
+| `worldknowledge_upload.php` | `oghma_upload.php` | Regular Oghma header/search-logic panels, category filters, table, badges and Add/Edit dialogs compared and corrected. Topic/alias substring search and optional Basic Description/Category now match the reference form contract, including CSV. Dynamic Oghma and destructive catalog controls still require work. Latest migration/tests/deployment evidence below. |
+| `description_manager.php` | `description_upload.php` | Compact header, paired panels, five-column table, alphabet/search controls and Add/Edit dialogs aligned; populated/empty, full-text editing, keyboard and narrow states compared. Name and Description are now optional in forms/save/CSV, with stable OpenMW plugin/record identity retained. Latest migration/tests/deployment evidence below. |
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
@@ -2477,3 +2477,52 @@ Remaining Core Profile requirements identified from the pinned source and live e
   contiguous speaker bands. The document stays within the 1280px viewport.
   No live data was changed, no speech provider was called and no game was launched
   or controlled. The remaining all-page matrix stays open.
+
+## Knowledge editor field and search contract checkpoint
+
+- Compared the pinned Description Manager and regular Oghma forms with the
+  current source-rendered dialogs. Both use the existing 800px dialog shell;
+  Name/Description are optional for items, and only Topic/Advanced Description
+  are required for Oghma. Removed the invented initial `lore` category and the
+  extra Category requirement. Item plugin and record ID remain mandatory because
+  OpenMW identity has no Skyrim legacy wildcard-key equivalent.
+- Updated form mapping, service validation and migration 090 together. Explicit
+  blank names, descriptions, categories and Basic Description survive individual
+  saves, edits and CSV imports. Native field-size, UTF-8, scope and identity checks
+  remain. No existing catalog values are rewritten. The downgrade refuses saved
+  blanks instead of manufacturing replacement names or knowledge.
+- Regular Oghma editor search now applies case-insensitive substring matching to
+  Topic and Aliases, like the reference. Description, Basic Description, title and
+  tags do not create unrelated results. Filters run after factory/custom override
+  resolution and before paging. Runtime retrieval and NPC permission decisions
+  are unchanged.
+- Existing HTTP coverage checks blank save/readback/CSV paths, partial topic and
+  alias matches, description/tag-only exclusions, category/scope filters and
+  rejection of missing required fields. A restricted NPC cannot read advanced
+  text when Basic Description is blank: the existing access policy omits that
+  article entirely. The first new assertion incorrectly expected an empty Basic
+  row; it was corrected after inspecting the access policy, without changing it.
+- The existing 1,300-article pagination test now searches a real topic substring
+  rather than a full-text-only title phrase. It still verifies the 500-row cap,
+  every matching row and clamping beyond the last page. Added a small downgrade
+  refusal check to the existing migration suite; no new test file.
+- Browser comparisons covered populated and empty source fixtures, required-field
+  validity, blank optional values, Cancel focus restoration and 390px editor
+  scrolling. Buttons and blank fields remain reachable without document overflow.
+  These were isolated presentation fixtures, not mutations of live catalogs.
+- Final full check passed: PHP lint, 98 protocol files, 370 server checks,
+  management HTTP, integration vertical slice and migration/durable-job tests.
+  Updated schema evidence records the four relaxed constraints; relation/column
+  counts remain 167/1,562.
+- Deployed with rollback `/var/backups/lorkhanserver-code.4gZDUB`. All 746 runtime
+  files match source with no extras or old paths. Private files return 403 on
+  the three checked Apache ports; unauthenticated sessions return 401.
+  Configuration, credentials and voice file hashes were preserved.
+- Live PostgreSQL inspection confirms all four optional-field constraints now
+  allow zero length while keeping their existing upper bounds. Live Oghma search
+  for `dag` finds 19 topic/alias matches, including canonical `ash_vampires`
+  through alias `Dagoth Ash Vampires`. Both deployed Add dialogs expose the
+  expected required/optional fields; Category starts blank and Cancel works.
+  No live article or item was created, edited or deleted for these checks, no
+  speech provider was called, and no game was launched or controlled. Dynamic
+  Oghma, its destructive controls and other incomplete matrix rows remain open.

@@ -183,13 +183,16 @@ catalog rather than truncating it or loading every row into the browser.
 `ui/js/descriptions.js` adapt the compact header, paired panels, table and
 Add/Edit dialog presentation from pinned HerikaServer
 `ui/description_upload.php` under the same MIT license. Lorkhan retains its
-installation-scoped OpenMW record keys and existing description contracts.
+installation-scoped OpenMW record keys. Optional Name/Description fields and CSV
+handling now follow the reference editor contract.
 
 The updated `ui/worldknowledge_upload.php`, `ui/css/herika-oghma.css` and
 `ui/js/oghma.js` adapt the encyclopedia header, Article Search Logic panels,
 filters, table badges and regular Add/Edit dialogs from pinned HerikaServer
 `ui/oghma_upload.php` under the same MIT license. OpenMW knowledge scope and
 factory override semantics remain Lorkhan's existing implementation.
+The topic/alias substring search and optional Basic Description/Category fields
+also follow this reference; runtime retrieval and knowledge access are unchanged.
 
 `ui/oghma_knowledge.php` and `ui/css/herika-oghma-runtime.css` adapt the
 three-column knowledge reader, metadata chips, filter controls and typography

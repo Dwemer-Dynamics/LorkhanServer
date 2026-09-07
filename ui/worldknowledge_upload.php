@@ -84,7 +84,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
 
     <label for="<?php echo $prefix; ?>-category">Category:</label>
     <small>Category for database searching.</small>
-    <input type="text" name="category" id="<?php echo $prefix; ?>-category" value="<?php echo $field('category'); ?>" required>
+    <input type="text" name="category" id="<?php echo $prefix; ?>-category" value="<?php echo $field('category'); ?>">
     <input type="hidden" name="title" id="<?php echo $prefix; ?>-title" value="<?php echo $field('title'); ?>">
     <input type="hidden" name="provenance" value="management">
     <?php
@@ -332,7 +332,7 @@ $modalFields = static function (string $prefix, array $row = []): void {
             <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/knowledge">
                 <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
                 <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($selectedInstallation); ?>">
-                <?php $modalFields('new', ['category' => 'lore']); ?>
+                <?php $modalFields('new'); ?>
                 <div class="modal-footer">
                     <button type="submit" class="btn-save">Save</button>
                     <button type="button" class="btn-base btn-cancel" data-oghma-modal-close>Cancel</button>

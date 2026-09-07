@@ -532,9 +532,43 @@ description_values.update(display_name='Edited UI Description Fixture',descripti
 assert request(description_form['action'],'POST',description_values).status==200
 exported_descriptions=list(csv.DictReader(io.StringIO(request(description_export_url).read().decode('utf-8-sig'))))
 assert next(row for row in exported_descriptions if row['baseid']==description_record)['description']=='Updated full description.'
+# Optional editor fields must remain blank through save, readback and CSV re-import.
+description_values.update(display_name='',description='')
+assert request(description_form['action'],'POST',description_values).status==200
+blank_descriptions=list(csv.DictReader(io.StringIO(request(description_export_url).read().decode('utf-8-sig'))))
+blank_description=next(row for row in blank_descriptions if row['baseid']==description_record)
+assert blank_description['name']=='' and blank_description['description']==''
+blank_csv=io.StringIO(); blank_writer=csv.DictWriter(blank_csv,fieldnames=['plugin','baseid','name','description']); blank_writer.writeheader(); blank_writer.writerow(blank_description)
+assert multipart_request('/LorkhanServer/manage/forms/description-import',{'_csrf':csrf,'installation_id':description_values['installation_id']},'csv_file','blank-description.csv','text/csv',blank_csv.getvalue().encode()).status==200
+assert request(description_form['action'],'POST',dict(description_values,record_id='')).status!=200
 assert request('/LorkhanServer/manage/forms/description-delete','POST',{'_csrf':csrf,'installation_id':description_values['installation_id'],'description_id':description_entry['description_id']}).status==200
 assert 'No descriptions found.' in request('/LorkhanServer/ui/description_manager.php?search='+description_record).read().decode()
 oghma_response=request('/LorkhanServer/ui/worldknowledge_upload.php'); text=oghma_response.read().decode(); assert oghma_response.status==200 and 'Oghma Infinium' in text and 'Dynamic Oghma' not in text
+oghma_page,_=parse(request('/LorkhanServer/ui/worldknowledge_upload.php'))
+oghma_form=next(form for form in oghma_page.forms if form['action'].endswith('/forms/knowledge'))
+oghma_topic='partialcatalog'+uuid.uuid4().hex
+oghma_values=dict(oghma_form['fields'],_csrf=csrf,topic=oghma_topic,title='',aliases='The HalfRememberedName',content='DescriptionOnlyNeedle',knowledge_class='scholar',topic_desc_basic='',knowledge_class_basic='common',tags='TagsOnlyNeedle',category='')
+assert request(oghma_form['action'],'POST',oghma_values).status==200
+oghma_url='/LorkhanServer/ui/worldknowledge_upload.php?'+urllib.parse.urlencode({'installation_id':oghma_values['installation_id']})
+partial_page=request(oghma_url+'&search=PARTIALCAT').read().decode()
+oghma_entries=[json.loads(html.unescape(value)) for value in re.findall(r"data-oghma-edit='([^']+)'",partial_page)]
+optional_article=next(row for row in oghma_entries if row['topic']==oghma_topic)
+assert optional_article['topic_desc_basic']=='' and optional_article['category']==''
+assert oghma_topic+'</td>' in request(oghma_url+'&search=remembered').read().decode()
+assert 'No entries found.' in request(oghma_url+'&search=DescriptionOnlyNeedle').read().decode()
+assert 'No entries found.' in request(oghma_url+'&search=TagsOnlyNeedle').read().decode()
+assert 'No entries found.' in request(oghma_url+'&search=PARTIALCAT&category=Unrelated').read().decode()
+assert 'No entries found.' in request(oghma_url.replace(oghma_values['installation_id'],str(uuid.uuid4()))+'&search=PARTIALCAT').read().decode()
+assert request('/LorkhanServer/manage/forms/knowledge-revise','POST',dict(oghma_values,document_id=optional_article['document_id'],content='Edited advanced content.')).status==200
+oghma_csv=io.StringIO(); oghma_writer=csv.writer(oghma_csv); oghma_writer.writerow(['topic','topic_desc','knowledge_class','topic_desc_basic','knowledge_class_basic','tags','category','aliases']); oghma_writer.writerow([oghma_topic,'CSV advanced content.','scholar','','common','','','The HalfRememberedName'])
+assert multipart_request('/LorkhanServer/manage/forms/knowledge-import',{'_csrf':csrf,'installation_id':oghma_values['installation_id']},'csv_file','optional-oghma.csv','text/csv',oghma_csv.getvalue().encode()).status==200
+reloaded_article=next(json.loads(html.unescape(value)) for value in re.findall(r"data-oghma-edit='([^']+)'",request(oghma_url+'&search=PARTIALCAT').read().decode()) if json.loads(html.unescape(value))['topic']==oghma_topic)
+assert reloaded_article['topic_desc_basic']=='' and reloaded_article['category']=='' and reloaded_article['content']=='CSV advanced content.'
+basic_knowledge_raw=request(biography_knowledge_url+'&search='+oghma_topic).read().decode()
+assert 'CSV advanced content.' not in basic_knowledge_raw
+basic_knowledge=json.loads(basic_knowledge_raw)
+assert basic_knowledge['total']==0 and basic_knowledge['counts']['denied']==biography_knowledge['counts']['denied']+1,basic_knowledge
+assert request(oghma_form['action'],'POST',dict(oghma_values,content='')).status!=200
 assert request('/LorkhanServer/ui/server_plugins.php').status==404
 assert request('/LorkhanServer/manage/server-plugins').status==404
 assert request('/LorkhanServer/ui/itt_connectors.php').status==404
