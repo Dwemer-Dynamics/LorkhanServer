@@ -419,7 +419,11 @@ final class ManagementRouter
             return$this->redirect($this->uiPath($target).$joiner.http_build_query(['status'=>'tested','detail'=>$detail]));
         }
         if($domain==='provider-test'){
-            $detail=$this->testProvider($v);
+            try{$detail=$this->testProvider($v);}catch(RuntimeException $error){
+                if(!$this->htmlRequest($r))return Response::json(502,['error'=>'provider_test_failed']);
+                throw$error;
+            }
+            if(!$this->htmlRequest($r))return Response::json(200,['ok'=>true,'message'=>$detail]);
             return$this->redirect($this->uiPath('providers').'?'.http_build_query(['status'=>'tested','detail'=>$detail]));
         }
         if($domain==='provider-runtime-test'){
@@ -2594,6 +2598,7 @@ final class ManagementRouter
     private function html(int $status,string $body):Response{return new Response($status,$body,['Content-Type'=>'text/html; charset=utf-8','Content-Security-Policy'=>"default-src 'none'; style-src 'self'; script-src 'self'; font-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'self'; form-action 'self'; base-uri 'none'; frame-ancestors 'self'",'X-Content-Type-Options'=>'nosniff','Referrer-Policy'=>'no-referrer']);}
     private function errorPage(string $e,int $status):Response{return$this->html($status,(new ManagementView($this->basePath))->error($e));}
     private function htmlRequest(Request $r):bool{return!str_contains($r->path,'/api/v1/')
+        &&!(str_ends_with($r->path,'/forms/provider-test')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!(str_ends_with($r->path,'/forms/player-speech-style-generate')&&str_contains(strtolower($r->header('Accept')??''),'application/json'))
         &&!((str_ends_with($r->path,'/forms/global-settings-preset')||str_ends_with($r->path,'/forms/core-profile-preset')||str_ends_with($r->path,'/forms/profile-bulk-switch')||str_ends_with($r->path,'/forms/configuration-revise')||str_ends_with($r->path,'/forms/narrator-prompt-save'))
             &&str_contains(strtolower($r->header('Accept')??''),'application/json'));}

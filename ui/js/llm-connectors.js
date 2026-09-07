@@ -1,5 +1,49 @@
 // Shows only the LLM connector fields the selected mode uses, without clearing any saved value.
 (() => {
+    // Keep the explicit saved-connector test in Herika's reader without navigating or saving drafts.
+    const testForm = document.querySelector('[data-llm-test-form]');
+    const testDialog = document.getElementById('llm-test-dialog');
+    if (testForm && testDialog) {
+        const button = testForm.querySelector('button[type="submit"]');
+        const result = testDialog.querySelector('[data-llm-test-result]');
+        const loader = testDialog.querySelector('[data-llm-test-loading]');
+        let pending = false;
+        testDialog.querySelector('[data-llm-test-close]').addEventListener('click', () => testDialog.close());
+        testDialog.addEventListener('click', event => {
+            const rect = testDialog.getBoundingClientRect();
+            if (event.target === testDialog && (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom)) testDialog.close();
+        });
+        testDialog.addEventListener('close', () => { if (!button.disabled) button.focus(); });
+        testForm.addEventListener('submit', async event => {
+            event.preventDefault();
+            if (pending) return;
+            pending = true;
+            button.disabled = true;
+            result.className = '';
+            result.textContent = 'Testing saved settings… Closing this dialog does not cancel the server request.';
+            testDialog.querySelector('[data-llm-test-name]').textContent = testForm.dataset.connectorName;
+            loader.hidden = false;
+            testDialog.showModal();
+            const controller = new AbortController();
+            const timeout = setTimeout(() => controller.abort(), 130000);
+            try {
+                const response = await fetch(testForm.action, {method:'POST', body:new FormData(testForm),
+                    headers:{Accept:'application/json'}, credentials:'same-origin', referrerPolicy:'same-origin', signal:controller.signal});
+                const payload = await response.json();
+                if (!response.ok || payload.ok !== true || typeof payload.message !== 'string') throw new Error('test_failed');
+                result.textContent = payload.message;
+                result.className = 'llm-test-ok';
+            } catch {
+                result.textContent = 'Test failed. Check the saved connector, API key and server logs. Your editor changes were not saved.';
+                result.className = 'llm-test-error';
+            } finally {
+                clearTimeout(timeout);
+                loader.hidden = true;
+                pending = false;
+                button.disabled = false;
+            }
+        });
+    }
     // Herika's sidebar Import opens a picker directly; the link remains a no-JavaScript paste fallback.
     const importOpener = document.querySelector('[data-llm-import-open]');
     const importPicker = document.getElementById('llm-import-picker');

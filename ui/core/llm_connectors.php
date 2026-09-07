@@ -345,7 +345,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                             <div class="llm-editor-toolbar">
                                 <button class="btn-save" type="submit" form="<?php echo lorkhan_ui_h($formId); ?>"><?php echo $creating ? 'Create' : 'Save'; ?></button>
                                 <?php if (!$creating): ?>
-                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary llm-test-button" type="submit">Test</button></form>
+                                <form method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/provider-test" data-llm-test-form data-connector-name="<?php echo lorkhan_ui_h($selected['name']); ?>"><input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>"><input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>"><input type="hidden" name="configuration_id" value="<?php echo lorkhan_ui_h($selected['configuration_id']); ?>"><button class="btn-primary llm-test-button" type="submit">Test</button></form>
                                 <a class="btn-save" href="<?php echo lorkhan_ui_h($managementBasePath); ?>/exports/providers/<?php echo lorkhan_ui_h($selected['configuration_id']); ?>.json">Export</a>
                                 <div class="llm-test-note">Save does not call the provider. Test uses saved settings and may incur provider charges.</div>
                                 <?php endif; ?>
@@ -492,6 +492,17 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         </section>
     </div>
     <?php endif; ?>
+    <dialog id="llm-test-dialog" aria-labelledby="llm-test-title">
+        <button type="button" class="btn-secondary" data-llm-test-close autofocus>Close</button>
+        <div class="llm-test-wrap">
+            <h2 id="llm-test-title">🔧 LLM Connector Test</h2>
+            <div class="llm-test-panel"><strong>Connector:</strong> <span data-llm-test-name></span></div>
+            <div class="llm-test-panel" role="status" aria-live="polite"><strong>Status:</strong> <span data-llm-test-result></span></div>
+            <div class="llm-test-panel"><strong>Test input:</strong><pre>Reply with one brief in-character greeting.</pre><p>Uses saved connector settings. Does not queue game dialogue or change this editor.</p></div>
+            <div class="llm-test-panel"><strong>Debug:</strong><pre>Raw provider payloads, internal buffers and credentials are not exposed by this test.</pre></div>
+        </div>
+        <div class="llm-test-loading" data-llm-test-loading hidden><span class="llm-test-spinner" aria-hidden="true"></span><span class="visually-hidden">Testing connector</span></div>
+    </dialog>
 </main>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/resource-page.js?v=<?php echo lorkhan_ui_h($uiAssetVersion); ?>" defer></script>
 <script src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/ace/ace.js" defer></script>

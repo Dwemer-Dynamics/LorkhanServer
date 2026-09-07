@@ -3907,3 +3907,31 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   all 789 deployed files match, no extras/old paths, private 403/session 401 and
   health/NPC checks passed. Config, credentials and voices preserved. No game control.
   Full hub/narrow/interactive editor review and the remaining page matrix stay open.
+
+## LLM Test dialog and embedded reader — 2026-09-07
+
+- Replaced JavaScript-enabled Test navigation with a native dialog using Herika's
+  90%/1200px/80vh geometry, dark backdrop, Close/Escape/outside close, loading
+  indicator and bordered status panels. The no-JavaScript POST redirect still works.
+  API JSON summaries reuse the existing saved-connector test; runtime failures return
+  a generic code rather than internal exception text. Test does not save editor drafts.
+- Browser exercised the actual disposable MockProvider result, retained an unsaved
+  name, and verified Close returned focus to Test. A saved direct fixture targeting
+  unused loopback port 9 produced the safe failure reader; Escape closed it. The
+  same failure reader was checked inside Configuration Hub without losing the tab.
+- 390px fixture used current rendered HTML/CSS/JS with all remote requests blocked
+  and a delayed mock test result. Compared against copied pinned Herika reader CSS;
+  corrected the reader to 16px body and 13px preformatted text, plus gold heading.
+  Narrow content wraps and Close remains visible. No live Test, provider credentials,
+  or game interaction. Both temporary fixture servers were stopped.
+- This reader intentionally shows validated status and the fixed synthetic test input,
+  not fabricated raw/debug payloads. Herika's full request/response/internal-buffer
+  diagnostics are not yet captured by Lorkhan; this is still an explicit remaining
+  reader gap. Provider autosave-on-Test is also not copied: the UI clearly states
+  saved settings, preserving the established non-mutating Test behavior.
+- Passed 510 server checks, 98 protocol files, PHP lint, HTTP forms (HTML and JSON
+  test summaries), integration, migrations and durable jobs; JS syntax/whitespace
+  passed. Final changes after that pass were reader CSS sizing only.
+- Local rollback /var/backups/lorkhanserver-code.O1ESk3; all 789 runtime files match,
+  no extras/old paths, private 403/session 401 and health/NPC checks passed. Config,
+  credentials and voices preserved. Full remaining page/editor matrix stays open.

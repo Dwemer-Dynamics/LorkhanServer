@@ -1449,6 +1449,10 @@ slot_id=connector_editor_id(body,slot_name)
 llm_page,body=parse(request('/LorkhanServer/ui/core/llm_connectors.php?selected='+slot_id))
 model_test=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-test') and f['fields'].get('configuration_id')==slot_id)
 r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf)); body=r.read().decode(); assert r.status==200 and 'Test completed: 1 valid utterance' in body,(r.status,r.geturl(),body)
+r=request(model_test['action'],'POST',dict(model_test['fields'],_csrf=csrf),accept='application/json')
+test_summary=json.load(r); assert r.status==200 and test_summary['ok'] is True and '1 valid utterance' in test_summary['message']
+assert 'endpoint' not in test_summary and 'api_key' not in json.dumps(test_summary)
+assert 'id="llm-test-dialog"' in body and 'data-llm-test-loading' in body
 revise=next(f for f in llm_page.forms if f['action'].endswith('/forms/provider-revise') and f['fields'].get('configuration_id')==slot_id)
 values=dict(revise['fields'],_csrf=csrf,driver='mock',model='deterministic-mock-v2',mock_prefix='[revised] ',change_reason='HTTP model-slot test')
 r=request(revise['action'],'POST',values); body=r.read().decode(); assert r.status==200 and 'deterministic-mock-v2' in body,(r.status,r.geturl())
