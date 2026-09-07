@@ -163,8 +163,6 @@ body.llm-page-shell > main.llm-page {
     color: #9fb1c9;
 }
 
-.llm-page .connector-placeholder strong { color: #e9efff; font-weight: 600; }
-
 .llm-page .llm-editor-toolbar {
     display: flex;
     align-items: center;
@@ -423,9 +421,7 @@ body.llm-page-shell > main.llm-page {
 }
 
 /* Upstream leaves an unselected editor unframed, separate from the editable card. */
-.llm-page .llm-empty-selection { padding: 18px; color: #9fb1c9; }
-.llm-page .llm-empty-selection strong { color: #e9efff; font-weight: 600; }
-.llm-page .llm-empty-selection p { margin: 6px 0 0; }
+.llm-page .connector-placeholder strong { color: #e9efff; font-weight: 600; }
 
 .llm-page .llm-connection-field.llm-help-dismissed > .llm-field-tooltip,
 .llm-page .llm-option-field.llm-help-dismissed > .llm-field-tooltip { display: none; }

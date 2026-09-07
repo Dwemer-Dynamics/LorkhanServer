@@ -3676,3 +3676,19 @@ checkpoint remains the code under review. Other page/editor gaps remain open.
   desktop screenshot, including the success banner and preset toolbar.
 - No product code changed during this review. File chooser/download browser proof,
   built-in preset mappings and the remaining all-page matrix items remain open.
+
+## LLM unselected editor panel — 2026-09-07
+
+- Compared the deployed Configuration > LLM page with Herika's corresponding hub.
+  Found the unselected editor rendered as bare text rather than the reference's
+  outer editor panel and inset bordered placeholder. Reused the existing shared
+  editor container and connector-placeholder styles; removed obsolete empty-state
+  CSS. Provider data, settings, actions and persistence are unchanged.
+- Inspected the deployed corrected placeholder screenshot and the populated
+  DeepSeek editor inside the hub. The complete editor/hub interaction review is
+  still open; this checkpoint does not close the LLM row or all-pages goal.
+- Passed 498 server checks, changed PHP lint and whitespace checks. Deployment
+  rollback: /var/backups/lorkhanserver-code.6hrunJ. All 786 runtime hashes match;
+  no extra files or old paths. Private routes returned 403 and unauthenticated
+  session returned 401. Configuration, credentials and voice files were preserved.
+  No provider request, live settings save or game control was performed.
