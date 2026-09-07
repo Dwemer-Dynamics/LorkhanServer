@@ -256,3 +256,5 @@ OpenRouter model/provider catalogue dropdown and information-panel presentation 
 `529364c4c12b3a8bd4cc12a481f400ce19b3a344`, `ui/core/llm_connectors.php`.
 Lorkhan retains its typed connector form, private credentials and explicit saves;
 keyboard selection and viewport bounds are added to the shared presentation.
+The configured-first API-key list, missing-key divider, status markers and
+compact notice in the same LLM editor also adapt that pinned Herika source.

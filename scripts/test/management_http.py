@@ -1622,6 +1622,8 @@ assert len(llm_ranges)==8 and all(' name=' not in tag for tag in llm_ranges),llm
 assert re.search(r'id="llm_option_presence_penalty"[^>]*value=""',direct_editor),direct_editor
 assert re.search(r'id="llm_option_temperature"[^>]*value="0"',direct_editor),direct_editor
 assert re.search(r'id="llm_provider"[^>]*value="together, google-vertex/us-east5"',direct_editor),direct_editor
+assert 'No API key selected. Some services require a key.' in direct_editor
+assert re.search(r'<option value="custom" data-empty="1">🔴 Custom LLM key — No key</option>',direct_editor),direct_editor
 direct_test={'_csrf':csrf,'installation_id':valid['installation_id'],'configuration_id':direct_id}
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
@@ -1630,6 +1632,10 @@ assert sent['provider']=={'order':['together','google-vertex/us-east5']} and 'pr
 r=request('/LorkhanServer/ui/core/api_keys.php','POST',{'_csrf':csrf,'action':'set','variable':'LORKHAN_LLM_CUSTOM_API_KEY','credential':'local-parity-test-key'}); body=r.read().decode(); assert 'Credential saved.' in body,body
 direct_values.update(configuration_id=direct_id,credential='custom',option_stream='true',option_json_mode='true',option_disable_reasoning='true',option_reasoning_model='true',change_reason='Exercise explicit key, streaming, and reasoning cleanup')
 r=request('/LorkhanServer/manage/forms/provider-revise','POST',direct_values); assert r.status==200,(r.status,r.read().decode())
+r=request('/LorkhanServer/ui/core/llm_connectors.php?edit='+direct_id); direct_key_editor=r.read().decode()
+assert re.search(r'<option value="custom" data-empty="0" selected>🟢 Custom LLM key</option>',direct_key_editor),direct_key_editor
+assert direct_key_editor.index('🟢 Custom LLM key') < direct_key_editor.index('— Missing Key —'),direct_key_editor
+assert 'local-parity-test-key' not in direct_key_editor and 'id="llm_key_notice" class="api-key-notice warn" role="status"></div>' in direct_key_editor
 r=request('/LorkhanServer/manage/forms/provider-test','POST',direct_test); body=r.read().decode(); assert r.status==200 and 'status=tested' in r.geturl(),(r.status,body)
 headers,sent=VoiceProvider.llm_requests[-1]
 assert headers.get('Authorization')=='Bearer local-parity-test-key' and sent['stream'] is True and sent['response_format']=={'type':'json_object'} and sent['reasoning']=={'exclude':True,'enabled':False},(headers,sent)

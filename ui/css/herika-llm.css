@@ -432,3 +432,8 @@ body.llm-page-shell > main.llm-page {
 .orm-info-title { font-weight:600; margin-bottom:4px; }
 .orm-info-box { border:1px solid rgba(138,155,182,.3); background:#0d1117; border-radius:8px; padding:8px 10px; margin-top:8px; max-width:800px; }
 .orm-dropdown, .orm-info-box { overflow-wrap:anywhere; }
+.llm-page .api-key-notice { margin-top:6px; font-size:12px; }
+.llm-page .api-key-notice.warn { color:#ffb862; }
+/* A stationary pointer must not leave a second tooltip over the keyboard-focused field. */
+.llm-page:has(.llm-connection-field:focus-within, .llm-option-field:focus-within) .llm-connection-field:not(:focus-within) > .llm-field-tooltip,
+.llm-page:has(.llm-connection-field:focus-within, .llm-option-field:focus-within) .llm-option-field:not(:focus-within) > .llm-field-tooltip { display:none; }

@@ -53,9 +53,19 @@ $llmCredentials = [
     'groq'=>'Groq key','nanogpt'=>'NanoGPT key','google'=>'Google LLM key',
 ];
 
+$llmKeyStatuses = [];
 foreach ((new \LorkhanServer\Application\CredentialStore((string)$config['credential_storage_path']))->statuses() as $status) {
+    $llmKeyStatuses[$status['variable']] = (bool)$status['configured'];
     if(preg_match('/^LORKHAN_CUSTOM_(.+)_API_KEY$/D',$status['variable'],$match)===1)
         $llmCredentials['custom:'.$match[1]]=$match[1];
+}
+// Match Herika's configured-first list using status metadata, never secret values.
+asort($llmCredentials, SORT_NATURAL | SORT_FLAG_CASE);
+$llmCredentialGroups = ['configured' => [], 'missing' => []];
+foreach ($llmCredentials as $reference => $label) {
+    if ($reference === 'none') continue;
+    $variable = \LorkhanServer\Application\LlmConnector::credentialVariable($reference);
+    $llmCredentialGroups[!empty($llmKeyStatuses[$variable]) ? 'configured' : 'missing'][$reference] = $label;
 }
 
 /** Numeric override fields: name, label, type, minimum, maximum, step, help. */
@@ -356,11 +366,17 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
 
                                 <div class="llm-connection-field">
                                     <label for="llm_credential">API Key</label>
-                                    <select id="llm_credential" name="credential" aria-describedby="llm_credential-help"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
-                                        <?php foreach ($llmCredentials as $credentialId => $credentialLabel): ?>
-                                        <option value="<?php echo lorkhan_ui_h($credentialId); ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h($credentialLabel); ?></option>
+                                    <select id="llm_credential" name="credential" aria-describedby="llm_credential-help llm_key_notice"<?php echo $unless($isDirect); ?> form="<?php echo lorkhan_ui_h($formId); ?>">
+                                        <option value="none"<?php echo $credential === 'none' ? ' selected' : ''; ?>>No API key</option>
+                                        <?php foreach ($llmCredentialGroups as $group => $groupCredentials): ?>
+                                        <?php if ($group === 'missing' && $groupCredentials !== []): ?><option value="" disabled>— Missing Key —</option><?php endif; ?>
+                                        <?php foreach ($groupCredentials as $credentialId => $credentialLabel): ?>
+                                        <option value="<?php echo lorkhan_ui_h($credentialId); ?>" data-empty="<?php echo $group === 'missing' ? '1' : '0'; ?>"<?php echo $credential === $credentialId ? ' selected' : ''; ?>><?php echo lorkhan_ui_h(($group === 'missing' ? '🔴 ' : '🟢 ') . $credentialLabel . ($group === 'missing' ? ' — No key' : '')); ?></option>
+                                        <?php endforeach; ?>
                                         <?php endforeach; ?>
                                     </select>
+                                    <?php $keyNotice = $credential === 'none' ? 'No API key selected. Some services require a key.' : (isset($llmCredentialGroups['missing'][$credential]) ? 'Selected API key is empty. Add it on the API Keys page.' : ''); ?>
+                                    <div id="llm_key_notice" class="api-key-notice warn" role="status"><?php echo lorkhan_ui_h($keyNotice); ?></div>
                                     <p class="llm-help llm-field-tooltip" role="tooltip" id="llm_credential-help">Chooses which server-held key this connector sends. Key values live on the API Keys page and never appear in this form, in a revision, or in an export; an export resets this choice to No API key. New connectors start at No API key, which suits a local endpoint.</p>
                                 </div>
                             </section>

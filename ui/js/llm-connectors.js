@@ -58,6 +58,18 @@
     endpoint?.addEventListener('input', updateService);
     apply();
     updateService();
+    const credentialSelect = document.getElementById('llm_credential');
+    const credentialNotice = document.getElementById('llm_key_notice');
+    if (credentialSelect && credentialNotice) {
+        const updateCredentialNotice = () => {
+            const selected = credentialSelect.selectedOptions[0];
+            credentialNotice.textContent = !selected || credentialSelect.value === 'none'
+                ? 'No API key selected. Some services require a key.'
+                : (selected.dataset.empty === '1' ? 'Selected API key is empty. Add it on the API Keys page.' : '');
+        };
+        credentialSelect.addEventListener('change', updateCredentialNotice);
+        updateCredentialNotice();
+    }
     document.querySelectorAll('[data-llm-service]').forEach((button) => {
         button.addEventListener('click', () => {
             const preset = services[button.dataset.llmService];

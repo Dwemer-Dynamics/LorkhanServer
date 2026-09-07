@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. Player name editing, AI-generation guidance and per-player provider overrides remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; core semantics and remaining inline/speech-style templates pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; protected credential identities remain separate, editable custom labels and full provider-badge consolidation remain pending |
-| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked. OpenRouter model catalogue, filtering, selection and pricing/context panel implemented; other service catalogues, provider preference and additional request controls remain |
+| `core/llm_connectors.php` | Same path | Connection/sampling column structure, service icons, numeric sliders, editable Name and compact help corrected; populated desktop and isolated create/narrow states checked. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed; other service catalogues, import-editor presentation and additional request controls remain |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API-key selection and complete provider field mapping remain |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management, OmniVoice language workflow, upload-to-provider automation, successful-batch refresh and remaining provider/hub comparisons remain |
@@ -2848,3 +2848,31 @@ Remaining Core Profile requirements identified from the pinned source and live e
 - This closes the Provider preference gap only. Other service catalogues,
   request controls, import-editor presentation and the wider page matrix remain
   open; this is not a claim of full LLM or whole-site parity.
+
+### LLM API-key selection and help checkpoint
+
+- Replaced the undifferentiated key list with Herika's alphabetical configured
+  keys first, green status markers, disabled Missing Key divider and red No key
+  labels. Credential references and defaults are unchanged. The existing
+  CredentialStore status projection supplies availability; no key value enters
+  the HTML or changes because of this work.
+- Matched the compact 12px/18px Futura notice with 6px top spacing and Herika's
+  warning colour. Missing selection and missing stored key have explicit notices;
+  selecting a configured key clears the previous notice. This fixes the pinned
+  reference script's stale warning text after a selection change. Configured
+  means stored/environment-present, not provider-validated.
+- Existing HTTP coverage now checks missing-key markup, configured-first order,
+  selected key retention and non-exposure of the disposable test key. PHP lint,
+  JavaScript syntax, diff whitespace and the management HTTP suite passed. The
+  preceding 395-check/full integration result still covers the unchanged backend;
+  the later change is confined to the editor and its presentation.
+- Compared the live Herika key selector and deployed Lorkhan form. Checked missing,
+  no-key and configured selections without saving. At 390px, the warning spans
+  x=34..341 inside a 375px client width with no horizontal overflow. The visual
+  check exposed simultaneous hover/focus tooltips; focused controls now take
+  precedence. Narrow fixture and deployed keyboard checks show one tooltip;
+  Escape dismisses it and Shift+Tab restores the prior control's help.
+- Final deployment rollback: `/var/backups/lorkhanserver-code.BGXV06`. All 752
+  runtime files match source; no extra files or old paths. Configuration, key and
+  voice hashes are unchanged; private paths remain 403, unauthenticated sessions
+  401 and health valid. No game, live save or paid inference operation ran.
