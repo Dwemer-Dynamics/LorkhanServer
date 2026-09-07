@@ -4218,3 +4218,22 @@ code, provider calls, live configuration or deployment changed in this audit.
 - Existing management HTTP suite passed with embedded TTS import and STT save checks, including single-query-separator assertions. 526 server checks, PHP lint and diff check passed. Isolated Chromium exercised Inworld TTS create/save and Local Whisper STT save, verifying parsed status=saved and retained edit/installation IDs. No synthesis or transcription request was sent.
 - Compared 1280px Parakeet STT views against the read-only live reference and inspected the Inworld TTS saved-editor screenshot. STT centered header, sidebar width, grouped provider rows, two-column Name/Service fields and provider-settings placement agree. Gold branding, synthetic field values, native transport disclosure and the unresolved Google Free control remain visible differences; this is not acceptance of all provider controls or narrow states.
 - Browser contexts closed; disposable fixture stopped. No live configuration, reference files, keys or game state changed.
+
+
+### Response log narrow table follow-up (2026-09-07)
+
+Compared the live Roleplay AI Responses pages at 390px. Herika computes an
+`auto` table layout; the native 880px minimum kept nearly every column out of
+view. Removed that minimum and the fixed percentage widths for this table,
+using the reference automatic column sizing, wrapping and line height. Kept
+the scoped horizontal scroll region, prompt reader and immutable data intact.
+Restored the receipt icon and non-wrapping View Prompt label, slash pagination
+and muted page count. Navigation intrinsic group widths match the pinned
+reference CSS; absent excluded tabs are not a reason to stretch the groups.
+
+Source reference: HerikaServer 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+ui/events-memories.php and ui/css/hub-navigation.css. Local screenshots remain
+in Temp because they contain private live dialogue. Browser comparison used
+read-only live records with the candidate stylesheet intercepted locally; PHP
+lint and git diff --check passed. This does not complete the other page matrix
+rows or claim populated Books/Diaries equivalence from empty data.

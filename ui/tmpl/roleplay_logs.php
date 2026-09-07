@@ -23,7 +23,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
             <label>Search<input type="search" name="q" value="<?= lorkhan_ui_h($state['query']) ?>" maxlength="200"></label>
             <button type="submit" class="roleplay-button">Filter</button><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['q'=>'','person'=>'','date'=>'','reader_page'=>1])) ?>">Reset</a>
         </form></details>
-        <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> of <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
+        <div class="log-pagination"><nav aria-label="Log pages"><span>Page <?= $state['page'] ?> / <?= $state['pages'] ?> (<?= $state['total'] ?> rows)</span>
             <?php if($state['page']>1): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']-1])) ?>">Previous</a><?php endif; ?>
             <?php if($state['page']<$state['pages']): ?><a class="roleplay-button" href="<?= lorkhan_ui_h($link(['reader_page'=>$state['page']+1])) ?>">Next</a><?php endif; ?>
         </nav><div class="log-page-actions"><?php if($responses)lorkhan_roleplay_clear_button($state,'responses',$base,$csrf); ?><a class="roleplay-button log-export" href="<?= lorkhan_ui_h($link(['export'=>'1'])) ?>">Export <?= $recordLabel ?> Log</a></div></div>
@@ -36,7 +36,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
                         <td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s', strtotime($row['created_at']))) ?></td>
                         <td class="log-response-text"><?= lorkhan_ui_h($row['content']) ?></td>
                         <td><?= lorkhan_ui_h(implode(', ',$row['topics']) ?: 'None') ?></td>
-                        <td><button class="roleplay-button" type="button" data-log-open="<?= $id ?>">View Prompt</button></td>
+                        <td><button class="roleplay-button" type="button" data-log-open="<?= $id ?>"><span aria-hidden="true">🧾</span> View Prompt</button></td>
                         <td class="log-request-text"><span><?= lorkhan_ui_h($row['input_kind'].': '.$row['input_text']) ?></span><small><?= lorkhan_ui_h($row['request_id']) ?><br><?= lorkhan_ui_h($row['kind']) ?><?php if($row['turn_seconds']!==null): ?> · Turn <?= number_format((float)$row['turn_seconds'],2) ?>s<?php endif; ?></small></td>
                     <?php else: ?>
                         <td><?= lorkhan_ui_h($row['title']) ?></td><td><button class="log-content-link" type="button" data-log-open="<?= $id ?>"><?= lorkhan_ui_h($row['content']) ?></button></td>
@@ -46,7 +46,7 @@ function lorkhan_roleplay_log_table(array $state, array $installations, string $
                 <?php if($state['rows']===[]): ?><tr><td colspan="<?= $responses?6:5 ?>" class="log-empty">No <?= $responses?'AI responses':($journal?'journal entries':'books') ?> match this playthrough and filter.</td></tr><?php endif; ?></tbody>
             </table>
         </div>
-        <p class="log-footer">Page <?= $state['page'] ?> of <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
+        <p class="log-footer">Page <?= $state['page'] ?> / <?= $state['pages'] ?> · <?= $state['total'] ?> rows</p>
         <?php foreach($state['rows'] as $row): $id='log-entry-'.(int)$row['narrative_id']; ?>
             <dialog id="<?= $id ?>" class="log-content-modal" aria-labelledby="<?= $id ?>-title">
                 <header><h2 id="<?= $id ?>-title"><?= $responses?'Prompt':lorkhan_ui_h($row['title']) ?></h2><div><button type="button" class="roleplay-button" data-log-copy>Copy</button><button type="button" class="roleplay-button" data-log-close aria-label="Close reader">✕</button></div></header>
