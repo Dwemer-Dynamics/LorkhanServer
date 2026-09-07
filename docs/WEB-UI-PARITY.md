@@ -4036,3 +4036,23 @@ component. Preserve native security, OpenMW semantics, branding and exclusions.
 - Local deployment completed with rollback `/var/backups/lorkhanserver-code.aNbT3M`.
   All 789 runtime files match source, with no extras or old paths; health and
   protected-route checks passed. Configuration, credentials and voices preserved.
+
+## Shared Player/Narration reference stylesheet — 2026-09-07
+
+- Copied the complete pinned `ui/css/player-narration.css` into Lorkhan and loaded
+  it on both pages after their page-specific styles. Only the gold accent and
+  selector bindings to native page/field classes are translated. Existing native
+  reader/form rules remain; the shared reference rules now control their common
+  surfaces, header, labels, inputs, hints, toolbar and responsive layout.
+- Corrected the ElevenLabs provider grid breakpoint to the reference's 768px.
+- Reviewed real empty Player and Narration fixture pages on desktop. Compared
+  the live read-only Herika Player at the same viewport. Also compared 390px
+  Player render with Herika in a side-by-side wrapper: one-column cards, header
+  wrapping and toolbar sizing work. The Lorkhan side uses disposable rendered
+  fixture HTML with submission disabled, because its frame policy forbids
+  embedding the active application across origins. No frame policy was weakened.
+- 519 server checks, 98 protocol files, management HTTP, integration and migration/
+  durable-job checks passed. No schema change. This shared-style checkpoint is
+  not full Player/Narration or all-page completion; remaining matrix work remains.
+- Deployed runtime verified: 790 files, no hash mismatches/extras/old paths;
+  health/protected-route checks passed. Rollback: `/var/backups/lorkhanserver-code.1hk8bI`.

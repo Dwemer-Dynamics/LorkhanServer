@@ -71,7 +71,7 @@ function lorkhan_narrator_number(string $name, string $label, int $value, int $m
     echo '<label for="narrator-' . lorkhan_ui_h($name) . '">' . lorkhan_ui_h($label) . '</label><input id="narrator-' . lorkhan_ui_h($name) . '" name="' . lorkhan_ui_h($name) . '" type="number" value="' . $value . '" min="' . $minimum . '" max="' . $maximum . '"><span class="narrator-hint">' . lorkhan_ui_h($hint) . '</span>';
 }
 
-$additionalStylesheets = ['herika-prompts.css?v=' . (string) filemtime(__DIR__ . '/css/herika-prompts.css'), 'herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css')];
+$additionalStylesheets = ['herika-prompts.css?v=' . (string) filemtime(__DIR__ . '/css/herika-prompts.css'), 'herika-narrator.css?v=' . (string) filemtime(__DIR__ . '/css/herika-narrator.css'), 'player-narration.css?v=' . (string) filemtime(__DIR__ . '/css/player-narration.css')];
 $includeManagementStyles = false;
 include __DIR__ . '/tmpl/head.html';
 if (!$embedded) include __DIR__ . '/tmpl/navbar.php';

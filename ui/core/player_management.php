@@ -81,7 +81,7 @@ usort($inventory, static fn(array $a, array $b): int => strcasecmp(
 ksort($playerSkills, SORT_NATURAL | SORT_FLAG_CASE);
 ksort($playerAttributes, SORT_NATURAL | SORT_FLAG_CASE);
 
-$additionalStylesheets = ['herika-player.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-player.css')];
+$additionalStylesheets = ['herika-player.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/herika-player.css'), 'player-narration.css?v=' . (string) filemtime(dirname(__DIR__) . '/css/player-narration.css')];
 $includeManagementStyles = false;
 include dirname(__DIR__) . '/tmpl/head.html';
 if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';

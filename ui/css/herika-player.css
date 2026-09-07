@@ -339,6 +339,6 @@ body.player-page-shell.embedded-page { padding-top: 0; }
 
 
 .player-provider-panel[hidden] { display: none; }
-@media (max-width: 600px) { .player-provider-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 768px) { .player-provider-grid { grid-template-columns: minmax(0, 1fr); } }
 
 .player-provider-full-width { grid-column: 1 / -1; }

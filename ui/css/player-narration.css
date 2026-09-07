@@ -1,0 +1,231 @@
+/* Copied from HerikaServer 529364c ui/css/player-narration.css.
+ * Only branding and native selector bindings differ; keep shared rules together. */
+/* Shared compact presentation for the Player and Narration settings pages. */
+:is(main.player-page, main.narrator-page) {
+    --pn-accent: #bc9d5a;
+    --pn-border: #404040;
+    --pn-border-strong: #505050;
+    --pn-surface: #232323;
+    --pn-surface-raised: #292929;
+    --pn-input: #181818;
+    --pn-text: #e8e8e8;
+    --pn-muted: #aaa;
+}
+
+:is(main.player-page, main.narrator-page).embedded {
+    padding: 8px 14px 18px;
+}
+
+:is(main.player-page, main.narrator-page) :is(.page-container, .narrator-page-container) {
+    width: 100%;
+    max-width: 1400px;
+}
+
+:is(main.player-page, main.narrator-page) .page-header.lorkhan-page-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 2px 14px;
+    margin: 0 0 10px;
+    padding: 8px 14px;
+    border: 1px solid var(--pn-border);
+    border-radius: 6px;
+    background: var(--pn-surface);
+    background-image: none;
+    box-shadow: none;
+    text-align: left;
+}
+
+:is(main.player-page, main.narrator-page) .lorkhan-page-head-title {
+    flex: 0 0 auto;
+    margin: 0;
+    color: var(--pn-accent);
+    font-family: 'MagicCards', serif;
+    font-size: 1.3rem;
+    line-height: 1.25;
+    letter-spacing: 0.5px;
+    text-shadow: none;
+    word-spacing: 6px;
+}
+
+:is(main.player-page, main.narrator-page) .lorkhan-page-head-note {
+    flex: 1 1 300px;
+    min-width: 0;
+    color: var(--pn-muted);
+    font-size: 0.82rem;
+    line-height: 1.35;
+}
+
+:is(main.player-page, main.narrator-page) .lorkhan-page-head-note p {
+    margin: 0;
+    color: inherit;
+    font-size: inherit;
+    line-height: inherit;
+}
+
+:is(main.player-page, main.narrator-page) .settings-page-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 7px;
+    margin: 0 0 12px;
+}
+
+:is(main.player-page, main.narrator-page) .settings-page-actions :is(.btn-save, .narrator-save-button),
+:is(main.player-page, main.narrator-page) .settings-page-actions .btn-portable,
+:is(main.player-page, main.narrator-page) .settings-page-actions :is(.btn-narrator-transfer, .narrator-transfer-button) {
+    min-height: 34px;
+    margin: 0;
+    padding: 6px 12px;
+    border-radius: 5px;
+    box-shadow: none;
+    font-size: 0.86rem;
+    line-height: 1.2;
+    transition: background-color 0.2s ease, border-color 0.2s ease, transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-grid, .narrator-content-grid) {
+    gap: 12px;
+    margin-bottom: 14px;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section),
+:is(main.player-page, main.narrator-page) :is(.full-width-section, .narrator-full-width),
+:is(main.player-page, main.narrator-page) :is(.dynamic-profile-card, .narrator-dynamic-profile-card) {
+    padding: 14px;
+    border: 1px solid var(--pn-border);
+    border-radius: 6px;
+    background: var(--pn-surface);
+    background-image: none;
+    box-shadow: none;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section):hover,
+:is(main.player-page, main.narrator-page) :is(.dynamic-profile-card, .narrator-dynamic-profile-card):hover {
+    transform: none;
+    border-color: var(--pn-border-strong);
+    box-shadow: none;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) h2,
+:is(main.player-page, main.narrator-page) :is(.full-width-section, .narrator-full-width) h2,
+:is(main.player-page, main.narrator-page) :is(.dynamic-profile-card, .narrator-dynamic-profile-card) h3 {
+    margin: 0 0 10px;
+    padding: 0 0 7px;
+    border-bottom: 1px solid #3b352e;
+    color: var(--pn-text);
+    font-size: 1.05rem;
+    line-height: 1.25;
+    text-shadow: none;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) > label:not(:is(.toggle-row, .narrator-toggle-row)) {
+    margin-top: 10px;
+    margin-bottom: 4px;
+    color: var(--pn-accent);
+    font-size: 0.82rem;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) > label:not(:is(.toggle-row, .narrator-toggle-row)):first-of-type {
+    margin-top: 0;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) input[type='text'],
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) input[type='number'],
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) select,
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) textarea {
+    width: 100%;
+    padding: 7px 9px;
+    border: 1px solid var(--pn-border);
+    border-radius: 5px;
+    background: var(--pn-input);
+    color: var(--pn-text);
+    font-size: 0.88rem;
+    line-height: 1.35;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) textarea {
+    min-height: 82px;
+}
+
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) input[type='text']:focus,
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) input[type='number']:focus,
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) select:focus,
+:is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section) textarea:focus {
+    border-color: #4a8ab6;
+    outline: 2px solid rgba(74, 138, 182, 0.2);
+    outline-offset: 1px;
+    box-shadow: none;
+}
+
+:is(main.player-page, main.narrator-page) :is(.hint, .narrator-hint) {
+    margin-top: 4px;
+    color: var(--pn-muted);
+    font-size: 0.76rem;
+    line-height: 1.35;
+}
+
+:is(main.player-page, main.narrator-page) :is(.toggle-row, .narrator-toggle-row) {
+    min-height: 38px;
+    margin-top: 8px;
+    padding: 7px 10px;
+    border: 1px solid #383838;
+    border-radius: 5px;
+    background: #202020;
+}
+
+:is(main.player-page, main.narrator-page) :is(.toggle-row, .narrator-toggle-row):hover {
+    border-color: var(--pn-border-strong);
+    background: var(--pn-surface-raised);
+    transform: none;
+}
+
+:is(main.player-page, main.narrator-page) :is(.toggle-row, .narrator-toggle-row) + :is(.hint, .narrator-hint) {
+    margin-top: 3px;
+}
+
+:is(main.player-page, main.narrator-page) .status-field,
+:is(main.player-page, main.narrator-page) .player-provider-panel,
+:is(main.player-page, main.narrator-page) :is(.connector-summary, .narrator-connector-summary),
+:is(main.player-page, main.narrator-page) :is(.advanced-prompts-wrap, .narrator-advanced-wrap) {
+    border-radius: 5px;
+    box-shadow: none;
+}
+
+@media (max-width: 760px) {
+    :is(main.player-page, main.narrator-page),
+    :is(main.player-page, main.narrator-page).embedded {
+        padding-left: 8px;
+        padding-right: 8px;
+    }
+
+    :is(main.player-page, main.narrator-page) .page-header.lorkhan-page-head {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    :is(main.player-page, main.narrator-page) .lorkhan-page-head-note {
+        flex-basis: auto;
+        width: 100%;
+    }
+
+    :is(main.player-page, main.narrator-page) :is(.content-grid, .narrator-content-grid),
+    :is(main.player-page, main.narrator-page) :is(.content-grid, .narrator-content-grid).player-overview-grid,
+    :is(main.player-page, main.narrator-page) :is(.content-grid, .narrator-content-grid).two-col {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 480px) {
+    :is(main.player-page, main.narrator-page) .settings-page-actions > * {
+        flex: 1 1 auto;
+        justify-content: center;
+        text-align: center;
+    }
+
+    :is(main.player-page, main.narrator-page) :is(.content-section, .narrator-content-section),
+    :is(main.player-page, main.narrator-page) :is(.full-width-section, .narrator-full-width),
+    :is(main.player-page, main.narrator-page) :is(.dynamic-profile-card, .narrator-dynamic-profile-card) {
+        padding: 11px;
+    }
+}
