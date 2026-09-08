@@ -114,7 +114,14 @@ document.addEventListener('DOMContentLoaded', () => {
     headerRow.appendChild(selectHeader);
     ['Event', 'Events', 'People Present', 'Tamrielic Time', 'Time (UTC)', 'Record'].forEach((label) => {
       const header = document.createElement('th');
-      header.textContent = label;
+      if (label === 'Tamrielic Time') {
+        const link = document.createElement('a');
+        link.href = 'https://en.uesp.net/wiki/Lore:Calendar';
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.textContent = label;
+        header.appendChild(link);
+      } else header.textContent = label;
       headerRow.appendChild(header);
     });
     head.appendChild(headerRow);

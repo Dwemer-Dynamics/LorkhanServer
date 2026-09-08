@@ -7651,3 +7651,19 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Live prompt open/Escape/focus-return checks pass at 1280/390 with writes blocked.
   615 server checks and all 800 deployed runtime hashes/private/auth probes pass.
   Configuration, credentials and voices unchanged. Rollback: lorkhanserver-code.gIPmDM.
+
+### Events calendar heading and filter label
+
+- Fresh native/reference Events captures showed the native Tamrielic Time heading
+  was plain text, unlike the reference calendar link. Added the same UESP calendar
+  destination to both server-rendered and AJAX-rendered headers, retaining gold
+  and using noopener/noreferrer for the new tab. No calendar data was changed.
+- Matched the Hide label's normal weight, muted colour and 12.75px text instead of
+  inheriting the generic bold form label. Existing associated select is retained.
+- Browser checks confirm the link and safe target attributes on initial load and
+  page 2, plus selection/deselection and scope disclosure. No mutation requests.
+  Inspected the refreshed desktop capture; narrow capture also recorded. Full
+  matched populated/empty Events acceptance remains open; live datasets differ.
+- JavaScript syntax, diff checks, 615 server checks and all 800 deployed hashes /
+  private-authentication probes pass. Configuration, credentials and voices
+  preserved. Rollback: lorkhanserver-code.47bDlm.

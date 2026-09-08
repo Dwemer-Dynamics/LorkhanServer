@@ -101,3 +101,7 @@ body #eventlog-app :is(.roleplay-button,[data-eventlog-pagination] button){font-
 body #eventlog-app .eventlog-table input[type=checkbox]{width:18px!important;height:18px!important}
 body #eventlog-app .eventlog-table th{white-space:normal;overflow-wrap:normal}
 body #eventlog-app .eventlog-table td{overflow-wrap:normal;word-break:normal;hyphens:manual}
+
+/* Match Events calendar help and filter label without affecting other reader headings. */
+#eventlog-app .eventlog-table th:nth-child(5) a{color:#bc9d5a}
+#eventlog-app .eventlog-hide-controls label{font-weight:400;color:#9fb1c9;font-size:12.75px}
