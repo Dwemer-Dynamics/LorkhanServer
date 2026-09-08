@@ -14,6 +14,24 @@ OpenMW data ownership, authenticated forms, revisions and protected credentials.
 Background Life, AI Quest Manager, Active Quests, Soulgaze Gallery, ITT and Server
 Plugins remain excluded from this release.
 
+## Current priority presentation checkpoint (2026-09-08)
+
+Live full-page screenshots and matched-data comparisons were refreshed against the pinned reference after `1f9161a`. These results establish the listed surfaces, not full feature completion:
+
+| Surface | Current comparison evidence | Still separate |
+| --- | --- | --- |
+| Events | Initial/live Record controls now match; empty-to-live reconstruction and cancelled delete verified | Remaining whole-table/filter/editor acceptance |
+| AI Responses | Populated and empty table origins, heights and all columns match at 1280/390; relative table Y 155.25/308.75px | Full prompt variants, cleanup/export edge states |
+| Adventure Log | Actual hub table and all four columns match; row heights 58.375/96.75px at 1280/390 | Remaining calendar/filter/export combinations |
+| Diaries | Actual hub matched row widths and columns; row heights 60.34375/154.3125px | Provider audio acceptance and remaining reader/cache cases |
+| Books | Matched template table typography, content wrapping and columns; row heights 37.1875/267.4375px | Full reader/filter combinations and observed-book runtime capture |
+
+The reference's taller top navigation is caused by its additional excluded pages consuming space and wrapping the groups. The shared max-content flex rules already match; do not add blank tabs, stretch groups, or reintroduce excluded features to force the same absolute Y offset. Lorkhan's Journal remains its actual OpenMW-specific entry.
+
+The current priority content-table checks show no actionable geometry difference. Next structural implementation target: **Quickstart**, where source inspection confirms missing Setup/Local LLM, MiniMe Service and Player2 sections, rather than another table-spacing pass. Native Quickstart currently substitutes a Global Settings link for MiniMe; no existing MiniMe probe handler was found in the management router. A real bounded service probe and persisted setup routing are needed before displaying working counterparts. Do not add inert cards or claim links provide those features.
+
+Evidence: temporary `priority-shell-audit.cjs`, `response-frame-matched.cjs`, `adventure-hub-proof.cjs`, `diary-hub-matched.cjs`, `books-refresh.cjs`; actual top-level screenshots inspected for Responses, Diaries and Books. Matched row contents are browser-only fixtures, not database edits; Books/Diaries use the existing rendered template fixture for populated native records. All non-GET traffic blocked. This checkpoint is documentation only; deployed product remains `1f9161a`.
+
 ## Implementation order and acceptance
 
 1. Roleplay: Events, complete AI Responses, Adventure Log, Memories, Diaries,
