@@ -23,7 +23,7 @@ only the listed states, not completion of every page or feature.
 | Surface | Current comparison evidence | Still separate |
 | --- | --- | --- |
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Remaining whole-table/filter/editor acceptance |
-| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Full prompt variants, cleanup/export edge states |
+| AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; remaining cleanup/export edge states |
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
@@ -119,7 +119,7 @@ do not use an exception to excuse a generic substitute layout.
 | `oghma_knowledge.php` | `npc_upload.php` Oghma knowledge reader | Replaced article cards with the reference Topic/Knowledge Level/Description table, metadata chips and filter controls. Populated/empty and narrow states compared; permitted-description search, paging, scope rejection and hidden-text exclusion tested. Existing standalone navigation and access diagnostics retained. |
 | `events-memories.php` | Same path | Events note, striped table, record heading, pagination/filter layout and recorded calendar dates corrected; populated live view and AJAX pagination verified |
 | Roleplay `memory` tab | Herika Memories | Summary-only table, status/settings strip, scoped sync/delete, Tamrielic dates and compact editor implemented; 67 populated live summaries, empty fixture, Cancel/focus and narrow advanced tools checked |
-| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, prompt dialog and controls checked |
+| Roleplay `responselog` tab | Herika AI Responses | Whole-turn log, prompt dialog, topics, scoped export and protected clean-log workflow implemented; populated live table, multirole/empty prompt reader, clipboard success/refusal, Escape/focus and actual-template escaped-text wrapping checked; cleanup/export edge acceptance remains open |
 | Roleplay `diaries` tab | Herika CHIM Diaries | UTC/Tamrielic calendars, person mode, export and bulk delete retained. Full-content rows now use separate Play/Edit/Delete actions; dedicated content editor and paper reader replace combined Read/Edit. Desktop/narrow populated/empty and reader controls compared. Author-voice playback and private entry caching are implemented and mock-tested; live-provider and remaining cache invalidation acceptance remain open. |
 | Roleplay `books` tab | Herika Books | Full-content striped table, game/UTC/TS columns and content dialog implemented; populated long/short fixtures, escaped content reader, filtered empty panel, desktop/narrow and computed neutral header typography compared; shared-theme overrides and forced minimum width removed |
 | `diary_book.php` | Same path | Printable chronological parchment book and author-list link implemented; scoped IDs, escaped text, desktop/narrow populated comparisons and print/PDF checks passed (see Diary authors and printable book checkpoint) |
@@ -8203,3 +8203,35 @@ navigation remains outside its child frame. Evidence: temporary
 `apikey-shell-deployed-{ref,native}-{1280,390}-{false,true}.png`. All non-GET traffic
 was blocked and credential inputs cleared before capture. No game/provider tests.
 The full page-by-page goal remains active.
+
+### AI Responses reader state refresh (2026-09-08)
+
+Compared current deployed presentation against pinned Herika in populated
+system/user/assistant and empty-prompt states at 1280x1000 and 390x1000.
+`response-reader-multi.cjs` and `response-reader-empty.cjs` use browser-only matched
+text; the empty markup was checked against both actual PHP branches before use.
+These are presentation fixtures, not a claim that the database contains empty logs.
+
+- Multirole dialog width matches 1152/351px; height 594.46875/900px. First message
+  width matches 1070/269px, height 96.171875px. Message typography is Futura
+  CondensedLight 13px / 23.4px. Connector/model metadata wraps within the narrow reader.
+- Empty reader height matches 187.390625px at both widths, with a 43.390625px
+  empty payload panel and 10px padding. Native outer body inherits Futura while
+  reference outer body declares Consolas, but both rendered payload elements use
+  Futura; no visible text difference is being excused by that inherited declaration.
+- Inspected both empty narrow screenshots, both populated desktop screenshots,
+  native multirole narrow and actual-template long-token narrow captures.
+- Refreshed `response-reader-copy-proof.cjs`: exact literal text copied, success
+  state resets after close/reopen, clipboard refusal displays the reference error,
+  Escape closes and restores opener focus. Clipboard is mocked; no OS clipboard
+  or saved content modified.
+- Generated empty/populated HTML using the current `roleplay_logs.php` PHP renderer
+  in `response-reader-render-fixture.php`, then loaded it with intercepted GETs.
+  `response-reader-render-proof.cjs` verifies 0/3 actual message elements, literal
+  script text without execution, no dialog horizontal overflow and Escape focus
+  restoration at both widths. No product source was replaced by fixture output.
+
+No product change was needed for these compared reader states. Existing runtime
+stays `074ad9c`; no redeploy required for this evidence-only update. All browser
+non-GET requests blocked. No game, real provider or production database writes.
+The full matrix remains active; cleanup/export edge states and other pages remain.
