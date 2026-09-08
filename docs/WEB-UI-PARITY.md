@@ -6068,3 +6068,36 @@ catalogue requests were intercepted and no live Save/provider request was issued
 799 matching runtime files, protected routes and health; configuration, credentials
 and voice file hashes were unchanged. Rollback: /var/backups/lorkhanserver-code.ImzbiL.
 Full provider-card consolidation and the page-by-page goal remain open.
+
+### Remaining preset and speech-style dependency trace
+
+Rechecked the pinned reference built-in presets and current native implementation.
+CoreProfilePreset still captures Rechat, memory, diary, evolution and routing only.
+Herika Default/Local LLM/Follower/Passive also require NPC boredom probability,
+combat cooldown and quest/RPG policies. These remain incomplete, not valid partial
+presets to add to the selector. Client AGENTS/CLAUDEX requires the full ordered
+reading gate before client implementation; this checkpoint did not modify it.
+
+A further source trace locates the automatic TTS mood gap precisely:
+- protocol/schemas/v1/response-line.schema.json permits optional mood/emotion.
+- processor/CanonicalResponseNormalizer.php currently constructs metadata with
+  rechat depth, speech_enabled and source only; it does not propagate either mood.
+- lib/Infrastructure/Repository.php inserts dialogue utterances without mood data;
+  claimDialogueForSpeech decodes speaker/addressee/audience only.
+- service/SpeechSynthesizeJobHandler.php obtains voice/language context from
+  ProductRepository::speechContext. Streamed speech has a separate path in
+  service/TurnProcessJobHandler.php which must stay equivalent.
+- tts/OpenAiCompatibleSpeechProvider.php builds its payload from text/voice and
+  explicit connector instructions. Azure's CloudSpeechConnectorProvider uses
+  fixedMood only. Exposing Validmoods alone would not enable automatic styling.
+
+Implementation must first define/validate mood extraction from the existing
+compact Markdown response path, then preserve it through streamed and queued
+utterances, cancellation/retry fences and provider context. Only then expose
+reference mood controls and verify provider request payloads with mocks. Do not
+reintroduce XML prompting, wait for the full response before first-sentence audio,
+or infer automatic styling from existing explicit Instructions/Fixedmood fields.
+
+This is a source-audit checkpoint, not implemented feature or in-game proof.
+No runtime edits, deployment, credentials or reference data changes occurred.
+The full page matrix remains active; these dependencies are not exceptions.
