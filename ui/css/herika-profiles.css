@@ -685,9 +685,9 @@ body.profiles-page-shell:not(.embedded-page) .profile-editor-toolbar { top:64px;
 .profile-preset-dialog::backdrop { background:rgba(0,0,0,.7); }
 .profile-preset-dialog h2 { margin:0 0 8px; font-size:16px; font-weight:700; }
 .profile-preset-dialog p { margin:0 0 16px; color:#9fb1c9; font-size:13px; line-height:1.45; }
-.profile-preset-dialog label { color:#9fb1c9; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.06em; }
-.profile-preset-dialog input { box-sizing:border-box; width:100%; margin:8px 0 16px; padding:8px; border:1px solid #4a4a4a; border-radius:6px; color:#e9efff; background:#2a2a2a; }
-.profile-preset-dialog #profile-preset-error { color:#ff9b9b; }
+.profile-preset-dialog label { display:block; margin:0 0 6px; color:#9fb1c9; font-size:11px; font-weight:700; text-transform:uppercase; letter-spacing:.08em; }
+.profile-preset-dialog input { box-sizing:border-box; width:100%; margin:0; padding:8px 10px; font-size:13px; border:1px solid #4a4a4a; border-radius:6px; color:#e9efff; background:#2a2a2a; }
+.profile-preset-dialog #profile-preset-error { margin:8px 0 16px; min-height:16px; font-size:12px; line-height:1.35; color:#ff9b9b; }
 .profile-preset-dialog-actions { display:flex; gap:8px; justify-content:flex-end; }
 .profile-preset-dialog :focus-visible { outline:2px solid #bc9d5a; outline-offset:2px; }
 /* Preset controls follow the editor width, including narrow embedded panels. */

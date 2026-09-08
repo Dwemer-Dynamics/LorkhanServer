@@ -16,7 +16,7 @@
 </div>
 <dialog class="profile-preset-dialog" id="profile-preset-dialog" aria-labelledby="profile-preset-title" aria-describedby="profile-preset-description">
     <h2 id="profile-preset-title"></h2><p id="profile-preset-description"></p>
-    <label id="profile-preset-name-field" for="profile-preset-name" hidden>Preset name<input id="profile-preset-name" maxlength="128" autocomplete="off"></label>
+    <div id="profile-preset-name-field" hidden><label for="profile-preset-name">Preset name</label><input type="text" id="profile-preset-name" maxlength="128" autocomplete="off" spellcheck="false" aria-describedby="profile-preset-error"></div>
     <p id="profile-preset-error" role="alert" hidden></p>
     <div class="profile-preset-dialog-actions"><button type="button" class="btn-base" id="profile-preset-cancel">Cancel</button><button type="button" class="btn-save" id="profile-preset-confirm">Apply Preset</button></div>
 </dialog>

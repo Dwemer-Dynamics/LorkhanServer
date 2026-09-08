@@ -49,12 +49,13 @@
             ? `Apply “${select.selectedOptions[0].textContent}” to this profile now? Unsaved edits will be discarded. Saved name, prompt, connector assignments, slot and default status stay unchanged.`
             : action === 'overwrite' ? `Replace “${select.selectedOptions[0].textContent}” with the editable settings currently on screen, including unsaved edits? The active profile stays unchanged.`
             : action === 'import' ? 'Store this file as a named preset. It will not create or change a profile until you choose Apply.'
-            : 'Save the current editable settings as a preset. The active profile stays unchanged.';
+            : `Saves the current settings for "${form.elements.namedItem('label').value}" as a preset.`;
         document.getElementById('profile-preset-description').title = 'Presets exclude profile prompts, connector assignments and profile identity.';
         document.getElementById('profile-preset-name-field').hidden = !naming;
         name.required = naming;
         name.value = action === 'import' ? imported.name : action === 'save_new' ? `${form.elements.namedItem('label').value} preset` : '';
-        error.hidden = true;
+        error.textContent = '';
+        error.hidden = !naming;
         confirm.textContent = naming ? 'Save Preset' : action === 'apply' ? 'Apply Preset' : 'Overwrite Preset';
         dialog.showModal();
         (naming ? name : cancel).focus();
@@ -92,7 +93,7 @@
     name.addEventListener('keydown', event => { if (event.key === 'Enter') { event.preventDefault(); confirm.click(); } });
     confirm.addEventListener('click', async () => {
         if (busy || !name.reportValidity()) return;
-        busy = true; updateButtons(); error.hidden = true;
+        busy = true; updateButtons(); error.textContent = ''; error.hidden = !['save_new','import'].includes(operation);
         status.textContent = operation === 'apply' ? 'Applying preset…' : 'Saving preset…';
         try {
             const result = await request(operation);

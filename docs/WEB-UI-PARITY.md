@@ -7825,7 +7825,7 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   target, busy lane, expiry and exact-once turn submission. Compare modal populated,
   empty and failure states at desktop/narrow widths. No microphone or game was opened
   during this audit. Browser-only transcription is not completion of this feature.
-- Reference checkout has advanced to 1aa2021d854d7a2811b89c0a06c23e09284e2169; pinned
+- Reference checkout was observed at 1aa2021d854d7a2811b89c0a06c23e09284e2169; pinned
   529364c still remains the task baseline. Verified the two pmstt files are unchanged
   and the pinned STT page has the same launch path. Future visual comparisons must
   re-establish which source version the live reference is serving.
@@ -7870,3 +7870,28 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Built-in Default/Local LLM/Follower/Passive catalogue mapping is still incomplete:
   pinned presets also change boredom/combat/quest policy beyond today's named preset
   field set. Do not present a partial settings bundle as full built-in parity.
+
+### Reference checkout correction and preset name modal parity
+
+- Corrected the previous inference that Herika had advanced and removed presets.
+  The shared MonoRepo/HerikaServer checkout is on codex/visual-context at 1aa2021d
+  (2026-08-23), whereas the pinned comparison is 529364c (2026-09-05). Current remote
+  unstable 94518016 retains presets; core_profiles.php, global_settings.php and
+  settings_presets.php are unchanged from the pinned baseline. Use the clean pinned
+  D:/wt/herika-unstable-deploy-20260906 worktree for further reference source reads.
+- Deployed /var/www/html/HerikaServer/ui/core/core_profiles.php SHA256 equals the
+  pinned source (79ed1cf31ac399cd1eec6b4832daf4bfbb9f46ec5daf065729122d7f24b47de0).
+  The initial GET had no selected editor; its missing preset markup was not evidence
+  of removal. Existing read-only ?edit=1 renders the full preset row and dialogs.
+- Compared that actual reference with native Save as new at 1280/390. Split the
+  native implicit label/input into the same block label and full-width explicit text
+  input, preserving hidden-field handling. Matched label/input/error-space geometry
+  and description wording; blank feedback space remains during save and resets on
+  reopen. Native name length and preset schema/identity protections are unchanged.
+- With the same profile label in unsaved browser state, modal dimensions match:
+  440 x 250.6875 at 1280; 351 x 269.53125 at 390. Inspected narrow capture. Native
+  duplicate-name mock preserves draft, reports error, and closes/reopens with clean
+  feedback and returned focus. No real POST, provider or game calls.
+- 618 server checks, JS syntax and 800 deployed hashes/private/auth/health checks
+  pass. Configuration, credentials and voices preserved; rollback yNgBko. Full
+  preset catalogue and whole-page acceptance remain open.
