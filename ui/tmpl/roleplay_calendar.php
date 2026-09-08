@@ -46,7 +46,7 @@ function lorkhan_roleplay_calendar(array $state, callable $link, string $tab): v
     <?php else: ?>
         <nav class="calendar-navigation" aria-label="Calendar month">
             <a href="<?= lorkhan_ui_h($link($previous)) ?>">« <?= lorkhan_ui_h($previousName) ?></a>
-            <span><?= lorkhan_ui_h($heading) ?></span>
+            <span><b><?= lorkhan_ui_h($heading) ?></b></span>
             <a href="<?= lorkhan_ui_h($link($next)) ?>"><?= lorkhan_ui_h($nextName) ?> »</a>
         </nav>
         <?php if($game && ($state['calendar']??[])===[]): ?><p class="calendar-empty-note">No recorded Morrowind dates in this month. Entries without a recorded game date remain available in Regular Calendar.</p><?php endif; ?>

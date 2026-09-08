@@ -6314,3 +6314,23 @@ The sixth reference Profile LLMs entry is llm_formatter_id (npc_master.php lines
 from that count. The existing Markdown-route formatter exception recorded above still
 applies; no inert sixth slot added. Profile-summary composition and other remaining
 counterpart states are not marked complete by this check.
+
+## Priority-page recheck: calendar month emphasis
+
+Fresh paired Events/Adventure/Diaries/Books shell checks passed at 1280/390px, but visual
+review caught a missing child element in both calendars: Herika renders the month inside
+span > b, while native rendered plain span text. Earlier container-font measurements
+missed that difference. Restored the reference bold markup in the shared calendar renderer;
+Morrowind date calculation, escaping and links are unchanged.
+
+Temp/calendar-title-proof.cjs now compares the actual b element's font/weight/line height
+for Adventure and Diaries, in Regular and Tamrielic modes, and verifies native Next changes
+the month. All four pairs pass without mutation requests. Inspected Regular Adventure and
+Tamrielic Diaries navigation pairs; differing game dates remain actual product data.
+The first screenshot attempt raced a reference iframe navigation; the final test waits
+for that frame's navigation before comparison. Existing 603 checks pass; 799 deployed
+files match, private/auth/health checks pass and configuration/credential/voice hashes
+are preserved. Rollback /var/backups/lorkhanserver-code.EQf2op. No game activity.
+
+This corrects a concrete false-negative in prior component checks. Full populated/empty
+page acceptance and the remaining matrix are still open, including narrow calendar layout.
