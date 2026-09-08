@@ -1723,3 +1723,5 @@ body.profile-rules-open {
 }
 
 .profiles-page #setting_response_core_lang { font-size:14px; }
+
+.profiles-page #setting_response_lang_llm_xtts { width:16px; height:16px; transform:scale(1.6); margin:0 6px 0 0; }
