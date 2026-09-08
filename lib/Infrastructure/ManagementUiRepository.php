@@ -297,6 +297,17 @@ SQL);
             $relationshipFilter.=' AND r.'.$key.'=:relationship_'.$key;
             $relationshipParams['relationship_'.$key]=$memoryScope[$key];
         }
+        // Review may need exact generated targets beyond the initial 100-row editor window.
+        if($relationshipScoped&&$view==='relationships'&&isset($memoryScope['relationship_ids'])){
+            $ids=$memoryScope['relationship_ids'];
+            if(!is_array($ids)||!array_is_list($ids)||count($ids)<1||count($ids)>20)throw new \InvalidArgumentException('invalid_relationship_scope');
+            $placeholders=[];
+            foreach($ids as $index=>$id){
+                if(!is_string($id)||!Uuid::isValid($id))throw new \InvalidArgumentException('invalid_relationship_scope');
+                $key='review_relationship_'.$index;$placeholders[]=':'.$key;$relationshipParams[$key]=$id;
+            }
+            $relationshipFilter.=' AND r.relationship_id IN ('.implode(',',$placeholders).')';
+        }
         $memoryScoped=$view==='memories'&&isset($memoryScope['installation_id'],$memoryScope['playthrough_id']);
         $playthroughScoped=$view==='playthroughs'&&isset($memoryScope['installation_id']);
         $sql = match ($view) {

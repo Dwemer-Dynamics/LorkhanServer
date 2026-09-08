@@ -1280,6 +1280,24 @@ $assert($preview!==null&&count($preview['relationships'])===2&&$preview['profile
     &&$products->exportScope($buildScope)['relationships']===$beforePreview
     &&!str_contains(json_encode($preview),$privateBuildNote),'preview changed saved scores or copied private notes');
 $assert($builds->previewStatus($buildScope,$buildJob['job_id'])['state']==='ready','preview polling did not report ready');
+// The initial relationship editor is bounded; generated targets must still load their exact saved row.
+$db->exec('SAVEPOINT preview_outside_window');
+for($reviewIndex=0;$reviewIndex<100;$reviewIndex++){
+    $reviewIdentity=$omittedIdentity;$reviewIdentity['refnum']['index']+=10000+$reviewIndex;
+    $products->setRelationship($buildScope+['actor_identity'=>$reviewIdentity,'affinity'=>1,'disposition'=>1,'source_mode'=>'manual'], '2035-01-01T00:00:00Z');
+}
+$reviewUi=new \LorkhanServer\Infrastructure\ManagementUiRepository($db);
+$initialReviewRows=$reviewUi->rows('relationships',$installationId,$buildScope);
+$expectedReviewIds=array_values(array_column($preview['relationships'],'relationship_id'));
+$reviewStatus=$builds->previewStatus($buildScope,$buildJob['job_id']);
+$assert(count($initialReviewRows)===100&&array_intersect(array_column($initialReviewRows,'relationship_id'),$expectedReviewIds)===[]
+    &&$reviewStatus['state']==='ready'&&array_column($reviewStatus['editor_rows'],'relationship_id')===$expectedReviewIds
+    &&$reviewStatus['editor_rows'][0]['custom_info']===$privateBuildNote,'preview failed to load a saved target beyond the editor window');
+$assert($reviewUi->rows('relationships',$installationId,array_replace($buildScope,['profile_id'=>$newUuid(5791),'relationship_ids'=>$expectedReviewIds]))===[],
+    'targeted relationship load escaped the NPC scope');
+$assert(!str_contains(json_encode($builds->draft($buildScope,$buildJob['job_id'])),$privateBuildNote),'editor-only private notes leaked into the proposal receipt');
+$db->exec('ROLLBACK TO SAVEPOINT preview_outside_window');
+
 foreach(['profile','source','relationship'] as $staleCase){
     $db->exec('SAVEPOINT preview_stale');
     if($staleCase==='profile'){

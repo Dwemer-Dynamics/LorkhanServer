@@ -212,7 +212,17 @@ final class RelationshipBuildRepository
         $row=$query->fetch();if(!$row)throw new \RuntimeException('not_found');
         if(filter_var($row['has_draft'],FILTER_VALIDATE_BOOL)){
             $draft=$this->draft($scope,$jobId);
-            return $draft===null?['job_id'=>$jobId,'state'=>'stale']:['state'=>'ready']+$draft;
+            if($draft===null)return ['job_id'=>$jobId,'state'=>'stale'];
+            $ids=array_values(array_column($draft['relationships'],'relationship_id'));
+            $editorRows=$ids===[]?[]:(new ManagementUiRepository($this->db))->rows('relationships',$scope['installation_id'],
+                ['profile_id'=>$scope['profile_id'],'playthrough_id'=>$scope['playthrough_id'],'relationship_ids'=>$ids]);
+            if(count($editorRows)!==count($ids))return ['job_id'=>$jobId,'state'=>'stale'];
+            foreach($draft['relationships'] as $candidate)if(isset($candidate['relationship_id'])){
+                $saved=array_values(array_filter($editorRows,static fn(array $row):bool=>$row['relationship_id']===$candidate['relationship_id']))[0];
+                if((int)$saved['revision']!==$candidate['expected_revision'])return ['job_id'=>$jobId,'state'=>'stale'];
+            }
+            // These saved editor fields are for the authenticated user only, never the model or draft receipt.
+            return ['state'=>'ready','editor_rows'=>$editorRows]+$draft;
         }
         return ['job_id'=>$jobId,'state'=>match($row['state']){'queued'=>'queued','leased'=>'building','dead'=>'failed',default=>'stale'}];
     }

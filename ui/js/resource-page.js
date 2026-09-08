@@ -713,7 +713,7 @@
             };
             view.querySelectorAll('form[action$="/relationships"][id]').forEach(form=>register(form));
             // Manual additions and generated targets use identical editable rows and draft semantics.
-            const addRow=(fields,name)=>{
+            const addRow=(fields,name,added=true)=>{
                 const fragment=view.querySelector('[data-rel-row-template]').content.cloneNode(true);
                 const id=`${profileForm.id}-relationship-new-${++serial}`;
                 fragment.querySelectorAll('[id],[form],[data-rel-form],[data-rel-details]').forEach(element=>{
@@ -728,10 +728,10 @@
                 const form=document.getElementById(id);
                 for(const [key,value] of Object.entries(fields)){
                     let field=form.elements.namedItem(key);
-                    if(!field&&['preview_job_id','preview_target_key'].includes(key)){field=document.createElement('input');field.type='hidden';field.name=key;form.append(field);}
+                    if(!field&&['relationship_id','expected_revision','preview_job_id','preview_target_key'].includes(key)){field=document.createElement('input');field.type='hidden';field.name=key;form.append(field);}
                     if(field){if(field.tagName==='SELECT'&&![...field.options].some(option=>option.value===String(value)))field.add(new Option(String(value),String(value)));field.value=value;}
                 }
-                register(form,true);return form;
+                register(form,added);return form;
             };
             addForm.addEventListener('submit',event=>{
                 event.preventDefault();event.stopImmediatePropagation();if(!addForm.reportValidity())return;
@@ -784,12 +784,22 @@
                     const proposals=result.relationships||[];
                     // Validate the entire merge before touching any local row.
                     if(proposals.some(candidate=>!/^([0-9a-f]{64})$/.test(candidate.target_key||'')))throw new Error('This draft predates the review editor. Build again.');
-                    for(const candidate of proposals)if(candidate.relationship_id&&![...rows.values()].some(row=>row.initial.relationship_id===candidate.relationship_id))
-                        throw new Error('A generated target is not loaded in this editor. Reload the NPC before reviewing.');
+                    const savedRows=new Map((result.editor_rows||[]).map(row=>[row.relationship_id,row]));
+                    for(const candidate of proposals)if(candidate.relationship_id&&![...rows.values()].some(row=>row.initial.relationship_id===candidate.relationship_id)){
+                        const saved=savedRows.get(candidate.relationship_id);
+                        if(!saved||Number(saved.revision)!==candidate.expected_revision)throw new Error('A generated target changed or could not be loaded. Reload before reviewing.');
+                    }
                     let count=0;
                     for(const candidate of proposals){
                         let row=[...rows.values()].find(row=>candidate.relationship_id?row.initial.relationship_id===candidate.relationship_id:readRow(row.form).preview_target_key===candidate.target_key);
                         if(row?.removed)continue;
+                        if(!row&&candidate.relationship_id){
+                            const saved=savedRows.get(candidate.relationship_id);
+                            const baseline={relationship_id:saved.relationship_id,expected_revision:saved.revision,affinity:saved.affinity,
+                                disposition:saved.disposition,relationship_type:saved.relationship_type,custom_info:saved.custom_info||'',reason:'Manual edit'};
+                            for(const key of ['relation','note','best','worst'])baseline[`details[${key}]`]=saved.details?.[key]||'';
+                            const form=addRow(baseline,saved.actor,false);row=rows.get(form.id);
+                        }
                         const fields={affinity:candidate.affinity,disposition:candidate.disposition,relationship_type:candidate.relationship_type,reason:candidate.reason,
                             preview_job_id:job,preview_target_key:candidate.target_key};
                         let form=row?.form;
