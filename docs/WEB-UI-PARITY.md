@@ -6406,3 +6406,27 @@ private/auth/health checks, preserved config/credential/voice hashes. Rollback:
 
 The controls remain a secondary native extension; this does not establish full Diary
 reader/editor acceptance or close the remaining page matrix.
+
+## Diary editor action-footer composition
+
+Compared pinned Herika diarylog.php editModal to a freshly source-rendered native diary
+fixture inserted into the actual deployed hub (retaining its real stylesheets). The
+textarea font/height already matched, but padding and footer composition did not. Added
+the reference button-group wrapper, 15px vertical group margins, zero footer padding,
+500-weight/1.2-line-height/0.3px-spaced actions, and 7px 10px textarea padding. Native
+secondary title metadata and typed form handlers remain intact; delete confirmation
+footer is unaffected.
+
+Temp/diary-editor-footer.cjs reports matching footer padding/gap and both action fonts,
+margins and letter spacing; textarea typography, height and padding also match, with
+product accent colours preserved. Source-rendered fixture uses a disabled endpoint,
+not real diary records. diary-editor-interaction.cjs passes 1280/390 empty required-field
+validation, browser-intercepted 422 retaining unsaved text/open editor, and Cancel.
+Inspected paired populated editor and native narrow failure screenshots. No real saves,
+deletes or speech/provider requests. Editor heading has matching computed geometry and
+visibility, but whole-modal visual acceptance remains open (including title/metadata
+composition); do not infer completion from those metrics alone.
+
+603 existing checks pass. Deployment has 799 matching files, private/auth/health checks
+pass, and configuration/credential/voice hashes are preserved. Rollback:
+/var/backups/lorkhanserver-code.i8722o. No game activity. Remaining matrix stays open.

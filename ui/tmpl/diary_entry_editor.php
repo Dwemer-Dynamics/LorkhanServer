@@ -10,7 +10,7 @@
             <details class="diary-entry-metadata"><summary>Entry details</summary><label for="edit-name-<?= lorkhan_ui_h($id) ?>">Title</label><input id="edit-name-<?= lorkhan_ui_h($id) ?>" name="title" maxlength="256" required value="<?= lorkhan_ui_h($row['title']) ?>"></details>
             <p role="status" data-reader-form-status></p>
         </div>
-        <div class="modal-footer"><button class="roleplay-button diary-save" type="submit">Save Changes</button><button class="roleplay-button" type="button" data-calendar-close>Cancel</button></div>
+        <div class="modal-footer"><div class="button-group"><button class="roleplay-button diary-save" type="submit">Save Changes</button><button class="roleplay-button" type="button" data-calendar-close>Cancel</button></div></div>
     </form>
 </dialog>
 <dialog class="diary-editor-modal diary-delete-modal" id="delete-<?= lorkhan_ui_h($id) ?>" aria-labelledby="delete-title-<?= lorkhan_ui_h($id) ?>">

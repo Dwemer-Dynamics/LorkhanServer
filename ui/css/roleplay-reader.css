@@ -85,3 +85,9 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 @media(max-width:768px){.calendar-reader-viewport{height:calc(75vh - 2px);}}
 /* The native scroll wrapper prevents margin collapse; keep one reference table gap. */
 .calendar-reader-viewport .calendar{margin-bottom:0;}
+
+/* Herika Diary edit footer groups its actions with vertical margins. */
+.roleplay-reader .diary-editor-modal:not(.diary-delete-modal) .modal-footer{padding:0;gap:normal;}
+.roleplay-reader .diary-editor-modal .button-group{display:flex;gap:10px;margin:15px 0;}
+.roleplay-reader .diary-editor-modal .button-group button{font-weight:500;line-height:1.2;letter-spacing:.3px;}
+.roleplay-reader .diary-editor-modal textarea{padding:7px 10px;}
