@@ -131,8 +131,11 @@ body .ai-response-table [data-log-open]{white-space:nowrap}
 .diary-log-page .calendar-mode-toggle{flex-wrap:nowrap}
 .diary-log-page .calendar-mode-toggle .roleplay-button{min-width:0;white-space:normal;text-align:center}
 
-.book-log-page .log-table-container:has(.books-empty){padding:0;border:0;border-radius:0;background:transparent}
-.books-empty{text-align:center;color:#6c757d;padding:20px;margin:0}
+/* Keep the reference panel around an empty Books result, including its narrow-screen gutter. */
+.book-log-page .log-table-container:has(.books-empty){width:100%;padding:8px;border:1px solid #404040;border-radius:10px;background:#232323;margin:0 0 20px}
+.events-memories-page .tab-container:has(#books-tab.active .books-empty){overflow:visible}
+.books-empty{text-align:center;color:#6c757d;padding:20px;margin:0 0 10px}
+@media(max-width:768px){.book-log-page .log-table-container:has(.books-empty){margin:0 -15px 10px}}
 #books-tab {min-height:0;}
 .book-log-page .log-scope > .log-export {margin-top:10px;}
 
