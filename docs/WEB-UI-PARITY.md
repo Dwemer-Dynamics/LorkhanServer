@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `d2c8d16` (Core grouped-settings structure and return-to-top), with retained scene overlap `6655b8e` and Short Term Memory card `d0ce6f4`. Client `1560dbe` remains deployed.
+Current deployed product checkpoint: `6c90f7e` (Combat card and Core cooldown ownership), with grouped settings `d2c8d16`, retained scene overlap `6655b8e` and Short Term Memory card `d0ce6f4`. Client `a7fceb0` is deployed with the matching 600-second range.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -9335,3 +9335,41 @@ supported per-profile consumers, review Context's extra control against referenc
 availability, then continue the complete counterpart matrix. Paraphrased-memory
 source coverage remains an open runtime item; it does not replace the all-page
 presentation objective. The full parity goal remains active.
+
+
+## Combat card and native cooldown checkpoint (2026-09-08)
+
+Server `6c90f7e`; client `a7fceb0`. Added the reference Combat group, swords icon,
+Combat Bark Cooldown description, slider/number pair and Copy to all. Core
+overrides, named/portable presets and global fallback retain their ownership.
+The existing global enable switch is unchanged; default remains 20 seconds.
+The normal editor range is 10-600; existing 5-9 values remain valid. Native
+protocol parsers and the Lua timer now accept the same maximum of 600 seconds.
+
+Evidence:
+- 783 PHP checks; management HTTP save/export/import/copy/range cases; full
+  integration and durable migration checks passed in the Combat test logs.
+- Windows OpenMW build, native bridge tests and Beast loopback tests passed.
+  The Beast fixture was refreshed to include the narrator fields already required
+  by the parser; production validation was not weakened. Lua: 70 tests passed.
+- Protocol copies match. Generator validation covered 100 files, 38 schemas and
+  62 fixtures; Python jsonschema was unavailable, so this is not metaschema proof.
+- Actual hub screenshots compared: both desktop cards are 411px wide with
+  6px 12px padding. Native 860/390 cards are 492/298px wide without overflow.
+  Desktop reference/native and native 390 images were visually inspected.
+- Full range, keyboard increment, invalid 601, and Copy to all cancellation
+  passed at 1280/860/390 without private writes. Evidence: local Temp
+  `combat-card-ui-result.txt` and `combat-card-*-Combat.png`.
+- Server deployment rollback: `/var/backups/lorkhanserver-code.3HR2CD`. All 807
+  runtime files match, no extras/old paths; private file requests return 403 and
+  unpaired session requests return 401.
+- Client executable and orchestrator deployment hashes verified; all 28 deployed
+  non-test data files match source after newline normalization. Configuration
+  unchanged; rollback is local Temp `lorkhan-combat-rollback-22xgftf2`.
+
+Still open: the reference Combat card stretches with its neighboring grid card;
+Lorkhan currently has a shorter card because the surrounding Core sections are
+not complete. Slider track treatment also differs beyond color and must be
+reviewed with the whole editor. This is not whole-Core visual parity. No game
+was launched or controlled, and in-game timing remains unverified. GitHub server
+workflow remains disabled manually.
