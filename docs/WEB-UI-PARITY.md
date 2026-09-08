@@ -5896,3 +5896,22 @@ were preserved. Rollback: /var/backups/lorkhanserver-code.Wqeumz.
 
 This closes the unloaded-target edge, not full NPC or whole-site parity. The
 remaining counterpart matrix stays active. No game was launched or controlled.
+### AI Responses table surround and pagination comparison
+
+A fresh live comparison found that cell typography and View Prompt buttons matched,
+but the surrounding table had no outer margin, a translucent background, and
+smaller pagination labels. Scoped response-only CSS now matches Herika's 20px
+vertical table margin, #232323 neutral panel, 15px/22.5px pagination typography,
+10px gaps and top/bottom pager margins. Books and Journal retain their own rules.
+The native installation/playthrough filter and gold accent remain unchanged.
+
+Temp/response-metrics.cjs read computed styles from the actual reference and
+locally deployed pages. Table surround, top pager, label, cell and Prompt button
+metrics matched. Temp/response-intro-proof.cjs passed at 1280/390 pixels; screenshots
+were inspected and Prompt Viewer open/close still passed. These populated-page
+checks do not establish empty-state or entire embedded-hub acceptance.
+
+590 server checks and diff check passed. Deployed 799 matching files, no extras or
+old paths; protected-route and health checks passed. Configuration, credentials
+and voices were preserved. Rollback: /var/backups/lorkhanserver-code.RDy2Ud.
+No provider calls, reference mutations or game control. Full matrix remains active.
