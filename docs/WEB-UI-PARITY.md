@@ -6131,3 +6131,44 @@ Evidence from the deployed runtime:
 This closes the measured frame/action-control differences, not the whole-site goal.
 Automatic speech mood transport and the remaining counterpart-matrix gaps stay open;
 no inert TTS controls or dialogue response-format changes were introduced in this UI pass.
+
+## Priority Roleplay frames and calendar structure
+
+Continued the full-page comparison after the AI Responses frame fix. The generic Roleplay
+hub still added an outer border/background to Events, Books, Adventure Log and Diaries.
+Removed that redundant card at its source in `herika-roleplay.css`; AI Responses now shares
+that rule rather than overriding it separately. The native calendar tab border is retained:
+it corresponds to Herika's iframe border, not an extra content card. Main bottom padding,
+Books' narrow inset and calendar content insets now match their counterparts.
+
+The calendar additionally wrapped its table in an overflow container absent from Herika.
+That wrapper prevented adjacent margins from collapsing and added a second 20px gap below
+month navigation. Removed the wrapper and its unused CSS selector. Narrow calendar headings
+now use the measured reference 24px size, and weekday cells retain the reference typography
+and ellipsis instead of a separate tiny-font override. No date, event, export or reader
+payload behavior changed.
+
+Verification:
+- `Temp/priority-shell-proof.cjs`: all four live counterpart pairs at 1280 and 390px,
+  exact main/frame geometry, padding and neutral borders/backgrounds; both calendars also
+  match heading width and heading-to-table vertical distance. All eight pairs passed with
+  zero mutation requests. Paired screenshots were captured; desktop calendar pairs and
+  all four narrow page pairs were visually inspected.
+- Current native Books has no rows; populated/escaped content, single-page and paged reader
+  checks used freshly source-rendered isolated fixtures (`books-current-proof.cjs`). The
+  live empty Books filter/tools were also checked. This is not a populated live data claim.
+- Events selection/deselection and AJAX page 2 passed, including narrow screenshots,
+  without mutation requests (`events-frame-interaction.cjs`). No delete was executed.
+- Adventure selected-day records, current/full CSV contents, calendar mode switching and
+  an empty date passed; Diary calendar/person mode navigation and return passed.
+- AI Responses' paired shell/button checks still pass after sharing the frame rule.
+- Final 597 existing server checks and 799-file deployment verification passed. Persistent
+  configuration, credentials and voice-file hashes were preserved. Latest rollback:
+  `/var/backups/lorkhanserver-code.nJixGO`. No game/client activity or provider calls.
+
+The full goal remains open. In particular, the narrow calendar month controls still use
+Lorkhan's fitting layout while Herika's fixed minimum widths clip the labels at 390px;
+that difference is visible in the screenshots and is not being declared a completed
+parity item or an accepted product-specific exception. Different navigation entries,
+current dates and recorded data also prevent whole-page pixel identity. Remaining editor,
+provider and lifecycle gaps remain in the counterpart matrix above.
