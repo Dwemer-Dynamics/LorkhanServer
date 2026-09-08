@@ -1501,6 +1501,20 @@ assert not any(f['fields'].get('relationship_id') for f in staged_npc_form()[3].
 assert request('/LorkhanServer/manage/forms/profile-delete','POST',{'_csrf':csrf,'profile_id':stage_target_id}).status==200
 backup_response=request('/LorkhanServer/manage/exports/playthroughs/'+playthrough_id+'.json'); backup=json.loads(backup_response.read().decode())
 assert backup_response.status==200 and backup['schema']=='lorkhan.playthrough-export.v1' and backup['scope']=={'installation_id':valid['installation_id'],'profile_id':profile_id,'playthrough_id':playthrough_id},backup['scope']
+diary_sql(f"INSERT INTO lorkhan_internal.playthroughs(playthrough_id,installation_id,profile_id,name,created_at) SELECT gen_random_uuid(),'{valid['installation_id']}','{profile_id}','Paging Fixture '||n,'2000-01-01'::timestamptz+n*interval '1 second' FROM generate_series(1,105) n;")
+try:
+    paging_url='/LorkhanServer/ui/playthrough_manager.php?installation_id='+valid['installation_id']
+    first_page=request(paging_url).read().decode()
+    second_page=request(paging_url+'&page=2&embed=1').read().decode()
+    assert 'aria-label="Playthrough pages"' in first_page and '>Next</a>' in first_page
+    assert 'Paging Fixture 1<' in second_page and '>Previous</a>' in second_page and 'embed=1' in second_page
+    oldest_id=diary_sql("SELECT playthrough_id FROM lorkhan_internal.playthroughs WHERE name='Paging Fixture 1';")
+    selected_page=request(paging_url+'&playthrough_id='+oldest_id).read().decode()
+    assert 'value="'+oldest_id+'"' in selected_page and 'Paging Fixture 1' in selected_page
+    beyond_page=request(paging_url+'&page=999').read().decode()
+    assert 'No playthroughs on this page.' in beyond_page and '>Previous</a>' in beyond_page
+finally:
+    diary_sql(f"DELETE FROM lorkhan_internal.playthroughs WHERE installation_id='{valid['installation_id']}' AND name LIKE 'Paging Fixture %';")
 playthroughs,_=parse(request('/LorkhanServer/ui/playthrough_manager.php'))
 restore=next(f for f in playthroughs.forms if f['action'].endswith('/forms/playthrough-import'))
 values=dict(restore['fields'],_csrf=csrf,profile_id=profile_id,playthrough_id=playthrough_id,playthrough_json=json.dumps(backup))

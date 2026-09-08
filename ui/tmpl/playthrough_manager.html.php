@@ -42,8 +42,12 @@ $playthroughUtc=static fn(?string$value):string=>$value===null?'None recorded':(
         <section class="content-section" aria-labelledby="playthrough-list-title">
             <h2 id="playthrough-list-title">💾 Playthroughs</h2>
             <p class="section-note">Select a playthrough to inspect its records. These are live data scopes, not stored database backups.</p>
-            <?php if(count($rows)===100): ?><p class="scope-note">Showing the 100 most recently used playthroughs in this installation.</p><?php endif; ?>
-            <?php if($rows===[]): ?><p class="playthrough-empty">No playthroughs yet. Create one below.</p><?php else: ?>
+            <?php if($page>1||$hasNextPage): ?><nav class="button-group" aria-label="Playthrough pages">
+                <?php if($page>1): ?><a class="button" href="<?= lorkhan_ui_h($pageUrl($page-1)) ?>">Previous</a><?php endif; ?>
+                <span class="scope-note">Page <?= $page ?> · <?= count($rows) ?> playthroughs</span>
+                <?php if($hasNextPage): ?><a class="button" href="<?= lorkhan_ui_h($pageUrl($page+1)) ?>">Next</a><?php endif; ?>
+            </nav><?php endif; ?>
+            <?php if($rows===[]): ?><p class="playthrough-empty"><?= $page>1?'No playthroughs on this page. Use Previous to return to earlier results.':'No playthroughs yet. Create one below.' ?></p><?php else: ?>
             <div class="backup-list" role="region" aria-label="Available playthroughs" tabindex="0">
                 <?php foreach($rows as$row): $isSelected=$selected['playthrough_id']===$row['playthrough_id']; ?>
                 <article class="backup-item<?= $isSelected?' selected':'' ?>">

@@ -310,6 +310,8 @@ SQL);
         }
         $memoryScoped=$view==='memories'&&isset($memoryScope['installation_id'],$memoryScope['playthrough_id']);
         $playthroughScoped=$view==='playthroughs'&&isset($memoryScope['installation_id']);
+        $playthroughPage=$playthroughScoped&&isset($memoryScope['page']);
+        $playthroughSelected=$playthroughScoped&&isset($memoryScope['selected_id'])&&Uuid::isValid((string)$memoryScope['selected_id']);
         $sql = match ($view) {
             'events' => "SELECT e.type,'chim-roleplay-event.v1' AS schema,m.request_id,m.turn_id,m.created_at AS occurred_at FROM public.eventlog e JOIN lorkhan_internal.eventlog_metadata m ON m.rowid=e.rowid WHERE m.suppressed_at IS NULL ORDER BY e.rowid DESC LIMIT 100",
             'request_logs' => "SELECT trace.prompt_trace_id,trace.request_id,trace.turn_id,trace.algorithm,trace.input_bytes,trace.truncated,"
@@ -418,7 +420,8 @@ SQL);
                 ."(SELECT max(s.created_at) FROM sessions s WHERE s.playthrough_id=p.playthrough_id) AS last_session_at "
                 ."FROM playthroughs p JOIN profiles pr ON pr.profile_id=p.profile_id WHERE p.deleted_at IS NULL"
                 .($playthroughScoped?' AND p.installation_id=:playthrough_installation':'')
-                ." ORDER BY last_session_at DESC NULLS LAST,p.created_at DESC,p.playthrough_id DESC LIMIT 100",
+                .($playthroughSelected?' AND p.playthrough_id=:selected_playthrough':'')
+                ." ORDER BY last_session_at DESC NULLS LAST,p.created_at DESC,p.playthrough_id DESC LIMIT ".($playthroughPage?'101 OFFSET '.((max(1,min(100000,(int)$memoryScope['page']))-1)*100):'100'),
             'active_sessions' => "SELECT s.session_id,s.installation_id,s.profile_id,s.playthrough_id,COALESCE(t.name,s.session_id::text) AS label FROM sessions s LEFT JOIN playthroughs t ON t.playthrough_id=s.playthrough_id WHERE s.state='active' ORDER BY s.created_at DESC LIMIT 50",
             'jobs' => "SELECT job_type,state,attempt_count,max_attempts,next_run_at,last_error_code,updated_at FROM durable_jobs ORDER BY updated_at DESC LIMIT 100",
             'response_queue' => "SELECT COALESCE(s.speaker,'Unknown') AS speaker,left(s.speech,1000) AS text,metadata.delivery_state,"
@@ -451,7 +454,7 @@ SQL);
                 json_decode((string) $row['content'], true, 32, JSON_THROW_ON_ERROR));
             return $this->redactRow($row);
         }, $this->all($sql,$relationshipScoped?$relationshipParams:($memoryScoped?
-            ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:($playthroughScoped?['playthrough_installation'=>$memoryScope['installation_id']]:[]))));
+            ['memory_installation'=>$memoryScope['installation_id'],'memory_playthrough'=>$memoryScope['playthrough_id']]:($playthroughScoped?['playthrough_installation'=>$memoryScope['installation_id']]+($playthroughSelected?['selected_playthrough'=>$memoryScope['selected_id']]:[]):[]))));
     }
 
     /** Search every global/imported biography before paging, preserving each template's identity and scope. */
