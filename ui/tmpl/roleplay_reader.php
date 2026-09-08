@@ -177,7 +177,7 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
         <td><?= lorkhan_ui_h($row['person']) ?></td><td><button type="button" class="log-content-link" data-calendar-open="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"><?= nl2br(lorkhan_ui_h($row['content'])) ?></button></td><td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s',strtotime($row['created_at']))) ?></td><td><div class="diary-row-actions">
             <button type="button" class="roleplay-button diary-audio-button" data-reader-play data-reader-target="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"<?= $ready?'':' disabled' ?> title="<?= $ready?'Uses the diary author’s configured voice. Your provider may charge.':'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play</button>
             <button type="button" class="roleplay-button" data-calendar-open="edit-<?= lorkhan_ui_h($row['narrative_id']) ?>">Edit</button>
-            <button type="submit" class="roleplay-button danger" form="delete-<?= lorkhan_ui_h($row['narrative_id']) ?>">Delete</button>
+            <button type="submit" class="roleplay-button btn-danger" form="delete-<?= lorkhan_ui_h($row['narrative_id']) ?>">Delete</button>
         </div></td></tr>
         <?php endforeach; ?><?php if($state['rows']===[]): ?><tr><td colspan="5" class="log-empty"><?= $state['person']!==''?'No diary entries found for this person.':(($state['date']!==''||$state['game_date']!=='')?'No diary entries found for this date.':($state['query']!==''?'No diary entries match this filter.':'Select a date to view diary entries.')) ?></td></tr><?php endif; ?></tbody></table></div>
         <?php endif; ?>

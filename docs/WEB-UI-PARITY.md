@@ -7763,3 +7763,17 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   TTS requests. 615 server checks and all 800 deployed hashes/private/auth probes
   pass; configuration, credentials and voices preserved. Rollback:
   lorkhanserver-code.kLJdwF. Broader matrix and live-provider limits remain open.
+
+### Diary table action styling correction
+
+- Compared computed styles and populated screenshots in both actual Roleplay hubs
+  at 1280 and 390. Native Delete incorrectly inherited the green submit style;
+  switched its class to the shared btn-danger semantic used by Herika. Native table
+  Play now uses the reference neutral grey; the reader audio control stays gold.
+- All three table action backgrounds, text/border colours, fonts and padding now
+  match the reference. Column widths and row heights remain identical. Inspected
+  both narrow captures; existing reference horizontal overflow remains documented.
+- 615 server checks and mocked reader abort/stop/backdrop/focus checks pass at both
+  widths. All 800 deployed runtime hashes and private/auth/health probes pass;
+  configuration, credentials and voices preserved. Rollback: lorkhanserver-code.fns9L6.
+  No live TTS or game control. Full page matrix remains active.
