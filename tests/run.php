@@ -2042,6 +2042,30 @@ $check((fileperms($stateFile) & 0777) === 0600, 'state file is private');
 unlink($stateFile);
 rmdir($temporary);
 
+$rpgResolver = new EffectiveSettingsResolver();
+$rpgGlobal = SettingsCatalog::globalDefaults();
+$rpgGlobal['rpg_comments'] = ['events'=>['sleep','wait'], 'chance_percent'=>73];
+$rpgInherited = $rpgResolver->resolve($rpgGlobal, [], []);
+$check($rpgInherited['settings']['rpg_comments'] === $rpgGlobal['rpg_comments'], 'Core RPG policy inherits global settings');
+$rpgNpcOnly = $rpgResolver->resolve($rpgGlobal, [], ['settings_overrides'=>['rpg_comments'=>['chance_percent'=>0]]]);
+$check($rpgNpcOnly['settings']['rpg_comments'] === $rpgGlobal['rpg_comments'], 'RPG policy remains Core Profile owned rather than an NPC override');
+foreach ([['events'=>[]], ['chance_percent'=>0], ['events'=>['combat_end'],'chance_percent'=>100]] as $override) {
+    $resolvedRpg = $rpgResolver->resolve($rpgGlobal, ['settings_overrides'=>['rpg_comments'=>$override]], []);
+    $check($resolvedRpg['settings']['rpg_comments'] === array_replace($rpgGlobal['rpg_comments'], $override),
+        'Core RPG policy preserves partial overrides and explicit off');
+    foreach ($override as $field => $_) {
+        $check($resolvedRpg['sources']['settings.rpg_comments.'.$field] === 'core_profile', 'RPG setting reports Core Profile ownership');
+    }
+    $check(!isset(EffectiveSettingsResolver::controlsProjection($resolvedRpg)['settings']['rpg_comments']),
+        'server RPG policy does not enlarge native controls');
+}
+foreach ([null, [], ['events'=>['lockpick']], ['events'=>['sleep','sleep']], ['events'=>[1]],
+    ['events'=>['x'=>'sleep']], ['chance_percent'=>-1], ['chance_percent'=>101], ['chance_percent'=>'50'],
+    ['chance_percent'=>false], ['unknown'=>true]] as $invalidRpg) {
+    try { EffectiveSettingsResolver::validateSettingsOverrides(['rpg_comments'=>$invalidRpg]); $check(false, 'invalid Core RPG policy rejected'); }
+    catch (InvalidArgumentException $exception) { $check($exception->getMessage() === 'invalid_rpg_comments', 'invalid Core RPG policy rejected'); }
+}
+
 $globalSettings=SettingsCatalog::globalDefaults();
 $check($globalSettings['profile_management']===['auto_lock_profile'=>true,
         'autofill_custom_profiles'=>true,'autofill_custom_profiles_trigger'=>40],

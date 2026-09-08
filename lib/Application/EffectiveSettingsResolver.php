@@ -88,6 +88,10 @@ final class EffectiveSettingsResolver
         $this->markLeaves($settings, $globalSettings === [] ? 'default' : 'global', 'settings', $sources);
         $this->markLeaves($settings['narrator'], 'default', 'settings.narrator', $sources);
         $this->markLeaves($settings['diary'], 'default', 'settings.diary', $sources);
+        $settings['rpg_comments'] = $global['rpg_comments'];
+        foreach (array_keys($settings['rpg_comments']) as $field) {
+            $sources['settings.rpg_comments.' . $field] = $globalSettings === [] ? 'default' : 'global';
+        }
 
         $oghmaDocument = is_array($global['oghma'] ?? null) ? $global['oghma'] : [];
         if (($globalSettings['schema'] ?? null) === SettingsCatalog::CLIENT_SCHEMA) {
@@ -127,6 +131,7 @@ final class EffectiveSettingsResolver
         }
         if (isset($coreOverrides['diary'])) $allowedOverrides['diary'] = $coreOverrides['diary'];
         if (isset($coreOverrides['response'])) $allowedOverrides['response'] = $coreOverrides['response'];
+        if (isset($coreOverrides['rpg_comments'])) $allowedOverrides['rpg_comments'] = $coreOverrides['rpg_comments'];
         $this->mergeSettings($settings, $allowedOverrides, 'core_profile', 'settings', $sources);
 
         $coreRouting = self::validateRouting($coreProfileContent['routing'] ?? []);
@@ -276,12 +281,7 @@ final class EffectiveSettingsResolver
             || $content['profile_management']['autofill_custom_profiles_trigger'] > 100) {
             throw new InvalidArgumentException('invalid_global_settings');
         }
-        self::assertExactKeys($content['rpg_comments'], $expected['rpg_comments'], 'invalid_rpg_comments');
-        $rpg=$content['rpg_comments'];
-        if(is_array($rpg['events']))foreach($rpg['events']as$event)if(!is_string($event))throw new InvalidArgumentException('invalid_rpg_comments');
-        if(!is_array($rpg['events'])||!array_is_list($rpg['events'])||count($rpg['events'])!==count(array_unique($rpg['events'],SORT_REGULAR))
-            ||array_diff($rpg['events'],['levelup','combat_end','sleep','wait'])!==[]
-            ||!is_int($rpg['chance_percent'])||$rpg['chance_percent']<0||$rpg['chance_percent']>100)throw new InvalidArgumentException('invalid_rpg_comments');
+        self::validateRpgComments($content['rpg_comments']);
         $content['translation'] = TranslationPolicy::validate($content['translation']);
         self::validateGlobalOghma($content['oghma']);
         $content['context'] = self::validateContextPolicy($content['context']);
@@ -293,6 +293,30 @@ final class EffectiveSettingsResolver
         self::assertExactKeys($content['system_routing'], $expected['system_routing'], 'invalid_global_settings');
         foreach (SettingsCatalog::systemRoutingFields() as $field) self::validateUuidOrEmpty($content['system_routing'][$field]);
         return $content;
+    }
+
+    /** Validate the shared global/Core policy without treating explicit zero or an empty event list as inheritance. */
+    private static function validateRpgComments(mixed $policy, bool $partial = false): array
+    {
+        if (!is_array($policy) || array_is_list($policy)
+            || array_diff(array_keys($policy), ['events', 'chance_percent']) !== []
+            || (!$partial && count($policy) !== 2)) {
+            throw new InvalidArgumentException('invalid_rpg_comments');
+        }
+        if (array_key_exists('events', $policy)) {
+            $events = $policy['events'];
+            if (!is_array($events) || !array_is_list($events)) throw new InvalidArgumentException('invalid_rpg_comments');
+            foreach ($events as $event) {
+                if (!is_string($event) || !in_array($event, ['levelup', 'combat_end', 'sleep', 'wait'], true))
+                    throw new InvalidArgumentException('invalid_rpg_comments');
+            }
+            if (count($events) !== count(array_unique($events))) throw new InvalidArgumentException('invalid_rpg_comments');
+        }
+        if (array_key_exists('chance_percent', $policy)
+            && (!is_int($policy['chance_percent']) || $policy['chance_percent'] < 0 || $policy['chance_percent'] > 100)) {
+            throw new InvalidArgumentException('invalid_rpg_comments');
+        }
+        return $policy;
     }
 
     /** Normalize sidecar-backed v1 settings into the single v2 management document. */
@@ -317,6 +341,10 @@ final class EffectiveSettingsResolver
             throw new InvalidArgumentException('invalid_settings_overrides');
         }
         $validation=$overrides;
+        if (array_key_exists('rpg_comments', $validation)) {
+            self::validateRpgComments($validation['rpg_comments'], true);
+            unset($validation['rpg_comments']);
+        }
         if (array_key_exists('profile_evolution', $validation)) {
             self::profileEvolutionDefaults($validation['profile_evolution']);
             unset($validation['profile_evolution']);
