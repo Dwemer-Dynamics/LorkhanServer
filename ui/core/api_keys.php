@@ -15,6 +15,7 @@ $notice = '';
 $error = '';
 $responseStatus = 200;
 $savedVariable = null;
+$testHttpStatus = null;
 // Environment-owned credentials cannot be replaced by an ineffective managed value.
 $assertEditable = static function (string $variable): void {
     if (!CredentialStore::isAllowed($variable)) throw new InvalidArgumentException('invalid_credential_variable');
@@ -45,6 +46,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
                 CURLOPT_FOLLOWLOCATION=>false,CURLOPT_CONNECTTIMEOUT_MS=>2000,CURLOPT_TIMEOUT_MS=>8000,
                 CURLOPT_WRITEFUNCTION=>static fn($handle,string $chunk):int=>strlen($chunk)]);
             try{$ok=curl_exec($handle);$status=(int)curl_getinfo($handle,CURLINFO_RESPONSE_CODE);}finally{curl_close($handle);}
+            $testHttpStatus=$status;
             if($ok!==false&&$status>=200&&$status<300)$notice='API key accepted. Test does not save an unsaved key.';
             else $error='API key test failed (HTTP '.$status.'). Check the key, permissions, and connection.';
         } elseif ($action==='label') {
@@ -99,7 +101,7 @@ if (($_SERVER['REQUEST_METHOD'] ?? 'GET') === 'POST') {
         header('Cache-Control: no-store');
         http_response_code($error === '' ? 200 : ($responseStatus === 200 ? 502 : $responseStatus));
         echo json_encode(['ok' => $error === '', 'message' => $error !== '' ? $error : $notice,
-            'variable' => $error === '' ? $savedVariable : null], JSON_THROW_ON_ERROR);
+            'variable' => $error === '' ? $savedVariable : null] + ($testHttpStatus === null ? [] : ['test_http_status' => $testHttpStatus]), JSON_THROW_ON_ERROR);
         exit;
     }
 }
@@ -167,7 +169,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         <div class="provider-body">
                             <?php $inputId = 'credential-' . $slug; ?><label class="visually-hidden" for="<?php echo lorkhan_ui_h($inputId); ?>"><?php echo lorkhan_ui_h($label); ?> API key</label><input id="<?php echo lorkhan_ui_h($inputId); ?>" type="password" aria-describedby="preset-key-help"<?php echo $variable !== null ? ' name="credentials[' . lorkhan_ui_h($variable) . ']"' : ''; ?> placeholder="<?php echo lorkhan_ui_h($placeholder); ?>" autocomplete="new-password" maxlength="8192"<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>
                             <button type="button" class="button" data-key-visibility<?php echo $available ? '' : ' disabled aria-disabled="true"'; ?>>Show</button>
-                            <?php if (in_array($slug, ['openrouter', 'openai','openai-llm'], true)): ?><button type="submit" class="btn-save" name="test_key" value="<?php echo lorkhan_ui_h($variable); ?>">Test</button><?php endif; ?>
+                            <?php if (in_array($slug, ['openrouter', 'openai','openai-llm'], true)): ?><button type="submit" class="btn-save" name="test_key" data-test-provider="<?php echo $slug === 'openrouter' ? 'OPENROUTER' : 'OPENAI'; ?>" value="<?php echo lorkhan_ui_h($variable); ?>">Test</button><?php endif; ?>
                         </div>
                         <div class="provider-subtext"><p class="desc">This key can be used for: <?php echo lorkhan_ui_h(implode(', ', $uses)); ?></p></div>
                         <div class="key-status" role="status" aria-live="polite" data-key-status></div>
@@ -197,10 +199,10 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
         <label data-custom-key-label>API Key</label><div class="provider-body"><input type="password" data-new-key autocomplete="new-password" maxlength="8192" placeholder="Paste API key"><button type="button" class="button" data-key-visibility>Show</button></div><div class="key-status" role="status" aria-live="polite" data-key-status></div>
     </article></template>
 </main>
-<dialog id="apikey-test-dialog" class="apikey-test-dialog" aria-labelledby="apikey-test-title">
+<dialog id="apikey-test-dialog" class="apikey-test-dialog" aria-labelledby="apikey-test-title" aria-describedby="apikey-test-help">
     <button type="button" class="button apikey-test-close" id="apikey-test-close" autofocus>Close</button>
     <div id="apikey-test-loading" class="apikey-test-loading" hidden aria-hidden="true"><span class="apikey-test-spinner"></span></div>
-    <div class="apikey-test-content"><div class="apikey-test-panel"><div class="apikey-test-heading"><h1 id="apikey-test-title">API Key Test</h1><span id="apikey-test-provider"></span></div><div id="apikey-test-status" role="status" aria-live="polite"></div><p class="keys-help">Testing checks provider authentication. It does not save the entered key.</p></div></div>
+    <div class="apikey-test-content"><div class="apikey-test-panel"><div class="apikey-test-heading"><h1 id="apikey-test-title">API Key Test</h1><span id="apikey-test-provider"></span></div><div id="apikey-test-status" role="status" aria-live="polite"></div><p id="apikey-test-help" class="keys-help visually-hidden">Testing checks provider authentication. It does not save the entered key.</p></div></div>
 </dialog>
 <script defer src="<?php echo lorkhan_ui_h($webRoot); ?>/ui/js/api-keys.js?v=<?php echo lorkhan_ui_h((string) filemtime(dirname(__DIR__) . '/js/api-keys.js')); ?>"></script>
 <?php include dirname(__DIR__) . '/tmpl/footer.html'; ?>

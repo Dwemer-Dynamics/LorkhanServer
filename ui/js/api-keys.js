@@ -13,8 +13,12 @@
         const body=new URLSearchParams({...values,_csrf:form.elements.namedItem('_csrf').value});
         const response=await fetch(form.action,{method:'POST',credentials:'same-origin',headers:{Accept:'application/json'},body,signal});
         const result=await response.json().catch(()=>{throw new Error('The server returned an unreadable result. Check the connection before retrying.');});
-        if(!response.ok||result.ok!==true)throw new Error(response.status===401?'Session expired. Reload before continuing.':
-            typeof result.message==='string'&&result.message.length<512?result.message:'The operation could not be completed.');
+        if(!response.ok||result.ok!==true){
+            const error=new Error(response.status===401?'Session expired. Reload before continuing.':
+                typeof result.message==='string'&&result.message.length<512?result.message:'The operation could not be completed.');
+            error.testHttpStatus=result.test_http_status;
+            throw error;
+        }
         return result;
     }
 
@@ -115,24 +119,35 @@
         finally{if(button)button.disabled=false;}
     });
 
+    // Match the reference result hierarchy using text nodes and actual HTTP metadata only.
+    function renderTestResult(message,successful,httpStatus){
+        const status=document.getElementById('apikey-test-status');
+        const hasHttp=Number.isInteger(httpStatus)&&httpStatus>=100&&httpStatus<=599;
+        status.replaceChildren();status.className=successful?'is-success':'is-error';
+        const row=document.createElement('div');row.className='apikey-test-result';
+        const icon=document.createElement('span');icon.className='apikey-test-result-icon';icon.setAttribute('aria-hidden','true');icon.textContent=successful?'✔':'✖';
+        const title=document.createElement('span');title.textContent=successful?'Key is valid':hasHttp?'Key failed':'Test error';
+        row.append(icon,title);status.append(row);
+        if(hasHttp){const metadata=document.createElement('div');metadata.className='apikey-test-http';metadata.textContent='HTTP '+httpStatus+(successful?' • Provider reachable':'');status.append(metadata);}
+        if(!successful){const detail=document.createElement('div');detail.className='apikey-test-detail';detail.textContent=message;status.append(detail);}
+    }
     // Authentication tests keep their result in a dismissible reader without saving or navigating.
     async function runTest(button){
         if(testRequest)return;
         const card=button.closest('[data-key-card]'),input=keyInput(card),status=document.getElementById('apikey-test-status');
         const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
         testRequest=controller;testOpener=button;
-        document.getElementById('apikey-test-provider').textContent=card.querySelector('.provider-title').lastElementChild.textContent.trim();
+        document.getElementById('apikey-test-provider').textContent=button.dataset.testProvider||card.querySelector('.provider-title').lastElementChild.textContent.trim();
         status.textContent='Testing API key…';status.className='is-loading';testLoading.hidden=false;
         dialog.showModal();button.disabled=true;
         try{
             const result=await post({test_key:button.value,['credentials['+button.value+']']:input.value},controller.signal);
             if(testRequest!==controller||!dialog.open)return;
-            status.textContent=result.message;status.className='is-success';
+            renderTestResult(result.message,true,result.test_http_status);
         }catch(error){
             if(testRequest!==controller||!dialog.open)return;
-            status.textContent=error.name==='AbortError'?'The test timed out. No key was saved.':
-                error instanceof TypeError?'Could not reach the server. No key was saved.':error.message;
-            status.className='is-error';
+            renderTestResult(error.name==='AbortError'?'The test timed out. No key was saved.':
+                error instanceof TypeError?'Could not reach the server. No key was saved.':error.message,false,error.testHttpStatus);
         }finally{clearTimeout(timer);if(testRequest===controller){testRequest=null;testLoading.hidden=true;button.disabled=false;}}
     }
     document.getElementById('apikey-test-close').addEventListener('click',()=>dialog.close());

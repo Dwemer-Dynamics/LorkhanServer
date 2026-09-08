@@ -7188,3 +7188,31 @@ were preserved. No game or provider was used.
   private/authentication probes passed. Provider grouping, complete result-detail
   parity and overall API Keys page composition remain pending. The full goal
   remains active.
+
+### API authentication result reader (2026-09-08)
+
+- Replaced the one-line result with the pinned `core/tests/apikey_test.php`
+  hierarchy: uppercase provider, success/failure icon and heading, separate HTTP
+  line, then safe explanatory text on errors. System-font sizing, heading word
+  spacing and state-specific margins now match. Authentication/no-save guidance
+  remains the dialog's accessible description instead of adding a visible row.
+- The PHP response adds only the actual numeric cURL HTTP status for test calls;
+  it still discards provider response bodies and never returns keys. The browser
+  accepts only integer status codes 100-599 for display, uses text nodes for
+  details, and labels missing/transport status as Test error. No quota/credit or
+  generation success is inferred: Lorkhan's existing authentication-only request
+  remains unchanged, unlike Herika's billable generation probe.
+- Reference result HTML/CSS was reproduced from the pinned source inside its
+  actual modal iframe, using synthetic outcomes and no request to a provider.
+  Native browser POSTs were intercepted. Success/HTTP401/transport-error cases
+  match panel, title and result-row dimensions/fonts at 1280/390px. Panel heights
+  are 102/129/103px respectively; title is 99.265625x24px. Screenshots inspected,
+  and literal script-like error text remains inert. Native loading, close/abort
+  and Escape/focus checks still pass after the result changes.
+- A temporary source-extracted cURL fixture exercised actual PHP test-branch
+  metadata for 200/401/429/transport failure without network calls. Existing 608
+  checks, PHP/JS syntax and the full disposable management HTTP suite passed
+  (`api-result-http.txt`). No new repository test harness was added.
+- Server-only deployment preserved configuration, credentials and voices; all 799
+  deployed hashes and private/authentication probes passed. Provider/badge grouping
+  and full-page API composition remain pending. Overall parity remains active.
