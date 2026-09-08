@@ -497,7 +497,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
     <?php endif; ?>
     <dialog id="llm-test-dialog" aria-labelledby="llm-test-title">
         <button type="button" class="btn-secondary" data-llm-test-close autofocus>Close</button>
-        <div class="llm-test-wrap">
+        <div class="llm-test-viewport"><div class="llm-test-wrap">
             <h2 id="llm-test-title">🔧 LLM Connector Test</h2>
             <div class="llm-test-panel"><strong>Connector:</strong> <span data-llm-test-name></span></div>
             <div class="llm-test-panel" role="status" aria-live="polite"><strong>Status:</strong> <span data-llm-test-result></span></div>
@@ -506,6 +506,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
             <div class="llm-test-panel"><strong>Validated response / Actions:</strong><pre data-llm-diagnostic="response">Not tested yet.</pre></div>
             <div class="llm-test-panel"><strong>Request payload:</strong><pre data-llm-diagnostic="request">Not tested yet.</pre></div>
             <div class="llm-test-panel"><strong>Usage:</strong><pre data-llm-diagnostic="usage">Not tested yet.</pre><p>Diagnostics are redacted and limited to 128 KiB per body. Transport headers and raw internal buffers are never displayed. Actions returned by this test are not executed.</p></div>
+        </div>
         </div>
         <div class="llm-test-loading" data-llm-test-loading hidden><span class="llm-test-spinner" aria-hidden="true"></span><span class="visually-hidden">Testing connector</span></div>
     </dialog>

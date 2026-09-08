@@ -7509,3 +7509,26 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Changed-author/text/connector cache behavior is no longer an unverified item.
   External provider limits and long-entry audio are still untested; mock HTTP
   acceptance does not establish provider latency or audible voice quality.
+
+### LLM connector test reader structure
+
+- Replaced the whole-dialog scroll/float-Close layout with a dedicated scrolling
+  report viewport and an absolutely positioned Close button, following Herika's
+  outer modal plus iframe reader structure. Retained native dialog focus handling,
+  gold accents, redacted diagnostics and the existing save-before-test behavior.
+- Removed the extra title-width reservation and isolated paragraph/preformatted
+  report styles from the page's inherited compact typography. Reference test-page
+  text is 16px Arial; JSON blocks retain 13px monospace with their 1em margins.
+- Compared native live modal to the actual reference modal with synthetic report
+  contents and pinned tests/llmtest.php CSS inside its blank iframe. Never loaded
+  that test endpoint, which would call an LLM; all non-GET requests were blocked.
+  Removed the reference fixture's leftover loader before visual comparison.
+- At 1280/390, outer modal, Close rectangle, report width and title dimensions match
+  exactly. Matched diagnostic panel heights are 328/481px respectively; paragraph,
+  JSON and label typography/margins also match. Inspected narrow captures. Close
+  stays fixed during report scrolling; Escape dismisses the native dialog.
+- PHP syntax, diff checks and 613 server checks passed. Source-only deployment
+  preserved secrets/voices; 800 runtime hashes and private/authentication probes
+  pass. Final rollback: lorkhanserver-code.zXSYyu.
+- This fixes the report structure, not the full LLM editor acceptance. Remaining
+  provider/advanced field interactions and real test lifecycle states stay open.
