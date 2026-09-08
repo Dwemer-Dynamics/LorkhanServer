@@ -33,6 +33,19 @@
     const limit = Number(root.dataset.maxLength || 240);
     let active = null;
     let objectUrl = '';
+    const playButtons = [...root.querySelectorAll('[data-reader-play]')];
+    const entryFor = button => button.dataset.readerTarget
+        ? document.getElementById(button.dataset.readerTarget)?.querySelector('[data-reader-entry]')
+        : button.closest('[data-reader-entry]');
+    const buttonDefaults = new Map(playButtons.map(button => [button, { text: button.textContent, disabled: button.disabled }]));
+    // A table row and its reader share one playback state and must never start duplicate requests.
+    const updatePlayButtons = (entry, label = '', disabled = false) => {
+        playButtons.filter(button => entryFor(button) === entry).forEach(button => {
+            const original = buttonDefaults.get(button);
+            button.textContent = label || original.text;
+            button.disabled = disabled || original.disabled;
+        });
+    };
     const announce = (message) => { status.textContent = message; };
     const release = () => {
         audio.pause(); audio.removeAttribute('src'); audio.load();
@@ -40,6 +53,7 @@
         objectUrl = '';
     };
     const stop = (message = 'Reading stopped.') => {
+        if (active) updatePlayButtons(active.entry);
         active?.controller.abort();
         active?.entry.classList.remove('is-reading');
         active = null; release(); stopButton.hidden = true; audio.hidden = true;
@@ -79,17 +93,32 @@
         audio.addEventListener('ended', ended, { once: true });
         audio.addEventListener('error', failed, { once: true });
         signal.addEventListener('abort', aborted, { once: true });
-        audio.play().catch(() => {
+        audio.play().then(() => {
+            if (!signal.aborted && active) updatePlayButtons(active.entry, '❚❚ Pause');
+        }).catch(() => {
+            if (!signal.aborted && active) updatePlayButtons(active.entry);
             if (!signal.aborted) announce('Audio is ready. Press Play on the audio player to continue.');
         });
     });
 
     root.querySelectorAll('[data-reader-play]').forEach((button) => button.addEventListener('click', async () => {
-        stop('');
-        const entry = button.dataset.readerTarget
-            ? document.getElementById(button.dataset.readerTarget)?.querySelector('[data-reader-entry]')
-            : button.closest('[data-reader-entry]');
+        const entry = entryFor(button);
         if (!entry) return;
+        if (active?.entry === entry && audio.getAttribute('src')) {
+            const run = active;
+            if (audio.paused) {
+                try {
+                    await audio.play();
+                    if (active === run) { updatePlayButtons(entry, '❚❚ Pause'); announce('Playing'); }
+                } catch {
+                    if (active === run) announce('Audio is ready. Press Play to continue.');
+                }
+            } else {
+                audio.pause(); updatePlayButtons(entry); announce('Paused');
+            }
+            return;
+        }
+        stop('');
         // Dialog content is modal: keep playback and cancellation inside the active entry.
         if (entry.closest('dialog')?.open) {
             entry.querySelector('.reader-entry-actions').append(stopButton, status, audio);
@@ -101,6 +130,7 @@
         try {
             for (let i = 0; i < chunks.length; i += 1) {
                 if (run.controller.signal.aborted) return;
+                updatePlayButtons(entry, 'Generating...', true);
                 announce(`Generating sentence ${i + 1} of ${chunks.length}…`);
                 const response = await fetch(root.dataset.previewEndpoint, {
                     method: 'POST', credentials: 'same-origin', signal: run.controller.signal,

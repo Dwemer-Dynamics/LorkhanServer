@@ -6845,3 +6845,26 @@ asserts the reading state is still active before closing (no decoder-error short
 The screenshot shows the active Stop control. Mocked editor rejection checks also pass.
 Runtime verification matches all 799 source files with no extras or legacy paths;
 private paths remain forbidden and unauthenticated sessions remain rejected.
+
+### Diary Play/Pause interaction (2026-09-08)
+
+Pinned Herika diarylog.php toggleDiaryAudio reuses the current clip for Pause/Play;
+Lorkhan previously restarted generation on every Play click. The shared reader now
+synchronizes row and modal buttons, disables them while generating, shows Pause during
+playback, and resumes the same sentence without a new request. Stop, close, completion
+and failure restore the original labels and connector availability. Sentence queuing
+remains intact; this does not change the provider endpoint or narrator selection.
+
+Temp/diary-toggle-proof.cjs uses rendered fixtures and valid silent WAV/media mocks at
+1280/390: pause/resume keeps the request count unchanged, both buttons show Pause,
+ended advances one sentence, and backdrop close aborts or stops without queuing more.
+Screenshots show the active Pause state. No live diary write, provider call or game
+interaction occurred. JavaScript syntax and 608 existing server checks pass.
+
+Still open: the native footer includes Export Text, Close, Stop and a media player
+where Herika exposes a single toggle and status. Reader opening currently cancels
+row playback; Herika retains it. Narrator versus author voice mapping also remains
+unresolved. These are not accepted product exceptions or full reader parity proof.
+
+The same interaction assertions pass on the deployed JavaScript. All 799 runtime
+files match source; configuration, credentials and voices were preserved by the deploy.
