@@ -256,6 +256,7 @@ final class ManagementRouter
             if($keys!==['credential','provider']||!is_string($body['provider'])||!is_string($body['credential']))
                 throw new InvalidArgumentException('invalid_quickstart_key');
             $variable=match($body['provider']){'openrouter'=>'LORKHAN_LLM_API_KEY','deepgram'=>'LORKHAN_TTS_DEEPGRAM_API_KEY',
+                'local_llm'=>\LorkhanServer\Application\QuickstartLocalLlm::CREDENTIAL,
                 default=>throw new InvalidArgumentException('invalid_quickstart_key')};
             // Environment-owned keys cannot be changed by writing an ineffective managed replacement.
             $environment=getenv($variable);

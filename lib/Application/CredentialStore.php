@@ -65,6 +65,7 @@ final class CredentialStore
             if($definition['credential_environment']!=='')$labels[$definition['credential_environment']]=$definition['label'];
         }
         return array_replace($labels,[
+            QuickstartLocalLlm::CREDENTIAL=>'Quickstart Local LLM',
             'LORKHAN_LLM_API_KEY'=>'Default LLM key (OpenRouter)',
             'LORKHAN_TTS_API_KEY'=>'Default TTS key','LORKHAN_STT_API_KEY'=>'Default STT key',
             'LORKHAN_LLM_OPENAI_API_KEY'=>'OpenAI LLM key','LORKHAN_LLM_OPENROUTER_API_KEY'=>'OpenRouter LLM key',

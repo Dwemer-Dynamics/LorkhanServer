@@ -7,6 +7,9 @@ use InvalidArgumentException;
 /** Normalize the Local LLM setup independently of profile routing and private credential storage. */
 final class QuickstartLocalLlm
 {
+    // Keep Quickstart's optional local-server key separate from cloud and custom connector credentials.
+    public const CREDENTIAL = 'LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY';
+
     public const SERVERS=['lm_studio'=>['LM Studio',1234],'ollama'=>['Ollama',11434],
         'llama_cpp'=>['llama.cpp',8080],'koboldcpp'=>['KoboldCPP',5001],'other'=>['Other OpenAI-compatible server',null]];
 

@@ -8703,3 +8703,35 @@ Inspected paired narrow Adventure and desktop Diary table screenshots. Both depl
 empty calendars contain no links. Existing filter/reset probe passed at both widths
 after correcting its stale diary-empty-text regex; no POSTs occurred. No game or
 provider used. These close the listed month-boundary acceptance, not the full goal.
+
+### Quickstart optional Local LLM credential foundation (2026-09-08)
+
+Reconfirmed that pinned Quickstart applies the selected global/profile preset before
+Local LLM routing. Native routing-only save is not that full workflow. Keep Setup
+cards and Local LLM panel pending until preset policy and coordinated save semantics
+are complete; do not describe this backend checkpoint as visible UI parity.
+
+Reference local_llm_setup.php maintains a separate Quickstart Local LLM badge for
+its optional key. Added local_llm to the existing authenticated/CSRF-protected
+Quickstart key endpoint, using a fixed dedicated custom credential identity and
+that display label. It does not overwrite OpenRouter or general custom LLM keys.
+Existing private atomic storage, value limits and environment-owned conflict rules
+apply unchanged. Nothing is written just by deployment or opening Quickstart.
+The local setup binds it through the existing badge: reference syntax; omission
+still means no Authorization header. Credential values never enter routing metadata.
+
+Extended the existing mock-provider HTTP test for missing CSRF, status-only save,
+explicit badge binding sending the expected Authorization header, secret-free test
+result and a subsequent unbound draft sending no Authorization header. The existing
+routing-fingerprint assertion also covers these tests. Initial fixture incorrectly
+used the raw variable as an LLM reference and was rejected by existing validation;
+corrected to badge: without weakening validation. No new test files or real keys.
+
+Remaining connected work is unchanged: full Default/Local LLM preset semantics,
+Setup cards, local server URL/host helpers, optional key draft handling, preview,
+and one accurate Save and Continue flow. In particular, reference Test can use an
+unsaved key; this new persistence endpoint alone does not establish that behavior.
+
+Final PHP lint and 692 server checks pass. Full management HTTP passes with the
+corrected fixture (quickstart-local-key-http-2.txt), including the new authenticated
+local-provider path and the existing no-routing-mutation assertion.

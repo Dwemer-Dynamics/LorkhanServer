@@ -2188,6 +2188,20 @@ draft_test=json_request(draft_test_path,'POST',draft_body,draft_csrf); draft_res
 assert draft_test.status==200 and draft_result['ok'] and 'valid utterance' in draft_result['message'],draft_result
 assert len(VoiceProvider.llm_requests)==before_draft_calls+1 and VoiceProvider.llm_requests[-1][1]['model']=='draft-local-model'
 assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]
+# Optional local credentials never replace a cloud key or apply to an unbound request.
+local_key='isolated-local-key-'+uuid.uuid4().hex
+local_key_path='/LorkhanServer/manage/api/v1/quickstart-key'
+local_key_payload={'provider':'local_llm','credential':local_key}
+assert json_request(local_key_path,'POST',local_key_payload).status==401
+saved_local_key=json_request(local_key_path,'POST',local_key_payload,draft_csrf)
+assert saved_local_key.status==200 and json.load(saved_local_key)=={'saved':True}
+keyed_draft=json_request(draft_test_path,'POST',dict(draft_body,setup=dict(draft_setup,credential='badge:LORKHAN_CUSTOM_QUICKSTART_LOCAL_LLM_API_KEY')),draft_csrf)
+keyed_result=json.load(keyed_draft)
+assert keyed_draft.status==200 and keyed_result['ok'] and local_key not in json.dumps(keyed_result)
+assert VoiceProvider.llm_requests[-1][0].get('Authorization')=='Bearer '+local_key
+unkeyed_draft=json_request(draft_test_path,'POST',draft_body,draft_csrf)
+assert unkeyed_draft.status==200 and json.load(unkeyed_draft)['ok']
+assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]
 bad_draft=json_request(draft_test_path,'POST',dict(draft_body,setup=dict(draft_setup,model='invalid-output')),draft_csrf)
 assert bad_draft.status==502 and json.load(bad_draft)=={'error':'local_llm_test_failed'}
 assert json.load(request(plan_url))==before_draft_plan
