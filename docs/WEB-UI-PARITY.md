@@ -6893,3 +6893,26 @@ calendar/delete states still need review; this checkpoint is not full Diary acce
 
 Deployed reader geometry and playback-continuity probes pass at both widths. The
 799-file runtime verification matches source; PHP/JavaScript syntax and 608 checks pass.
+
+### Diary deletion and long/empty reader states (2026-09-08)
+
+Pinned Herika diarylog.php uses confirm('Are you sure you want to delete this entry?')
+for row deletion, not an editor modal. Replaced the native extra Delete Entry modal
+with that confirmation flow; the row submits the existing scoped, CSRF-protected
+narrative-delete form. Cancel sends nothing. A failed delete now reports deletion
+rather than saving, restores its button and shows the reference-style alert. Removed
+only obsolete Diary delete-modal CSS; Narrative Manager is unaffected.
+
+Temp/diary-remaining-states.cjs checks desktop/narrow Cancel, accepted mock 422 and
+retry availability, correct target ID, plus long/empty content, contained scrolling,
+visible footer and Escape/focus return. No live delete occurs. The existing disposable
+management HTTP suite passes, as do PHP/JS syntax and 608 server checks.
+Temp/diary-long-empty-parity.cjs renders the same empty/long plain text in both actual
+pages at 1280/390. Modal, parchment, footer and button geometry/padding/type metrics
+match in all four cases; narrow screenshots were reviewed. Plain text was assigned
+with textContent, not executed as HTML. This verifies these states, not author voice
+selection or the remaining page matrix.
+
+Deployed deletion/long/empty probes and editor rejection regression pass at both
+widths. All 799 deployed files match source; deployment preserved configuration,
+credentials and voices. No game was launched or controlled.

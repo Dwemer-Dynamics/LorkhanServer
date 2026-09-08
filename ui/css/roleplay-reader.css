@@ -27,10 +27,8 @@
 .roleplay-reader .diary-editor-modal textarea{height:400px;min-height:180px;resize:vertical;font-size:13.44px;line-height:1.45}
 .roleplay-reader .diary-editor-modal [data-reader-form-status]:empty{display:none}
 .roleplay-reader .diary-editor-modal .modal-footer{flex-shrink:0;display:flex;justify-content:flex-end;gap:10px;padding:15px 0 0;background:#2b2b2b;border-top:1px solid #4a4a4a}
-.roleplay-reader .diary-delete-modal{max-width:600px}
 body .roleplay-reader .diary-save{background:#176529!important;border-color:#23843a!important;color:#fff!important}
 body .roleplay-reader .diary-audio-button{background:#bc9d5a!important;border-color:#9d8045!important;color:#141414!important}
-@media(max-width:768px){.roleplay-reader .diary-delete-modal{top:20px;max-height:calc(100dvh - 40px);width:calc(100% - 24px);padding:20px}.roleplay-reader .diary-delete-modal form{max-height:calc(100dvh - 130px)}}
 /* Keep the paper reader separate from editing, with the reference's fixed audio footer. */
 .roleplay-reader .diary-entry-modal{position:fixed;inset:80px auto auto 50%;transform:translateX(-50%);margin:0;padding:0;width:98%;max-width:1600px;height:calc(100dvh - 220px);min-height:0;background:transparent;border:1px solid #404040;border-radius:14px;box-shadow:0 2px 10px #0005;overflow:hidden}
 .roleplay-reader .diary-entry-modal::backdrop{background:#0008;backdrop-filter:blur(5px)}
@@ -93,7 +91,7 @@ body .diary-people-item:hover,body .diary-people-item.active{border-color:#bc9d5
 .calendar-reader-viewport .calendar{margin-bottom:0;}
 
 /* Herika Diary edit footer groups its actions with vertical margins. */
-.roleplay-reader .diary-editor-modal:not(.diary-delete-modal) .modal-footer{padding:0;gap:normal;}
+.roleplay-reader .diary-editor-modal .modal-footer{padding:0;gap:normal;}
 .roleplay-reader .diary-editor-modal .button-group{display:flex;gap:10px;margin:15px 0;}
 .roleplay-reader .diary-editor-modal .button-group button{font-weight:500;line-height:1.2;letter-spacing:.3px;}
 .roleplay-reader .diary-editor-modal textarea{padding:7px 10px;}

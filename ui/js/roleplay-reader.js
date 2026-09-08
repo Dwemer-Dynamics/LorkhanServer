@@ -225,15 +225,26 @@
     }));
     root.querySelectorAll('[data-reader-form]').forEach((form) => form.addEventListener('submit', async (event) => {
         event.preventDefault();
-        if (form.hasAttribute('data-reader-delete') && !form.closest('dialog')?.open) return;
-        stop('Saving entry…');
+        const deleting = form.hasAttribute('data-reader-delete');
+        if (deleting && !window.confirm('Are you sure you want to delete this entry?')) return;
+        const progress = deleting ? 'Deleting entry…' : 'Saving entry…';
+        stop(progress);
         const formStatus = form.querySelector('[data-reader-form-status]');
-        if (formStatus) formStatus.textContent = 'Saving entry…';
-        const submit = form.querySelector('[type="submit"]'); submit.disabled = true;
+        if (formStatus) formStatus.textContent = progress;
+        const submit = event.submitter || form.querySelector('[type="submit"]');
+        if (submit) submit.disabled = true;
         try {
             const response = await fetch(form.action, { method: 'POST', credentials: 'same-origin', body: new FormData(form) });
-            if (!response.ok || !response.redirected) throw new Error('The entry could not be saved. Reload the page and try again.');
+            if (!response.ok || !response.redirected) throw new Error(deleting
+                ? 'Failed to delete entry. Please try again.'
+                : 'The entry could not be saved. Reload the page and try again.');
             window.location.reload();
-        } catch (error) { announce(error.message); if (formStatus) formStatus.textContent = error.message; submit.disabled = false; }
+        } catch (error) {
+            const message = deleting ? 'Failed to delete entry. Please try again.' : error.message;
+            announce(message);
+            if (formStatus) formStatus.textContent = message;
+            if (submit) submit.disabled = false;
+            if (deleting) window.alert(message);
+        }
     }));
 })();

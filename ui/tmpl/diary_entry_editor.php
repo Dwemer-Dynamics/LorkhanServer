@@ -13,11 +13,6 @@
         <div class="modal-footer"><div class="button-group"><button class="roleplay-button diary-save" type="submit">Save Changes</button><button class="roleplay-button" type="button" data-calendar-close>Cancel</button></div></div>
     </form>
 </dialog>
-<dialog class="diary-editor-modal diary-delete-modal" id="delete-<?= lorkhan_ui_h($id) ?>" aria-labelledby="delete-title-<?= lorkhan_ui_h($id) ?>">
-    <h2 id="delete-title-<?= lorkhan_ui_h($id) ?>">Delete Entry</h2>
-    <form method="post" action="<?= lorkhan_ui_h($managementBasePath.'/forms/narrative-delete') ?>" data-reader-form data-reader-delete>
+    <form hidden id="delete-<?= lorkhan_ui_h($id) ?>" method="post" action="<?= lorkhan_ui_h($managementBasePath.'/forms/narrative-delete') ?>" data-reader-form data-reader-delete>
         <input type="hidden" name="_csrf" value="<?= lorkhan_ui_h($csrf) ?>"><input type="hidden" name="narrative_id" value="<?= lorkhan_ui_h($id) ?>">
-        <div class="modal-body"><p>Delete “<?= lorkhan_ui_h($row['title']) ?>” from this playthrough?</p><p role="status" data-reader-form-status></p></div>
-        <div class="modal-footer"><button class="roleplay-button danger" type="submit">Delete Entry</button><button class="roleplay-button" type="button" data-calendar-close autofocus>Cancel</button></div>
     </form>
-</dialog>
