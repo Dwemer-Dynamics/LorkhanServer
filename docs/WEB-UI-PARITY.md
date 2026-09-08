@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `f316e5b` (shared Core Profile field presentation).
+Current deployed product checkpoint: `2709506` (Core RPG policy foundation; latest visual changes remain `f316e5b`).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8998,3 +8998,44 @@ rolled event a second time. Keep supported OpenMW event differences explicit.
 
 Full Core Profile and overall page parity remain active; RPG controls, scene
 summary boundaries and the remaining counterpart matrix are not completed here.
+
+## 2026-09-08 - Core RPG policy inheritance foundation
+
+Product `2709506` is pushed to main and deployed server-only. The effective-settings
+resolver now carries the global RPG policy and applies validated Core Profile
+`settings_overrides.rpg_comments` fields. Missing fields inherit; zero probability
+and an empty event list remain explicit off. NPC overrides do not take ownership.
+The shared validator retains the existing four supported events (levelup,
+combat_end, sleep, wait), integer 0-100 probability and strict field/type checks.
+The server-only section is excluded from the native controls projection.
+
+This is NOT completion of RPG Comments: ingress still accepts the player-only
+payload and the Router still rolls the global policy. No new profile controls have
+been exposed, and normal RPG behavior is unchanged until responder ingress and
+profile selection are connected. Form save/import/export/preset/Copy to all plumbing,
+actual reference card rendering and interactive comparisons remain pending.
+
+Evidence: 742 server checks passed, including Core inheritance/explicit off/source
+ownership/invalid values/native projection. The full integration vertical slice,
+173-relation schema inventory and migration/durable job suite passed in
+`rpg-profile-policy-integration.txt`. Rollback is
+`/var/backups/lorkhanserver-code.fuQ9nI`. Verification matched all 805 runtime files,
+with no extras or legacy paths; private-file403, unauthenticated401, health and NPC
+200/404 probes passed. Configuration, credentials and voice hashes were preserved.
+These checks prove the foundation, not the missing feature or full UI parity.
+
+Additional client source evidence at `6daab0c`: `beast_transport.cpp:643-663`
+serializes the existing GameDataRequest payload unchanged; `requireJsonObject` at330
+checks only valid JSON object shape. Combined with the native Lua binding's generic
+serialization and existing request-id acknowledgement, adding a typed optional
+responder should require Lua/schema/server changes, not native C++ changes. A
+runtime Lua-only deployment path and exact deployed client version still need
+verification. Isolated client worktree `D:/wt/lorkhan-rpg-profile-responder`, branch
+`codex/rpg-profile-responder`, is clean at6daab0c; its required reading is not yet
+complete, so no client implementation has been edited.
+
+Next: finish client required reading; add optional responder to both shared schema
+copies and validators, freeze/bound/correlate the same eligible actor in Lua across
+session/generation changes, and have ingress resolve its Core Profile before the
+single existing probability roll. Then expose the working reference-style card.
+No game launched or controlled. Workflow remains disabled. Full parity goal active.
