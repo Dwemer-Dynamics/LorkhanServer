@@ -1174,6 +1174,17 @@ r=json_request(request_clear_path,'POST',dict(request_clear_values,confirm=''),c
 r=json_request(request_clear_path,'POST',dict(request_clear_values,installation_id=str(uuid.uuid4())),csrf); assert r.status==422
 r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and isinstance(json.loads(r.read())['cleared'],int)
 r=json_request(request_clear_path,'POST',request_clear_values,csrf); assert r.status==200 and json.loads(r.read())['cleared']==0
+response_export_path='/LorkhanServer/ui/events-memories.php?'+urllib.parse.urlencode({'tab':'responselog','installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'export':'1'})
+response_export=request(response_export_path)
+assert response_export.headers.get_content_type()=='text/csv' and 'attachment' in response_export.headers['Content-Disposition']
+response_csv=csv.DictReader(io.StringIO(response_export.read().decode()))
+assert response_csv.fieldnames==['rowid','time_utc','ai_response','oghma_topic','prompt','http_request']
+for response_row in response_csv:
+    response_prompt=json.loads(response_row['prompt'])
+    assert set(response_prompt)<= {'messages','model','response_connector'}
+    assert all(set(message)=={'role','content'} for message in response_prompt['messages'])
+empty_response_csv=list(csv.reader(io.StringIO(request(response_export_path+'&q=export-no-match-fixture-926407').read().decode())))
+assert len(empty_response_csv)==1 and empty_response_csv[0]==response_csv.fieldnames
 clear_path='/LorkhanServer/manage/api/v1/roleplay/clear'
 clear_values={'installation_id':valid['installation_id'],'playthrough_id':playthrough_id,'kind':'diaries','confirm':'Clear'}
 r=json_request(clear_path,'GET',None,csrf); assert r.status in (404,405)

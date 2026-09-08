@@ -8235,3 +8235,26 @@ No product change was needed for these compared reader states. Existing runtime
 stays `074ad9c`; no redeploy required for this evidence-only update. All browser
 non-GET requests blocked. No game, real provider or production database writes.
 The full matrix remains active; cleanup/export edge states and other pages remain.
+
+### AI Responses export and cleanup completion pass (2026-09-08)
+
+Source audit found that Response Log export still used the generic narrative CSV
+columns, omitting prompt and Oghma data. Changed only this tab to the reference six
+columns: rowid, time_utc, ai_response, oghma_topic, prompt, http_request. UTC display
+format matches the reference. Uses the same scoped Oghma lookup and allowlisted
+frozen messages/model/connector label/driver as the prompt reader, never raw
+provider configuration. Retains selected playthrough/search scope, all matching
+rows beyond the current page, streaming output and spreadsheet formula protection.
+Other tabs retain their existing export formats. Native http_request remains the
+recorded input kind/text, as shown in the table, not a fabricated Skyrim URL.
+
+Existing management HTTP coverage extended for CSV headers, attachment response,
+allowlisted prompt JSON structure and a header-only no-match export. PHP lint and
+691 server checks pass; full HTTP/deployment evidence follows below.
+
+`response-clean-proof.cjs` checked desktop/narrow cancellation, HTTP failure,
+malformed response and successful reload. All cleanup POSTs were intercepted:
+cancel made zero requests; failures restored the control; payload retained scope,
+confirmation and CSRF. Narrow error screenshot inspected. Production logs were not
+deleted. Herika's destructive GET is not copied; native confirmed authenticated
+POST and preservation of source/history/active responses remain required.

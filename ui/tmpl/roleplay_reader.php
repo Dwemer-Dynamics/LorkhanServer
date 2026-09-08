@@ -115,16 +115,37 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     foreach ($params as $key => $value) $statement->bindValue(':'.$key, $value, PDO::PARAM_STR);
     if (!$export) $statement->bindValue(':offset', ($state['page'] - 1) * $pageSize, PDO::PARAM_INT);
     $statement->execute();
+    $topics = null;
+    if ($tab === 'responselog') {
+        $topics = $database->prepare("SELECT DISTINCT d.topic FROM retrieval_traces r JOIN knowledge_documents d ON d.document_id=ANY(r.result_ids) WHERE r.turn_id=:turn AND r.installation_id=:installation AND r.playthrough_id=:playthrough ORDER BY d.topic LIMIT 50");
+    }
     if ($export) {
         // Stream the selected scope without loading the entire log or exporting provider configuration.
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="'.$tab.'-log.csv"');
         header('Cache-Control: private, no-store');
         $output = fopen('php://output', 'wb');
-        fputcsv($output, $tab === 'adventure' ? ['Context', 'Nearby People', 'Location & Tamrielic Time', 'Time(UTC)'] : ['Time (UTC)', 'Person', 'Title', 'Content', 'State / Kind', 'ID', 'Tamrielic Time']);
+        $columns = match ($tab) {
+            'responselog' => ['rowid', 'time_utc', 'ai_response', 'oghma_topic', 'prompt', 'http_request'],
+            'adventure' => ['Context', 'Nearby People', 'Location & Tamrielic Time', 'Time(UTC)'],
+            default => ['Time (UTC)', 'Person', 'Title', 'Content', 'State / Kind', 'ID', 'Tamrielic Time'],
+        };
+        fputcsv($output, $columns);
         while ($record = $statement->fetch(PDO::FETCH_ASSOC)) {
             $values = [$record['created_at'], $record['person'], $record['title'], $record['content'], $record['kind'], $record['narrative_id'], MorrowindCalendar::parse($record['calendar_data']??null)['label']??'Not recorded'];
-            if ($tab === 'adventure') {
+            if ($tab === 'responselog') {
+                $topics->execute(['turn' => $record['turn_id'], 'installation' => $installation, 'playthrough' => $playthrough]);
+                // Export only the same allowlisted prompt messages/metadata shown by the reader.
+                $prompt = ['messages' => lorkhan_control_prompt_messages($record['prompt_messages'])];
+                if (($record['prompt_model'] ?? '') !== '') $prompt['model'] = $record['prompt_model'];
+                foreach (['label' => 'prompt_label', 'driver' => 'prompt_driver'] as $field => $key) {
+                    if (($record[$key] ?? '') !== '') $prompt['response_connector'][$field] = $record[$key];
+                }
+                $values = [$record['narrative_id'], gmdate('d-m-Y H:i:s', strtotime($record['created_at'])),
+                    $record['content'], implode(', ', $topics->fetchAll(PDO::FETCH_COLUMN)) ?: 'None',
+                    json_encode($prompt, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR),
+                    $record['input_kind'].': '.$record['input_text']];
+            } elseif ($tab === 'adventure') {
                 $entry = lorkhan_adventure_record($record);
                 $values = [$entry['context'], $entry['people'], ($entry['location'] !== '' ? $entry['location'] : 'Not recorded').' - '.$entry['game_time'], $entry['time_utc']];
             }
@@ -137,7 +158,6 @@ function lorkhan_roleplay_reader_state(PDO $database, array $installationOptions
     foreach($state['rows'] as &$calendarRow)$calendarRow['game_date_label']=MorrowindCalendar::parse($calendarRow['calendar_data']??null)['label']??'Not recorded';
     unset($calendarRow);
     if ($tab === 'responselog') {
-        $topics = $database->prepare("SELECT DISTINCT d.topic FROM retrieval_traces r JOIN knowledge_documents d ON d.document_id=ANY(r.result_ids) WHERE r.turn_id=:turn AND r.installation_id=:installation AND r.playthrough_id=:playthrough ORDER BY d.topic LIMIT 50");
         foreach ($state['rows'] as &$row) {
             $topics->execute(['turn' => $row['turn_id'], 'installation' => $installation, 'playthrough' => $playthrough]);
             $row['topics'] = $topics->fetchAll(PDO::FETCH_COLUMN);
