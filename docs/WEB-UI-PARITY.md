@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `6718356` (model speech language routing and toggle).
+Current deployed product checkpoint: `f316e5b` (shared Core Profile field presentation).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8942,3 +8942,59 @@ Remaining: full translated-template/minimal-budget coverage, overall Core editor
 spacing, RPG profile ownership, scene-summary boundaries and the broader matrix.
 Live-provider multilingual quality and in-game audio are untested. Goal stays active;
 GitHub workflow stays disabled and no game was launched or controlled.
+
+
+## 2026-09-08 - Shared Core Profile field presentation and RPG responder audit
+
+Product `6144adf`, baseline-alignment follow-up `f316e5b`, deployed server-only.
+Shared labels now use reference gap/margin, descriptions use reference size and
+spacing, Dynamic Profile Fields use the reference checkbox sizing/baseline and
+label layout, sliders use the reference flex layout with86px numeric controls,
+section headings use weight400, and the diary prompt uses four rows and reference
+line height/minimum height. Connector descriptions retain the reference minimum
+height. This is shared editor styling rather than another isolated control fix.
+
+`core-style-catalog.cjs` compares the computed presentation of16 field/card
+selectors. After deployment the only remaining sampled property difference is the
+outer feature-card height (Herika402.938px versus native221.375px), because Herika
+stretches it beside RPG Comments, which is still missing. Do not use a forced
+height to claim that missing section is implemented. Paired Dynamic Profile Fields
+captures were viewed; native390 fields and populated diary input were also viewed.
+
+`profile-fields-proof.cjs` passed at1280/860/390: every numeric/range pair syncs in
+both directions, checkbox keyboard controls work, diary text accepts four lines,
+there is no settings-card overflow and no browser error. All writes were blocked.
+PHP lint and719 unit checks passed. No new backend/HTTP behavior was changed by
+this styling patch. Final rollback `/var/backups/lorkhanserver-code.XzxXEv`;
+805 runtime files match source, no extras/legacy paths, private403, unauthenticated
+401, health/NPC checks passed, and config/credential/voice hashes were preserved.
+
+### RPG Comments dependency confirmed from current client main
+
+Read-only client inspection used `RANGROO/LORKHAN` origin/main `6daab0c`. The old
+canonical `codex/lorkhanserver-client-route` checkout was not treated as current
+implementation and was not edited. No game was launched or controlled.
+
+- Server `Validator::gameData` accepts RPG kind/player/game_time/text, with no
+  responder identity. `Router::gameData` therefore uses the global RPG policy.
+- Client `player.lua:487` submits that player-only payload. Its RPG comment handler
+  at1929 chooses `state.ui.target` after the acknowledgement, then checks distance,
+  combat, speech and menu state. The turn has a `[RPG:kind]` text prefix, but parsing
+  that later cannot undo a global decision that prevented the request initially.
+- The native overlay binding at1250 emits `rpg.comment` with original request_id,
+  session/generation, kind and text. `orchestrator.lua:1025` forwards that event.
+  This path exists; RPG emission itself is NOT missing.
+
+Required next work: freeze a responder at submission, carry an optional typed
+responder identity through the shared RPG schema, resolve that actor's Core Profile
+for the probability/event decision, and retain global fallback for older clients.
+Use the existing request_id at acknowledgement to select the same still-valid
+responder, instead of whichever NPC happens to be targeted later. That correlation
+can be owned in Lua; confirm native payload serialization before deciding whether
+an engine rebuild is necessary. Bound pending requests and retain session fences.
+Then add the real Core Profile RPG card and portable/copy settings. Do not expose
+profile controls that only write the global policy or silently filter an already
+rolled event a second time. Keep supported OpenMW event differences explicit.
+
+Full Core Profile and overall page parity remain active; RPG controls, scene
+summary boundaries and the remaining counterpart matrix are not completed here.
