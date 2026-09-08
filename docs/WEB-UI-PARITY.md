@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `1ce6363` (complete Diary views and calendar audio dock).
+Current deployed product checkpoint: `b549457` (AI Responses same-second ordering).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8554,3 +8554,9 @@ confirm role counts, escaped literal markup, long-token wrapping and Escape focu
 return. Inspected the populated narrow screenshot; prior paired reference evidence
 remains separate. No rendering markup or styles changed in this ordering fix.
 No production records, prompts, credentials, provider calls or game state changed.
+
+Deployed b549457; rollback /var/backups/lorkhanserver-code.qlk1B8. All 803 runtime
+files match source with no extras or legacy paths. Health/private/auth checks pass;
+configuration, credentials and voice contents preserved. Full ordering proof is
+the isolated 61-row HTTP dataset; no live game records were fabricated. Full goal
+remains active, including the unresolved intermittent diary audio test failure.
