@@ -1919,6 +1919,20 @@ $check($effective['settings']['oghma']['topic_count']===2
     &&($effective['sources']['settings.oghma.racial_context_enabled']??null)==='global'
     &&($effective['sources']['settings.oghma.result_limit']??null)==='global',
     'Oghma controls are installation-wide Global Settings');
+// The General editor writes the existing NPC tag document without changing unrelated fields.
+$tagRouter=(new ReflectionClass(\LorkhanServer\Http\ManagementRouter::class))->newInstanceWithoutConstructor();
+$tagMapper=new ReflectionMethod($tagRouter,'profileContent');
+$tagBase=['core'=>'Keep identity','oghma_tags'=>['Old tag'],'oghma_knowledge_tags'=>'Old tag'];
+$tagEdited=$tagMapper->invoke($tagRouter,['base_content_json'=>json_encode($tagBase),'oghma_knowledge_tags'=>' Tribunal; Ashlanders, Tribunal, Common, Esoteric ']);
+$check($tagEdited['oghma_knowledge_tags']==='Tribunal, Ashlanders'&&!isset($tagEdited['oghma_tags'])&&$tagEdited['core']==='Keep identity','NPC General tag edit normalizes existing tags and retains unrelated content');
+$tagCleared=$tagMapper->invoke($tagRouter,['base_content_json'=>json_encode($tagBase),'oghma_knowledge_tags'=>'']);
+$check(!isset($tagCleared['oghma_knowledge_tags'],$tagCleared['oghma_tags']),'Clearing NPC tags removes both spellings for inherited lookup');
+$tagUntouched=$tagMapper->invoke($tagRouter,['base_content_json'=>json_encode($tagBase),'core'=>'Edited identity']);
+$check($tagUntouched['oghma_knowledge_tags']==='Old tag'&&$tagUntouched['oghma_tags']===['Old tag'],'Unrelated NPC forms preserve knowledge tags');
+foreach([['invalid'],str_repeat('x',4097),"\xFF"] as $invalidTags){
+    $rejected=false;try{$tagMapper->invoke($tagRouter,['oghma_knowledge_tags'=>$invalidTags]);}catch(InvalidArgumentException $e){$rejected=$e->getMessage()==='invalid_oghma_knowledge_tags';}
+    $check($rejected,'NPC tag editor rejects non-text, oversized and invalid UTF-8 input');
+}
 $check($effective['settings']['memory']['oghma_knowledge_tags']==='Dagoth Ur'
     &&($effective['sources']['settings.memory.oghma_knowledge_tags']??null)==='npc',
     'non-empty NPC knowledge tags remain character classification instead of a behavior override');

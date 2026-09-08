@@ -6269,3 +6269,28 @@ The populated contents are different records, and profile-summary composition,
 knowledge-tag placement and native secondary tools remain under review. This proves
 shell structure/geometry and navigation, not completion of every NPC-editor state or
 the whole counterpart matrix. No provider calls, data saves or game activity.
+
+## NPC General Oghma Tags: presentation and save mapping
+
+Added the missing Oghma Tags field beside Voice in General, using pinned Herika's label,
+placeholder and lookup-restriction hint. This is the existing NPC content setting, not
+the installation-global Oghma field. General previously omitted it, and profileContent
+also ignored submitted edits. The mapper now validates text/4096-byte UTF-8 bounds,
+uses the existing tag normalizer and removes the old alias only on explicit edits.
+Empty submission removes the NPC tags so existing global inheritance applies. Forms
+that omit the field preserve tags. Other profile content and global settings are unchanged.
+
+Evidence: 603 server checks, including six targeted assertions in the existing suite
+for normalization, clearing, unrelated-content preservation and malformed inputs.
+The full management HTTP integration suite passed in its disposable PostgreSQL runtime,
+including a real revision POST and export readback of normalized tags. Its stale lock
+label expectation was updated to the previously implemented Lock This NPC wording.
+Temp/npc-tags-proof.cjs verifies one General field, matching placeholder, empty/populated
+values retained across tabs and associated FormData at 1280/390px with zero live POSTs.
+Inspected deployed desktop populated and narrow empty screenshots. Source comparison
+confirms field placement/text; this is not whole-General pixel parity.
+
+Deployment: 799 files match, no extras or old paths, health/private/auth checks pass;
+configuration/credential/voice hashes preserved. Rollback:
+/var/backups/lorkhanserver-code.zIn1vj. No live NPC saves, provider calls or game activity.
+Remaining full counterpart and NPC-editor gaps remain open.

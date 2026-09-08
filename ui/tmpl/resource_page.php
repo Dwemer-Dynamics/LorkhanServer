@@ -668,7 +668,7 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
         if($type==='textarea')echo'<textarea id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'"'.$required.$describe.' placeholder="'.lorkhan_ui_h($placeholder).'">'.lorkhan_ui_h($value).'</textarea>';
         elseif($type==='select'){echo'<select id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'"'.$required.$describe.'>';foreach($options as$optionValue=>$optionLabel)echo'<option value="'.lorkhan_ui_h($optionValue).'"'.((string)$optionValue===$value?' selected':'').'>'.lorkhan_ui_h($optionLabel).'</option>';echo'</select>';}
         elseif($type==='datalist'){$listId=$id.'-options';echo'<input id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="text" list="'.lorkhan_ui_h($listId).'" value="'.lorkhan_ui_h($value).'"'.$describe.'><datalist id="'.lorkhan_ui_h($listId).'">';foreach($options as$optionValue=>$optionLabel)echo'<option value="'.lorkhan_ui_h(is_int($optionValue)?$optionLabel:$optionValue).'">'.lorkhan_ui_h($optionLabel).'</option>';echo'</datalist>';}
-        else echo'<input id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="'.lorkhan_ui_h($type).'" value="'.lorkhan_ui_h($value).'"'.$required.$describe.'>';
+        else echo'<input id="'.lorkhan_ui_h($id).'" name="'.lorkhan_ui_h($name).'" form="'.lorkhan_ui_h($formId).'" type="'.lorkhan_ui_h($type).'" value="'.lorkhan_ui_h($value).'"'.$required.$describe.' placeholder="'.lorkhan_ui_h($placeholder).'">';
         if($help!=='')echo'<small class="hint" id="'.lorkhan_ui_h($id).'-help">'.lorkhan_ui_h($help).'</small>';
         echo'</div>';
     };
@@ -701,6 +701,8 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
     else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
+    $knowledgeTags=$content['oghma_knowledge_tags']??$content['oghma_tags']??'';
+    $field('oghma_knowledge_tags','Oghma Tags','text',is_array($knowledgeTags)?implode(', ',array_map('strval',$knowledgeTags)):(string)$knowledgeTags,[],'','Used by Oghma systems for knowledge lookup restrictions.','Comma-separated knowledge tags');
     $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
     $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
     echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><details class="form-item npc-editor-check npc-dynamic-fields"><summary>Dynamic Profile Fields</summary>';

@@ -731,7 +731,7 @@ for path in [
     response=request(path); assert response.status==200 and '/ui/' in response.geturl(),(path,response.geturl())
 profile,profile_text=parse(request('/LorkhanServer/ui/core/npc_master.php'))
 assert 'data-npc-editor-tab="background-life"' not in profile_text and 'data-npc-editor-panel="background-life"' not in profile_text
-profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock against automatic AI profile generation','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
+profile_labels=['Voice sample','Core Profile','Profile LLMs','Prompt head (advanced system guidance)','Backstory','Gender','Race','Skills','Emote Moods Override','Lock This NPC','Oghma Tags','Favorite NPC','Auto Diary','Auto Diary Wait','Visit','Teleport']
 missing_profile_labels=[label for label in profile_labels if label not in profile_text]
 assert not missing_profile_labels,missing_profile_labels
 assert not any('name="'+field+'"' in profile_text for field in ['llm_configuration_id','llm_fast_configuration_id','llm_powerful_configuration_id','llm_experimental_configuration_id','llm_fallback_configuration_id','llm_randomizer_enabled','llm_fallback_enabled','tts_configuration_id'])
@@ -1439,9 +1439,12 @@ r=request(restore['action'],'POST',values); body=r.read().decode(); assert r.sta
 characters,body=parse(request('/LorkhanServer/ui/core/character_manager.php'))
 bio_form=next(f for f in characters.forms if f['action'].endswith('/forms/profile-revise') and f['fields'].get('profile_id')==profile_id)
 current_profile=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
-values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test')
+values=dict(bio_form['fields'],_csrf=csrf,profile_id=profile_id,base_content_json=json.dumps(current_profile['content']),biography='Updated from Character Manager.',change_reason='HTTP biography test',oghma_knowledge_tags='Tribunal; Ashlanders, Tribunal')
 r=request(bio_form['action'],'POST',values); body=r.read().decode(); assert r.status==200 and r.geturl().endswith('/ui/core/npc_master.php?status=saved'),(r.status,r.geturl())
 body=request('/LorkhanServer/ui/core/character_manager.php').read().decode(); assert 'Updated from Character Manager.' in body and 'Preserved personality field.' in body
+saved_tags=json.loads(request('/LorkhanServer/manage/exports/profiles/'+profile_id+'.json').read().decode())
+assert saved_tags['content']['oghma_knowledge_tags']=='Tribunal, Ashlanders'
+
 summary_connectors,_=parse(request('/LorkhanServer/ui/core/llm_connectors.php?create=1'))
 summary_connector_form=next(f for f in summary_connectors.forms if f['action'].endswith('/forms/providers'))
 summary_connector_name='HTTP memory summary '+uuid.uuid4().hex

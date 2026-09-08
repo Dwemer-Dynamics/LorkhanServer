@@ -2187,6 +2187,14 @@ final class ManagementRouter
             if(!array_key_exists($field,$values))continue;
             $value=trim((string)($values[$field]??''));if($value!=='')$content[$field]=$value;else unset($content[$field]);
         }
+        if(array_key_exists('oghma_knowledge_tags',$values)){
+            $tags=$values['oghma_knowledge_tags'];
+            if(!is_string($tags)||strlen($tags)>4096||!mb_check_encoding($tags,'UTF-8'))
+                throw new InvalidArgumentException('invalid_oghma_knowledge_tags');
+            $tags=$this->npcKnowledgeTags($tags);
+            unset($content['oghma_tags']);
+            if($tags==='')unset($content['oghma_knowledge_tags']);else$content['oghma_knowledge_tags']=$tags;
+        }
         if(array_key_exists('voice_id',$values)){$voice=trim((string)$values['voice_id']);$language=trim((string)($values['voice_language']??'en'));
             if($voice!=='')$content['voice']=['id'=>$voice,'language'=>$language===''?'en':$language];else unset($content['voice']);}
         // Only an explicit override-editor submission changes these leaves; ordinary saves preserve them.
