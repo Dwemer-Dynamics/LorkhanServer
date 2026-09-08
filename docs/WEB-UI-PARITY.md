@@ -5188,3 +5188,21 @@ HTTP suite also passed and its fixture was stopped cleanly.
 These checks close the previously recorded empty/three-badge visual gaps for
 this reader. They do not establish all-page acceptance or convert missing
 historical labels into invented data.
+
+
+### Roleplay navigation label typography correction
+
+Fresh live comparisons found the inner label-span override forced MagicCards,
+1.5px letter spacing and 5px word spacing. Herika's button declares MagicCards
+but its child span actually computes Futura CondensedLight, 0.6px letter spacing
+and 1px word spacing at 1280px. Added a Roleplay-only rule using Futura and
+inheriting the button's responsive spacing. Decorative group headings, icons,
+colors and the other hubs are unchanged.
+
+Compared computed styles after serving the candidate CSS in the isolated browser
+context: label face, size (12.3px), letter spacing and word spacing now match.
+Inspected both 390px screenshots: the same Activity & Logs buttons are readable
+in one row. Different group heights follow the intentionally excluded features
+and native Journal, not a reason to restore excluded navigation. This supersedes
+the earlier assertion that explicitly setting MagicCards on label spans matched
+the reference. No backend/data changes. git diff --check passed.
