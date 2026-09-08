@@ -76,7 +76,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
 | `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; full provider-badge consolidation remains pending |
-| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; full hub/narrow/interaction review remains. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
+| `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
 | `core/voice_library.php` | `xtts_clone.php` | Provider cache/upload/batch structure aligned; Inworld batch states compared. Global Fallback/Pronunciation populated, empty, filtered and built-in edit states corrected and compared below. Provider-side clone management and OmniVoice language/readiness/direct-import/provider-delete flows are implemented with mock HTTP/browser evidence below; exact remaining provider presentation, errors, batch states and hub comparisons remain |
@@ -5982,3 +5982,23 @@ escaped content reader and Escape passed. Fixtures are not live database proof.
 matched, with no extras/old paths; private routes and health passed. Persistent
 configuration, credentials and voices were preserved.
 Rollback: /var/backups/lorkhanserver-code.0j73mj. Full parity goal remains active.
+
+### LLM embedded draft and failed-Test acceptance
+
+Read the actual template/runtime and compared an existing DeepSeek connector in
+both Configuration hubs. The initially absent-looking description in a capture
+was not a missing control: live DOM/computed geometry and a fresh screenshot show
+the same description and 13.44px/18.816px typography in both. No speculative CSS
+change was made. Read-only selection survives native LLM/TTS/LLM switching.
+
+Temp/llm-unsaved-hub-proof.cjs extended this to unsaved Name and Provider edits,
+then checked desktop and 390px field bounds and screenshots. A fresh independent
+editor confirmed the saved Name was unchanged. A route-intercepted 409 Save during
+Test produced the expected refusal message and exactly one intercepted POST:
+no provider test followed. The draft remained intact and closing the result dialog
+returned keyboard focus to Test. No live POST or provider call was made.
+
+This is a verification-only checkpoint: no runtime files or configuration changed,
+so no redeployment or backend test rerun was necessary. Existing deployed source
+remains 2354f52. Full LLM advanced/provider interaction coverage and the remaining
+page matrix are still open; this evidence closes only the stated acceptance cases.
