@@ -697,15 +697,15 @@ function lorkhan_ui_npc_editor_form(array $row,array $voiceOptions,array $prompt
     echo'<section class="npc-editor-panel form-grid" role="tabpanel" data-npc-editor-panel="general">';
     if($creating){$field('installation_id','Installation','select',$installationId,$installationOptions, 'span-2');$field('name','NPC Name','text','',[],'span-2');}
     else$disabled('NPC Name','config.npc.identity',(string)($row['name']??''),'span-2');
-    $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock against automatic AI profile generation',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
-    $checkbox('dynamic_profile','Enable Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
-    echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><div class="form-item npc-editor-check"><span>Dynamic Profile Fields</span>';
-    foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
-    echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></div>';
+    $field('core_profile_id','Profile','select',$coreProfileId,$coreProfileOptions);$checkbox('locked','Lock This NPC',$locked,'Prevents automatic AI profile generation from replacing manual edits.');
     $field('gender','Gender','select',(string)($content['gender']??''),[''=>'Unspecified','Male'=>'Male','Female'=>'Female','Other'=>'Other']);$field('race','Race','text',(string)($content['race']??''));
     if($creating){$field('content_file','Base / Content File','text','Morrowind.esm');$field('record_id','Ref ID','text','');$field('refnum','Reference Number','text','');}
     else{$disabled('Base / Content File','config.npc.identity',(string)($identity['content_file']??''));$disabled('Ref ID','config.npc.identity',(string)($identity['record_id']??''));}
     $field('voice_id','Voice sample','datalist',(string)($voice['id']??''),$voiceOptions);$field('voice_language','Voice Language','text',(string)($voice['language']??'en'));
+    $checkbox('dynamic_profile','♻️Dynamic Profile',$dynamicProfile,'Every 20 minutes, evolve selected fields from witnessed dialogue while this NPC is nearby and unlocked.');
+    echo'<input type="hidden" name="dynamic_profile_fields_present" form="'.lorkhan_ui_h($formId).'" value="1"><details class="form-item npc-editor-check npc-dynamic-fields"><summary>Dynamic Profile Fields</summary>';
+    foreach(['personality'=>'Personality','occupation'=>'Occupation','skills'=>'Skills','speech_style'=>'Speech Style','goals'=>'Goals']as$key=>$label)echo'<label><input name="dynamic_profile_fields[]" form="'.lorkhan_ui_h($formId).'" type="checkbox" value="'.$key.'"'.(in_array($key,$dynamicFields,true)?' checked':'').'> '.$label.'</label>';
+    echo'<small class="hint">Choose at least one field when Dynamic Profile is enabled.</small></details>';
     foreach(['automatic_enabled'=>['📙 Auto Diary','Generate diary entries on the configured timer and sleep events. Requires Diary generation and a Diary LLM in Core Profile.'],
         'automatic_wait_enabled'=>['⏳ Auto Diary Wait','When Auto Diary is enabled, include wait events as well as sleep events.']]as$key=>[$label,$help]){
         $defaults=[];foreach($coreProfileRows as$core){

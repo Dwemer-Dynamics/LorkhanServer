@@ -6208,3 +6208,21 @@ Evidence:
 Still open: full remaining page matrix and the narrow-calendar control choice raised
 with the user. This pass establishes Events table/control geometry, not whole-site
 completion or blanket acceptance of native-only differences.
+
+## NPC General field hierarchy checkpoint
+
+The General form now places Gender, Race, TES3 identity and Voice before dynamic
+profile controls, following the pinned Herika form hierarchy. Main General/Roleplay
+labels use the reference 18px size, and the lock label reads Lock This NPC. The existing
+native evolution-field selector remains available in a keyboard-accessible disclosure;
+its presence flag, checked values and form association are unchanged. This is not a
+claim that the entire NPC modal matches: knowledge-tag placement, profile summaries,
+secondary tools and remaining editor states still need counterpart review.
+
+Evidence: Temp/npc-general-order-proof.cjs passed against the live deployment at 1280
+and 390px: order, initial collapsed state, Enter expansion/collapse, unchanged FormData,
+General/Roleplay switching and Close, with no POSTs. Inspected both deployed General
+screenshots. All 597 existing server checks pass. Runtime verification reports 799
+files with no mismatches, extras or old paths; health/private/auth checks pass.
+Deployment rollback: /var/backups/lorkhanserver-code.aWQIZF. No provider requests,
+NPC saves or game activity. The complete page-parity goal remains open.
