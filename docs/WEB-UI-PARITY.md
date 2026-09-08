@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `d0ce6f4` (working Short Term Memory card and per-profile Max Summaries), following scene selector `9aa6851`. Client `1560dbe` remains deployed.
+Current deployed product checkpoint: `6655b8e` (retained exact scene overlap and digest-before-cap selection), following Short Term Memory card `d0ce6f4`. Client `1560dbe` remains deployed.
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -32,7 +32,7 @@ only the listed states, not completion of every page or feature.
 Core Profiles now includes the RPG Comments card with supported event choices and
 probability, bound-responder policy, portable/named presets and built-in probabilities.
 Its actual hub desktop card and native 860/390 controls were compared; the complete
-Core editor and remaining profile features are still open. The Short Term Memory card now matches the reference desktop geometry, with saved 1-50/default10 controls and native 860/390 interactions verified. Digest high-water selection and safe history-overlap removal are still unfinished runtime parity work.
+Core editor and remaining profile features are still open. The Short Term Memory card now matches the reference desktop geometry, with saved 1-50/default10 controls and native 860/390 interactions verified. Retained exact digest coverage now applies before the scene cap, and complete dated scene text can replace matching live history. Semantic model-summary source coverage remains unfinished runtime parity work.
 
 The reference's extra excluded navigation entries change wrapping and page origins.
 Do not add blank tabs or reintroduce excluded features to force absolute offsets.
@@ -9244,3 +9244,47 @@ projections and budget fallbacks. This card checkpoint does not close those runt
 requirements or the full Core editor/counterpart matrix. Continue those and then
 remaining Core sections (Bored, Combat, Quest comments, physical diary), with actual
 OpenMW consumers and corresponding visual comparisons rather than inert controls.
+
+
+## 2026-09-08 - Retained exact scene overlap and digest-before-cap selection
+
+Product `6655b8e`, server branch `codex/web-ui-parity`, pushed directly to main and
+locally deployed. The reference-style card remains unchanged; this checkpoint
+implements more of the real behavior behind it, not a new visual completion claim.
+
+Before applying Max Summaries, the selector excludes scenes whose complete text
+is covered by actually retained general/digest memory. This fills remaining slots
+with uncovered older scenes. It still computes the upper straddling boundary over
+all scene candidates: a covered boundary cannot move the window into newer live
+history. Truncated digests only prove coverage for complete retained lines.
+
+Prompt assembly removes a live line only when its complete speaker-qualified text
+occurs at line boundaries in a fully retained, timestamped scene and the live game
+time falls within that scene range. Unrelated events, later repeated words, missing
+timestamps, partial history and cut summaries remain live. The next retained line
+inherits an otherwise-orphaned temporal heading. Trace history IDs now reflect
+actual survivors; removed lines report covered_by_memory. Omitted memory spanning
+both retained families reports covered_by_context. Intentional scene exclusions
+are no longer mistaken for byte truncation. If prompt budgeting removes history,
+selection is recalculated without its floor; minimal fallback cannot claim removed
+summaries still cover history.
+
+779 existing-suite PHP checks pass. Added focused cases in tests/run.php cover
+actual assembled prompt deduplication and source traces, later repetitions, source
+byte truncation, disabled STM restoration, minimum-budget fallback, heading transfer,
+combined-family coverage, digest-before-cap refill and a covered straddler.
+`stm-overlap-integration.txt` passed the full vertical slice,173-relation inventory
+and migration/durable-job suite. `git diff --check` passed. No new test file,
+migration, provider call, retention policy, UI or client change.
+
+Deployment rollback `/var/backups/lorkhanserver-code.wVQNlk`; all807 runtime files
+match with no extras/old paths. Private403, unauthenticated401 and health/NPC probes
+pass. Configuration/credential/voice hashes preserved. Game never launched or
+controlled; GitHub workflow remains disabled.
+
+Remaining STM limitation: paraphrased model summaries without literal text coverage
+cannot yet replace their source events or establish a semantic digest high-water
+boundary. Complete source-event/model-input lineage and final retained projection
+coverage must justify that path; do not turn the conservative interim rule into a
+permanent parity exception. Continue that work and the remaining Core presentation
+sections and complete counterpart matrix. Full page parity is still not complete.
