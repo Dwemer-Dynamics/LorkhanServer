@@ -587,6 +587,10 @@ final class PromptAssembler
         }
         $state = is_array(($turn['payload']['context']['playerState'] ?? null))
             ? $turn['payload']['context']['playerState'] : [];
+        // The OpenMW context collector sends player inventory beside playerState.
+        if (!array_key_exists('inventory', $state)) {
+            $state['inventory'] = $turn['payload']['context']['inventory'] ?? [];
+        }
         $stateXml = $this->actorStateXml($state, ['race', 'class', 'level', 'health', 'health_percent'],
             $details['npc_equipment_inventory'], $details['npc_magic_effects'], $itemBlacklist, $magicBlacklist);
         if ($stateXml !== '') $xml .= '<current_state>' . $stateXml . '</current_state>';

@@ -927,6 +927,18 @@ $check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- 
     &&str_contains($contextPrompt,'### Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
     &&!str_contains($contextPrompt,'**Position:**')&&!str_contains($contextPrompt,'**X:**'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic Markdown');
+$inventoryTurn=$contextTurn;
+$inventoryTurn['payload']['context']['inventory']=['items'=>[['record_id'=>'native_inventory_ring','display_name'=>'Native Inventory Ring','count'=>3]]];
+$inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($inventoryPrompt,'Native Inventory Ring x3'), 'player prompt consumes the actual top-level OpenMW inventory lane');
+$inventorySelection=$promptSelection;
+$inventorySelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$inventorySelection['effective_settings']['context']['details']['npc_equipment_inventory']=false;
+$inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$inventorySelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'inventory context selection also gates the native top-level inventory lane');
+$inventoryTurn['payload']['context']['playerState']['inventory']=[];
+$inventoryPrompt=(new PromptAssembler(16384,1024))->assemble($inventoryTurn,$promptSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($inventoryPrompt,'Native Inventory Ring'), 'explicit nested player inventory takes precedence over top-level fallback');
 $groundSelection=$promptSelection;
 $groundSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
 $groundSelection['effective_settings']['context']['ground_items_descriptions_only']=true;

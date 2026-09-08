@@ -7918,3 +7918,10 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - Full management HTTP suite passed (`ground-filter-http.txt`), including checked/unchecked save and reload. Browser checks at 1280 and 390 confirmed the live control defaults off and toggles; narrow screenshot inspected. Initial browser probe timed out because it had not selected the Context & Knowledge tab; corrected navigation passed. This is not a full counterpart visual-parity claim.
 - Server-only deployment verified: 800 runtime hashes match, no extra/legacy files; private/auth checks passed; configuration, credentials and voice contents preserved. Rollback: `/var/backups/lorkhanserver-code.Z2X8tX`. No game or live provider calls.
 - Inventory description filtering and the remaining Context controls are still open. Full page parity remains incomplete.
+
+### Native inventory context wiring checkpoint (2026-09-08)
+
+- Source tracing found OpenMW emits bounded player inventory in `context.inventory` (`adapters/openmw.lua` / `context.lua`), while the player prompt read only `context.playerState.inventory`. The renderer now uses the actual native lane when nested inventory is absent; an explicitly empty nested inventory remains authoritative.
+- Existing equipment/inventory Context selection still gates rendering. Description lookup now also collects nested player/target/nearby-actor inventories, retaining existing row bounds and identity resolution.
+- 628 server checks passed, including native inventory/count rendering, disabled selection, and explicit nested-empty precedence. Server-only deployment verified all 800 runtime hashes and private/auth checks, preserving configuration, credentials and voices. Rollback `/var/backups/lorkhanserver-code.XKCfCY`.
+- No UI layout or client changes, no game launched. Inventory Items Descriptions Only is still pending; this closes its underlying native inventory wiring gap, not full Context parity.

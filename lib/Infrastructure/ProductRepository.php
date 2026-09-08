@@ -3390,10 +3390,10 @@ SQL);
             if(!is_array($value))return;foreach(array_slice($value,0,64)as$item)if(is_array($item)&&!array_is_list($item))$rows[]=$item;};
         $append($context['inventory']??[]);$append($context['nearbyObjects']??[]);$append($context['equipment']??[]);
         foreach(['playerState','targetState']as$state){$value=$context[$state]??[];if(is_array($value)&&!array_is_list($value)){
-            $append($value['equipment']??[]);$append($value['held_items']??[]);}}
+            $append($value['equipment']??[]);$append($value['held_items']??[]);$append($value['inventory']??[]);}}
         $actors=$context['nearbyActors']??[];if(is_array($actors)&&!array_is_list($actors))$actors=$actors['items']??[];
         if(is_array($actors))foreach(array_slice($actors,0,12)as$actor)if(is_array($actor)&&!array_is_list($actor)){
-            $append($actor['equipment']??[]);$append($actor['held_items']??[]);}
+            $append($actor['equipment']??[]);$append($actor['held_items']??[]);$append($actor['inventory']??[]);}
         return array_slice($rows,0,256);
     }
 
