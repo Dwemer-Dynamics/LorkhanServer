@@ -2264,6 +2264,8 @@ invalid_narrator_preset=dict(narrator_preset,unexpected='rejected')
 r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(invalid_narrator_preset))); invalid_body=r.read().decode()
 assert r.status==422 and 'invalid_narrator_profile_settings_preset' in invalid_body,(r.status,invalid_body)
 narrator_preset['settings']['personality']='Portable narrator persona'
+r=request(narrator_import['action'],'POST',dict(narrator_import['fields'],_csrf=csrf,installation_id=valid['installation_id'],preset_json=json.dumps(narrator_preset)),accept="application/json")
+assert r.status==200 and json.loads(r.read())['ok'] is True
 narrator_preset['settings']['inline_narration_mode']='Text Only'
 narrator_preset['settings']['latest_diary_context_enabled']=True
 narrator_preset['settings']['hide_from_context']=False

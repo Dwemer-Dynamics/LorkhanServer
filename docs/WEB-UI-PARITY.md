@@ -5045,3 +5045,34 @@ the remaining book restrictions, empty-profile import lifecycle and action gaps.
 The vertical-slice integration and migration/durable-job suites passed. The known
 schema inventory hash-only difference was inspected and reverted; no migration
 or protocol change is included.
+
+
+### Narration file-picker import flow
+
+Reference: HerikaServer 529364c4c12b3a8bd4cc12a481f400ce19b3a344,
+ui/core/narrator_management.php and ui/js/settings-portability.js. Replaced the
+divergent Narration modal/JSON textarea with the reference toolbar file picker,
+file-size/JSON/package validation, field-count confirmation, result alert and
+reload flow. Native strict preset validation remains authoritative; this does
+not imply CHIM package compatibility. Player import is unchanged.
+
+The AJAX endpoint now returns JSON only when requested, preserving ordinary HTML
+form redirects. Browser testing caught and fixed an initial redirect that saved
+the import but made the browser report a JSON parse error. The existing HTTP
+suite now explicitly checks this response contract. Confirmation explains that
+unsaved page edits will be discarded; only the import package is posted, and
+Narrator name, identity and connector selections are preserved.
+
+Disposable browser fixture: invalid JSON, wrong package schema, cancellation,
+actual toolbar file chooser, successful import/reload, and stable name/profile
+ID passed. Desktop 1280px and narrow 390px post-import screenshots were visually
+inspected. The redundant modal is absent and the toolbar remains usable at both
+widths. JavaScript syntax and 582 unit checks passed. No real profile, provider
+or game interaction was used.
+
+Remaining Narration gaps include import/export before a profile exists, reference
+partial-field import semantics, NPC book-summary restrictions and Narrator
+actions. This checkpoint does not establish whole-page or all-page acceptance.
+
+The full management HTTP suite passed with the new AJAX response assertion.
+

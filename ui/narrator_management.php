@@ -309,29 +309,13 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
             </form>
 
             <?php if ($profile !== null): ?>
-                <dialog class="narrator-portability modal-content" id="narrator-import-dialog" aria-labelledby="narrator-import-title">
-                    <header class="modal-header"><h2 id="narrator-import-title">Import Narration Settings</h2><button type="button" class="narrator-transfer-button" data-narrator-import-close aria-label="Close import narration settings">&times;</button></header>
-                    <div class="narrator-advanced-panel">
-                        <p class="narrator-hint" id="narrator-portability-scope">A narrator preset carries narrator enablement, inline narration mode, narrator context visibility, the welcome, random, quest, and book event switches, the prompt head, core summary, background, personality, speech style, goals, and notes, and the narrator voice id and language. Provider and connector selections are never carried.</p>
-                        <form class="narrator-portability-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/narrator-profile-settings-import">
-                            <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
-                <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
-                            <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
-                            <div class="narrator-portability-field">
-                                <label for="narrator-preset-file">Preset file</label>
-                                <input id="narrator-preset-file" type="file" accept="application/json,.json" data-json-import-target="narrator-preset-json" aria-describedby="narrator-portability-scope narrator-portability-help">
-                            </div>
-                            <div class="narrator-portability-field">
-                                <label for="narrator-preset-json">Preset JSON</label>
-                                <textarea id="narrator-preset-json" name="preset_json" rows="8" required spellcheck="false" placeholder="Choose an exported .json file or paste its contents here." aria-describedby="narrator-portability-scope narrator-portability-help"></textarea>
-                            </div>
-                            <p class="narrator-hint" id="narrator-portability-help">Choosing a file fills the box above, and pasting the document works the same way. Importing saves a new revision of this installation's existing narrator profile. It never creates or selects a narrator, and it never changes the narrator name and identity, the TTS connector and Profile Generation LLM routes, live OpenMW and playthrough context, dynamic profile state, or diary generation controls.</p>
-                            <div class="narrator-portability-actions">
-                                <button type="button" class="narrator-transfer-button" data-narrator-import-close>Cancel</button><button type="submit" class="narrator-save-button" title="<?php echo lorkhan_ui_h(lorkhan_ui_feature('config.narrator.import')['description']); ?>">Import Preset</button>
-                            </div>
-                        </form>
-                    </div>
-                </dialog>
+                <form hidden id="narrator-import-form" method="post" action="<?php echo lorkhan_ui_h($managementBasePath); ?>/forms/narrator-profile-settings-import">
+                    <input type="hidden" name="_csrf" value="<?php echo lorkhan_ui_h($csrf); ?>">
+                    <?php if ($embedded): ?><input type="hidden" name="embed" value="1"><?php endif; ?>
+                    <input type="hidden" name="installation_id" value="<?php echo lorkhan_ui_h($installationId); ?>">
+                    <input type="hidden" name="preset_json" value="">
+                    <input id="narrator-preset-file" type="file" accept="application/json,.json" aria-label="Import Narration settings file">
+                </form>
             <?php endif; ?>
 
             <?php if ($profile !== null): ?>

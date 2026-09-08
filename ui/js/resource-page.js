@@ -20,6 +20,39 @@
         dialog.querySelectorAll(`[data-${kind}-import-close]`).forEach(button => button.addEventListener('click', () => dialog.close()));
         dialog.addEventListener('close', () => opener.focus());
     });
+    // Match Herika's file picker, validation and confirmation flow without posting unrelated unsaved fields.
+    const narrationImport = document.getElementById('narrator-import-form');
+    if (narrationImport) {
+        const opener = document.querySelector('[data-narrator-import-open]');
+        const picker = narrationImport.querySelector('input[type=file]');
+        opener.addEventListener('click', () => picker.click());
+        picker.addEventListener('change', async () => {
+            const file = picker.files[0]; picker.value = '';
+            if (!file) return;
+            if (file.size > 1048576) { window.alert('Import files must be 1 MB or smaller.'); return; }
+            let preset;
+            try { preset = JSON.parse(await file.text()); }
+            catch (_) { window.alert('This file does not contain valid JSON.'); return; }
+            if (!preset || !['lorkhan.narrator-profile-settings.v1','lorkhan.narrator-profile-settings.v2'].includes(preset.schema)
+                || !preset.settings || typeof preset.settings !== 'object' || Array.isArray(preset.settings)) {
+                window.alert('This file is not a valid Lorkhan Narration settings export.'); return;
+            }
+            if (!window.confirm(`Import ${Object.keys(preset.settings).length} Narration settings fields?\n\nThe Narrator name, identity and connector selections will be kept. Unsaved page edits will be discarded.`)) return;
+            opener.disabled = true;
+            const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 15000);
+            try {
+                const body = new FormData(narrationImport); body.set('preset_json', JSON.stringify(preset));
+                const response = await fetch(narrationImport.action, {method:'POST', body, headers:{Accept:'application/json'}, signal:controller.signal});
+                const result = await response.json();
+                if (!response.ok || result.ok !== true) throw new Error(result.error || `HTTP ${response.status}`);
+                window.alert('Narration settings imported successfully.');
+                dirtyForms.delete(document.querySelector('main.narrator-page form[data-track-dirty]'));
+                const url = new URL(location.href); url.searchParams.set('status','imported'); location.assign(url.href);
+            } catch (error) {
+                window.alert(error.name === 'AbortError' ? 'Import timed out. Reload to check whether it was saved before retrying.' : `Import failed: ${error.message}`);
+            } finally { clearTimeout(timer); opener.disabled = false; opener.focus(); }
+        });
+    }
     const narratorCore = document.querySelector('[data-narrator-connectors]');
     if (narratorCore) {
         let summaries = null;
