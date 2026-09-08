@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `a93de6c` (TTS Studio upload controls and mode labels).
+Current deployed product checkpoint: `997ef0c` (TTS Studio file chooser typography).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8380,3 +8380,10 @@ reference provider field and timed out; corrected to :visible before acceptance.
 691 server checks and diff whitespace checks pass. No uploads or provider calls.
 This closes only the measured chooser difference, not the whole Voice Management
 page or the remaining global parity goal.
+
+Deployed chooser checkpoint 997ef0c; rollback /var/backups/lorkhanserver-code.MRkred.
+Read-only final browser probe without CSS interception reproduces matching field
+and button typography/dimensions; inspected voice-upload-final-native.png. All 803
+runtime hashes match, with no extra/legacy paths; health/auth/private-route probes
+pass. Existing configuration, credentials and voice contents preserved. No game
+launch, real upload or paid provider test. GitHub server workflow stays disabled.
