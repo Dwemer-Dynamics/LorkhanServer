@@ -6727,3 +6727,38 @@ were captured and inspected. This live view had no relationship rows. Populated 
 full history-card composition and the complete NPC modal remain open matrix work.
 Native bound-actor selection and playthrough scoping remain functional; this change
 does not declare their current placement a final visual exception.
+
+### NPC relationship history cards (2026-09-08)
+
+Replaced the divergent plain history list with the reference hierarchy: section header,
+ordered history cards, nested change entries, accessible signed/type badge, stored reason,
+target arrow and optional tier chip, then one compact timestamp. Markup and presentation
+derive from HerikaServer 529364c `lib/eventlog_helper.php` and `ui/core/npc_master.php`
+lines 2266-2402 and 3190-3238. Existing native audit records remain the source; no schema,
+relationship writes, provider calls, or history deletion were introduced.
+
+Native audit-only note edits use Change and deletions use Deleted, rather than incorrectly
+claiming a type or affinity change. Tier chips appear only for actual tier changes with a
+stored reason. All displayed reasons, targets and badges remain escaped. Native history
+currently exposes UTC `created_at`; mapping available source-event Morrowind game dates
+remains open and is not declared an exception or completed parity.
+
+Verification: 608 server checks and the full disposable management HTTP suite pass,
+including real populated NPC audit cards. Temporary PHP fixtures render native code and
+the pinned reference helper for gains, losses, type changes, note-only changes, deletion
+and literal HTML-like input. Browser checks confirm escaped text/no script nodes and the
+five correct native badges. No fixture rows are inserted into the live database.
+
+`Temp/relationship-history-proof.cjs` compares those fixtures inside each actual NPC
+editor at 1280/390, first as a source preview and then with deployed CSS. Populated and
+empty screenshots were captured; narrow screenshots were visually inspected. Both have
+14px card padding, 6px gaps, 12.8px row font, 7px/10px row padding, 3px accent border and
+50.5px signed badges. Matching three-row fixture heights are 286.484375px at desktop and
+323.4375px narrow; first-row heights are 63.265625px and 80.53125px respectively. Generic
+border-box badge sizing and heading line-height overrides were corrected from measured
+differences, not guessed.
+
+The broader modal still supplies different widths (1128 versus 1133 desktop; 293 versus
+303.5 narrow). This card work does not accept those differences or close the full NPC
+modal/page matrix row. Populated relationship editor row controls also remain separate
+from this now-ported history-card presentation.

@@ -161,11 +161,37 @@ $relRenderRow=static function(array$rel,string$relForm)use($relTiers,$relTypeOpt
     </div>
     <?php endif; ?>
     <small class="npc-rel-save-note" data-rel-draft-status role="status">Relationship rows save separately from the NPC profile. Use the row Save button after editing. Use Add Custom Type for another label.</small>
-    <section class="npc-relationship-history"><header><h3>Recent Relationship Changes</h3><p>Read-only history for this NPC. The current relationships above remain editable.</p></header>
-    <?php if($relHistory===[]): ?><p class="npc-rel-empty">No relationship changes recorded for this NPC yet.</p><?php else: ?><ol><?php foreach(array_slice($relHistory,0,20)as$change): $before=$change['before_value']??[];$after=$change['after_value']??[];$delta=(int)($after['affinity']??0)-(int)($before['affinity']??0); ?>
-        <li><strong><?=lorkhan_ui_h($change['actor_identity']['display_name']??$change['actor_identity']['record_id']??'Actor')?></strong> <?php if(($after['deleted']??false)!==true): ?><span class="<?=$delta<0?'npc-rel-negative':'npc-rel-positive'?>"><?=($delta>0?'+':'').$delta?></span><?php endif; ?>
-            <?php if(($after['deleted']??false)===true): ?> Deleted<?php elseif(($before['relationship_type']??'neutral')!==($after['relationship_type']??'neutral')): ?> <?=lorkhan_ui_h(($before['relationship_type']??'neutral').' → '.($after['relationship_type']??'neutral'))?><?php endif; ?>
-            <span><?=lorkhan_ui_h($change['reason'])?></span><time datetime="<?=lorkhan_ui_h($change['created_at'])?>"><?=lorkhan_ui_h(gmdate('j M Y, H:i',strtotime($change['created_at'])))?> UTC</time></li>
+    <section class="form-item span-2 npc-relationship-history" aria-labelledby="<?=$relKey?>-history-title"><header class="npc-relationship-history-header"><h3 id="<?=$relKey?>-history-title">Recent Relationship Changes</h3><p>Read-only history for this NPC. The current relationships above remain editable.</p></header>
+    <?php if($relHistory===[]): ?><p class="npc-relationship-history-empty">No relationship changes recorded for this NPC yet.</p><?php else: ?><ol class="npc-relationship-history-list"><?php foreach(array_slice($relHistory,0,20)as$change):
+        $before=$change['before_value']??[];$after=$change['after_value']??[];
+        $delta=(int)($after['affinity']??0)-(int)($before['affinity']??0);
+        $removed=($after['deleted']??false)===true;
+        $typeChanged=($before['relationship_type']??'neutral')!==($after['relationship_type']??'neutral');
+        $badgeClass='is-type';
+        if($removed){$badge='Deleted';$spoken='Relationship deleted.';}
+        elseif($delta!==0){$badge=sprintf('%+d',$delta);$badgeClass=$delta>0?'is-up':'is-down';$spoken='Affinity '.$badge.'.';}
+        elseif($typeChanged){$badge='Type';$spoken='Relationship type change.';}
+        else{$badge='Change';$spoken='Relationship change.';}
+        $tiers=[];foreach([$before,$after]as$snapshot){foreach($relTiers as$tier){if((int)($snapshot['affinity']??0)>=$tier[0]){$tiers[]=$tier[1];break;}}}
+        $tierChanged=!$removed&&count($tiers)===2&&$tiers[0]!==$tiers[1];
+        $reason=trim((string)($change['reason']??''));
+        $tierLabel=$reason!==''&&$tierChanged?$tiers[1]:'';
+        if($reason===''){
+            if($removed)$reason='Relationship removed';
+            elseif($typeChanged)$reason='Now '.($after['relationship_type']??'neutral');
+            elseif($tierChanged)$reason='Now '.$tiers[1];
+            else $reason='No reason recorded';
+        }
+        ?>
+        <li class="npc-relationship-history-item">
+            <ul class="relationship-change-cell" role="list"><li class="relationship-change-entry">
+                <span class="relationship-change-delta <?=$badgeClass?>"><span class="relationship-change-sr"><?=lorkhan_ui_h($spoken)?> </span><span aria-hidden="true"><?=lorkhan_ui_h($badge)?></span></span>
+                <span class="relationship-change-entry-body"><span class="relationship-change-reason"><?=lorkhan_ui_h($reason)?></span>
+                    <span class="relationship-change-entry-meta"><span class="relationship-change-sr"> toward </span><span class="relationship-change-arrow" aria-hidden="true">&rarr;</span><span class="relationship-change-target"><?=lorkhan_ui_h($change['actor_identity']['display_name']??$change['actor_identity']['record_id']??'Actor')?></span><?php if($tierLabel!==''): ?><span class="relationship-change-tier"><?=lorkhan_ui_h($tierLabel)?></span><?php endif; ?></span>
+                </span>
+            </li></ul>
+            <time class="npc-relationship-history-time" datetime="<?=lorkhan_ui_h($change['created_at'])?>"><?=lorkhan_ui_h(gmdate('j M Y, H:i',strtotime($change['created_at'])))?> UTC</time>
+        </li>
     <?php endforeach; ?></ol><?php endif; ?></section>
     <?php endif; ?>
     <details class="npc-rel-legacy"><summary>Relationship text</summary><?php $field('relationships','Relationships text','textarea',(string)($content['relationships']??''),[],'span-2','Legacy biography text used by profile conversion. Scored relationships above are saved separately.'); ?></details>

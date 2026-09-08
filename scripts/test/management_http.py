@@ -1335,6 +1335,8 @@ except urllib.error.HTTPError as error:
 npc_relationship_url='/LorkhanServer/ui/core/npc_master.php?'+urllib.parse.urlencode({'rel_profile':relationship_values['profile_id'],'rel_playthrough':playthrough_id})
 npc_relationship_page,npc_relationship_body=parse(request(npc_relationship_url))
 assert 'npc-rel-table' in npc_relationship_body and 'Recent Relationship Changes' in npc_relationship_body
+assert 'class="npc-relationship-history-item"' in npc_relationship_body and 'class="relationship-change-delta ' in npc_relationship_body
+assert 'class="relationship-change-target"' in npc_relationship_body and 'class="npc-relationship-history-time"' in npc_relationship_body
 assert 'class="npc-rel-scope" action="/LorkhanServer/ui/core/npc_master.php"' in npc_relationship_body
 assert 'href="/LorkhanServer/ui/relationship_logs.php?' in npc_relationship_body
 assert 'action="/ui/' not in npc_relationship_body and 'href="/ui/' not in npc_relationship_body

@@ -725,12 +725,29 @@ body.view-characters [data-npc-switch-status]:empty { display:none; }
 .npc-rel-build .npc-rel-warning{background:#3a2a0a;border:1px solid #b8860b;border-radius:6px;color:#fde68a;padding:10px 12px}
 .npc-rel-build form{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.npc-rel-build label{flex:1;display:grid;gap:4px}
 .npc-rel-save-note{display:block;color:#888;margin-top:10px;font-size:.78em}
-.npc-relationship-history{background:#1b1b1b;border:1px solid #3f3f3f;border-radius:8px;padding:12px;margin-top:16px}
-.npc-relationship-history h3{margin:0;color:var(--chim-accent);font-size:1rem}
-.npc-relationship-history header p{margin:3px 0 10px;color:#aaa;font-size:.82rem}
-.npc-relationship-history ol{display:grid;gap:6px;margin:0;padding:0;list-style:none}
-.npc-relationship-history li{padding:8px 10px;border:1px solid #333;background:#222;border-radius:5px;font-size:.82rem;overflow-wrap:anywhere}
-.npc-relationship-history time{display:block;color:#888;font-size:.75rem;margin-top:4px}
+/* Derived from HerikaServer 529364c npc_master.php relationship history cards. */
+.npc-relationship-history{grid-column:1/-1;background:#252525;border:1px solid #444;border-radius:8px;padding:14px;margin:0 0 12px}
+.npc-relationship-history h3{margin:0;color:var(--chim-accent);font-size:1rem;line-height:normal}
+.npc-relationship-history-header{margin-bottom:10px}
+.npc-relationship-history header p{margin:3px 0 0;color:#aaa;font-size:.82rem;line-height:1.5}
+.npc-relationship-history-list{display:grid;gap:6px;margin:0;padding:0;list-style:none}
+.npc-relationship-history-item{padding:7px 10px;border-left:3px solid var(--chim-accent);border-radius:0 4px 4px 0;background:#1d1d1d;color:#dee2e6;font-size:.8rem;font-weight:700}
+.npc-relationship-history .relationship-change-cell{display:grid;gap:5px;margin:0;padding:0;list-style:none}
+.npc-relationship-history .relationship-change-entry{display:grid;grid-template-columns:auto minmax(0,1fr);gap:8px;align-items:baseline;min-width:0}
+.npc-relationship-history .relationship-change-delta{box-sizing:content-box;min-width:3.1em;padding:1px 6px;border-radius:4px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.92em;font-weight:700;font-variant-numeric:tabular-nums;text-align:center;white-space:nowrap}
+.npc-relationship-history .relationship-change-delta.is-up{color:#7ee08a;background:rgba(76,175,80,.14);border:1px solid rgba(126,224,138,.35)}
+.npc-relationship-history .relationship-change-delta.is-down{color:#ff8a80;background:rgba(244,67,54,.14);border:1px solid rgba(255,138,128,.35)}
+.npc-relationship-history .relationship-change-delta.is-type{color:var(--chim-accent);background:rgba(188,157,90,.14);border:1px solid rgba(188,157,90,.35);font-family:inherit;font-size:.72em;letter-spacing:.04em;text-transform:uppercase}
+.npc-relationship-history .relationship-change-entry-body{display:block;min-width:0}
+.npc-relationship-history .relationship-change-reason{display:block;color:#e2e2e2;line-height:1.35;overflow-wrap:anywhere}
+.npc-relationship-history .relationship-change-entry-meta{display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 6px;margin-top:2px;font-size:.85em;color:#929292}
+.npc-relationship-history .relationship-change-target{color:#bdbdbd;overflow-wrap:anywhere}
+.npc-relationship-history .relationship-change-arrow{color:#6f6f6f}
+.npc-relationship-history .relationship-change-tier{padding:0 4px;border:1px solid #4a4033;border-radius:3px;color:#d9c39a}
+.npc-relationship-history .relationship-change-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
+.npc-relationship-history-time{display:block;margin-top:4px;color:#888;font-size:.83em}
+.npc-relationship-history p.npc-relationship-history-empty{margin:0;padding:10px;color:#888;text-align:center;font-size:18px;line-height:1.5}
+@media(max-width:700px){.npc-relationship-history{width:calc(100vw - 16px);max-width:100%;box-sizing:border-box;justify-self:start}}
 .npc-rel-legacy{margin-top:16px;color:#aaa;font-size:.85em}.npc-rel-legacy summary{cursor:pointer}
 .npc-rel-legacy textarea{width:100%;height:auto!important;min-height:80px!important}
 .npc-relationships [hidden]{display:none!important}
