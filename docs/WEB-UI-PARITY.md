@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `b549457` (AI Responses same-second ordering).
+Current deployed product checkpoint: `21904d4` (cross-worker voice sample path refresh).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -8590,3 +8590,11 @@ Live paid-provider synthesis and in-game audio remain untested.
 Full management HTTP suite passed with the final code and original test flow
 (diary-stale-path-fixed-http.txt), including diary generation, cache hit/invalidation,
 author changes and subsequent page tests. No retry was needed after the fix.
+
+
+Deployed 21904d4; rollback /var/backups/lorkhanserver-code.mevLYv. All 803 runtime
+files match source, with no extras/legacy paths; health/private/auth checks pass.
+Existing configuration, credentials and voice contents preserved. The reproduced
+invalid_voice_sample failure now has a deterministic passing regression and full
+HTTP acceptance. Historical unresolved-cause notes above are superseded by this
+checkpoint, not by a claim that all live TTS errors are solved. Full goal active.
