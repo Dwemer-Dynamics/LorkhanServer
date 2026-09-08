@@ -6762,3 +6762,32 @@ The broader modal still supplies different widths (1128 versus 1133 desktop; 293
 303.5 narrow). This card work does not accept those differences or close the full NPC
 modal/page matrix row. Populated relationship editor row controls also remain separate
 from this now-ported history-card presentation.
+
+### NPC editor viewport width and responsive thresholds (2026-09-08)
+
+Traced actual parent boxes rather than adjusting history-card widths in isolation.
+Herika's iframe document has 5px right margins on both html and body; native had only
+one 5px margin. Native editor content now uses the combined 10px margin. The viewport
+is a named inline-size container, so the corresponding General form, action card,
+LLM summary and tab layout thresholds follow editor width, as the reference
+iframe media queries do. The relationship card's narrow width uses that container's
+width instead of the outer browser's viewport. Page-level spacing and the outer modal
+header remain tied to the browser, and the 70vh editor scroll viewport is unchanged.
+
+`Temp/npc-modal-responsive-proof.cjs` reads both actual editors at 1280/960/780/390.
+General columns match 2/1/1/1; both switch to two-column tab layouts at the narrower
+editor widths. The reference retains its excluded Background Life tab, so its wide
+tab count is seven versus native six. History panel widths now match at 1128px,
+840px and 663px. At 390px, reference iframe rounding produces 293px versus native
+292.5px; this measured subpixel difference is recorded rather than called exact parity.
+The native-only narrow Tags-row stretching rule was removed to preserve reference
+right alignment. Source-preview screenshots were captured and the 960px single-column native state was
+inspected. No form submission or live data changes were used for this comparison.
+The four-width comparison then passed against deployed CSS after the browser harness
+waited for the reference iframe's scripts before clicking its tabs. The deployed
+populated/empty relationship-card fixture regression also passes, with unchanged
+323.4375px narrow populated-card height. The existing 608 server checks pass.
+
+This closes the missing double margin and wrong responsive coordinate-system causes,
+not the entire NPC editor matrix. Remaining field placement, populated controls,
+metadata semantics and other page families still require their own evidence.

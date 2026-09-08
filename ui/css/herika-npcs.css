@@ -215,7 +215,7 @@ body.view-characters .npc-editor-meta > input {
 }
 .npc-editor-action-card h3 { margin: 0 0 4px; color: #bc9d5a; font-size: 1rem; }
 .npc-editor-action-card p { margin: 0; color: #aaa; font-size: .82rem; }
-@media (max-width: 850px) { .npc-editor-action-card { grid-template-columns: minmax(0, 1fr); } }
+@container npc-editor (max-width: 850px) { .npc-editor-action-card { grid-template-columns: minmax(0, 1fr); } }
 
 .npc-editor-panel .form-item {
     display: flex;
@@ -422,11 +422,11 @@ body.view-characters .npc-editor-meta > input {
     opacity: .65;
 }
 
-@media (max-width: 900px) {
+@container npc-editor (max-width: 900px) {
     .npc-editor-panel.form-grid { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 850px) {
+@container npc-editor (max-width: 850px) {
     .npc-bgl-summary,
     .npc-bgl-control-grid,
     .npc-bgl-request-grid {
@@ -448,19 +448,13 @@ body.view-characters .npc-editor-meta > input {
     body.view-characters .management-page {
         padding: 10px 0 24px;
     }
+}
 
+@container npc-editor (max-width: 700px) {
     .npc-editor-tabs {
         grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
-    .npc-editor-meta {
-        justify-content: stretch;
-    }
-
-    .npc-editor-meta > input {
-        width: 100%;
-        min-width: 0;
-    }
 }
 
 /* Profile Versions keeps the revision controls named separately from the History tab. */
@@ -747,7 +741,7 @@ body.view-characters [data-npc-switch-status]:empty { display:none; }
 .npc-relationship-history .relationship-change-sr{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);clip-path:inset(50%);white-space:nowrap;border:0}
 .npc-relationship-history-time{display:block;margin-top:4px;color:#888;font-size:.83em}
 .npc-relationship-history p.npc-relationship-history-empty{margin:0;padding:10px;color:#888;text-align:center;font-size:18px;line-height:1.5}
-@media(max-width:700px){.npc-relationship-history{width:calc(100vw - 16px);max-width:100%;box-sizing:border-box;justify-self:start}}
+@container npc-editor (max-width:700px){.npc-relationship-history{width:calc(100cqw - 16px);max-width:100%;box-sizing:border-box;justify-self:start}}
 .npc-rel-legacy{margin-top:16px;color:#aaa;font-size:.85em}.npc-rel-legacy summary{cursor:pointer}
 .npc-rel-legacy textarea{width:100%;height:auto!important;min-height:80px!important}
 .npc-relationships [hidden]{display:none!important}
@@ -913,8 +907,9 @@ body.view-characters .npc-editor-modal {padding:30px;max-height:none;overflow:vi
 body.view-characters .npc-editor-modal > .npc-editor-header {flex:0 0 auto;gap:normal;flex-wrap:nowrap;background:#2b2b2b;}
 body.view-characters .npc-editor-modal .npc-modal-actions {gap:10px;justify-content:flex-start;}
 body.view-characters .npc-editor-modal > .npc-modal-body {padding:0;flex:1 1 auto;overflow:visible;background:#232323;font:15px/1.5 "Futura CondensedLight",Arial,sans-serif;}
-.npc-editor-viewport {display:inline-block;vertical-align:baseline;width:100%;height:70vh;overflow:auto;background:#282828;}
-.npc-editor-content {margin:0 5px 50px 0;font:18px "Futura CondensedLight",Arial,sans-serif;}
+.npc-editor-viewport {container:npc-editor / inline-size;display:inline-block;vertical-align:baseline;width:100%;height:70vh;overflow:auto;background:#282828;}
+/* The reference iframe has a 5px right margin on both html and body. */
+.npc-editor-content {margin:0 10px 50px 0;font:18px "Futura CondensedLight",Arial,sans-serif;}
 body.view-characters .npc-editor-modal .npc-modal-actions :is(.btn-save,.btn-cancel) {margin:2px;letter-spacing:.3px;}
 
 /* Relationship controls retain the reference sizes instead of generic NPC form overrides. */
