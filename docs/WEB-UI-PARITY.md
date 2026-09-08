@@ -8653,3 +8653,9 @@ The selected button already matches font/padding/margin and 36px height; its mis
 icon accounted for the remaining visible label difference. Paired deployed icon
 verification follows. No new test files committed. JS syntax, PHP lint, 692 checks
 and full management HTTP pass (events-delete-http.txt). Full page goal stays active.
+
+The first deployed button comparison caught a 12px width difference from flex gaps
+around the count span. Scoped the visible selected button to inline-block; retained
+its hidden attribute behavior. The corrected source-CSS comparison now matches
+166.296875 x 36px at both widths, including font, padding, margin and full icon/text.
+Paired narrow button images inspected after centering to avoid sticky-header clipping.
