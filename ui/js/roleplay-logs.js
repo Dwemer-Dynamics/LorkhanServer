@@ -2,8 +2,17 @@
 (() => {
     const root = document.querySelector('[data-log-page]');
     if (!root) return;
+    let previousOverflow = '';
     root.querySelectorAll('[data-log-open]').forEach(button => button.addEventListener('click', () => {
-        document.getElementById(button.dataset.logOpen)?.showModal();
+        const dialog = document.getElementById(button.dataset.logOpen);
+        if (!dialog || dialog.open) return;
+        previousOverflow = document.body.style.overflow;
+        dialog.querySelector('[data-log-status]').textContent = '';
+        dialog.showModal();
+        document.body.style.overflow = 'hidden';
+    }));
+    root.querySelectorAll('.log-content-modal').forEach(dialog => dialog.addEventListener('close', () => {
+        document.body.style.overflow = previousOverflow;
     }));
     root.querySelectorAll('[data-log-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
     root.querySelectorAll('[data-log-copy]').forEach(button => button.addEventListener('click', async () => {

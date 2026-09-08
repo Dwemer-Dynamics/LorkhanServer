@@ -6584,3 +6584,25 @@ passes reference viewport height and keyboard/Adventure anchor regressions at bo
 widths. 603 checks pass; 799 deployed files match and private/auth/health checks pass.
 Configuration/credential/voice contents preserved. Rollback:
 /var/backups/lorkhanserver-code.2xccO4. No game or live data changes. Full matrix remains open.
+
+## Books reader shared content-viewer presentation
+
+Books' optional reader now uses the same shared modal shell styles as the response
+viewer (derived from Herika's contentModal), retaining the book title rather than
+mislabeling book text Prompt Viewer. Shared base selectors include a distinct
+book-content-viewer class; prompt-message styles remain response-only. Book body is
+13px/1.8 Consolas/Monaco/Courier, with the 20px padded reading surface and 90vh cap.
+Its header wraps for long titles/copy status. Native escaped text and accessible dialog
+remain; Herika Books itself has no reader button, so this is shared-viewer alignment,
+not a claim that the reference Books interaction exists.
+
+Shared log dialog open/close now preserves and restores body overflow and clears stale
+copy status on reopening. Temp/books-reader-proof.cjs passes 1280/390 mocked clipboard
+success/failure, status reset, focus return, close/Escape scroll restoration, long-text
+scrolling, monospace font/padding/max-height assertions; zero real clipboard/provider/
+data writes. The test awaits the native asynchronous close event and inserts long text
+inside the existing preformatted content node. Reference contentModal was displayed
+with synthetic text only for read-only style inspection; paired viewer screenshots
+inspected. 603 checks and Books table/reader regressions passed. 799 deployed files
+match, private/auth/health checks pass; config/credentials/voices preserved. Rollback:
+/var/backups/lorkhanserver-code.G4JhgU. No game activity. Full page matrix remains open.
