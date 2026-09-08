@@ -102,7 +102,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const renderTable = (events) => {
     const table = document.createElement('table');
-    table.className = 'eventlog-table';
+    table.className = 'eventlog-table table table-striped table-bordered table-sm';
     const head = document.createElement('thead');
     const headerRow = document.createElement('tr');
     const selectHeader = document.createElement('th');

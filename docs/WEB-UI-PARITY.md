@@ -6172,3 +6172,39 @@ that difference is visible in the screenshots and is not being declared a comple
 parity item or an accepted product-specific exception. Different navigation entries,
 current dates and recorded data also prevent whole-page pixel identity. Remaining editor,
 provider and lifecycle gaps remain in the counterpart matrix above.
+
+## Events automatic table layout and control typography
+
+Source comparison with pinned Herika `529364c4c12b3a8bd4cc12a481f400ce19b3a344`
+`ui/events-memories.php` and `lib/misc_ui_functions.php` showed that the Events table uses
+Bootstrap's striped/bordered/small table classes with automatic columns and separate
+borders. Lorkhan instead imposed fixed percentage columns, collapsed borders, smaller
+checkboxes and forced word splitting. Both its initial PHP table and AJAX replacement
+now use the reference classes. Removed the competing percentage/minimum-width rules;
+retained the reference People Present width (20%, minimum 300px; 150px on narrow screens),
+checkbox column, cell borders and natural word wrapping. Toolbar and pager weights and
+letter spacing now match the reference. Identity, escaping, filters, scope, selection,
+pagination and deletion code are unchanged.
+
+Evidence:
+- `Temp/events-identical-proof.cjs`: inserted the same synthetic text/checkbox table into
+  both real page shells, without changing either database. All seven header/data column
+  widths, padding/minimum widths, automatic layout and Auto Refresh/Delete/Next font,
+  margin, padding, radius and letter spacing match exactly at 1280 and 390px. Final pass
+  ran against deployed CSS without `SOURCE_CSS` preview. This isolates layout from the
+  products' different data; it is not a same-history or complete colour-state claim.
+- Inspected paired narrow synthetic screenshots, populated live AJAX page-2 screenshots
+  at both widths and native empty-state screenshots. The source/header/stripe differences
+  caused by substituting fixture markup do not establish full visual-state parity.
+- `events-frame-interaction.cjs`: real selection/deselection and AJAX page 2 passed without
+  mutation requests. `events-empty-render-proof.cjs`: intercepted only the page-fetch GET
+  with an empty response fixture; both widths retain readable empty output and the same
+  table classes. No delete was executed and no real event data was changed.
+- JavaScript syntax and all 597 existing server checks passed. Deployment verification:
+  799 runtime files, no mismatches/extras/old paths, health and private/auth checks passed.
+  Configuration, credential and voice hashes preserved; final rollback
+  `/var/backups/lorkhanserver-code.JyDmi8`. No provider requests or game activity.
+
+Still open: full remaining page matrix and the narrow-calendar control choice raised
+with the user. This pass establishes Events table/control geometry, not whole-site
+completion or blanket acceptance of native-only differences.
