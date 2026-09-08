@@ -1017,6 +1017,40 @@ diary_page,diary_html=parse(request(diary_url))
 assert narrative_text in diary_html and 'id="entry-'+narrative_id+'"' in diary_html and 'has-event' in diary_html and 'data-reader-form' in diary_html
 assert 'Read / Edit' not in diary_html and 'id="edit-'+narrative_id+'"' in diary_html and 'id="delete-'+narrative_id+'"' in diary_html
 assert 'Save Changes' in diary_html and 'Edit the content of the diary entry below.' in diary_html
+# Use the existing mock XTTS connector with this saved diary's author; restore all fixture settings afterward.
+diary_psql=['psql','-h','127.0.0.1','-p',sys.argv[3] if len(sys.argv)>3 else '55463','-d','lorkhan_management_http','-v','ON_ERROR_STOP=1','-At']
+def diary_sql(sql): return subprocess.run(diary_psql,input=sql,text=True,capture_output=True,check=True).stdout.strip()
+diary_profile=json.loads(diary_sql(f"SELECT row_to_json(x) FROM (SELECT p.core_profile_id,p.current_revision,r.content FROM lorkhan_internal.profiles p JOIN lorkhan_internal.profile_revisions r ON r.profile_id=p.profile_id AND r.revision=p.current_revision WHERE p.profile_id='{profile_id}') x;"))
+diary_core=diary_profile['core_profile_id'] or diary_sql(f"SELECT core_profile_id FROM lorkhan_internal.core_profiles WHERE installation_id='{valid['installation_id']}' AND default_npc=true AND deleted_at IS NULL LIMIT 1;")
+diary_core_row=json.loads(diary_sql(f"SELECT row_to_json(x) FROM (SELECT c.current_revision,r.content FROM lorkhan_internal.core_profiles c JOIN lorkhan_internal.core_profile_revisions r ON r.core_profile_id=c.core_profile_id AND r.revision=c.current_revision WHERE c.core_profile_id='{diary_core}') x;"))
+def diary_document(table,key,id,revision,content):
+    encoded=json.dumps(content).replace("'","''")
+    diary_sql(f"UPDATE lorkhan_internal.{table} SET content='{encoded}'::jsonb WHERE {key}='{id}' AND revision={revision};")
+diary_tts_id=str(uuid.uuid4())
+diary_sql(f"INSERT INTO lorkhan_internal.configuration_sets(configuration_id,installation_id,kind,name,created_at) VALUES('{diary_tts_id}','{valid['installation_id']}','tts_provider','Diary mock TTS',clock_timestamp()); INSERT INTO lorkhan_internal.configuration_revisions(configuration_id,revision,content,change_reason,created_at) SELECT '{diary_tts_id}',1,r.content,'diary fixture',clock_timestamp() FROM lorkhan_internal.configuration_revisions r JOIN lorkhan_internal.configuration_sets c ON c.configuration_id=r.configuration_id AND c.current_revision=r.revision WHERE c.configuration_id='{sync_tts_id}';")
+try:
+    author_content=dict(diary_profile['content'],voice={'id':batch_voice})
+    core_content=dict(diary_core_row['content']); core_content['routing']=dict(core_content.get('routing',{}),tts_configuration_id=diary_tts_id)
+    diary_document('profile_revisions','profile_id',profile_id,diary_profile['current_revision'],author_content)
+    diary_document('core_profile_revisions','core_profile_id',diary_core,diary_core_row['current_revision'],core_content)
+    diary_payload={'installation_id':valid['installation_id'],'narrative_id':narrative_id}
+    # Earlier tests intentionally exhaust this disposable browser's preview window.
+    diary_sql("UPDATE lorkhan_internal.browser_sessions SET tts_preview_count=0,tts_preview_window_started_at=NULL;")
+    before_diary_audio=len(VoiceProvider.speech_requests)
+    response=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf); diary_clip=response.read()
+    assert response.status==200 and diary_clip.startswith(b'RIFF') and response.headers.get('X-Diary-Audio-Cache')=='miss',(response.status,diary_clip[:200])
+    response=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
+    assert response.status==200 and response.read()==diary_clip and response.headers.get('X-Diary-Audio-Cache')=='hit'
+    assert len(VoiceProvider.speech_requests)==before_diary_audio+1 and VoiceProvider.speech_requests[-1]['speaker_wav']==batch_voice
+    wrong=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',dict(diary_payload,installation_id=str(uuid.uuid4())),csrf)
+    assert wrong.status==404 and len(VoiceProvider.speech_requests)==before_diary_audio+1
+    invalid=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,'invalid-csrf')
+    assert not invalid.headers.get('Content-Type','').startswith('audio/') and len(VoiceProvider.speech_requests)==before_diary_audio+1
+    assert 'data-narrative-id="'+narrative_id+'"' in diary_html and 'data-diary-endpoint=' in diary_html
+finally:
+    diary_document('profile_revisions','profile_id',profile_id,diary_profile['current_revision'],diary_profile['content'])
+    diary_document('core_profile_revisions','core_profile_id',diary_core,diary_core_row['current_revision'],diary_core_row['content'])
+    diary_sql(f"DELETE FROM lorkhan_internal.configuration_revisions WHERE configuration_id='{diary_tts_id}'; DELETE FROM lorkhan_internal.configuration_sets WHERE configuration_id='{diary_tts_id}';")
 diary_revise=next(f for f in diary_page.forms if f['action'].endswith('/forms/narrative-revise') and f['fields'].get('narrative_id')==narrative_id)
 assert diary_revise['fields']['title']==narrative_title and diary_revise['fields']['kind']=='diary'
 assert '<input type="hidden" name="title"' in diary_html and 'diary-entry-metadata' not in diary_html

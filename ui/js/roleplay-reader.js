@@ -123,7 +123,8 @@
         if (entry.closest('dialog')?.open) {
             entry.querySelector('.reader-entry-actions').append(stopButton, status, audio);
         } else dock?.append(stopButton, status, audio);
-        const chunks = sentences(entry.querySelector('[data-reader-text]').innerText);
+        const diaryId = entry.dataset.narrativeId;
+        const chunks = diaryId ? [null] : sentences(entry.querySelector('[data-reader-text]').innerText);
         if (!chunks.length) { announce('This entry has no text to read.'); return; }
         const run = { entry, controller: new AbortController() };
         active = run; entry.classList.add('is-reading'); stopButton.hidden = false; audio.hidden = false;
@@ -131,22 +132,22 @@
             for (let i = 0; i < chunks.length; i += 1) {
                 if (run.controller.signal.aborted) return;
                 updatePlayButtons(entry, 'Generating...', true);
-                announce(`Generating sentence ${i + 1} of ${chunks.length}…`);
-                const response = await fetch(root.dataset.previewEndpoint, {
+                announce(diaryId ? 'Loading audio with the diary author’s voice…' : `Generating sentence ${i + 1} of ${chunks.length}…`);
+                const response = await fetch(diaryId ? root.dataset.diaryEndpoint : root.dataset.previewEndpoint, {
                     method: 'POST', credentials: 'same-origin', signal: run.controller.signal,
                     headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': root.dataset.csrf, Accept: 'audio/*, application/json' },
-                    body: JSON.stringify({ installation_id: root.dataset.installation, configuration_id: root.dataset.connector,
+                    body: JSON.stringify(diaryId ? { installation_id: root.dataset.installation, narrative_id: diaryId } : { installation_id: root.dataset.installation, configuration_id: root.dataset.connector,
                         voice: root.dataset.voice, text: chunks[i] }),
                 });
                 if (!response.ok) throw new Error(response.status === 429
                     ? 'Speech request limit reached. Wait before reading again.'
-                    : 'Speech generation failed. Check TTS Studio and the Narrator voice, then try again.');
+                    : diaryId ? 'Diary audio could not be loaded. Check the author’s profile voice and TTS connector, then try again.' : 'Speech generation failed. Check TTS Studio and the Narrator voice, then try again.');
                 if (!response.headers.get('content-type')?.startsWith('audio/')) throw new Error('The server did not return audio. Reload this page to check your session.');
                 const clip = await response.blob();
                 if (run.controller.signal.aborted) return;
                 if (!clip.size) throw new Error('The speech service returned empty audio.');
                 release(); objectUrl = URL.createObjectURL(clip); audio.src = objectUrl; audio.load();
-                announce(`Reading sentence ${i + 1} of ${chunks.length}.`);
+                announce(diaryId ? 'Reading diary entry.' : `Reading sentence ${i + 1} of ${chunks.length}.`);
                 await waitForPlayback(run.controller.signal);
             }
             if (active === run) stop('Finished reading.');

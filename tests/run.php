@@ -2177,6 +2177,25 @@ try {
     rmdir($omniRoot);
 }
 
+$diaryCacheRoot=sys_get_temp_dir().'/lorkhan-diary-cache-'.bin2hex(random_bytes(6));
+$diaryCache=new \LorkhanServer\Infrastructure\DiaryAudioCache($diaryCacheRoot);
+$diaryCalls=0;
+$generateDiary=static function()use(&$diaryCalls):array{$diaryCalls++;return ['bytes'=>'fixture audio','mime_type'=>'audio/wav'];};
+try {
+    $first=$diaryCache->remember('author-one-entry-one',$generateDiary);
+    $second=$diaryCache->remember('author-one-entry-one',$generateDiary);
+    $changed=$diaryCache->remember('author-one-entry-changed',$generateDiary);
+    $check(!$first['cached']&&$second['cached']&&!$changed['cached']&&$diaryCalls===2,'diary cache reuses identical speech and invalidates changed inputs');
+    $lock=fopen($diaryCacheRoot.'/cache.lock','c');flock($lock,LOCK_EX);
+    try{$busy=false;try{$diaryCache->remember('busy',$generateDiary);}catch(RuntimeException $e){$busy=$e->getMessage()==='diary_audio_busy';}
+        $check($busy&&$diaryCalls===2,'diary cache refuses concurrent generation without calling the provider');}
+    finally{flock($lock,LOCK_UN);fclose($lock);}
+    $bad=false;try{$diaryCache->remember('bad',static fn()=>['bytes'=>'unsafe','mime_type'=>'text/html']);}catch(RuntimeException){$bad=true;}
+    $check($bad&&!is_file($diaryCacheRoot.'/'.hash('sha256','bad').'.audio'),'diary cache rejects non-audio output');
+    for($i=0;$i<66;$i++)$diaryCache->remember('bounded-'.$i,$generateDiary);
+    $check(count(glob($diaryCacheRoot.'/*.audio'))===64,'diary cache retains at most 64 entries');
+} finally {foreach(glob($diaryCacheRoot.'/*')?:[]as$file)unlink($file);rmdir($diaryCacheRoot);}
+
 if ($failures > 0) {
     fwrite(STDERR, "{$failures} of {$checks} server checks failed\n");
     exit(1);

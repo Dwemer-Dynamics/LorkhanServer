@@ -3,7 +3,6 @@
 declare(strict_types=1);
 
 use LorkhanServer\Application\MorrowindCalendar;
-use LorkhanServer\Application\SpeechPreviewCatalog;
 
 $pageTitle = 'Home';
 $topNavSection = 'home';
@@ -48,16 +47,7 @@ $dialogueRows = array_map(static fn(array $row): array => [
 $installation = (string) ($dashboard['current']['installation_id'] ?? '');
 $scopeQuery = http_build_query(['installation_id' => $installation, 'playthrough_id' => $dashboard['current']['playthrough_id'] ?? '']);
 $diary = $dashboard['latest_diary'];
-$preview = [];
-if ($diary !== null && $installation !== '') {
-    $narrator = $productRepository->narratorProfileForInstallation($installation);
-    $preview = SpeechPreviewCatalog::options(
-        $productRepository->listRevisioned('tts_provider', $installation), $productRepository->connectorVoiceCatalog(),
-        (string) ($config['voice_storage_path'] ?? ''),
-        (string) ($productRepository->connectorForInstallation($installation, 'tts_provider')['configuration_id'] ?? ''),
-        SpeechPreviewCatalog::narratorVoice($narrator), SpeechPreviewCatalog::narratorConnector($narrator));
-}
-$diaryAudioReady = ($preview['default_connector_id'] ?? '') !== '' && ($preview['default_voice'] ?? '') !== '';
+$diaryAudioReady = $diary !== null && $installation !== '';
 $includeManagementStyles = false;
 $additionalStylesheets = ['herika-home.css?v=' . (string) filemtime(__DIR__ . '/css/herika-home.css')];
 include __DIR__ . '/tmpl/head.html';
@@ -125,11 +115,11 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                 <?php if ($diary === null): ?>
                     <p class="empty-state">No diary entries found yet.</p>
                 <?php else: ?>
-                    <div class="diary-entry" data-reader data-preview-endpoint="<?= lorkhan_ui_h($managementBasePath.'/api/v1/tts-previews') ?>" data-installation="<?= lorkhan_ui_h($installation) ?>" data-csrf="<?= lorkhan_ui_h($csrf) ?>" data-connector="<?= lorkhan_ui_h($preview['default_connector_id'] ?? '') ?>" data-voice="<?= lorkhan_ui_h($preview['default_voice'] ?? '') ?>" data-max-length="<?= SpeechPreviewCatalog::MAX_TEXT_LENGTH ?>">
-                        <article data-reader-entry>
+                    <div class="diary-entry" data-reader data-diary-endpoint="<?= lorkhan_ui_h($managementBasePath.'/api/v1/diary-audio') ?>" data-installation="<?= lorkhan_ui_h($installation) ?>" data-csrf="<?= lorkhan_ui_h($csrf) ?>">
+                        <article data-reader-entry data-narrative-id="<?= lorkhan_ui_h($diary['narrative_id']) ?>">
                             <div class="diary-paper"><div class="diary-author"><?= lorkhan_ui_h($diary['author']) ?></div><div class="diary-entry-body" data-reader-text><?= nl2br(lorkhan_ui_h($diary['content'])) ?></div></div>
                             <div class="diary-audio-controls">
-                                <button type="button" class="dashboard-btn" data-reader-play<?= $diaryAudioReady ? '' : ' disabled' ?> title="<?= $diaryAudioReady ? 'Uses the Narrator voice or TTS default. Your speech provider may charge.' : 'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play Audio</button>
+                                <button type="button" class="dashboard-btn" data-reader-play<?= $diaryAudioReady ? '' : ' disabled' ?> title="<?= $diaryAudioReady ? 'Uses the diary author’s configured voice. Your speech provider may charge.' : 'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play Audio</button>
                                 <button type="button" class="dashboard-btn" data-reader-stop hidden>Stop Audio</button>
                             </div>
                         </article>

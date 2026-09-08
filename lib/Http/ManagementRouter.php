@@ -308,6 +308,7 @@ final class ManagementRouter
                 return Response::json(502, ['error'=>'stt_test_failed']);
             }
         }
+        if($r->method==='POST'&&$path==='/api/v1/diary-audio')return$this->diaryAudio($this->json($r),$browserSession);
         if($r->method==='POST'&&$path==='/api/v1/tts-previews')return$this->speechPreview($this->json($r),$browserSession);
         if($r->method==='GET'&&$path==='/api/v1/actions')return Response::json(200,['items'=>$this->actions()]);
         if($r->method==='GET'&&$path==='/api/v1/action-policies/editor')return Response::json(200,$this->actionPolicyEditor($r));
@@ -2536,6 +2537,31 @@ final class ManagementRouter
             $this->repository->connectorVoiceCatalog(),(string)($this->providerConfig['voice_storage_path']??''),
             (string)($this->repository->connectorForInstallation($installation,'tts_provider')['configuration_id']??''),
             SpeechPreviewCatalog::narratorVoice($narrator),SpeechPreviewCatalog::narratorConnector($narrator));
+    }
+
+    /** Authorize a saved diary before resolving its author, generating speech or reading cached audio. */
+    private function diaryAudio(array $values,string $browserSession):Response
+    {
+        $installation=$this->need($values,'installation_id');$this->uuid($installation,'installation_id');
+        $entry=$this->need($values,'narrative_id');$this->uuid($entry,'narrative_id');
+        if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'diary_audio_rate_limited']);
+        try {
+            $plan=$this->repository->diarySpeechPlan($installation,$entry);
+            if(mb_strlen($plan['text'],'UTF-8')>65536)return Response::json(422,['error'=>'diary_audio_entry_too_long']);
+            $signature=json_encode([$installation,$entry,$plan['profile_id'],$plan['text'],$plan['connector'],$plan['context']],JSON_THROW_ON_ERROR);
+            $cache=new \LorkhanServer\Infrastructure\DiaryAudioCache(dirname((string)($this->providerConfig['media_storage_path']??'/var/lib/lorkhanserver/media')).'/diary-audio');
+            $audio=$cache->remember($signature,fn()=>ProviderFactory::speechForPreset($this->providerConfig,$plan['connector'])
+                ->synthesize($plan['text'],new NeverCancelledToken(),$plan['context']));
+            return new Response(200,$audio['bytes'],['Content-Type'=>$audio['mime_type'],'Content-Disposition'=>'inline',
+                'Cache-Control'=>'no-store','X-Content-Type-Options'=>'nosniff','X-Diary-Audio-Cache'=>$audio['cached']?'hit':'miss']);
+        } catch(Throwable $error) {
+            $code=$error->getMessage();
+            if($code==='diary_audio_entry_not_found')return Response::json(404,['error'=>$code]);
+            if($code==='diary_audio_busy')return Response::json(409,['error'=>$code]);
+            if(in_array($code,['diary_audio_empty_entry','diary_audio_connector_not_configured','diary_audio_voice_not_configured'],true))
+                return Response::json(422,['error'=>$code]);
+            return Response::json(502,['error'=>'diary_audio_failed']);
+        }
     }
 
     /**

@@ -7435,3 +7435,38 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - The UI is deliberately not marked fixed: authenticated diary audio generation,
   private cache and homepage/reader wiring are still required. The new resolver
   is internal groundwork; Play currently continues to use the old preview lane.
+
+### Diary entry audio endpoint and reader wiring
+
+- Added authenticated POST /manage/api/v1/diary-audio with the existing browser
+  session, CSRF and bounded speech-request budget. The browser supplies only an
+  installation and narrative ID; author, connector, voice, pronunciation and text
+  are resolved server-side. Missing/deleted/wrong-scope entries are checked before
+  cache lookup. Provider failures return opaque codes, never provider payloads.
+- Added private DiaryAudioCache beside the configured media directory. Audio is
+  keyed by entry/author/effective connector/context/spoken text, expires after
+  seven days and is bounded to 64 clips/256 MiB with a 32 MiB per-clip cap. A
+  nonblocking generation lock prevents duplicate simultaneous work. Cache reads
+  remain behind the authenticated entry request; no public audio URLs are added.
+- Diary row/modal Play and homepage latest-diary Play now request saved entries,
+  using full-entry playback and caching like Herika. Pause/resume retains its
+  browser clip. Existing non-diary readers keep their prior preview behavior.
+  Closing the reader stops playback and aborts the browser request; this does not
+  claim cancellation of a provider request already executing on the server.
+- Existing unit suite: 613 checks, including cache reuse/input invalidation,
+  concurrent-generation rejection, non-audio rejection and file-count bounds.
+  Full management HTTP suite passed with actual endpoint + mock XTTS: author
+  voice, first generation/cache hit, no repeated provider call, cross-installation
+  rejection and invalid CSRF. Fixtures restore their settings. Initial failures
+  correctly exposed the previously exhausted test rate window and a connector
+  from another installation; fixed test setup without relaxing production checks.
+- Deployed reader fixture checks at 1280/390 cover entry-ID-only requests, row/modal
+  shared playback, pause/resume without regeneration, pending abort, close/stop,
+  focus restoration and escaped text. Inspected the narrow playing state. Updated
+  the old sentence-queue probe to reflect the full-entry request. No live TTS calls.
+- Source-only deployment preserved secrets/voices, with all 800 runtime hashes and
+  private/authentication probes verified. Rollback: lorkhanserver-code.L2abKn.
+- Live homepage had no diary at both widths: empty state checked, populated
+  homepage playback still unverified. Live-provider long-entry limits, changed
+  author/connector cache invalidation through HTTP and provider-failure visual
+  states still need acceptance; this is not full Diary/page/goal completion.
