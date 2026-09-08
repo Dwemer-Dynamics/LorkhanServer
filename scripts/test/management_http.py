@@ -1047,6 +1047,28 @@ try:
     invalid=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,'invalid-csrf')
     assert not invalid.headers.get('Content-Type','').startswith('audio/') and len(VoiceProvider.speech_requests)==before_diary_audio+1
     assert 'data-narrative-id="'+narrative_id+'"' in diary_html and 'data-diary-endpoint=' in diary_html
+    # Changed persisted speech inputs must miss, while removed entries must not reuse private cached audio.
+    diary_original_text=narrative_text.replace("'","''")
+    alternate_author=str(uuid.uuid4())
+    try:
+        diary_sql(f"UPDATE lorkhan_internal.narrative_records SET content='Changed diary fixture.' WHERE narrative_id='{narrative_id}';")
+        changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        assert len(VoiceProvider.speech_requests)==before_diary_audio+2 and VoiceProvider.speech_requests[-1]['text']=='Changed diary fixture.'
+        diary_sql(f"INSERT INTO lorkhan_internal.profiles(profile_id,installation_id,name,actor_identity,core_profile_id,created_at) VALUES('{alternate_author}','{valid['installation_id']}','Second diary author','{{}}','{diary_core}',clock_timestamp()); INSERT INTO lorkhan_internal.profile_revisions(profile_id,revision,content,change_reason,created_at) SELECT '{alternate_author}',1,content,'diary author fixture',clock_timestamp() FROM lorkhan_internal.profile_revisions WHERE profile_id='{profile_id}' AND revision={diary_profile['current_revision']}; UPDATE lorkhan_internal.narrative_records SET profile_id='{alternate_author}' WHERE narrative_id='{narrative_id}';")
+        changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        assert len(VoiceProvider.speech_requests)==before_diary_audio+3
+        diary_sql(f"UPDATE lorkhan_internal.configuration_revisions SET content=jsonb_set(content,'{{language}}','\"fr\"'::jsonb) WHERE configuration_id='{diary_tts_id}' AND revision=1;")
+        changed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
+        assert changed.status==200 and changed.headers.get('X-Diary-Audio-Cache')=='miss' and changed.read().startswith(b'RIFF')
+        assert len(VoiceProvider.speech_requests)==before_diary_audio+4 and VoiceProvider.speech_requests[-1]['language']=='fr'
+        diary_sql(f"UPDATE lorkhan_internal.narrative_records SET deleted_at=clock_timestamp() WHERE narrative_id='{narrative_id}';")
+        removed=json_request('/LorkhanServer/manage/api/v1/diary-audio','POST',diary_payload,csrf)
+        assert removed.status==404 and len(VoiceProvider.speech_requests)==before_diary_audio+4
+    finally:
+        diary_sql(f"UPDATE lorkhan_internal.narrative_records SET profile_id='{profile_id}',content='{diary_original_text}',deleted_at=NULL WHERE narrative_id='{narrative_id}'; DELETE FROM lorkhan_internal.profile_revisions WHERE profile_id='{alternate_author}'; DELETE FROM lorkhan_internal.profiles WHERE profile_id='{alternate_author}';")
+
 finally:
     diary_document('profile_revisions','profile_id',profile_id,diary_profile['current_revision'],diary_profile['content'])
     diary_document('core_profile_revisions','core_profile_id',diary_core,diary_core_row['current_revision'],diary_core_row['content'])

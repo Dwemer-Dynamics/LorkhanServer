@@ -7492,3 +7492,20 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
   and voices. Rollback: lorkhanserver-code.Pwqcgx. Backend is unchanged from the
   preceding passing management HTTP suite. Full goal remains open, including live
   provider/long-entry behavior and changed-author/connector HTTP cache acceptance.
+
+### Diary HTTP cache invalidation and deletion acceptance
+
+- Extended the existing management HTTP test, using its disposable database and
+  mock TTS server. A persisted entry text change, a different recorded author ID
+  and a connector language change each produce a cache miss and exactly one new
+  provider call. The mock observes the changed text and language, not stale inputs.
+- After a clip is cached, soft-deleting its entry returns 404 without another
+  provider call. Wrong-installation and invalid-CSRF coverage from the preceding
+  endpoint test remains in the same run. Temporary author/content/settings changes
+  are restored; no production records are involved.
+- Full management HTTP suite passed. Python compilation and diff checks passed.
+  Only the existing test and this evidence document changed; runtime deployment
+  remains 8531d96 with no product-code changes in this checkpoint.
+- Changed-author/text/connector cache behavior is no longer an unverified item.
+  External provider limits and long-entry audio are still untested; mock HTTP
+  acceptance does not establish provider latency or audible voice quality.
