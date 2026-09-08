@@ -6526,3 +6526,25 @@ filter, Reset flow pass with zero POSTs; inspected the final narrow filtered pag
 configuration/credential/voice contents are preserved. Rollback:
 /var/backups/lorkhanserver-code.MPodbO. No game activity. Whole-navigation differences
 and the full page/reader counterpart matrix remain open.
+
+## Diary table column structure and prose sizing
+
+Ported Herika diarylog.php's in-body header and column group: Author 20%, Tamrielic
+Time 15%, UTC 10%, with Content/Actions automatic. Added safe UESP calendar header
+link and separate zero-spacing borders; row stripes now follow the reference header
+index. Diary prose remains a keyboard-operable button, but no longer inherits generic
+button font sizing, vertical margins or minimum height. Actions/handlers are unchanged.
+
+Temp/diary-table-proof.cjs uses the freshly rendered native diary fixture and copies
+its text into the actual reference table, adapting reference action classes only in
+the browser. Temp/diary-table-equal-width.cjs constrains both tables to 1100px for a
+controlled comparison: header 39.1875px and populated row 135.125px match, all fonts,
+padding, row backgrounds, border collapse/spacing and the three explicit column widths
+match. Automatic Content/Actions widths differ by about 0.3px; not claimed exact.
+Paired populated crops inspected, with native Play correctly disabled by the fixture's
+missing connector. Real speech was not invoked. Editor validation/intercepted failure/
+Cancel checks pass at 1280/390. 603 checks pass; 799 matching deployed files and passing
+private/auth/health checks; configuration/credentials/voices preserved. Rollback:
+/var/backups/lorkhanserver-code.hfMPAF. No live data edits or game activity.
+Full Diary page/reader/editor acceptance remains open, including heading paint and
+narrow table/calendar behavior; this evidence covers the table component only.

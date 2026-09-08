@@ -166,7 +166,9 @@ function lorkhan_roleplay_reader(array $state, array $installationOptions, strin
         <p role="status" data-roleplay-maintenance-status></p>
         <div data-reader-dock><p class="reader-status" role="status" aria-live="polite" data-reader-status></p><audio controls preload="none" data-reader-audio hidden></audio></div>
         <?php if($tab==='adventure'): lorkhan_adventure_table($state['rows'],$state['date']!=='' || $state['game_date']!==''); elseif($calendar): ?>
-        <div class="calendar-event-scroll"><table class="calendar-event-table"><thead><tr><?php foreach(['Author','Content','Tamrielic Time','Time (UTC)','Actions'] as $label): ?><th scope="col"><?= lorkhan_ui_h($label) ?></th><?php endforeach; ?></tr></thead><tbody>
+        <div class="calendar-event-scroll"><table class="calendar-event-table">
+        <colgroup><col class="diary-col-people"><col><col class="diary-col-gamets"><col class="diary-col-time"><col></colgroup>
+        <tbody><tr><?php foreach(['Author','Content','Tamrielic Time','Time (UTC)','Actions'] as $label): ?><th scope="col"><?php if($label==='Tamrielic Time'): ?><a href="https://en.uesp.net/wiki/Lore:Calendar" target="_blank" rel="noopener noreferrer"><?= lorkhan_ui_h($label) ?></a><?php else: ?><?= lorkhan_ui_h($label) ?><?php endif; ?></th><?php endforeach; ?></tr>
         <?php foreach($state['rows'] as $row): ?><tr>
         <td><?= lorkhan_ui_h($row['person']) ?></td><td><button type="button" class="log-content-link" data-calendar-open="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"><?= nl2br(lorkhan_ui_h($row['content'])) ?></button></td><td><?= lorkhan_ui_h($row['game_date_label']) ?></td><td><?= lorkhan_ui_h(gmdate('d-m-Y H:i:s',strtotime($row['created_at']))) ?></td><td><div class="diary-row-actions">
             <button type="button" class="roleplay-button diary-audio-button" data-reader-play data-reader-target="entry-<?= lorkhan_ui_h($row['narrative_id']) ?>"<?= $ready?'':' disabled' ?> title="<?= $ready?'Uses the Narrator voice or TTS default. Your provider may charge.':'Configure a TTS connector and voice in TTS Studio.' ?>">▶ Play</button>
