@@ -150,7 +150,7 @@ if (!$embedded) include __DIR__ . '/tmpl/navbar.php';
                             <?php
                         lorkhan_narrator_toggle('context_visibility', 'Include Narrator Context in Prompts', ($content['context_visibility'] ?? false) === true, 'Include narrator profile context when assembling NPC prompts.');
                         lorkhan_narrator_toggle('auto_diary_wait_enabled', 'Narrator Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a narrator diary after waiting.');
-                        lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 30, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
+                        lorkhan_narrator_number('diary_interval_seconds', 'Automatic Diary Cooldown (seconds)', (int) ($diary['automatic_interval_seconds'] ?? 120), 10, 86400, 'Minimum real-time delay between automatic narrator diaries. Default: 120 seconds.');
                             ?>
                         </details>
                     </section>

@@ -270,7 +270,7 @@ if (!$embedded) include dirname(__DIR__) . '/tmpl/navbar.php';
                         lorkhan_player_toggle('auto_diary_wait_enabled', 'player-auto-diary-wait-enabled', 'Player Auto Diary Wait', ($diary['automatic_wait_enabled'] ?? false) === true, 'Also generate a player diary after waiting.');
                         ?>
                         <label for="player-diary-interval">Automatic Diary Cooldown (seconds)</label>
-                        <input id="player-diary-interval" name="diary_interval_seconds" type="number" min="30" max="86400" value="<?php echo (int) ($diary['automatic_interval_seconds'] ?? 120); ?>">
+                        <input id="player-diary-interval" name="diary_interval_seconds" type="number" min="10" max="86400" value="<?php echo (int) ($diary['automatic_interval_seconds'] ?? 120); ?>">
                         <span class="hint">Minimum real-time delay between automatic player diaries. Default: 120 seconds.</span>
                     </section>
                 </div>

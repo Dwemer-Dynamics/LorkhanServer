@@ -29,7 +29,7 @@ final class DiaryGenerationPolicy
         foreach(['enabled','automatic_enabled','automatic_wait_enabled','include_in_context','latest_entry_in_context']as$field)
             if(array_key_exists($field,$settings)&&!is_bool($settings[$field]))throw new InvalidArgumentException('invalid_settings_overrides');
         if(array_key_exists('automatic_interval_seconds',$settings)&&(!is_int($settings['automatic_interval_seconds'])
-            ||$settings['automatic_interval_seconds']<30||$settings['automatic_interval_seconds']>86400))
+            ||$settings['automatic_interval_seconds']<10||$settings['automatic_interval_seconds']>86400))
             throw new InvalidArgumentException('invalid_settings_overrides');
         if(array_key_exists('context_turn_limit',$settings)&&(!is_int($settings['context_turn_limit'])
             ||$settings['context_turn_limit']<0||$settings['context_turn_limit']>400))throw new InvalidArgumentException('invalid_settings_overrides');

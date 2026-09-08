@@ -4874,3 +4874,40 @@ values. The browser fixture has no STT connector, so that browser check does not
 prove STT; the existing populated management HTTP suite covers its selector.
 No real credential edits or provider requests were made. Full API provider-badge
 consolidation and the remaining page matrix are still open.
+
+
+### Core Profile Diary Cooldown control
+
+Pinned metadata_json_editor.php and the read-only live reference both define
+Diary Cooldown as 10-1200 seconds. The native field now uses that name and range
+for normal profiles. The server validation and automatic-diary query accept the
+10-second minimum instead of silently enforcing 30 seconds. Player and Narrator
+editors also accept that minimum. Existing values above 1200 remain valid (up to
+the previous 86400 ceiling) and expand the loaded Core Profile control so a save
+does not truncate an existing configuration. The default remains 120 seconds;
+no automatic behavior was enabled or saved user values changed.
+
+Native create-state number/slider synchronization at 10 and 1200 passed. Native
+1280/390 screenshots and the reference desktop Diary section were visually
+inspected; the field uses the same label, slider/number order and minimum/normal
+maximum. No reference form was saved. The surrounding Core Profile sections are
+still incomplete: absent Bored Event, Combat and Quest controls mean the overall
+paired-row layout is not accepted. Current cooldown semantics are automatic
+entries only, not proof of parity for manual diary requests or game timer cadence.
+
+Regular Context History is another coordinated client dependency: both native
+protocol_response.cpp decoders reject values outside 1-100, matching the server
+client-settings/controls schemas. Herika exposes 0-200. Widening only the HTML
+control would break accepted settings; extend the synchronized contract and test
+zero-history prompt semantics before exposing that range.
+
+The preceding API Keys edit also had three status ellipses misencoded during a
+Windows text rewrite. These are corrected to UTF-8; JavaScript syntax passes.
+
+Validation for this checkpoint: 568 unit checks, the management HTTP suite
+(including 10-second save/export/import), vertical-slice integration, and migration/
+durable-job tests passed. The cooldown regression verifies immediate suppression
+and eligibility after a recorded 20-second interval when configured for 10.
+The schema writer again produced only the known inventory hash difference with
+172 relations; that unrelated generated difference was reverted. No schema,
+protocol or client files changed, and no game was launched or controlled.

@@ -995,7 +995,7 @@ final class ProductRepository
             $settings=$effective['settings']['diary']??[];
             if(($settings['enabled']??false)!==true||($settings['automatic_enabled']??false)!==true){$result['skipped'][$profileId]='disabled';continue;}
             if($trigger==='wait'&&($settings['automatic_wait_enabled']??false)!==true){$result['skipped'][$profileId]='wait_disabled';continue;}
-            $seconds=max(30,min(86400,(int)($settings['automatic_interval_seconds']??120)));
+            $seconds=max(10,min(86400,(int)($settings['automatic_interval_seconds']??120)));
             $recent=$this->db->prepare("SELECT 1 FROM durable_jobs WHERE job_type='narrative.generate' "
                 ."AND payload->>'profile_id'=:profile AND payload->>'playthrough_id'=:playthrough "
                 ."AND jsonb_exists(payload,'automatic_trigger') AND created_at>clock_timestamp()-(:seconds||' seconds')::interval LIMIT 1");

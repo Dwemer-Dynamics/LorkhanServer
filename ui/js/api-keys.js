@@ -39,7 +39,7 @@
             }
             const name=label?.value;
             if(!variable)label.readOnly=true;
-            status.textContent='Savingâ€¦';
+            status.textContent='Saving…';
             const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
             try{
                 const result=await post(variable?{action:'set',variable,credential:value}:{add_custom:'1',custom_name:name,custom_credential:value},controller.signal);
@@ -89,7 +89,7 @@
         if(!card.dataset.variable){card.remove();document.getElementById('add-custom-key').focus();return;}
         await serial(async()=>{
             const status=card.querySelector('[data-key-status]'),controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
-            status.textContent='Deletingâ€¦';
+            status.textContent='Deleting…';
             try{await post({delete_custom:card.dataset.variable},controller.signal);card.remove();document.getElementById('add-custom-key').focus();}
             catch(_){status.textContent='Key was not removed. Check the server and try again.';}
             finally{clearTimeout(timer);}
@@ -121,7 +121,7 @@
         const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),10000);
         testRequest=controller;testOpener=button;
         document.getElementById('apikey-test-provider').textContent=card.querySelector('.provider-title').lastElementChild.textContent.trim();
-        status.textContent='Testing API keyâ€¦';status.className='is-loading';
+        status.textContent='Testing API key…';status.className='is-loading';
         dialog.showModal();button.disabled=true;
         try{
             const result=await post({test_key:button.value,['credentials['+button.value+']']:input.value},controller.signal);

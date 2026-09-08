@@ -206,6 +206,9 @@ $diaryOverrides=['enabled'=>true,'automatic_enabled'=>true,'automatic_wait_enabl
 $check(\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides(['context_turn_limit'=>0])===['context_turn_limit'=>0]
     &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides(['context_turn_limit'=>400])===['context_turn_limit'=>400],
     'diary history accepts inheritance and the reference upper limit');
+$check(\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides(['automatic_interval_seconds'=>10])===['automatic_interval_seconds'=>10]
+    &&\LorkhanServer\Application\DiaryGenerationPolicy::validateOverrides(['automatic_interval_seconds'=>86400])===['automatic_interval_seconds'=>86400],
+    'diary cooldown accepts the reference minimum and preserves existing long intervals');
 $diaryMock=(new \LorkhanServer\Application\MockProfileGenerationProvider())->generate(
     ['generation_mode'=>'diary_generation','name'=>'Fargoth','witnessed_context'=>[['type'=>'inputtext']]],new NeverCancelledToken());
 $check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===false
@@ -216,7 +219,7 @@ $check($diaryDefaults['enabled']===false&&$diaryDefaults['automatic_enabled']===
     &&in_array('narrative.generate',\LorkhanServer\Application\FirstPartyJobHandlerFactory::jobTypes(),true),
     'manual and automatic diary generation are opt-in, bounded, deterministic under the mock provider, and registered as durable work');
 foreach([
-    ['enabled'=>'true'],['automatic_enabled'=>1],['automatic_wait_enabled'=>'true'],['automatic_interval_seconds'=>29],
+    ['enabled'=>'true'],['automatic_enabled'=>1],['automatic_wait_enabled'=>'true'],['automatic_interval_seconds'=>9],
     ['automatic_interval_seconds'=>86401],['include_in_context'=>1],['latest_entry_in_context'=>'true'],['context_turn_limit'=>-1],
     ['context_turn_limit'=>401],['prompt'=>''],['unknown'=>true],
 ]as$invalidDiary){

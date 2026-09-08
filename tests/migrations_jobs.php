@@ -1363,7 +1363,7 @@ $products->bindActorProfile(['installation_id'=>$installation,'playthrough_id'=>
     $diaryActor,$diaryProfile['profile_id'],$clock->iso());
 $diaryCoreContent['routing']['diary_generation_configuration_id']=$diaryConnector['configuration_id'];
 $diaryCoreContent['settings_overrides']['diary']=['enabled'=>true,'automatic_enabled'=>true,
-    'automatic_wait_enabled'=>false,'automatic_interval_seconds'=>120,'include_in_context'=>true,
+    'automatic_wait_enabled'=>false,'automatic_interval_seconds'=>10,'include_in_context'=>true,
     'context_turn_limit'=>12,'prompt'=>'Record only witnessed events.'];
 $service->revise('core_profile',$diaryCore['core_profile_id'],$diaryCoreContent,'enable automatic sleep diaries');
 $automaticMessage=['installation_id'=>$installation,'playthrough_id'=>$playthrough['playthrough_id'],
@@ -1382,11 +1382,15 @@ $check($automaticQueued['queued']===1&&$automaticJob&&(float)($automaticPayload[
     &&$automaticCooldown['queued']===0&&in_array('cooldown',$automaticCooldown['skipped'],true),
     'automatic diary did not queue once with frozen trigger metadata and then honor its cooldown: '.json_encode([
         'queued'=>$automaticQueued,'job'=>$automaticJob,'payload'=>$automaticPayload,'cooldown'=>$automaticCooldown],JSON_UNESCAPED_SLASHES));
-$automaticStats=(new Worker($jobs,$diaryRegistry,'automatic-diary-test',5,1,1,0,10,
+// A 20-second-old entry must not retain the former 30-second minimum.
+$db->exec("UPDATE durable_jobs SET created_at=clock_timestamp()-interval '20 seconds' WHERE job_id='{$automaticJob['job_id']}'");
+$automaticMessage['request_id']=Uuid::v4();$expiredCooldown=$products->enqueueAutomaticDiaries($automaticMessage);
+$check($expiredCooldown['queued']===1,'reference ten-second diary cooldown was clamped to the old minimum');
+$automaticStats=(new Worker($jobs,$diaryRegistry,'automatic-diary-test',5,1,2,0,10,
     ['narrative.generate'],static fn(int $microseconds):mixed=>null))->run();
 $automaticNarrative=$db->query("SELECT provenance FROM narrative_records WHERE narrative_id='{$automaticPayload['narrative_id']}'")->fetchColumn();
 $automaticProvenance=$automaticNarrative?json_decode((string)$automaticNarrative,true,32,JSON_THROW_ON_ERROR):[];
-$check($automaticStats['succeeded']===1&&($automaticProvenance['source']??null)==='automatic-diary-generation'
+$check($automaticStats['succeeded']===2&&($automaticProvenance['source']??null)==='automatic-diary-generation'
     &&($automaticProvenance['trigger']??null)==='wait'&&(float)($automaticProvenance['trigger_game_time']??-1)===48.0,
     'automatic diary worker did not preserve its typed event provenance');
 $diaryCoreContent['routing']=[];
