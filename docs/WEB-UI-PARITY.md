@@ -6937,3 +6937,25 @@ while native has one page and no pager link. The resulting top-toolbar heights d
 fixture must separate the content-state difference from the nested native nav layout
 before further CSS changes. Current data differs, so screenshots are not pixel-equality
 proof for table rows or prompt contents. Full goal remains open.
+
+### AI Responses matched pagination states (2026-09-08)
+
+A rendered native template fixture with the reference's 79 pages/3950 rows isolated the
+remaining pager difference: native links lacked the reference 5px margin, 7px vertical
+padding, 500 weight and distinct top/bottom line heights. Matched those values and made
+the native nav wrapper display:contents so Previous/Next participate in the reference's
+flat flex flow; the semantic navigation element and scoped URLs remain. The action
+cluster now uses margin-left:auto instead of relying on space-between. Books/Journal
+pager styling is excluded by the existing book-log-page scope.
+
+Temp/response-pager-fixture.php renders the actual PHP template with synthetic counts
+and no database access. response-pager-compare.cjs and its bottom counterpart compare
+button text, relative x/y, width/height, margin, padding and font metrics with actual
+Herika pages at 1280/780/390. First-page top/bottom, middle-page top (Previous+Next),
+and last-page top (Previous) all match exactly. Narrow pager screenshots reviewed.
+No export, cleanup, provider call or database mutation was triggered. All 608 server
+checks and git diff --check pass. This resolves the pagination mismatch documented
+above, not the remaining full page matrix or unequal live response contents.
+
+Deployed last-page comparisons match at all three widths; all 799 runtime files
+match source. Deployment preserved configuration, credentials and voice files.

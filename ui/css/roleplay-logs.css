@@ -228,3 +228,11 @@ body .ai-response-page .log-page-actions .roleplay-button{
 .book-content-viewer>header{flex-wrap:wrap}
 .book-content-viewer>header>div{align-items:center;flex-wrap:wrap}
 .book-content-viewer [data-log-status]:empty{display:none}
+
+/* AI response pagers use Herika's flat flex flow and distinct top/bottom link line heights. */
+.roleplay-log-page:not(.book-log-page) .log-pagination{justify-content:flex-start}
+.roleplay-log-page:not(.book-log-page) .log-pagination nav{display:contents}
+.roleplay-log-page:not(.book-log-page) .log-page-actions{margin-left:auto}
+body .roleplay-log-page:not(.book-log-page) :is(.log-pagination nav,.log-bottom-pagination) .roleplay-button{margin:5px;padding:7px 12px;font-weight:500;font-size:15px;min-height:0;letter-spacing:.3px}
+body .roleplay-log-page:not(.book-log-page) .log-pagination nav .roleplay-button{line-height:1.2}
+body .roleplay-log-page:not(.book-log-page) .log-bottom-pagination .roleplay-button{line-height:1.5}
