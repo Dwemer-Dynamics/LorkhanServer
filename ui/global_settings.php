@@ -184,6 +184,7 @@ $sections = [
             ['oghma_extractor_timeout_ms', 'Extractor Timeout', '&#x23F1;&#xFE0F;', 'integer', $oghmaSettings['extractor_timeout_ms'], 'Maximum connector-fallback time in milliseconds. Local deterministic retrieval does not use this budget.', ['min' => 250, 'max' => 3000, 'advanced'=>true]],
         ],
         'Context' => [
+            ['context_ground_items_descriptions_only', 'Ground Items Descriptions Only', '&#x1FAA8;', 'boolean', $contextPolicy['ground_items_descriptions_only'] ?? false, 'Only include nearby ground items that have a saved description. Description text can remain hidden through Context Selections. Does not filter equipment or inventory.', []],
             ['context_prompt_timestamp', 'Prompt Timestamp', '&#x1F552;', 'boolean', $contextPolicy['prompt_timestamp'] ?? false, 'Adds relative time dividers between conversation history groups, such as Moments Ago and Earlier in the day. Uses elapsed game time, not real-world time.', []],
         ],
         'Context Selections' => [

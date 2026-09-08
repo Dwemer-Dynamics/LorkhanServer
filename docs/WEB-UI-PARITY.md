@@ -7910,3 +7910,11 @@ proof of author-voice behavior. No provider calls, game actions or runtime write
 - JS syntax, 618 server checks and all 800 runtime hashes/private/auth/health probes
   pass. Config, credentials and voice files preserved. Rollback: 6VdbaX. Full matrix
   and built-in preset/runtime mapping remain open.
+
+### Ground item description filtering checkpoint (2026-09-08)
+
+- Added Context > Ground Items Descriptions Only, default off, matching the reference control's filtering intent. Uses installation-scoped resolved descriptions, not client-provided prose. Description availability remains usable when description text is hidden. Equipment/inventory and points of interest are unchanged.
+- Older global documents and named presets normalize the added flag to false. Existing unit coverage now checks blank descriptions, content-file isolation/case normalization, described counts, hidden text and disabled behavior: 625 server checks passed.
+- Full management HTTP suite passed (`ground-filter-http.txt`), including checked/unchecked save and reload. Browser checks at 1280 and 390 confirmed the live control defaults off and toggles; narrow screenshot inspected. Initial browser probe timed out because it had not selected the Context & Knowledge tab; corrected navigation passed. This is not a full counterpart visual-parity claim.
+- Server-only deployment verified: 800 runtime hashes match, no extra/legacy files; private/auth checks passed; configuration, credentials and voice contents preserved. Rollback: `/var/backups/lorkhanserver-code.Z2X8tX`. No game or live provider calls.
+- Inventory description filtering and the remaining Context controls are still open. Full page parity remains incomplete.

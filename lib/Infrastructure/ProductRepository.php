@@ -2937,7 +2937,7 @@ SQL);
             'narrator_profile'=>$narratorProfile,
             'narrator_event_prompts'=>$promptKeys===[]?[]:$this->narratorEventPromptTexts($turn['installation_id'],$promptKeys),
             'nearby_actor_profiles'=>$contextSections['nearby_actors']?$this->nearbyActorProfilesForTurn($turn):[],
-            'item_descriptions'=>$contextSections['record_descriptions']?$this->itemDescriptionsForTurn($turn):[],
+            'item_descriptions'=>($contextSections['record_descriptions']||($contextPolicy['ground_items_descriptions_only']??false))?$this->itemDescriptionsForTurn($turn):[],
             'prompt'=>$prompt,'history'=>$history,'memory'=>array_slice($memories,0,10),
             'memory_candidates'=>$memorySelection['candidates'],'memory_retrieval'=>$memorySelection['trace'],
             'relationship'=>array_slice($relationships,0,10),'knowledge'=>$knowledge,'knowledge_retrieval'=>$knowledgeSelection['trace'],

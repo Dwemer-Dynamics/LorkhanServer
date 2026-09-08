@@ -349,7 +349,7 @@ final class PromptAssembler
         if ($people !== '') $morrowind .= '<people_present>' . $people . '</people_present>';
         $nearbyActors = $contextPolicy['sections']['nearby_actors'] ? $this->nearbyActorsXml($turn, $context, $details, $itemBlacklist) : '';
         if ($nearbyActors !== '') $morrowind .= '<nearby_actors>' . $nearbyActors . '</nearby_actors>';
-        $nearbyItems = $contextPolicy['sections']['nearby_items'] ? $this->nearbyObjectsXml($context, ['items'], 'item', $itemBlacklist, $details['group_duplicate_items']) : '';
+        $nearbyItems = $contextPolicy['sections']['nearby_items'] ? $this->nearbyObjectsXml($context, ['items'], 'item', $itemBlacklist, $details['group_duplicate_items'], ($contextPolicy['ground_items_descriptions_only'] ?? false) ? ($turn['_item_descriptions'] ?? []) : null) : '';
         if ($nearbyItems !== '') $morrowind .= '<nearby_items>' . $nearbyItems . '</nearby_items>';
         $pointsOfInterest = $contextPolicy['sections']['points_of_interest'] ? $this->nearbyObjectsXml($context, ['doors', 'containers', 'activators'], 'point', [], true) : '';
         if ($pointsOfInterest !== '') $morrowind .= '<points_of_interest>' . $pointsOfInterest . '</points_of_interest>';
@@ -760,12 +760,24 @@ final class PromptAssembler
     }
 
     /** @param list<string> $kinds */
-    private function nearbyObjectsXml(mixed $context, array $kinds, string $tag, array $itemBlacklist, bool $groupDuplicates): string
+    private function nearbyObjectsXml(mixed $context, array $kinds, string $tag, array $itemBlacklist, bool $groupDuplicates, ?array $describedItems = null): string
     {
         if (!is_array($context) || array_is_list($context)) return '';
+        $described = [];
+        // Availability comes from the frozen, installation-scoped description lookup, not client prose.
+        foreach ($describedItems ?? [] as $record) {
+            if (!is_array($record) || !is_string($record['description'] ?? null) || trim($record['description']) === '') continue;
+            $described[$this->actorSemanticKey($record)] = true;
+            $described['*|' . mb_strtolower(trim((string)($record['record_id'] ?? '')), 'UTF-8')] = true;
+        }
         $groups = [];
         foreach ($this->contextItems($context['nearbyObjects'] ?? []) as $index => $object) {
             if (!is_array($object) || array_is_list($object) || !in_array($object['kind'] ?? null, $kinds, true)) continue;
+            if ($describedItems !== null) {
+                $key = trim((string)($object['content_file'] ?? '')) === ''
+                    ? '*|' . mb_strtolower(trim((string)($object['record_id'] ?? '')), 'UTF-8') : $this->actorSemanticKey($object);
+                if (!isset($described[$key])) continue;
+            }
             $name = trim((string)($object['display_name'] ?? $object['record_id'] ?? ''));
             if ($name === '' || $this->blocked($itemBlacklist, $name, (string)($object['record_id'] ?? ''))) continue;
             $key = mb_strtolower((string)($object['kind'] ?? '') . '|' . $name . ($groupDuplicates ? '' : '|' . $index), 'UTF-8');

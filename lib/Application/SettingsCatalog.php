@@ -201,6 +201,7 @@ final class SettingsCatalog
             'oghma' => self::OGHMA_DEFAULTS + ['knowledge_tags' => '', 'extractor_enabled' => false],
             'context' => [
                 'prompt_timestamp' => false,
+                'ground_items_descriptions_only' => false,
                 'sections' => self::CONTEXT_SECTION_DEFAULTS,
                 'details' => self::CONTEXT_DETAIL_DEFAULTS,
                 'event_types' => self::EVENT_TYPES,

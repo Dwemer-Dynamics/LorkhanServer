@@ -927,6 +927,30 @@ $check(str_contains($contextPrompt,'### World')&&str_contains($contextPrompt,'- 
     &&str_contains($contextPrompt,'### Points Of Interest')&&str_contains($contextPrompt,'- **Lock Level:** 20')
     &&!str_contains($contextPrompt,'**Position:**')&&!str_contains($contextPrompt,'**X:**'),
     'OpenMW world, actors, items, and points of interest render as bounded semantic Markdown');
+$groundSelection=$promptSelection;
+$groundSelection['effective_settings']['context']=\LorkhanServer\Application\SettingsCatalog::globalDefaults()['context'];
+$groundSelection['effective_settings']['context']['ground_items_descriptions_only']=true;
+$groundSelection['effective_settings']['context']['sections']['record_descriptions']=false;
+$groundTurn=$contextTurn;
+$groundTurn['payload']['context']['nearbyObjects']['items'][]=['kind'=>'items','record_id'=>'undescribed_ring','display_name'=>'Undescribed Ring'];
+$groundTurn['_item_descriptions']=[['record_id'=>'ingred_bc_bungler_bane_01','content_file'=>'Morrowind.esm','description'=>'Secret mushroom description.']];
+$groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($groundPrompt,"Bungler's Bane") && str_contains($groundPrompt,'- **Count:** 2')
+    && !str_contains($groundPrompt,'Undescribed Ring') && !str_contains($groundPrompt,'Secret mushroom description.')
+    && str_contains($groundPrompt,'### Points Of Interest'),
+    'ground description filtering preserves described counts and points of interest without exposing hidden descriptions');
+$groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='Other.esp';
+$groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($groundPrompt,'### Nearby Items'), 'ground descriptions cannot match an item from another content file');
+$groundTurn['payload']['context']['nearbyObjects']['items'][0]['content_file']='morrowind.ESM';
+$groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($groundPrompt,'### Nearby Items'), 'ground description identity comparison normalizes content file case');
+$groundTurn['_item_descriptions'][0]['description']='   ';
+$groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
+$check(!str_contains($groundPrompt,'### Nearby Items'), 'blank descriptions do not qualify ground items');
+$groundSelection['effective_settings']['context']['ground_items_descriptions_only']=false;
+$groundPrompt=(new PromptAssembler(16384,1024))->assemble($groundTurn,$groundSelection)['provider_input']['_assembled_prompt'];
+$check(str_contains($groundPrompt,'Undescribed Ring'), 'disabled ground description filtering retains undescribed items');
 $knowledgeSelection=$promptSelection;
 $knowledgeSelection['knowledge_retrieval']=['status'=>'fallback_grounded'];
 $knowledgeSelection['knowledge']=[['document_id'=>'oghma-auriel','topic'=>'auriel_s_bow','access_level'=>'basic',
@@ -2129,10 +2153,15 @@ $presetEmbedding['endpoint'] = 'http://127.0.0.1:8181';
 $namedDefault = \LorkhanServer\Application\GlobalSettingsPreset::defaults();
 $legacyPreset = $namedDefault;
 unset($legacyPreset['settings']['context']['prompt_timestamp']);
+unset($legacyPreset['settings']['context']['ground_items_descriptions_only']);
 $legacyApplied = \LorkhanServer\Application\GlobalSettingsPreset::apply($legacyPreset, $presetCurrent, $presetSummary, $presetEmbedding);
 $check($legacyApplied['settings']['context']['prompt_timestamp'] === false, 'older named presets normalize temporal headings to disabled');
+$check($legacyApplied['settings']['context']['ground_items_descriptions_only'] === false, 'older named presets leave ground description filtering disabled');
 $legacyGlobal = $presetCurrent;
 unset($legacyGlobal['context']['prompt_timestamp']);
+unset($legacyGlobal['context']['ground_items_descriptions_only']);
+$check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['ground_items_descriptions_only'] === false,
+    'older global documents leave ground description filtering disabled');
 $check(\LorkhanServer\Application\EffectiveSettingsResolver::validateGlobalSettings($legacyGlobal)['context']['prompt_timestamp'] === false,
     'older global documents retain disabled temporal headings');
 $legacyGlobal['context']['prompt_timestamp'] = 'true';
