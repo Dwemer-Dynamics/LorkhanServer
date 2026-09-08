@@ -8387,3 +8387,29 @@ and button typography/dimensions; inspected voice-upload-final-native.png. All 8
 runtime hashes match, with no extra/legacy paths; health/auth/private-route probes
 pass. Existing configuration, credentials and voice contents preserved. No game
 launch, real upload or paid provider test. GitHub server workflow stays disabled.
+
+### TTS connector editor action-row parity (2026-09-08)
+
+Compared actual Configuration hub TTS lists and the selected Inworld editor at
+1280/390. The reference must finish loading #label and native #tts_name before
+capture; initial placeholder/incorrect-locator captures were discarded. All
+non-GET traffic was blocked and secret-bearing input values cleared before images.
+The differing list lengths are saved data, not missing UI. Matching editor origins
+require explicit scrollIntoView block:start on narrow screens.
+
+Found and corrected action-row styling differences in herika-tts.css. The sidebar
+New/Import row now matches reference margins (6px 0 10px 4px), typography, padding
+and radii. Native Export is a safe download link but now has the reference button's
+2px margin and 6px radius. Native Clone/Delete remain protected POST controls,
+with the reference link geometry: no outer margin and 8px radius. This removes the
+4px excess toolbar height that displaced every following editor field.
+
+Read-only CSS interception and visible computed styles confirm 40px sidebar and
+editor rows on both products. Inspected paired desktop and narrow screenshots
+`tts-editor-fixed-{ref,native}-{1280,390}.png`: action rows and following name,
+service, API badge and fallback hierarchy align. Narrow action wrapping matches.
+Deletion remains disabled for the active/in-use connector; it is not relaxed to
+imitate the unsafe reference availability. Workspace help retains the actual
+native optional-workspace semantics. 691 existing server checks and diff checks
+pass. No real save, clone, delete, import, export or provider synthesis performed.
+Provider-specific lower editor states remain separately open in the matrix.
