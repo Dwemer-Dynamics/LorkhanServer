@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `8554e60d1f22a2b17ac7356f6b9131ad880a81af`.
+Current deployed product checkpoint: `074ad9c` (API Keys content-only shell).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -27,7 +27,7 @@ only the listed states, not completion of every page or feature.
 | Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Remaining calendar/filter/export combinations |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Provider audio acceptance and remaining reader/cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Full reader/filter combinations and observed-book runtime capture |
-| API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Remaining full-page scroll/header behavior and live-provider acceptance; no live credentials tested |
+| API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
 
 The reference's extra excluded navigation entries change wrapping and page origins.
 Do not add blank tabs or reintroduce excluded features to force absolute offsets.
@@ -106,7 +106,7 @@ do not use an exception to excuse a generic substitute layout.
 | `core/npc_master.php` | Same path | Mass Core Profile switch, model summary, tabs, Roleplay and General diary controls compared; movement-card layout matches but NPC-targeted Visit/Teleport/Return is unsupported; Relationships affinity table, scoped editing/build dialogs and recent changes implemented; Relationship Lock/Clear All, build direction and recorded outcome added; manual edits now stage with the NPC save; Details dialog and AI-visible role/memory fields added; AI builds now stage reviewed results with the NPC Save; the unloaded-existing-target review edge is fixed; the full editor/list review remains. Info has confirmed missing Skills/Equipment/Stats/Inventory/Spells/Metadata panels and Setting Overrides; Nine per-actor override leaves now resolve and reach prompt selection, with revisioned form round trips; the nine-leaf visual override editor now stages Add/Edit/Remove and JSON with save/reload and failure proof. Observed Skills/Equipment/Stats/Inventory/Spells/Metadata disclosures now render exact-target recorded state with populated/empty fixture proof. Remaining: target inventory capture, editable metadata semantics, full override catalogue and full modal composition. See NPC observed-state checkpoint below |
 | `core/player_management.php` | Same path | Header/toolbar, biography checkbox, TTS status, card geometry and empty/populated stats compared; import reader and narrow controls checked. AI-generation guidance is wired, and generated speech style now stages in the editor until Save, with an isolated successful browser round trip. Player name editing and embedded saves are implemented with revision-conflict protection; ElevenLabs player overrides are copied and wired; remaining generation edge states remain pending |
 | `narrator_management.php` | `core/narrator_management.php` | Toolbar, switches, dynamic field chips, connector summary and five shared event-prompt rows/editors aligned; Profile & Voice includes wired Oghma tags and native routing in a disclosure; embedded saves stay in the editor. Inline and player speech-style template editors are wired; broader Core semantics and full page acceptance remain pending; current action catalog has no narrator-capable actions |
-| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; full-page scroll/header behavior and live-provider acceptance remain open |
+| `core/api_keys.php` | `core/api_badge.php` | Preset/card geometry, custom Add/Save/Delete editors, replacement autosave and Test reader compared; custom labels are editable with stable connector references; provider presets consolidated to 11 cards with all 32 built-in credential identities editable through saved/optional additional badges; standalone and actual hub preset/custom draft geometry reviewed at 1280/390, with failed-save and concurrent-edit retention rechecked using mocks; content-only shell now matches; live-provider acceptance remains untested |
 | `core/llm_connectors.php` | Same path | Common fields flattened, checkbox request switches and measured columns/icons aligned; native runtime/mock/alternative-token controls moved to secondary connection options with inheritance preserved. OpenRouter model/provider catalogues, filtering, selection, pricing/context, ordered provider preferences and configured-first API-key selection implemented and deployed. JSON Schema and Prefill JSON wired to operation-specific requests. Direct multi-file import, Clear advanced settings and Groq model selection now follow the reference; evidence below. YAML body editor, enable switch and request wiring are implemented; vertical populated comparison, service badges and Test accent corrected. Inherited-runtime API-key selection is now wired and browser save/reload tested; hub selection and unsaved draft retention, narrow editor bounds and failed-save Test refusal are verified; remaining provider/advanced interaction review stays open. Remove Action Prompt is saved UI metadata only in the pinned reference, with no request-side consumer; not copied as an inert switch |
 | `core/tts_connectors.php` | Same path | Populated Inworld/list layout compared; playable Test dialog, provider grouping/field identity, editable Name and collapsed raw options corrected; API Badge selection now matches configured/missing/none states and is wired through speech and account-scoped automatic cloning; provider-specific grids replace generic primary fields, with Inworld/PocketTTS/Cartesia visual comparisons and workspace routing wired; remaining provider controls listed in the latest audit below |
 | `core/stt_connectors.php` | `stt_connectors.php` | Fixed-sample test/result reader, provider-specific fields, functional API Badge and independent service drafts compared; editable Name implemented; Google Free STT still pending |
@@ -8186,6 +8186,20 @@ unchanged. This is a structural correction, not a branding exception.
 The existing HTTP assertion now requires zero current navigation links and no
 navbar element on the child page. The first run failed its old one-current-link
 expectation; the assertion was corrected to the intended reference structure.
-PHP lint and 691 server checks passed. Final HTTP and deployed visual evidence
-will be recorded after completion. No credentials, profile data or provider
-routing changed.
+PHP lint, 691 server checks and the full management HTTP suite passed
+(`apikey-shell-http-2.txt`). No credentials, profile data or provider routing changed.
+
+Deployed `074ad9c` to `/var/www/html/LorkhanServer`; rollback
+`/var/backups/lorkhanserver-code.eVzoQo`. All 803 runtime hashes match with no extras
+or legacy paths. Health/authentication/private-route checks pass, and existing
+configuration, credentials and voice file content hashes were preserved.
+
+Post-deploy `apikey-shell-deployed.cjs` compared both widths and actual hub/direct
+entry: header Y is 10px within each page/frame, with zero child navbar elements,
+matching Herika. Card widths and grid gap remain unchanged. Inspected the native
+desktop direct screenshot and both 390px direct screenshots: the added 82px band
+and fixed logo are gone, and the header/preset origin now matches. Actual hub
+navigation remains outside its child frame. Evidence: temporary
+`apikey-shell-deployed-{ref,native}-{1280,390}-{false,true}.png`. All non-GET traffic
+was blocked and credential inputs cleared before capture. No game/provider tests.
+The full page-by-page goal remains active.
