@@ -2125,6 +2125,26 @@ assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]
 local_export=json.load(request('/LorkhanServer/manage/exports/providers/'+local_id+'.json'))
 assert local_export['content']['service']=='local' and local_export['content']['endpoint']==local_values['endpoint']
 r=request('/LorkhanServer/manage/forms/provider-delete','POST',{'_csrf':csrf,'configuration_id':local_id}); assert r.status==200
+# Quickstart draft tests reuse the real adapter but never persist or activate their submitted settings.
+original_opener,original_jar=opener,jar
+jar=http.cookiejar.CookieJar(); opener=urllib.request.build_opener(urllib.request.HTTPCookieProcessor(jar))
+request('/LorkhanServer/ui/home.php').read(); draft_csrf=next(c.value for c in jar if c.name=='lorkhan_csrf')
+draft_test_path='/LorkhanServer/manage/api/v1/quickstart-local-llm-test'
+draft_setup={'server_type':'other','scope':'conversations','endpoint':local_values['endpoint'],'model':'draft-local-model','disable_streaming':True}
+draft_body={'installation_id':valid['installation_id'],'setup':draft_setup}
+plan_url='/LorkhanServer/manage/api/v1/quickstart-local-llm?installation_id='+valid['installation_id']
+before_draft_plan=json.load(request(plan_url))
+assert json_request(draft_test_path,'POST',draft_body).status==401
+assert json_request(draft_test_path,'POST',dict(draft_body,setup=dict(draft_setup,api_key='must-not-save')),draft_csrf).status==422
+before_draft_calls=len(VoiceProvider.llm_requests)
+draft_test=json_request(draft_test_path,'POST',draft_body,draft_csrf); draft_result=json.load(draft_test)
+assert draft_test.status==200 and draft_result['ok'] and 'valid utterance' in draft_result['message'],draft_result
+assert len(VoiceProvider.llm_requests)==before_draft_calls+1 and VoiceProvider.llm_requests[-1][1]['model']=='draft-local-model'
+assert 'Authorization' not in VoiceProvider.llm_requests[-1][0]
+bad_draft=json_request(draft_test_path,'POST',dict(draft_body,setup=dict(draft_setup,model='invalid-output')),draft_csrf)
+assert bad_draft.status==502 and json.load(bad_draft)=={'error':'local_llm_test_failed'}
+assert json.load(request(plan_url))==before_draft_plan
+opener,jar=original_opener,original_jar
 # Exercise the other real adapters with the same local provider, including operation-specific schemas.
 generation_cases=[
     ({'generation_mode':'diary_generation'},{'title':'Fixture title','content':'A witnessed exchange.'}),

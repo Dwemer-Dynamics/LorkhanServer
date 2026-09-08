@@ -201,6 +201,21 @@ final class ManagementRouter
             // Return routing metadata only: provider configuration and credential references stay out of this response.
             return Response::json(200,['configuration_id'=>$saved['configuration_id'],'routing_plan'=>$saved['routing_plan']]);
         }
+        if ($r->method === 'POST' && $path === '/api/v1/quickstart-local-llm-test') {
+            $body=$this->json($r);$keys=array_keys($body);sort($keys);
+            if($r->query!==[]||$keys!==['installation_id','setup']||!is_string($body['installation_id'])
+                ||!is_array($body['setup'])||array_is_list($body['setup']))throw new InvalidArgumentException('invalid_local_llm_test_request');
+            $this->uuid($body['installation_id'],'installation_id');
+            $this->repository->quickstartLocalRoutingPlan($body['installation_id']);
+            $setup=\LorkhanServer\Application\QuickstartLocalLlm::normalize($body['setup']);
+            if(!$this->management->allowTtsPreview($browserSession))return Response::json(429,['error'=>'local_llm_test_rate_limited']);
+            try {
+                // A transient slot exercises unsaved fields without creating a connector or changing any routes.
+                $provider=ProviderFactory::dialogueForSlot($this->providerConfig,[
+                    'configuration_id'=>'00000000-0000-4000-8000-000000000001','revision'=>1,'content'=>$setup['content']]);
+                return Response::json(200,['ok'=>true,'message'=>$this->diagnoseProvider($provider)]);
+            } catch(Throwable) { return Response::json(502,['error'=>'local_llm_test_failed']); }
+        }
         if ($r->method === 'POST' && $path === '/api/v1/quickstart-minime') {
             $body=$this->json($r);
             if ($r->query!==[] || array_keys($body)!==['installation_id'] || !is_string($body['installation_id'])) {

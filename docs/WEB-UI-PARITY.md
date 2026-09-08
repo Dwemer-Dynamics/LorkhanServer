@@ -8303,3 +8303,34 @@ recorded. No provider or actual clipboard writes.
 
 Only tests and this matrix changed; deployed product remains `6d974fb`, so no
 runtime redeploy is necessary. Full all-page parity goal remains active.
+
+### Quickstart unsaved Local LLM Test implementation (2026-09-08)
+
+Pinned Quickstart source lines 666-791 define Setup as a sibling of OpenRouter,
+with Default/Local LLM profile cards, server/model/URL, Windows/WSL helpers, dialogue
+scope cards, optional credential, timeout, streaming switch, Test and preview.
+Save applies the built-in settings preset before Local LLM routing. The native
+saveQuickstart currently updates only selected Core routes, service selection and
+player name. The existing routing API cannot be presented as that complete save.
+
+Implemented the missing unsaved-test backend at authenticated POST
+`/manage/api/v1/quickstart-local-llm-test`. Strict body accepts installation_id and
+setup only. Uses existing QuickstartLocalLlm validation and local-only URL rules,
+existing shared preview rate limit, ProviderFactory and diagnoseProvider. The slot
+is transient: no connector, snapshot, profile or route is persisted. Sends the
+existing fixed diagnostic greeting, not game context. Response is only a bounded
+success summary or opaque failure code, never raw provider errors/configuration.
+Raw api_key remains rejected; existing credential references are supported.
+
+Existing HTTP suite extended with a separate preview session and disposable LAN
+provider. Checks missing CSRF/raw-key rejection, submitted draft model actually
+used, no inherited Authorization header, invalid output gives opaque 502, and
+routing fingerprint remains identical. PHP lint and 691 checks pass. Full HTTP
+and deployment evidence will follow after completion.
+
+Visible Setup remains open, not accepted by this backend work. Remaining dependencies:
+complete shared built-in Global/Core effects and apply them in the Quickstart save
+transaction; private optional-key handling; actual host/WSL address discovery;
+then copy the reference panel and wire its draft validation/test/save/recap states.
+Player2 and service provisioning remain separately open. Do not claim routing or
+this endpoint alone establishes the visible page's parity.
