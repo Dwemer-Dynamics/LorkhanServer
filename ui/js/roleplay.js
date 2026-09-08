@@ -94,7 +94,12 @@ document.addEventListener('DOMContentLoaded', () => {
     remove.className = 'eventlog-row-delete';
     remove.dataset.eventlogDeleteRow = String(event.rowid);
     remove.title = 'Delete event';
-    remove.textContent = `${event.rowid} 🗑️`;
+    remove.setAttribute('aria-label', `Delete event ${event.rowid}`);
+    remove.append(document.createTextNode(`${event.rowid} `));
+    const icon = document.createElement('span');
+    icon.className = 'eventlog-trash-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    remove.append(icon);
     actionCell.appendChild(remove);
     row.appendChild(actionCell);
     return row;
