@@ -16,7 +16,7 @@ Plugins remain excluded from this release.
 
 ## Current priority presentation checkpoint (2026-09-08)
 
-Current deployed product checkpoint: `df54711` (Events deletion control parity).
+Current deployed product checkpoint: `290f040` (calendar empty-day and boundary parity).
 The dated evidence below supersedes older absence claims. These results establish
 only the listed states, not completion of every page or feature.
 
@@ -24,7 +24,7 @@ only the listed states, not completion of every page or feature.
 | --- | --- | --- |
 | Events | Initial/live Record controls match; duplicate bottom pager removed to match the reference; empty-to-live reconstruction, page change and stopped refresh checked | Whole-table metrics and populated/empty views reviewed; hide/unhide/retry and deletion cancel/failure/success mocked at both widths; reference has no inline event editor |
 | AI Responses | Populated and empty table geometry compared at 1280/390; refreshed empty cells match 38.6875px height and 9px/10px padding | Multirole and empty reader geometry, copy/failure/close and escaped-text wrapping verified; cleanup cancel/failure/reload and populated/empty CSV verified; 61-row multi-page export and exact escaped-prompt round trip verified |
-| Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; remaining month-boundary combinations |
+| Adventure Log | Actual hub populated columns match; empty-date cells now use reference padding and 39.1875px height | Complete-day table and stale-page links now match; selected/latest/all downloads, calendar switching and empty dates rechecked; leap/non-leap and month/year boundary combinations now verified |
 | Diaries | Actual hub populated columns match; empty-date row padding corrected; reader whitespace and editor geometry compared at both widths | Complete day/author sets and corresponding ascending/descending order verified; paired reader/editor refreshed; provider audio acceptance and remaining cache cases |
 | Books | Populated typography and columns compared; missing empty-result panel restored and checked at both widths | Game-time/numeric ordering, 150/1 pagination, filtered/empty results and full export checked with 151 isolated rows; observed-book runtime capture remains unverified |
 | API Keys | Standalone and actual hub preset geometry compared at 1280/390; Custom Keys empty/live and matched draft states inspected; failed-save and pending-save draft retention rechecked with mocks | Content-only shell corrected and deployed; live-provider acceptance remains untested |
@@ -8693,3 +8693,13 @@ empty-calendar images inspected for day structure; direct versus embedded shell
 widths differ, so those images do not establish shell-width parity. Actual hub
 comparison follows deployment. PHP lint, 692 checks and full management HTTP pass
 (calendar-empty-days-http.txt). No new committed test files or live data writes.
+
+Deployed 290f040; rollback /var/backups/lorkhanserver-code.F9Izyy. All 803 runtime
+files match source with no extras/legacy paths. Health/private/auth checks pass;
+configuration/credentials/voice hashes preserved. Actual embedded Roleplay calendars
+for February 2024 have identical day matrices, row heights and total dimensions:
+1236 x 539.1875 at desktop and 346 x 539.1875 at 390px, for both Adventure and Diaries.
+Inspected paired narrow Adventure and desktop Diary table screenshots. Both deployed
+empty calendars contain no links. Existing filter/reset probe passed at both widths
+after correcting its stale diary-empty-text regex; no POSTs occurred. No game or
+provider used. These close the listed month-boundary acceptance, not the full goal.
